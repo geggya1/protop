@@ -94,10 +94,8 @@ body {
 }
 
 .logo-slot--header .logo {
-  width: auto;
+  width: min(15rem, 58vw);
   height: auto;
-  max-height: 4.25rem;
-  max-width: min(17rem, 62vw);
 }
 
 .logo--on-dark {

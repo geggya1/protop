@@ -17,13 +17,25 @@
     return media.matches ? "dark" : "light";
   }
 
+  function syncLogoA11y(theme) {
+    var dark = theme === "dark";
+    document.querySelectorAll(".logo--on-light").forEach(function (img) {
+      img.setAttribute("aria-hidden", dark ? "true" : "false");
+    });
+    document.querySelectorAll(".logo--on-dark").forEach(function (img) {
+      img.setAttribute("aria-hidden", dark ? "false" : "true");
+      if (!dark) img.setAttribute("alt", "");
+      else img.setAttribute("alt", "ProTop. Digitale løsninger for bygg og anlegg.");
+    });
+  }
+
   function paintToggle(theme) {
     if (!toggle) return;
-    var toDark = theme !== "dark";
-    var label = toDark ? "M�rk visning" : "Lys visning";
+    var label = theme === "dark" ? "Lys visning" : "Mørk visning";
     toggle.textContent = label;
     toggle.setAttribute("aria-label", label);
     toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    syncLogoA11y(theme);
   }
 
   function applyTheme(theme, persist) {
@@ -50,8 +62,8 @@
   }
 
   media.addEventListener("change", function () {
-    var stored = storedTheme();
-    if (stored === "light" || stored === "dark") return;
+    var saved = storedTheme();
+    if (saved === "light" || saved === "dark") return;
     root.removeAttribute("data-theme");
     paintToggle(currentTheme());
   });

@@ -36,7 +36,12 @@
     paintToggle(theme);
   }
 
-  applyTheme(currentTheme(), false);
+  var stored = storedTheme();
+  if (stored === "light" || stored === "dark") {
+    applyTheme(stored, false);
+  } else {
+    paintToggle(currentTheme());
+  }
 
   if (toggle) {
     toggle.addEventListener("click", function () {

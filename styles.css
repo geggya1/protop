@@ -89,10 +89,13 @@ body {
 .logo-slot > .logo {
   grid-area: 1 / 1;
   height: auto;
+  object-fit: contain;
+  aspect-ratio: 1306 / 481;
 }
 
 .logo-slot--header .logo {
   width: auto;
+  height: auto;
   max-height: 4.25rem;
   max-width: min(17rem, 62vw);
 }
@@ -164,6 +167,8 @@ main {
 
 .logo-slot--hero .logo {
   width: 100%;
+  height: auto;
+  max-width: 100%;
 }
 
 .site-footer {

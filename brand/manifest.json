@@ -22,13 +22,13 @@
       "use": "Fullfarge lås på hvit eller svært lys bakgrunn. Brukes i toppfelt og hero."
     },
     {
-      "file": "ProTop_logo_primary_transparent_1024.png",
+      "file": "source/ProTop_logo_primary_transparent_1024.png",
       "variant": "primary-lockup",
       "background": "transparent",
-      "use": "Samme primærlås, 1024×377."
+      "use": "Samme primærlås, 1024×377. Tidligere eksport, ikke et eget README-navn."
     },
     {
-      "file": "ProTop_logo_primary_transparent_4096.png",
+      "file": "ProTop_logo_primary_transparent_4096px.png",
       "variant": "primary-lockup",
       "background": "transparent",
       "use": "Samme primærlås, 4096×1509. Til trykk og store flater."
@@ -76,7 +76,7 @@
       "use": "Symbol for små flater. Kildebildet har en liten Digi-påskrift; produktnavnet er ProTop."
     },
     {
-      "file": "ProTop_symbol_transparent_white_matte.png",
+      "file": "source/ProTop_symbol_transparent_white_matte.png",
       "variant": "mark",
       "background": "transparent-white-matte",
       "use": "Samme symbol. Gjennomsiktige piksler har hvit RGB og kan gi hvit kant ved skalering."

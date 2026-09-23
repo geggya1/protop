@@ -33,11 +33,9 @@ if (!process.env.APP_BUILD_ID) {
   } catch {}
 }
 
-// Prefer SPA entry (app.html after marketing merge); fall back to Expo index.html.
+// Expo export writes dist/index.html. Hosting rewrites ** to that file.
 const distDirEarly = path.join(__dirname, '..', 'dist');
-const indexPath = fs.existsSync(path.join(distDirEarly, 'app.html'))
-  ? path.join(distDirEarly, 'app.html')
-  : path.join(distDirEarly, 'index.html');
+const indexPath = path.join(distDirEarly, 'index.html');
 
 if (!fs.existsSync(indexPath)) {
   console.error('dist/index.html not found — run export:web first');

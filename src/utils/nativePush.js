@@ -62,7 +62,7 @@ export async function configureNativePushHandler() {
         name: 'ProTop',
         importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#2563eb',
+        lightColor: '#1099F4',
       });
     }
   } catch (e) {

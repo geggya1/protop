@@ -27,9 +27,12 @@ const shared = colorForExternalCalendar(conn, 'AAMkA-shared', 'microsoft');
 assert.notEqual(shared, parent);
 
 assert.ok(!EXTERNAL_CALENDAR_COLORS.includes('#2563eb'));
+assert.ok(!EXTERNAL_CALENDAR_COLORS.includes('#1099F4'));
 assert.ok(!EXTERNAL_CALENDAR_COLORS.includes('#0078d4'));
 assert.notEqual(parent, '#2563eb');
+assert.notEqual(parent, '#1099F4');
 assert.notEqual(FAMILY_CALENDAR_COLOR, '#2563eb');
+assert.notEqual(FAMILY_CALENDAR_COLOR, '#1099F4');
 
 const defaultEv = withExternalEventColor({
   id: '1',

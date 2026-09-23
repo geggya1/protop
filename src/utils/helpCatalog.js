@@ -145,7 +145,7 @@ const EXTRA_ARTICLES = [
     moduleId: 'settings',
     categoryId: 'getting-started',
     icon: 'settings-outline',
-    accent: '#2563eb',
+    accent: '#1099F4',
     soft: '#dbeafe',
     title: T('Innstillinger — hva du finner hvor', 'Settings — what lives where'),
     summary: T(
@@ -316,7 +316,7 @@ function articleFromIntro(scope, moduleId) {
     moduleId,
     categoryId: cat.id,
     icon: intro.icon || 'help-circle-outline',
-    accent: intro.accent || '#2563eb',
+    accent: intro.accent || '#1099F4',
     soft: intro.soft || '#dbeafe',
     hero: intro.hero || null,
     title: intro.title || label,

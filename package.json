@@ -23,6 +23,7 @@
     "deploy": "npx firebase deploy --only hosting --project protop-c189c",
     "publish:web": "npm run build:web && npm run verify:dist && npm run deploy",
     "build:web": "npm run clean && npm run export:web && npm run stamp:web",
+    "typecheck": "tsc --noEmit",
     "doctor": "npx expo-doctor",
     "prebuild:native": "npx expo prebuild --clean",
     "build:ios": "eas build --platform ios --profile production",

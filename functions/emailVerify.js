@@ -54,7 +54,7 @@ export function buildVerifyEmailHtml(verifyUrl) {
       <a href="${verifyUrl}"
          target="_self"
          rel="noopener"
-         style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:10px;
+         style="background:#1099F4;color:#fff;padding:12px 20px;border-radius:10px;
                 text-decoration:none;display:inline-block;font-weight:700">
         Bekreft e-posten
       </a>

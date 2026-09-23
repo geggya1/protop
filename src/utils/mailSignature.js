@@ -61,7 +61,7 @@ export function buildSignatureHtml(signature, { preview = false } = {}) {
     : '';
   const site = String(sig.website || '').trim();
   const website = site
-    ? `<div style="font-size:10pt"><a href="${escapeHtml(site.startsWith('http') ? site : `https://${site}`)}" style="color:#2563eb;text-decoration:none">${escapeHtml(site)}</a></div>`
+    ? `<div style="font-size:10pt"><a href="${escapeHtml(site.startsWith('http') ? site : `https://${site}`)}" style="color:#1099F4;text-decoration:none">${escapeHtml(site)}</a></div>`
     : '';
   const extra = sig.extra
     ? `<div style="color:#5b6b82;font-size:10pt;margin-top:6px;white-space:pre-wrap">${escapeHtml(sig.extra)}</div>`

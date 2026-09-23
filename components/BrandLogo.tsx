@@ -1,16 +1,26 @@
 import React from 'react';
-import { Image, StyleSheet } from 'react-native';
+import { Image, StyleSheet, type ImageStyle, type StyleProp } from 'react-native';
+
+type Variant = 'full' | 'mark';
+
+type BrandLogoProps = {
+  variant?: Variant;
+  height?: number;
+  maxWidth?: number;
+  style?: StyleProp<ImageStyle>;
+  accessible?: boolean;
+};
 
 const FULL = require('../assets/weekplan-logo-transparent.png');
 const MARK = require('../assets/weekplan-mark.png');
 
-/** ProTop lockup 1306×481; symbol 422×447. */
-const ASPECT = { full: 1306 / 481, mark: 422 / 447 };
+/** Approved lockup 1306×481. Approved symbol 422×447. */
+const ASPECT: Record<Variant, number> = { full: 1306 / 481, mark: 422 / 447 };
 
 /**
- * Offisiell ProTop-logo.
- * variant="full" — lås (top bar, login, welcome).
- * variant="mark" — kun symbol (collapsed rail, favicon-lignende plasser).
+ * Official ProTop logo. Nothing is stretched or redrawn.
+ * variant="full" — lockup (top bar, login, welcome).
+ * variant="mark" — symbol only (collapsed rail).
  */
 export default function BrandLogo({
   variant = 'full',
@@ -18,7 +28,7 @@ export default function BrandLogo({
   maxWidth,
   style,
   accessible = true,
-}) {
+}: BrandLogoProps) {
   const source = variant === 'mark' ? MARK : FULL;
   const aspect = ASPECT[variant] || ASPECT.full;
   let h = height;

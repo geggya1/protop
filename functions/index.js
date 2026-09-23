@@ -159,7 +159,7 @@ export const buildInviteMessage = ({
     <p>Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.</p>
     <p>
       <a href="${registerUrl}"
-         style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;
+         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
         Godta invitasjon
       </a>
@@ -184,7 +184,7 @@ export const buildInviteMessage = ({
     <p>${roleHtml}</p>
     <p>
       <a href="${registerUrl}"
-         style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;
+         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
         Registrer deg nå
       </a>
@@ -784,7 +784,7 @@ export const sendPasswordResetV2 = onCall(
           <p>Klikk lenken for å velge et nytt passord:</p>
           <p>
             <a href="${resetLink}"
-               style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;
+               style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                       text-decoration:none;display:inline-block">
               Velg nytt passord
             </a>

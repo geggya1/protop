@@ -1,11 +1,11 @@
 {
   "ios": {
     "CFBundleDisplayName": "ProTop",
-    "NSPhotoLibraryUsageDescription": "Vi skal bruge dine billeder til at ændre profil- og familiebillede.",
-    "NSCameraUsageDescription": "Vi skal bruge kameraet til at scanne stregkoder på madvarer og ISBN på bøger.",
-    "NSLocationWhenInUseUsageDescription": "Vi bruger din placering til vejr, hjemmeadresse og Familieposition — kun når du beder om det, eller deling er slået til.",
-    "NSFaceIDUsageDescription": "Vi bruger Face ID til at låse appen og beskytte din konto.",
-    "NSMicrophoneUsageDescription": "Vi skal bruge mikrofonen til lydnoter."
+    "NSPhotoLibraryUsageDescription": "ProTop bruger dine billeder, når du opdaterer profilbillede eller vedhæfter et billede.",
+    "NSCameraUsageDescription": "ProTop bruger kameraet, når du tager et billede til profil, note eller vedhæftning.",
+    "NSLocationWhenInUseUsageDescription": "ProTop bruger din placering til vejret på hjem-skærmen, når du beder om det.",
+    "NSFaceIDUsageDescription": "ProTop bruger Face ID til at låse appen og beskytte din konto.",
+    "NSMicrophoneUsageDescription": "ProTop bruger mikrofonen til lydnoter."
   },
   "android": {
     "app_name": "ProTop"

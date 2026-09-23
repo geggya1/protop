@@ -1,3 +1,5 @@
+import { protopBrand } from '../brand/protopBrand';
+
 /** Lys og mørk palett for menyer, flater og tekst. */
 
 export const LIGHT = {
@@ -7,8 +9,8 @@ export const LIGHT = {
   ink: '#1a2744',
   muted: '#5b6b82',
   line: '#e2e8f0',
-  brand: '#2563eb',
-  brandSoft: '#dbeafe',
+  brand: protopBrand.digitalBlue,
+  brandSoft: protopBrand.digitalBlueSoft,
   success: '#16a34a',
   successSoft: '#e4f5ea',
   warn: '#d97706',
@@ -16,9 +18,9 @@ export const LIGHT = {
   star: '#e2a325',
   starSoft: '#fff8e8',
   placeholder: '#94a3b8',
-  kid: '#3b82f6',
-  kidSoft: '#eff6ff',
-  fab: '#2563eb',
+  kid: protopBrand.digitalBlue,
+  kidSoft: protopBrand.digitalBlueSoft,
+  fab: protopBrand.digitalBlue,
   accent: '#6b4ee6',
 };
 
@@ -29,8 +31,8 @@ export const DARK = {
   ink: '#f2f2f7',
   muted: '#8e8e93',
   line: '#38383a',
-  brand: '#60a5fa',
-  brandSoft: '#1e3a5f',
+  brand: protopBrand.digitalBlueOnDark,
+  brandSoft: protopBrand.darkBrandSoft,
   success: '#4ade80',
   successSoft: '#052e16',
   warn: '#fbbf24',
@@ -38,9 +40,9 @@ export const DARK = {
   star: '#fbbf24',
   starSoft: '#3f2e0a',
   placeholder: '#636366',
-  kid: '#60a5fa',
-  kidSoft: '#1e3a5f',
-  fab: '#3b82f6',
+  kid: protopBrand.digitalBlueOnDark,
+  kidSoft: protopBrand.darkBrandSoft,
+  fab: protopBrand.digitalBlue,
   accent: '#c4b5fd',
 };
 

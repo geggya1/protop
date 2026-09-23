@@ -27,7 +27,7 @@ export function buildFriendInviteMessage({
     <p>Du har allerede en konto. Åpne lenken for å godta eller avslå.</p>
     <p>
       <a href="${registerUrl}"
-         style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;
+         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
         Se venneforespørsel
       </a>
@@ -53,7 +53,7 @@ export function buildFriendInviteMessage({
     <p>Opprett en gratis konto. Dere blir venner med hverandre — du får ikke tilgang til familien deres.</p>
     <p>
       <a href="${registerUrl}"
-         style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;
+         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
         Bli med på Weekplan
       </a>

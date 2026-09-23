@@ -1,12 +1,16 @@
+import { protopBrand } from '../brand/protopBrand';
+
+const BRAND = protopBrand.digitalBlue;
+
 /** Standard snarveier — Oppgaver, Handleliste, FamilieSpill, E-post. */
 export const DEFAULT_PARENT_SHORTCUT_IDS = ['stars', 'shop', 'games', 'mail'];
 
 /** Mini icons inside the + mer folder glyph (Kalender / Handleliste / Familie / Spill). */
 export const MORE_FOLDER_GLYPHS = [
-  { icon: 'calendar', color: '#2563eb' },
-  { icon: 'cart', color: '#2563eb' },
+  { icon: 'calendar', color: BRAND },
+  { icon: 'cart', color: BRAND },
   { icon: 'people', color: '#6B8F71' },
-  { icon: 'game-controller', color: '#2563eb' },
+  { icon: 'game-controller', color: BRAND },
 ];
 
 /** Default 4-across home tiles: Oppgave, Handleliste, Familiespill, + mer. */
@@ -135,18 +139,18 @@ export function parentAppAccent(appId) {
     notes: '#ea580c',
     meals: '#0284c7',
     family: '#6B8F71',
-    games: '#2563eb',
+    games: BRAND,
     wishes: '#db2777',
     books: '#7c3aed',
-    shop: '#2563eb',
-    stars: '#2563eb',
-    plan: '#2563eb',
-    mail: '#2563eb',
-    chat: '#2563eb',
+    shop: BRAND,
+    stars: BRAND,
+    plan: BRAND,
+    mail: BRAND,
+    chat: BRAND,
     chores: '#f59e0b',
     more: '#5B63A6',
     reiseplanlegger: '#0d9488',
     scratchMap: '#059669',
   };
-  return map[appId] || '#2563eb';
+  return map[appId] || BRAND;
 }

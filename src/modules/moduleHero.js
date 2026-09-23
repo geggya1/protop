@@ -9,7 +9,7 @@ import { localizeModuleFields } from '../i18n/moduleCatalog.js';
 
 const t = (nb, en) => ({ nb, en });
 
-const BLUE = { bg: '#e8f1ff', bg2: '#f7fbff', accent: '#2563eb' };
+const BLUE = { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#1099F4' };
 const LAVENDER = { bg: '#f1e9ff', bg2: '#faf7ff', accent: '#7c3aed' };
 const MINT = { bg: '#e7f7ee', bg2: '#f5fcf8', accent: '#15803d' };
 const ROSE = { bg: '#fde8f3', bg2: '#fff7fb', accent: '#db2777' };

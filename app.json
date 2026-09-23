@@ -8,7 +8,7 @@
     "scheme": "protop",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "primaryColor": "#2563eb",
+    "primaryColor": "#1099F4",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -30,11 +30,11 @@
         "applinks:www.protop.no"
       ],
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Vi trenger tilgang til bildene dine for \u00e5 endre profil, familiebilde og hjem-toppbilde.",
-        "NSCameraUsageDescription": "Vi trenger kamera for \u00e5 skanne strekkoder p\u00e5 matvarer og ISBN p\u00e5 b\u00f8ker.",
-        "NSLocationWhenInUseUsageDescription": "Vi bruker posisjonen din for v\u00e6rvarsel, hjemadresse og Familieposisjon \u2014 bare n\u00e5r du ber om det eller har sl\u00e5tt p\u00e5 deling.",
-        "NSFaceIDUsageDescription": "Vi bruker Face ID for \u00e5 l\u00e5se appen og beskytte kontoen din.",
-        "NSMicrophoneUsageDescription": "Vi trenger mikrofon for lydnotater.",
+        "NSPhotoLibraryUsageDescription": "ProTop bruker bildene dine når du oppdaterer profilbilde eller legger ved et bilde.",
+        "NSCameraUsageDescription": "ProTop bruker kameraet når du tar bilde til profil, notat eller vedlegg.",
+        "NSLocationWhenInUseUsageDescription": "ProTop bruker posisjonen din til vær på hjem-skjermen når du ber om det.",
+        "NSFaceIDUsageDescription": "ProTop bruker Face ID for å låse appen og beskytte kontoen din.",
+        "NSMicrophoneUsageDescription": "ProTop bruker mikrofonen til lydnotater.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true,
         "CFBundleDevelopmentRegion": "nb",
@@ -127,8 +127,8 @@
       "favicon": "./assets/favicon.png",
       "name": "ProTop",
       "shortName": "ProTop",
-      "description": "ProTop. Digitale l\u00f8sninger for bygg og anlegg.",
-      "themeColor": "#2563eb",
+      "description": "ProTop. Digitale løsninger for bygg og anlegg.",
+      "themeColor": "#1099F4",
       "backgroundColor": "#ffffff"
     },
     "locales": {
@@ -181,21 +181,21 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Vi bruker posisjonen din for Familieposisjon, slik at familiemedlemmer kan se omtrent hvor du er n\u00e5r du har sl\u00e5tt p\u00e5 deling."
+          "locationWhenInUsePermission": "ProTop bruker posisjonen din til vær på hjem-skjermen når du ber om det."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Vi trenger kamera for \u00e5 skanne strekkoder p\u00e5 matvarer og ISBN p\u00e5 b\u00f8ker."
+          "cameraPermission": "ProTop bruker kameraet når du tar bilde til profil, notat eller vedlegg."
         }
       ],
       "expo-screen-orientation",
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#2563eb",
+          "icon": "./assets/notification-icon.png",
+          "color": "#1099F4",
           "defaultChannel": "default"
         }
       ],

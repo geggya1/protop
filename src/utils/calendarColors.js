@@ -2,7 +2,7 @@
  * Stabile, distinkte farger for eksterne kalenderlag (Outlook/Google/ICS).
  * Samme connection + underkalender → samme farge hver gang.
  *
- * Unngå merkevare-blå (#2563eb / Outlook #0078d4) — den er forbeholdt knapper.
+ * Unngå merkevare-blå (#1099F4 / #2563eb / Outlook #0078d4) — den er forbeholdt knapper.
  */
 
 export const FAMILY_CALENDAR_COLOR = '#5b6b82';

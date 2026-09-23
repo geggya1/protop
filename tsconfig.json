@@ -1,4 +1,22 @@
 {
-  "compilerOptions": {},
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "jsx": "react-native",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/brand/platforms.ts",
+    "components/BrandLogo.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "functions",
+    "dist"
+  ]
 }

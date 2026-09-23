@@ -5,7 +5,7 @@ import { Platform, RefreshControl } from 'react-native';
  * Pull-to-refresh for home-style ScrollViews.
  * Soft-refreshes via onSoftRefresh; use hardReloadApp() for a full page reload.
  */
-export function usePullToRefresh(onSoftRefresh, tintColor = '#2563eb') {
+export function usePullToRefresh(onSoftRefresh, tintColor = '#1099F4') {
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {

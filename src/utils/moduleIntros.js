@@ -28,7 +28,7 @@ export function introStorageKey(scope, moduleId) {
 
 export const MODULE_INTRO_SEEN_PREFIX = 'weekplan.moduleIntro.seen.v1';
 
-const BLUE = '#2563eb';
+const BLUE = '#1099F4';
 const BLUE_SOFT = '#dbeafe';
 const TEAL = '#0f766e';
 const TEAL_SOFT = '#ccfbf1';

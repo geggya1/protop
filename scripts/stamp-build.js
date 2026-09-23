@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ICON_VERSION = '4';
+const ICON_VERSION = '5';
 
 function upsertHeadTags(html, tags) {
   let out = html;
@@ -75,8 +75,12 @@ const pwaMeta = [
   ['apple-mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-title', 'ProTop'],
   ['apple-mobile-web-app-status-bar-style', 'default'],
-  ['theme-color', '#2563eb'],
+  ['theme-color', '#1099F4'],
 ];
+const ogImage = '  <meta property="og:image" content="https://protop.no/og-image.png" />';
+html = /property="og:image"/.test(html)
+  ? html.replace(/<meta property="og:image"[^>]*>/, ogImage.trim())
+  : html.replace('</head>', `${ogImage}\n  </head>`);
 for (const [name, content] of pwaMeta) {
   html = html.replace(new RegExp(`<meta name="${name}"[^>]*>`, 'g'), `<meta name="${name}" content="${content}" />`);
   if (!new RegExp(`name="${name}"`).test(html)) {

@@ -13,8 +13,8 @@
   --wp-c-ink: #1a2744;
   --wp-c-muted: #5b6b82;
   --wp-c-line: #e2e8f0;
-  --wp-c-brand: #2563eb;
-  --wp-c-brandSoft: #dbeafe;
+  --wp-c-brand: #1099F4;
+  --wp-c-brandSoft: #E5F6FE;
   --wp-c-success: #16a34a;
   --wp-c-successSoft: #e4f5ea;
   --wp-c-warn: #d97706;
@@ -22,9 +22,9 @@
   --wp-c-star: #e2a325;
   --wp-c-starSoft: #fff8e8;
   --wp-c-placeholder: #94a3b8;
-  --wp-c-kid: #3b82f6;
-  --wp-c-kidSoft: #eff6ff;
-  --wp-c-fab: #2563eb;
+  --wp-c-kid: #1099F4;
+  --wp-c-kidSoft: #E5F6FE;
+  --wp-c-fab: #1099F4;
   --wp-c-accent: #6b4ee6;
   --wp-soft-bg: #F5F2EC;
   --wp-soft-card: #FFFFFF;
@@ -145,7 +145,7 @@ select,
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid #1099F4;
     outline-offset: 2px;
   }
 
@@ -156,7 +156,7 @@ select,
 
   [data-wp-nav-active="1"],
   [data-wp-nav-active="1"]:hover {
-    box-shadow: inset 3px 0 0 #2563eb;
+    box-shadow: inset 3px 0 0 #1099F4;
   }
 
   [data-wp-section="1"]:hover {

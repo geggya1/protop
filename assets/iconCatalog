@@ -1,0 +1,14 @@
+{
+  "name": "Pusse tenner",
+  "slug": "pusse-tenner",
+  "category": "hygiene",
+  "tags": ["tannkost","tenner","morgen"],
+  "locales": { "nb": "Pusse tenner", "en": "Brush teeth" },
+  "ageHint": "3-8",
+  "aspectRatio": 1,
+  "storagePath": "icons/catalog/hygiene/pusse-tenner.png",
+  "url": "https://<your-bucket>/icons/catalog/hygiene/pusse-tenner.png",
+  "approved": true,
+  "createdBy": null,
+  "createdAt": 0
+}

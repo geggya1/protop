@@ -1,0 +1,217 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "2026 ProTop",
+    "categories": [
+      "PRODUCTIVITY",
+      "LIFESTYLE"
+    ],
+    "release": {
+      "automaticRelease": false
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "ageRatingOverride": "NONE",
+      "koreaAgeRatingOverride": "NONE"
+    },
+    "info": {
+      "en-US": {
+        "title": "ProTop",
+        "subtitle": "Family calendar and chores",
+        "promoText": "Less chaos. Calendar, tasks and rewards for the whole family.",
+        "keywords": [
+          "family",
+          "calendar",
+          "chores",
+          "kids",
+          "tasks",
+          "rewards",
+          "schedule"
+        ],
+        "description": "ProTop is the shared week for the whole family.\n\nSee the week, pickups and dinner on one timeline. Kids check off tasks and earn stars. Parents decide who is in the group and which apps each child can open.\n\nIncluded\n• A calendar everyone understands\n• Tasks and rewards\n• Chat for family, team or class\n• Shopping lists, notes and documents\n• Weather, and family location when sharing is on\n• Friends, without giving them the family platform\n\nEach person has their own profile. The app follows your device language, and you can switch later in Settings.\n\nYou can delete your account in Settings. Shared family content stays for the other members. If you are the only adult, the family is closed.\n\nPrivacy: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "The app follows your device language. Delete your account in Settings. Permission texts match the language of your phone.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "en-GB": {
+        "title": "ProTop",
+        "subtitle": "Family calendar and chores",
+        "promoText": "Less chaos. Calendar, tasks and rewards for the whole family.",
+        "keywords": [
+          "family",
+          "calendar",
+          "chores",
+          "kids",
+          "tasks",
+          "rewards",
+          "schedule"
+        ],
+        "description": "ProTop is the shared week for the whole family.\n\nSee the week, pickups and dinner on one timeline. Kids check off tasks and earn stars. Parents decide who is in the group and which apps each child can open.\n\nIncluded\n• A calendar everyone understands\n• Tasks and rewards\n• Chat for family, team or class\n• Shopping lists, notes and documents\n• Weather, and family location when sharing is on\n• Friends, without giving them the family platform\n\nEach person has their own profile. The app follows your device language, and you can switch later in Settings.\n\nYou can delete your account in Settings. Shared family content stays for the other members. If you are the only adult, the family is closed.\n\nPrivacy: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "The app follows your device language. Delete your account in Settings. Permission texts match the language of your phone.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "no": {
+        "title": "ProTop",
+        "subtitle": "Familiekalender og oppgaver",
+        "promoText": "Mindre kaos. Kalender, oppgaver og belønning for hele familien.",
+        "keywords": [
+          "familie",
+          "kalender",
+          "oppgaver",
+          "barn",
+          "ukeplan",
+          "belønning",
+          "henting"
+        ],
+        "description": "ProTop er den delte uka for hele familien.\n\nSe uka, henting og middag på én tidslinje. Barn krysser av oppgaver og samler stjerner. Foresatte bestemmer hvem som er med, og hvilke apper hvert barn kan åpne.\n\nMed i appen\n• Kalender alle skjønner\n• Oppgaver og belønning\n• Prat for familie, lag eller klasse\n• Handlelister, notater og dokumenter\n• Vær, og familieposisjon når deling er på\n• Venner, uten tilgang til familieplattformen\n\nHver person har egen profil. Appen følger språket på telefonen, og du kan bytte senere i Innstillinger.\n\nDu kan slette kontoen din i Innstillinger. Delt familieinnhold blir liggende for de andre. Er du eneste voksen, lukkes familien.\n\nPersonvern: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "Appen følger språket på telefonen. Slett kontoen i Innstillinger. Tillatelsestekstene følger språket på enheten.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "da": {
+        "title": "ProTop",
+        "subtitle": "Familiekalender og opgaver",
+        "promoText": "Mindre kaos. Kalender, opgaver og belønning for hele familien.",
+        "keywords": [
+          "familie",
+          "kalender",
+          "opgaver",
+          "børn",
+          "ugeplan",
+          "belønning"
+        ],
+        "description": "ProTop er den delte uge for hele familien.\n\nSe ugen, afhentning og aftensmad på én tidslinje. Børn krydser opgaver af og samler stjerner. Voksne bestemmer, hvem der er med, og hvilke apps hvert barn kan åbne.\n\nDu kan slette din konto under Indstillinger. Delt familieindhold bliver liggende for de andre.\n\nPrivatliv: https://www.protop.no/personvern",
+        "releaseNotes": "Appen følger sproget på telefonen. Slet kontoen under Indstillinger.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "sv": {
+        "title": "ProTop",
+        "subtitle": "Familjekalender och uppgifter",
+        "promoText": "Mindre kaos. Kalender, uppgifter och belöning för hela familjen.",
+        "keywords": [
+          "familj",
+          "kalender",
+          "uppgifter",
+          "barn",
+          "veckoplan",
+          "belöning"
+        ],
+        "description": "ProTop är den delade veckan för hela familjen.\n\nSe veckan, hämtning och middag på en tidslinje. Barn bockar av uppgifter och samlar stjärnor. Vuxna bestämmer vilka som är med och vilka appar varje barn kan öppna.\n\nDu kan radera kontot i Inställningar. Delat familjeinnehåll blir kvar för de andra.\n\nIntegritet: https://www.protop.no/personvern",
+        "releaseNotes": "Appen följer språk på telefonen. Radera kontot i Inställningar.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "fi": {
+        "title": "ProTop",
+        "subtitle": "Perheen kalenteri ja tehtävät",
+        "promoText": "Vähemmän kaaosta. Kalenteri, tehtävät ja palkinnot koko perheelle.",
+        "keywords": [
+          "perhe",
+          "kalenteri",
+          "tehtävät",
+          "lapset",
+          "viikko",
+          "palkinnot"
+        ],
+        "description": "ProTop on koko perheen yhteinen viikko.\n\nNäe viikko, haut ja ruoka yhdellä aikajanalla. Lapset rastittavat tehtävät ja keräävät tähtiä. Aikuiset päättävät, kuka on mukana ja mitkä sovellukset lapsi saa avata.\n\nVoit poistaa tilin asetuksista. Jaettu perhesisältö jää muille.\n\nTietosuoja: https://www.protop.no/personvern",
+        "releaseNotes": "Sovellus seuraa puhelimen kieltä. Poista tili asetuksista.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "pl": {
+        "title": "ProTop",
+        "subtitle": "Kalendarz i zadania rodziny",
+        "promoText": "Mniej chaosu. Kalendarz, zadania i nagrody dla całej rodziny.",
+        "keywords": [
+          "rodzina",
+          "kalendarz",
+          "zadania",
+          "dzieci",
+          "plan",
+          "nagrody"
+        ],
+        "description": "ProTop to wspólny tydzień całej rodziny.\n\nZobacz tydzień, odbiory i obiad na jednej osi. Dzieci odhaczają zadania i zbierają gwiazdki. Dorośli decydują, kto jest w grupie i które aplikacje dziecko może otworzyć.\n\nKonto usuniesz w Ustawieniach. Wspólne treści rodziny zostają dla pozostałych.\n\nPrywatność: https://www.protop.no/personvern",
+        "releaseNotes": "Aplikacja używa języka telefonu. Usuń konto w Ustawieniach.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "es-ES": {
+        "title": "ProTop",
+        "subtitle": "Calendario y tareas familiares",
+        "promoText": "Menos caos. Calendario, tareas y recompensas para toda la familia.",
+        "keywords": [
+          "familia",
+          "calendario",
+          "tareas",
+          "niños",
+          "plan",
+          "recompensas"
+        ],
+        "description": "ProTop es la semana compartida de toda la familia.\n\nVe la semana, las recogidas y la cena en una sola línea de tiempo. Los niños marcan tareas y ganan estrellas. Los adultos deciden quién entra y qué apps puede abrir cada niño.\n\nPuedes eliminar tu cuenta en Ajustes. El contenido compartido de la familia se queda para los demás.\n\nPrivacidad: https://www.protop.no/personvern",
+        "releaseNotes": "La app sigue el idioma del teléfono. Elimina la cuenta en Ajustes.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "fr-FR": {
+        "title": "ProTop",
+        "subtitle": "Calendrier et tâches famille",
+        "promoText": "Moins de chaos. Calendrier, tâches et récompenses pour toute la famille.",
+        "keywords": [
+          "famille",
+          "calendrier",
+          "taches",
+          "enfants",
+          "planning",
+          "recompenses"
+        ],
+        "description": "ProTop, c’est la semaine partagée de toute la famille.\n\nVois la semaine, les récupérations et le dîner sur une seule frise. Les enfants cochent les tâches et gagnent des étoiles. Les adultes décident qui est dans le groupe et quelles applis chaque enfant peut ouvrir.\n\nTu peux supprimer ton compte dans Réglages. Le contenu partagé de la famille reste pour les autres.\n\nConfidentialité : https://www.protop.no/personvern",
+        "releaseNotes": "L’appli suit la langue du téléphone. Supprime le compte dans Réglages.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "de-DE": {
+        "title": "ProTop",
+        "subtitle": "Familienkalender und Aufgaben",
+        "promoText": "Weniger Chaos. Kalender, Aufgaben und Belohnung für die ganze Familie.",
+        "keywords": [
+          "familie",
+          "kalender",
+          "aufgaben",
+          "kinder",
+          "wochenplan",
+          "belohnung"
+        ],
+        "description": "ProTop ist die gemeinsame Woche für die ganze Familie.\n\nSieh die Woche, Abholen und Abendessen auf einer Zeitleiste. Kinder haken Aufgaben ab und sammeln Sterne. Erwachsene entscheiden, wer dabei ist und welche Apps jedes Kind öffnen darf.\n\nDu kannst dein Konto in den Einstellungen löschen. Geteilte Familieninhalte bleiben für die anderen.\n\nDatenschutz: https://www.protop.no/personvern",
+        "releaseNotes": "Die App folgt der Sprache des Telefons. Konto in den Einstellungen löschen.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      }
+    }
+  }
+}

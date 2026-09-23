@@ -1,0 +1,13 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ProTop",
+    "NSPhotoLibraryUsageDescription": "Nous avons besoin de tes photos pour changer la photo de profil et de famille.",
+    "NSCameraUsageDescription": "Nous avons besoin de l’appareil photo pour scanner les codes-barres et les ISBN.",
+    "NSLocationWhenInUseUsageDescription": "Nous utilisons ta position pour la météo, l’adresse du domicile et la position familiale — seulement si tu le demandes ou si le partage est activé.",
+    "NSFaceIDUsageDescription": "Nous utilisons Face ID pour verrouiller l’appli et protéger ton compte.",
+    "NSMicrophoneUsageDescription": "Nous avons besoin du micro pour les notes vocales."
+  },
+  "android": {
+    "app_name": "ProTop"
+  }
+}

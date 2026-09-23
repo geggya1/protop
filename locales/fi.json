@@ -1,0 +1,13 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ProTop",
+    "NSPhotoLibraryUsageDescription": "Tarvitsemme kuviasi profiili- ja perhekuvan vaihtamiseen.",
+    "NSCameraUsageDescription": "Tarvitsemme kameran viivakoodien ja kirjojen ISBN-koodien skannaamiseen.",
+    "NSLocationWhenInUseUsageDescription": "Käytämme sijaintiasi säähän, kotiosoitteeseen ja Perhesijaintiin — vain kun pyydät tai jako on päällä.",
+    "NSFaceIDUsageDescription": "Käytämme Face ID:tä sovelluksen lukitsemiseen ja tilisi suojaamiseen.",
+    "NSMicrophoneUsageDescription": "Tarvitsemme mikrofonin äänimuistiinpanoihin."
+  },
+  "android": {
+    "app_name": "ProTop"
+  }
+}

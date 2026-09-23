@@ -1,0 +1,13 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ProTop",
+    "NSPhotoLibraryUsageDescription": "Potrzebujemy dostępu do zdjęć, aby zmienić zdjęcie profilu i rodziny.",
+    "NSCameraUsageDescription": "Potrzebujemy aparatu, aby skanować kody kreskowe żywności i ISBN książek.",
+    "NSLocationWhenInUseUsageDescription": "Używamy lokalizacji do pogody, adresu domu i Lokalizacji rodziny — tylko gdy poprosisz lub włączysz udostępnianie.",
+    "NSFaceIDUsageDescription": "Używamy Face ID, aby zablokować aplikację i chronić konto.",
+    "NSMicrophoneUsageDescription": "Potrzebujemy mikrofonu do notatek głosowych."
+  },
+  "android": {
+    "app_name": "ProTop"
+  }
+}

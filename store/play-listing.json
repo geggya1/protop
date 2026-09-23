@@ -1,0 +1,17 @@
+{
+  "packageName": "no.protop.app",
+  "defaultLanguage": "no-NO",
+  "category": "PRODUCTIVITY",
+  "listings": {
+    "no-NO": {
+      "title": "ProTop",
+      "shortDescription": "Samhandling for bygg og anlegg: kalender, oppgaver og belønning.",
+      "fullDescription": "ProTop er den delte uka for hele familien.\n\nSe uka, henting og middag på én tidslinje. Barn krysser av oppgaver og samler stjerner. Foresatte bestemmer hvem som er med.\n\nDu kan slette kontoen i Innstillinger. Personvern: https://www.protop.no/personvern"
+    },
+    "en-US": {
+      "title": "ProTop",
+      "shortDescription": "Family week plan: calendar, tasks and rewards.",
+      "fullDescription": "ProTop is the shared week for the whole family.\n\nSee the week, pickups and dinner on one timeline. Kids check off tasks and earn stars. Parents decide who is in the group.\n\nDelete your account in Settings. Privacy: https://www.protop.no/personvern"
+    }
+  }
+}

@@ -1,0 +1,219 @@
+{
+  "expo": {
+    "name": "ProTop",
+    "slug": "protop",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "protop",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "primaryColor": "#2563eb",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "no.protop.app",
+      "buildNumber": "1",
+      "usesAppleSignIn": true,
+      "associatedDomains": [
+        "applinks:protop.no",
+        "applinks:www.protop.no"
+      ],
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Vi trenger tilgang til bildene dine for \u00e5 endre profil, familiebilde og hjem-toppbilde.",
+        "NSCameraUsageDescription": "Vi trenger kamera for \u00e5 skanne strekkoder p\u00e5 matvarer og ISBN p\u00e5 b\u00f8ker.",
+        "NSLocationWhenInUseUsageDescription": "Vi bruker posisjonen din for v\u00e6rvarsel, hjemadresse og Familieposisjon \u2014 bare n\u00e5r du ber om det eller har sl\u00e5tt p\u00e5 deling.",
+        "NSFaceIDUsageDescription": "Vi bruker Face ID for \u00e5 l\u00e5se appen og beskytte kontoen din.",
+        "NSMicrophoneUsageDescription": "Vi trenger mikrofon for lydnotater.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleDevelopmentRegion": "nb",
+        "LSApplicationCategoryType": "public.app-category.productivity",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "no.protop.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.protop.no",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "protop.no",
+              "pathPrefix": "/"
+            }
+          ]
+        }
+      ]
+    },
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "ProTop",
+      "shortName": "ProTop",
+      "description": "ProTop. Digitale l\u00f8sninger for bygg og anlegg.",
+      "themeColor": "#2563eb",
+      "backgroundColor": "#ffffff"
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "nb": "./locales/nb.json",
+      "da": "./locales/da.json",
+      "sv": "./locales/sv.json",
+      "fi": "./locales/fi.json",
+      "pl": "./locales/pl.json",
+      "es": "./locales/es.json",
+      "fr": "./locales/fr.json",
+      "de": "./locales/de.json"
+    },
+    "plugins": [
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "en",
+              "nb",
+              "da",
+              "sv",
+              "fi",
+              "pl",
+              "es",
+              "fr",
+              "de"
+            ],
+            "android": [
+              "en",
+              "nb",
+              "da",
+              "sv",
+              "fi",
+              "pl",
+              "es",
+              "fr",
+              "de"
+            ]
+          }
+        }
+      ],
+      "expo-font",
+      "expo-image-picker",
+      "@react-native-community/datetimepicker",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      "expo-local-authentication",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Vi bruker posisjonen din for Familieposisjon, slik at familiemedlemmer kan se omtrent hvor du er n\u00e5r du har sl\u00e5tt p\u00e5 deling."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Vi trenger kamera for \u00e5 skanne strekkoder p\u00e5 matvarer og ISBN p\u00e5 b\u00f8ker."
+        }
+      ],
+      "expo-screen-orientation",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

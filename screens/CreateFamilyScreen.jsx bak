@@ -1,0 +1,147 @@
+// screens/CreateFamilyScreen.jsx
+import React, { useState, useMemo } from 'react';
+import { View, Text, TextInput, StyleSheet, Alert, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { getAuth } from 'firebase/auth';
+import { getFirestore, collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import TopNavBar from '../components/TopNavBar';
+
+const PRIMARY = '#0b74d1';
+const TEXT = '#0b1f33';
+
+// ISO uke/år helper (samme som brukt ellers)
+function getIsoWeekYear(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { week: weekNo, year: d.getUTCFullYear() };
+}
+
+export default function CreateFamilyScreen({ navigation }) {
+  const [familyName, setFamilyName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const auth = getAuth();
+  const db = getFirestore();
+
+  // Header-subtitle som på andre sider (dag • uke/år)
+  const anchorDate = useMemo(() => new Date(), []);
+  const dn = useMemo(() => anchorDate.toLocaleDateString('no-NO', { weekday: 'long' }), [anchorDate]);
+  const wk = useMemo(() => getIsoWeekYear(anchorDate), [anchorDate]);
+
+  const handleCreateFamily = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert('Feil', 'Brukeren er ikke innlogget.');
+      return;
+    }
+    if (!familyName.trim()) {
+      Alert.alert('Feil', 'Du må skrive inn et familienavn.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // 1) Opprett familie
+      const familyRef = await addDoc(collection(db, 'families'), {
+        name: familyName.trim(),
+        members: [user.uid],
+        children: [],
+        sharedProgress: true,
+        active: true,
+        createdAt: new Date(),
+      });
+
+      const familyId = familyRef.id;
+
+      // 2) Oppdater forelderens dokument
+      const parentDocRef = doc(db, 'parents', user.uid);
+      await updateDoc(parentDocRef, { familyId });
+
+      Alert.alert('Suksess', 'Familie opprettet!');
+      navigation.navigate('FamilyOverview');
+    } catch (error) {
+      console.error('Feil ved opprettelse:', error);
+      Alert.alert('Feil', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#f6f9fc' }}>
+      {/* Top header – samme bruk som i AddTodoScreen */}
+      <TopNavBar
+        title="Opprett familie"
+        subtitle={`${dn}  •  Uke ${wk.week} ${wk.year}`}
+        showBack
+        onBack={() => navigation.goBack()}
+        // TopNavBar bruker prop "bg" for bakgrunnsfarge (blå som standard),
+        // men vi sender den eksplisitt for tydelighet.
+        bg={PRIMARY}
+      />
+
+      <View style={styles.wrap}>
+        <View style={styles.card}>
+          <Text style={styles.label}>Navn på familie</Text>
+          <TextInput
+            style={styles.input}
+            value={familyName}
+            onChangeText={setFamilyName}
+            placeholder="F.eks. Familien Olsen"
+            placeholderTextColor="#7A8A9A"
+          />
+          {loading ? (
+            <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 16 }} />
+          ) : (
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateFamily} activeOpacity={0.9}>
+              <Text style={styles.primaryBtnText}>Opprett familie</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { flex: 1, padding: 14 },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 2px 10px rgba(2,6,23,0.06)' }
+      : { elevation: 2 }),
+  },
+  label: { marginTop: 4, marginBottom: 8, fontWeight: '700', color: TEXT, fontSize: 16 },
+  input: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 16,
+    fontSize: 16,
+    color: TEXT,
+  },
+  primaryBtn: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 10px 20px rgba(11,116,209,0.18)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.12,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 4,
+        }),
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
+});

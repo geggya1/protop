@@ -17,15 +17,19 @@ function idsIn(sections) {
   return ids;
 }
 
-const shellIds = ['home', 'friends', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal'];
-
 {
   const sections = buildShellModules({
     t, asChild: false, asParent: true, isSuperAdmin: true,
     familyId: 'F', hasKids: true, childForSchedule: kid, firstKid: kid,
   });
   const ids = idsIn(sections);
-  assert.deepEqual(ids.filter((id) => shellIds.includes(id)).sort(), [...shellIds].sort());
+  for (const id of ['home', 'friends', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal', 'moduleAccess']) {
+    assert.ok(ids.includes(id), id);
+  }
+  const account = sections.find((s) => s.id === 'account');
+  assert.ok(account.items.some((i) => i.id === 'settings'));
+  assert.ok(account.items.some((i) => i.id === 'help'));
+  assert.ok(account.items.some((i) => i.id === 'legal'));
   for (const hidden of ['chat', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the ProTop shell`);
   }

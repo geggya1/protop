@@ -25,8 +25,10 @@ assert.ok(articles.some((a) => a.id === 'help.lightbulb'));
 assert.ok(articles.some((a) => a.moduleId === 'plan' || a.id === 'family.plan'));
 
 const cats = listHelpCategories('nb');
-assert.ok(cats.length >= 6);
+assert.ok(cats.length >= 3);
 assert.ok(cats[0].title);
+assert.ok(articles.some((a) => a.moduleId === 'mail' || a.moduleId === 'notes' || a.moduleId === 'settings'));
+assert.equal(articles.some((a) => a.moduleId === 'shop' || a.moduleId === 'lekser'), false);
 
 const hits = searchHelpArticles('lyspære', { lang: 'nb', audience: 'parent', device: 'phone' });
 assert.ok(hits.length >= 1);
@@ -38,8 +40,9 @@ assert.ok(phone.length >= 1);
 assert.ok(desk.length >= 1);
 assert.notEqual(phone[0].deviceTip, desk[0].deviceTip);
 
-const school = articlesForCategory('school', { lang: 'nb' });
-assert.ok(school.some((a) => /lekse|skole|klasse|bok/i.test(`${a.title} ${a.moduleId}`)));
+const planHelp = articlesForCategory('plan', { lang: 'nb' });
+assert.ok(planHelp.some((a) => a.moduleId === 'plan'));
+assert.equal(articlesForCategory('school', { lang: 'nb' }).some((a) => a.moduleId === 'lekser'), false);
 
 const snippets = buildHelpKnowledgeSnippets({ lang: 'nb', limit: 5 });
 assert.equal(snippets.length, 5);

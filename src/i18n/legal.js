@@ -7,7 +7,7 @@ const TERMS_NB = [
   'Sist oppdatert: 20. august 2026',
   '1. Aksept av vilkårene',
   'Disse vilkårene regulerer bruk av ProTop (appen og protop.no), heretter «tjenesten». Når du oppretter konto eller bruker tjenesten, inngår du avtale med ProTop (protop.no) på disse vilkårene.',
-  'ProTop er en familie- og husholdsplanlegger: kalender, gjøremål, belønning, meldinger, notater, handleliste, bokhylle, aktiviteter og valgfri AI-hjelp. I tillegg kan du bruke idrettslag-/lagmodus for lag, arrangementer og lagkommunikasjon, med mulighet til å bytte mellom familie- og lagsvisning.',
+  'ProTop er digitale løsninger for bygg og anlegg. Tjenesten er samhandling: hjem, venner, kalender, e-post, oppgaver og notat, med innstillinger, varslinger og hjelp. Skallet er det samme på mobil, nettbrett og web.',
   '2. Roller i familien',
   'En foresatt (forelder/verge) kan opprette eller administrere en familiegruppe, legge til barn og andre foresatte, og styre innstillinger. Barn kan ha egne innlogginger knyttet til familien. Du som foresatt er ansvarlig for at barn under den nasjonale digitalaldersgrensen (typisk 13 år i Norge, ellers etter land) har nødvendig samtykke, og for hvordan barnets profil brukes.',
   '3. Alder',
@@ -36,7 +36,7 @@ const TERMS_NB = [
 const PRIVACY_NB = [
   'PERSONVERNERKLÆRING FOR WEEKPLAN',
   'Sist oppdatert: 20. august 2026',
-  'Kort fortalt: ProTop (protop.no) er behandlingsansvarlig. Vi behandler opplysninger for å levere familieplanleggeren (kalender, gjøremål, belønning, chat, notater m.m.). Barn under den lovpålagte alderen krever foresattesamtykke. Vi selger ikke personopplysninger.',
+  'Kort fortalt: ProTop (protop.no) er behandlingsansvarlig. Vi behandler opplysninger for å levere samhandling for bygg og anlegg (hjem, venner, kalender, e-post, oppgaver, notat, innstillinger, varslinger og hjelp). Vi selger ikke personopplysninger.',
   '1. Hvem vi er',
   'Behandlingsansvarlig: ProTop (protop.no). Kontakt: https://protop.no. Ved spørsmål om personvern, bruk samme adresse.',
   '2. Opplysninger vi behandler',

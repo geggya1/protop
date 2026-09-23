@@ -9,6 +9,7 @@ import {
   getModuleIntro,
   pickIntroText,
 } from './moduleIntros.js';
+import { isProtopShellModule } from '../navigation/protopShell.js';
 
 const T = (nb, en) => ({ nb, en });
 
@@ -358,12 +359,14 @@ export function listHelpArticles({ scope = 'family' } = {}) {
   const seen = new Set();
 
   for (const extra of EXTRA_ARTICLES) {
+    if (!isProtopShellModule(extra.moduleId) && !String(extra.moduleId || '').startsWith('help')) continue;
     articles.push({ ...extra, scope });
     seen.add(extra.id);
   }
 
   const moduleIds = scope === 'family' ? familyModuleIds() : [];
   for (const moduleId of moduleIds) {
+    if (!isProtopShellModule(moduleId)) continue;
     const art = articleFromIntro(scope, moduleId);
     if (!art || seen.has(art.id)) continue;
     // Prefer richer EXTRA article for settings/support if present
@@ -383,8 +386,8 @@ export function listHelpCategories(lang = 'nb') {
     id: c.id,
     icon: c.icon,
     title: pickIntroText(c.title, lang),
-    moduleIds: c.moduleIds,
-  }));
+    moduleIds: c.moduleIds.filter((id) => isProtopShellModule(id) || String(id).startsWith('help')),
+  })).filter((c) => c.moduleIds.length > 0);
 }
 
 export function getHelpArticle(articleId, { scope = 'family' } = {}) {

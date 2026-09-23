@@ -34,19 +34,19 @@ assert.equal(DEFAULT_HOME_LOOK, 'oversikt');
 assert.deepEqual(HOME_LOOKS.map((l) => l.id), ['oversikt', 'fokus']);
 
 assert.deepEqual(DEFAULT_PARENT_WIDGETS.map((w) => w.type), [
-  'timeline', 'progress', 'shopping', 'kids', 'shortcuts',
+  'timeline', 'tasks', 'notes', 'reminders', 'shortcuts',
 ]);
 assert.deepEqual(
-  DEFAULT_PARENT_WIDGETS.filter((w) => w.type === 'progress' || w.type === 'shopping').map((w) => ({
+  DEFAULT_PARENT_WIDGETS.filter((w) => w.type === 'tasks' || w.type === 'notes').map((w) => ({
     type: w.type, gw: w.gw, gh: w.gh,
   })),
   [
-    { type: 'progress', gw: 3, gh: 3 },
-    { type: 'shopping', gw: 2, gh: 3 },
+    { type: 'tasks', gw: 3, gh: 2 },
+    { type: 'notes', gw: 2, gh: 3 },
   ],
 );
 assert.deepEqual(DEFAULT_CHILD_WIDGETS.map((w) => w.type), [
-  'timeline', 'tasks', 'homework', 'school', 'shortcuts',
+  'timeline', 'tasks', 'notes', 'shortcuts',
 ]);
 assert.ok(!DEFAULT_PARENT_WIDGETS.some((w) => w.type === 'clock'));
 assert.ok(!DEFAULT_PARENT_WIDGETS.some((w) => w.type === 'date'));
@@ -103,26 +103,25 @@ const sized = cycleWidgetSize({ id: 't', type: 'tasks', size: 'half', gw: 2, gh:
 assert.equal(sized.gw, 3);
 assert.equal(sized.gh, 2);
 
-const added = addWidget([], 'messages', 'parent');
-assert.equal(added[0].type, 'messages');
+const added = addWidget([], 'notes', 'parent');
+assert.equal(added[0].type, 'notes');
 assert.equal(removeWidget(added, added[0].id).length, 0);
-assert.equal(addWidget(added, 'messages', 'parent').length, 1);
+assert.equal(addWidget(added, 'notes', 'parent').length, 1);
 
-const withoutShop = toggleWidgetType(DEFAULT_PARENT_WIDGETS, 'shopping', 'parent');
-assert.equal(isWidgetOn(withoutShop, 'shopping'), false);
-assert.equal(isWidgetOn(toggleWidgetType(withoutShop, 'shopping', 'parent'), 'shopping'), true);
-assert.equal(isWidgetOn(setWidgetVariantInList(DEFAULT_PARENT_WIDGETS, 'shopping', 'off', 'parent'), 'shopping'), false);
+const withoutNotes = toggleWidgetType(DEFAULT_PARENT_WIDGETS, 'notes', 'parent');
+assert.equal(isWidgetOn(withoutNotes, 'notes'), false);
+assert.equal(isWidgetOn(toggleWidgetType(withoutNotes, 'notes', 'parent'), 'notes'), true);
+assert.equal(isWidgetOn(setWidgetVariantInList(DEFAULT_PARENT_WIDGETS, 'notes', 'off', 'parent'), 'notes'), false);
 assert.equal(setWidgetVariantInList(DEFAULT_PARENT_WIDGETS, 'tasks', 'illustrated', 'parent').find((w) => w.type === 'tasks').variant, 'illustrated');
 
 assert.ok(catalogForRole('child').every((w) => w.type !== 'shopping'));
 assert.ok(catalogForRole('child').every((w) => w.type !== 'custody'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'rewards'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'goals'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'meals'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'activities'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'messages'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'rememberDates'));
+assert.ok(catalogForRole('child').every((w) => w.type !== 'meals'));
+assert.ok(catalogForRole('child').every((w) => w.type !== 'homework'));
+assert.ok(catalogForRole('child').every((w) => w.type !== 'school'));
+assert.ok(catalogForRole('child').some((w) => w.type === 'tasks'));
 assert.ok(catalogForRole('child').some((w) => w.type === 'notes'));
+assert.ok(catalogForRole('child').some((w) => w.type === 'timeline'));
 assert.ok(catalogForRole('parent').every((w) => w.type !== 'custody'));
 assert.ok(!PARENT_WIDGET_CATALOG.some((w) => w.type === 'custody'));
 assert.ok(!groupedCatalog('parent').flatMap((g) => g.items).some((i) => i.type === 'custody'));
@@ -130,30 +129,27 @@ assert.equal(
   normalizeWidgets([{ id: 'old-custody', type: 'custody', size: 'full' }], 'parent').length,
   0,
 );
-assert.ok(catalogForRole('parent').some((w) => w.type === 'rewards'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'goals'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'progress'));
+assert.ok(catalogForRole('parent').every((w) => !['rewards', 'goals', 'progress', 'messages', 'family', 'location', 'activities', 'familyTree', 'shopping', 'meals'].includes(w.type)));
 assert.ok(catalogForRole('parent').some((w) => w.type === 'weekPlan'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'messages'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'family'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'location'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'activities'));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'familyTree'));
+assert.ok(catalogForRole('parent').some((w) => w.type === 'tasks'));
+assert.ok(catalogForRole('parent').some((w) => w.type === 'notes'));
+assert.ok(catalogForRole('parent').some((w) => w.type === 'timeline'));
+assert.ok(catalogForRole('parent').some((w) => w.type === 'reminders'));
 
 const parentChoices = groupedCatalog('parent').flatMap((g) => g.items.map((i) => i.type));
-assert.equal(parentChoices.length, PARENT_WIDGET_CATALOG.length);
-PARENT_WIDGET_CATALOG.forEach((item) => {
+assert.equal(parentChoices.length, catalogForRole('parent').length);
+catalogForRole('parent').forEach((item) => {
   assert.ok(parentChoices.includes(item.type), `missing parent choice ${item.type}`);
 });
 const childChoices = groupedCatalog('child').flatMap((g) => g.items.map((i) => i.type));
-assert.equal(childChoices.length, CHILD_WIDGET_CATALOG.length);
-CHILD_WIDGET_CATALOG.forEach((item) => {
+assert.equal(childChoices.length, catalogForRole('child').length);
+catalogForRole('child').forEach((item) => {
   assert.ok(childChoices.includes(item.type), `missing child choice ${item.type}`);
 });
-assert.ok(catalogForRole('child').some((w) => w.type === 'school'));
-assert.ok(catalogForRole('child').some((w) => w.type === 'homework'));
-assert.ok(groupedCatalog('parent').some((g) => g.id === 'familie'));
-assert.ok(groupedCatalog('parent').find((g) => g.id === 'familie').items.some((i) => i.type === 'messages'));
+assert.ok(catalogForRole('child').every((w) => w.type !== 'school'));
+assert.ok(catalogForRole('child').every((w) => w.type !== 'homework'));
+assert.ok(groupedCatalog('parent').some((g) => g.id === 'plan'));
+assert.ok(groupedCatalog('parent').find((g) => g.id === 'plan').items.some((i) => i.type === 'timeline'));
 assert.equal(moduleChrome('timeline').icon, 'list');
 assert.equal(moduleChrome('family').icon, 'people');
 assert.equal(moduleChrome('messages').icon, 'chatbubbles');
@@ -166,14 +162,14 @@ assert.ok(MODULE_CHROME.progress);
 assert.ok(Object.values(MODULE_CHROME).every((c) => c.icon && c.glyphColor));
 
 assert.equal(DEFAULT_PARENT_WIDGETS[0].gw, 5);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'progress').gw, 3);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'progress').gh, 3);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'progress').col, 0);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shopping').gw, 2);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shopping').gh, 3);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shopping').col, 3);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').gw, 3);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').gh, 2);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').col, 0);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').gw, 2);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').gh, 3);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').col, 3);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'timeline').gh, 2);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'kids').row, 5);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'reminders').row, 5);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shortcuts').variant, 'row');
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shortcuts').row, 7);
 
@@ -181,12 +177,9 @@ assert.equal(DEFAULT_CHILD_WIDGETS[0].gw, 5);
 assert.equal(DEFAULT_CHILD_WIDGETS[0].gh, 2);
 assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'tasks').gw, 5);
 assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'tasks').gh, 2);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'homework').gw, 2);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'homework').col, 0);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'homework').row, 4);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'school').gw, 3);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'school').col, 2);
-assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'school').row, 4);
+assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'notes').gw, 5);
+assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'notes').col, 0);
+assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'notes').row, 4);
 assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'shortcuts').row, 6);
 assert.equal(DEFAULT_CHILD_WIDGETS.find((w) => w.type === 'shortcuts').variant, 'row');
 assert.deepEqual(
@@ -196,15 +189,15 @@ assert.deepEqual(
 
 const packedDefault = packWidgetRows(DEFAULT_PARENT_WIDGETS);
 assert.ok(packedDefault.length >= 2);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'progress').col, 0);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shopping').col, 3);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').col, 0);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').col, 3);
 
 const fokusParent = widgetsForLook('fokus', 'parent');
 assert.deepEqual(fokusParent.map((w) => w.type), DEFAULT_PARENT_WIDGETS.map((w) => w.type));
 assert.equal(fokusParent.find((w) => w.type === 'timeline').gh, 2);
-assert.equal(fokusParent.find((w) => w.type === 'progress').gw, 3);
-assert.equal(fokusParent.find((w) => w.type === 'progress').gh, 3);
-assert.equal(fokusParent.find((w) => w.type === 'shopping').gh, 3);
+assert.equal(fokusParent.find((w) => w.type === 'tasks').gw, 3);
+assert.equal(fokusParent.find((w) => w.type === 'tasks').gh, 2);
+assert.equal(fokusParent.find((w) => w.type === 'notes').gh, 3);
 
 assert.equal(widgetVariant('weather', 'small').id, 'now');
 assert.equal(widgetVariant('weather', 'now').size, 'half');
@@ -215,7 +208,7 @@ assert.equal(resolvedWidgetSize({ type: 'tasks', size: 'full' }), 'full');
 
 const applied = applyCanonicalLook('fokus', 'parent');
 assert.equal(applied.find((w) => w.type === 'shortcuts').variant, 'row');
-assert.equal(applied.find((w) => w.type === 'progress').gh, 3);
+assert.equal(applied.find((w) => w.type === 'tasks').gh, 2);
 assert.deepEqual(applyCanonicalVariants([], 'parent').map((w) => w.type), DEFAULT_PARENT_WIDGETS.map((w) => w.type));
 assert.deepEqual(setHomeLook([], 'fokus', 'parent').map((w) => w.type), fokusParent.map((w) => w.type));
 

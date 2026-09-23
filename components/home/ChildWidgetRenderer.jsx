@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import * as W from '../parentHome/ParentHomeWidgets';
 import { ClockTile, DateTile } from './HomeTiles';
 import ModuleWidget from './WidgetChrome';
+import { isProtopHomeWidget } from '../../src/navigation/protopShell';
 import {
   SoftWeatherCard, NextEventPastel, TasksPastel, ChildTasksPastel,
   NotesPastel, AppsPastel, ShortcutRow, AppFolderPastel, TimelinePastel,
@@ -128,6 +129,7 @@ function shortcutApps(model) {
 
 export default function ChildWidgetRenderer({ widget, model, handlers }) {
   const type = widget.type;
+  if (!isProtopHomeWidget(type)) return null;
   const demo = !!model.isPreview;
   const timeline = model.timeline || [];
   const focusTomorrow = !!model.focusTomorrow;

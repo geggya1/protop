@@ -11,6 +11,7 @@ import {
   nextSpan,
   spanFromLegacySize,
 } from './homeGrid.js';
+import { isProtopHomeWidget } from './navigation/protopShell.js';
 
 export const WIDGET_SIZES = ['third', 'half', 'full', 'tall'];
 
@@ -71,14 +72,14 @@ export const HOME_LOOKS = [
   {
     id: 'oversikt',
     label: 'Oversikt',
-    hint: 'Dagens plan, handleliste, barnas progresjon, barnas dag og snarveier.',
-    childHint: 'Dagens plan, gjøremål, lekser, ukeplan og snarveier.',
+    hint: 'Dagens plan, oppgaver, notat, varsler og snarveier.',
+    childHint: 'Dagens plan, oppgaver, notat og snarveier.',
   },
   {
     id: 'fokus',
     label: 'Fokus',
-    hint: 'Dagens plan, handleliste, barnas progresjon, barnas dag og snarveier.',
-    childHint: 'Dagens plan, gjøremål, lekser, ukeplan og snarveier.',
+    hint: 'Dagens plan, oppgaver, notat, varsler og snarveier.',
+    childHint: 'Dagens plan, oppgaver, notat og snarveier.',
   },
 ];
 
@@ -93,12 +94,12 @@ export function homeLookMeta(id) {
   return HOME_LOOKS.find((item) => item.id === look);
 }
 
-/** One canonical parent home: timeline, shop + kids progress (tall pair), kids row, shortcuts. */
+/** Same 5-column home grid. Tiles are kalender, oppgaver, notat and varsler. */
 const STANDARD_PARENT_WIDGETS = [
   { id: 'w-family-today', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
-  { id: 'w-progress', type: 'progress', col: 0, row: 2, gw: 3, gh: 3 },
-  { id: 'w-shop', type: 'shopping', col: 3, row: 2, gw: 2, gh: 3 },
-  { id: 'w-kids', type: 'kids', col: 0, row: 5, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 2, gw: 3, gh: 3 },
+  { id: 'w-notes', type: 'notes', col: 3, row: 2, gw: 2, gh: 3 },
+  { id: 'w-reminders', type: 'reminders', col: 0, row: 5, gw: 5, gh: 2 },
   { id: 'w-shortcuts', type: 'shortcuts', col: 0, row: 7, gw: 5, gh: 2, variant: 'row' },
 ];
 
@@ -107,12 +108,11 @@ const LOOK_PARENT_WIDGETS = {
   fokus: STANDARD_PARENT_WIDGETS,
 };
 
-/** Child home: full-width chores (dense rows), then homework + week plan. */
+/** Child home uses the same grid: dagens plan, oppgaver, notat, snarveier. */
 const STANDARD_CHILD_WIDGETS = [
   { id: 'w-today', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'w-tasks', type: 'tasks', col: 0, row: 2, gw: 5, gh: 2 },
-  { id: 'w-homework', type: 'homework', col: 0, row: 4, gw: 2, gh: 2 },
-  { id: 'w-school', type: 'school', col: 2, row: 4, gw: 3, gh: 2 },
+  { id: 'w-notes', type: 'notes', col: 0, row: 4, gw: 5, gh: 2 },
   { id: 'w-shortcuts', type: 'shortcuts', col: 0, row: 6, gw: 5, gh: 2, variant: 'row' },
 ];
 
@@ -272,7 +272,8 @@ export function moduleChrome(type) {
 }
 
 export function catalogForRole(role) {
-  return role === 'child' ? CHILD_WIDGET_CATALOG : PARENT_WIDGET_CATALOG;
+  const list = role === 'child' ? CHILD_WIDGET_CATALOG : PARENT_WIDGET_CATALOG;
+  return list.filter((item) => isProtopHomeWidget(item.type));
 }
 
 export const CATALOG_GROUPS = [

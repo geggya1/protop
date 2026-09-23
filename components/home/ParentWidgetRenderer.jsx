@@ -5,6 +5,7 @@ import { ClockTile, DateTile } from './HomeTiles';
 import ModuleWidget from './WidgetChrome';
 import { DEFAULT_HOME_SHORTCUT_TILES } from '../../src/utils/parentHomeShortcuts';
 import { widgetIsCompact, widgetIsNarrow, widgetIsWide } from '../../src/homeGrid';
+import { isProtopHomeWidget } from '../../src/navigation/protopShell';
 import {
   SoftWeatherCard, NextEventPastel, TasksPastel, ShoppingPastel, MealsPastel,
   CalendarPeek, RewardsPastel, GoalsPastel, KidsProgressPastel, AssistantPastel, NotesPastel,
@@ -210,6 +211,7 @@ function folderApps(model, demo) {
 
 export default function ParentWidgetRenderer({ widget, model, handlers }) {
   const type = widget.type;
+  if (!isProtopHomeWidget(type)) return null;
   const demo = !!model.isPreview;
   const kids = model.activeKids || [];
   const members = model.allMembers || [];

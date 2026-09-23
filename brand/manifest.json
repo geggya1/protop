@@ -1,0 +1,151 @@
+{
+  "name": "ProTop",
+  "tagline": "Digitale løsninger for bygg og anlegg",
+  "colors": {
+    "navy": "#07274C",
+    "digitalBlue": "#1099F4",
+    "white": "#FFFFFF"
+  },
+  "usage": {
+    "lockupOnLight": "brand/ProTop_logo_primary_transparent.png",
+    "lockupOnDark": "brand/ProTop_logo_white_transparent.png",
+    "mark": "brand/ProTop_symbol_transparent.png",
+    "wordmark": "brand/ProTop_wordmark_transparent.png",
+    "favicon": "favicon.ico",
+    "appIcon": "brand/ProTop_icon_192.png"
+  },
+  "files": [
+    {
+      "file": "ProTop_logo_primary_transparent.png",
+      "variant": "primary-lockup",
+      "background": "transparent",
+      "use": "Fullfarge lås på hvit eller svært lys bakgrunn. Brukes i toppfelt og hero."
+    },
+    {
+      "file": "source/ProTop_logo_primary_transparent_1024.png",
+      "variant": "primary-lockup",
+      "background": "transparent",
+      "use": "Samme primærlås, 1024×377. Tidligere eksport, ikke et eget README-navn."
+    },
+    {
+      "file": "ProTop_logo_primary_transparent_4096px.png",
+      "variant": "primary-lockup",
+      "background": "transparent",
+      "use": "Samme primærlås, 4096×1509. Til trykk og store flater."
+    },
+    {
+      "file": "ProTop_logo_primary_white_background.jpg",
+      "variant": "primary-lockup",
+      "background": "white",
+      "use": "Fullfarge lås på hvit bunn, uten gjennomsiktighet."
+    },
+    {
+      "file": "ProTop_logo_white_transparent.png",
+      "variant": "white-lockup",
+      "background": "transparent",
+      "use": "Hvit lås for mørk bakgrunn."
+    },
+    {
+      "file": "ProTop_logo_white_on_navy.png",
+      "variant": "white-lockup",
+      "background": "#07274C",
+      "use": "Hvit lås med marineblå plate."
+    },
+    {
+      "file": "ProTop_logo_navy_monochrome.png",
+      "variant": "navy-monochrome-lockup",
+      "background": "transparent",
+      "use": "Ensfarget marineblå lås."
+    },
+    {
+      "file": "ProTop_logo_black_monochrome.png",
+      "variant": "black-monochrome-lockup",
+      "background": "transparent",
+      "use": "Ensfarget svart lås."
+    },
+    {
+      "file": "ProTop_wordmark_transparent.png",
+      "variant": "wordmark",
+      "background": "transparent",
+      "use": "Ordmerket ProTop uten symbol."
+    },
+    {
+      "file": "ProTop_symbol_transparent.png",
+      "variant": "mark",
+      "background": "transparent",
+      "use": "Symbol for små flater. Kildebildet har en liten Digi-påskrift; produktnavnet er ProTop."
+    },
+    {
+      "file": "source/ProTop_symbol_transparent_white_matte.png",
+      "variant": "mark",
+      "background": "transparent-white-matte",
+      "use": "Samme symbol. Gjennomsiktige piksler har hvit RGB og kan gi hvit kant ved skalering."
+    },
+    {
+      "file": "ProTop_symbol_square_2048.png",
+      "variant": "mark",
+      "background": "transparent",
+      "use": "Symbol i kvadrat, 2048×2048."
+    },
+    {
+      "file": "ProTop_symbol_white.png",
+      "variant": "white-mark",
+      "background": "transparent",
+      "use": "Hvitt symbol."
+    },
+    {
+      "file": "ProTop_symbol_navy.png",
+      "variant": "navy-mark",
+      "background": "transparent",
+      "use": "Marineblått symbol."
+    },
+    {
+      "file": "ProTop_icon_32.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 32×32."
+    },
+    {
+      "file": "ProTop_icon_48.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 48×48."
+    },
+    {
+      "file": "ProTop_icon_64.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 64×64."
+    },
+    {
+      "file": "ProTop_icon_128.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 128×128."
+    },
+    {
+      "file": "ProTop_icon_192.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 192×192. Apple touch icon."
+    },
+    {
+      "file": "ProTop_icon_256.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 256×256."
+    },
+    {
+      "file": "ProTop_icon_512.png",
+      "variant": "app-icon",
+      "background": "transparent",
+      "use": "Appikon 512×512."
+    },
+    {
+      "file": "ProTop_favicon.ico",
+      "variant": "favicon",
+      "background": "transparent",
+      "use": "Favicon med 16, 32, 48, 64, 128 og 256. Kopi ligger også som /favicon.ico."
+    }
+  ]
+}

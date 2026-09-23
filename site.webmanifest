@@ -2,11 +2,11 @@
   "name": "ProTop",
   "short_name": "ProTop",
   "description": "Digitale løsninger for bygg og anlegg",
-  "lang": "no",
+  "lang": "nb",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#FFFFFF",
-  "theme_color": "#07274C",
+  "background_color": "#ffffff",
+  "theme_color": "#07274c",
   "icons": [
     {
       "src": "brand/ProTop_icon_192.png",

@@ -1,81 +1,193 @@
 <!DOCTYPE html>
-<html lang="no">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ProTop — Digitale løsninger for bygg og anlegg</title>
-    <meta name="description" content="ProTop — digitale løsninger for bygg og anlegg.">
-    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#07274C" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="favicon.ico" sizes="any" data-brand-icon>
-    <link rel="icon" type="image/png" href="brand/ProTop_icon_32.png" sizes="32x32">
-    <link rel="apple-touch-icon" href="brand/ProTop_icon_192.png">
-    <link rel="manifest" href="site.webmanifest">
-    <link rel="stylesheet" href="styles.css">
-    <script>
-      (function () {
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProTop</title>
+  <meta name="description" content="ProTop. Digitale løsninger for bygg og anlegg.">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07274c" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="brand/ProTop_icon_32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="brand/ProTop_icon_192.png">
+  <link rel="apple-touch-icon" href="brand/ProTop_icon_192.png">
+  <link rel="manifest" href="site.webmanifest">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --text: #07274c;
+      --muted: #3c5870;
+      --line: #e3ebf2;
+      --focus: #1099f4;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: #07274c;
+        --text: #ffffff;
+        --muted: #d5e3ee;
+        --line: rgba(255, 255, 255, 0.18);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #07274c;
+      --text: #ffffff;
+      --muted: #d5e3ee;
+      --line: rgba(255, 255, 255, 0.18);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #ffffff;
+      --text: #07274c;
+      --muted: #3c5870;
+      --line: #e3ebf2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem 1.5rem;
+      padding: 1.25rem 1.5rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: block;
+      min-width: 0;
+      line-height: 0;
+    }
+
+    .logo {
+      display: block;
+      width: min(100%, 260px);
+      height: auto;
+    }
+
+    .logo-dark { display: none; }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .logo-light { display: none; }
+      :root:not([data-theme="light"]) .logo-dark { display: block; }
+    }
+
+    :root[data-theme="dark"] .logo-light { display: none; }
+    :root[data-theme="dark"] .logo-dark { display: block; }
+
+    .theme-toggle {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.95rem;
+      padding: 0.45rem 0.8rem;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .theme-toggle:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    main {
+      max-width: 40rem;
+      padding: 3.5rem 1.5rem 4rem;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .lead {
+      margin: 1rem 0 0;
+      max-width: 36rem;
+      color: var(--muted);
+      font-size: 1.125rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./">
+      <img
+        class="logo logo-light"
+        src="brand/ProTop_logo_primary_transparent.png"
+        width="1306"
+        height="481"
+        alt="ProTop. Digitale løsninger for bygg og anlegg">
+      <img
+        class="logo logo-dark"
+        src="brand/ProTop_logo_white_transparent.png"
+        width="1306"
+        height="481"
+        alt="ProTop. Digitale løsninger for bygg og anlegg">
+    </a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">Mørk bakgrunn</button>
+  </header>
+  <main>
+    <h1>Digitale løsninger for bygg og anlegg</h1>
+    <p class="lead">ProTop</p>
+  </main>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var button = document.getElementById("theme-toggle");
+      var stored = null;
+      try {
+        stored = localStorage.getItem("protop-theme");
+      } catch (error) {
+        stored = null;
+      }
+      if (stored === "light" || stored === "dark") {
+        root.setAttribute("data-theme", stored);
+      }
+
+      function currentTheme() {
+        var chosen = root.getAttribute("data-theme");
+        if (chosen === "light" || chosen === "dark") return chosen;
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      function paint() {
+        var dark = currentTheme() === "dark";
+        button.textContent = dark ? "Lys bakgrunn" : "Mørk bakgrunn";
+        button.setAttribute("aria-pressed", dark ? "true" : "false");
+      }
+
+      button.addEventListener("click", function () {
+        var next = currentTheme() === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
         try {
-          var params = new URLSearchParams(location.search);
-          var tema = params.get("tema");
-          var theme = tema === "mork" ? "dark" : tema === "lys" ? "light" : null;
-          if (!theme) theme = localStorage.getItem("protop-theme");
-          if (theme === "light" || theme === "dark") {
-            document.documentElement.setAttribute("data-theme", theme);
-          }
-        } catch (e) {}
-      })();
-    </script>
-  </head>
-  <body>
-    <header class="site-header">
-      <a class="brand-link" href="./">
-        <span class="logo-slot logo-slot--header">
-          <img
-            class="logo logo--on-light"
-            data-brand="lockupOnLight"
-            src="brand/ProTop_logo_primary_transparent.png"
-            width="1306"
-            height="481"
-            alt="ProTop. Digitale løsninger for bygg og anlegg.">
-          <img
-            class="logo logo--on-dark"
-            data-brand="lockupOnDark"
-            src="brand/ProTop_logo_white_transparent.png"
-            width="1306"
-            height="481"
-            alt="ProTop. Digitale løsninger for bygg og anlegg.">
-        </span>
-      </a>
-      <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false">
-        Mørk visning
-      </button>
-    </header>
+          localStorage.setItem("protop-theme", next);
+        } catch (error) {}
+        paint();
+      });
 
-    <main>
-      <h1 class="visually-hidden">ProTop</h1>
-      <figure class="hero">
-        <span class="logo-slot logo-slot--hero">
-          <img
-            class="logo logo--on-light"
-            data-brand="lockupOnLight"
-            src="brand/ProTop_logo_primary_transparent.png"
-            width="1306"
-            height="481"
-            alt="ProTop. Digitale løsninger for bygg og anlegg.">
-          <img
-            class="logo logo--on-dark"
-            data-brand="lockupOnDark"
-            src="brand/ProTop_logo_white_transparent.png"
-            width="1306"
-            height="481"
-            alt="ProTop. Digitale løsninger for bygg og anlegg.">
-        </span>
-      </figure>
-    </main>
-
-    <footer class="site-footer">
-      <p>ProTop · Digitale løsninger for bygg og anlegg</p>
-    </footer>
-    <script src="theme.js"></script>
-  </body>
+      paint();
+    })();
+  </script>
+</body>
 </html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="no">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ProTop — Digitale løsninger for bygg og anlegg</title>
+    <meta name="description" content="ProTop — digitale løsninger for bygg og anlegg.">
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#07274C" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="favicon.ico" sizes="any" data-brand-icon>
+    <link rel="icon" type="image/png" href="brand/ProTop_icon_32.png" sizes="32x32">
+    <link rel="apple-touch-icon" href="brand/ProTop_icon_192.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(location.search);
+          var tema = params.get("tema");
+          var theme = tema === "mork" ? "dark" : tema === "lys" ? "light" : null;
+          if (!theme) theme = localStorage.getItem("protop-theme");
+          if (theme === "light" || theme === "dark") {
+            document.documentElement.setAttribute("data-theme", theme);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand-link" href="./">
+        <span class="logo-slot logo-slot--header">
+          <img
+            class="logo logo--on-light"
+            data-brand="lockupOnLight"
+            src="brand/ProTop_logo_primary_transparent.png"
+            width="1306"
+            height="481"
+            alt="ProTop. Digitale løsninger for bygg og anlegg.">
+          <img
+            class="logo logo--on-dark"
+            data-brand="lockupOnDark"
+            src="brand/ProTop_logo_white_transparent.png"
+            width="1306"
+            height="481"
+            alt="ProTop. Digitale løsninger for bygg og anlegg.">
+        </span>
+      </a>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false">
+        Mørk visning
+      </button>
+    </header>
+
+    <main>
+      <h1 class="visually-hidden">ProTop</h1>
+      <figure class="hero">
+        <span class="logo-slot logo-slot--hero">
+          <img
+            class="logo logo--on-light"
+            data-brand="lockupOnLight"
+            src="brand/ProTop_logo_primary_transparent.png"
+            width="1306"
+            height="481"
+            alt="ProTop. Digitale løsninger for bygg og anlegg.">
+          <img
+            class="logo logo--on-dark"
+            data-brand="lockupOnDark"
+            src="brand/ProTop_logo_white_transparent.png"
+            width="1306"
+            height="481"
+            alt="ProTop. Digitale løsninger for bygg og anlegg.">
+        </span>
+      </figure>
+    </main>
+
+    <footer class="site-footer">
+      <p>ProTop · Digitale løsninger for bygg og anlegg</p>
+    </footer>
+    <script src="theme.js"></script>
+  </body>
+</html>

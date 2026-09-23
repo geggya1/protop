@@ -23,7 +23,7 @@ function idsIn(sections) {
     familyId: 'F', hasKids: true, childForSchedule: kid, firstKid: kid,
   });
   const ids = idsIn(sections);
-  for (const id of ['home', 'friends', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal', 'moduleAccess']) {
+  for (const id of ['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal', 'moduleAccess']) {
     assert.ok(ids.includes(id), id);
   }
   const account = sections.find((s) => s.id === 'account');
@@ -34,7 +34,7 @@ function idsIn(sections) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the ProTop shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
-  assert.deepEqual(main, ['home', 'friends', 'plan', 'mail', 'stars', 'notes']);
+  assert.deepEqual(main, ['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes']);
   assert.ok(main.indexOf('friends') < main.indexOf('plan'));
   assert.ok(main.includes('mail'));
   assert.ok(main.includes('notes'));
@@ -66,7 +66,7 @@ function idsIn(sections) {
     t, familyId: 'F', eventCount: 2, hasKids: true, firstKid: kid,
   });
   const ids = parentApps.map((a) => a.id);
-  assert.deepEqual(ids.sort(), ['friends', 'mail', 'notes', 'plan', 'stars']);
+  assert.deepEqual(ids.sort(), ['friends', 'mail', 'notes', 'plan', 'projects', 'stars']);
 }
 
 {
@@ -75,7 +75,7 @@ function idsIn(sections) {
   });
   const ids = childApps.map((a) => a.id);
   for (const id of ids) {
-    assert.ok(['home', 'friends', 'plan', 'mail', 'stars', 'notes'].includes(id), id);
+    assert.ok(['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes'].includes(id), id);
   }
   assert.ok(ids.includes('plan'));
   assert.ok(ids.includes('notes'));

@@ -80,6 +80,12 @@ const CATEGORIES = [
     moduleIds: ['scratchMap', 'reiseplanlegger', 'boligmappa', 'holdings', 'hospitality'],
   },
   {
+    id: 'project',
+    icon: 'business-outline',
+    title: T('Prosjekt', 'Project'),
+    moduleIds: ['projects'],
+  },
+  {
     id: 'account',
     icon: 'shield-checkmark-outline',
     title: T('Konto og personvern', 'Account & privacy'),
@@ -89,6 +95,29 @@ const CATEGORIES = [
 
 /** Extra settings/how-to articles beyond module intros. */
 const EXTRA_ARTICLES = [
+  {
+    id: 'help.projects',
+    moduleId: 'projects',
+    categoryId: 'project',
+    icon: 'business-outline',
+    accent: '#1099F4',
+    soft: '#E5F6FE',
+    title: T('Prosjektplattformen', 'The project platform'),
+    summary: T(
+      'Portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
+      'Portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
+    ),
+    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project'],
+    steps: {
+      parent: [
+        T('Åpne Prosjekt og opprett prosjekt med nummer', 'Open Projects and create a project with a number'),
+        T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
+        T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
+      ],
+      child: [],
+      teen: [],
+    },
+  },
   {
     id: 'help.lightbulb',
     moduleId: 'help-lightbulb',

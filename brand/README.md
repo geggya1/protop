@@ -1,12 +1,54 @@
 # ProTop-logoer
 
-Nye filer fra neste leveranse legges i denne mappen og registreres i `manifest.json`. Siden leser stier og farger derfra.
+Pakkenotatet under er kilden for filnavn. Merkevarearket sier hvor hver variant skal brukes. Siden leser stier og farger fra `manifest.json`.
+
+```
+ProTop LOGO PACKAGE
+
+PRIMARY
+- ProTop_logo_primary_transparent.png
+- ProTop_logo_primary_transparent_4096px.png
+- ProTop_logo_primary_white_background.jpg
+- ProTop_logo_primary.svg
+- ProTop_logo_primary.pdf
+
+SYMBOL / DIGITAL
+- ProTop_symbol_transparent.png
+- ProTop_symbol_square_2048.png
+- ProTop_symbol.svg
+- ProTop_icon_*.png
+- ProTop_favicon.ico
+
+ALTERNATIVE COLOUR VERSIONS
+- ProTop_logo_white_transparent.png
+- ProTop_logo_white_on_navy.png
+- ProTop_logo_navy_monochrome.png
+- ProTop_logo_black_monochrome.png
+- ProTop_symbol_white.png
+- ProTop_symbol_navy.png
+
+WORDMARK
+- ProTop_wordmark_transparent.png
+
+NOTE ABOUT SVG
+The SVG files preserve the exact approved artwork by embedding the cleaned
+transparent source image. They are valid SVG files, but the internal artwork
+has not been manually redrawn as native Bézier vector paths.
+```
 
 ## Bruk
 
-- Lys bakgrunn: `ProTop_logo_primary_transparent.png`
-- Mørk bakgrunn: `ProTop_logo_white_transparent.png`
-- Små flater: `ProTop_favicon.ico` og `ProTop_icon_*.png`
+Fra `source/ProTop_logo_brand_sheet.pdf`:
+
+- Primary use: full-colour logo on white or very light backgrounds.
+- For dark backgrounds: use the all-white logo variant.
+- For small digital surfaces: use the standalone symbol/app icon.
+
+På siden:
+
+- Lys bakgrunn: `ProTop_logo_primary_transparent.png` i toppfelt og hero.
+- Mørk bakgrunn: `ProTop_logo_white_transparent.png`.
+- Små flater: `ProTop_favicon.ico` og `ProTop_icon_*.png` (appikon 192 og 512).
 
 Farger fra merkevarearket, bare til bakgrunn og tekst: marineblå `#07274C`, digital blå `#1099F4`, hvit `#FFFFFF`. Ikke fargelegg om logoen.
 
@@ -16,7 +58,7 @@ Produktnavnet er ProTop. Symbolfilene har en liten Digi-påskrift i originalen. 
 
 ## Filer
 
-Primærlås: `ProTop_logo_primary_transparent.png`, `ProTop_logo_primary_transparent_4096px.png`, `ProTop_logo_primary_white_background.jpg`, `ProTop_logo_primary.pdf`.
+Primærlås: `ProTop_logo_primary_transparent.png`, `ProTop_logo_primary_transparent_4096px.png`, `ProTop_logo_primary_white_background.jpg`, `ProTop_logo_primary.pdf`. Merkevarearket ligger i `source/ProTop_logo_brand_sheet.pdf`.
 
 Andre låser: `ProTop_logo_white_transparent.png`, `ProTop_logo_white_on_navy.png`, `ProTop_logo_navy_monochrome.png`, `ProTop_logo_black_monochrome.png`.
 

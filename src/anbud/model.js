@@ -57,6 +57,8 @@ export function emptyAnbudState() {
       areas: [],
       nationwide: false,
       savedAt: null,
+      orgnr: '',
+      cpvSource: '',
     },
     notices: [],
     syncedAt: null,
@@ -96,6 +98,8 @@ export function saveTenderWatch(state, input) {
       areas,
       nationwide,
       savedAt: new Date().toISOString(),
+      orgnr: text(input?.orgnr).replace(/\D/g, '').slice(0, 9),
+      cpvSource: text(input?.cpvSource),
     },
   });
 }

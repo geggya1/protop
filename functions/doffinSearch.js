@@ -9,6 +9,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import { searchDoffinNotices as searchPublished } from './doffinQuery.js';
+import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
 
 if (!getApps().length) initializeApp();
 
@@ -48,6 +49,32 @@ export const searchDoffin = onCall(
       if (err instanceof HttpsError || err?.httpErrorCode) throw err;
       logger.warn('searchDoffin failed', { message: err?.message });
       reject('unavailable', 'Kunne ikke hente kunngjøringer fra Doffin.');
+    }
+  },
+);
+
+export const lookupCompany = onCall(
+  {
+    region: 'europe-west1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (request) => {
+    try {
+      const uid = requireAuth(request.auth);
+      await assertRateLimit(getFirestore(), {
+        key: hashRateKey(['doffin-company', uid]),
+        limit: 30,
+        windowMs: 60 * 60 * 1000,
+      });
+      return await lookupCompanyCpv(request.data?.orgnr);
+    } catch (err) {
+      if (err instanceof HttpsError || err?.httpErrorCode) throw err;
+      if (err?.code === 'invalid-argument' || err?.code === 'not-found') reject(err.code, err.message);
+      logger.warn('lookupCompany failed', { message: err?.message });
+      reject('unavailable', 'Kunne ikke hente bedriftens CPV-koder.');
     }
   },
 );

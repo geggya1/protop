@@ -1077,4 +1077,4 @@ export {
 
 export { lookupVehicleByReg } from './vegvesenLookup.js';
 export { fetchOpenFeed } from './openFeed.js';
-export { searchDoffin } from './doffinSearch.js';
+export { searchDoffin, lookupCompany } from './doffinSearch.js';

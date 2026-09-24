@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
-import { fetchDoffinNotices } from '../../src/anbud/doffinClient';
+import { fetchCompanyCpv, fetchDoffinNotices } from '../../src/anbud/doffinClient';
 import {
   emptyAnbudState,
   formatNok,
@@ -65,6 +65,11 @@ export default function AnbudScreen() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [orgnr, setOrgnr] = useState('');
+  const [cpvSource, setCpvSource] = useState('');
+  const [fetchedLabels, setFetchedLabels] = useState({});
+  const [lookupNote, setLookupNote] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
   const [selectedCpv, setSelectedCpv] = useState(() => new Set());
   const [customCpv, setCustomCpv] = useState('');
   const [nationwide, setNationwide] = useState(false);
@@ -82,6 +87,8 @@ export default function AnbudScreen() {
       setState(loaded);
       const watch = loaded.watch;
       setCompanyName(watch.companyName || '');
+      setOrgnr(watch.orgnr || '');
+      setCpvSource(watch.cpvSource || '');
       setSelectedCpv(new Set(watch.cpvCodes.map((row) => row.code)));
       setNationwide(!!watch.nationwide);
       setSelectedAreas(new Set(watch.areas.map((row) => row.id)));
@@ -157,9 +164,11 @@ export default function AnbudScreen() {
   function currentInput() {
     return {
       companyName,
+      orgnr,
+      cpvSource,
       cpvCodes: [...selectedCpv].map((code) => {
         const known = CPV_CODES.find((row) => row.code === code);
-        return { code, label: known?.label || `CPV ${code}` };
+        return { code, label: fetchedLabels[code] || known?.label || `CPV ${code}` };
       }),
       nationwide,
       areas: [...selectedAreas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
@@ -170,12 +179,53 @@ export default function AnbudScreen() {
     <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.inner}>
       <Text style={[styles.h2, { color: colors.ink }]}>Anbudsvarsel</Text>
       <Text style={{ color: colors.muted }}>
-        Registrer bedriftens CPV-koder og område. Lista viser aktive konkurranser fra Doffin som treffer, og oppdateres fortløpende.
+        Registrer bedriften med organisasjonsnummer. CPV-kodene hentes fra offentlige tildelinger på Doffin, og kan endres før du lagrer.
       </Text>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
-      <Field label="Bedrift" value={companyName} onChangeText={setCompanyName} placeholder="Firmanavn" colors={colors} />
+      <Field label="Organisasjonsnummer" value={orgnr} onChangeText={setOrgnr} placeholder="9 siffer" colors={colors} />
+      <Field label="Bedrift" value={companyName} onChangeText={setCompanyName} placeholder="Fylles ut fra Enhetsregisteret" colors={colors} />
+      <Btn
+        label={lookingUp ? 'Henter …' : 'Hent CPV fra register'}
+        colors={colors}
+        onPress={async () => {
+          setLookingUp(true);
+          setLookupNote('');
+          setError('');
+          try {
+            const data = await fetchCompanyCpv(orgnr);
+            setCompanyName(data.company?.name || companyName);
+            setOrgnr(data.company?.orgnr || orgnr);
+            const labels = {};
+            const codes = new Set();
+            for (const row of data.cpvCodes || []) {
+              codes.add(row.code);
+              labels[row.code] = row.label;
+            }
+            setFetchedLabels(labels);
+            setSelectedCpv(codes);
+            setCpvSource(codes.size ? 'doffin' : '');
+            setLookupNote(codes.size
+              ? `Hentet ${codes.size} koder fra Doffin-tildelinger${data.winners?.length ? ` for ${data.winners.join(', ')}` : ''}. Ta bort eller legg til koder før du lagrer.`
+              : 'Bedriften er i Enhetsregisteret, men har ingen offentlige CPV-koder på Doffin. Legg inn kodene manuelt.');
+          } catch (err) {
+            setError(err?.message || 'Kunne ikke hente bedriften.');
+          } finally {
+            setLookingUp(false);
+          }
+        }}
+      />
+      {lookupNote ? <Text style={{ color: colors.muted }}>{lookupNote}</Text> : null}
       <Field label="Søk i CPV" value={cpvQuery} onChangeText={setCpvQuery} placeholder="Kode eller fag, f.eks. elektro" colors={colors} />
       <View style={styles.rowWrap}>
+        {[...selectedCpv].filter((code) => !CPV_CODES.some((row) => row.code === code)).map((code) => (
+          <Chip
+            key={code}
+            colors={colors}
+            on
+            label={`${code.slice(0, 4)} ${fetchedLabels[code] || 'CPV'}`}
+            onPress={() => toggleSet(setSelectedCpv, code)}
+          />
+        ))}
         {visibleCpv.map((row) => (
           <Chip
             key={row.code}

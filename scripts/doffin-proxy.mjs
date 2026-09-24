@@ -4,6 +4,7 @@
  */
 import http from 'node:http';
 import { searchDoffinNotices } from '../src/anbud/doffinQuery.js';
+import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,7 +15,7 @@ const server = http.createServer(async (req, res) => {
     res.end();
     return;
   }
-  if (req.method !== 'POST' || req.url !== '/search') {
+  if (req.method !== 'POST' || (req.url !== '/search' && req.url !== '/company')) {
     res.writeHead(404);
     res.end();
     return;
@@ -23,7 +24,9 @@ const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-    const result = await searchDoffinNotices(body);
+    const result = req.url === '/company'
+      ? await lookupCompanyCpv(body.orgnr)
+      : await searchDoffinNotices(body);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (err) {

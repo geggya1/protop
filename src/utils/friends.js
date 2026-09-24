@@ -4,7 +4,7 @@
  */
 import {
   collection, collectionGroup, doc, writeBatch, serverTimestamp, updateDoc, getDoc, getDocs,
-  setDoc, deleteDoc, query, where, limit, onSnapshot, orderBy,
+  setDoc, deleteDoc, query, where, limit, onSnapshot,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
@@ -763,28 +763,47 @@ export function listenFriends(uid, onData, opts = {}) {
     return () => {};
   }
   let cancelled = false;
+  let delivered = false;
   let unsubSnap = () => {};
+  const deliver = (list) => {
+    if (cancelled) return;
+    delivered = true;
+    onData?.(list);
+  };
   const poll = async () => {
     try {
-      const res = (forUid === authUid)
-        ? await callFriendFn('listMyFriends', {})
-        : await callFriendFn('listFriendsForUid', { targetUid: forUid, familyId });
-      if (!cancelled && res?.ok) onData?.(res.friends || []);
+      const call = (forUid === authUid)
+        ? callFriendFn('listMyFriends', {})
+        : callFriendFn('listFriendsForUid', { targetUid: forUid, familyId });
+      const res = await Promise.race([
+        call,
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('friends-timeout')), 8000);
+        }),
+      ]);
+      if (!cancelled && res?.ok) deliver(res.friends || []);
+      else if (!delivered) deliver([]);
     } catch {
-      /* fall through to snapshot / next poll */
+      if (!delivered) deliver([]);
     }
   };
   poll();
   const interval = setInterval(poll, 8000);
   // Client snapshot only works for own friends graph (rules).
   if (forUid === authUid) {
-    const q = query(collection(db, 'users', forUid, 'friends'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'users', forUid, 'friends'));
     unsubSnap = listenAfterAccess(authUid, (onErr) => onSnapshot(q, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, friendUid: d.id, ...d.data() }))
         .filter((f) => f.status !== 'removed');
-      onData?.(list);
+      list.sort((a, b) => {
+        const am = a.createdAt?.toMillis?.() || 0;
+        const bm = b.createdAt?.toMillis?.() || 0;
+        return bm - am;
+      });
+      deliver(list);
     }, onErr), (err) => {
       if (err) warnPermissionOnce(`friends:${forUid}`, '[listenFriends]', err?.code || err?.message || err);
+      if (!delivered) deliver([]);
     });
   }
   return () => {

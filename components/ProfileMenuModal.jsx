@@ -13,6 +13,7 @@ import FriendQrModal from './FriendQrModal';
 import { useProfileNavigation } from '../src/hooks/useProfileNavigation';
 import { useApp } from '../src/context/AppContext';
 import { goPlatformOverview } from '../src/utils/platformNav';
+import { openNotifications } from '../src/navigation/openNotifications';
 import { desktopMenu } from '../src/desktop';
 import { hardReloadApp } from '../src/hooks/usePullToRefresh';
 
@@ -115,7 +116,7 @@ export default function ProfileMenuModal({ visible, onClose }) {
             compact={isDesktop}
             icon="notifications-outline"
             label="Varslinger"
-            onPress={() => { onClose?.(); nav.navigate('Notifications'); }}
+            onPress={() => { onClose?.(); openNotifications(nav); }}
           />
           <MenuRow
             compact={isDesktop}

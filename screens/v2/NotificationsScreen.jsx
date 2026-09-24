@@ -191,7 +191,7 @@ function NotificationRow({ row, onPress, compact }) {
   );
 }
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ inShell = false, onBack = null }) {
   const nav = useNavigation();
   const { t } = useI18n();
   const { isDesktop } = useLayout();
@@ -236,9 +236,13 @@ export default function NotificationsScreen() {
   }, [gameInvites, familyGameInvites]);
 
   const goHome = useCallback(() => {
+    if (inShell && onBack) {
+      onBack();
+      return;
+    }
     if (nav.canGoBack?.()) nav.goBack();
     else requestShellTab?.('home');
-  }, [nav, requestShellTab]);
+  }, [inShell, onBack, nav, requestShellTab]);
 
   const openSource = useCallback(async (n) => {
     // Chat → tråd / dock (friend vs family — same path as toast/push)
@@ -393,6 +397,7 @@ export default function NotificationsScreen() {
 
   return (
     <Screen>
+      {inShell ? null : (
       <ShellHeader
         title="Varslinger"
         onLogoHome={goHome}
@@ -404,6 +409,7 @@ export default function NotificationsScreen() {
           ) : null
         }
       />
+      )}
       <ScrollView
         contentContainerStyle={[styles.body, isDesktop && styles.bodyDesk]}
         showsVerticalScrollIndicator={false}

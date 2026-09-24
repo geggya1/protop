@@ -6,13 +6,37 @@ import { gameInviteNavParams } from '../utils/gameInviteNav';
 import { auth } from '../../firebase';
 
 let navRef = null;
+const routeListeners = new Set();
+let detachNavState = null;
+
+function emitRoute() {
+  let name = '';
+  try { name = navRef?.getCurrentRoute?.()?.name || ''; } catch { name = ''; }
+  routeListeners.forEach((fn) => fn(name));
+}
 
 export function setAppNav(ref) {
+  if (detachNavState) detachNavState();
+  detachNavState = null;
   navRef = ref;
+  if (ref?.addListener) {
+    detachNavState = ref.addListener('state', emitRoute);
+  }
+  emitRoute();
 }
 
 export function getAppNav() {
   return navRef;
+}
+
+export function currentRouteName() {
+  try { return navRef?.getCurrentRoute?.()?.name || ''; } catch { return ''; }
+}
+
+export function subscribeAppRoute(fn) {
+  routeListeners.add(fn);
+  fn(currentRouteName());
+  return () => routeListeners.delete(fn);
 }
 
 export { gameInviteNavParams };

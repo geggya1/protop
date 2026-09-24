@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ModuleWelcomeModal, { ModuleActivationScrim } from './ModuleWelcomeModal';
 import { useHelp } from '../src/context/HelpContext';
 import { useI18n } from '../src/i18n';
 import { buildHelpWelcomeModule } from '../src/utils/helpWelcome';
+import { subscribeAppRoute } from '../src/navigation/navRef';
 
 /**
  * Lightbulb entry: same activation card (image + copy), help CTA instead of Aktiver.
@@ -13,6 +14,9 @@ export default function HelpModuleCard() {
   const {
     mode, copy, scope, moduleId, dismiss, startModuleTour,
   } = useHelp();
+  const [routeName, setRouteName] = useState('');
+  useEffect(() => subscribeAppRoute(setRouteName), []);
+  const helpHeld = routeName === 'ProfileSetup';
 
   const module = mode === 'moduleCard'
     ? buildHelpWelcomeModule({
@@ -31,7 +35,7 @@ export default function HelpModuleCard() {
     return undefined;
   }, [mode, module, startModuleTour]);
 
-  if (mode !== 'moduleCard' || !module) return null;
+  if (helpHeld || mode !== 'moduleCard' || !module) return null;
 
   return (
     <ModuleActivationScrim onRequestBack={dismiss} dismissLabel={t('moduleIntro.close')}>

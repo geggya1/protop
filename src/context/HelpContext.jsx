@@ -10,6 +10,7 @@ import {
   localizeIntro,
 } from '../utils/moduleIntros';
 import { shouldAutoWelcome } from '../utils/helpLayout';
+import { currentRouteName } from '../navigation/navRef';
 import { useI18n } from '../i18n';
 
 const WELCOME_SEEN_PREFIX = 'weekplan.help.welcome.v1';
@@ -219,12 +220,14 @@ export function HelpProvider({ children }) {
     const current = mode;
     setMode(null);
     setTourIndex(0);
+    if (opts.skipPersist) return;
     if (current === 'welcome' || opts.welcome) persistWelcomeSeen();
     if (current === 'module' || current === 'moduleCard' || opts.module) persistModuleSeen();
   }, [mode, persistWelcomeSeen, persistModuleSeen]);
 
   useEffect(() => {
     if (!ready || !uid || !enabled || !moduleId || autoShownRef.current) return undefined;
+    if (currentRouteName() === 'ProfileSetup') return undefined;
     if (!shouldAutoWelcome(welcomeMap, moduleSeenMap, scope)) return undefined;
     const timer = setTimeout(() => {
       autoShownRef.current = true;

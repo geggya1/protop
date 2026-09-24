@@ -1,25 +1,18 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, ScrollView, Image,
+  View, Text, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, ScrollView, Image,
 } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { useI18n } from '../../src/i18n';
-import { colors, radius } from '../../src/theme';
+import { colors } from '../../src/theme';
 import { claimUsername } from '../../src/utils/usernames';
 import { uniqueUsername } from '../../src/utils/account';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import { persistUserConsents } from '../../src/utils/consents';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
-
-const GENDERS = [
-  { id: 'woman', key: 'profile.woman' },
-  { id: 'man', key: 'profile.man' },
-  { id: 'other', key: 'profile.other' },
-  { id: 'unspecified', key: 'profile.unspecified' },
-];
 
 function Silhouette({ gender, size }) {
   const woman = gender === 'woman';
@@ -61,27 +54,28 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
   const compact = width < 480;
   const user = auth.currentUser;
   const googlePhoto = user?.photoURL || initial?.photoURL || '';
-  const [name, setName] = useState(initial?.displayName || user?.displayName || '');
-  const [gender, setGender] = useState(initial?.gender && initial.gender !== 'unspecified' ? initial.gender : '');
+  const [name] = useState(initial?.displayName || user?.displayName || '');
+  const [gender] = useState(initial?.gender && initial.gender !== 'unspecified' ? initial.gender : '');
   const [photoURL, setPhotoURL] = useState(googlePhoto);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [cropVisible, setCropVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
 
-  const valid = !!name.trim();
+  const displayName = name.trim() || String(user?.email || '').split('@')[0] || '';
+  const valid = !!displayName;
 
   const save = async () => {
     if (!valid || !user || saving) return;
     setSaving(true);
     try {
-      const uname = await uniqueUsername(name.trim() || user.email || 'user', user.uid);
+      const uname = await uniqueUsername(displayName || user.email || 'user', user.uid);
       await claimUsername(uname, user.uid, 'adult');
-      await updateProfile(user, { displayName: name.trim(), photoURL: photoURL || undefined }).catch(() => {});
+      await updateProfile(user, { displayName, photoURL: photoURL || undefined }).catch(() => {});
       const profile = {
         uid: user.uid,
         role: 'adult',
-        displayName: name.trim(),
+        displayName,
         username: uname,
         usernameLower: uname,
         email: (user.email || '').toLowerCase(),
@@ -101,7 +95,7 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
       await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
       await setDoc(doc(db, 'parents', user.uid), {
         uid: user.uid,
-        name: name.trim(),
+        name: displayName,
         username: uname,
         usernameLower: uname,
         email: profile.email,
@@ -142,8 +136,6 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
     }
   };
 
-  const fromGoogle = !!photoURL && photoURL === googlePhoto && !!user?.photoURL;
-
   return (
     <View style={styles.page}>
       <View style={[styles.card, compact && styles.cardCompact]}>
@@ -153,15 +145,9 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.title}>{t('profile.setupTitle')}</Text>
-          <Text style={styles.lead}>{t('profile.setupLead')}</Text>
 
           <View style={styles.photoBlock}>
             <Portrait photoURL={photoURL} gender={gender} size={88} />
-            {photoURL && !fromGoogle ? null : (
-              <Text style={styles.photoNote}>
-                {fromGoogle ? t('profile.photoGoogle') : t('profile.photoPlaceholder')}
-              </Text>
-            )}
             <View style={styles.photoActions}>
               <TouchableOpacity onPress={() => photo(false)} disabled={photoBusy}>
                 <Text style={styles.link}>{photoBusy ? t('common.loading') : t('profile.upload')}</Text>
@@ -173,40 +159,6 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
               ) : null}
             </View>
           </View>
-
-          <Text style={styles.lbl}>{t('profile.name')}</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-            placeholder={t('profile.name')}
-            placeholderTextColor={colors.muted}
-          />
-
-          <Text style={styles.lbl}>
-            {t('profile.gender')}
-            <Text style={styles.optional}> ({t('common.optional')})</Text>
-          </Text>
-          <View style={styles.grid}>
-            {GENDERS.map((opt) => {
-              const active = gender === opt.id;
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  onPress={() => setGender(active ? '' : opt.id)}
-                  style={[styles.chip, active && styles.chipOn]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.chipTxt, active && styles.chipTxtOn]} numberOfLines={1}>
-                    {t(opt.key)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.later}>{t('profile.laterHint')}</Text>
 
           <TouchableOpacity
             style={[styles.primary, (!valid || saving || photoBusy) && styles.primaryOff]}
@@ -278,51 +230,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.ink,
     letterSpacing: -0.3,
-  },
-  lead: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '400',
-    color: colors.muted,
+    textAlign: 'center',
   },
   photoBlock: { alignItems: 'center', marginTop: 22, marginBottom: 8 },
   portrait: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#eef2f6' },
-  photoNote: { marginTop: 8, fontSize: 13, fontWeight: '400', color: colors.muted },
-  photoActions: { flexDirection: 'row', gap: 16, marginTop: 6 },
+  photoActions: { flexDirection: 'row', gap: 16, marginTop: 10 },
   link: { fontSize: 14, fontWeight: '500', color: colors.brand },
-  lbl: { marginTop: 16, marginBottom: 6, fontSize: 13, fontWeight: '500', color: colors.ink },
-  optional: { fontWeight: '400', color: colors.muted },
-  input: {
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    fontWeight: '400',
-    color: colors.ink,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bg,
-  },
-  chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { fontSize: 13, fontWeight: '400', color: colors.ink },
-  chipTxtOn: { fontWeight: '500', color: colors.brand },
-  later: {
-    marginTop: 18,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '400',
-    color: colors.muted,
-  },
   primary: {
     marginTop: 18,
     backgroundColor: colors.brand,

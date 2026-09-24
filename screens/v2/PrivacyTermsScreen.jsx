@@ -330,8 +330,7 @@ export default function PrivacyTermsScreen({
                 />
               </View>
               <Text style={[styles.fine, compact && styles.fineDesk]}>
-                ProTop sender ikke personlig annonsering til barn. Tips gjelder tjenesten
-                (nye funksjoner, trygg bruk). Du kan når som helst slå dette av.{' '}
+                Tips gjelder tjenesten (nye funksjoner). Du kan når som helst slå dette av.{' '}
                 <Text style={styles.link} onPress={() => setPage('privacy')}>
                   Les personvernerklæringen
                 </Text>

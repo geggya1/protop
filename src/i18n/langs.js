@@ -11,6 +11,6 @@ export const LANGS = [
 ];
 
 export const LANG_IDS = LANGS.map((l) => l.id);
-export const LEGAL_VERSION = '2.0.0';
+export const LEGAL_VERSION = '3.0.0';
 export const LANG_KEY = 'weekplan.lang';
 export const CONSENT_KEY = 'weekplan.consents';

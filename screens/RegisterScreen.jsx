@@ -23,6 +23,8 @@ import { suggestUsername } from '../src/utils/usernames';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import BrandLogo from '../components/BrandLogo';
+import SignInLegalConsent, { persistSignInConsent } from '../components/SignInLegalConsent';
+import { useI18n } from '../src/i18n';
 
 function readInviteParams(route) {
   const p = route?.params || {};
@@ -44,6 +46,7 @@ function readInviteParams(route) {
 
 export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const route = useOptionalRoute();
+  const { lang } = useI18n();
   const invite = useMemo(() => readInviteParams(route), [route]);
   const { width } = useWindowDimensions();
   const wide = width >= 480;
@@ -57,6 +60,8 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const [showPassword, setShowPassword] = useState(false);
   const [emailSubmitError, setEmailSubmitError] = useState(null);
   const [triedSubmit, setTriedSubmit] = useState(false);
+  const [legalOk, setLegalOk] = useState(false);
+  const [legalError, setLegalError] = useState(false);
 
   const [inviteGroup, setInviteGroup] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(!!invite.familyId);
@@ -128,6 +133,12 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const isClassInvite = inviteGroup && !inviteGroup.missing && isClassroomType(inviteGroup.type);
 
   const handleRegister = async () => {
+    if (!legalOk) {
+      setLegalError(true);
+      setTriedSubmit(true);
+      return;
+    }
+    await persistSignInConsent(lang);
     setTriedSubmit(true);
     setEmailSubmitError(null);
     if (!canSubmit) return;
@@ -351,8 +362,17 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
               </View>
             ) : null}
 
+            <SignInLegalConsent
+              accepted={legalOk}
+              showError={legalError || triedSubmit}
+              onAcceptedChange={(next) => {
+                setLegalOk(next);
+                if (next) setLegalError(false);
+              }}
+            />
+
             <TouchableOpacity
-              style={[styles.primaryBtn, (!canSubmit || loading) && styles.btnDisabled]}
+              style={[styles.primaryBtn, (!canSubmit || !legalOk || loading) && styles.btnDisabled]}
               onPress={handleRegister}
               disabled={loading}
               accessibilityRole="button"

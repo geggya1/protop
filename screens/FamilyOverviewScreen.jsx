@@ -16,6 +16,7 @@ import { colors, radius } from '../src/theme';
 import { isOrganizationType, platformTypeLabel } from '../src/utils/groupTypes';
 import { isProtopWorkspace } from '../src/utils/platformAccess';
 import { isPersonalShell } from '../src/utils/personalShell';
+import { companyContextLabel, dedupePersonalShells } from '../src/project/companyOffer';
 import {
   isGroupDeactivated,
   isGroupDeleted,
@@ -105,7 +106,7 @@ function GroupCard({
 
 export default function FamilyOverviewScreen({ reloadKey }) {
   const navigation = useNavigation();
-  const { selectFamily, applyFamilyPatch } = useApp();
+  const { selectFamily, applyFamilyPatch, family, familyId } = useApp();
   const { t } = useI18n();
 
   const [families, setFamilies] = useState([]);
@@ -269,11 +270,12 @@ export default function FamilyOverviewScreen({ reloadKey }) {
     }
   };
 
-  const workspaces = families.filter((f) => isProtopWorkspace(f));
+  const workspaces = dedupePersonalShells(families.filter((f) => isProtopWorkspace(f)), familyId);
   const live = workspaces.filter((f) => !isGroupDeactivated(f));
   const deactivated = workspaces.filter((f) => isGroupDeactivated(f));
   const personalList = live.filter((f) => isPersonalShell(f));
   const orgList = live.filter((f) => isOrganizationType(f.type));
+  const openCompany = companyContextLabel(family);
   const canCreate = !isChild;
 
   const canManage = (item) => {
@@ -306,7 +308,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
       navigation.navigate('GroupJoin', { platformType: 'organization' });
       return;
     }
-    navigation.navigate('Home', { openShell: { tab: 'projects' } });
+    navigation.navigate('CreateCompany');
   };
 
   if (loading) {
@@ -388,14 +390,32 @@ export default function FamilyOverviewScreen({ reloadKey }) {
           </>
         ) : null}
 
+        {openCompany ? (
+          <View style={styles.hereCard}>
+            <Text style={styles.hereKicker}>Du er i</Text>
+            <Text style={styles.hereName}>{openCompany}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.section}>Ditt arbeidsområde</Text>
         {personalList.length === 0 ? (
-          <Text style={styles.empty}>Du kan bruke ProTop alene. En organisasjon er valgfritt.</Text>
+          <Text style={styles.empty}>Du kan bruke ProTop alene. En bedrift er valgfritt.</Text>
         ) : personalList.map((item) => renderGroup(item))}
 
-        <Text style={[styles.section, { marginTop: 18 }]}>Organisasjoner ({orgList.length})</Text>
+        <Text style={[styles.section, { marginTop: 18 }]}>Bedrifter ({orgList.length})</Text>
         {orgList.length === 0 ? (
-          <Text style={styles.empty}>Ingen organisasjon ennå. Trykk + for å opprette eller bli med, hvis du er med i et firma.</Text>
+          <View style={styles.offerCard}>
+            <Text style={styles.offerTitle}>Ingen bedrift ennå</Text>
+            <Text style={styles.empty}>
+              Be om innpass i en eksisterende bedrift, eller opprett en ny. Dette er gratis.
+            </Text>
+            <TouchableOpacity style={styles.offerBtn} onPress={() => pickCreate('join')}>
+              <Text style={styles.offerBtnTxt}>Be om innpass</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.offerBtn, styles.offerBtnQuiet]} onPress={() => pickCreate('create')}>
+              <Text style={[styles.offerBtnTxt, styles.offerBtnQuietTxt]}>Opprett ny bedrift</Text>
+            </TouchableOpacity>
+          </View>
         ) : orgList.map((item) => renderGroup(item))}
 
         {deactivated.length > 0 ? (
@@ -412,7 +432,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
         <Pressable style={styles.sheetBackdrop} onPress={() => setCreateOpen(false)}>
           <Pressable style={styles.sheet} onStartShouldSetResponder={() => true}>
             <Text style={styles.sheetTitle}>Organisasjon</Text>
-            <Text style={styles.sheetLead}>Du trenger ikke være med i flere. Opprett et firma, eller bli med hvis du er invitert.</Text>
+            <Text style={styles.sheetLead}>Be om innpass i en eksisterende bedrift, eller opprett en ny. Dette er gratis.</Text>
 
             <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('create')}>
               <View style={[styles.sheetIcon, { backgroundColor: colors.brandSoft }]}>
@@ -430,7 +450,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
                 <Ionicons name="key-outline" size={22} color={colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Bli med i eksisterende</Text>
+                <Text style={styles.sheetRowTitle}>Be om innpass</Text>
                 <Text style={styles.sheetRowSub}>Kode fra en administrator i firmaet</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -521,6 +541,36 @@ const styles = StyleSheet.create({
   inviteDeclineTxt: { color: colors.ink, fontWeight: '800', fontSize: 13 },
   inviteError: { color: colors.danger, fontWeight: '700', fontSize: 13, marginBottom: 8 },
   empty: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  hereCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    padding: 14,
+    marginBottom: 16,
+  },
+  hereKicker: { fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.4, textTransform: 'uppercase' },
+  hereName: { marginTop: 2, fontSize: 18, fontWeight: '900', color: colors.ink },
+  offerCard: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 14,
+    marginBottom: 12,
+  },
+  offerTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, marginBottom: 4 },
+  offerBtn: {
+    backgroundColor: colors.brand,
+    borderRadius: 12,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  offerBtnTxt: { color: '#fff', fontWeight: '800' },
+  offerBtnQuiet: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
+  offerBtnQuietTxt: { color: colors.ink },
   tileGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20,
   },

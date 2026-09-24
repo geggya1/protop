@@ -75,6 +75,7 @@ import {
   FriendsShell, CongregationShell, DaycareShell, GroupShell,
 } from './components/SocialPlatformShell';
 import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
+import CreateCompanyScreen from './screens/company/CreateCompanyScreen';
 import PlatformComposePostScreen from './screens/platform/PlatformComposePostScreen';
 import PlatformCreateEventScreen from './screens/platform/PlatformCreateEventScreen';
 import ClassroomJoinScreen from './screens/classroom/ClassroomJoinScreen';
@@ -1049,6 +1050,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="CongregationJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'congregation' }} />
             <Stack.Screen name="DaycareJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'daycare' }} />
             <Stack.Screen name="GroupJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'group' }} />
+            <Stack.Screen name="CreateCompany" component={CreateCompanyScreen} options={{ headerShown: false }} />
             <Stack.Screen name="FriendsComposePost" component={PlatformComposePostWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="CongregationComposePost" component={PlatformComposePostWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="DaycareCreateAnnouncement" component={PlatformCreateEventWithSwipe} options={{ headerShown: false }} />

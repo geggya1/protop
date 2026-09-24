@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -55,6 +55,11 @@ export default function ProjectPlatformScreen() {
   const [tenderForm, setTenderForm] = useState({ title: '', client: '', deadline: '', amount: '', status: 'utkast' });
   const [phone, setPhone] = useState(company?.telefon || '');
   const [email, setEmail] = useState(company?.epostadresse || '');
+
+  useEffect(() => {
+    setPhone(company?.telefon || '');
+    setEmail(company?.epostadresse || '');
+  }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse]);
 
   const projects = useMemo(() => (Array.isArray(family?.projects) ? family.projects : []), [family?.projects]);
   const tenders = useMemo(() => (Array.isArray(family?.tenders) ? family.tenders : []), [family?.tenders]);

@@ -17,6 +17,7 @@ import {
 } from '../src/utils/helpLayout';
 import { getWelcomeTourModules, localizeIntro, pickIntroText } from '../src/utils/moduleIntros';
 import { soft } from './parentHome/softTheme';
+import { subscribeAppRoute } from '../src/navigation/navRef';
 
 const MASK_ID = 'wp-help-spot';
 const NATIVE_DRIVER = Platform.OS !== 'web';
@@ -85,11 +86,19 @@ export default function HelpOverlay() {
   const softFamilyChrome = scope === 'family' && !asChild && !layout.isDesktop;
 
   const [page, setPage] = useState(0);
+  const [routeName, setRouteName] = useState('');
+  useEffect(() => subscribeAppRoute(setRouteName), []);
+  const helpHeld = routeName === 'ProfileSetup';
   const [cardSize, setCardSize] = useState({ w: 380, h: 340 });
   const opacity = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(28)).current;
   const pagerRef = useRef(null);
-  const visible = (mode === 'welcome' || mode === 'module') && pages.length > 0;
+  const visible = !helpHeld && (mode === 'welcome' || mode === 'module') && pages.length > 0;
+
+  useEffect(() => {
+    if (!helpHeld || !mode) return;
+    dismiss({ skipPersist: true });
+  }, [helpHeld, mode, dismiss]);
 
   useEffect(() => {
     if (mode !== 'module') {

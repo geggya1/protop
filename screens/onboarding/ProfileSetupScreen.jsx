@@ -1,101 +1,83 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, ScrollView, Image,
+} from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { useI18n } from '../../src/i18n';
-import { colors, radius, BREAKPOINTS } from '../../src/theme';
-import { claimUsername, isValidUsername, suggestUsername, usernameTaken } from '../../src/utils/usernames';
-import { hasContactAccount, uniqueUsername } from '../../src/utils/account';
-import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
-import { persistUserConsents } from '../../src/utils/consents';
+import { colors, radius } from '../../src/theme';
+import { claimUsername } from '../../src/utils/usernames';
+import { uniqueUsername } from '../../src/utils/account';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
-import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
-import Wizard, { ChoiceGrid } from '../../components/Wizard';
-import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
-import LocationPicker from '../../components/LocationPicker';
-import BirthdayPicker from '../../components/BirthdayPicker';
-import PhoneInput from '../../components/PhoneInput';
+import { persistUserConsents } from '../../src/utils/consents';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
-import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
+
+const GENDERS = [
+  { id: 'woman', key: 'profile.woman' },
+  { id: 'man', key: 'profile.man' },
+  { id: 'other', key: 'profile.other' },
+  { id: 'unspecified', key: 'profile.unspecified' },
+];
+
+function Silhouette({ gender, size }) {
+  const woman = gender === 'woman';
+  const man = gender === 'man';
+  const shoulder = man ? 18 : woman ? 30 : 24;
+  const neck = man ? 40 : woman ? 38 : 39;
+  return (
+    <View style={[styles.portrait, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Circle cx="50" cy="50" r="49" fill="#eef2f6" />
+        <Circle cx="50" cy="36" r="14" fill="none" stroke="#64748b" strokeWidth="2.2" />
+        <Path
+          d={`M${shoulder} 92 C${shoulder} ${neck + 18}, ${neck} ${neck}, 50 ${neck} C${100 - neck} ${neck}, ${100 - shoulder} ${neck + 18}, ${100 - shoulder} 92`}
+          fill="none"
+          stroke="#64748b"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+function Portrait({ photoURL, gender, size }) {
+  if (photoURL) {
+    return (
+      <Image
+        source={{ uri: photoURL }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#eef2f6' }}
+      />
+    );
+  }
+  return <Silhouette gender={gender} size={size} />;
+}
 
 export default function ProfileSetupScreen({ onDone, consents, initial }) {
   const { t, lang } = useI18n();
   const { width } = useWindowDimensions();
-  const wide = width >= BREAKPOINTS.tablet;
+  const compact = width < 480;
   const user = auth.currentUser;
-  const contactLogin = hasContactAccount(user, { email: initial?.email, phone: initial?.phone });
+  const googlePhoto = user?.photoURL || initial?.photoURL || '';
   const [name, setName] = useState(initial?.displayName || user?.displayName || '');
-  const [username, setUsername] = useState(initial?.username || suggestUsername(name || user?.email || 'user'));
-  const [taken, setTaken] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [birthday, setBirthday] = useState(toIsoDate(initial?.birthday) || '');
-  const [gender, setGender] = useState(initial?.gender || '');
-  const [location, setLocation] = useState(initial?.location || null);
-  const [phone, setPhone] = useState(normalizePhone(user?.phoneNumber || initial?.phone || '', defaultDialCode(lang)));
-  const [avatarId, setAvatarId] = useState(initial?.avatarId || 'fox');
-  const [photoURL, setPhotoURL] = useState(initial?.photoURL || user?.photoURL || '');
+  const [gender, setGender] = useState(initial?.gender && initial.gender !== 'unspecified' ? initial.gender : '');
+  const [photoURL, setPhotoURL] = useState(googlePhoto);
   const [saving, setSaving] = useState(false);
-  const [resetBusy, setResetBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [cropVisible, setCropVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
 
-  useEffect(() => {
-    let alive = true;
-    const u = username.trim().toLowerCase();
-    if (!isValidUsername(u)) {
-      setTaken(false);
-      setChecking(false);
-      return undefined;
-    }
-    setChecking(true);
-    const tmr = setTimeout(async () => {
-      try {
-        const busy = await Promise.race([
-          usernameTaken(u, user?.uid),
-          new Promise((resolve) => setTimeout(() => resolve(false), 4000)),
-        ]);
-        if (alive) setTaken(!!busy);
-      } catch {
-        if (alive) setTaken(false);
-      } finally {
-        if (alive) setChecking(false);
-      }
-    }, 400);
-    return () => { alive = false; clearTimeout(tmr); };
-  }, [username, user?.uid]);
-
-  const age = birthday && isValidBirthday(birthday) ? calculateAge(birthday) : null;
-  const usernameOk = !username.trim() || (isValidUsername(username) && !taken);
-  const birthdayOk = !birthday || isValidBirthday(birthday);
-  const valid = name.trim() && usernameOk && birthdayOk && (photoURL || avatarId);
-
-  const sendReset = async () => {
-    const email = (user?.email || initial?.email || '').trim();
-    if (!email) {
-      Alert.alert(t('common.error'), t('auth.identifier'));
-      return;
-    }
-    setResetBusy(true);
-    try {
-      await sendPasswordResetV2(email);
-      Alert.alert(t('auth.resetSentTitle'), t('auth.resetSentBody'));
-    } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
-    } finally {
-      setResetBusy(false);
-    }
-  };
+  const valid = !!name.trim();
 
   const save = async () => {
-    if (!valid || !user) return;
+    if (!valid || !user || saving) return;
     setSaving(true);
     try {
-      const uname = await uniqueUsername(username.trim() || name.trim() || user.email || 'user', user.uid);
+      const uname = await uniqueUsername(name.trim() || user.email || 'user', user.uid);
       await claimUsername(uname, user.uid, 'adult');
       await updateProfile(user, { displayName: name.trim(), photoURL: photoURL || undefined }).catch(() => {});
-      const normalizedPhone = normalizePhone(phone, defaultDialCode(lang));
       const profile = {
         uid: user.uid,
         role: 'adult',
@@ -103,14 +85,13 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
         username: uname,
         usernameLower: uname,
         email: (user.email || '').toLowerCase(),
-        phone: normalizedPhone,
-        phoneCountryCode: normalizedPhone ? splitPhone(normalizedPhone, defaultDialCode(lang)).dialCode : '',
-        birthday,
-        age,
+        phone: initial?.phone || '',
+        birthday: initial?.birthday || '',
+        age: initial?.age ?? null,
         gender: gender || 'unspecified',
-        location: location || null,
+        location: initial?.location || null,
         photoURL: photoURL || '',
-        avatarId,
+        avatarId: '',
         language: lang,
         profileComplete: true,
         consents: consents || initial?.consents || null,
@@ -125,20 +106,18 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
         usernameLower: uname,
         email: profile.email,
         phone: profile.phone,
-        photoURL,
-        avatarId,
+        photoURL: photoURL || '',
+        avatarId: '',
         gender: profile.gender,
-        birthday,
-        age,
-        location: location || null,
+        birthday: profile.birthday,
+        age: profile.age,
+        location: profile.location,
         active: true,
         updatedAt: serverTimestamp(),
       }, { merge: true });
       if (consents) await persistUserConsents(user.uid, consents);
       onDone(profile);
     } catch {
-      setTaken(true);
-    } finally {
       setSaving(false);
     }
   };
@@ -163,107 +142,89 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
     }
   };
 
+  const fromGoogle = !!photoURL && photoURL === googlePhoto && !!user?.photoURL;
+
   return (
-    <Wizard
-      title={t('profile.title')}
-      subtitle={t('profile.subtitle')}
-      onNext={save}
-      nextDisabled={!valid || saving || photoBusy}
-      nextLabel={t('common.continue')}
-    >
-      <Text style={[styles.lbl, wide && styles.lblWide]}>{t('profile.name')}</Text>
-      <TextInput value={name} onChangeText={setName} style={[styles.input, wide && styles.inputWide]} />
+    <View style={styles.page}>
+      <View style={[styles.card, compact && styles.cardCompact]}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.title}>{t('profile.setupTitle')}</Text>
+          <Text style={styles.lead}>{t('profile.setupLead')}</Text>
 
-      <Text style={[styles.lbl, wide && styles.lblWide]}>
-        {t('profile.username')} ({t('common.optional')})
-      </Text>
-      <Text style={[styles.hint, wide && styles.hintWide]}>
-        {t('profile.usernameHintContactOnce')}
-      </Text>
-      <TextInput
-        autoCapitalize="none"
-        value={username}
-        onChangeText={setUsername}
-        style={[styles.input, wide && styles.inputWide, taken && { borderColor: colors.danger }]}
-      />
-      {username.trim() ? (
-        checking ? null : (
-          <Text style={{ fontWeight: '700', fontSize: wide ? 13 : 14, color: taken ? colors.danger : colors.brand }}>
-            {taken ? t('profile.usernameTaken') : isValidUsername(username) ? t('profile.usernameFree') : t('common.required')}
+          <View style={styles.photoBlock}>
+            <Portrait photoURL={photoURL} gender={gender} size={88} />
+            {photoURL && !fromGoogle ? null : (
+              <Text style={styles.photoNote}>
+                {fromGoogle ? t('profile.photoGoogle') : t('profile.photoPlaceholder')}
+              </Text>
+            )}
+            <View style={styles.photoActions}>
+              <TouchableOpacity onPress={() => photo(false)} disabled={photoBusy}>
+                <Text style={styles.link}>{photoBusy ? t('common.loading') : t('profile.upload')}</Text>
+              </TouchableOpacity>
+              {photoURL ? (
+                <TouchableOpacity onPress={() => setPhotoURL('')} disabled={photoBusy}>
+                  <Text style={styles.link}>{t('common.delete')}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          <Text style={styles.lbl}>{t('profile.name')}</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            placeholder={t('profile.name')}
+            placeholderTextColor={colors.muted}
+          />
+
+          <Text style={styles.lbl}>
+            {t('profile.gender')}
+            <Text style={styles.optional}> ({t('common.optional')})</Text>
           </Text>
-        )
-      ) : null}
+          <View style={styles.grid}>
+            {GENDERS.map((opt) => {
+              const active = gender === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => setGender(active ? '' : opt.id)}
+                  style={[styles.chip, active && styles.chipOn]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.chipTxt, active && styles.chipTxtOn]} numberOfLines={1}>
+                    {t(opt.key)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-      {contactLogin ? (
-        <TouchableOpacity style={[styles.chip, wide && styles.chipWide]} onPress={sendReset} disabled={resetBusy}>
-          <Text style={[styles.chipTxt, wide && styles.chipTxtWide]}>
-            {resetBusy ? t('common.loading') : t('auth.resetSend')}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
+          <Text style={styles.later}>{t('profile.laterHint')}</Text>
 
-      <Text style={[styles.lbl, wide && styles.lblWide]}>
-        {t('profile.birthday')} ({t('common.optional')})
-      </Text>
-      <BirthdayPicker value={birthday} onChange={setBirthday} defaultAge={30} allowClear />
-
-      <Text style={[styles.lbl, wide && styles.lblWide]}>
-        {t('profile.gender')} ({t('common.optional')})
-      </Text>
-      <ChoiceGrid
-        value={gender}
-        onChange={setGender}
-        options={[
-          { id: 'woman', label: t('profile.woman') },
-          { id: 'man', label: t('profile.man') },
-          { id: 'other', label: t('profile.other') },
-          { id: 'unspecified', label: t('profile.unspecified') },
-        ]}
-      />
-
-      <Text style={[styles.lbl, wide && styles.lblWide]}>
-        {t('profile.location')} ({t('common.optional')})
-      </Text>
-      <Text style={[styles.hint, wide && styles.hintWide]}>{t('profile.locationHint')}</Text>
-      <LocationPicker value={location} onChange={setLocation} />
-
-      <Text style={[styles.lbl, wide && styles.lblWide]}>
-        {t('auth.phone')} ({t('common.optional')})
-      </Text>
-      <Text style={[styles.hint, wide && styles.hintWide]}>{t('profile.phoneHint')}</Text>
-      <PhoneInput value={phone} onChange={setPhone} />
-
-      <Text style={[styles.lbl, wide && styles.lblWide]}>{t('profile.photo')}</Text>
-      <View style={{ alignItems: 'center' }}>
-        <AvatarBubble avatarId={avatarId} photoURL={photoURL} name={name} size={wide ? 72 : 88} />
-      </View>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <TouchableOpacity style={[styles.chip, wide && styles.chipWide]} onPress={() => photo(true)} disabled={photoBusy}>
-          <Text style={[styles.chipTxt, wide && styles.chipTxtWide]}>
-            {photoBusy ? t('common.loading') : t('profile.takePhoto')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.chip, wide && styles.chipWide]} onPress={() => photo(false)} disabled={photoBusy}>
-          <Text style={[styles.chipTxt, wide && styles.chipTxtWide]}>{t('profile.upload')}</Text>
-        </TouchableOpacity>
-        {photoURL ? (
           <TouchableOpacity
-            style={[styles.chip, wide && styles.chipWide, { backgroundColor: '#e2e8f0' }]}
-            onPress={() => setPhotoURL('')}
-            disabled={photoBusy}
+            style={[styles.primary, (!valid || saving || photoBusy) && styles.primaryOff]}
+            onPress={save}
+            disabled={!valid || saving || photoBusy}
           >
-            <Text style={[styles.chipTxt, wide && styles.chipTxtWide, { color: colors.ink }]}>{t('common.delete')}</Text>
+            <Text style={styles.primaryTxt}>
+              {saving ? t('common.loading') : t('common.continue')}
+            </Text>
           </TouchableOpacity>
-        ) : null}
+        </ScrollView>
       </View>
-      <Text style={[styles.hint, wide && styles.hintWide]}>{t('profile.pickCartoon')}</Text>
-      <AvatarPicker value={avatarId} onChange={(id) => { setAvatarId(id); setPhotoURL(''); }} />
 
       <WebImageCropperModal
         visible={cropVisible}
         imageUri={selectedImageUri}
         aspect={1}
-        title="Crop"
+        title={t('profile.photo')}
         onCancel={() => { setCropVisible(false); setSelectedImageUri(null); }}
         onConfirm={async (blob) => {
           setPhotoBusy(true);
@@ -279,27 +240,97 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
           }
         }}
       />
-    </Wizard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  lbl: { fontWeight: '800', color: colors.ink, fontSize: 16, marginTop: 8 },
-  lblWide: { fontSize: 13, marginTop: 4, letterSpacing: 0.2 },
-  hint: { color: colors.muted, fontWeight: '600' },
-  hintWide: { fontSize: 13, lineHeight: 18 },
-  input: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 14, fontSize: 18, fontWeight: '600',
+  page: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
-  inputWide: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  card: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '92%',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    ...Platform.select({
+      web: { boxShadow: '0 16px 48px rgba(15, 23, 42, 0.18)' },
+      default: {
+        shadowColor: '#0f172a',
+        shadowOpacity: 0.16,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 12 },
+        elevation: 6,
+      },
+    }),
+  },
+  cardCompact: { maxHeight: '96%' },
+  scroll: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 24 },
+  title: {
+    fontSize: 22,
+    fontWeight: '500',
+    color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  lead: {
+    marginTop: 8,
     fontSize: 15,
-    borderRadius: 10,
+    lineHeight: 22,
+    fontWeight: '400',
+    color: colors.muted,
   },
-  chip: { backgroundColor: colors.brandSoft, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 999 },
-  chipWide: { paddingVertical: 8, paddingHorizontal: 12 },
-  chipTxt: { fontWeight: '800', color: colors.ink },
-  chipTxtWide: { fontSize: 13 },
+  photoBlock: { alignItems: 'center', marginTop: 22, marginBottom: 8 },
+  portrait: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#eef2f6' },
+  photoNote: { marginTop: 8, fontSize: 13, fontWeight: '400', color: colors.muted },
+  photoActions: { flexDirection: 'row', gap: 16, marginTop: 6 },
+  link: { fontSize: 14, fontWeight: '500', color: colors.brand },
+  lbl: { marginTop: 16, marginBottom: 6, fontSize: 13, fontWeight: '500', color: colors.ink },
+  optional: { fontWeight: '400', color: colors.muted },
+  input: {
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.ink,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
+  },
+  chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  chipTxt: { fontSize: 13, fontWeight: '400', color: colors.ink },
+  chipTxtOn: { fontWeight: '500', color: colors.brand },
+  later: {
+    marginTop: 18,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    color: colors.muted,
+  },
+  primary: {
+    marginTop: 18,
+    backgroundColor: colors.brand,
+    borderRadius: 12,
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryOff: { opacity: 0.45 },
+  primaryTxt: { color: '#fff', fontSize: 15, fontWeight: '500' },
 });

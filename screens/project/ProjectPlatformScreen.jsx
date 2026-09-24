@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { auth } from '../../firebase';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { isOrganizationType } from '../../src/utils/groupTypes';
-import { createGroup, updateGroup } from '../../src/utils/groups';
+import { updateGroup } from '../../src/utils/groups';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
 import {
   PROJECT_PHASES,
@@ -16,6 +15,7 @@ import {
   createProjectRecord,
   createTenderRecord,
 } from '../../src/project/company';
+import { companyContextLabel } from '../../src/project/companyOffer';
 
 const PAGES = [
   ['oversikt', 'Oversikt'],
@@ -42,13 +42,11 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType }
 
 export default function ProjectPlatformScreen() {
   const colors = useColors();
-  const { family, familyId, selectFamily, applyFamilyPatch, userProfile } = useApp();
+  const nav = useNavigation();
+  const { family, familyId, applyFamilyPatch } = useApp();
   const company = family?.company?.organisasjonsnummer ? family.company : null;
-  const onOrganization = isOrganizationType(family?.type);
+  const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState('oversikt');
-  const [query, setQuery] = useState('');
-  const [hits, setHits] = useState([]);
-  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [projectForm, setProjectForm] = useState({ name: '', number: '', place: '', client: '', phase: 'planlegging' });
@@ -64,66 +62,9 @@ export default function ProjectPlatformScreen() {
   const projects = useMemo(() => (Array.isArray(family?.projects) ? family.projects : []), [family?.projects]);
   const tenders = useMemo(() => (Array.isArray(family?.tenders) ? family.tenders : []), [family?.tenders]);
 
-  async function search() {
-    setError('');
-    setSearching(true);
-    try {
-      const res = await searchBrregEnheter(query, { size: 8 });
-      setHits(res.results || []);
-      if (!res.results?.length) setError('Ingen treff i Brønnøysundregistrene.');
-    } catch (e) {
-      setError(e?.message || 'Søket mot Brønnøysund feilet.');
-      setHits([]);
-    } finally {
-      setSearching(false);
-    }
-  }
-
   async function savePatch(id, patch) {
     await updateGroup(id, patch);
     applyFamilyPatch?.(id, patch);
-  }
-
-  async function createFromHit(hit) {
-    const nextCompany = companyFromBrreg(hit);
-    if (!nextCompany || busy) return;
-    const user = auth.currentUser;
-    if (!user) {
-      setError('Du må være innlogget.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      if (onOrganization && familyId) {
-        await savePatch(familyId, { company: nextCompany, name: nextCompany.navn });
-      } else {
-        const id = await createGroup({
-          name: nextCompany.navn,
-          type: 'organization',
-          language: 'nb',
-          user,
-          profile: userProfile,
-        });
-        const patch = { company: nextCompany, projects: [], tenders: [] };
-        await updateGroup(id, patch);
-        await selectFamily?.(id, {
-          id,
-          name: nextCompany.navn,
-          type: 'organization',
-          ...patch,
-        });
-      }
-      setHits([]);
-      setQuery('');
-      setPhone(nextCompany.telefon || '');
-      setEmail(nextCompany.epostadresse || '');
-      setPage('oversikt');
-    } catch (e) {
-      setError(e?.message || 'Kunne ikke opprette bedriften.');
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function saveSettings() {
@@ -202,40 +143,26 @@ export default function ProjectPlatformScreen() {
 
   if (!company) {
     return (
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: colors.ink }]}>Opprett bedrift</Text>
+      <ScrollView contentContainerStyle={styles.body}>
+        <Text style={[styles.title, { color: colors.ink }]}>Prosjekt</Text>
         <Text style={[styles.lead, { color: colors.muted }]}>
-          Søk i Brønnøysundregistrene på navn eller organisasjonsnummer. Bedriften opprettes fra enheten du velger.
+          Prosjekt og anbud hører til en bedrift. Du er ikke i en bedrift nå.
+          Be om innpass eller opprett bedrift fra organisasjonssiden. Det er gratis.
         </Text>
-        <Field label="Søk" value={query} onChangeText={setQuery} placeholder="Navn eller organisasjonsnummer" colors={colors} />
-        <TouchableOpacity onPress={search} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={searching}>
-          {searching ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Søk i Brønnøysund</Text>}
+        <TouchableOpacity
+          onPress={() => nav.navigate('FamilyOverview')}
+          style={[styles.btn, { backgroundColor: colors.brand }]}
+        >
+          <Text style={styles.btnText}>Gå til organisasjon</Text>
         </TouchableOpacity>
-        {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
-        {hits.map((hit) => (
-          <TouchableOpacity
-            key={hit.organisasjonsnummer}
-            style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
-            onPress={() => createFromHit(hit)}
-            disabled={busy}
-          >
-            <Text style={[styles.cardTitle, { color: colors.ink }]}>{hit.navn}</Text>
-            <Text style={[styles.cardMeta, { color: colors.muted }]}>
-              {hit.organisasjonsnummerFormatted || hit.organisasjonsnummer}
-              {hit.organisasjonsform ? ` · ${hit.organisasjonsform}` : ''}
-            </Text>
-            {!!hit.addressLabel && <Text style={[styles.cardMeta, { color: colors.muted }]}>{hit.addressLabel}</Text>}
-            <Text style={[styles.pick, { color: colors.brand }]}>Bruk denne bedriften</Text>
-          </TouchableOpacity>
-        ))}
       </ScrollView>
     );
   }
 
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>{company.navn}</Text>
+      <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
+      <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         {company.organisasjonsnummer}
         {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}

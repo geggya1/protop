@@ -14,6 +14,7 @@ import { useUnread } from '../src/context/NotificationContext';
 import IconBadge from './IconBadge';
 import BrandLogo from './BrandLogo';
 import { isPersonalShell } from '../src/utils/personalShell';
+import { companyContextLabel } from '../src/project/companyOffer';
 import { openNotifications } from '../src/navigation/openNotifications';
 
 /**
@@ -59,9 +60,11 @@ export default function ShellHeader({
   const floatHelp = isPhone && !compact && !dense;
 
   const pageTitle = title;
-  const familyName = isPersonalShell(family)
-    ? (family?.name || 'Mitt hjem')
-    : (family?.name || 'ProTop');
+  const companyLabel = companyContextLabel(family);
+  const familyName = companyLabel
+    || (isPersonalShell(family)
+      ? (family?.name || 'Mitt hjem')
+      : (family?.name || 'ProTop'));
   // onBackHome kept as optional fallback for logo tap only (no visible Hjem link).
   const goHomeFromLogo = onLogoHome || onBackHome;
 

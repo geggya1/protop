@@ -14,6 +14,8 @@ The Firebase client and Hosting config target only project `protop-c189c`. Cloud
 
 Offentlig adresse er [https://protop.no](https://protop.no), uten www til sertifikatet for www er klart. Reserve er [https://protop-c189c.web.app](https://protop-c189c.web.app).
 
+Push til `main` kjører `.github/workflows/deploy-hosting.yml`. Den bygger web, sjekker at `dist` er ProTop, og kjører `firebase deploy --only hosting --project protop-c189c`. Innloggingen er GitHub OIDC mot `github-hosting-deploy@protop-c189c.iam.gserviceaccount.com`, som kun har Firebase Hosting Admin. Functions, Firestore og Storage deployes ikke.
+
 ```bash
 npm run build:web
 npx firebase deploy --only hosting --project protop-c189c

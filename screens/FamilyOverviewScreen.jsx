@@ -306,7 +306,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
       navigation.navigate('GroupJoin', { platformType: 'organization' });
       return;
     }
-    navigation.navigate('CreateGroup', { type: 'organization' });
+    navigation.navigate('Home', { openShell: { tab: 'projects' } });
   };
 
   if (loading) {
@@ -419,8 +419,8 @@ export default function FamilyOverviewScreen({ reloadKey }) {
                 <Ionicons name="business-outline" size={22} color={colors.brand} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Opprett organisasjon</Text>
-                <Text style={styles.sheetRowSub}>Firma eller virksomhet du administrerer</Text>
+                <Text style={styles.sheetRowTitle}>Opprett bedrift</Text>
+                <Text style={styles.sheetRowSub}>Søk opp virksomheten i Brønnøysund</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </TouchableOpacity>

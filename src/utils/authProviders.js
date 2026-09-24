@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   GoogleAuthProvider,
   OAuthProvider,
+  getAuth,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -11,13 +13,16 @@ import { auth, firebaseConfig } from '../../firebase';
 import { isCalendarOauthReturn } from './calendarOAuthCapture';
 
 /**
- * Web client ID from Firebase Google provider (createAuthUri).
- * Used for Google Identity Services on web — more reliable than popup/redirect
- * on Safari and custom domains.
+ * ProTop web client (protop-c189c). Google only accepts JavaScript origins and
+ * the auth handler that are registered on this client.
  */
 export const GOOGLE_WEB_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
-  || '428475017083-ecv3pqeknd15lko721ng3itfg8rtq3cb.apps.googleusercontent.com';
+  || '330510386923-uskc5cfk4as0t6gravidjrp65t07iddc.apps.googleusercontent.com';
+
+const GOOGLE_HELPER_ORIGIN = 'https://protop-c189c.firebaseapp.com';
+const GOOGLE_BRIDGE_QUERY = 'protop_google';
+const GOOGLE_BRIDGE_MESSAGE = 'protop-google';
 
 function prefersRedirectAuth() {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
@@ -211,37 +216,35 @@ function loadGisScript() {
   });
 }
 
-/** Google Identity Services access-token → Firebase credential (web). */
-async function signInWithGoogleGis() {
-  await loadGisScript();
-  if (!window.google?.accounts?.oauth2) {
-    throw new Error('gis-unavailable');
-  }
-  return new Promise((resolve, reject) => {
+function googlePageOriginIsRegistered() {
+  if (typeof window === 'undefined') return false;
+  return window.location.origin === GOOGLE_HELPER_ORIGIN;
+}
+
+function requestGoogleAccessToken() {
+  return loadGisScript().then(() => new Promise((resolve, reject) => {
+    if (!window.google?.accounts?.oauth2) {
+      reject(new Error('gis-unavailable'));
+      return;
+    }
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_WEB_CLIENT_ID,
         scope: 'openid email profile',
-        callback: async (resp) => {
-          try {
-            if (resp.error) {
-              if (resp.error === 'popup_closed_by_user' || resp.error === 'access_denied') {
-                reject(new Error('cancelled'));
-                return;
-              }
-              reject(Object.assign(new Error(resp.error), { code: resp.error }));
-              return;
-            }
-            if (!resp.access_token) {
+        callback: (resp) => {
+          if (resp.error) {
+            if (resp.error === 'popup_closed_by_user' || resp.error === 'access_denied') {
               reject(new Error('cancelled'));
               return;
             }
-            const credential = GoogleAuthProvider.credential(null, resp.access_token);
-            const cred = await signInWithCredential(auth, credential);
-            resolve(cred.user);
-          } catch (e) {
-            reject(e);
+            reject(Object.assign(new Error(resp.error), { code: resp.error }));
+            return;
           }
+          if (!resp.access_token) {
+            reject(new Error('cancelled'));
+            return;
+          }
+          resolve(resp.access_token);
         },
         error_callback: (err) => {
           const type = String(err?.type || err?.message || err || '');
@@ -268,7 +271,82 @@ async function signInWithGoogleGis() {
     } catch (e) {
       reject(e);
     }
+  }));
+}
+
+async function signInWithGoogleAccessToken(accessToken) {
+  const credential = GoogleAuthProvider.credential(null, accessToken);
+  const cred = await signInWithCredential(auth, credential);
+  return cred.user;
+}
+
+/** Google Identity Services access-token → Firebase credential (web). */
+async function signInWithGoogleGis() {
+  const accessToken = await requestGoogleAccessToken();
+  return signInWithGoogleAccessToken(accessToken);
+}
+
+function signInWithGoogleViaBridge() {
+  return new Promise((resolve, reject) => {
+    const popup = window.open(
+      `${GOOGLE_HELPER_ORIGIN}/?${GOOGLE_BRIDGE_QUERY}=1`,
+      'protop-google',
+      'popup,width=480,height=720',
+    );
+    if (!popup) {
+      reject(Object.assign(new Error('popup-blocked'), { code: 'auth/popup-blocked' }));
+      return;
+    }
+    let settled = false;
+    const timer = setInterval(() => {
+      if (popup.closed) finish(new Error('cancelled'));
+    }, 400);
+    function finish(err, user) {
+      if (settled) return;
+      settled = true;
+      clearInterval(timer);
+      window.removeEventListener('message', onMessage);
+      if (err) reject(err);
+      else resolve(user);
+    }
+    async function onMessage(event) {
+      if (event.origin !== GOOGLE_HELPER_ORIGIN) return;
+      const data = event.data;
+      if (!data || data.type !== GOOGLE_BRIDGE_MESSAGE) return;
+      if (data.error) {
+        try { popup.close(); } catch { /* ignore */ }
+        finish(data.error === 'cancelled'
+          ? new Error('cancelled')
+          : Object.assign(new Error(data.error), { code: data.error }));
+        return;
+      }
+      try {
+        const user = await signInWithGoogleAccessToken(data.accessToken);
+        try { popup.close(); } catch { /* ignore */ }
+        finish(null, user);
+      } catch (err) {
+        try { popup.close(); } catch { /* ignore */ }
+        finish(err);
+      }
+    }
+    window.addEventListener('message', onMessage);
   });
+}
+
+/** Popup page on the registered Firebase origin. Posts the Google token back. */
+export async function completeGoogleOriginBridge() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get(GOOGLE_BRIDGE_QUERY) !== '1' || !window.opener) return false;
+  try {
+    const accessToken = await requestGoogleAccessToken();
+    window.opener.postMessage({ type: GOOGLE_BRIDGE_MESSAGE, accessToken }, '*');
+  } catch (err) {
+    const error = err?.message === 'cancelled' ? 'cancelled' : (err?.code || err?.message || 'gis-error');
+    window.opener.postMessage({ type: GOOGLE_BRIDGE_MESSAGE, error }, '*');
+  }
+  window.close();
+  return true;
 }
 
 async function signInWithProviderFirebase(provider, { allowRedirect = true } = {}) {
@@ -323,6 +401,19 @@ export async function completeRedirectSignIn() {
   if (!isLikelyOauthReturn()) return null;
   const pending = getOauthPending();
   try {
+    if (pending && String(pending).includes('google')) {
+      const helperResult = await withTimeout(
+        getRedirectResult(googleHelperAuth()),
+        REDIRECT_RESULT_TIMEOUT_MS,
+        'google-helper-redirect',
+      );
+      const helperCredential = helperResult && GoogleAuthProvider.credentialFromResult(helperResult);
+      if (helperCredential) {
+        const cred = await signInWithCredential(auth, helperCredential);
+        clearOauthPending();
+        return cred.user;
+      }
+    }
     const result = await withTimeout(
       getRedirectResult(auth),
       REDIRECT_RESULT_TIMEOUT_MS,
@@ -379,6 +470,22 @@ function oauthProviderLabel(pending) {
   return 'google';
 }
 
+function googleHelperAuth() {
+  const name = 'protop-google-helper';
+  const existing = getApps().find((app) => app.name === name);
+  const app = existing || initializeApp({
+    ...firebaseConfig,
+    authDomain: 'protop-c189c.firebaseapp.com',
+  }, name);
+  return getAuth(app);
+}
+
+async function signInWithGoogleHelperRedirect(provider) {
+  setOauthPending(provider?.providerId || 'google.com');
+  await signInWithRedirect(googleHelperAuth(), provider);
+  return null;
+}
+
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   provider.addScope('email');
@@ -386,16 +493,26 @@ export async function signInWithGoogle() {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   if (Platform.OS === 'web') {
-    // Mobile Safari: GIS popup often completes without a token — use Firebase redirect.
+    // Mobile Safari: full-page redirect through the registered Firebase origin.
     if (prefersRedirectAuth()) {
-      return signInWithProviderFirebase(provider);
+      return signInWithGoogleHelperRedirect(provider);
     }
-    // Desktop: GIS avoids Firebase helper-iframe issues on custom domains.
+    if (!googlePageOriginIsRegistered()) {
+      try {
+        return await signInWithGoogleViaBridge();
+      } catch (bridgeErr) {
+        if (mapAuthError(bridgeErr) === 'cancelled') throw bridgeErr;
+        if (bridgeErr?.code === 'auth/popup-blocked') {
+          return signInWithGoogleHelperRedirect(provider);
+        }
+        throw bridgeErr;
+      }
+    }
     try {
       return await signInWithGoogleGis();
     } catch (gisErr) {
       if (mapAuthError(gisErr) === 'cancelled') throw gisErr;
-      return signInWithProviderFirebase(provider);
+      return signInWithGoogleHelperRedirect(provider);
     }
   }
 

@@ -1,0 +1,54 @@
+name: Deploy hosting
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: hosting-protop-c189c
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build:web
+
+      - run: npm run verify:dist
+
+      - name: Refuse any deploy target other than ProTop hosting
+        run: |
+          node --input-type=module -e "
+          import { readFileSync } from 'node:fs';
+          const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
+          const keys = Object.keys(cfg);
+          if (keys.length !== 1 || keys[0] !== 'hosting') {
+            console.error('firebase.json may only contain hosting');
+            process.exit(1);
+          }
+          if (cfg.hosting.site !== 'protop-c189c') {
+            console.error('hosting site must be protop-c189c');
+            process.exit(1);
+          }
+          "
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
+
+      - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

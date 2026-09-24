@@ -9,7 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
-import { completeRedirectSignIn, completeGoogleOriginBridge, isLikelyOauthReturn } from './src/utils/authProviders';
+import { completeRedirectSignIn, isLikelyOauthReturn } from './src/utils/authProviders';
 import { isCalendarOauthReturn } from './src/utils/calendarOAuthCapture';
 import { markBiometricUnlocked } from './src/utils/biometricLock';
 import { linking, setLinkingSignedIn, isAuthEntryPath } from './src/navigation/linking';
@@ -423,8 +423,6 @@ export default function App() {
     }, 6000);
     (async () => {
       try {
-        const bridged = await completeGoogleOriginBridge();
-        if (bridged || cancelled) return;
         await completeRedirectSignIn();
       } catch (err) {
         if (cancelled) return;

@@ -104,12 +104,13 @@ const EXTRA_ARTICLES = [
     soft: '#E5F6FE',
     title: T('Prosjektplattformen', 'The project platform'),
     summary: T(
-      'Portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
-      'Portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
+      'Anbudsvarsel fra Doffin, portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
+      'Doffin tender alerts, portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
     ),
-    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project'],
+    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project', 'anbud', 'doffin', 'cpv'],
     steps: {
       parent: [
+        T('Registrer CPV-koder og område under Anbud for å følge Doffin', 'Register CPV codes and an area under Tenders to follow Doffin'),
         T('Åpne Prosjekt og opprett prosjekt med nummer', 'Open Projects and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),

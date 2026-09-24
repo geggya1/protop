@@ -30,7 +30,7 @@ export const GROUP_AVATARS = [
 ];
 
 export const GROUP_TYPES = [
-  'family', 'friends', 'team', 'class', 'classroom', 'congregation', 'club', 'group', 'daycare',
+  'family', 'friends', 'team', 'class', 'classroom', 'congregation', 'club', 'group', 'daycare', 'company',
 ];
 
 export function avatarById(id, list = PEOPLE_AVATARS) {

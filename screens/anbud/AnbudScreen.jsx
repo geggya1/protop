@@ -22,6 +22,7 @@ import {
   watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { updateGroup } from '../../src/utils/groups';
 import NoticeBoard from './NoticeBoard';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
@@ -61,7 +62,7 @@ function Chip({ label, on, onPress, colors }) {
   );
 }
 
-export default function AnbudScreen() {
+export default function AnbudScreen({ company }) {
   const colors = useColors();
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
@@ -90,10 +91,15 @@ export default function AnbudScreen() {
       if (!live) return;
       setState(loaded);
       const watch = loaded.watch;
-      setCompanyName(watch.companyName || '');
-      setOrgnr(watch.orgnr || '');
-      setCpvSource(watch.cpvSource || '');
-      setSelectedCpv(new Set(watch.cpvCodes.map((row) => row.code)));
+      const fromCompany = !watch.savedAt && company?.name;
+      setCompanyName(fromCompany ? company.name : (watch.companyName || company?.name || ''));
+      setOrgnr(fromCompany ? (company.orgnr || '') : (watch.orgnr || company?.orgnr || ''));
+      setCpvSource(fromCompany ? (company.cpvSource || '') : (watch.cpvSource || company?.cpvSource || ''));
+      const codes = fromCompany ? (company.cpvCodes || []) : (watch.cpvCodes?.length ? watch.cpvCodes : (company?.cpvCodes || []));
+      const labels = {};
+      codes.forEach((row) => { if (row?.label) labels[row.code] = row.label; });
+      setFetchedLabels(labels);
+      setSelectedCpv(new Set(codes.map((row) => row.code).filter(Boolean)));
       setNationwide(!!watch.nationwide);
       setSelectedAreas(new Set(watch.areas.map((row) => row.id)));
       setReady(true);
@@ -181,9 +187,9 @@ export default function AnbudScreen() {
 
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.inner}>
-      <Text style={[styles.h2, { color: colors.ink }]}>Anbudsvarsel</Text>
+      <Text style={[styles.h2, { color: colors.ink }]}>Trinn 1 · Anbudsvarsel</Text>
       <Text style={{ color: colors.muted }}>
-        Registrer bedriften med organisasjonsnummer. CPV-kodene hentes fra offentlige tildelinger på Doffin, og kan endres før du lagrer.
+        {company?.name || companyName || 'Bedriften'} bruker CPV-kodene fra registeret. Juster kodene og området, og følg kunngjøringene som treffer.
       </Text>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       <Field label="Organisasjonsnummer" value={orgnr} onChangeText={setOrgnr} placeholder="9 siffer" colors={colors} />
@@ -269,7 +275,15 @@ export default function AnbudScreen() {
         label="Lagre forespørsel"
         colors={colors}
         onPress={() => {
-          const next = apply(saveTenderWatch(state, currentInput()));
+          const input = currentInput();
+          const next = apply(saveTenderWatch(state, input));
+          if (company?.id) {
+            updateGroup(company.id, {
+              orgnr: input.orgnr,
+              cpvCodes: input.cpvCodes,
+              cpvSource: input.cpvSource,
+            }).catch(() => {});
+          }
           if (next) refresh(next);
         }}
       />

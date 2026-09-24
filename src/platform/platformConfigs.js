@@ -2,7 +2,7 @@
  * Plattformkonfigurasjon — styrer skall, faner og moduler.
  */
 import {
-  friendsColors, congregationColors, daycareColors, flexGroupColors,
+  friendsColors, congregationColors, daycareColors, flexGroupColors, companyColors,
 } from './platformThemes';
 
 export const PLATFORM_CONFIGS = {
@@ -160,6 +160,34 @@ export const PLATFORM_CONFIGS = {
     wallLabel: 'Vegg',
     chatId: 'group',
     chatTitle: 'Gruppen',
+  },
+  company: {
+    type: 'company',
+    homeRoute: 'CompanyHome',
+    joinRoute: 'CompanyHome',
+    createEventRoute: 'CompanyHome',
+    composePostRoute: 'CompanyHome',
+    label: 'Bedrift',
+    labelShort: 'Bedrift',
+    icon: 'business-outline',
+    theme: companyColors,
+    codeLabel: 'Bedrift',
+    tabs: [
+      { id: 'home', icon: 'home', label: 'Hjem' },
+      { id: 'apps', icon: 'grid', label: 'Apper' },
+    ],
+    homeKicker: 'Din bedrift',
+    homeSubtitle: 'Apper for bedriften. Anbud er trinn 1 i anbudsmodulen.',
+    quickActions: [
+      { tab: 'anbud', icon: 'megaphone-outline', label: 'Anbud', soft: '#E5F6FE' },
+    ],
+    moreModules: [
+      { id: 'anbud', icon: 'megaphone', label: 'Anbud', tab: 'anbud' },
+    ],
+    eventsLabel: 'Aktiviteter',
+    wallLabel: 'Vegg',
+    chatId: 'company',
+    chatTitle: 'Bedriften',
   },
 };
 

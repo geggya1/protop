@@ -310,6 +310,8 @@ export const TABLE = {
     congregationHint: L('Samlinger, grupper og praktisk info for menigheten.', 'Gatherings, groups and practical info for the congregation.', 'Samlinger, grupper og praktisk info for menigheden.', 'Samlingar, grupper och praktisk info för församlingen.', 'Kokoontumiset, ryhmät ja käytännön info seurakunnalle.', 'Spotkania, grupy i praktyczne info dla wspólnoty.', 'Encuentros, grupos e info práctica para la congregación.', 'Rassemblements, groupes et infos pratiques pour l’assemblée.', 'Treffen, Gruppen und praktische Infos für die Gemeinde.'),
     club: L('Klubb / forening', 'Club', 'Klub / forening', 'Klubb', 'Kerho', 'Klub', 'Club', 'Club', 'Verein'),
     clubHint: L('Aktiviteter, medlemsliste og plan for foreningen.', 'Activities, member list and plans for the club.', 'Aktiviteter, medlemsliste og plan for foreningen.', 'Aktiviteter, medlemslista och plan för föreningen.', 'Aktiviteetit, jäsenlista ja suunnitelma kerholle.', 'Aktywności, lista członków i plan klubu.', 'Actividades, lista de socios y plan del club.', 'Activités, liste des membres et planning du club.', 'Aktivitäten, Mitgliederliste und Plan für den Verein.'),
+    company: L('Bedrift', 'Company', 'Virksomhed', 'Företag', 'Yritys', 'Firma', 'Empresa', 'Entreprise', 'Unternehmen'),
+    companyHint: L('Din egen bedrift, med apper som Anbud.', 'Your own company, with apps such as Tenders.', 'Din egen virksomhed, med apps som Udbud.', 'Ditt eget företag, med appar som Anbud.', 'Oma yrityksesi, sovelluksilla kuten tarjouskilpailu.', 'Twoja firma, z aplikacjami takimi jak przetargi.', 'Tu propia empresa, con apps como licitaciones.', 'Ta propre entreprise, avec des apps comme les appels d’offres.', 'Dein eigenes Unternehmen, mit Apps wie Ausschreibungen.'),
     group: L('Gruppe', 'Group', 'Gruppe', 'Grupp', 'Ryhmä', 'Grupa', 'Grupo', 'Groupe', 'Gruppe'),
     groupHint: L('En fleksibel gruppe for det som passer best for dere.', 'A flexible group for whatever fits you best.', 'En fleksibel gruppe til det, der passer jer bedst.', 'En flexibel grupp för det som passar er bäst.', 'Joustava ryhmä siihen, mikä teille sopii.', 'Elastyczna grupa na to, co wam pasuje.', 'Un grupo flexible para lo que mejor os encaje.', 'Un groupe flexible pour ce qui vous convient.', 'Eine flexible Gruppe für das, was zu euch passt.'),
     daycare: L('Barnehage / SFO', 'Daycare', 'Børnehave', 'Förskola', 'Päiväkoti', 'Przedszkole', 'Guardería', 'Crèche', 'Kita'),
@@ -452,7 +454,6 @@ export const TABLE = {
   tabs: {
     home: L('Hjem', 'Home', 'Hjem', 'Hem', 'Koti', 'Dom', 'Inicio', 'Accueil', 'Start'),
     projects: L('Prosjekt', 'Projects', 'Projekt', 'Projekt', 'Projekti', 'Projekt', 'Proyecto', 'Projet', 'Projekt'),
-    anbud: L('Anbud', 'Tenders', 'Udbud', 'Anbud', 'Tarjouskilpailu', 'Przetargi', 'Licitaciones', 'Appels d’offres', 'Ausschreibungen'),
     plan: L('Kalender', 'Calendar', 'Kalender', 'Kalender', 'Kalenteri', 'Kalendarz', 'Calendario', 'Calendrier', 'Kalender'),
     tasks: L('Oppgaver', 'Tasks', 'Opgaver', 'Uppgifter', 'Tehtävät', 'Zadania', 'Tareas', 'Tâches', 'Aufgaben'),
     chores: L('Gjøremål', 'Chores', 'Gøremål', 'Sysslor', 'Askareet', 'Obowiązki', 'Tareas', 'Corvées', 'Aufgaben'),

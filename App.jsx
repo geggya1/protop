@@ -23,7 +23,6 @@ import {
   isChildEmail,
 } from './src/utils/session';
 
-import AnbudScreen from './screens/anbud/AnbudScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import RegisterInvitedUserScreen from './screens/RegisterInvitedUserScreen';
@@ -73,7 +72,7 @@ import TeamCreateEventScreen from './screens/team/TeamCreateEventScreen';
 import TeamAddMemberScreen from './screens/team/TeamAddMemberScreen';
 import ClassroomShell from './components/ClassroomShell';
 import {
-  FriendsShell, CongregationShell, DaycareShell, GroupShell,
+  FriendsShell, CongregationShell, DaycareShell, GroupShell, CompanyShell,
 } from './components/SocialPlatformShell';
 import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
 import PlatformComposePostScreen from './screens/platform/PlatformComposePostScreen';
@@ -883,18 +882,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   // friend/family invite gates (listFriendRequests never runs).
   if (pendingMarketingRedirect) return <LoadingView label="Åpner ProTop…" />;
 
-  const anbudPreview = isWeb
-    && typeof window !== 'undefined'
-    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    && new URLSearchParams(window.location.search).get('anbudPreview') === '1';
-  if (anbudPreview) {
-    return (
-      <View style={{ flex: 1 }}>
-        <AnbudScreen />
-      </View>
-    );
-  }
-
   return (
     <NavigationContainer
       ref={navRef}
@@ -1058,6 +1045,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="CongregationHome" component={CongregationShell} options={{ headerShown: false }} />
             <Stack.Screen name="DaycareHome" component={DaycareShell} options={{ headerShown: false }} />
             <Stack.Screen name="GroupHome" component={GroupShell} options={{ headerShown: false }} />
+            <Stack.Screen name="CompanyHome" component={CompanyShell} options={{ headerShown: false }} />
             <Stack.Screen name="FriendsJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'friends' }} />
             <Stack.Screen name="CongregationJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'congregation' }} />
             <Stack.Screen name="DaycareJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'daycare' }} />

@@ -14,6 +14,7 @@ import { createGroup, updateGroup } from '../../src/utils/groups';
 import { openPlatformHome } from '../../src/utils/platformNav';
 import { isSocialPlatformType } from '../../src/utils/groupTypes';
 import { setupNewPlatform } from '../../src/platform/platformCore';
+import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
 import { canAccessAllPlatforms } from '../../src/utils/platformAccess';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import Wizard from '../../components/Wizard';
@@ -33,6 +34,7 @@ const TYPE_META = {
   group: { icon: 'people-outline', tint: '#334155', soft: '#e2e8f0' },
   daycare: { icon: 'balloon-outline', tint: '#e11d48', soft: '#ffe4e6' },
   team: { icon: 'football-outline', tint: '#16a34a', soft: '#dcfce7' },
+  company: { icon: 'business-outline', tint: '#1099F4', soft: '#E5F6FE' },
 };
 
 const displayFont = Platform.OS === 'web' ? 'Fraunces, Georgia, serif' : undefined;
@@ -129,6 +131,7 @@ export default function CreateGroupScreen({ navigation, route }) {
   const [step, setStep] = useState(allPlatforms ? 'type' : 'name');
   const [type, setType] = useState('family');
   const [name, setName] = useState('');
+  const [orgnr, setOrgnr] = useState('');
   const [avatarId, setAvatarId] = useState('home');
   const [photoURL, setPhotoURL] = useState('');
   const [saving, setSaving] = useState(false);
@@ -147,12 +150,34 @@ export default function CreateGroupScreen({ navigation, route }) {
         user: auth.currentUser,
         profile: userProfile,
       });
+      const patch = {};
       if (photoURL || avatarId) {
-        await updateGroup(id, { photoURL: photoURL || null, avatarId }).catch(() => {});
+        patch.photoURL = photoURL || null;
+        patch.avatarId = avatarId;
+      }
+      if ((allPlatforms ? type : 'family') === 'company') {
+        const digits = orgnr.replace(/\D/g, '').slice(0, 9);
+        patch.orgnr = digits;
+        try {
+          const data = await fetchCompanyCpv(digits);
+          patch.name = data.company?.name || name.trim();
+          patch.orgnr = data.company?.orgnr || digits;
+          patch.cpvCodes = data.cpvCodes || [];
+          patch.cpvSource = patch.cpvCodes.length ? 'doffin' : '';
+        } catch {
+          patch.cpvCodes = [];
+          patch.cpvSource = '';
+        }
+      }
+      if (Object.keys(patch).length) {
+        await updateGroup(id, patch).catch(() => {});
       }
       await selectFamily(id, {
-        name: name.trim(),
+        name: patch.name || name.trim(),
         type: allPlatforms ? type : 'family',
+        orgnr: patch.orgnr || '',
+        cpvCodes: patch.cpvCodes || [],
+        cpvSource: patch.cpvSource || '',
         ownerUid: uid,
         adminUids: [uid],
         members: [uid],
@@ -210,7 +235,7 @@ export default function CreateGroupScreen({ navigation, route }) {
         title={t('group.name')}
         onBack={() => (allPlatforms ? setStep('type') : navigation.goBack())}
         onNext={save}
-        nextDisabled={!name.trim() || saving}
+        nextDisabled={!name.trim() || saving || (type === 'company' && orgnr.replace(/\D/g, '').length !== 9)}
         nextLabel={saving ? t('common.loading') : t('group.create')}
       >
         <TextInput
@@ -222,6 +247,16 @@ export default function CreateGroupScreen({ navigation, route }) {
           returnKeyType="done"
           onSubmitEditing={save}
         />
+        {type === 'company' ? (
+          <TextInput
+            value={orgnr}
+            onChangeText={setOrgnr}
+            placeholder="Organisasjonsnummer"
+            placeholderTextColor={colors.placeholder}
+            keyboardType="number-pad"
+            style={styles.input}
+          />
+        ) : null}
         <Text style={styles.picLabel}>{t('group.picture')} ({t('common.optional')})</Text>
         <View style={{ alignItems: 'center', marginVertical: 4 }}>
           <AvatarBubble group avatarId={avatarId} photoURL={photoURL} name={name} size={72} />

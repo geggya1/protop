@@ -2,7 +2,7 @@
  * ProTop uses the Weekplan shell unchanged: same mobile dock, tablet rail,
  * and home grid. Only the module set changes.
  *
- * Kept: hjem, venner, prosjekt, anbud, kalender, e-post, oppgaver, notat,
+ * Kept: hjem, venner, prosjekt, kalender, e-post, oppgaver, notat,
  * plus innstillinger, varslinger, hjelp and the rest of the account section.
  * Family product modules are not shown.
  */
@@ -11,7 +11,6 @@ export const PROTOP_PRODUCT_MODULE_IDS = [
   'home',
   'friends',
   'projects',
-  'anbud',
   'plan',
   'mail',
   'stars',

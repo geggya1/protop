@@ -86,12 +86,6 @@ const CATEGORIES = [
     moduleIds: ['projects'],
   },
   {
-    id: 'anbud',
-    icon: 'megaphone-outline',
-    title: T('Anbud', 'Tenders'),
-    moduleIds: ['anbud'],
-  },
-  {
     id: 'account',
     icon: 'shield-checkmark-outline',
     title: T('Konto og personvern', 'Account & privacy'),
@@ -119,30 +113,6 @@ const EXTRA_ARTICLES = [
         T('Åpne Prosjekt og opprett prosjekt med nummer', 'Open Projects and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
-      ],
-      child: [],
-      teen: [],
-    },
-  },
-  {
-    id: 'help.anbud',
-    moduleId: 'anbud',
-    categoryId: 'anbud',
-    icon: 'megaphone-outline',
-    accent: '#1099F4',
-    soft: '#E5F6FE',
-    title: T('Anbudsvarsel', 'Tender alerts'),
-    summary: T(
-      'Registrer CPV-koder og område, og følg aktive kunngjøringer fra Doffin.',
-      'Register CPV codes and an area, and follow active notices from Doffin.',
-    ),
-    keywords: ['anbud', 'doffin', 'cpv', 'kunngjøring', 'tender'],
-    steps: {
-      parent: [
-        T('Åpne Anbud og registrer bedriftens CPV-koder', 'Open Tenders and register the company CPV codes'),
-        T('Velg fylke eller hele Norge', 'Choose a county or all of Norway'),
-        T('Merk treff som aktuell for å melde interesse og hente grunnlaget', 'Mark a hit as relevant to register interest and collect the file'),
-        T('Etter gjennomgang: forkast, eller lever tilbud og åpne tilbudsarbeid', 'After review: reject, or submit a bid and open the bid work'),
       ],
       child: [],
       teen: [],

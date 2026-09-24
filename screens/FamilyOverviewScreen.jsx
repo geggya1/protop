@@ -14,7 +14,7 @@ import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { colors, radius } from '../src/theme';
 import { isTeamType } from '../src/utils/teams';
-import { isClassroomType, isFamilyType, isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, platformTypeLabel } from '../src/utils/groupTypes';
+import { isClassroomType, isFamilyType, isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType, platformTypeLabel } from '../src/utils/groupTypes';
 import { canAccessAllPlatforms } from '../src/utils/platformAccess';
 import {
   isGroupDeactivated,
@@ -289,6 +289,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const congregationList = live.filter((f) => isCongregationType(f.type));
   const daycareList = live.filter((f) => isDaycareType(f.type));
   const flexGroupList = live.filter((f) => isFlexGroupType(f.type));
+  const companyList = live.filter((f) => isCompanyType(f.type));
   const teamList = live.filter((f) => isTeamType(f.type));
   const classroomList = live.filter((f) => isClassroomType(f.type));
   const deactivatedFamilies = deactivated.filter((f) => isFamilyType(f.type));
@@ -296,6 +297,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const deactivatedCongregations = deactivated.filter((f) => isCongregationType(f.type));
   const deactivatedDaycares = deactivated.filter((f) => isDaycareType(f.type));
   const deactivatedFlexGroups = deactivated.filter((f) => isFlexGroupType(f.type));
+  const deactivatedCompanies = deactivated.filter((f) => isCompanyType(f.type));
   const deactivatedTeams = deactivated.filter((f) => isTeamType(f.type));
   const deactivatedClassrooms = deactivated.filter((f) => isClassroomType(f.type));
   const canCreate = !isChild;
@@ -485,6 +487,17 @@ export default function FamilyOverviewScreen({ reloadKey }) {
                 }}
               />
               <PlatformTile
+                icon="business-outline"
+                label="Bedrift"
+                sub="Anbud og bedriftsapper"
+                tint="#1099F4"
+                soft="#E5F6FE"
+                onPress={() => {
+                  if (companyList[0]) openFamily(companyList[0]);
+                  else pickCreate('family');
+                }}
+              />
+              <PlatformTile
                 icon="people-outline"
                 label="Gruppe"
                 sub="Fleksibel plattform"
@@ -521,6 +534,11 @@ export default function FamilyOverviewScreen({ reloadKey }) {
               <Text style={styles.empty}>Ingen barnehage/SFO ennå. Opprett avdeling eller bli med med kode.</Text>
             ) : daycareList.map((item) => renderGroup(item, { daycare: true }))}
 
+            <Text style={[styles.section, { marginTop: 18 }]}>Bedrift ({companyList.length})</Text>
+            {companyList.length === 0 ? (
+              <Text style={styles.empty}>Ingen bedrift ennå. Opprett din egen bedrift for å finne Anbud.</Text>
+            ) : companyList.map((item) => renderGroup(item, { company: true }))}
+
             <Text style={[styles.section, { marginTop: 18 }]}>Gruppe ({flexGroupList.length})</Text>
             {flexGroupList.length === 0 ? (
               <Text style={styles.empty}>Ingen grupper ennå. Opprett fleksibel gruppe eller bli med med kode.</Text>
@@ -538,12 +556,12 @@ export default function FamilyOverviewScreen({ reloadKey }) {
           </>
         ) : null}
 
-        {(deactivatedFamilies.length > 0 || (allPlatforms && (deactivatedFriends.length > 0 || deactivatedCongregations.length > 0 || deactivatedDaycares.length > 0 || deactivatedFlexGroups.length > 0 || deactivatedTeams.length > 0 || deactivatedClassrooms.length > 0))) ? (
+        {(deactivatedFamilies.length > 0 || (allPlatforms && (deactivatedFriends.length > 0 || deactivatedCongregations.length > 0 || deactivatedDaycares.length > 0 || deactivatedFlexGroups.length > 0 || deactivatedCompanies.length > 0 || deactivatedTeams.length > 0 || deactivatedClassrooms.length > 0))) ? (
           <>
             <Text style={[styles.section, { marginTop: 18 }]}>
               {t('group.deactivatedSection')} ({
                 deactivatedFamilies.length + (allPlatforms
-                  ? deactivatedFriends.length + deactivatedCongregations.length + deactivatedDaycares.length + deactivatedFlexGroups.length + deactivatedTeams.length + deactivatedClassrooms.length
+                  ? deactivatedFriends.length + deactivatedCongregations.length + deactivatedDaycares.length + deactivatedFlexGroups.length + deactivatedCompanies.length + deactivatedTeams.length + deactivatedClassrooms.length
                   : 0)
               })
             </Text>
@@ -554,6 +572,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
                 {deactivatedCongregations.map((item) => renderGroup(item, { congregation: true, off: true }))}
                 {deactivatedDaycares.map((item) => renderGroup(item, { daycare: true, off: true }))}
                 {deactivatedFlexGroups.map((item) => renderGroup(item, { flexGroup: true, off: true }))}
+                {deactivatedCompanies.map((item) => renderGroup(item, { company: true, off: true }))}
                 {deactivatedTeams.map((item) => renderGroup(item, { team: true, off: true }))}
                 {deactivatedClassrooms.map((item) => renderGroup(item, { classroom: true, off: true }))}
               </>

@@ -20,7 +20,6 @@ import ChatTabScreen from '../screens/v2/ChatTabScreen';
 import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
-import AnbudScreen from '../screens/anbud/AnbudScreen';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -478,7 +477,6 @@ function AppShellInner() {
     if (tab === 'chat') return <ChatTabScreen />;
     if (tab === 'notes') return <NotesHubScreen />;
     if (tab === 'projects') return <ProjectPlatformScreen />;
-    if (tab === 'anbud') return <AnbudScreen />;
     if (tab === 'mail') return <MailHubScreen />;
     if (tab === 'more') {
       return (

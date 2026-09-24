@@ -23,6 +23,7 @@ import {
   isChildEmail,
 } from './src/utils/session';
 
+import ProjectPlatformScreen from './screens/project/ProjectPlatformScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import RegisterInvitedUserScreen from './screens/RegisterInvitedUserScreen';
@@ -881,6 +882,18 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   // stage==='app'. Users on legal/profile/language/start otherwise never see
   // friend/family invite gates (listFriendRequests never runs).
   if (pendingMarketingRedirect) return <LoadingView label="Åpner ProTop…" />;
+
+  const anbudPreview = isWeb
+    && typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    && new URLSearchParams(window.location.search).get('anbudPreview') === '1';
+  if (anbudPreview) {
+    return (
+      <View style={{ flex: 1 }}>
+        <ProjectPlatformScreen />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer

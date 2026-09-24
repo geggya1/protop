@@ -778,11 +778,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       const p = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       if (p === '/login') return 'Login';
       if (p === '/forgot-password') return 'ForgotPassword';
-      if (p === '/signup') return consented ? 'AuthChoice' : 'LegalConsent';
-      if (p === '/register') return consented ? 'Register' : 'LegalConsent';
+      if (p === '/signup') return 'AuthChoice';
+      if (p === '/register') return 'Register';
       if (p === '/add-friend' || p.startsWith('/add-friend/')) {
         try { capturePendingAddFriendFromLocation(window.location.href); } catch { /* ignore */ }
-        return consented ? 'AuthChoice' : 'LegalConsent';
+        return 'AuthChoice';
       }
       // /start used to mount the legacy Welcome marketing clone — redirect via /.
       if (p === '/start') return null;
@@ -815,11 +815,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (needsVerify) stage = 'verify';
     else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))) stage = 'boot';
     else if (!langPicked && user) stage = 'language';
-    else if (user && !consented) stage = 'legal';
+    // Samtykke hører til velkomstpopupen, ikke en egen side som fanger avbrutt innlogging.
+    else if (user && (!consented || !profileOk)) stage = 'profile';
     // Never eject incomplete profiles to GetStarted — bootTimedOut only clears the
     // white spinner (boot stage). Kicking off ProfileSetup mid-birthday-picker left
     // new users on «Fant ikke familien din».
-    else if (user && !profileOk) stage = 'profile';
     // Personal shell is created in the background; show a short boot while ensuring.
     else if (user && userRole === 'parent' && !hasGroups && !family?.id && !familyId) {
       stage = shellEnsureBusy || !bootTimedOut ? 'boot' : 'homeSetup';
@@ -909,7 +909,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
               {...props}
               onDone={() => {
                 if (props.navigation.canGoBack()) props.navigation.goBack();
-                else if (!consented) props.navigation.replace('LegalConsent');
+                else if (user) props.navigation.replace('ProfileSetup');
                 else if (!user) props.navigation.replace('AuthChoice');
                 else goAfterLegal(props.navigation);
               }}
@@ -996,6 +996,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
                   consents={localConsents}
                   initial={userProfile}
                   onDone={async (profile) => {
+                    if (profile?.consents) setLocalConsents(profile.consents);
                     try {
                       const result = await ensurePersonalShellForUser({
                         user,

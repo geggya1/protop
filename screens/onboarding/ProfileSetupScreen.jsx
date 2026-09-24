@@ -11,7 +11,9 @@ import { colors } from '../../src/theme';
 import { claimUsername } from '../../src/utils/usernames';
 import { uniqueUsername } from '../../src/utils/account';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
-import { persistUserConsents } from '../../src/utils/consents';
+import { consentsComplete, emptyConsents, persistUserConsents, saveLocalConsents } from '../../src/utils/consents';
+import { LEGAL_VERSION } from '../../src/i18n/langs';
+import LegalDocumentModal from '../../components/LegalDocumentModal';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
 
 function Silhouette({ gender, size }) {
@@ -61,9 +63,11 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [cropVisible, setCropVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [agreed, setAgreed] = useState(consentsComplete(consents));
+  const [docOpen, setDocOpen] = useState(false);
 
   const displayName = name.trim() || String(user?.email || '').split('@')[0] || '';
-  const valid = !!displayName;
+  const valid = !!displayName && agreed;
 
   const save = async () => {
     if (!valid || !user || saving) return;
@@ -72,6 +76,18 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
       const uname = await uniqueUsername(displayName || user.email || 'user', user.uid);
       await claimUsername(uname, user.uid, 'adult');
       await updateProfile(user, { displayName, photoURL: photoURL || undefined }).catch(() => {});
+      const now = new Date().toISOString();
+      const nextConsents = consentsComplete(consents) ? consents : {
+        ...(consents || emptyConsents()),
+        termsAt: now,
+        privacyAt: now,
+        gdprAt: now,
+        dataAt: now,
+        copyrightAt: now,
+        language: lang,
+        version: LEGAL_VERSION,
+      };
+      await saveLocalConsents(nextConsents);
       const profile = {
         uid: user.uid,
         role: 'adult',
@@ -88,7 +104,7 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
         avatarId: '',
         language: lang,
         profileComplete: true,
-        consents: consents || initial?.consents || null,
+        consents: nextConsents,
         updatedAt: serverTimestamp(),
         createdAt: initial?.createdAt || serverTimestamp(),
       };
@@ -109,7 +125,7 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
         active: true,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      if (consents) await persistUserConsents(user.uid, consents);
+      await persistUserConsents(user.uid, nextConsents);
       onDone(profile);
     } catch {
       setSaving(false);
@@ -160,6 +176,21 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
             </View>
           </View>
 
+          <TouchableOpacity onPress={() => setDocOpen(true)} style={styles.legalLink}>
+            <Text style={styles.link}>{t('legal.openDoc')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setAgreed((v) => !v)}
+            style={styles.agreeRow}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreed }}
+          >
+            <View style={[styles.box, agreed && styles.boxOn]}>
+              {agreed ? <Text style={styles.tick}>✓</Text> : null}
+            </View>
+            <Text style={styles.agreeTxt}>{t('legal.agreeRead')}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.primary, (!valid || saving || photoBusy) && styles.primaryOff]}
             onPress={save}
@@ -192,6 +223,7 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
           }
         }}
       />
+      <LegalDocumentModal visible={docOpen} onClose={() => setDocOpen(false)} />
     </View>
   );
 }
@@ -236,6 +268,15 @@ const styles = StyleSheet.create({
   portrait: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#eef2f6' },
   photoActions: { flexDirection: 'row', gap: 16, marginTop: 10 },
   link: { fontSize: 14, fontWeight: '500', color: colors.brand },
+  legalLink: { alignSelf: 'center', marginTop: 16 },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
+  box: {
+    width: 18, height: 18, marginTop: 1, borderRadius: 4, borderWidth: 1, borderColor: colors.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  boxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+  tick: { color: '#fff', fontSize: 12, lineHeight: 14 },
+  agreeTxt: { flex: 1, fontSize: 14, fontWeight: '400', lineHeight: 20, color: colors.ink },
   primary: {
     marginTop: 18,
     backgroundColor: colors.brand,

@@ -13,9 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { colors, radius } from '../src/theme';
-import { isTeamType } from '../src/utils/teams';
-import { isClassroomType, isFamilyType, isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, platformTypeLabel } from '../src/utils/groupTypes';
-import { canAccessAllPlatforms } from '../src/utils/platformAccess';
+import { isOrganizationType, platformTypeLabel } from '../src/utils/groupTypes';
+import { isProtopWorkspace } from '../src/utils/platformAccess';
+import { isPersonalShell } from '../src/utils/personalShell';
 import {
   isGroupDeactivated,
   isGroupDeleted,
@@ -29,18 +29,6 @@ import HelpTarget from '../components/HelpTarget';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { AvatarBubble } from '../components/AvatarPicker';
 import ConfirmActionModal from '../components/ConfirmActionModal';
-
-function PlatformTile({ icon, label, sub, onPress, tint = colors.brand, soft = colors.brandSoft }) {
-  return (
-    <TouchableOpacity style={styles.tile} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.tileIcon, { backgroundColor: soft }]}>
-        <Ionicons name={icon} size={22} color={tint} />
-      </View>
-      <Text style={styles.tileLabel} numberOfLines={1}>{label}</Text>
-      <Text style={styles.tileSub} numberOfLines={2}>{sub}</Text>
-    </TouchableOpacity>
-  );
-}
 
 function GroupCard({
   item, team, classroom, friends, congregation, daycare, flexGroup, deactivated, canReactivate, canManage, onPress, onSettings, onReactivate,
@@ -72,7 +60,7 @@ function GroupCard({
             {item.name || '—'}
           </Text>
           <Text style={styles.groupSub} numberOfLines={1}>
-            {team ? (item.sport || 'Idrettslag') : classroom ? ([item.school, item.grade].filter(Boolean).join(' · ') || 'Klasserom') : subLabel}
+            {item.isPersonal ? 'Ditt arbeidsområde' : (isOrganizationType(item.type) ? 'Organisasjon' : subLabel)}
           </Text>
           {deactivated ? (
             <Text style={styles.badgeOff}>{deactivatedLabel}</Text>
@@ -132,7 +120,6 @@ export default function FamilyOverviewScreen({ reloadKey }) {
 
   const user = auth.currentUser;
   const isChild = !!user?.email?.endsWith('@weekplan.app');
-  const allPlatforms = canAccessAllPlatforms(user);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -282,22 +269,11 @@ export default function FamilyOverviewScreen({ reloadKey }) {
     }
   };
 
-  const live = families.filter((f) => !isGroupDeactivated(f));
-  const deactivated = families.filter((f) => isGroupDeactivated(f));
-  const familyList = live.filter((f) => isFamilyType(f.type));
-  const friendsList = live.filter((f) => isFriendsType(f.type));
-  const congregationList = live.filter((f) => isCongregationType(f.type));
-  const daycareList = live.filter((f) => isDaycareType(f.type));
-  const flexGroupList = live.filter((f) => isFlexGroupType(f.type));
-  const teamList = live.filter((f) => isTeamType(f.type));
-  const classroomList = live.filter((f) => isClassroomType(f.type));
-  const deactivatedFamilies = deactivated.filter((f) => isFamilyType(f.type));
-  const deactivatedFriends = deactivated.filter((f) => isFriendsType(f.type));
-  const deactivatedCongregations = deactivated.filter((f) => isCongregationType(f.type));
-  const deactivatedDaycares = deactivated.filter((f) => isDaycareType(f.type));
-  const deactivatedFlexGroups = deactivated.filter((f) => isFlexGroupType(f.type));
-  const deactivatedTeams = deactivated.filter((f) => isTeamType(f.type));
-  const deactivatedClassrooms = deactivated.filter((f) => isClassroomType(f.type));
+  const workspaces = families.filter((f) => isProtopWorkspace(f));
+  const live = workspaces.filter((f) => !isGroupDeactivated(f));
+  const deactivated = workspaces.filter((f) => isGroupDeactivated(f));
+  const personalList = live.filter((f) => isPersonalShell(f));
+  const orgList = live.filter((f) => isOrganizationType(f.type));
   const canCreate = !isChild;
 
   const canManage = (item) => {
@@ -326,15 +302,11 @@ export default function FamilyOverviewScreen({ reloadKey }) {
 
   const pickCreate = (action) => {
     setCreateOpen(false);
-    if (action === 'family') navigation.navigate('CreateGroup');
-    else if (action === 'team') navigation.navigate('TeamCreate');
-    else if (action === 'join') navigation.navigate('TeamJoin');
-    else if (action === 'classroom') navigation.navigate('ClassroomCreate');
-    else if (action === 'joinClass') navigation.navigate('ClassroomJoin');
-    else if (action === 'joinFriends') navigation.navigate('FriendsJoin');
-    else if (action === 'joinCongregation') navigation.navigate('CongregationJoin');
-    else if (action === 'joinDaycare') navigation.navigate('DaycareJoin');
-    else if (action === 'joinGroup') navigation.navigate('GroupJoin');
+    if (action === 'join') {
+      navigation.navigate('GroupJoin', { platformType: 'organization' });
+      return;
+    }
+    navigation.navigate('Home', { openShell: { tab: 'projects' } });
   };
 
   if (loading) {
@@ -349,15 +321,15 @@ export default function FamilyOverviewScreen({ reloadKey }) {
     <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>{allPlatforms ? 'Plattform' : 'Familie'}</Text>
-          <Text style={styles.hello}>{allPlatforms ? 'Velg plattform' : 'Velg familie'}</Text>
+          <Text style={styles.kicker}>Organisasjon</Text>
+          <Text style={styles.hello}>Velg organisasjon</Text>
         </View>
         {canCreate && (
           <HelpTarget id="add">
             <TouchableOpacity
               style={styles.plus}
-              onPress={() => (allPlatforms ? setCreateOpen(true) : navigation.navigate('CreateGroup'))}
-              accessibilityLabel="Ny gruppe"
+              onPress={() => setCreateOpen(true)}
+              accessibilityLabel="Ny organisasjon"
             >
               <Ionicons name="add" size={24} color="#fff" />
             </TouchableOpacity>
@@ -416,148 +388,22 @@ export default function FamilyOverviewScreen({ reloadKey }) {
           </>
         ) : null}
 
-        {canCreate && allPlatforms && (
-          <>
-            <Text style={styles.section}>Hurtigvalg</Text>
-            <View style={styles.tileGrid}>
-              <PlatformTile
-                icon="home-outline"
-                label="Familie"
-                sub="Kalender & hjem"
-                onPress={() => {
-                  if (familyList[0]) openFamily(familyList[0]);
-                  else setCreateOpen(true);
-                }}
-              />
-              <PlatformTile
-                icon="football-outline"
-                label="Idrettslag"
-                sub="Lag & vegg"
-                tint="#0f766e"
-                soft="#d1fae5"
-                onPress={() => {
-                  if (teamList[0]) openFamily(teamList[0]);
-                  else setCreateOpen(true);
-                }}
-              />
-              <PlatformTile
-                icon="school-outline"
-                label="Klasserom"
-                sub="Fag & timeplan"
-                tint="#4338ca"
-                soft="#e0e7ff"
-                onPress={() => {
-                  if (classroomList[0]) openFamily(classroomList[0]);
-                  else pickCreate('classroom');
-                }}
-              />
-              <PlatformTile
-                icon="happy-outline"
-                label="Vennegjeng"
-                sub="Planer & turer"
-                tint="#0ea5e9"
-                soft="#e0f2fe"
-                onPress={() => {
-                  if (friendsList[0]) openFamily(friendsList[0]);
-                  else pickCreate('family');
-                }}
-              />
-              <PlatformTile
-                icon="business-outline"
-                label="Forsamling"
-                sub="Menighet & grupper"
-                tint="#475569"
-                soft="#e2e8f0"
-                onPress={() => {
-                  if (congregationList[0]) openFamily(congregationList[0]);
-                  else pickCreate('family');
-                }}
-              />
-              <PlatformTile
-                icon="balloon-outline"
-                label="Barnehage"
-                sub="Dagsrytme & info"
-                tint="#e11d48"
-                soft="#ffe4e6"
-                onPress={() => {
-                  if (daycareList[0]) openFamily(daycareList[0]);
-                  else pickCreate('family');
-                }}
-              />
-              <PlatformTile
-                icon="people-outline"
-                label="Gruppe"
-                sub="Fleksibel plattform"
-                tint="#334155"
-                soft="#e2e8f0"
-                onPress={() => {
-                  if (flexGroupList[0]) openFamily(flexGroupList[0]);
-                  else pickCreate('family');
-                }}
-              />
-            </View>
-          </>
-        )}
+        <Text style={styles.section}>Ditt arbeidsområde</Text>
+        {personalList.length === 0 ? (
+          <Text style={styles.empty}>Du kan bruke ProTop alene. En organisasjon er valgfritt.</Text>
+        ) : personalList.map((item) => renderGroup(item))}
 
-        <Text style={styles.section}>Familie ({familyList.length})</Text>
-        {familyList.length === 0 ? (
-          <Text style={styles.empty}>Ingen familie ennå. Trykk + for å starte.</Text>
-        ) : familyList.map((item) => renderGroup(item))}
+        <Text style={[styles.section, { marginTop: 18 }]}>Organisasjoner ({orgList.length})</Text>
+        {orgList.length === 0 ? (
+          <Text style={styles.empty}>Ingen organisasjon ennå. Trykk + for å opprette eller bli med, hvis du er med i et firma.</Text>
+        ) : orgList.map((item) => renderGroup(item))}
 
-        {allPlatforms ? (
-          <>
-            <Text style={[styles.section, { marginTop: 18 }]}>Vennegjeng ({friendsList.length})</Text>
-            {friendsList.length === 0 ? (
-              <Text style={styles.empty}>Ingen vennegjeng ennå. Opprett via + eller bli med med gjengkode.</Text>
-            ) : friendsList.map((item) => renderGroup(item, { friends: true }))}
-
-            <Text style={[styles.section, { marginTop: 18 }]}>Forsamling ({congregationList.length})</Text>
-            {congregationList.length === 0 ? (
-              <Text style={styles.empty}>Ingen forsamlings ennå. Opprett menighet eller bli med med kode.</Text>
-            ) : congregationList.map((item) => renderGroup(item, { congregation: true }))}
-
-            <Text style={[styles.section, { marginTop: 18 }]}>Barnehage / SFO ({daycareList.length})</Text>
-            {daycareList.length === 0 ? (
-              <Text style={styles.empty}>Ingen barnehage/SFO ennå. Opprett avdeling eller bli med med kode.</Text>
-            ) : daycareList.map((item) => renderGroup(item, { daycare: true }))}
-
-            <Text style={[styles.section, { marginTop: 18 }]}>Gruppe ({flexGroupList.length})</Text>
-            {flexGroupList.length === 0 ? (
-              <Text style={styles.empty}>Ingen grupper ennå. Opprett fleksibel gruppe eller bli med med kode.</Text>
-            ) : flexGroupList.map((item) => renderGroup(item, { flexGroup: true }))}
-
-            <Text style={[styles.section, { marginTop: 18 }]}>Idrettslag ({teamList.length})</Text>
-            {teamList.length === 0 ? (
-              <Text style={styles.empty}>Ingen idrettslag ennå. Opprett eller bli med med kode.</Text>
-            ) : teamList.map((item) => renderGroup(item, { team: true }))}
-
-            <Text style={[styles.section, { marginTop: 18 }]}>Klasserom ({classroomList.length})</Text>
-            {classroomList.length === 0 ? (
-              <Text style={styles.empty}>Ingen klasser ennå. Opprett eller bli med med klassekode.</Text>
-            ) : classroomList.map((item) => renderGroup(item, { classroom: true }))}
-          </>
-        ) : null}
-
-        {(deactivatedFamilies.length > 0 || (allPlatforms && (deactivatedFriends.length > 0 || deactivatedCongregations.length > 0 || deactivatedDaycares.length > 0 || deactivatedFlexGroups.length > 0 || deactivatedTeams.length > 0 || deactivatedClassrooms.length > 0))) ? (
+        {deactivated.length > 0 ? (
           <>
             <Text style={[styles.section, { marginTop: 18 }]}>
-              {t('group.deactivatedSection')} ({
-                deactivatedFamilies.length + (allPlatforms
-                  ? deactivatedFriends.length + deactivatedCongregations.length + deactivatedDaycares.length + deactivatedFlexGroups.length + deactivatedTeams.length + deactivatedClassrooms.length
-                  : 0)
-              })
+              {t('group.deactivatedSection')} ({deactivated.length})
             </Text>
-            {deactivatedFamilies.map((item) => renderGroup(item, { off: true }))}
-            {allPlatforms ? (
-              <>
-                {deactivatedFriends.map((item) => renderGroup(item, { friends: true, off: true }))}
-                {deactivatedCongregations.map((item) => renderGroup(item, { congregation: true, off: true }))}
-                {deactivatedDaycares.map((item) => renderGroup(item, { daycare: true, off: true }))}
-                {deactivatedFlexGroups.map((item) => renderGroup(item, { flexGroup: true, off: true }))}
-                {deactivatedTeams.map((item) => renderGroup(item, { team: true, off: true }))}
-                {deactivatedClassrooms.map((item) => renderGroup(item, { classroom: true, off: true }))}
-              </>
-            ) : null}
+            {deactivated.map((item) => renderGroup(item, { off: true }))}
           </>
         ) : null}
       </ScrollView>
@@ -565,49 +411,16 @@ export default function FamilyOverviewScreen({ reloadKey }) {
       <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setCreateOpen(false)}>
           <Pressable style={styles.sheet} onStartShouldSetResponder={() => true}>
-            <Text style={styles.sheetTitle}>Ny gruppe</Text>
-            <Text style={styles.sheetLead}>Velg hva du vil opprette eller bli med i.</Text>
+            <Text style={styles.sheetTitle}>Organisasjon</Text>
+            <Text style={styles.sheetLead}>Du trenger ikke være med i flere. Opprett et firma, eller bli med hvis du er invitert.</Text>
 
-            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('family')}>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('create')}>
               <View style={[styles.sheetIcon, { backgroundColor: colors.brandSoft }]}>
-                <Ionicons name="home-outline" size={22} color={colors.brand} />
+                <Ionicons name="business-outline" size={22} color={colors.brand} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Familie, venner, menighet m.m.</Text>
-                <Text style={styles.sheetRowSub}>Velg plattformtype — hver får egen appflate</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('team')}>
-              <View style={[styles.sheetIcon, { backgroundColor: '#d1fae5' }]}>
-                <Ionicons name="football-outline" size={22} color="#0f766e" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Idrettslag</Text>
-                <Text style={styles.sheetRowSub}>Opprett lag og få unik kode til foresatte</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('classroom')}>
-              <View style={[styles.sheetIcon, { backgroundColor: '#e0e7ff' }]}>
-                <Ionicons name="school-outline" size={22} color="#4338ca" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Klasserom</Text>
-                <Text style={styles.sheetRowSub}>Opprett klasse med fag, timeplan og elevmapper</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('joinFriends')}>
-              <View style={[styles.sheetIcon, { backgroundColor: '#e0f2fe' }]}>
-                <Ionicons name="key-outline" size={22} color="#0ea5e9" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Bli med vennegjeng</Text>
-                <Text style={styles.sheetRowSub}>Gjengkode fra en i gjengen</Text>
+                <Text style={styles.sheetRowTitle}>Opprett bedrift</Text>
+                <Text style={styles.sheetRowSub}>Søk opp virksomheten i Brønnøysund</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </TouchableOpacity>
@@ -617,19 +430,8 @@ export default function FamilyOverviewScreen({ reloadKey }) {
                 <Ionicons name="key-outline" size={22} color={colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Bli med med lagkode</Text>
-                <Text style={styles.sheetRowSub}>Har du fått kode fra trener eller admin?</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('joinClass')}>
-              <View style={[styles.sheetIcon, { backgroundColor: '#e0e7ff' }]}>
-                <Ionicons name="key-outline" size={22} color="#4338ca" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>Bli med med klassekode</Text>
-                <Text style={styles.sheetRowSub}>Har du fått kode fra rektor eller lærer?</Text>
+                <Text style={styles.sheetRowTitle}>Bli med i eksisterende</Text>
+                <Text style={styles.sheetRowSub}>Kode fra en administrator i firmaet</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </TouchableOpacity>

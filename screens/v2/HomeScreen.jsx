@@ -20,6 +20,7 @@ import KitchenPinModal from '../../components/KitchenPinModal';
 import ParentHomeThemeHost from '../../components/parentHome/ParentHomeThemeHost';
 import PendingFamilyInvitePrompt from '../../components/PendingFamilyInvitePrompt';
 import { buildParentDashboardApps } from '../../src/navigation/shellModules';
+import { openNotifications } from '../../src/navigation/openNotifications';
 import { useHomeWidgetData } from '../../src/hooks/useHomeWidgetData';
 import { useI18n } from '../../src/i18n';
 import { BOOK_OWNER } from '../../src/utils/books';
@@ -334,7 +335,7 @@ function ParentHomeScreen() {
           onOpenEvent={openEvent}
           onCreate={() => setCreateOpen(true)}
           onTab={(tab, subView) => requestShellTab(tab, subView || null)}
-          onNotify={() => nav.navigate('Notifications')}
+          onNotify={() => openNotifications(nav)}
           onUpgrade={() => requestShellTab('more', 'subscription')}
           onToggleTask={async (task) => {
             try { await toggleParentTodo(familyId, task, today); } catch { /* ignore */ }

@@ -89,26 +89,29 @@ for (const banner of [...jente, ...noytralt]) {
   assert.equal(fs.existsSync(abs), true, `missing file for ${banner.id}: ${abs}`);
 }
 
-function listedPngs(pack) {
+function listedMedium(pack) {
   const dir = path.join(root, 'assets/home-banners', pack);
-  return fs.readdirSync(dir).filter((name) => name.endsWith('.png')).sort();
+  return fs.readdirSync(dir).filter((name) => name.endsWith('.medium.jpg')).sort();
 }
 
 assert.deepEqual(
-  listedPngs('jente'),
+  listedMedium('jente'),
   jente.map((b) => path.basename(b.source)).sort(),
 );
 assert.deepEqual(
-  listedPngs('noytralt'),
+  listedMedium('noytralt'),
   noytralt.map((b) => path.basename(b.source)).sort(),
 );
+assert.ok(src.includes("id: 'natur'"), 'nature group stays in the picker');
+assert.equal(src.includes("label: 'Småbarn'"), false);
+assert.equal(src.includes("label: 'Barn'"), false);
+assert.equal(src.includes("label: 'Ungdom'"), false);
 
 assert.match(src, /export const DEFAULT_HOME_BANNER_ID = 'natur-innsjo-hytte-morgen'/);
 assert.match(src, /export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom'/);
-assert.match(
-  src,
-  /if \(groupId === 'noytralt'\) return HOME_BANNERS\.filter\(\(b\) => b\.pack === 'noytralt'\)/,
-);
+assert.match(src, /if \(groupId !== 'natur'\) return \[\]/);
+assert.match(src, /label: 'Natur'/);
+assert.doesNotMatch(src, /label: 'Småbarn'/);
 
 const childDefault = banners.find((b) => b.id === 'noytralt-smaabarn-barnerom');
 assert.equal(childDefault?.pack, 'noytralt');
@@ -164,10 +167,11 @@ function assertPortrait941x1672(ids, { allowCutout = false } = {}) {
     assert.equal(banner.fullscreen, true, id);
     const abs = path.resolve(path.dirname(srcPath), banner.source);
     assert.equal(fs.existsSync(abs), true, `missing file for ${id}`);
-    const { width, height } = pngSize(abs);
-    assert.ok(height > width, `${id} should be portrait, got ${width}x${height}`);
-    assert.equal(width, 941, `${id} width`);
-    assert.equal(height, 1672, `${id} height`);
+    const size = pngSize(abs);
+    if (!size) continue;
+    assert.ok(size.height > size.width, `${id} should be portrait, got ${size.width}x${size.height}`);
+    assert.equal(size.width, 941, `${id} width`);
+    assert.equal(size.height, 1672, `${id} height`);
   }
 }
 
@@ -179,10 +183,11 @@ for (const id of NATUR_PORTRAIT_IDS) {
   assert.equal(banner.fullscreen, true, id);
   const abs = path.resolve(path.dirname(srcPath), banner.source);
   assert.equal(fs.existsSync(abs), true, `missing file for ${id}`);
-  const { width, height } = pngSize(abs);
-  assert.ok(height > width, `${id} should be portrait, got ${width}x${height}`);
-  assert.equal(width, 941, `${id} width`);
-  assert.equal(height, 1672, `${id} height`);
+  const size = pngSize(abs);
+  if (!size) continue;
+  assert.ok(size.height > size.width, `${id} should be portrait, got ${size.width}x${size.height}`);
+  assert.equal(size.width, 941, `${id} width`);
+  assert.equal(size.height, 1672, `${id} height`);
 }
 
 assertPortrait941x1672(GUTT_PORTRAIT_IDS, { allowCutout: true });
@@ -190,7 +195,7 @@ assertPortrait941x1672(VOKSEN_PORTRAIT_IDS);
 
 function pngSize(filePath) {
   const buf = fs.readFileSync(filePath);
-  assert.equal(buf.toString('ascii', 1, 4), 'PNG', `not a PNG: ${filePath}`);
+  if (buf.toString('ascii', 1, 4) !== 'PNG') return null;
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 

@@ -1,23 +1,23 @@
-import { protopBrand } from '../brand/protopBrand';
+import { protopBrand } from '../brand/protopBrand.js';
 
 const BRAND = protopBrand.digitalBlue;
 
-/** Standard snarveier — Oppgaver, Handleliste, FamilieSpill, E-post. */
-export const DEFAULT_PARENT_SHORTCUT_IDS = ['stars', 'shop', 'games', 'mail'];
+/** Standard snarveier — Oppgaver, Kalender, Prosjekt, E-post. */
+export const DEFAULT_PARENT_SHORTCUT_IDS = ['stars', 'plan', 'projects', 'mail'];
 
-/** Mini icons inside the + mer folder glyph (Kalender / Handleliste / Familie / Spill). */
+/** Mini icons inside the + mer folder glyph (Kalender / Prosjekt / Venner / E-post). */
 export const MORE_FOLDER_GLYPHS = [
   { icon: 'calendar', color: BRAND },
-  { icon: 'cart', color: BRAND },
+  { icon: 'business', color: BRAND },
   { icon: 'people', color: '#6B8F71' },
-  { icon: 'game-controller', color: BRAND },
+  { icon: 'mail', color: BRAND },
 ];
 
-/** Default 4-across home tiles: Oppgave, Handleliste, Familiespill, + mer. */
+/** Default 4-across home tiles: Oppgaver, Kalender, Prosjekt, + mer. */
 export const DEFAULT_HOME_SHORTCUT_TILES = [
-  { id: 'stars', icon: 'checkmark-circle', tileLabel: 'Oppgave', label: 'Oppgave', action: { type: 'tab', tab: 'stars' } },
-  { id: 'shop', icon: 'cart', tileLabel: 'Handleliste', label: 'Handleliste', action: { type: 'tab', tab: 'more', subView: 'shop' } },
-  { id: 'games', icon: 'game-controller', tileLabel: 'Familiespill', label: 'Familiespill', action: { type: 'tab', tab: 'more', subView: 'games' } },
+  { id: 'stars', icon: 'checkmark-circle', tileLabel: 'Oppgaver', label: 'Oppgaver', action: { type: 'tab', tab: 'stars' } },
+  { id: 'plan', icon: 'calendar', tileLabel: 'Kalender', label: 'Kalender', action: { type: 'tab', tab: 'plan' } },
+  { id: 'projects', icon: 'business', tileLabel: 'Prosjekt', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
   {
     id: 'more',
     icon: 'add',
@@ -28,11 +28,11 @@ export const DEFAULT_HOME_SHORTCUT_TILES = [
   },
 ];
 
-/** Child 4-across: Oppgave, Gjøremål, Familiespill, + mer (no adult modules). */
+/** Same professional tiles on every profile. */
 export const DEFAULT_CHILD_HOME_SHORTCUT_TILES = [
-  { id: 'stars', icon: 'checkmark-circle', tileLabel: 'Oppgave', label: 'Oppgave', action: { type: 'tab', tab: 'stars' } },
-  { id: 'chores', icon: 'star', tileLabel: 'Gjøremål', label: 'Gjøremål', action: { type: 'tab', tab: 'chores' } },
-  { id: 'games', icon: 'game-controller', tileLabel: 'Familiespill', label: 'Familiespill', action: { type: 'tab', tab: 'more', subView: 'games' } },
+  { id: 'stars', icon: 'checkmark-circle', tileLabel: 'Oppgaver', label: 'Oppgaver', action: { type: 'tab', tab: 'stars' } },
+  { id: 'plan', icon: 'calendar', tileLabel: 'Kalender', label: 'Kalender', action: { type: 'tab', tab: 'plan' } },
+  { id: 'mail', icon: 'mail', tileLabel: 'E-post', label: 'E-post', action: { type: 'tab', tab: 'mail' } },
   {
     id: 'more',
     icon: 'add',

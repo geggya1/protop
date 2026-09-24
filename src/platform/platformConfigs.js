@@ -161,6 +161,57 @@ export const PLATFORM_CONFIGS = {
     chatId: 'group',
     chatTitle: 'Gruppen',
   },
+  organization: {
+    type: 'organization',
+    homeRoute: 'Home',
+    joinRoute: 'GroupJoin',
+    createEventRoute: 'EventForm',
+    composePostRoute: 'FriendsComposePost',
+    label: 'Organisasjon',
+    labelShort: 'Organisasjon',
+    icon: 'business-outline',
+    theme: flexGroupColors,
+    codeLabel: 'Organisasjonskode',
+    tabs: [
+      { id: 'home', icon: 'home', label: 'Hjem' },
+      { id: 'plans', icon: 'calendar', label: 'Kalender' },
+      { id: 'groups', icon: 'business', label: 'Firma' },
+      { id: 'tasks', icon: 'checkbox', label: 'Oppgaver' },
+      { id: 'more', icon: 'ellipsis-horizontal', label: 'Mer' },
+    ],
+    homeKicker: 'Organisasjon',
+    homeSubtitle: 'Bytt mellom firma du er med i. Du trenger ikke være med i flere.',
+    quickActions: [],
+    moreModules: [
+      { id: 'members', icon: 'people', label: 'Medlemmer', tab: 'members' },
+      { id: 'invite', icon: 'key', label: 'Organisasjonskode', tab: 'invite' },
+    ],
+    eventsLabel: 'Kalender',
+    wallLabel: 'Vegg',
+    chatId: 'organization',
+    chatTitle: 'Organisasjonen',
+  },
+  company: {
+    type: 'company',
+    homeRoute: 'Home',
+    joinRoute: 'GroupJoin',
+    createEventRoute: 'EventForm',
+    composePostRoute: 'FriendsComposePost',
+    label: 'Firma',
+    labelShort: 'Firma',
+    icon: 'business-outline',
+    theme: flexGroupColors,
+    codeLabel: 'Firmakode',
+    tabs: [],
+    homeKicker: 'Firma',
+    homeSubtitle: 'Bytt mellom firma du er med i.',
+    quickActions: [],
+    moreModules: [],
+    eventsLabel: 'Kalender',
+    wallLabel: 'Vegg',
+    chatId: 'company',
+    chatTitle: 'Firmaet',
+  },
 };
 
 export function configForType(type) {
@@ -191,7 +242,7 @@ export function buildPlatformModules(config, { isAdmin }) {
   ];
 
   const switchers = [
-    { id: 'platformOverview', icon: 'swap-horizontal', label: 'Skift plattform', action: { type: 'platformOverview' } },
+    { id: 'platformOverview', icon: 'swap-horizontal', label: 'Skift organisasjon', action: { type: 'platformOverview' } },
   ];
 
   return [

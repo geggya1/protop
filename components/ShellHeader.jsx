@@ -14,6 +14,7 @@ import { useUnread } from '../src/context/NotificationContext';
 import IconBadge from './IconBadge';
 import BrandLogo from './BrandLogo';
 import { isPersonalShell } from '../src/utils/personalShell';
+import { openNotifications } from '../src/navigation/openNotifications';
 
 /**
  * PlanScreen (and similar) register a control to sit on the page-title row.
@@ -88,7 +89,7 @@ export default function ShellHeader({
             ) : null}
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
-              onPress={() => nav.navigate('Notifications')}
+              onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
@@ -145,7 +146,7 @@ export default function ShellHeader({
             <HelpButton compact color={colors.ink} borderColor={colors.line} />
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
-              onPress={() => nav.navigate('Notifications')}
+              onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
@@ -227,7 +228,7 @@ export default function ShellHeader({
                 borderColor: colors.line,
                 backgroundColor: colors.card,
               }]}
-              onPress={() => nav.navigate('Notifications')}
+              onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>

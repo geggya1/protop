@@ -126,8 +126,9 @@ export default function CreateGroupScreen({ navigation, route }) {
   const { t, lang } = useI18n();
   const { selectFamily, userProfile } = useApp();
   const allPlatforms = canAccessAllPlatforms(auth.currentUser);
-  const [step, setStep] = useState(allPlatforms ? 'type' : 'name');
-  const [type, setType] = useState('family');
+  const lockedType = route?.params?.type === 'organization' || !allPlatforms ? 'organization' : 'organization';
+  const [step, setStep] = useState('name');
+  const [type, setType] = useState(lockedType);
   const [name, setName] = useState('');
   const [avatarId, setAvatarId] = useState('home');
   const [photoURL, setPhotoURL] = useState('');
@@ -142,7 +143,7 @@ export default function CreateGroupScreen({ navigation, route }) {
       const uid = auth.currentUser.uid;
       const id = await createGroup({
         name: name.trim(),
-        type: allPlatforms ? type : 'family',
+        type: 'organization',
         language: lang,
         user: auth.currentUser,
         profile: userProfile,
@@ -152,7 +153,7 @@ export default function CreateGroupScreen({ navigation, route }) {
       }
       await selectFamily(id, {
         name: name.trim(),
-        type: allPlatforms ? type : 'family',
+        type: 'organization',
         ownerUid: uid,
         adminUids: [uid],
         members: [uid],
@@ -167,7 +168,7 @@ export default function CreateGroupScreen({ navigation, route }) {
           userProfile?.displayName || userProfile?.name || auth.currentUser.displayName,
         ).catch(() => {});
       }
-      openPlatformHome(navigation, allPlatforms ? type : 'family');
+      openPlatformHome(navigation, 'organization');
     } catch (err) {
       setSaving(false);
       Alert.alert(t('common.error'));
@@ -208,7 +209,7 @@ export default function CreateGroupScreen({ navigation, route }) {
     <>
       <Wizard
         title={t('group.name')}
-        onBack={() => (allPlatforms ? setStep('type') : navigation.goBack())}
+        onBack={() => navigation.goBack()}
         onNext={save}
         nextDisabled={!name.trim() || saving}
         nextLabel={saving ? t('common.loading') : t('group.create')}

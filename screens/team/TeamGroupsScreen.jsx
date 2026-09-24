@@ -130,7 +130,7 @@ export default function TeamGroupsScreen({ embedded, onOpenTeam }) {
 
         <TouchableOpacity style={styles.familyLink} onPress={() => goPlatformOverview(nav)}>
           <Ionicons name="swap-horizontal-outline" size={18} color={c.tint} />
-          <Text style={styles.familyLinkTxt}>Skift plattform</Text>
+          <Text style={styles.familyLinkTxt}>Skift organisasjon</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

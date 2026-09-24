@@ -13,6 +13,7 @@ import FriendQrModal from './FriendQrModal';
 import { useProfileNavigation } from '../src/hooks/useProfileNavigation';
 import { useApp } from '../src/context/AppContext';
 import { goPlatformOverview } from '../src/utils/platformNav';
+import { openNotifications } from '../src/navigation/openNotifications';
 import { desktopMenu } from '../src/desktop';
 import { hardReloadApp } from '../src/hooks/usePullToRefresh';
 
@@ -83,24 +84,16 @@ export default function ProfileMenuModal({ visible, onClose }) {
               <Text style={[styles.sub, isDesktop && styles.subDesktop]}>
                 {activeProfile?.username
                   ? `@${String(activeProfile.username).replace(/^@+/, '')}`
-                  : (activeProfileKind === 'child' ? 'Barnprofil' : 'Foresatt')}
+                  : 'Konto'}
                 {family?.name ? ` · ${family.name}` : ''}
               </Text>
             </View>
           </View>
 
-          {canSwitchProfiles && (
-            <MenuRow
-              compact={isDesktop}
-              icon="people"
-              label="Bytt bruker"
-              onPress={() => { onClose?.(); setSwitcherOpen(true); }}
-            />
-          )}
           <MenuRow
             compact={isDesktop}
             icon="swap-horizontal-outline"
-            label="Skift plattform"
+            label="Skift organisasjon"
             onPress={() => { onClose?.(); goPlatformOverview(nav); }}
           />
           <MenuRow
@@ -123,36 +116,8 @@ export default function ProfileMenuModal({ visible, onClose }) {
             compact={isDesktop}
             icon="notifications-outline"
             label="Varslinger"
-            onPress={() => { onClose?.(); nav.navigate('Notifications'); }}
+            onPress={() => { onClose?.(); openNotifications(nav); }}
           />
-          {isParent && !isChildAccount && activeProfileKind === 'child' && activeChildId ? (
-            <MenuRow
-              compact={isDesktop}
-              icon="key-outline"
-              label="Barnets innlogging"
-              onPress={() => {
-                onClose?.();
-                const child = kids.find((k) => k.id === activeChildId);
-                if (child) {
-                  nav.navigate('ChildSettings', { familyId, child, focus: 'login' });
-                }
-              }}
-            />
-          ) : null}
-          {isParent && !isChildAccount && activeProfileKind === 'child' && activeChildId ? (
-            <MenuRow
-              compact={isDesktop}
-              icon="lock-closed-outline"
-              label="Apper og tilganger"
-              onPress={() => {
-                onClose?.();
-                const child = kids.find((k) => k.id === activeChildId);
-                if (child) {
-                  nav.navigate('ChildSettings', { familyId, child, focus: 'restrictions' });
-                }
-              }}
-            />
-          ) : null}
           <MenuRow
             compact={isDesktop}
             icon="settings-outline"

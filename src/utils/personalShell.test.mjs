@@ -24,7 +24,7 @@ assert.equal(findPersonalShell(list)?.id, 'a');
 assert.equal(hasNonPersonalGroup(list), true);
 assert.equal(hasNonPersonalGroup([{ id: 'a', isPersonal: true, active: true }]), false);
 
-assert.equal(personalShellDisplayName({ displayName: 'Geir Hansen' }), 'Geirs hjem');
+assert.equal(personalShellDisplayName({ displayName: 'Geir Hansen' }), 'Geir');
 assert.equal(personalShellDisplayName({}), PERSONAL_SHELL_DEFAULT_NAME);
 
 const now = 1_000_000;
@@ -105,7 +105,7 @@ assert.equal(shouldShowFamilyNudge({
   assert.equal(result.created, true);
   assert.equal(result.isPersonal, true);
   assert.equal(created.isPersonal, true);
-  assert.equal(created.name, 'Adas hjem');
+  assert.equal(created.name, 'Ada');
 }
 
 {

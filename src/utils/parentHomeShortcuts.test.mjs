@@ -24,26 +24,26 @@ const many = Array.from({ length: 20 }, (_, i) => `a${i}`);
 assert.equal(normalizeShortcutIds(many).length, MAX_PARENT_SHORTCUTS);
 
 assert.deepEqual(
-  resolveShortcutIds(null, ['stars', 'shop', 'chat', 'mail', 'plan', 'games']),
+  resolveShortcutIds(null, ['stars', 'plan', 'projects', 'mail']),
   DEFAULT_PARENT_SHORTCUT_IDS,
 );
 
-assert.deepEqual(DEFAULT_PARENT_SHORTCUT_IDS, ['stars', 'shop', 'games', 'mail']);
+assert.deepEqual(DEFAULT_PARENT_SHORTCUT_IDS, ['stars', 'plan', 'projects', 'mail']);
 assert.deepEqual(
   DEFAULT_HOME_SHORTCUT_TILES.map((t) => t.id),
-  ['stars', 'shop', 'games', 'more'],
+  ['stars', 'plan', 'projects', 'more'],
 );
-assert.equal(DEFAULT_HOME_SHORTCUT_TILES[0].tileLabel, 'Oppgave');
-assert.equal(DEFAULT_HOME_SHORTCUT_TILES[2].tileLabel, 'Familiespill');
+assert.equal(DEFAULT_HOME_SHORTCUT_TILES[0].tileLabel, 'Oppgaver');
+assert.equal(DEFAULT_HOME_SHORTCUT_TILES[2].tileLabel, 'Prosjekt');
 assert.equal(DEFAULT_HOME_SHORTCUT_TILES[3].tileLabel, '+ mer');
 assert.equal(DEFAULT_HOME_SHORTCUT_TILES[3].folder, true);
 assert.deepEqual(
   DEFAULT_CHILD_HOME_SHORTCUT_TILES.map((t) => t.id),
-  ['stars', 'chores', 'games', 'more'],
+  ['stars', 'plan', 'mail', 'more'],
 );
-assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[0].tileLabel, 'Oppgave');
-assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[1].tileLabel, 'Gjøremål');
-assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[2].tileLabel, 'Familiespill');
+assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[0].tileLabel, 'Oppgaver');
+assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[1].tileLabel, 'Kalender');
+assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[2].tileLabel, 'E-post');
 assert.equal(DEFAULT_CHILD_HOME_SHORTCUT_TILES[3].folder, true);
 assert.equal(parentAppShortLabel({ id: 'skole', label: 'Skolen' }), 'Skole');
 assert.equal(MORE_FOLDER_GLYPHS.length, 4);

@@ -20,15 +20,10 @@ import { useColors } from '../../src/context/ThemeContext';
 
 export const BUILTIN_BOTTOM_CHOICES = [
   { id: 'home', label: 'Hjem', icon: 'home' },
-  { id: 'plan', label: 'Plan', icon: 'calendar' },
-  { id: 'stars', label: 'Oppgaver', icon: 'checkmark-circle' },
-  { id: 'chores', label: 'Gjøremål', icon: 'star' },
-  { id: 'shop', label: 'Handleliste', icon: 'cart' },
-  { id: 'chat', label: 'Chat', icon: 'chatbubbles' },
-  { id: 'family', label: 'Familie', icon: 'people' },
+  { id: 'projects', label: 'Prosjekt', icon: 'business' },
+  { id: 'plan', label: 'Kalender', icon: 'calendar' },
   { id: 'mail', label: 'E-post', icon: 'mail' },
-  { id: 'meals', label: 'Måltider', icon: 'restaurant' },
-  { id: 'more', label: 'Mer', icon: 'ellipsis-horizontal' },
+  { id: 'stars', label: 'Oppgaver', icon: 'checkmark-circle' },
 ];
 
 function Stepper({ steps, index, onStep }) {
@@ -151,7 +146,7 @@ export default function HomeSetupForm({
   const isLastForm = stepIndex === formSteps.length - 1;
   const initialGroup = suggestedGroup
     || getHomeBanner(bannerId)?.group
-    || (bannerId === CUSTOM_BANNER_ID ? 'eget' : 'ungdom');
+    || (bannerId === CUSTOM_BANNER_ID ? 'eget' : 'natur');
   const [groupId, setGroupId] = useState(initialGroup);
   const banners = useMemo(() => bannersInGroup(groupId), [groupId]);
   const selected = bannerId === CUSTOM_BANNER_ID

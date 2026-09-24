@@ -10,6 +10,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import { searchDoffinNotices as searchPublished } from './doffinQuery.js';
 import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
+import { fetchNoticeDossier } from '../src/anbud/dossier.js';
 
 if (!getApps().length) initializeApp();
 
@@ -75,6 +76,32 @@ export const lookupCompany = onCall(
       if (err?.code === 'invalid-argument' || err?.code === 'not-found') reject(err.code, err.message);
       logger.warn('lookupCompany failed', { message: err?.message });
       reject('unavailable', 'Kunne ikke hente bedriftens CPV-koder.');
+    }
+  },
+);
+
+export const fetchDossier = onCall(
+  {
+    region: 'europe-west1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  async (request) => {
+    try {
+      const uid = requireAuth(request.auth);
+      await assertRateLimit(getFirestore(), {
+        key: hashRateKey(['doffin-dossier', uid]),
+        limit: 40,
+        windowMs: 60 * 60 * 1000,
+      });
+      return await fetchNoticeDossier(request.data?.id);
+    } catch (err) {
+      if (err instanceof HttpsError || err?.httpErrorCode) throw err;
+      if (err?.code === 'invalid-argument') reject('invalid-argument', err.message);
+      logger.warn('fetchDossier failed', { message: err?.message });
+      reject('unavailable', 'Kunne ikke hente konkurransegrunnlaget.');
     }
   },
 );

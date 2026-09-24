@@ -61,6 +61,7 @@ export function emptyAnbudState() {
       cpvSource: '',
     },
     notices: [],
+    bids: [],
     syncedAt: null,
   };
 }
@@ -77,6 +78,7 @@ export function normalizeAnbudState(raw) {
       areas: Array.isArray(watch.areas) ? watch.areas : [],
     },
     notices: Array.isArray(src.notices) ? src.notices : [],
+    bids: Array.isArray(src.bids) ? src.bids : [],
     syncedAt: src.syncedAt || null,
   };
 }
@@ -147,16 +149,85 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
     if (row.status && row.status !== 'ACTIVE') continue;
     byId.set(row.id, row);
   }
-  const previousIds = new Set((state.notices || []).map((row) => row.id));
+  const previous = new Map((state.notices || []).map((row) => [row.id, row]));
   const firstSync = !state.syncedAt;
   const notices = [...byId.values()]
-    .map((row) => ({ ...row, isNew: !firstSync && !previousIds.has(row.id) }))
+    .map((row) => {
+      const kept = previous.get(row.id);
+      return {
+        ...row,
+        decision: kept?.decision || 'ubestemt',
+        interestAt: kept?.interestAt || null,
+        dossier: kept?.dossier || null,
+        isNew: !firstSync && !previous.has(row.id),
+      };
+    })
     .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
+  for (const [id, kept] of previous) {
+    if (byId.has(id)) continue;
+    if (kept.decision && kept.decision !== 'ubestemt') {
+      notices.push({ ...kept, status: kept.status || 'ACTIVE', isNew: false });
+    }
+  }
   return ok({
     ...state,
     notices,
     syncedAt: fetchedAt || new Date().toISOString(),
   });
+}
+
+const DECISIONS = new Set(['ubestemt', 'aktuell', 'forkastet', 'tilbud']);
+
+function noticeById(state, id) {
+  return (state.notices || []).find((row) => row.id === id) || null;
+}
+
+export function setNoticeDecision(state, id, decision) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  if (!DECISIONS.has(decision)) return fail(state, 'Ugyldig vurdering.');
+  if (decision === 'tilbud' && notice.decision !== 'aktuell' && notice.decision !== 'tilbud') {
+    return fail(state, 'Meld interesse og vurder konkurransen før det leveres tilbud.');
+  }
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (
+      row.id === id
+        ? {
+          ...row,
+          decision,
+          interestAt: decision === 'aktuell' ? (row.interestAt || new Date().toISOString()) : row.interestAt,
+        }
+        : row
+    )),
+  });
+}
+
+export function attachDossier(state, id, dossier) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  if (!dossier || typeof dossier !== 'object') return fail(state, 'Mangler konkurransegrunnlag.');
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (row.id === id ? { ...row, dossier } : row)),
+  });
+}
+
+export function createBidWork(state, id) {
+  const decided = setNoticeDecision(state, id, 'tilbud');
+  if (!decided.ok) return decided;
+  const notice = noticeById(decided.state, id);
+  if ((decided.state.bids || []).some((bid) => bid.noticeId === id)) return decided;
+  const bid = {
+    id: `bid_${id}`,
+    noticeId: id,
+    title: notice.title,
+    buyer: notice.buyer,
+    phase: 'trinn2',
+    createdAt: new Date().toISOString(),
+    dossier: notice.dossier || null,
+  };
+  return ok({ ...decided.state, bids: [bid, ...(decided.state.bids || [])] });
 }
 
 export function formatNok(amount) {

@@ -6,6 +6,9 @@ import {
   normalizeAnbudState,
   normalizeCpvCode,
   saveTenderWatch,
+  setNoticeDecision,
+  attachDossier,
+  createBidWork,
   watchQuery,
 } from './model.js';
 
@@ -62,3 +65,17 @@ const merged = mergeTenderNotices(state, live.hits, live.fetchedAt).state;
 assert.ok(merged.notices.length > 0);
 assert.match(merged.notices[0].url, /^https:\/\/www\.doffin\.no\/notices\//);
 console.log(`Doffin ${live.numHitsTotal} treff i Nordland, viste ${merged.notices.length}: ${merged.notices[0].title}`);
+
+const marked = setNoticeDecision(merged, merged.notices[0].id, 'aktuell').state;
+assert.equal(marked.notices[0].decision, 'aktuell');
+assert.ok(marked.notices[0].interestAt);
+const withFile = attachDossier(marked, marked.notices[0].id, { procedure: 'Åpen', documentsUrl: 'https://example.test/docs' }).state;
+const kept = mergeTenderNotices(withFile, live.hits, '2026-09-24T13:00:00Z').state;
+const same = kept.notices.find((row) => row.id === marked.notices[0].id);
+assert.equal(same.decision, 'aktuell');
+assert.equal(same.dossier.procedure, 'Åpen');
+assert.equal(createBidWork(merged, merged.notices[0].id).ok, false);
+const bidState = createBidWork(withFile, withFile.notices[0].id).state;
+assert.equal(bidState.bids[0].phase, 'trinn2');
+assert.equal(bidState.bids[0].noticeId, withFile.notices[0].id);
+assert.equal(bidState.notices.find((row) => row.id === withFile.notices[0].id).decision, 'tilbud');

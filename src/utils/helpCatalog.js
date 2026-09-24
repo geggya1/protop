@@ -141,7 +141,8 @@ const EXTRA_ARTICLES = [
       parent: [
         T('Åpne Anbud og registrer bedriftens CPV-koder', 'Open Tenders and register the company CPV codes'),
         T('Velg fylke eller hele Norge', 'Choose a county or all of Norway'),
-        T('Lagre forespørselen og følg nye treff i lista', 'Save the request and follow new hits in the list'),
+        T('Merk treff som aktuell for å melde interesse og hente grunnlaget', 'Mark a hit as relevant to register interest and collect the file'),
+        T('Etter gjennomgang: forkast, eller lever tilbud og åpne tilbudsarbeid', 'After review: reject, or submit a bid and open the bid work'),
       ],
       child: [],
       teen: [],

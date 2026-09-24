@@ -5,6 +5,7 @@
 import http from 'node:http';
 import { searchDoffinNotices } from '../src/anbud/doffinQuery.js';
 import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
+import { fetchNoticeDossier } from '../src/anbud/dossier.js';
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,7 +16,7 @@ const server = http.createServer(async (req, res) => {
     res.end();
     return;
   }
-  if (req.method !== 'POST' || (req.url !== '/search' && req.url !== '/company')) {
+  if (req.method !== 'POST' || !['/search', '/company', '/dossier'].includes(req.url)) {
     res.writeHead(404);
     res.end();
     return;
@@ -26,7 +27,9 @@ const server = http.createServer(async (req, res) => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
     const result = req.url === '/company'
       ? await lookupCompanyCpv(body.orgnr)
-      : await searchDoffinNotices(body);
+      : req.url === '/dossier'
+        ? await fetchNoticeDossier(body.id)
+        : await searchDoffinNotices(body);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (err) {

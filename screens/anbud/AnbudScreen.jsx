@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,17 +9,20 @@ import {
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
-import { fetchCompanyCpv, fetchDoffinNotices } from '../../src/anbud/doffinClient';
+import { fetchCompanyCpv, fetchCompetitionFile, fetchDoffinNotices } from '../../src/anbud/doffinClient';
 import {
+  attachDossier,
+  createBidWork,
   emptyAnbudState,
-  formatNok,
   formatWhen,
   mergeTenderNotices,
   normalizeCpvCode,
   saveTenderWatch,
+  setNoticeDecision,
   watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import NoticeBoard from './NoticeBoard';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
   return (
@@ -77,6 +79,8 @@ export default function AnbudScreen() {
   const [cpvQuery, setCpvQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
+  const [view, setView] = useState('treff');
+  const [busyId, setBusyId] = useState('');
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -286,26 +290,47 @@ export default function AnbudScreen() {
         </View>
       ) : null}
       {syncError ? <Text style={[styles.error, { color: colors.danger }]}>{syncError}</Text> : null}
-      {watch.savedAt && !notices.length && !syncing ? (
-        <Text style={{ color: colors.muted }}>Ingen aktive kunngjøringer treffer kodene i valgt område.</Text>
-      ) : null}
-      {notices.map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: row.isNew ? colors.brand : colors.line, backgroundColor: colors.card }]}>
-          <View style={styles.rowWrap}>
-            {row.isNew ? <Text style={{ color: colors.brand, fontWeight: '800' }}>Ny</Text> : null}
-            <Text style={{ color: colors.muted }}>{row.id}</Text>
-          </View>
-          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{row.title}</Text>
-          <Text style={{ color: colors.ink }}>{row.buyer || 'Ukjent oppdragsgiver'}</Text>
-          <Text style={{ color: colors.muted }}>
-            {[row.places.join(', ') || 'Sted ikke oppgitt', row.deadline ? `Frist ${formatWhen(row.deadline)}` : 'Uten frist', formatNok(row.amount)].filter(Boolean).join(' · ')}
-          </Text>
-          {row.description ? <Text style={{ color: colors.muted }} numberOfLines={3}>{row.description}</Text> : null}
-          <TouchableOpacity onPress={() => Linking.openURL(row.url)} accessibilityRole="link">
-            <Text style={{ color: colors.brand, fontWeight: '700' }}>Åpne på Doffin</Text>
-          </TouchableOpacity>
+      {watch.savedAt ? (
+        <View style={styles.rowWrap}>
+          {[
+            ['treff', 'Treff'],
+            ['aktuelle', 'Aktuelle'],
+            ['forkastet', 'Forkastet'],
+            ['tilbud', 'Tilbudsarbeid'],
+          ].map(([id, label]) => (
+            <Chip key={id} label={label} colors={colors} on={view === id} onPress={() => setView(id)} />
+          ))}
         </View>
-      ))}
+      ) : null}
+      <NoticeBoard
+        notices={notices}
+        bids={state.bids || []}
+        view={view}
+        colors={colors}
+        busyId={busyId}
+        onInterest={async (id) => {
+          const next = apply(setNoticeDecision(stateRef.current, id, 'aktuell'));
+          if (!next) return;
+          setView('aktuelle');
+          setBusyId(id);
+          try {
+            const data = await fetchCompetitionFile(id);
+            apply(attachDossier(next, id, data?.dossier));
+          } catch (err) {
+            setSyncError(err?.message || 'Kunne ikke hente konkurransegrunnlaget.');
+          } finally {
+            setBusyId('');
+          }
+        }}
+        onReject={(id) => {
+          apply(setNoticeDecision(stateRef.current, id, 'forkastet'));
+          setView('forkastet');
+        }}
+        onBid={(id) => {
+          const next = apply(createBidWork(stateRef.current, id));
+          if (next) setView('tilbud');
+        }}
+      />
     </ScrollView>
   );
 }

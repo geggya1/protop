@@ -1,4 +1,4 @@
-import { areaById, cpvByCode } from './tenderCatalog.js';
+import { areaById, cpvByCode } from './catalog.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -49,6 +49,36 @@ export function normalizeAreas(input) {
   return out;
 }
 
+export function emptyAnbudState() {
+  return {
+    watch: {
+      companyName: '',
+      cpvCodes: [],
+      areas: [],
+      nationwide: false,
+      savedAt: null,
+    },
+    notices: [],
+    syncedAt: null,
+  };
+}
+
+export function normalizeAnbudState(raw) {
+  const base = emptyAnbudState();
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const watch = src.watch && typeof src.watch === 'object' ? src.watch : {};
+  return {
+    watch: {
+      ...base.watch,
+      ...watch,
+      cpvCodes: Array.isArray(watch.cpvCodes) ? watch.cpvCodes : [],
+      areas: Array.isArray(watch.areas) ? watch.areas : [],
+    },
+    notices: Array.isArray(src.notices) ? src.notices : [],
+    syncedAt: src.syncedAt || null,
+  };
+}
+
 export function saveTenderWatch(state, input) {
   const companyName = text(input?.companyName);
   if (!companyName) return fail(state, 'Bedriftsnavn må fylles ut.');
@@ -60,7 +90,7 @@ export function saveTenderWatch(state, input) {
   if (!nationwide && !areas.length) return fail(state, 'Velg minst ett fylke, eller hele Norge.');
   return ok({
     ...state,
-    tenderWatch: {
+    watch: {
       companyName,
       cpvCodes,
       areas,
@@ -113,15 +143,15 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
     if (row.status && row.status !== 'ACTIVE') continue;
     byId.set(row.id, row);
   }
-  const previousIds = new Set((state.tenderNotices || []).map((row) => row.id));
-  const firstSync = !state.tenderSyncedAt;
+  const previousIds = new Set((state.notices || []).map((row) => row.id));
+  const firstSync = !state.syncedAt;
   const notices = [...byId.values()]
     .map((row) => ({ ...row, isNew: !firstSync && !previousIds.has(row.id) }))
     .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
   return ok({
     ...state,
-    tenderNotices: notices,
-    tenderSyncedAt: fetchedAt || new Date().toISOString(),
+    notices,
+    syncedAt: fetchedAt || new Date().toISOString(),
   });
 }
 

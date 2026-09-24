@@ -452,6 +452,7 @@ export const TABLE = {
   tabs: {
     home: L('Hjem', 'Home', 'Hjem', 'Hem', 'Koti', 'Dom', 'Inicio', 'Accueil', 'Start'),
     projects: L('Prosjekt', 'Projects', 'Projekt', 'Projekt', 'Projekti', 'Projekt', 'Proyecto', 'Projet', 'Projekt'),
+    anbud: L('Anbud', 'Tenders', 'Udbud', 'Anbud', 'Tarjouskilpailu', 'Przetargi', 'Licitaciones', 'Appels d’offres', 'Ausschreibungen'),
     plan: L('Kalender', 'Calendar', 'Kalender', 'Kalender', 'Kalenteri', 'Kalendarz', 'Calendario', 'Calendrier', 'Kalender'),
     tasks: L('Oppgaver', 'Tasks', 'Opgaver', 'Uppgifter', 'Tehtävät', 'Zadania', 'Tareas', 'Tâches', 'Aufgaben'),
     chores: L('Gjøremål', 'Chores', 'Gøremål', 'Sysslor', 'Askareet', 'Obowiązki', 'Tareas', 'Corvées', 'Aufgaben'),

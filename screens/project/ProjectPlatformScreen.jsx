@@ -46,10 +46,8 @@ import {
 } from '../../src/project/engine';
 import { draftMinutes, projectAdvice, projectReport, suggestIso, suggestMeasures } from '../../src/project/assistant';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
-import TenderWatchSection from './TenderWatchSection';
 
 const SECTIONS = [
-  ['anbud', 'Anbud'],
   ['portefolje', 'Portefølje'],
   ['fremdrift', 'Fremdrift'],
   ['hms', 'HMS'],
@@ -95,7 +93,7 @@ export default function ProjectPlatformScreen() {
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
-  const [section, setSection] = useState('anbud');
+  const [section, setSection] = useState('portefolje');
   const [query, setQuery] = useState('');
   const [forms, setForms] = useState({
     project: { name: '', number: '', client: '', place: '', phase: 'planlegging', manager: '' },
@@ -175,10 +173,6 @@ export default function ProjectPlatformScreen() {
         </View>
       ) : (
         <Text style={{ color: colors.muted }}>Opprett et prosjekt for å bruke HMS, kvalitet, dokumenter og regnskap.</Text>
-      )}
-
-      {section === 'anbud' && (
-        <TenderWatchSection state={state} run={run} colors={colors} Field={Field} Btn={Btn} styles={styles} />
       )}
 
       {section === 'portefolje' && (

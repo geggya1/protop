@@ -86,6 +86,12 @@ const CATEGORIES = [
     moduleIds: ['projects'],
   },
   {
+    id: 'anbud',
+    icon: 'megaphone-outline',
+    title: T('Anbud', 'Tenders'),
+    moduleIds: ['anbud'],
+  },
+  {
     id: 'account',
     icon: 'shield-checkmark-outline',
     title: T('Konto og personvern', 'Account & privacy'),
@@ -104,16 +110,38 @@ const EXTRA_ARTICLES = [
     soft: '#E5F6FE',
     title: T('Prosjektplattformen', 'The project platform'),
     summary: T(
-      'Anbudsvarsel fra Doffin, portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
-      'Doffin tender alerts, portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
+      'Portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
+      'Portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
     ),
-    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project', 'anbud', 'doffin', 'cpv'],
+    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project'],
     steps: {
       parent: [
-        T('Registrer CPV-koder og område under Anbud for å følge Doffin', 'Register CPV codes and an area under Tenders to follow Doffin'),
         T('Åpne Prosjekt og opprett prosjekt med nummer', 'Open Projects and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
+      ],
+      child: [],
+      teen: [],
+    },
+  },
+  {
+    id: 'help.anbud',
+    moduleId: 'anbud',
+    categoryId: 'anbud',
+    icon: 'megaphone-outline',
+    accent: '#1099F4',
+    soft: '#E5F6FE',
+    title: T('Anbudsvarsel', 'Tender alerts'),
+    summary: T(
+      'Registrer CPV-koder og område, og følg aktive kunngjøringer fra Doffin.',
+      'Register CPV codes and an area, and follow active notices from Doffin.',
+    ),
+    keywords: ['anbud', 'doffin', 'cpv', 'kunngjøring', 'tender'],
+    steps: {
+      parent: [
+        T('Åpne Anbud og registrer bedriftens CPV-koder', 'Open Tenders and register the company CPV codes'),
+        T('Velg fylke eller hele Norge', 'Choose a county or all of Norway'),
+        T('Lagre forespørselen og følg nye treff i lista', 'Save the request and follow new hits in the list'),
       ],
       child: [],
       teen: [],

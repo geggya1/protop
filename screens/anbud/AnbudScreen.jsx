@@ -1,56 +1,104 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Text, TouchableOpacity, View } from 'react-native';
-import { CPV_CODES, TENDER_AREAS } from '../../src/project/tenderCatalog';
-import { fetchDoffinNotices } from '../../src/project/doffinClient';
 import {
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useColors } from '../../src/context/ThemeContext';
+import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
+import { fetchDoffinNotices } from '../../src/anbud/doffinClient';
+import {
+  emptyAnbudState,
   formatNok,
   formatWhen,
   mergeTenderNotices,
   normalizeCpvCode,
   saveTenderWatch,
   watchQuery,
-} from '../../src/project/tenders';
+} from '../../src/anbud/model';
+import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+
+function Field({ label, value, onChangeText, placeholder, colors }) {
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.placeholder}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+      />
+    </View>
+  );
+}
+
+function Btn({ label, onPress, colors, tone = 'brand' }) {
+  const bg = tone === 'quiet' ? colors.sunken : colors.brand;
+  const fg = tone === 'quiet' ? colors.ink : '#fff';
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.btn, { backgroundColor: bg }]} accessibilityRole="button">
+      <Text style={[styles.btnText, { color: fg }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 function Chip({ label, on, onPress, colors }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
-      style={{
-        borderRadius: 999,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        backgroundColor: on ? colors.brand : colors.sunken,
-      }}
+      style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
     >
       <Text style={{ color: on ? '#fff' : colors.ink, fontWeight: '700', fontSize: 13 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-export default function TenderWatchSection({ state, run, colors, Field, Btn, styles }) {
-  const watch = state.tenderWatch;
-  const [companyName, setCompanyName] = useState(watch.companyName || '');
-  const [selectedCpv, setSelectedCpv] = useState(() => new Set(watch.cpvCodes.map((row) => row.code)));
+export default function AnbudScreen() {
+  const colors = useColors();
+  const [state, setState] = useState(emptyAnbudState());
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [selectedCpv, setSelectedCpv] = useState(() => new Set());
   const [customCpv, setCustomCpv] = useState('');
-  const [nationwide, setNationwide] = useState(!!watch.nationwide);
-  const [selectedAreas, setSelectedAreas] = useState(() => new Set(watch.areas.map((row) => row.id)));
+  const [nationwide, setNationwide] = useState(false);
+  const [selectedAreas, setSelectedAreas] = useState(() => new Set());
   const [cpvQuery, setCpvQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
-
-  useEffect(() => {
-    setCompanyName(watch.companyName || '');
-    setSelectedCpv(new Set(watch.cpvCodes.map((row) => row.code)));
-    setNationwide(!!watch.nationwide);
-    setSelectedAreas(new Set(watch.areas.map((row) => row.id)));
-  }, [watch.savedAt]);
-
-  const query = watchQuery(watch);
-  const notices = state.tenderNotices || [];
-  const freshCount = notices.filter((row) => row.isNew).length;
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  useEffect(() => {
+    let live = true;
+    loadAnbudState().then((loaded) => {
+      if (!live) return;
+      setState(loaded);
+      const watch = loaded.watch;
+      setCompanyName(watch.companyName || '');
+      setSelectedCpv(new Set(watch.cpvCodes.map((row) => row.code)));
+      setNationwide(!!watch.nationwide);
+      setSelectedAreas(new Set(watch.areas.map((row) => row.id)));
+      setReady(true);
+    });
+    return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
+    if (ready) saveAnbudState(state).catch(() => setError('Kunne ikke lagre anbudet lokalt.'));
+  }, [state, ready]);
+
+  const watch = state.watch;
+  const query = watchQuery(watch);
+  const notices = state.notices || [];
+  const freshCount = notices.filter((row) => row.isNew).length;
+  const queryKey = query ? `${query.cpvCodes.join(',')}|${query.locationIds.join(',')}` : '';
 
   const visibleCpv = useMemo(() => {
     const q = cpvQuery.trim().toLowerCase();
@@ -67,27 +115,24 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
     });
   }
 
-  function currentInput() {
-    const codes = [...selectedCpv].map((code) => {
-      const known = CPV_CODES.find((row) => row.code === code);
-      return { code, label: known?.label || `CPV ${code}` };
-    });
-    return {
-      companyName,
-      cpvCodes: codes,
-      nationwide,
-      areas: [...selectedAreas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
-    };
+  function apply(result) {
+    if (!result.ok) {
+      setError(result.error);
+      return null;
+    }
+    setError('');
+    setState(result.state);
+    return result.state;
   }
 
   async function refresh(nextState) {
-    const active = watchQuery(nextState.tenderWatch);
+    const active = watchQuery(nextState.watch);
     if (!active) return;
     setSyncing(true);
     setSyncError('');
     try {
       const data = await fetchDoffinNotices(active);
-      run(mergeTenderNotices(nextState, data?.hits, data?.fetchedAt));
+      apply(mergeTenderNotices(nextState, data?.hits, data?.fetchedAt));
     } catch (err) {
       setSyncError(err?.message || 'Kunne ikke oppdatere fra Doffin.');
     } finally {
@@ -95,10 +140,8 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
     }
   }
 
-  const queryKey = query ? `${query.cpvCodes.join(',')}|${query.locationIds.join(',')}` : '';
-
   useEffect(() => {
-    if (!queryKey) return undefined;
+    if (!ready || !queryKey) return undefined;
     let live = true;
     const tick = () => {
       if (live) refresh(stateRef.current);
@@ -109,14 +152,27 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
       live = false;
       clearInterval(timer);
     };
-  }, [queryKey]);
+  }, [ready, queryKey]);
+
+  function currentInput() {
+    return {
+      companyName,
+      cpvCodes: [...selectedCpv].map((code) => {
+        const known = CPV_CODES.find((row) => row.code === code);
+        return { code, label: known?.label || `CPV ${code}` };
+      }),
+      nationwide,
+      areas: [...selectedAreas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
+    };
+  }
 
   return (
-    <View style={styles.stack}>
+    <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.inner}>
       <Text style={[styles.h2, { color: colors.ink }]}>Anbudsvarsel</Text>
       <Text style={{ color: colors.muted }}>
         Registrer bedriftens CPV-koder og område. Lista viser aktive konkurranser fra Doffin som treffer, og oppdateres fortløpende.
       </Text>
+      {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       <Field label="Bedrift" value={companyName} onChangeText={setCompanyName} placeholder="Firmanavn" colors={colors} />
       <Field label="Søk i CPV" value={cpvQuery} onChangeText={setCpvQuery} placeholder="Kode eller fag, f.eks. elektro" colors={colors} />
       <View style={styles.rowWrap}>
@@ -159,10 +215,8 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
         label="Lagre forespørsel"
         colors={colors}
         onPress={() => {
-          const result = saveTenderWatch(state, currentInput());
-          run(result, () => {
-            if (result.ok) refresh(result.state);
-          });
+          const next = apply(saveTenderWatch(state, currentInput()));
+          if (next) refresh(next);
         }}
       />
       {watch.savedAt ? (
@@ -174,7 +228,7 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
             {watch.nationwide ? 'Hele Norge' : watch.areas.map((row) => row.name).join(', ')}
           </Text>
           <Text style={{ color: colors.muted }}>
-            {syncing ? 'Henter fra Doffin …' : state.tenderSyncedAt ? `Oppdatert ${formatWhen(state.tenderSyncedAt)}` : 'Ikke hentet ennå'}
+            {syncing ? 'Henter fra Doffin …' : state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}` : 'Ikke hentet ennå'}
             {` · ${notices.length} aktive`}
             {freshCount ? ` · ${freshCount} nye` : ''}
           </Text>
@@ -196,14 +250,28 @@ export default function TenderWatchSection({ state, run, colors, Field, Btn, sty
           <Text style={{ color: colors.muted }}>
             {[row.places.join(', ') || 'Sted ikke oppgitt', row.deadline ? `Frist ${formatWhen(row.deadline)}` : 'Uten frist', formatNok(row.amount)].filter(Boolean).join(' · ')}
           </Text>
-          {row.description ? (
-            <Text style={{ color: colors.muted }} numberOfLines={3}>{row.description}</Text>
-          ) : null}
+          {row.description ? <Text style={{ color: colors.muted }} numberOfLines={3}>{row.description}</Text> : null}
           <TouchableOpacity onPress={() => Linking.openURL(row.url)} accessibilityRole="link">
             <Text style={{ color: colors.brand, fontWeight: '700' }}>Åpne på Doffin</Text>
           </TouchableOpacity>
         </View>
       ))}
-    </View>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  inner: { padding: 16, paddingBottom: 48, gap: 10 },
+  field: { gap: 4 },
+  label: { fontSize: 12, fontWeight: '600' },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  btn: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' },
+  btnText: { fontWeight: '700', fontSize: 13 },
+  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
+  summary: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 4 },
+  summaryTitle: { fontWeight: '800', fontSize: 16 },
+  h2: { fontWeight: '800', fontSize: 18 },
+  error: { fontWeight: '700' },
+});

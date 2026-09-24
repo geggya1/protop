@@ -57,6 +57,10 @@ export function buildShellModules({
     id: 'projects', icon: 'business', label: t('tabs.projects'),
     action: { type: 'tab', tab: 'projects' },
   });
+  mainItems.push({
+    id: 'anbud', icon: 'megaphone', label: t('tabs.anbud'),
+    action: { type: 'tab', tab: 'anbud' },
+  });
   mainItems.push(
     { id: 'plan', icon: 'calendar', label: t('tabs.plan'), action: { type: 'tab', tab: 'plan' } },
   );
@@ -385,6 +389,13 @@ export function buildChildDashboardApps({
       action: { type: 'tab', tab: 'projects' },
     },
     {
+      id: 'anbud',
+      icon: 'megaphone',
+      label: t('tabs.anbud'),
+      sub: 'Doffin, CPV og område',
+      action: { type: 'tab', tab: 'anbud' },
+    },
+    {
       id: 'stars',
       icon: 'checkbox',
       label: t('tabs.tasks'),
@@ -545,6 +556,13 @@ export function buildParentDashboardApps({
       label: t('tabs.projects'),
       sub: 'HMS, fremdrift og økonomi',
       action: { type: 'tab', tab: 'projects' },
+    },
+    {
+      id: 'anbud',
+      icon: 'megaphone',
+      label: t('tabs.anbud'),
+      sub: 'Doffin, CPV og område',
+      action: { type: 'tab', tab: 'anbud' },
     },
     {
       id: 'plan',

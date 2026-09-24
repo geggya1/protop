@@ -3,7 +3,7 @@
  * Lytter på 127.0.0.1:8787.
  */
 import http from 'node:http';
-import { searchDoffinNotices } from '../src/project/doffinQuery.js';
+import { searchDoffinNotices } from '../src/anbud/doffinQuery.js';
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');

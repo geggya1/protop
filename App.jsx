@@ -23,7 +23,7 @@ import {
   isChildEmail,
 } from './src/utils/session';
 
-import ProjectPlatformScreen from './screens/project/ProjectPlatformScreen';
+import AnbudScreen from './screens/anbud/AnbudScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import RegisterInvitedUserScreen from './screens/RegisterInvitedUserScreen';
@@ -890,7 +890,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   if (anbudPreview) {
     return (
       <View style={{ flex: 1 }}>
-        <ProjectPlatformScreen />
+        <AnbudScreen />
       </View>
     );
   }

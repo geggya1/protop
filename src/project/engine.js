@@ -40,19 +40,6 @@ export function emptyProjectState() {
     waste: [],
     procedures: defaultProcedures(),
     audits: [],
-    tenderNotices: [],
-    tenderWatch: emptyTenderWatch(),
-    tenderSyncedAt: null,
-  };
-}
-
-export function emptyTenderWatch() {
-  return {
-    companyName: '',
-    cpvCodes: [],
-    areas: [],
-    nationwide: false,
-    savedAt: null,
   };
 }
 
@@ -61,16 +48,7 @@ export function normalizeProjectState(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const next = { ...base, ...src, procedures: src.procedures?.length ? src.procedures : base.procedures };
   for (const key of Object.keys(base)) {
-    if (key === 'activeProjectId' || key === 'tenderSyncedAt') continue;
-    if (key === 'tenderWatch') {
-      next.tenderWatch = {
-        ...emptyTenderWatch(),
-        ...(next.tenderWatch && typeof next.tenderWatch === 'object' ? next.tenderWatch : {}),
-      };
-      if (!Array.isArray(next.tenderWatch.cpvCodes)) next.tenderWatch.cpvCodes = [];
-      if (!Array.isArray(next.tenderWatch.areas)) next.tenderWatch.areas = [];
-      continue;
-    }
+    if (key === 'activeProjectId') continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
   if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {

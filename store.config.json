@@ -1,0 +1,214 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "2026 ProTop",
+    "categories": [
+      "PRODUCTIVITY",
+      "BUSINESS"
+    ],
+    "release": {
+      "automaticRelease": false
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "ageRatingOverride": "NONE",
+      "koreaAgeRatingOverride": "NONE"
+    },
+    "info": {
+      "en-US": {
+        "title": "ProTop",
+        "subtitle": "Calendar, mail and tasks",
+        "promoText": "Digital tools for construction. Home, friends, calendar, mail, tasks and notes.",
+        "keywords": [
+          "construction",
+          "calendar",
+          "email",
+          "tasks",
+          "notes",
+          "friends"
+        ],
+        "description": "ProTop is digital tools for construction.\n\nThe same app runs on phone, tablet and web, and ships to the App Store and Google Play.\n\nIncluded\n• Home\n• Friends\n• Calendar\n• Mail\n• Tasks\n• Notes\n• Settings, notifications and help\n\nEach person has their own profile. The app follows your device language.\n\nYou can delete your account in Settings.\n\nPrivacy: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "ProTop on phone, tablet and web. Home, friends, calendar, mail, tasks and notes.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "en-GB": {
+        "title": "ProTop",
+        "subtitle": "Calendar, mail and tasks",
+        "promoText": "Digital tools for construction. Home, friends, calendar, mail, tasks and notes.",
+        "keywords": [
+          "construction",
+          "calendar",
+          "email",
+          "tasks",
+          "notes",
+          "friends"
+        ],
+        "description": "ProTop is digital tools for construction.\n\nThe same app runs on phone, tablet and web, and ships to the App Store and Google Play.\n\nIncluded\n• Home\n• Friends\n• Calendar\n• Mail\n• Tasks\n• Notes\n• Settings, notifications and help\n\nEach person has their own profile. The app follows your device language.\n\nYou can delete your account in Settings.\n\nPrivacy: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "ProTop on phone, tablet and web. Home, friends, calendar, mail, tasks and notes.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "no": {
+        "title": "ProTop",
+        "subtitle": "Kalender, e-post, oppgaver",
+        "promoText": "Digitale løsninger for bygg og anlegg. Hjem, venner, kalender, e-post, oppgaver og notater.",
+        "keywords": [
+          "bygg",
+          "anlegg",
+          "kalender",
+          "epost",
+          "oppgaver",
+          "notater",
+          "venner"
+        ],
+        "description": "ProTop er digitale løsninger for bygg og anlegg.\n\nSamme app på mobil, nettbrett og web, og den samme koden leveres til App Store og Google Play.\n\nMed i appen\n• Hjem\n• Venner\n• Kalender\n• E-post\n• Oppgaver\n• Notater\n• Innstillinger, varslinger og hjelp\n\nHver person har egen profil. Appen følger språket på telefonen.\n\nDu kan slette kontoen din i Innstillinger.\n\nPersonvern: https://www.protop.no/personvern\nSupport: https://www.protop.no/kontakt",
+        "releaseNotes": "ProTop på mobil, nettbrett og web. Hjem, venner, kalender, e-post, oppgaver og notater.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "da": {
+        "title": "ProTop",
+        "subtitle": "Kalender, e-mail, opgaver",
+        "promoText": "Digitale løsninger til byggeri. Hjem, venner, kalender, e-mail, opgaver og noter.",
+        "keywords": [
+          "byggeri",
+          "kalender",
+          "email",
+          "opgaver",
+          "noter",
+          "venner"
+        ],
+        "description": "ProTop er digitale løsninger til byggeri og anlæg.\n\nSamme app på mobil, tablet og web, og den samme kode leveres til App Store og Google Play.\n\nMed i appen\n• Hjem\n• Venner\n• Kalender\n• E-mail\n• Opgaver\n• Noter\n• Indstillinger, notifikationer og hjælp\n\nHver person har egen profil. Du kan slette kontoen under Indstillinger.\n\nPrivatliv: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop på mobil, tablet og web.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "sv": {
+        "title": "ProTop",
+        "subtitle": "Kalender, e-post, uppgifter",
+        "promoText": "Digitala verktyg för bygg och anläggning. Hem, vänner, kalender, e-post, uppgifter och anteckningar.",
+        "keywords": [
+          "bygg",
+          "kalender",
+          "epost",
+          "uppgifter",
+          "anteckningar",
+          "vanner"
+        ],
+        "description": "ProTop är digitala verktyg för bygg och anläggning.\n\nSamma app på mobil, surfplatta och webb, och samma kod levereras till App Store och Google Play.\n\nIngår\n• Hem\n• Vänner\n• Kalender\n• E-post\n• Uppgifter\n• Anteckningar\n• Inställningar, aviseringar och hjälp\n\nVarje person har en egen profil. Du kan radera kontot i Inställningar.\n\nIntegritet: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop på mobil, surfplatta och webb.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "fi": {
+        "title": "ProTop",
+        "subtitle": "Kalenteri, posti, tehtävät",
+        "promoText": "Digitaaliset työkalut rakentamiseen. Koti, kaverit, kalenteri, posti, tehtävät ja muistiinpanot.",
+        "keywords": [
+          "rakennus",
+          "kalenteri",
+          "posti",
+          "tehtavat",
+          "muistiinpanot"
+        ],
+        "description": "ProTop on digitaalisia ratkaisuja rakentamiseen.\n\nSama sovellus puhelimessa, tabletissa ja verkossa, ja sama koodi toimitetaan App Storeen ja Google Playhin.\n\nMukana\n• Koti\n• Kaverit\n• Kalenteri\n• Sähköposti\n• Tehtävät\n• Muistiinpanot\n• Asetukset, ilmoitukset ja ohje\n\nJokaisella on oma profiili. Tilin voi poistaa asetuksista.\n\nTietosuoja: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop puhelimessa, tabletissa ja verkossa.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "pl": {
+        "title": "ProTop",
+        "subtitle": "Kalendarz, poczta, zadania",
+        "promoText": "Cyfrowe narzędzia dla budownictwa. Pulpit, znajomi, kalendarz, poczta, zadania i notatki.",
+        "keywords": [
+          "budowa",
+          "kalendarz",
+          "poczta",
+          "zadania",
+          "notatki",
+          "znajomi"
+        ],
+        "description": "ProTop to cyfrowe narzędzia dla budownictwa.\n\nTa sama aplikacja na telefon, tablet i web oraz ten sam kod w App Store i Google Play.\n\nW aplikacji\n• Pulpit\n• Znajomi\n• Kalendarz\n• Poczta\n• Zadania\n• Notatki\n• Ustawienia, powiadomienia i pomoc\n\nKażda osoba ma własny profil. Konto usuniesz w Ustawieniach.\n\nPrywatność: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop na telefon, tablet i web.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "es-ES": {
+        "title": "ProTop",
+        "subtitle": "Calendario, correo, tareas",
+        "promoText": "Herramientas digitales para la construcción. Inicio, amigos, calendario, correo, tareas y notas.",
+        "keywords": [
+          "construccion",
+          "calendario",
+          "correo",
+          "tareas",
+          "notas",
+          "amigos"
+        ],
+        "description": "ProTop son soluciones digitales para la construcción.\n\nLa misma app en móvil, tableta y web, y el mismo código en App Store y Google Play.\n\nIncluye\n• Inicio\n• Amigos\n• Calendario\n• Correo\n• Tareas\n• Notas\n• Ajustes, avisos y ayuda\n\nCada persona tiene su perfil. Puedes eliminar la cuenta en Ajustes.\n\nPrivacidad: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop en móvil, tableta y web.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "fr-FR": {
+        "title": "ProTop",
+        "subtitle": "Agenda, e-mail et tâches",
+        "promoText": "Outils numériques pour le BTP. Accueil, amis, agenda, e-mail, tâches et notes.",
+        "keywords": [
+          "btp",
+          "agenda",
+          "email",
+          "taches",
+          "notes",
+          "amis"
+        ],
+        "description": "ProTop, des outils numériques pour le bâtiment et les travaux publics.\n\nLa même appli sur mobile, tablette et web, et le même code sur l’App Store et Google Play.\n\nInclus\n• Accueil\n• Amis\n• Agenda\n• E-mail\n• Tâches\n• Notes\n• Réglages, notifications et aide\n\nChaque personne a son profil. Tu peux supprimer le compte dans Réglages.\n\nConfidentialité : https://www.protop.no/personvern",
+        "releaseNotes": "ProTop sur mobile, tablette et web.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      },
+      "de-DE": {
+        "title": "ProTop",
+        "subtitle": "Kalender, E-Mail, Aufgaben",
+        "promoText": "Digitale Werkzeuge für Bau und Anlagen. Start, Freunde, Kalender, E-Mail, Aufgaben und Notizen.",
+        "keywords": [
+          "bau",
+          "kalender",
+          "email",
+          "aufgaben",
+          "notizen",
+          "freunde"
+        ],
+        "description": "ProTop sind digitale Lösungen für Bau und Anlagen.\n\nDieselbe App auf Handy, Tablet und Web, und derselbe Code im App Store und bei Google Play.\n\nEnthalten\n• Start\n• Freunde\n• Kalender\n• E-Mail\n• Aufgaben\n• Notizen\n• Einstellungen, Hinweise und Hilfe\n\nJede Person hat ein eigenes Profil. Das Konto löschst du in den Einstellungen.\n\nDatenschutz: https://www.protop.no/personvern",
+        "releaseNotes": "ProTop auf Handy, Tablet und Web.",
+        "marketingUrl": "https://www.protop.no",
+        "supportUrl": "https://www.protop.no/kontakt",
+        "privacyPolicyUrl": "https://www.protop.no/personvern"
+      }
+    }
+  }
+}

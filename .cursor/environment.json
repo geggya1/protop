@@ -1,5 +1,6 @@
 {
   "name": "protop",
+  "install": "npm ci",
   "repositoryDependencies": [
     "github.com/geggya1/weekplan-app"
   ]

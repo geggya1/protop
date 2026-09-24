@@ -1,0 +1,13 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ProTop",
+    "NSPhotoLibraryUsageDescription": "ProTop käyttää kuviasi, kun päivität profiilikuvaa tai liität kuvan.",
+    "NSCameraUsageDescription": "ProTop käyttää kameraa, kun otat kuvan profiiliin, muistiinpanoon tai liitteeseen.",
+    "NSLocationWhenInUseUsageDescription": "ProTop käyttää sijaintiasi kodin sään näyttämiseen, kun pyydät sitä.",
+    "NSFaceIDUsageDescription": "ProTop käyttää Face ID:tä sovelluksen lukitsemiseen ja tilisi suojaamiseen.",
+    "NSMicrophoneUsageDescription": "ProTop käyttää mikrofonia äänimuistiinpanoihin."
+  },
+  "android": {
+    "app_name": "ProTop"
+  }
+}

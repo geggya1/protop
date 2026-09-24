@@ -1,0 +1,13 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ProTop",
+    "NSPhotoLibraryUsageDescription": "ProTop använder dina bilder när du uppdaterar profilbild eller bifogar en bild.",
+    "NSCameraUsageDescription": "ProTop använder kameran när du tar en bild till profil, anteckning eller bilaga.",
+    "NSLocationWhenInUseUsageDescription": "ProTop använder din plats för vädret på hem-skärmen när du ber om det.",
+    "NSFaceIDUsageDescription": "ProTop använder Face ID för att låsa appen och skydda ditt konto.",
+    "NSMicrophoneUsageDescription": "ProTop använder mikrofonen för ljudanteckningar."
+  },
+  "android": {
+    "app_name": "ProTop"
+  }
+}

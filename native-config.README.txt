@@ -1,0 +1,43 @@
+ProTop native (iOS / Android) — console checklist
+=====================================================
+
+Bundle ID / package: no.weekplan.app
+URL scheme: weekplan://
+Privacy: https://www.protop.no/personvern
+
+1) Expo / EAS
+   - npm i -g eas-cli && eas login
+   - eas init   (writes projectId into app.json / EAS_PROJECT_ID)
+   - eas build --platform all --profile preview
+   - eas build --platform all --profile production
+   - eas submit --platform all --profile production
+
+2) Firebase Console (project protop-c189c)
+   - Add iOS app (bundle no.weekplan.app) → download GoogleService-Info.plist
+   - Add Android app (package no.weekplan.app) → download google-services.json
+   - Place both files in repo root (gitignored; app.config.js picks them up)
+   - Optional: set EXPO_PUBLIC_FIREBASE_APP_ID_IOS / _ANDROID
+
+3) OAuth redirect URIs (register weekplan:// and Expo auth proxy if used)
+   - Google Cloud OAuth clients (iOS + Android + existing web client)
+   - Apple Developer: Sign in with Apple capability + Services ID for Firebase
+   - Microsoft Azure app registration: redirect weekplan://
+
+4) Push
+   - Client stores Expo push tokens under users/{uid}/pushSubscriptions
+   - Cloud Function sendNotificationEmail also delivers via Expo Push API
+   - Configure APNs + FCM credentials in EAS (eas credentials)
+
+5) Universal Links / App Links
+   - public/.well-known/apple-app-site-association  (replace TEAMID)
+   - public/.well-known/assetlinks.json             (replace SHA-256)
+   - Deployed via stamp-build.js into dist/
+
+6) Store listings
+   - store.config.json is the App Store metadata (EAS Metadata). Review contact
+     (name, email, phone, demo account) is filled in App Store Connect, not here.
+   - store/play-listing.json is the Play Console copy.
+   - Fill eas.json submit.production appleId / ascAppId / appleTeamId
+   - Add google-play-service-account.json for Play Console submit
+   - Account deletion is in Settings and the deleteMyAccount callable
+     (deployed with the membership functions).

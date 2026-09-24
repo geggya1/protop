@@ -1,0 +1,547 @@
+WEEKPLAN – TEKSTBANK FOR MODULAKTIVERING
+
+Teksten vises første gang en inaktiv modul åpnes.
+Bildet er dekorativt; verdi og funksjon skal alltid forklares i tekst.
+1. Kalender
+Id: plan
+Kategori: Hoved
+Overlinje: Plan. Oversikt. Ro.
+Overskrift: Hele familien, én plan
+Introduksjon: Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.
+Fordeler:
+- Se dagen og uken på tvers av familien
+- Fordel avtaler og få varsler i tide
+- Unngå dobbeltbookinger og glemte aktiviteter
+Primærknapp: Aktiver Kalender
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: kalender--module-activation-illustration.png
+
+2. E-post
+Id: mail
+Kategori: Hoved
+Overlinje: Innboks. Jobb. Privat.
+Overskrift: Viktige meldinger, samlet
+Introduksjon: Koble jobb- og privatkontoer og finn det som krever oppmerksomhet, uten å hoppe mellom apper.
+Fordeler:
+- Se flere innbokser på ett sted
+- Marker det som må følges opp
+- Gjør meldinger om til oppgaver eller avtaler
+Primærknapp: Aktiver E-post
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: e-post--module-activation-illustration.png
+
+3. Oppgaver
+Id: stars
+Kategori: Hoved
+Overlinje: Fokus. Fremgang. Ferdig.
+Overskrift: Få det ut av hodet
+Introduksjon: Samle egne oppgaver, frister og oppfølging på ett oversiktlig sted.
+Fordeler:
+- Velg hva som er viktigst i dag
+- Bruk frister og påminnelser
+- Del eller tildel oppgaver ved behov
+Primærknapp: Aktiver Oppgaver
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: oppgaver--module-activation-illustration.png
+
+4. Notat
+Id: notes
+Kategori: Hoved
+Overlinje: Tanker. Stemme. Struktur.
+Overskrift: Fang det før du glemmer det
+Introduksjon: Skriv eller snakk inn et notat. ProTop hjelper deg å bevare, rydde og finne det igjen.
+Fordeler:
+- Skriv eller bruk stemmen
+- Samle og arkiver notater ryddig
+- Gjør et notat om til en oppgave
+Primærknapp: Aktiver Notat
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: notat--module-activation-illustration.png
+
+5. Chat
+Id: chat
+Kategori: Hoved
+Overlinje: Familie. Beskjeder. Sammen.
+Overskrift: Snakk sammen uten støy
+Introduksjon: Hold familiepraten samlet med tydelige samtaler for familien, grupper og direkte meldinger.
+Fordeler:
+- Én rolig kanal for hele familien
+- Egne samtaler og direkte meldinger
+- Finn viktige beskjeder igjen
+Primærknapp: Aktiver Chat
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: chat--module-activation-illustration.png
+
+6. Gjøremål
+Id: chores
+Kategori: Hoved
+Overlinje: Små steg. Gode vaner.
+Overskrift: Gjør innsats synlig
+Introduksjon: Gi barna tydelige oppgaver, passende ansvar og oppmuntring til å fullføre.
+Fordeler:
+- Tilpass oppgavene etter alder
+- Gjør neste steg lett å forstå
+- Følg fremgang og ukepenger uten mas
+Primærknapp: Aktiver Gjøremål
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: gjoremal--module-activation-illustration.png
+
+7. Handleliste
+Id: shop
+Kategori: Mat & innkjøp
+Overlinje: Handle sammen. Husk mindre.
+Overskrift: Listen som følger familien
+Introduksjon: Del handlelisten i sanntid, legg til fra måltidsplanen og se hva som allerede er kjøpt.
+Fordeler:
+- Alle handler fra samme oppdaterte liste
+- Varene sorteres så turen går raskere
+- Legg til med strekkode eller fra en oppskrift
+Primærknapp: Aktiver Handleliste
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: handleliste--module-activation-illustration.png
+
+8. Måltidsplanlegger
+Id: meals
+Kategori: Mat & innkjøp
+Overlinje: Middag. Mengder. Flyt.
+Overskrift: Planlegg maten – resten følger
+Introduksjon: Velg måltider og porsjoner. Ingredienser og riktige mengder kan sendes rett til handlelisten.
+Fordeler:
+- Se hele familiens matuke
+- Beregn mengder etter antall personer
+- Bruk det dere har og reduser matsvinn
+Primærknapp: Aktiver Måltidsplanlegger
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: maltidsplanlegger--module-activation-illustration.png
+
+9. Oppskrift
+Id: recipes
+Kategori: Mat & innkjøp
+Overlinje: Matretter. Fremgangsmåte. Favoritter.
+Overskrift: Familiens egne oppskrifter
+Introduksjon: Lagre matretter med bilde, ingredienser og fremgangsmåte. Importer fra bilde eller lenke med AI, og vurder favorittene.
+Fordeler:
+- Samle egne og foreslåtte matretter på ett sted
+- Importer oppskrift fra bilde eller nettside med AI
+- Vurder med stjerner – favoritter løftes i måltidsplanen
+Primærknapp: Aktiver Oppskrift
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: oppskrift--module-activation-illustration.png
+
+10. Lager
+Id: pantry
+Kategori: Mat & innkjøp
+Overlinje: Kjøleskap. Fryser. Oversikt.
+Overskrift: Se hva dere har før dere handler
+Introduksjon: Registrer kjøleskap, fryser og tørrvarer. ProTop hjelper dere å bruke det som allerede finnes hjemme.
+Fordeler:
+- Unngå å kjøpe det samme to ganger
+- Skann strekkoder for rask registrering
+- Trekk lageret fra handlelisten automatisk
+Primærknapp: Aktiver Lager
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: lager--module-activation-illustration.png
+
+11. Familiealbum
+Id: albums
+Kategori: Minner
+Overlinje: Bilder. Øyeblikk. Minner.
+Overskrift: Familiens øyeblikk, samlet
+Introduksjon: Lag private album for ferier, bursdager og helt vanlige dager – uten at minnene drukner i chat.
+Fordeler:
+- Sorter bilder etter album og anledning
+- La familien bidra på samme sted
+- Bevar minnene privat og oversiktlig
+Primærknapp: Aktiver Familiealbum
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: familiealbum--module-activation-illustration.png
+
+12. Familievegg
+Id: wall
+Kategori: Minner
+Overlinje: Små glimt. Felles hverdag.
+Overskrift: Del det som er verdt å huske
+Introduksjon: En rolig familievegg for små oppdateringer, bilder og beskjeder fra hverdagen.
+Fordeler:
+- Del korte oppdateringer med alle
+- Legg ved bilder fra dagen
+- Finn høydepunktene igjen senere
+Primærknapp: Aktiver Familievegg
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: familievegg--module-activation-illustration.png
+
+13. Barnetegninger
+Id: childDrawings
+Kategori: Minner
+Overlinje: Tegninger. Rammer. Minner.
+Overskrift: Heng barnas mesterverk på veggen
+Introduksjon: Ta bilde av tegningen – ProTop cropper, skalerer og setter den i en ramme over sofaen i stua.
+Fordeler:
+- Auto-crop og høy oppløsning av tegningen
+- Velg rammeform, farge og plassering i rommet
+- Lagre barn, alder, sted og dato – og endre når som helst
+Primærknapp: Aktiver Barnetegninger
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: barnetegninger--module-activation-illustration.png
+
+14. Familietreet
+Id: familyTree
+Kategori: Minner
+Overlinje: Røtter. Navn. Historier.
+Overskrift: Gjør slekten forståelig
+Introduksjon: Bygg et visuelt familietre som gjør navn, relasjoner og historier lette å utforske.
+Fordeler:
+- Se hvordan familien henger sammen
+- Inviter slektninger til å bidra
+- Ta vare på bilder og små historier
+Primærknapp: Aktiver Familietreet
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: familietreet--module-activation-illustration.png
+
+15. Våre reiser
+Id: scratchMap
+Kategori: Minner
+Overlinje: Reiser. Planer. Minner.
+Overskrift: Hele reisen på ett sted
+Introduksjon: Samle reisemål, planer, bestillinger og minner før, under og etter turen.
+Fordeler:
+- Planlegg reisen sammen
+- Hold billetter og informasjon samlet
+- Bevar bilder og opplevelser etterpå
+Primærknapp: Aktiver Våre reiser
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: vare-reiser--module-activation-illustration.png
+
+16. Reiseplanlegger
+Id: reiseplanlegger
+Kategori: Minner
+Overlinje: Rute. Reisefølge. Øyeblikk.
+Overskrift: Ferien, tegnet som en reise
+Introduksjon: Planlegg A→B→C med kart, billetter, aktiviteter og minner. Når dagen kommer, skyves det passererte ned — mens det neste lyser frem.
+Fordeler:
+- Bygg ruten mellom destinasjoner på kartet
+- Inviter reisefølge som planlegger eller leser
+- Sjekk inn, lagre minner og følg tidslinjen underveis
+Primærknapp: Aktiver Reiseplanlegger
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: reiseplanlegger--module-activation-illustration.png
+
+17. Gaveønsker
+Id: wishes
+Kategori: Minner
+Overlinje: Ønsker. Deling. Oversikt.
+Overskrift: Gaver som faktisk treffer
+Introduksjon: Lag egne ønskelister, en felles familieliste og oversiktlige lister for barna.
+Fordeler:
+- Samle ideer når de dukker opp
+- Del riktig liste med riktig person
+- Unngå dobbeltkjøp med anonym reservasjon
+Primærknapp: Aktiver Gaveønsker
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: gaveonsker--module-activation-illustration.png
+
+18. Familieposisjon
+Id: location
+Kategori: Familien
+Overlinje: Nærhet. Trygghet. Frivillig.
+Overskrift: Se at familien er fremme
+Introduksjon: Frivillig posisjonsdeling gjør det enklere å koordinere henting, aktiviteter og hjemkomst.
+Fordeler:
+- Hver person velger om posisjon deles
+- Del midlertidig når det faktisk trengs
+- Få beskjed ved avtalte ankomster
+Primærknapp: Aktiver Familieposisjon
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: familieposisjon--module-activation-illustration.png
+
+19. Husk dato
+Id: rememberDates
+Kategori: Familien
+Overlinje: Bursdag. Merkedag. Nedtelling.
+Overskrift: Aldri glem det som betyr noe
+Introduksjon: Samle bursdager, merkedager og egne nedtellinger, så familien kan glede seg i forkant.
+Fordeler:
+- Se hvem som har bursdag snart
+- Gjenta viktige datoer automatisk
+- Lag nedtelling til ferie og store dager
+Primærknapp: Aktiver Husk dato
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: husk-dato--module-activation-illustration.png
+
+20. Aktiviteter
+Id: activities
+Kategori: Familien
+Overlinje: Bevegelse. Plan. Fremgang.
+Overskrift: Gjør aktivitet lettere å følge
+Introduksjon: Planlegg trening og turer for hele familien, med økter som passer nivå og hverdag.
+Fordeler:
+- Velg aktivitet og få et enkelt opplegg
+- Følg tid, distanse og fremgang
+- Koble Strava hvis du ønsker det
+Primærknapp: Aktiver Aktiviteter
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: aktiviteter--module-activation-illustration.png
+
+21. Bokhylla
+Id: books
+Kategori: Familien
+Overlinje: Sider. Historier. Leselyst.
+Overskrift: Gjør lesingen synlig
+Introduksjon: Lag en bokhylle for hvert familiemedlem og følg lesingen side for side.
+Fordeler:
+- Hver person får sin egen bokhylle
+- Logg sider og se fremgang
+- Gi terningkast når boka er ferdig
+Primærknapp: Aktiver Bokhylla
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: bokhylla--module-activation-illustration.png
+
+22. FamilieSpill
+Id: games
+Kategori: Familien
+Overlinje: Spill. Sammen. Nå.
+Overskrift: Fem minutter som samler familien
+Introduksjon: Start en rask quiz, et brettspill eller kortspill – sammen på samme skjerm eller i sanntid.
+Fordeler:
+- Velg mellom raske familiespill
+- Inviter familien før start
+- Spill sammen uten komplisert oppsett
+Primærknapp: Aktiver FamilieSpill
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: familiespill--module-activation-illustration.png
+
+23. Barnas progresjon
+Id: progress
+Kategori: Familien
+Overlinje: Innsats. Uke for uke.
+Overskrift: Se hva barna faktisk får til
+Introduksjon: Få en rolig foreldreoversikt over gjøremål, oppgaver, fremgang og ukepenger.
+Fordeler:
+- Se hvert barns egen utvikling
+- Følg uken uten å bytte profil
+- Fremhev innsats fremfor sammenligning
+Primærknapp: Aktiver Barnas progresjon
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: barnas-progresjon--module-activation-illustration.png
+
+24. Skole
+Id: skole
+Kategori: Skole
+Overlinje: Skole. Lekser. Ukeplan.
+Overskrift: Skolehverdagen, gjort enklere
+Introduksjon: Én inngang til lekser, stegvis leksehjelp og ukeplan – tilpasset barnet og familien.
+Fordeler:
+- Samle alt som gjelder skolen
+- Importer planer fra bilde eller PDF
+- Gi barnet oversikt uten informasjonsstøy
+Primærknapp: Aktiver Skole
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: skole--module-activation-illustration.png
+
+25. Lekser
+Id: lekser
+Kategori: Skole
+Overlinje: Fag. Frister. Fremgang.
+Overskrift: Ukeleksene uten løse lapper
+Introduksjon: Last opp lekseplanen. ProTop leser fag og frister, og en foresatt godkjenner før det lagres.
+Fordeler:
+- Samle lekser fra alle fag
+- Kryss av etter hvert som de blir gjort
+- Se hva som haster og hva som kan vente
+Primærknapp: Aktiver Lekser
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: lekser--module-activation-illustration.png
+
+26. Leksehjelp
+Id: leksehjelp
+Kategori: Skole
+Overlinje: Blyanttavle. Hint. Mestring.
+Overskrift: Tegn stegene – lær metoden
+Introduksjon: Når leksen stopper opp: hint først, blyanttavle og foresatt-styrt fasit.
+Fordeler:
+- Velg åpen lekse, fag eller bilde av oppgaven
+- Se stegene tegnet ut – som 5² og 324 × 9
+- Ros for innsats; fasit låst til forsøk er gjort
+Primærknapp: Aktiver Leksehjelp
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: leksehjelp--module-activation-illustration.png
+
+27. Mattehjelpen
+Id: mattehjelp
+Kategori: Skole
+Overlinje: Lek. Oppdrag. AI-los.
+Overskrift: Læring som føles som lek
+Introduksjon: Spill og oppgaver fra 3 år og oppover i matte, norsk og engelsk — med stjerner, ros og en AI-los som gir hint, ikke fasit først.
+Fordeler:
+- Aldersverdener: Småtroll, Oppdagere, Mestring, Utfordring
+- Interaktive spill + dagens oppdrag + AI-los
+- Forankret i rammeplan og LK20 — norske metoder
+Primærknapp: Aktiver Mattehjelpen
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: mattehjelp--module-activation-illustration.png
+
+28. Ukeplan
+Id: week-plan
+Kategori: Skole
+Overlinje: Timer. Fag. Oversikt.
+Overskrift: Skoleuken på ett blikk
+Introduksjon: Last opp skolens ukeplan eller timeplan. ProTop leser innholdet, og en foresatt godkjenner.
+Fordeler:
+- Se fag og tider samlet
+- Fang opp endringer i skoleuken
+- Gi barnet en enkel plan for hver dag
+Primærknapp: Aktiver Ukeplan
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: ukeplan--module-activation-illustration.png
+
+29. Kjøretøy
+Id: holdings
+Kategori: Kjøretøy
+Overlinje: Service. Frister. Kostnader.
+Overskrift: Bilhold uten løse lapper
+Introduksjon: Samle EU-kontroll, forsikring, service, drivstoff og kilometerstand for familiens kjøretøy.
+Fordeler:
+- Få oversikt over viktige frister
+- Samle historikk og dokumenter
+- Håndter flere biler og andre kjøretøy
+Primærknapp: Aktiver Kjøretøy
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: kjoretoy--module-activation-illustration.png
+
+30. Dokumenter
+Id: documents
+Kategori: Hus & papir
+Overlinje: Mapper. Filer. Ferdig søkt.
+Overskrift: Papirene som alltid er «ett sted»
+Introduksjon: Samle familiens viktige dokumenter i tydelige områder for familien, deg selv og barna.
+Fordeler:
+- Lag mapper som passer familien
+- Last opp bilder, PDF-er og andre filer
+- Styr hvem som kan se personlige dokumenter
+Primærknapp: Aktiver Dokumenter
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: dokumenter--module-activation-illustration.png
+
+31. Boligen
+Id: boligmappa
+Kategori: Hus & papir
+Overlinje: Vedlikehold. Garanti. Papirer.
+Overskrift: Ikke glem vedlikehold og garanti
+Introduksjon: Få påminnelse før garanti og service går ut, kryss av vedlikehold, og samle papirer og håndverkere på boligen.
+Fordeler:
+- Påminnelse når garanti eller service nærmer seg
+- Vedlikehold du kan krysse av, med historikk
+- Adresse, papirer og håndverkere samlet
+Primærknapp: Aktiver Boligen
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: boligen--module-activation-illustration.png
+
+32. Utleie
+Id: hospitality
+Kategori: Hus & papir
+Overlinje: Bookinger. Låser. Meldinger.
+Overskrift: Utleie som føles som et lite hotell
+Introduksjon: Samle bookinger, smarte låser, automatiske gjestemeldinger og vurderinger.
+Fordeler:
+- Synkroniser Airbnb og Booking.com
+- Koble låser og håndter adgang
+- Send automatiske meldinger gjennom reisen
+Primærknapp: Aktiver Utleie
+Sekundærknapp: Tilbake
+Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
+Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
+Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
+Illustrasjon: utleie--module-activation-illustration.png

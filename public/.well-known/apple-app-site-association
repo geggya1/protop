@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.no.weekplan.app",
+        "paths": ["*", "/"]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.no.weekplan.app"]
+  }
+}

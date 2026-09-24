@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Nunito:wght@400;500;600&display=swap');
+
+:root {
+  --app-font: 'Nunito', 'Segoe UI', sans-serif;
+  --display-font: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --wp-radius-sm: 14px;
+  --wp-radius-md: 20px;
+  --wp-radius-lg: 28px;
+  --wp-radius-pill: 999px;
+  --wp-c-bg: #f4f7fb;
+  --wp-c-card: #ffffff;
+  --wp-c-sunken: #f8fafc;
+  --wp-c-ink: #1a2744;
+  --wp-c-muted: #5b6b82;
+  --wp-c-line: #e2e8f0;
+  --wp-c-brand: #1099F4;
+  --wp-c-brandSoft: #E5F6FE;
+  --wp-c-success: #16a34a;
+  --wp-c-successSoft: #e4f5ea;
+  --wp-c-warn: #d97706;
+  --wp-c-danger: #dc2626;
+  --wp-c-star: #e2a325;
+  --wp-c-starSoft: #fff8e8;
+  --wp-c-placeholder: #94a3b8;
+  --wp-c-kid: #1099F4;
+  --wp-c-kidSoft: #E5F6FE;
+  --wp-c-fab: #1099F4;
+  --wp-c-accent: #6b4ee6;
+  --wp-soft-bg: #F5F2EC;
+  --wp-soft-card: #FFFFFF;
+  --wp-soft-ink: #1F2630;
+  --wp-soft-muted: #5C6573;
+  --wp-soft-quiet: #7A8494;
+  --wp-soft-line: #E8E4DC;
+  --wp-soft-mint: #E8F3EC;
+  --wp-soft-peach: #F8EDE6;
+  --wp-soft-lavender: #EEF0F8;
+  --wp-soft-sky: #E8F0F6;
+  --wp-soft-cream: #FAF7F2;
+  --wp-soft-family: #F7F3EA;
+  --wp-soft-sage: #5A7A60;
+  --wp-soft-brandSoft: #DCE8E0;
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body {
+  font-family: var(--app-font);
+  background: var(--wp-c-bg, #eef3f9);
+  color: var(--wp-c-ink, #1a2744);
+  position: relative;
+  overscroll-behavior: none;
+}
+button, input, select, textarea { font-family: var(--app-font); }
+button, [role="button"] { cursor: pointer; }
+
+/*
+ * iOS Safari zoomer automatisk inn når <input>/<textarea> har font-size < 16px.
+ * RN Web setter fontSize via inline style, så vi må bruke !important.
+ */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  font-size: 16px !important;
+}
+
+/* Mobil: full bredde */
+#root { max-width: 100%; margin: 0 auto; }
+
+/* iPad: lett «app-ramme» */
+@media (min-width: 768px) and (max-width: 1023px) {
+  #root {
+    max-width: 960px;
+    box-shadow: 0 0 0 1px #e2e8f0;
+  }
+}
+
+/* Desktop / PC: nesten full viewport — shell styrer layout */
+@media (min-width: 1024px) {
+  :root {
+    --app-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --display-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --wp-radius-sm: 5px;
+    --wp-radius-md: 7px;
+    --wp-radius-lg: 9px;
+    --wp-radius-pill: 999px;
+  }
+
+  html, body, #root {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  #root {
+    max-width: 100%;
+    box-shadow: none;
+  }
+  body {
+    background: var(--wp-c-bg, #eef1f6);
+  }
+
+  html {
+    touch-action: auto;
+  }
+
+  /* Desktop trenger ikke 16px-gulv (det er for iOS-zoom). */
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 14px !important;
+  }
+
+  button, [role="button"] {
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  }
+
+  [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.035);
+  }
+
+  [role="button"]:focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid #1099F4;
+    outline-offset: 2px;
+  }
+
+  [data-wp-nav="1"]:hover {
+    background-color: #f1f5f9;
+    box-shadow: none;
+  }
+
+  [data-wp-nav-active="1"],
+  [data-wp-nav-active="1"]:hover {
+    box-shadow: inset 3px 0 0 #1099F4;
+  }
+
+  [data-wp-section="1"]:hover {
+    background-color: #f8fafc;
+    box-shadow: none;
+  }
+
+  html[data-wp-appearance="dark"] [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.05);
+  }
+  html[data-wp-appearance="dark"] [data-wp-nav="1"]:hover {
+    background-color: #2c2c2e;
+    box-shadow: none;
+  }
+  html[data-wp-appearance="dark"] [data-wp-section="1"]:hover {
+    background-color: #1c1c1e;
+    box-shadow: none;
+  }
+
+  [data-wp-cal-slot] {
+    z-index: 2;
+  }
+  [data-wp-cal-slot]:hover {
+    background-color: rgba(37, 99, 235, 0.05);
+    box-shadow: none;
+  }
+  [data-wp-cal-plus] {
+    opacity: 0 !important;
+  }
+  [data-wp-cal-slot]:hover [data-wp-cal-plus] {
+    opacity: 1 !important;
+  }
+  [data-wp-cal-event] {
+    z-index: 5 !important;
+    isolation: isolate;
+  }
+  [data-wp-cal-event]:hover {
+    filter: brightness(0.96);
+    box-shadow: none;
+  }
+
+  /* Tettere, mer «app-aktig» scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::selection {
+    background: #dbeafe;
+    color: #1e3a8a;
+  }
+}
+
+/* Isoler familietreet: scrolleren er tatt ut av flex-flyten. */
+.wp-family-tree-port {
+  position: absolute !important;
+  inset: 0;
+  max-width: none;
+  max-height: none;
+  overflow: auto !important;
+  contain: strict;
+  overscroll-behavior: contain;
+}

@@ -1,0 +1,327 @@
+// src/screens/CreateActivityScreen.jsx
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator,
+  Platform, ScrollView, StyleSheet, FlatList, Image,
+} from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import uuid from 'react-native-uuid';
+
+import { auth, db, storage } from '../firebase';
+import {
+  doc, setDoc, serverTimestamp,
+  collection, getDocs, query, orderBy, limit as qLimit,
+} from 'firebase/firestore';
+
+import { ref as storageRef, getDownloadURL, getBytes } from 'firebase/storage';
+
+// -------------------- helpers --------------------
+function extractPathFromFirebaseUrl(url) {
+  try {
+    const after = url.split('/o/')[1] || '';
+    const encodedPath = after.split('?')[0] || '';
+    return decodeURIComponent(encodedPath);
+  } catch { return null; }
+}
+function isFirebaseStorageUrl(u = '') {
+  return /firebasestorage\.googleapis\.com\/v0\/b\//i.test(u);
+}
+function toStoragePath(pathOrUrl) {
+  if (!pathOrUrl) return null;
+  // gs://bucket/icons/file.png  -> icons/file.png
+  if (/^gs:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl.replace(/^gs:\/\/[^/]+\//i, '');
+  }
+  // https://firebasestorage.googleapis.com/v0/b/.../o/icons%2Ffile.png?...
+  if (isFirebaseStorageUrl(pathOrUrl)) {
+    return extractPathFromFirebaseUrl(pathOrUrl);
+  }
+  // already relative path or external http(s)
+  return pathOrUrl;
+}
+// -------------------------------------------------
+
+// Web-sikker ikonviser (App Check) – web: getBytes→blob, mobil: getDownloadURL/direkte URL
+function WebSafeIcon({ pathOrUrl, style, resizeMode = 'contain' }) {
+  const [uri, setUri] = useState(null);
+  const [err, setErr] = useState(false);
+  const blobUrlRef = useRef(null);
+
+  console.log("websafeicon", pathOrUrl)
+
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      try {
+        setErr(false);
+        setUri(null);
+        if (!pathOrUrl) return;
+
+        // Normaliser
+        const normalized = toStoragePath(pathOrUrl);
+
+        if (Platform.OS === 'web') {
+          // På web: hvis det er Firebase Storage (enten full URL eller sti) -> getBytes.
+          const looksExternalHttp = /^https?:\/\//i.test(normalized);
+          if (!looksExternalHttp || isFirebaseStorageUrl(pathOrUrl)) {
+            const ref = storageRef(storage, normalized);
+            const bytes = await getBytes(ref, 1024 * 1024 * 8); // opptil 8MB
+            const blobUrl = URL.createObjectURL(new Blob([bytes]));
+
+            if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = blobUrl;
+
+            if (alive) setUri(blobUrl);
+            return;
+          }
+          // Vanlig ekstern URL (ikke Firebase) kan brukes direkte
+          if (alive) setUri(normalized);
+          return;
+        }
+
+        // Native (iOS/Android)
+        if (/^https?:\/\//i.test(normalized)) {
+          if (alive) setUri(normalized);
+        } else {
+          const url = await getDownloadURL(storageRef(storage, normalized));
+          if (alive) setUri(url);
+        }
+      } catch (e) {
+        console.warn('[WebSafeIcon] load failed:', e);
+        if (alive) setErr(true);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [pathOrUrl]);
+
+  if (err) return <View style={[style, { backgroundColor: '#eee', borderRadius: 10 }]} />;
+  if (!uri) return <View style={[style, { backgroundColor: '#f3f4f6', borderRadius: 10 }]} />;
+  return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+}
+
+function TemplateCard({ item, onPick }) {
+  // Pass either path or full URL; WebSafeIcon handles both
+  const iconInput = item.iconPath || item.iconUrl || null;
+console.log("templatecard")
+  return (
+    <TouchableOpacity style={styles.tplCard} onPress={() => onPick(item)} accessible={false}>
+      <WebSafeIcon pathOrUrl={iconInput} style={styles.tplIcon} />
+      <Text style={styles.tplTitle} numberOfLines={1}>{item.title || item.name || 'Mal'}</Text>
+      {typeof item.amount === 'number' && <Text style={styles.tplAmount}>{item.amount} kr</Text>}
+    </TouchableOpacity>
+  );
+}
+
+export default function CreateActivityScreen() {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const { familyId, childId } = route.params || {};
+
+  const [title, setTitle] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+  const [chosenIcon, setChosenIcon] = useState(null);   // { id, name, path }
+  const [saving, setSaving] = useState(false);
+
+  const [loadingTpl, setLoadingTpl] = useState(true);
+  const [templates, setTemplates] = useState([]);
+
+  const canSave = useMemo(() => title.trim().length > 0, [title]);
+
+  
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTemplates() {
+      setLoadingTpl(true);
+      const rows = [];
+
+      if (familyId) {
+        try {
+          const col = collection(db, 'families', familyId, 'templates');
+          const q1 = query(col, orderBy('title'), qLimit(50));
+          const snap = await getDocs(q1);
+          snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        } catch {}
+      }
+      if (!rows.length) {
+        try {
+          const col = collection(db, 'templates');
+          const q1 = query(col, orderBy('title'), qLimit(50));
+          const snap = await getDocs(q1);
+          snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        } catch {}
+      }
+      if (!rows.length) {
+        try {
+          const col = collection(db, 'activityTemplates');
+          const q1 = query(col, orderBy('title'), qLimit(50));
+          const snap = await getDocs(q1);
+          snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        } catch {}
+      }
+
+      const norm = rows.map(t => {
+        // Foretrekk lagret sti. Hvis kun URL finnes, behold URL (komponenten håndterer det)
+        let iconPath = t.iconPath || null;
+        const iconUrl = t.iconUrl || null;
+        if (!iconPath && iconUrl && !/^https?:\/\//i.test(iconUrl)) {
+          iconPath = iconUrl; // allerede sti
+        }
+        return {
+          id: t.id,
+          title: t.title || t.name || 'Mal',
+          amount: typeof t.amount === 'number' ? t.amount : (typeof t.reward === 'number' ? t.reward : undefined),
+          iconPath,       // kan være null
+          iconUrl,        // kan være full Firebase-URL – det går fint
+        };
+      });
+
+      if (!cancelled) {
+        setTemplates(norm);
+        setLoadingTpl(false);
+      }
+    }
+    loadTemplates();
+    return () => { cancelled = true; };
+  }, [db, familyId]);
+
+  const handlePickTemplate = useCallback((tpl) => {
+    setTitle(tpl.title || '');
+    // Lagre valgt ikon som sti hvis mulig, ellers beholder vi URL (visning funker uansett)
+    const raw = tpl.iconPath || tpl.iconUrl || null;
+    if (raw) {
+      const path = toStoragePath(raw) || raw;
+      setChosenIcon({ id: tpl.id, name: tpl.title || 'icon', path });
+    }
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!canSave) { Alert.alert('Validering', 'Tittel må fylles ut.'); return; }
+    try {
+      setSaving(true);
+      const id = uuid.v4();
+      const ref = doc(db, 'families', familyId, 'activities', id);
+
+      const iconRef = chosenIcon?.path
+        ? { type: 'catalog', name: chosenIcon?.name || chosenIcon?.id || 'icon', path: toStoragePath(chosenIcon.path) }
+        : null;
+
+      await setDoc(ref, {
+        title: title.trim(),
+        childId: childId || null,
+        schedule: null,
+        iconRef,
+        createdBy: auth.currentUser?.uid || null,
+        createdAt: serverTimestamp(),
+        active: true,
+      });
+
+      navigation.goBack();
+    } catch (e) {
+      console.error('Save activity failed', e);
+      Alert.alert('Feil', 'Klarte ikke å lagre gjøremål. Prøv igjen.');
+    } finally {
+      setSaving(false);
+    }
+  }, [canSave, familyId, childId, title, chosenIcon, navigation]);
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.header}>Nytt gjøremål</Text>
+
+      <Text style={styles.label}>Tittel</Text>
+      <TextInput
+        value={title}
+        onChangeText={setTitle}
+        placeholder="Skriv tittel..."
+        style={styles.input}
+        autoComplete="off"
+        autoCorrect={false}
+      />
+
+      <Text style={[styles.label, { marginTop: 16 }]}>Velg fra maler</Text>
+      {loadingTpl ? (
+        <ActivityIndicator />
+      ) : (
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={templates}
+          keyExtractor={(it) => it.id}
+          renderItem={({ item }) => <TemplateCard item={item} onPick={handlePickTemplate} />}
+          contentContainerStyle={{ gap: 10, paddingVertical: 6 }}
+          windowSize={3}
+          initialNumToRender={5}
+        />
+      )}
+
+      <Text style={[styles.label, { marginTop: 16 }]}>Ikon</Text>
+      <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.pickBtn} accessible={false}>
+        <Text style={styles.pickBtnText}>{chosenIcon ? 'Bytt ikon' : 'Velg ikon'}</Text>
+      </TouchableOpacity>
+
+      {chosenIcon ? (
+        <View style={{ alignItems: 'center', marginTop: 12 }}>
+          <WebSafeIcon pathOrUrl={chosenIcon.path} style={{ width: 84, height: 84, borderRadius: 12 }} />
+          <Text style={{ marginTop: 6 }}>{chosenIcon.name || chosenIcon.id || 'Ikon'}</Text>
+        </View>
+      ) : null}
+
+      <TouchableOpacity
+        onPress={handleSave}
+        disabled={!canSave || saving}
+        style={[styles.saveBtn, { opacity: canSave && !saving ? 1 : 0.4 }]}
+        accessible={false}
+      >
+        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Lagre gjøremål</Text>}
+      </TouchableOpacity>
+
+      {/* Beholder din IconPickerModal hvis du bruker den andre steder */}
+      {/* <IconPickerModal ... /> */}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16 },
+  header: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.select({ web: 10, default: 8 }),
+    backgroundColor: '#fff',
+  },
+  pickBtn: {
+    backgroundColor: '#0b74d1',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  pickBtnText: { color: '#fff', fontWeight: '700' },
+  saveBtn: {
+    marginTop: 22,
+    backgroundColor: '#0b74d1',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveBtnText: { color: '#fff', fontWeight: '700' },
+
+  tplCard: { width: 110, backgroundColor: '#f8f8f8', borderRadius: 12, padding: 10, alignItems: 'center' },
+  tplIcon: { width: 56, height: 56, borderRadius: 10, backgroundColor: '#fff' },
+  tplTitle: { marginTop: 8, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  tplAmount: { marginTop: 2, fontSize: 12, color: '#0b74d1', fontWeight: '700' },
+});

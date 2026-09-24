@@ -13,6 +13,7 @@ import {
   consumeOauthError,
 } from '../../src/utils/authProviders';
 import SocialAuthButtons, { OrDivider } from '../../components/SocialAuthButtons';
+import SignInLegalConsent, { persistSignInConsent } from '../../components/SignInLegalConsent';
 import BrandLogo from '../../components/BrandLogo';
 import PendingAddFriendBanner from '../../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../../src/utils/pendingAddFriend';
@@ -23,12 +24,14 @@ import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
  * Heading must not imply create-only: social SSO also signs existing users in.
  */
 export default function AuthChoiceScreen({ navigation }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
   const wide = width >= 480;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [legalOk, setLegalOk] = useState(false);
+  const [legalError, setLegalError] = useState(false);
   const goBack = navigation.canGoBack() ? () => navigation.goBack() : undefined;
 
   useEffect(() => {
@@ -47,8 +50,19 @@ export default function AuthChoiceScreen({ navigation }) {
     }
   }, [t]);
 
+  const ensureLegal = async () => {
+    if (!legalOk) {
+      setLegalError(true);
+      return false;
+    }
+    setLegalError(false);
+    await persistSignInConsent(lang);
+    return true;
+  };
+
   const social = async (fn, provider) => {
     if (busy) return;
+    if (!(await ensureLegal())) return;
     setBusy(true);
     setError(null);
     try {
@@ -81,6 +95,15 @@ export default function AuthChoiceScreen({ navigation }) {
           <Text style={styles.sub}>{t('auth.subtitle')}</Text>
           <PendingAddFriendBanner />
 
+          <SignInLegalConsent
+            accepted={legalOk}
+            showError={legalError}
+            onAcceptedChange={(next) => {
+              setLegalOk(next);
+              if (next) setLegalError(false);
+            }}
+          />
+
           <SocialAuthButtons
             busy={busy}
             googleLabel={t('auth.google')}
@@ -95,7 +118,10 @@ export default function AuthChoiceScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.primary, busy && { opacity: 0.6 }]}
-            onPress={() => navigation.navigate('Register')}
+            onPress={async () => {
+              if (!(await ensureLegal())) return;
+              navigation.navigate('Register');
+            }}
             disabled={busy}
             accessibilityRole="button"
           >

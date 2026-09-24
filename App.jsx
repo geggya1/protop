@@ -778,11 +778,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       const p = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       if (p === '/login') return 'Login';
       if (p === '/forgot-password') return 'ForgotPassword';
-      if (p === '/signup') return consented ? 'AuthChoice' : 'LegalConsent';
-      if (p === '/register') return consented ? 'Register' : 'LegalConsent';
+      if (p === '/signup') return 'AuthChoice';
+      if (p === '/register') return 'Register';
       if (p === '/add-friend' || p.startsWith('/add-friend/')) {
         try { capturePendingAddFriendFromLocation(window.location.href); } catch { /* ignore */ }
-        return consented ? 'AuthChoice' : 'LegalConsent';
+        return 'AuthChoice';
       }
       // /start used to mount the legacy Welcome marketing clone — redirect via /.
       if (p === '/start') return null;
@@ -815,7 +815,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (needsVerify) stage = 'verify';
     else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))) stage = 'boot';
     else if (!langPicked && user) stage = 'language';
-    else if (user && !consented) stage = 'legal';
     // Never eject incomplete profiles to GetStarted — bootTimedOut only clears the
     // white spinner (boot stage). Kicking off ProfileSetup mid-birthday-picker left
     // new users on «Fant ikke familien din».
@@ -833,7 +832,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     // /hjem|/start redirect to the marketing homepage above.
     : stage === 'welcome' ? (welcomePathEntry || (Platform.OS === 'web' ? 'Login' : 'Welcome'))
     : stage === 'language' ? 'PickLanguage'
-    : stage === 'legal' ? 'LegalConsent'
     : stage === 'auth' ? 'AuthChoice'
     : stage === 'verify' ? 'VerifyEmail'
     : stage === 'profile' ? 'ProfileSetup'
@@ -877,7 +875,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     }
   }, [stage, initial, forceCalendarOauth]);
 
-  if (stage === 'boot') return <LoadingView label="Henter familien din…" />;
+  if (stage === 'boot') return <LoadingView label="Laster ProTop…" />;
 
   // SessionOverlays must mount for any signed-in user past boot — not only
   // stage==='app'. Users on legal/profile/language/start otherwise never see
@@ -896,8 +894,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <WelcomeScreen
               {...props}
               onTryFree={() => {
-                if (!consented) props.navigation.navigate('LegalConsent');
-                else props.navigation.navigate('AuthChoice');
+                props.navigation.navigate('AuthChoice');
               }}
               onLogin={() => props.navigation.navigate('Login')}
             />
@@ -909,7 +906,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
               {...props}
               onDone={() => {
                 if (props.navigation.canGoBack()) props.navigation.goBack();
-                else if (!consented) props.navigation.replace('LegalConsent');
                 else if (!user) props.navigation.replace('AuthChoice');
                 else goAfterLegal(props.navigation);
               }}

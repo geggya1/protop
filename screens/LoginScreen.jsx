@@ -29,6 +29,7 @@ import {
   consumeOauthError,
 } from '../src/utils/authProviders';
 import SocialAuthButtons, { OrDivider } from '../components/SocialAuthButtons';
+import SignInLegalConsent, { persistSignInConsent } from '../components/SignInLegalConsent';
 import BrandLogo from '../components/BrandLogo';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
@@ -60,7 +61,7 @@ function notifyAsync(title, message) {
  * Google & Apple → OR → username/password → Log in → forgot / sign up
  */
 export default function LoginScreen({ navigation }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
   const wide = width >= 480;
@@ -73,6 +74,8 @@ export default function LoginScreen({ navigation }) {
   const [resending, setResending] = useState(false);
   const [formError, setFormError] = useState(null);
   const [unverifiedInfo, setUnverifiedInfo] = useState(false);
+  const [legalOk, setLegalOk] = useState(false);
+  const [legalError, setLegalError] = useState(false);
 
   const emailTrimmed = email.trim().toLowerCase();
   const emailValid = useMemo(
@@ -266,6 +269,7 @@ export default function LoginScreen({ navigation }) {
   const handleLogin = async () => {
     setFormError(null);
     setUnverifiedInfo(false);
+    if (!(await ensureLegal())) return;
     if (!emailTrimmed || !password) { setFormError('E-post, brukernavn eller passord mangler.'); return; }
 
     setLoading(true);
@@ -305,8 +309,19 @@ export default function LoginScreen({ navigation }) {
     } finally { setLoading(false); }
   };
 
+  const ensureLegal = async () => {
+    if (!legalOk) {
+      setLegalError(true);
+      return false;
+    }
+    setLegalError(false);
+    await persistSignInConsent(lang);
+    return true;
+  };
+
   const social = async (fn, provider) => {
     if (busy) return;
+    if (!(await ensureLegal())) return;
     setSocialBusy(true);
     setFormError(null);
     try {
@@ -338,6 +353,15 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.heading}>{t('auth.loginTitle')}</Text>
           <Text style={styles.sub}>{t('auth.loginSocialHint')}</Text>
           <PendingAddFriendBanner />
+
+          <SignInLegalConsent
+            accepted={legalOk}
+            showError={legalError}
+            onAcceptedChange={(next) => {
+              setLegalOk(next);
+              if (next) setLegalError(false);
+            }}
+          />
 
           <SocialAuthButtons
             busy={busy}

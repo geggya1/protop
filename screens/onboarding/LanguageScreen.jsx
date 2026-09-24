@@ -25,7 +25,7 @@ export default function LanguageScreen({ navigation, onDone }) {
           return;
         }
         if (navigation.canGoBack()) navigation.goBack();
-        else navigation.navigate('LegalConsent');
+        else navigation.navigate('AuthChoice');
       }}
       nextLabel={t('common.continue')}
     >

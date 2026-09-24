@@ -38,6 +38,28 @@ export async function saveLocalConsents(consents) {
   await AsyncStorage.setItem(CONSENT_KEY, JSON.stringify(consents));
 }
 
+/** Stamp privacy + terms for the current legal version (sign-in card). */
+export function acceptedConsentRecord(language, existing) {
+  const now = new Date().toISOString();
+  return {
+    ...(existing || emptyConsents()),
+    termsAt: now,
+    privacyAt: now,
+    gdprAt: now,
+    dataAt: now,
+    copyrightAt: now,
+    language: language || existing?.language || null,
+    version: LEGAL_VERSION,
+  };
+}
+
+export async function acceptLegalConsents(language) {
+  const existing = await loadLocalConsents();
+  const next = acceptedConsentRecord(language, existing);
+  await saveLocalConsents(next);
+  return next;
+}
+
 export async function persistUserConsents(uid, consents) {
   if (!uid) return;
   await setDoc(doc(db, 'users', uid), {

@@ -1,12 +1,18 @@
 /**
- * Midlertidig plattform-gating: vanlige brukere ser og oppretter kun familie.
- * Superadmin/utvikler (goa@invest-as.no) har tilgang til alle plattformer.
+ * ProTop: eget arbeidsområde (personlig skall) og organisasjoner/firma.
+ * Familie, idrett, skole og andre gamle plattformer vises ikke.
  */
-import { isFamilyType } from './groupTypes.js';
+import { isFamilyType, isOrganizationType } from './groupTypes.js';
 
 export const PLATFORM_DEV_EMAILS = ['goa@invest-as.no'];
 
-export const PUBLIC_PLATFORM_TYPES = ['family'];
+export const PUBLIC_PLATFORM_TYPES = ['family', 'organization', 'company'];
+
+export function isProtopWorkspace(group) {
+  if (!group) return false;
+  if (group.isPersonal === true) return true;
+  return isOrganizationType(group.type);
+}
 
 function emailOf(userOrEmail) {
   if (!userOrEmail) return '';
@@ -21,7 +27,7 @@ export function canAccessAllPlatforms(userOrEmail) {
 
 export function canUsePlatformType(type, userOrEmail) {
   if (canAccessAllPlatforms(userOrEmail)) return true;
-  return isFamilyType(type);
+  return isFamilyType(type) || isOrganizationType(type);
 }
 
 export function assertCanCreatePlatformType(type, userOrEmail) {
@@ -31,8 +37,7 @@ export function assertCanCreatePlatformType(type, userOrEmail) {
   throw err;
 }
 
-export function visibleGroupsForUser(groups, userOrEmail, { isChild = false } = {}) {
+export function visibleGroupsForUser(groups) {
   const list = Array.isArray(groups) ? groups : [];
-  if (isChild || canAccessAllPlatforms(userOrEmail)) return list;
-  return list.filter((g) => isFamilyType(g?.type));
+  return list.filter((g) => isProtopWorkspace(g));
 }

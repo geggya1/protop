@@ -108,7 +108,7 @@ export default function ClassroomDrawer({
               }}
             >
               <Ionicons name="swap-horizontal-outline" size={20} color={c.tint} />
-              <Text style={[styles.linkTxt, { color: c.tint }]}>Skift plattform</Text>
+              <Text style={[styles.linkTxt, { color: c.tint }]}>Skift organisasjon</Text>
             </TouchableOpacity>
           </ScrollView>
         </Pressable>

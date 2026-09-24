@@ -104,7 +104,7 @@ export default function PlatformListScreen({ config, embedded, onOpenGroup }) {
         {!embedded && (
           <TouchableOpacity style={styles.linkRow} onPress={() => goPlatformOverview(nav)}>
             <Ionicons name="swap-horizontal-outline" size={18} color={c.brand} />
-            <Text style={[styles.linkTxt, { color: c.brand }]}>Skift plattform</Text>
+            <Text style={[styles.linkTxt, { color: c.brand }]}>Skift organisasjon</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

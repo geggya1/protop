@@ -17,7 +17,7 @@ export function isAuthEntryPath(path) {
 
 /**
  * When signed in, auth entry URLs must resolve to Home — otherwise /signup
- * remounts AuthChoice after «Henter familien din…».
+ * remounts AuthChoice after «Henter kontoen din…».
  */
 export function resolveAuthEntryLinkState(path, { signedIn } = {}) {
   if (signedIn && isAuthEntryPath(path)) {

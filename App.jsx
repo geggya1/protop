@@ -362,7 +362,7 @@ export default function App() {
   }, [isWeb, user, authBootstrapped, loading]);
 
   // Keep React Navigation linking aware of auth, and leave /signup|/login in
-  // the address bar so a remount after «Henter familien din…» cannot land on
+  // the address bar so a remount after «Henter kontoen din…» cannot land on
   // AuthChoice again (seen on iOS Safari after social sign-in).
   useEffect(() => {
     setLinkingSignedIn(!!user);
@@ -863,7 +863,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // Leaving boot remounts NavigationContainer. Linking already resolves the
       // current URL (e.g. /settings/profile). A reset to `initial` (usually Home)
       // would wipe that deep link — skip it. Never skip for auth entry URLs:
-      // /signup must not stick after «Henter familien din…».
+      // /signup must not stick after «Henter kontoen din…».
       if (from === 'boot' && stage === 'app') {
         let path = '/hjem';
         try {
@@ -877,7 +877,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     }
   }, [stage, initial, forceCalendarOauth]);
 
-  if (stage === 'boot') return <LoadingView label="Henter familien din…" />;
+  if (stage === 'boot') return <LoadingView label="Henter kontoen din…" />;
 
   // SessionOverlays must mount for any signed-in user past boot — not only
   // stage==='app'. Users on legal/profile/language/start otherwise never see

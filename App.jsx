@@ -896,8 +896,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <WelcomeScreen
               {...props}
               onTryFree={() => {
-                if (!consented) props.navigation.navigate('LegalConsent');
-                else props.navigation.navigate('AuthChoice');
+                props.navigation.navigate('AuthChoice');
               }}
               onLogin={() => props.navigation.navigate('Login')}
             />

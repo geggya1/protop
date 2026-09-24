@@ -114,6 +114,10 @@ function parseAddFriendFromPath(path) {
 export const linking = {
   prefixes,
   getStateFromPath(path, options) {
+    const head = String(path || '').split('?')[0].replace(/^\/+|\/+$/g, '').split('/')[0] || '';
+    if (head.toLowerCase() === 'legalconsent') {
+      return { routes: [{ name: linkingSignedIn ? 'ProfileSetup' : 'Login' }] };
+    }
     const invite = parseFamilyInviteFromPath(path);
     if (invite) {
       return {

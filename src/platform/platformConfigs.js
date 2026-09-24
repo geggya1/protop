@@ -177,11 +177,13 @@ export const PLATFORM_CONFIGS = {
       { id: 'apps', icon: 'grid', label: 'Apper' },
     ],
     homeKicker: 'Din bedrift',
-    homeSubtitle: 'Apper for bedriften. Anbud er trinn 1 i anbudsmodulen.',
+    homeSubtitle: 'Apper for bedriften. Prosjekt og Anbud ligger her.',
     quickActions: [
+      { tab: 'projects', icon: 'business-outline', label: 'Prosjekt', soft: '#E5F6FE' },
       { tab: 'anbud', icon: 'megaphone-outline', label: 'Anbud', soft: '#E5F6FE' },
     ],
     moreModules: [
+      { id: 'projects', icon: 'business', label: 'Prosjekt', tab: 'projects' },
       { id: 'anbud', icon: 'megaphone', label: 'Anbud', tab: 'anbud' },
     ],
     eventsLabel: 'Aktiviteter',

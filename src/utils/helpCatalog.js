@@ -110,7 +110,7 @@ const EXTRA_ARTICLES = [
     keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project'],
     steps: {
       parent: [
-        T('Åpne Prosjekt og opprett prosjekt med nummer', 'Open Projects and create a project with a number'),
+        T('Åpne Prosjekt inne i bedriften og opprett prosjekt med nummer', 'Open Projects inside the company and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
       ],

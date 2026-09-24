@@ -8,7 +8,6 @@ export const PARENT_BOTTOM_NAV_CONTENT_HEIGHT = 60;
 
 const BUILTIN_ACTIONS = {
   home: { type: 'tab', tab: 'home' },
-  projects: { type: 'tab', tab: 'projects' },
   more: { type: 'tab', tab: 'more' },
   family: { type: 'tab', tab: 'more', subView: 'members' },
   plan: { type: 'tab', tab: 'plan' },
@@ -29,7 +28,6 @@ export function resolveActiveParentBottomId(tab, moreSubView, ids = []) {
   const sub = moreSubView || null;
 
   if (tab === 'home' && idSet.has('home')) return 'home';
-  if (tab === 'projects' && idSet.has('projects')) return 'projects';
   if (tab === 'plan' && idSet.has('plan')) return 'plan';
   if (tab === 'stars' && idSet.has('stars')) return 'stars';
   if (tab === 'chat' && idSet.has('chat')) return 'chat';

@@ -489,7 +489,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
               <PlatformTile
                 icon="business-outline"
                 label="Bedrift"
-                sub="Anbud og bedriftsapper"
+                sub="Prosjekt og Anbud"
                 tint="#1099F4"
                 soft="#E5F6FE"
                 onPress={() => {

@@ -53,10 +53,6 @@ export function buildShellModules({
     id: 'friends', icon: 'people', label: t('apps.friends'),
     action: { type: 'tab', tab: 'more', subView: 'friends' },
   });
-  mainItems.push({
-    id: 'projects', icon: 'business', label: t('tabs.projects'),
-    action: { type: 'tab', tab: 'projects' },
-  });
   mainItems.push(
     { id: 'plan', icon: 'calendar', label: t('tabs.plan'), action: { type: 'tab', tab: 'plan' } },
   );
@@ -378,13 +374,6 @@ export function buildChildDashboardApps({
 
   const apps = [
     {
-      id: 'projects',
-      icon: 'business',
-      label: t('tabs.projects'),
-      sub: 'HMS, fremdrift og økonomi',
-      action: { type: 'tab', tab: 'projects' },
-    },
-    {
       id: 'stars',
       icon: 'checkbox',
       label: t('tabs.tasks'),
@@ -539,13 +528,6 @@ export function buildParentDashboardApps({
   firstKid = null,
 }) {
   const apps = [
-    {
-      id: 'projects',
-      icon: 'business',
-      label: t('tabs.projects'),
-      sub: 'HMS, fremdrift og økonomi',
-      action: { type: 'tab', tab: 'projects' },
-    },
     {
       id: 'plan',
       icon: 'calendar',

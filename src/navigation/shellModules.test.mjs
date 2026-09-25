@@ -121,6 +121,11 @@ assert.equal(/fontWeight:\s*'[6-9]00'/.test(orgScreen), false);
 assert.match(orgScreen, /styles\.grid/);
 assert.match(orgScreen, /width: 320/);
 
+const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
+assert.equal(/fontWeight:\s*'[6-9]00'/.test(company), false);
+assert.match(company, /alignSelf: 'flex-start'/);
+assert.match(company, /styles\.actions/);
+
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 

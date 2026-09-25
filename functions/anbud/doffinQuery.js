@@ -2,8 +2,12 @@
 
 function codesOf(values) {
   return [...new Set((values || [])
-    .map((code) => String(code || '').replace(/\D/g, ''))
-    .filter((code) => code.length >= 2 && code.length <= 8))];
+    .map((code) => {
+      const digits = String(code || '').replace(/\D/g, '');
+      if (digits.length < 2) return '';
+      return digits.slice(0, 8).padEnd(8, '0');
+    })
+    .filter(Boolean))];
 }
 
 function placesOf(values) {

@@ -174,8 +174,8 @@ function chatCopy(whoNb, whoEn) {
     title: tx(`Prat der ${whoNb} allerede er`, `Chat where ${whoEn} already is`),
     kicker: tx('Meldinger som hører hjemme her', 'Messages that belong here'),
     pitch: tx(
-      `Ikke nok en app å sjekke. Familieprat, direktemeldinger og felles beskjeder — samlet, trygt og uten støy fra resten av verden.`,
-      `Not another app to check. Group chat, DMs and shared notes — together, safe, and free of the rest of the world’s noise.`,
+      `Ikke nok en app å sjekke. Direktemeldinger og felles beskjeder for ${whoNb} — samlet, trygt og uten støy fra resten av verden.`,
+      `Not another app to check. Direct messages and shared notes for ${whoEn} — together, safe, and free of the rest of the world’s noise.`,
     ),
     steps: [
       tx(`Trykk på ${whoNb} for felles prat, eller en person for DM`, `Tap ${whoEn} for shared chat, or a person for a DM`),
@@ -220,8 +220,8 @@ export const MODULE_INTROS = {
     ),
     steps: [
       {
-        nb: 'Trykk et kort — dagens plan, oppgaver eller familie — for å åpne appen',
-        en: 'Tap a card — today’s plan, tasks or family — to open the app',
+        nb: 'Trykk et kort — dagens plan, oppgaver eller notater — for å åpne appen',
+        en: 'Tap a card — today’s plan, tasks or notes — to open the app',
         anchor: 'timeline',
         where: tx('Fremhevet: kortene på hjem', 'Highlighted: the home cards'),
         variants: [
@@ -280,28 +280,36 @@ export const MODULE_INTROS = {
       },
     ],
   }),
-  'family.chat': chatCopy('familien', 'the family'),
+  'family.chat': chatCopy('du', 'you'),
   'family.plan': intro({
     icon: 'calendar',
     accent: BLUE,
     soft: BLUE_SOFT,
-    title: tx('Uka alle faktisk følger', 'The week everyone actually follows'),
-    kicker: tx('Kalender som selger ro.', 'A calendar that sells calm.'),
+    title: tx('Din uke, på ett sted', 'Your week, in one place'),
+    kicker: tx('Din egen kalender.', 'Your own calendar.'),
     pitch: tx(
-      'Henting, trening, bursdager og middag — én tidslinje. Slutt å være familiens hemmelige kalender. La appen gjøre jobben.',
-      'Pickups, practice, birthdays and dinner — one timeline. Stop being the family’s secret calendar. Let the app do the work.',
+      'Avtaler, påminnelser og det du har koblet fra Outlook eller ICS — i din kalender. Ingen andres plan.',
+      'Events, reminders and what you connect from Outlook or ICS — in your calendar. Nobody else’s plan.',
     ),
     steps: [
-      tx('Trykk Ny hendelse øverst til høyre', 'Tap New event at the top right'),
-      tx('Velg hvem det gjelder — resten ser det med en gang', 'Choose who it applies to — the rest see it instantly'),
-      tx('Koble Outlook i innstillinger om du vil ha jobb og hjem i samme uke', 'Connect Outlook in settings to mix work and home in one week'),
+      {
+        nb: 'Trykk Ny hendelse øverst til høyre',
+        en: 'Tap New event at the top right',
+        scene: 'hub',
+      },
+      {
+        nb: 'Legg inn det som gjelder deg',
+        en: 'Add what applies to you',
+        scene: 'inner',
+      },
+      tx('Koble Outlook i innstillinger om du vil ha jobb og privat i samme uke', 'Connect Outlook in settings to mix work and personal in one week'),
     ],
   }),
   'family.mail': intro({
     icon: 'mail',
     accent: BLUE,
     soft: BLUE_SOFT,
-    title: tx('E-post der familien allerede planlegger', 'Mail where the family already plans'),
+    title: tx('E-post der du allerede planlegger', 'Mail where you already plan'),
     kicker: tx('Outlook, uten å forlate uka.', 'Outlook, without leaving the week.'),
     pitch: tx(
       'Skole, lag og fakturaer treffer innboksen — ikke et annet vindu. Koble Microsoft og svar der du allerede styrer hverdagen.',
@@ -321,13 +329,17 @@ export const MODULE_INTROS = {
     title: tx('Oppgaver som blir gjort — ikke glemt', 'Tasks that get done — not forgotten'),
     kicker: tx('Fra «husker du?» til ferdig.', 'From “did you remember?” to done.'),
     pitch: tx(
-      'Gi jobben et navn, en frist og en stjerne. Barna krysser av. Dere ser fremgang. Hverdagen blir et lag, ikke et mas.',
-      'Give the job a name, a deadline and a star. Kids check them off. You see progress. The week becomes a team, not a nag.',
+      'Gi oppgaven et navn og en frist. Kryss av når den er gjort. Oversikten er din.',
+      'Give the task a name and a deadline. Check it off when it’s done. The list is yours.',
     ),
     steps: [
       tx('Trykk + for å lage en oppgave', 'Tap + to create a task'),
-      tx('Sett hvem, når og belønning', 'Set who, when and the reward'),
-      tx('Kryss av når det er gjort — stjernene tickes inn', 'Check it off when it’s done — stars roll in'),
+      {
+        nb: 'Sett frist og hva som skal gjøres',
+        en: 'Set a deadline and what needs doing',
+        scene: 'inner',
+      },
+      tx('Kryss av når det er gjort', 'Check it off when it’s done'),
     ],
   }),
   'family.notes': intro({
@@ -338,13 +350,13 @@ export const MODULE_INTROS = {
     title: tx('Notater som overlever kjøleskapet', 'Notes that outlive the fridge door'),
     kicker: tx('Skriv. Ta opp. Del.', 'Write. Record. Share.'),
     pitch: tx(
-      'Beskjeder, lister og stemme — samlet for familien. Mindre lapper som forsvinner, mer som faktisk blir lest.',
-      'Messages, lists and voice — gathered for the family. Fewer vanishing scraps, more that actually gets read.',
+      'Beskjeder, lister og stemme — samlet for deg. Mindre lapper som forsvinner, mer som du finner igjen.',
+      'Messages, lists and voice — gathered for you. Fewer vanishing scraps, more you can find again.',
     ),
     steps: [
       tx('Åpne et notat, eller trykk + for et nytt', 'Open a note, or tap + for a new one'),
       tx('Skriv, eller ta opp med mikrofonen', 'Type, or record with the mic'),
-      tx('Del med familien så alle ser det samme', 'Share with the family so everyone sees the same thing'),
+      tx('Notatet ligger hos deg til du trenger det igjen', 'The note stays with you until you need it again'),
     ],
   }),
   'family.chores': intro({
@@ -364,7 +376,7 @@ export const MODULE_INTROS = {
       tx('Se stjernene samle seg mot et mål med bilde og lenke', 'Watch the stars add up toward a goal with a picture and a link'),
     ],
   }),
-  'family.more': moreHubCopy('familien', 'the family', 'Handleliste, måltider, spill, kart og mer', 'Shopping, meals, games, maps and more'),
+  'family.more': moreHubCopy('deg', 'you', 'Handleliste, måltider, spill, kart og mer', 'Shopping, meals, games, maps and more'),
   'family.shop': intro({
     icon: 'cart',
     accent: BLUE,
@@ -390,8 +402,8 @@ export const MODULE_INTROS = {
     title: tx('Ønskelister som treffer — hver gang', 'Wish lists that hit — every time'),
     kicker: tx('Gaver uten gjetting.', 'Gifts without guessing.'),
     pitch: tx(
-      'Bursdag, jul, «jeg vil ha». Hele familien samler ønskene. Dere handler treffsikkert. Mindre retur, mer glede — og mer «du skjønte meg».',
-      'Birthday, Christmas, “I want this”. The whole family collects the wishes. You shop with aim. Fewer returns, more joy — and more “you got me”.',
+      'Bursdag, jul, «jeg vil ha». Du samler ønskene. Du handler treffsikkert. Mindre retur, mer glede — og mer «du skjønte meg».',
+      'Birthday, Christmas, “I want this”. You collect the wishes. You shop with aim. Fewer returns, more joy — and more “you got me”.',
     ),
     steps: [
       {
@@ -499,11 +511,11 @@ export const MODULE_INTROS = {
     icon: 'settings',
     accent: SLATE,
     soft: SLATE_SOFT,
-    title: tx('Still inn familien slik dere vil ha den', 'Set the family up the way you want it'),
-    kicker: tx('Ditt hus. Dine regler.', 'Your house. Your rules.'),
+    title: tx('Still inn kontoen slik du vil ha den', 'Set the account up the way you want it'),
+    kicker: tx('Din konto. Dine valg.', 'Your account. Your choices.'),
     pitch: tx(
-      'Språk, varsler, profiler og hva barna får se. Små valg som gjør appen til deres — ikke en ferdig mal.',
-      'Language, alerts, profiles and what kids can see. Small choices that make the app yours — not a stock template.',
+      'Språk, varsler og utseende. Små valg som gjør appen til din — ikke en ferdig mal.',
+      'Language, alerts and appearance. Small choices that make the app yours — not a stock template.',
     ),
     steps: [
       tx('Bla og åpne det du vil endre', 'Scroll and open what you want to change'),
@@ -534,25 +546,25 @@ export const MODULE_INTROS = {
     title: tx('Trening og tur — loggført uten Strava-støy', 'Training and trails — logged without the noise'),
     kicker: tx('Bevegelse som blir sett.', 'Movement that gets seen.'),
     pitch: tx(
-      'Løpetur, styrke, familiens søndagstur. Samle aktivitetene, koble Strava om du vil, og la innsatsen synes — også for de hjemme.',
-      'Runs, strength, the Sunday walk. Gather the activities, connect Strava if you like, and let the effort show — also for those at home.',
+      'Løpetur, styrke, søndagstur. Samle aktivitetene, koble Strava om du vil, og la innsatsen synes.',
+      'Runs, strength, the Sunday walk. Gather the activities, connect Strava if you like, and let the effort show.',
     ),
     steps: [
       tx('Trykk + for å logge en økt, eller koble Strava', 'Tap + to log a session, or connect Strava'),
-      tx('Se familiens aktiviteter i listen', 'See the family’s activities in the list'),
+      tx('Se aktivitetene dine i listen', 'See your activities in the list'),
       tx('Åpne en økt for kart, tid og detaljer', 'Open a session for map, time and details'),
     ],
   }),
-  'family.members': membersCopy('i familien', 'in the family'),
+  'family.members': membersCopy('her', 'here'),
   'family.groupSettings': intro({
     icon: 'home',
     accent: SLATE,
     soft: SLATE_SOFT,
-    title: tx('Familien bak kulissene', 'The family behind the curtain'),
+    title: tx('Kontoen bak kulissene', 'The account behind the curtain'),
     kicker: tx('Navn, roller, abonnement.', 'Name, roles, plan.'),
     pitch: tx(
-      'Her bor familiens innstillinger. Hold navn, medlemmer og abonnement i orden — så flyter resten av appen.',
-      'This is where family settings live. Keep the name, members and plan tidy — and the rest of the app flows.',
+      'Her bor kontoinnstillingene. Hold navn og abonnement i orden — så flyter resten av appen.',
+      'This is where account settings live. Keep the name and plan tidy — and the rest of the app flows.',
     ),
     steps: [
       tx('Endre navn og detaljer øverst', 'Change the name and details at the top'),
@@ -568,11 +580,11 @@ export const MODULE_INTROS = {
     kicker: tx('Trygghet som føles lett.', 'Safety that feels light.'),
     pitch: tx(
       'Se hvem som er på vei, hvem som er hjemme. Foresatte kan slå på deling — sist kjent sted vises også når appen ikke er åpen.',
-      'See who’s on the way and who’s home. Shared location on the family’s terms — last known stays visible even when the app is closed.',
+      'See who’s on the way and who’s home. Shared location on your terms — last known stays visible even when the app is closed.',
     ),
     steps: [
       tx('Slå på deling for deg selv eller barna', 'Turn on sharing for yourself or the kids'),
-      tx('Se familiens posisjoner på kartet', 'See family positions on the map'),
+      tx('Se posisjonene på kartet', 'See the positions on the map'),
       tx('Trykk en person for siste oppdatering', 'Tap a person for the last update'),
     ],
   }),
@@ -583,13 +595,13 @@ export const MODULE_INTROS = {
     title: tx('Papirene som alltid er «et sted»', 'The papers that are always “somewhere”'),
     kicker: tx('Mapper. Filer. Ferdig søkt.', 'Folders. Files. Found.'),
     pitch: tx(
-      'Pass, forsikring, skolebrev. Samle det familien trenger, i mapper alle voksne finner — uten å grave i e-posten.',
-      'Passports, insurance, school letters. Gather what the family needs, in folders every adult can find — no digging through email.',
+      'Pass, forsikring, brev. Samle det du trenger, i mapper du finner igjen — uten å grave i e-posten.',
+      'Passports, insurance, letters. Gather what you need, in folders you can find — no digging through email.',
     ),
     steps: [
       tx('Åpne en mappe, eller lag en ny med +', 'Open a folder, or create one with +'),
       tx('Last opp fil eller ta bilde', 'Upload a file or take a photo'),
-      tx('Alt ligger trygt i familien — ikke på én telefon', 'It lives with the family — not on one phone'),
+      tx('Alt ligger trygt på kontoen — ikke på én telefon', 'It lives on the account — not on one phone'),
     ],
   }),
   'family.meals': intro({
@@ -631,15 +643,15 @@ export const MODULE_INTROS = {
     soft: SKY_SOFT,
     hero: 'family',
     title: tx('Ukeplanen lager seg selv', 'The weekly plan makes itself'),
-    kicker: tx('AI Matcoach for hele familien.', 'AI food coach for the whole family.'),
+    kicker: tx('AI Matcoach for middagsuka di.', 'AI food coach for your dinner week.'),
     pitch: tx(
-      'Få en familietilpasset middagsuke med forklaring, matpakker og handleliste. Allergier, tid og budsjett styrer forslagene. Oppdater lageret med AI-skanner under Lager.',
-      'Get a family-fit dinner week with reasons, lunchboxes and shopping list. Allergies, time and budget steer the suggestions. Update stock with the AI scanner under Pantry.',
+      'Få en tilpasset middagsuke med forklaring, matpakker og handleliste. Allergier, tid og budsjett styrer forslagene. Oppdater lageret med AI-skanner under Lager.',
+      'Get a dinner week that fits you, with reasons, lunchboxes and a shopping list. Allergies, time and budget steer the suggestions. Update stock with the AI scanner under Pantry.',
     ),
     steps: [
       {
-        nb: 'Trykk Familie-fanen for å sette preferanser',
-        en: 'Tap the Family tab to set preferences',
+        nb: 'Trykk preferanser for å sette dem',
+        en: 'Tap preferences to set them',
         anchor: 'prefs',
         scene: 'hub',
         where: tx(
@@ -653,8 +665,8 @@ export const MODULE_INTROS = {
         anchor: 'content',
         scene: 'inner',
         where: tx(
-          'Fyll inn det som passer familien din',
-          'Fill in what fits your family',
+          'Fyll inn det som passer deg',
+          'Fill in what fits you',
         ),
       },
       {
@@ -684,7 +696,7 @@ export const MODULE_INTROS = {
     accent: SKY,
     soft: SKY_SOFT,
     hero: 'family',
-    title: tx('Oppskriftene familien faktisk lager', 'The recipes your family actually cooks'),
+    title: tx('Oppskriftene du faktisk lager', 'The recipes you actually cook'),
     kicker: tx('Bilde. Ingredienser. Fremgangsmåte.', 'Photo. Ingredients. Method.'),
     pitch: tx(
       'Samle matretter med bilde, fremgangsmåte og lenke. Importer fra bilde eller nettside med AI, og gi favorittene stjerner så de dukker opp først i måltidsplanen.',
@@ -765,7 +777,7 @@ export const MODULE_INTROS = {
     accent: INDIGO,
     soft: INDIGO_SOFT,
     hero: 'family',
-    title: tx('Fem minutter som limer familien', 'Five minutes that glue the family'),
+    title: tx('Fem minutter med et godt spill', 'Five minutes with a good game'),
     kicker: tx('Spill. Sammen. Nå.', 'Play. Together. Now.'),
     pitch: tx(
       'Quiz, tre på rad, gjett tallet. Skjermtid som faktisk er sammen — ikke hver for seg i hver sin sofa.',
@@ -773,7 +785,7 @@ export const MODULE_INTROS = {
     ),
     steps: [
       tx('Trykk et spill — les «Slik går du frem»', 'Tap a game — read “How to play”'),
-      tx('Inviter familiemedlemmer — de godtar før start', 'Invite family members — they accept before start'),
+      tx('Inviter noen — de godtar før start', 'Invite someone — they accept before start'),
       tx('Spill på telefon, nettbrett eller PC — feiring når noen vinner!', 'Play on phone, tablet or PC — celebration when someone wins!'),
     ],
   }),
@@ -781,14 +793,14 @@ export const MODULE_INTROS = {
     icon: 'flash',
     accent: INDIGO,
     soft: INDIGO_SOFT,
-    title: tx('Familiequiz som tar stua', 'A family quiz that takes the living room'),
+    title: tx('Quiz som tar stua', 'A quiz that takes the living room'),
     kicker: tx('Inviter. Poeng. Applaus.', 'Invite. Points. Applause.'),
     pitch: tx(
       'Live spørsmål, fargerike svar, tabell som oppdateres. Vertskap på 30 sekunder. Kvelden er reddet.',
       'Live questions, colourful answers, a table that updates. Host in 30 seconds. Evening: saved.',
     ),
     steps: [
-      tx('Velg en quiz og inviter familien', 'Pick a quiz and invite the family'),
+      tx('Velg en quiz og inviter noen', 'Pick a quiz and invite someone'),
       tx('De andre godtar invitasjonen og blir med', 'The others accept the invite and join'),
       tx('Kjør spørsmålene — poengene tikker inn live', 'Run the questions — points tick in live'),
     ],
@@ -800,13 +812,13 @@ export const MODULE_INTROS = {
     title: tx('Verden dere har sett — og den dere drømmer om', 'The world you’ve seen — and the one you dream of'),
     kicker: tx('Reis. Merk. Fortell.', 'Travel. Mark. Tell.'),
     pitch: tx(
-      'Marker land dere har besøkt. Planlegg neste tur. Et kart som samler familiens reiser.',
-      'Mark the countries you’ve visited. Plan the next trip. A map that gathers your family’s travels.',
+      'Marker land du har besøkt. Planlegg neste tur. Et kart som samler reisene dine.',
+      'Mark the countries you’ve visited. Plan the next trip. A map that gathers your travels.',
     ),
     steps: [
       tx('Trykk et land for å markere det', 'Tap a country to mark it'),
       tx('Klyp for å zoome, dra for å flytte kartet', 'Pinch to zoom, drag to move the map'),
-      tx('Se hvor familien har vært — og hvor dere vil', 'See where you’ve been — and where you want to go'),
+      tx('Se hvor du har vært — og hvor du vil', 'See where you’ve been — and where you want to go'),
     ],
   }),
   'family.reiseplanlegger': intro({
@@ -821,7 +833,7 @@ export const MODULE_INTROS = {
     ),
     steps: [
       tx('Opprett en reise og legg til destinasjoner', 'Create a trip and add destinations'),
-      tx('Inviter familiemedlemmer som planlegger eller leser', 'Invite family as planners or readers'),
+      tx('Inviter noen som planlegger eller leser', 'Invite someone as planner or reader'),
       tx('Sjekk inn underveis og lagre minner', 'Check in along the way and save memories'),
     ],
   }),
@@ -862,10 +874,10 @@ export const MODULE_INTROS = {
     soft: SKY_SOFT,
     hero: 'family',
     title: tx('Bevar øyeblikkene som betyr mest', 'Preserve the moments that matter most'),
-    kicker: tx('Bilder. Video. Delt med familien.', 'Photos. Video. Shared with family.'),
+    kicker: tx('Bilder. Video. Dine album.', 'Photos. Video. Your albums.'),
     pitch: tx(
-      'Samle bilder, videoer og album — og del minnene med familien. Private øyeblikk utenfor chat.',
-      'Collect photos, videos and albums — and share memories with the family. Private moments outside chat.',
+      'Samle bilder, videoer og album. Private øyeblikk utenfor chat.',
+      'Collect photos, videos and albums. Private moments outside chat.',
     ),
     steps: [
       {
@@ -901,7 +913,7 @@ export const MODULE_INTROS = {
     accent: GREEN,
     soft: GREEN_SOFT,
     hero: 'family',
-    title: tx('Familiens egen vegg', 'The family’s own wall'),
+    title: tx('Din egen vegg', 'Your own wall'),
     kicker: tx('Nyheter. Bilder. Oppdateringer.', 'News. Photos. Updates.'),
     pitch: tx(
       'Del små øyeblikk og store nyheter med dem som bor under samme tak — uten støy fra sosiale medier.',
@@ -909,8 +921,8 @@ export const MODULE_INTROS = {
     ),
     steps: [
       {
-        nb: 'Bla i veggen for å se familiens innlegg',
-        en: 'Scroll the wall to see the family’s posts',
+        nb: 'Bla i veggen for å se innleggene',
+        en: 'Scroll the wall to see the posts',
         anchor: 'content',
         scene: 'hub',
       },
@@ -921,8 +933,8 @@ export const MODULE_INTROS = {
         scene: 'hub',
       },
       {
-        nb: 'Kommenter eller lik — alle i familien ser det',
-        en: 'Comment or like — everyone in the family sees it',
+        nb: 'Kommenter eller lik innlegget',
+        en: 'Comment or like the post',
         anchor: 'content',
         scene: 'hub',
       },
@@ -936,8 +948,8 @@ export const MODULE_INTROS = {
     title: tx('Venner utenfor huset', 'Friends beyond the house'),
     kicker: tx('Koble. Del. Hold kontakten.', 'Connect. Share. Stay in touch.'),
     pitch: tx(
-      'Legg til venner, godta forespørsler og del album eller lister — uten å blande dem inn i familien.',
-      'Add friends, accept requests and share albums or lists — without mixing them into the family.',
+      'Legg til venner, godta forespørsler og del album eller lister.',
+      'Add friends, accept requests and share albums or lists.',
     ),
     steps: [
       {
@@ -979,8 +991,8 @@ export const MODULE_INTROS = {
     title: tx('Velg hvilke apper som er på', 'Choose which apps are on'),
     kicker: tx('Aktiver. Skjul. Hold det enkelt.', 'Enable. Hide. Keep it simple.'),
     pitch: tx(
-      'Skru på modulene familien trenger — og skjul resten. Mindre støy. Mer av det som faktisk brukes.',
-      'Turn on the modules the family needs — and hide the rest. Less noise. More of what you actually use.',
+      'Skru på modulene du trenger — og skjul resten. Mindre støy. Mer av det som faktisk brukes.',
+      'Turn on the modules you need — and hide the rest. Less noise. More of what you actually use.',
     ),
     steps: [
       {
@@ -1056,7 +1068,7 @@ export const MODULE_INTROS = {
     steps: [
       tx('Trykk en person for å åpne kortet', 'Tap a person to open their card'),
       tx('Legg til foreldre, partner eller barn', 'Add parents, partner or children'),
-      tx('Dra i lerretet for å se hele slekta', 'Drag the canvas to see the whole family'),
+      tx('Dra i lerretet for å se hele slekta', 'Drag the canvas to see the whole tree'),
     ],
   }),
   'family.rememberDates': intro({
@@ -1066,8 +1078,8 @@ export const MODULE_INTROS = {
     title: tx('Aldri glem en bursdag eller merkedag', 'Never miss a birthday or special day'),
     kicker: tx('Bursdag. Jul. Nedtelling.', 'Birthday. Christmas. Countdown.'),
     pitch: tx(
-      'Se bursdagene i familien og lag egne nedtellinger til jul, ferie og andre store dager. Alt samlet på ett sted.',
-      'See family birthdays and add countdowns to Christmas, holidays and other big days — all in one place.',
+      'Se bursdagene dine og lag egne nedtellinger til jul, ferie og andre store dager. Alt samlet på ett sted.',
+      'See your birthdays and add countdowns to Christmas, holidays and other big days — all in one place.',
     ),
     steps: [
       tx('Se hvem som har bursdag snart', 'See whose birthday is coming up'),
@@ -1146,8 +1158,8 @@ export const MODULE_INTROS = {
     title: tx('Full ProTop — når prøven smaker', 'Full ProTop — when the trial clicks'),
     kicker: tx('14 dager. Så 49 kr. Ingen binding.', '14 days. Then NOK 49. No lock-in.'),
     pitch: tx(
-      'Kalender, oppgaver, mail og resten — uten sperrer. Prøv først. Fortsett om familien merker forskjellen. Si opp når som helst.',
-      'Calendar, tasks, mail and the rest — no brakes. Try first. Stay if the family feels the difference. Cancel anytime.',
+      'Kalender, oppgaver, mail og resten — uten sperrer. Prøv først. Fortsett om du merker forskjellen. Si opp når som helst.',
+      'Calendar, tasks, mail and the rest — no brakes. Try first. Stay if you feel the difference. Cancel anytime.',
     ),
     steps: [
       tx('Se status og utløp øverst', 'See status and expiry at the top'),

@@ -56,7 +56,7 @@ function confirmAction(title, message, confirmLabel, onYes) {
 }
 
 /**
- * Venner-hub: familien vises øverst (standard), deretter profilens personlige venner.
+ * Venner-hub: profilens personlige venner.
  * Venner får aldri tilgang til familieplattformen.
  * Parent viewing a child profile shows THAT child's friends — never the parent's.
  */
@@ -64,7 +64,7 @@ export default function FriendsHubScreen({ inShell = false }) {
   const nav = useNavigation();
   const { t } = useI18n();
   const {
-    uid, members, family, familyId, activeProfile, meParent, meChild, requestShellTab,
+    uid, family, familyId, activeProfile, meParent, meChild, requestShellTab,
     isActingAsChild, activeChild,
   } = useApp();
   const dockPreferred = useChatDockPreferred();
@@ -134,11 +134,6 @@ export default function FriendsHubScreen({ inShell = false }) {
       familyId: friendsFamilyId,
     });
   }, [uid, canMutateFriends, friendOwnerUid, actingAsChildUid, friendsFamilyId]);
-
-  const familyMembers = useMemo(
-    () => (members || []).filter((m) => m.uid && m.uid !== uid),
-    [members, uid],
-  );
 
   const outgoingVisible = useMemo(
     () => (outgoing || []).filter((r) => {
@@ -509,54 +504,6 @@ export default function FriendsHubScreen({ inShell = false }) {
               })}
             </View>
           ) : null}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {t('friend.familySection')} ({familyMembers.length})
-            </Text>
-            <Text style={styles.sectionHint}>{t('friend.familyHint')}</Text>
-            {familyMembers.length === 0 ? (
-              <Text style={styles.empty}>{t('friend.noFamilyMembers')}</Text>
-            ) : (
-              familyMembers.map((m) => (
-                <TouchableOpacity
-                  key={m.uid}
-                  style={styles.personRow}
-                  onPress={() => {
-                    const thread = {
-                      familyId: family?.id,
-                      chatId: `dm_${[uid, m.uid].sort().join('_')}`,
-                      title: m.name,
-                      memberIds: [uid, m.uid],
-                      photoURL: m.photoURL || m.photoUrl || null,
-                      avatarId: m.avatarId || null,
-                    };
-                    if (dockPreferred) {
-                      openThread(thread);
-                      return;
-                    }
-                    requestShellTab?.('chat');
-                    nav.navigate('ChatThread', thread);
-                  }}
-                  accessibilityRole="button"
-                >
-                  <AvatarBubble
-                    avatarId={m.avatarId}
-                    photoURL={m.photoURL}
-                    name={m.name}
-                    size={40}
-                  />
-                  <View style={styles.personBody}>
-                    <Text style={styles.personName} numberOfLines={1}>{m.name}</Text>
-                    <Text style={styles.personSub}>
-                      {m.role === 'child' ? t('friend.child') : t('friend.familyMember')}
-                    </Text>
-                  </View>
-                  <Ionicons name="chatbubble-outline" size={18} color={colors.brand} />
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>

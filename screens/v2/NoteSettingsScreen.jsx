@@ -128,7 +128,7 @@ export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
         <TextInput style={styles.input} value={title} onChangeText={setTitle} editable={canManage} />
 
         <Text style={styles.label}>Deling</Text>
-        <Text style={styles.hint}>Privat som standard. Legg til familiemedlemmer for samarbeid.</Text>
+        <Text style={styles.hint}>Notatet er ditt.</Text>
         <View style={styles.chipRow}>
           {members.filter((m) => m.uid).map((m) => {
             const on = pickedMembers.includes(m.uid);

@@ -222,8 +222,8 @@ export default function DeskHomeDashboard({
                 <Text style={styles.cardTitle}>Dagens agenda</Text>
                 <Text style={styles.cardHint}>
                   {eventsToday.length
-                    ? `${eventsToday.length} ${eventsToday.length === 1 ? 'avtale' : 'avtaler'} · familie og kalendere`
-                    : 'Familie, Outlook og ICS'}
+                    ? `${eventsToday.length} ${eventsToday.length === 1 ? 'avtale' : 'avtaler'} · Outlook og ICS`
+                    : 'Outlook og ICS'}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => onTab?.('plan')}>

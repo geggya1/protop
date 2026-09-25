@@ -80,26 +80,26 @@ export const MODULE_CATALOG_I18N = {
         'Plan. Überblick. Ruhe.'
       ),
       headline: L(
-        'Hele familien, én plan',
-        'The whole family, one plan',
-        'Hele familien, én plan',
-        'Hela familjen, en plan',
-        'Koko perhe, yksi suunnitelma',
-        'Cała rodzina, jeden plan',
-        'Toda la familia, un solo plan',
-        'Toute la famille, un seul plan',
-        'Die ganze Familie, ein Plan'
+        'Din kalender, én plan',
+        'Your calendar, one plan',
+        'Din kalender, én plan',
+        'Din kalender, en plan',
+        'Oma kalenteri, yksi suunnitelma',
+        'Twój kalendarz, jeden plan',
+        'Tu calendario, un solo plan',
+        'Ton calendrier, un seul plan',
+        'Dein Kalender, ein Plan'
       ),
       pitch: L(
-        'Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.',
-        'Gather appointments, activities and reminders so everyone knows what’s happening – and when.',
-        'Saml aftaler, aktiviteter og påmindelser, så alle ved, hvad der sker – og hvornår.',
-        'Samla möten, aktiviteter och påminnelser så alla vet vad som händer – och när.',
-        'Kerää tapaamiset, aktiviteetit ja muistutukset, jotta kaikki tietävät mitä tapahtuu – ja milloin.',
-        'Zbierz spotkania, aktywności i przypomnienia, by wszyscy wiedzieli, co się dzieje – i kiedy.',
-        'Reúne citas, actividades y recordatorios para que todos sepan qué pasa – y cuándo.',
-        'Rassemble rendez-vous, activités et rappels pour que tout le monde sache ce qui se passe – et quand.',
-        'Sammle Termine, Aktivitäten und Erinnerungen, damit alle wissen, was passiert – und wann.'
+        'Samle egne avtaler, aktiviteter og påminnelser, så du vet hva som skjer – og når.',
+        'Gather your own appointments, activities and reminders so you know what’s happening – and when.',
+        'Saml dine aftaler, aktiviteter og påmindelser, så du ved, hvad der sker – og hvornår.',
+        'Samla dina möten, aktiviteter och påminnelser så du vet vad som händer – och när.',
+        'Kerää omat tapaamiset, aktiviteetit ja muistutukset, jotta tiedät mitä tapahtuu – ja milloin.',
+        'Zbierz własne spotkania, aktywności i przypomnienia, byś wiedział, co się dzieje – i kiedy.',
+        'Reúne tus citas, actividades y recordatorios para que sepas qué pasa – y cuándo.',
+        'Rassemble tes rendez-vous, activités et rappels pour que tu saches ce qui se passe – et quand.',
+        'Sammle eigene Termine, Aktivitäten und Erinnerungen, damit du weißt, was passiert – und wann.'
       ),
       activationLabel: L(
         'Aktiver Kalender',
@@ -114,15 +114,15 @@ export const MODULE_CATALOG_I18N = {
       ),
       benefits: [
         L(
-          'Se dagen og uken på tvers av familien',
-          'See the day and week across the family',
-          'Se dagen og ugen på tværs af familien',
-          'Se dagen och veckan över familjen',
-          'Näe päivä ja viikko koko perheen kesken',
-          'Zobacz dzień i tydzień w całej rodzinie',
-          'Ve el día y la semana de toda la familia',
-          'Vois le jour et la semaine de toute la famille',
-          'Sieh Tag und Woche der ganzen Familie'
+          'Se dagen og uken i din egen kalender',
+          'See the day and week in your own calendar',
+          'Se dagen og ugen i din egen kalender',
+          'Se dagen och veckan i din egen kalender',
+          'Näe päivä ja viikko omassa kalenterissasi',
+          'Zobacz dzień i tydzień we własnym kalendarzu',
+          'Ve el día y la semana en tu propio calendario',
+          'Vois le jour et la semaine dans ton calendrier',
+          'Sieh Tag und Woche in deinem eigenen Kalender'
         ),
         L(
           'Fordel avtaler og få varsler i tide',

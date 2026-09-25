@@ -247,7 +247,6 @@ export default function SettingsScreen({ setSubView } = {}) {
 
         {isParent && (
           <>
-            <SectionHeader title={t('settings.family')} />
             <View style={styles.group}>
               {isParent && !isChild && activeKids.length > 0 ? (
                 <>
@@ -335,8 +334,6 @@ export default function SettingsScreen({ setSubView } = {}) {
               {isAdmin && (
                 <>
                   <Row icon="people-circle" label={t('apps.members')} onPress={() => requestShellTab('more', 'members')} />
-                  <Row icon="person-add" label={t('apps.addMember')} onPress={() => requestShellTab('more', 'addMember')} />
-                  <Row icon="settings" label={t('apps.groupSettings')} onPress={() => requestShellTab('more', 'groupSettings')} />
                 </>
               )}
               <Row icon="apps-outline" label={t('apps.moduleAccess')} onPress={() => requestShellTab('more', 'moduleAccess')} />

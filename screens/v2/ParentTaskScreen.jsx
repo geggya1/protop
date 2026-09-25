@@ -369,7 +369,7 @@ export default function ParentTaskScreen() {
 
   const assigneeLabel = useMemo(() => {
     if (!assignedTo) return 'Meg';
-    if (assignedTo === FAMILY_ASSIGNEE) return 'Hele familien';
+    if (assignedTo === FAMILY_ASSIGNEE) return 'Meg';
     const m = members.find((x) => x.id === assignedTo || x.uid === assignedTo);
     return m?.name?.split(' ')[0] || m?.name || 'Ukjent';
   }, [assignedTo, members]);
@@ -554,7 +554,7 @@ export default function ParentTaskScreen() {
         ) : (
           <>
             <Text style={styles.hint}>
-              Deg selv, hele familien, eller én person. Barn ser egne oppgaver, tildelte, og «Hele familien».
+              Oppgaven gjelder deg.
             </Text>
             <View style={styles.chipRow}>
               <TouchableOpacity
@@ -562,15 +562,6 @@ export default function ParentTaskScreen() {
                 onPress={() => setAssignedTo(null)}
               >
                 <Text style={[styles.chipTxt, !assignedTo && styles.chipTxtOn]}>Meg</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.chip, assignedTo === FAMILY_ASSIGNEE && styles.chipOn]}
-                onPress={() => setAssignedTo(FAMILY_ASSIGNEE)}
-              >
-                <Text style={[styles.chipTxt, assignedTo === FAMILY_ASSIGNEE && styles.chipTxtOn]}>
-                  Hele familien
-                </Text>
-                {assignedTo === FAMILY_ASSIGNEE && <Ionicons name="checkmark" size={14} color="#fff" />}
               </TouchableOpacity>
               {members.filter((m) => {
                 const mid = m.uid || m.id;

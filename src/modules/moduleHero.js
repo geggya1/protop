@@ -25,8 +25,8 @@ export const MODULE_HERO = {
     kicker: t('Oppgaver', 'Tasks'),
     title: t('Få oversikt og få ting gjort', 'See it all — and get it done'),
     pitch: t(
-      'Samle familiens oppgaver, sett frister og jobb i lag – en enklere hverdag.',
-      'Gather family tasks, set deadlines and work together for a calmer week.',
+      'Samle egne oppgaver, sett frister og få dem unna – en enklere hverdag.',
+      'Gather your own tasks, set deadlines and get them done for a calmer week.',
     ),
   },
   notes: {
@@ -34,8 +34,8 @@ export const MODULE_HERO = {
     kicker: t('Notat', 'Notes'),
     title: t('Skap, samle og del tanker', 'Capture, collect and share ideas'),
     pitch: t(
-      'Notater, ideer og påminnelser – alltid tilgjengelig for hele familien.',
-      'Notes, ideas and reminders — always available for the whole family.',
+      'Notater, ideer og påminnelser – alltid tilgjengelig for deg.',
+      'Notes, ideas and reminders — always available for you.',
     ),
   },
   shop: {
@@ -213,10 +213,10 @@ export const MODULE_HERO = {
   plan: {
     ...BLUE,
     kicker: t('Kalender', 'Calendar'),
-    title: t('Hele familien, én plan', 'The whole family, one plan'),
+    title: t('Din kalender, én plan', 'Your calendar, one plan'),
     pitch: t(
-      'Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.',
-      'Gather events, activities and reminders so everyone knows what happens — and when.',
+      'Samle egne avtaler, aktiviteter og påminnelser, så du vet hva som skjer – og når.',
+      'Gather your own events, activities and reminders so you know what happens — and when.',
     ),
   },
   mail: {

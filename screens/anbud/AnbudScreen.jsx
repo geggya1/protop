@@ -42,7 +42,6 @@ export default function AnbudScreen({ company }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
-  bid: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },

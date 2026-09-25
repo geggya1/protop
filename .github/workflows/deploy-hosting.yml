@@ -52,6 +52,7 @@ jobs:
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
       - name: Deploy tender proxy function
+        continue-on-error: true
         run: |
           node --input-type=module -e "
           import { readFileSync, writeFileSync } from 'node:fs';

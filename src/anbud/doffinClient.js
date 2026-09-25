@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
+import { searchTedNotices } from './tedQuery';
 
 const LOCAL_SEARCH = 'http://127.0.0.1:8787/search';
 const LOCAL_COMPANY = 'http://127.0.0.1:8787/company';
@@ -77,5 +78,24 @@ export async function fetchCompetitionFile(id) {
   }
   const call = httpsCallable(functions, 'fetchDossier', { timeout: 30000 });
   const res = await call({ id });
+  return res.data;
+}
+
+/** Henter aktive TED-kunngjøringer. Direkte API først, skyfunksjon som reserve. */
+export async function fetchTedNotices(query) {
+  try {
+    return await searchTedNotices(query);
+  } catch (err) {
+    if (isLocalWeb()) throw err;
+    const call = httpsCallable(functions, 'searchTed', { timeout: 25000 });
+    const res = await call(query);
+    return res.data;
+  }
+}
+
+/** Sender varslingsposten til registrerte mottakere. */
+export async function sendTenderAlert(message) {
+  const call = httpsCallable(functions, 'sendTenderAlert', { timeout: 30000 });
+  const res = await call(message);
   return res.data;
 }

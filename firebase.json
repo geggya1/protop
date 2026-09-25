@@ -254,6 +254,13 @@
     ],
     "rewrites": [
       {
+        "source": "/api/tender-proxy",
+        "function": {
+          "functionId": "tenderProxy",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

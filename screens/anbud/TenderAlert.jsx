@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
-import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
+import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { fetchDoffinNotices, fetchTedNotices, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { fetchTenderHits, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
   emptyAnbudState, formatWhen, mergeTenderNotices, normalizeCpvCode, saveTenderWatch, setNoticeDecision, watchQuery,
 } from '../../src/anbud/model';
@@ -56,6 +57,10 @@ export default function TenderAlert({ company, colors }) {
   const [notify, setNotify] = useState({ push: true, varsel: true, email: false });
   const [emails, setEmails] = useState([]);
   const [mailNote, setMailNote] = useState('');
+  const [savedNote, setSavedNote] = useState('');
+  const [showCriteria, setShowCriteria] = useState(false);
+  const [openGroups, setOpenGroups] = useState(() => new Set());
+  const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -64,9 +69,9 @@ export default function TenderAlert({ company, colors }) {
     loadAnbudState().then((loaded) => {
       if (!live) return;
       const watch = loaded.watch || {};
-      const codes = watch.cpvCodes?.length ? watch.cpvCodes : (company?.cpvCodes || []);
+      const codes = [...(company?.cpvCodes || []), ...(watch.cpvCodes || [])];
       setSelectedCpv(new Set(codes.map((row) => row.code).filter(Boolean)));
-      setTrades(watch.naeringskoder || []);
+      setTrades([...(company?.naeringskoder || []), ...(watch.naeringskoder || [])].filter((row, index, list) => list.indexOf(row) === index));
       setNationwide(watch.savedAt ? !!watch.nationwide : true);
       setAreas(new Set((watch.areas || []).map((row) => row.id)));
       setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
@@ -81,6 +86,30 @@ export default function TenderAlert({ company, colors }) {
   useEffect(() => {
     if (ready) saveAnbudState(state).catch(() => setError('Kunne ikke lagre varslingen lokalt.'));
   }, [state, ready]);
+
+  useEffect(() => {
+    const orgnr = company?.orgnr;
+    if (!orgnr) return undefined;
+    let alive = true;
+    fetchPublicCompany(orgnr).then((data) => {
+      if (!alive || !data?.ok) return;
+      const fromRegister = (data.company?.naeringer || []).map((row) => [row.kode, row.beskrivelse].filter(Boolean).join(' · ')).filter(Boolean);
+      setCompanyTrades((current) => [...new Set([...fromRegister, ...current, ...(company?.naeringskoder || [])])]);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [company?.orgnr]);
+
+  useEffect(() => {
+    if (!ready || !state.watch.savedAt) return undefined;
+    const now = new Date();
+    const mark = new Date(now);
+    mark.setHours(23, 55, 0, 0);
+    if (now < mark) mark.setDate(mark.getDate() - 1);
+    const synced = state.syncedAt ? new Date(state.syncedAt).getTime() : 0;
+    if (synced >= mark.getTime()) return undefined;
+    refresh(stateRef.current);
+    return undefined;
+  }, [ready]);
 
   const notices = state.notices || [];
   const watchedCodes = [...selectedCpv];
@@ -109,22 +138,16 @@ export default function TenderAlert({ company, colors }) {
     setSyncing(true);
     setError('');
     try {
-      const jobs = [];
-      if ((nextState.watch.channels || []).includes('doffin')) jobs.push(fetchDoffinNotices(active));
-      if ((nextState.watch.channels || []).includes('ted')) jobs.push(fetchTedNotices(active));
-      const results = await Promise.allSettled(jobs);
-      let merged = nextState;
-      const problems = [];
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          merged = mergeTenderNotices(merged, result.value?.hits, result.value?.fetchedAt).state;
-        } else {
-          problems.push(result.reason?.message || 'Et søk feilet.');
-        }
-      }
+      const data = await fetchTenderHits({ ...active, channels: nextState.watch.channels });
+      const merged = mergeTenderNotices(nextState, data.hits, data.fetchedAt).state;
       setState(merged);
-      if (problems.length && problems.length === results.length) setError(problems[0]);
-      else if (problems.length) setError(problems.join(' '));
+      if (!data.hits?.length && data.errors?.length) setError(data.errors[0]);
+      else if (data.errors?.length) setError(data.errors.join(' '));
+    } catch (err) {
+      const raw = String(err?.message || '');
+      setError(/internal|cors|failed to fetch|ikke funnet/i.test(raw)
+        ? 'Søket mot Doffin og TED svarte ikke. Prøv Oppdater på nytt om et øyeblikk.'
+        : (raw || 'Kunne ikke hente treff.'));
     } finally {
       setSyncing(false);
     }
@@ -137,6 +160,7 @@ export default function TenderAlert({ company, colors }) {
       return;
     }
     setError('');
+    setSavedNote('Lagret. Søket bruker kodene fra bedriften.');
     setState(saved.state);
     if (company?.id) {
       updateGroup(company.id, {
@@ -186,12 +210,6 @@ export default function TenderAlert({ company, colors }) {
     });
   }, [notices, filter, sourceFilter, queryText]);
 
-  const visibleCpv = CPV_CODES.filter((row) => {
-    const q = cpvQuery.trim().toLowerCase();
-    if (!q) return true;
-    return `${row.code} ${row.label}`.toLowerCase().includes(q);
-  });
-
   const preview = buildTenderAlert({
     companyName: company?.name || state.watch.companyName,
     cpvCodes: state.watch.cpvCodes,
@@ -221,7 +239,7 @@ export default function TenderAlert({ company, colors }) {
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
       <Text style={{ color: colors.ink, fontWeight: '400' }}>{company?.name || 'Bedriften'}</Text>
-      <Text style={{ color: colors.muted }}>{watchedCodes.length} CPV · {trades.length} næringskoder</Text>
+      <Text style={{ color: colors.muted }}>{watchedCodes.length} CPV · {companyTrades.length} næringskoder</Text>
       <Text style={{ color: colors.muted }}>{nationwide ? 'Hele Norge' : `${areas.size} fylker`}</Text>
       <Text style={{ color: colors.muted }}>{[...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal'}</Text>
       <Text style={{ color: colors.muted }}>
@@ -249,8 +267,8 @@ export default function TenderAlert({ company, colors }) {
           <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
         </View>
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
-        <ScrollView horizontal>
-          <View>
+        <ScrollView horizontal={false} style={styles.tableWrap}>
+          <View style={styles.table}>
             <View style={[styles.tr, { borderColor: colors.line }]}>
               {['Publisert', 'Type', 'Frist', 'Konkurranse', 'Oppdragsgiver', 'Sted', 'Matcher', 'Aktuell', 'Arkiv', 'Ikke'].map((label) => (
                 <Text key={label} style={[styles.th, { color: colors.ink }]}>{label}</Text>
@@ -273,21 +291,48 @@ export default function TenderAlert({ company, colors }) {
                 </View>
               );
             })}
-            {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>Ingen treff i dette filteret.</Text> : null}
+            {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{syncing ? 'Henter treff …' : 'Ingen treff i dette filteret. Oppdater for å søke.'}</Text> : null}
           </View>
         </ScrollView>
+        <TouchableOpacity onPress={() => refresh(stateRef.current)} accessibilityRole="button">
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
+        </TouchableOpacity>
       </View>
       <View style={[styles.side, wide && styles.sideWide]}>
         {summary}
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <TouchableOpacity onPress={() => setShowCriteria((value) => !value)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.sunken }]}>
+          <Text style={{ color: colors.ink, fontWeight: '400' }}>{showCriteria ? 'Skjul kriterier' : 'Kriterier'}</Text>
+        </TouchableOpacity>
+        {!!savedNote && <Text style={{ color: colors.brand }}>{savedNote}</Text>}
+        {showCriteria ? <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={[styles.h, { color: colors.ink }]}>Kriterier</Text>
           <Text style={{ color: colors.muted }}>Utgangspunktet er CPV-kodene som er registrert på bedriften. Her kan du legge til flere.</Text>
           <TextInput value={cpvQuery} onChangeText={setCpvQuery} placeholder="Søk i CPV" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-          <View style={styles.row}>
-            {visibleCpv.map((row) => (
-              <Chip key={row.code} colors={colors} on={selectedCpv.has(row.code)} label={`${row.code.slice(0, 4)} ${row.label}`} onPress={() => toggle(setSelectedCpv, row.code)} />
-            ))}
-          </View>
+          {CPV_GROUPS.map((group) => {
+            const q = cpvQuery.trim().toLowerCase();
+            const children = group.children.filter((row) => !q || `${row.code} ${row.label}`.toLowerCase().includes(q));
+            const opened = openGroups.has(group.code) || !!q;
+            return (
+            <View key={group.code} style={{ gap: 6 }}>
+              <Chip label={`${group.code.slice(0, 4)} ${group.label}`} colors={colors} on={selectedCpv.has(group.code)} onPress={() => toggle(setSelectedCpv, group.code)} />
+              <TouchableOpacity onPress={() => setOpenGroups((current) => {
+                const next = new Set(current);
+                if (next.has(group.code)) next.delete(group.code);
+                else next.add(group.code);
+                return next;
+              })} accessibilityRole="button">
+                <Text style={{ color: colors.brand, fontWeight: '400' }}>{opened ? 'Skjul undernivå' : `Vis ${children.length} undernivå`}</Text>
+              </TouchableOpacity>
+              {opened ? (
+                <View style={styles.row}>
+                  {children.map((row) => (
+                    <Chip key={row.code} colors={colors} on={selectedCpv.has(row.code)} label={`${row.code.slice(0, 4)} ${row.label}`} onPress={() => toggle(setSelectedCpv, row.code)} />
+                  ))}
+                </View>
+              ) : null}
+            </View>
+            );
+          })}
           <TextInput value={customCpv} onChangeText={setCustomCpv} placeholder="Egen CPV, 8 siffer" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
           <Chip label="Legg til CPV" colors={colors} on={false} onPress={() => {
             const code = normalizeCpvCode(customCpv);
@@ -340,7 +385,7 @@ export default function TenderAlert({ company, colors }) {
             <Text style={{ color: colors.brand, fontWeight: '400' }}>Send varsel nå</Text>
           </TouchableOpacity>
           {!!mailNote && <Text style={{ color: colors.muted }}>{mailNote}</Text>}
-        </View>
+        </View> : null}
       </View>
     </View>
   );
@@ -359,7 +404,9 @@ const styles = StyleSheet.create({
   layoutWide: { flexDirection: 'row', alignItems: 'flex-start' },
   main: { flex: 1, gap: 8, minWidth: 0 },
   side: { gap: 10 },
-  sideWide: { width: 340 },
+  sideWide: { width: 280 },
+  tableWrap: { width: '100%' },
+  table: { width: '100%', minWidth: 860 },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -367,7 +414,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   tr: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'flex-start' },
-  th: { width: 110, fontSize: 12, fontWeight: '600', padding: 8 },
-  td: { width: 110, fontSize: 13, fontWeight: '400', padding: 8 },
-  tdWide: { width: 240, fontSize: 13, fontWeight: '400', padding: 8 },
+  th: { flex: 1, minWidth: 90, fontSize: 12, fontWeight: '600', padding: 8 },
+  td: { flex: 1, minWidth: 90, fontSize: 13, fontWeight: '400', padding: 8 },
+  tdWide: { flex: 2, minWidth: 180, fontSize: 13, fontWeight: '400', padding: 8 },
 });

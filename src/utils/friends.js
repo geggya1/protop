@@ -788,7 +788,10 @@ export function listenFriends(uid, onData, opts = {}) {
     }
   };
   poll();
-  const interval = setInterval(poll, 8000);
+  const interval = setInterval(() => {
+    if (delivered) return;
+    poll();
+  }, 8000);
   // Client snapshot only works for own friends graph (rules).
   if (forUid === authUid) {
     const q = query(collection(db, 'users', forUid, 'friends'));
@@ -843,11 +846,15 @@ export function listenIncomingFriendRequests(uid, onData, opts = {}) {
       });
       if (!cancelled && res?.ok) onData?.(res.requests || []);
     } catch {
-      /* admin poll retry on next interval */
+      requestMisses += 1;
     }
   };
   poll();
-  const interval = setInterval(poll, 8000);
+  let requestMisses = 0;
+  const interval = setInterval(() => {
+    if (requestMisses >= 1) return;
+    poll().catch(() => { requestMisses += 1; });
+  }, 8000);
   // Client snapshot only works for own inbox (rules).
   if (!pollAsOther) {
     const q = query(

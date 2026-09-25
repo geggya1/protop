@@ -123,7 +123,7 @@ export default function ProjectPlatformScreen() {
   if (!company) {
     return (
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={[styles.title, { color: colors.ink }]}>Prosjekt</Text>
+        <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Prosjekt</Text>
         <Text style={[styles.lead, { color: colors.muted }]}>
           Prosjekt og anbud hører til en bedrift. Du er ikke i en bedrift nå.
           Be om innpass eller opprett bedrift fra organisasjonssiden. Det er gratis.
@@ -186,7 +186,7 @@ export default function ProjectPlatformScreen() {
       {page === 'innstillinger' ? (
         <>
           <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
-          <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
+          <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
           <Text style={[styles.lead, { color: colors.muted }]}>
             {company.organisasjonsnummer}
             {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}
@@ -211,7 +211,7 @@ export default function ProjectPlatformScreen() {
       {page === 'innstillinger' ? (
         <View style={styles.column}>
           <View style={styles.settingsHead}>
-            <Text style={[styles.title, { color: colors.ink }]}>Innstillinger</Text>
+            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Innstillinger</Text>
             <TouchableOpacity onPress={() => setPage('oversikt')} accessibilityLabel="Lukk innstillinger">
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   settingsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   tradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
-  title: { fontSize: 22, fontWeight: '400' },
+  title: { fontSize: 22, fontWeight: '600' },
   lead: { fontSize: 15, lineHeight: 21, fontWeight: '400' },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },

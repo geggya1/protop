@@ -35,7 +35,7 @@ function Card({ children, colors, style }) {
 function SectionTitle({ children, colors, action, onAction }) {
   return (
     <View style={styles.cardHead}>
-      <Text style={[styles.cardTitle, { color: colors.ink }]}>{children}</Text>
+      <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.cardTitle, { color: colors.ink }]}>{children}</Text>
       {action ? (
         <TouchableOpacity onPress={onAction} accessibilityRole="button">
           <Text style={[styles.link, { color: colors.brand }]}>{action}</Text>
@@ -249,7 +249,7 @@ export default function CompanyLanding({
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
-          <Text style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
+          <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
           <View style={styles.heroSub}>
             <Text style={[styles.heroMeta, { color: colors.muted }]}>{dateLabel}</Text>
             {weatherBit ? (
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   page: { paddingBottom: 28, gap: 14 },
   hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
-  hello: { fontSize: 28, fontWeight: '400', letterSpacing: -0.4 },
+  hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4 },
   heroSub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
   heroMeta: { fontSize: 13, fontWeight: '400', textTransform: 'capitalize' },
   weatherPill: {
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   sideColWide: { flex: 0.9, maxWidth: 420 },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8, ...webShadow },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '400' },
+  cardTitle: { fontSize: 16, fontWeight: '600' },
   link: { fontWeight: '400', fontSize: 13 },
   lead: { fontSize: 15, fontWeight: '400' },
   body: { fontSize: 15, lineHeight: 21 },

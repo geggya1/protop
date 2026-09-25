@@ -9,6 +9,7 @@ import { lookupCompanyCpv } from './anbud/companyLookup.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
+const NOTICE = 'https://api.doffin.no/webclient/api/v2/notices-api/notices';
 
 function cors(res) {
   res.set('Access-Control-Allow-Origin', '*');
@@ -54,6 +55,29 @@ export const tenderProxy = onRequest(
       if (action === 'lookup') {
         const data = await lookupCompanyCpv(body.orgnr);
         res.json(data);
+        return;
+      }
+      if (action === 'dossier') {
+        const id = String(body.id || '').trim();
+        if (!/^\d{4}-\d+$/.test(id)) {
+          res.status(400).json({ ok: false, error: 'Ugyldig kunngjøringsnummer.' });
+          return;
+        }
+        const noticeRes = await fetch(`${NOTICE}/${id}`, {
+          headers: { Accept: 'application/json', Origin: 'https://www.doffin.no', Referer: 'https://www.doffin.no/' },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (noticeRes.status === 404) {
+          res.status(404).json({ ok: false, error: 'Kunngjøringen finnes ikke.' });
+          return;
+        }
+        if (!noticeRes.ok) throw new Error(`Doffin svarte ${noticeRes.status}`);
+        const notice = await noticeRes.json();
+        if (!notice) {
+          res.status(404).json({ ok: false, error: 'Kunngjøringen finnes ikke.' });
+          return;
+        }
+        res.json({ ok: true, notice });
         return;
       }
       const channels = Array.isArray(body.channels) ? body.channels : ['doffin', 'ted'];

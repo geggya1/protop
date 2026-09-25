@@ -5,10 +5,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { fetchTenderHits, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { fetchCompetitionFile, fetchTenderHits, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  createBidWork, emptyAnbudState, formatWhen, mergeTenderNotices, normalizeCpvCode, saveTenderWatch, setNoticeDecision, watchQuery,
+  emptyAnbudState, formatWhen, mergeTenderNotices, normalizeCpvCode, registerInterest, saveTenderWatch, setNoticeDecision, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
@@ -213,13 +213,30 @@ export default function TenderAlert({ company, colors, onBids }) {
     }
   }
 
-  function expressInterest(id) {
-    const result = createBidWork(stateRef.current, id);
-    if (!result.ok) setError(result.error);
-    else {
-      setError('');
-      setSavedNote('Interesse er meldt. Konkurransen ligger nå i trinn 2, tilbudsarbeid.');
-      setState(result.state);
+  async function expressInterest(id) {
+    if (!stateRef.current.supplierProfile?.username) {
+      setError('Registrer bedriftens innloggingsprofil i trinn 2 før interesse meldes.');
+      return;
+    }
+    setSyncing(true);
+    setError('');
+    try {
+      let dossier = null;
+      if (/^\d{4}-\d+$/.test(String(id))) {
+        const file = await fetchCompetitionFile(id);
+        dossier = file?.dossier || null;
+      }
+      const result = registerInterest(stateRef.current, id, dossier);
+      if (!result.ok) setError(result.error);
+      else {
+        const who = result.state.supplierProfile.username;
+        setSavedNote(`Interesse er meldt som ${who}. Grunnlag, frister og filer ligger i trinn 2.`);
+        setState(result.state);
+      }
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke hente konkurransegrunnlaget.');
+    } finally {
+      setSyncing(false);
     }
   }
 

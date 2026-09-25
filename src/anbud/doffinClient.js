@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { searchTedNotices } from './tedQuery';
+import { summarizeNotice } from './dossier';
 
 const LOCAL_SEARCH = 'http://127.0.0.1:8787/search';
 const LOCAL_COMPANY = 'http://127.0.0.1:8787/company';
@@ -83,6 +84,18 @@ export async function fetchCompanyCpv(orgnr) {
 
 /** Henter kunngjøring, dokumentlenker, ESPD-grunnlag og spørsmålsfrist. */
 export async function fetchCompetitionFile(id) {
+  try {
+    const res = await fetch('/api/tender-proxy', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'dossier', id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.notice) return { ok: true, dossier: summarizeNotice(data.notice) };
+    if (res.ok && data.dossier) return data;
+  } catch {
+    // Samme-origin-proxyen finnes ikke i appen. Prøv lokal proxy eller kallbar funksjon.
+  }
   if (isLocalWeb()) {
     try {
       const res = await fetch(LOCAL_DOSSIER, {

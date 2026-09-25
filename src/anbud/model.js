@@ -62,6 +62,7 @@ export function emptyAnbudState() {
     },
     notices: [],
     bids: [],
+    supplierProfile: null,
     syncedAt: null,
   };
 }
@@ -83,8 +84,45 @@ export function normalizeAnbudState(raw) {
     },
     notices: Array.isArray(src.notices) ? src.notices : [],
     bids: Array.isArray(src.bids) ? src.bids : [],
+    supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     syncedAt: src.syncedAt || null,
   };
+}
+
+function normalizeSupplierProfile(raw) {
+  if (!raw || typeof raw !== 'object' || !text(raw.username)) return null;
+  return {
+    companyName: text(raw.companyName),
+    orgnr: text(raw.orgnr).replace(/\D/g, '').slice(0, 9),
+    contactName: text(raw.contactName),
+    email: text(raw.email).toLowerCase(),
+    phone: text(raw.phone),
+    portal: text(raw.portal) === 'doffin' ? 'doffin' : 'mercell',
+    username: text(raw.username),
+    savedAt: raw.savedAt || null,
+  };
+}
+
+export function saveSupplierProfile(state, input) {
+  const contactName = text(input?.contactName);
+  const email = text(input?.email).toLowerCase();
+  const username = text(input?.username);
+  if (!contactName) return fail(state, 'Kontaktperson må fylles ut.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(state, 'E-post til profilen må være gyldig.');
+  if (!username) return fail(state, 'Brukernavn hos innleveringsportalen må fylles ut.');
+  return ok({
+    ...state,
+    supplierProfile: {
+      companyName: text(input?.companyName),
+      orgnr: text(input?.orgnr).replace(/\D/g, '').slice(0, 9),
+      contactName,
+      email,
+      phone: text(input?.phone),
+      portal: text(input?.portal) === 'doffin' ? 'doffin' : 'mercell',
+      username,
+      savedAt: new Date().toISOString(),
+    },
+  });
 }
 
 export function saveTenderWatch(state, input) {
@@ -264,6 +302,28 @@ export function attachDossier(state, id, dossier) {
   return ok({
     ...state,
     notices: state.notices.map((row) => (row.id === id ? { ...row, dossier } : row)),
+  });
+}
+
+export function registerInterest(state, id, dossier) {
+  if (!state?.supplierProfile?.username) {
+    return fail(state, 'Registrer bedriftens innloggingsprofil i trinn 2 før interesse meldes.');
+  }
+  const prepared = dossier ? attachDossier(state, id, dossier) : ok(state);
+  if (!prepared.ok) return prepared;
+  const bid = createBidWork(prepared.state, id);
+  if (!bid.ok) return bid;
+  const interest = {
+    username: state.supplierProfile.username,
+    email: state.supplierProfile.email,
+    contactName: state.supplierProfile.contactName,
+    portal: state.supplierProfile.portal,
+    registeredAt: new Date().toISOString(),
+  };
+  return ok({
+    ...bid.state,
+    bids: bid.state.bids.map((row) => (row.noticeId === id ? { ...row, interest, dossier: dossier || row.dossier } : row)),
+    notices: bid.state.notices.map((row) => (row.id === id ? { ...row, interest } : row)),
   });
 }
 

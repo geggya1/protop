@@ -89,10 +89,19 @@ const withProfile = saveSupplierProfile(withFile, {
   contactName: 'Kari Nord',
   email: 'anbud@nordbygg.no',
   username: 'nordbygg',
-  portal: 'mercell',
+  portal: 'Mercell',
+  portalUrl: 'https://www.mercell.com/',
   companyName: 'Nord Bygg',
 }).state;
 assert.equal(withProfile.supplierProfile.username, 'nordbygg');
+assert.equal(withProfile.supplierProfile.portal, 'Mercell');
+assert.match(withProfile.supplierProfile.portalUrl, /^https:\/\/www\.mercell\.com/);
+assert.equal(saveSupplierProfile(withFile, {
+  contactName: 'Kari Nord',
+  email: 'anbud@nordbygg.no',
+  username: 'nordbygg',
+  portalUrl: 'ikke en adresse',
+}).ok, false);
 const filed = registerInterest(withProfile, withProfile.notices[0].id, withProfile.notices[0].dossier).state;
 assert.equal(filed.bids[0].interest.username, 'nordbygg');
 assert.equal(filed.bids[0].dossier.procedure, 'Åpen');

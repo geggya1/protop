@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { formatWhen, saveSupplierProfile } from '../../src/anbud/model';
+import { formatWhen, LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
@@ -25,7 +25,8 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
-  const [portal, setPortal] = useState('mercell');
+  const [portalUrl, setPortalUrl] = useState(LOGIN_PORTALS[0].url);
+  const [portalName, setPortalName] = useState(LOGIN_PORTALS[0].name);
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -39,7 +40,8 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
       setEmail(saved.email || '');
       setPhone(saved.phone || '');
       setUsername(saved.username || '');
-      setPortal(saved.portal || 'mercell');
+      setPortalUrl(saved.portalUrl || LOGIN_PORTALS[0].url);
+      setPortalName(saved.portal || LOGIN_PORTALS[0].name);
     });
   }, [company?.id]);
 
@@ -52,7 +54,8 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
       email,
       phone,
       username,
-      portal,
+      portal: portalName,
+      portalUrl,
     });
     if (!result.ok) {
       setError(result.error);
@@ -68,21 +71,33 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[styles.h, { color: colors.ink }]}>Innloggingsprofil</Text>
+      <Text style={[styles.h, { color: colors.ink }]}>Innloggingsportal</Text>
       <Text style={{ color: colors.muted }}>
-        Profilen er bedriftens bruker hos innleveringsportalen. Når et treff merkes som aktuelt og interesse meldes, brukes denne profilen, og frister, filer og spørsmål hentes inn hit.
+        Velg portalen bedriften logger inn på for å melde interesse og hente dokumenter. Adressen kan endres hvis oppdragsgiver bruker en annen innlogging.
       </Text>
       <Field label="Kontaktperson" value={contactName} onChangeText={setContactName} colors={colors} placeholder="Navn" />
       <Field label="E-post" value={email} onChangeText={setEmail} colors={colors} placeholder="anbud@firma.no" keyboardType="email-address" />
       <Field label="Telefon" value={phone} onChangeText={setPhone} colors={colors} placeholder="Telefon" keyboardType="phone-pad" />
-      <Text style={{ color: colors.muted }}>Portal</Text>
+      <Text style={{ color: colors.muted }}>Innloggingsportal</Text>
       <View style={styles.row}>
-        {[['mercell', 'Mercell'], ['doffin', 'Doffin']].map(([id, label]) => (
-          <TouchableOpacity key={id} onPress={() => setPortal(id)} accessibilityRole="button" style={[styles.chip, { backgroundColor: portal === id ? colors.brand : colors.sunken }]}>
-            <Text style={{ color: portal === id ? '#fff' : colors.ink }}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        {LOGIN_PORTALS.map((item) => {
+          const on = portalFromUrl(portalUrl).name === item.name;
+          return (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => { setPortalUrl(item.url); setPortalName(item.name); }}
+              accessibilityRole="button"
+              style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+            >
+              <Text style={{ color: on ? '#fff' : colors.ink }}>{item.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+      <Field label="Adresse til innloggingen" value={portalUrl} onChangeText={(value) => { setPortalUrl(value); setPortalName(portalFromUrl(value).name); }} colors={colors} placeholder="https://www.mercell.com/" keyboardType="url" />
+      {portalFromUrl(portalUrl).url ? (
+        <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(portalFromUrl(portalUrl).url)}>Åpne {portalName || 'portalen'}</Text>
+      ) : null}
       <Field label="Brukernavn" value={username} onChangeText={setUsername} colors={colors} placeholder="Bruker hos portalen" />
       <TouchableOpacity onPress={save} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
         <Text style={{ color: '#fff' }}>{profile ? 'Oppdater profil' : 'Registrer profil'}</Text>
@@ -91,7 +106,7 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {profile ? (
         <Text style={{ color: colors.muted }}>
-          Registrert som {profile.username} · {profile.email} · {profile.portal === 'doffin' ? 'Doffin' : 'Mercell'}
+          Registrert som {profile.username} · {profile.email} · {profile.portal} · {profile.portalUrl}
         </Text>
       ) : null}
 
@@ -117,6 +132,11 @@ function BidCard({ bid, colors }) {
       ) : (
         <Text style={{ color: colors.muted }}>Interesse er ikke registrert på profilen ennå.</Text>
       )}
+      {dossier?.documentsUrl ? (
+        <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(dossier.documentsUrl)}>
+          Konkurransens portal: {portalFromUrl(dossier.documentsUrl).name}
+        </Text>
+      ) : null}
       {dossier ? <DossierLines dossier={dossier} colors={colors} /> : (
         <Text style={{ color: colors.muted }}>Konkurransegrunnlaget hentes når interessen meldes.</Text>
       )}

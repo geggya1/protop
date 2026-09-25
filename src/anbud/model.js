@@ -89,15 +89,44 @@ export function normalizeAnbudState(raw) {
   };
 }
 
+export const LOGIN_PORTALS = [
+  { id: 'mercell', name: 'Mercell', url: 'https://www.mercell.com/' },
+  { id: 'eusupply', name: 'EU Supply', url: 'https://eu.eu-supply.com/' },
+  { id: 'tendsign', name: 'TendSign', url: 'https://tendsign.com/' },
+];
+
+export function portalFromUrl(value) {
+  const raw = text(value);
+  if (!raw) return { name: '', url: '' };
+  let url;
+  try {
+    url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+  } catch {
+    return { name: '', url: '' };
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return { name: '', url: '' };
+  const host = url.hostname.replace(/^www\./, '');
+  const known = /mercell/i.test(host)
+    ? 'Mercell'
+    : /eu-supply|eusupply/i.test(host)
+      ? 'EU Supply'
+      : /tendsign/i.test(host)
+        ? 'TendSign'
+        : host;
+  return { name: known, url: url.toString() };
+}
+
 function normalizeSupplierProfile(raw) {
   if (!raw || typeof raw !== 'object' || !text(raw.username)) return null;
+  const portal = portalFromUrl(raw.portalUrl || raw.url);
   return {
     companyName: text(raw.companyName),
     orgnr: text(raw.orgnr).replace(/\D/g, '').slice(0, 9),
     contactName: text(raw.contactName),
     email: text(raw.email).toLowerCase(),
     phone: text(raw.phone),
-    portal: text(raw.portal) === 'doffin' ? 'doffin' : 'mercell',
+    portal: text(raw.portal) || portal.name,
+    portalUrl: portal.url,
     username: text(raw.username),
     savedAt: raw.savedAt || null,
   };
@@ -107,8 +136,10 @@ export function saveSupplierProfile(state, input) {
   const contactName = text(input?.contactName);
   const email = text(input?.email).toLowerCase();
   const username = text(input?.username);
+  const portal = portalFromUrl(input?.portalUrl);
   if (!contactName) return fail(state, 'Kontaktperson må fylles ut.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(state, 'E-post til profilen må være gyldig.');
+  if (!portal.url) return fail(state, 'Innloggingsportalen må være en nettadresse.');
   if (!username) return fail(state, 'Brukernavn hos innleveringsportalen må fylles ut.');
   return ok({
     ...state,
@@ -118,7 +149,8 @@ export function saveSupplierProfile(state, input) {
       contactName,
       email,
       phone: text(input?.phone),
-      portal: text(input?.portal) === 'doffin' ? 'doffin' : 'mercell',
+      portal: text(input?.portal) || portal.name,
+      portalUrl: portal.url,
       username,
       savedAt: new Date().toISOString(),
     },
@@ -318,6 +350,7 @@ export function registerInterest(state, id, dossier) {
     email: state.supplierProfile.email,
     contactName: state.supplierProfile.contactName,
     portal: state.supplierProfile.portal,
+    portalUrl: state.supplierProfile.portalUrl,
     registeredAt: new Date().toISOString(),
   };
   return ok({

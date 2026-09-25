@@ -24,6 +24,7 @@ import {
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import NoticeBoard from './NoticeBoard';
+import IntakePanel from './IntakePanel';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
   return (
@@ -81,6 +82,7 @@ export default function AnbudScreen({ company }) {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [view, setView] = useState('treff');
+  const [channel, setChannel] = useState('doffin');
   const [busyId, setBusyId] = useState('');
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -187,9 +189,23 @@ export default function AnbudScreen({ company }) {
 
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.inner}>
-      <Text style={[styles.h2, { color: colors.ink }]}>Trinn 1 · Anbudsvarsel</Text>
+      <Text style={[styles.h2, { color: colors.ink }]}>Anbud</Text>
+      <View style={styles.rowWrap}>
+        {[
+          ['protop', 'Fra ProTop'],
+          ['doffin', 'Fra søk'],
+          ['manuell', 'Manuelt'],
+        ].map(([id, label]) => (
+          <Chip key={id} label={label} colors={colors} on={channel === id} onPress={() => setChannel(id)} />
+        ))}
+      </View>
+      {channel !== 'doffin' ? (
+        <IntakePanel mode={channel} colors={colors} company={company} />
+      ) : null}
+      {channel === 'doffin' ? (
+      <>
       <Text style={{ color: colors.muted }}>
-        {company?.name || companyName || 'Bedriften'} bruker CPV-kodene fra registeret. Juster kodene og området, og følg kunngjøringene som treffer.
+        {company?.name || companyName || 'Bedriften'} fanger kunngjøringer som treffer CPV og område. Merk et treff som aktuell når det skal vurderes.
       </Text>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       <Field label="Organisasjonsnummer" value={orgnr} onChangeText={setOrgnr} placeholder="9 siffer" colors={colors} />
@@ -345,6 +361,8 @@ export default function AnbudScreen({ company }) {
           if (next) setView('tilbud');
         }}
       />
+      </>
+      ) : null}
     </ScrollView>
   );
 }

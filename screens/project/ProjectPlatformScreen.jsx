@@ -147,6 +147,8 @@ export default function ProjectPlatformScreen() {
             orgnr: company.organisasjonsnummer || '',
             cpvCodes: family?.cpvCodes || [],
             cpvSource: family?.cpvSource || '',
+            anbudInbox: family?.anbudInbox || [],
+            anbudInquiries: family?.anbudInquiries || [],
           }}
         />
       </View>

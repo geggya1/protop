@@ -640,7 +640,7 @@ function AppShellInner() {
   );
 
   const showDeskAside = isDesktop && !kitchenMode
-    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail';
+    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud';
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

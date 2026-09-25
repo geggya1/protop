@@ -49,6 +49,10 @@ assert.equal(second.notices[0].id, '2026-3');
 assert.equal(second.notices[0].isNew, true);
 assert.equal(second.notices[0].amount, 14000000);
 assert.equal(second.notices[1].isNew, false);
+const retained = mergeTenderNotices(second, [
+  { id: '2026-1', heading: 'Skole', status: 'ACTIVE', publicationDate: '2026-09-20' },
+], '2026-09-25T08:00:00Z').state;
+assert.ok(retained.notices.some((row) => row.id === '2026-3'), 'tidligere treff blir stående');
 
 const body = buildDoffinBody({ cpvCodes: ['45000000'], locationIds: ['NO071'] });
 assert.deepEqual(body.facets.cpvCodesId.checkedItems, ['45000000']);

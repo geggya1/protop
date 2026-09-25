@@ -71,10 +71,11 @@ body {
 }
 button, input, select, textarea { font-family: var(--app-font); }
 
-/* Bedriftssiden skal ikke ha fet skrift, uansett hva et kort setter. */
-[data-company-page="1"],
-[data-company-page="1"] * {
+/* Bedriftssiden skal ikke ha fet skrift. Regelen treffer id-en, ikke bare data-attributtet. */
+#company-page,
+#company-page * {
   font-weight: 400 !important;
+  font-synthesis: none !important;
 }
 button, [role="button"] { cursor: pointer; }
 

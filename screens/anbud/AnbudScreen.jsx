@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -16,7 +16,6 @@ import {
   emptyAnbudState,
   formatWhen,
   mergeTenderNotices,
-  normalizeCpvCode,
   saveTenderWatch,
   setNoticeDecision,
   watchQuery,
@@ -75,10 +74,8 @@ export default function AnbudScreen({ company }) {
   const [lookupNote, setLookupNote] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
   const [selectedCpv, setSelectedCpv] = useState(() => new Set());
-  const [customCpv, setCustomCpv] = useState('');
   const [nationwide, setNationwide] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState(() => new Set());
-  const [cpvQuery, setCpvQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [view, setView] = useState('treff');
@@ -118,12 +115,6 @@ export default function AnbudScreen({ company }) {
   const notices = state.notices || [];
   const freshCount = notices.filter((row) => row.isNew).length;
   const queryKey = query ? `${query.cpvCodes.join(',')}|${query.locationIds.join(',')}` : '';
-
-  const visibleCpv = useMemo(() => {
-    const q = cpvQuery.trim().toLowerCase();
-    if (!q) return CPV_CODES;
-    return CPV_CODES.filter((row) => `${row.code} ${row.label}`.toLowerCase().includes(q));
-  }, [cpvQuery]);
 
   function toggleSet(setter, value) {
     setter((current) => {
@@ -241,39 +232,10 @@ export default function AnbudScreen({ company }) {
         }}
       />
       {lookupNote ? <Text style={{ color: colors.muted }}>{lookupNote}</Text> : null}
-      <Field label="Søk i CPV" value={cpvQuery} onChangeText={setCpvQuery} placeholder="Kode eller fag, f.eks. elektro" colors={colors} />
-      <View style={styles.rowWrap}>
-        {[...selectedCpv].filter((code) => !CPV_CODES.some((row) => row.code === code)).map((code) => (
-          <Chip
-            key={code}
-            colors={colors}
-            on
-            label={`${code.slice(0, 4)} ${fetchedLabels[code] || 'CPV'}`}
-            onPress={() => toggleSet(setSelectedCpv, code)}
-          />
-        ))}
-        {visibleCpv.map((row) => (
-          <Chip
-            key={row.code}
-            colors={colors}
-            on={selectedCpv.has(row.code)}
-            label={`${row.code.slice(0, 4)} ${row.label}`}
-            onPress={() => toggleSet(setSelectedCpv, row.code)}
-          />
-        ))}
-      </View>
-      <Field label="Egen CPV-kode" value={customCpv} onChangeText={setCustomCpv} placeholder="8 siffer, f.eks. 45233120" colors={colors} />
-      <Btn
-        label="Legg til kode"
-        tone="quiet"
-        colors={colors}
-        onPress={() => {
-          const code = normalizeCpvCode(customCpv);
-          if (!code) return;
-          setSelectedCpv((current) => new Set(current).add(code));
-          setCustomCpv('');
-        }}
-      />
+      <Text style={{ color: colors.muted }}>
+        CPV-kodene velges med pennen øverst til høyre på bedriftssiden. De brukes i anbudsvarslingen.
+        {selectedCpv.size ? ` Valgt: ${[...selectedCpv].join(', ')}.` : ''}
+      </Text>
       <Text style={[styles.label, { color: colors.muted }]}>Område</Text>
       <View style={styles.rowWrap}>
         <Chip label="Hele Norge" colors={colors} on={nationwide} onPress={() => setNationwide((value) => !value)} />

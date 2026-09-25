@@ -70,6 +70,7 @@ export default function CompanyLanding({
   members = [],
   cpvCodes: storedCpv = [],
   onProjects,
+  onSettings,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -273,6 +274,13 @@ export default function CompanyLanding({
             <Ionicons name="construct-outline" size={15} color="#fff" />
             <Text style={styles.primaryTxt}>Prosjekt</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onSettings}
+            accessibilityLabel="Innstillinger for bedriften"
+            style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <Ionicons name="pencil" size={16} color={colors.ink} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -310,9 +318,17 @@ export default function CompanyLanding({
               <View style={styles.fact}>
                 <Text style={[styles.factLabel, { color: colors.muted }]}>Næringskoder</Text>
                 {profile.naeringer.map((row) => (
-                  <Text key={`${row.kode}-${row.beskrivelse}`} style={[styles.factValue, { color: colors.ink }]}>
+                  <Text key={`${row.kode}-${row.beskrivelse}`} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>
                     {[row.kode, row.beskrivelse].filter(Boolean).join(' · ')}
                   </Text>
+                ))}
+              </View>
+            ) : null}
+            {(stored?.egneNaeringskoder || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
+                {stored.egneNaeringskoder.map((row) => (
+                  <Text key={row} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>{row}</Text>
                 ))}
               </View>
             ) : null}
@@ -483,6 +499,9 @@ const styles = StyleSheet.create({
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10 },
   primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  penBtn: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  },
   columns: { gap: 12 },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainCol: { flex: 1.4, gap: 12, minWidth: 0 },

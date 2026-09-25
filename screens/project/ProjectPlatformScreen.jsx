@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -10,11 +9,10 @@ import { updateGroup } from '../../src/utils/groups';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { companyContextLabel } from '../../src/project/companyOffer';
-import AnbudScreen from '../anbud/AnbudScreen';
+import CompanyLanding from './CompanyLanding';
 
 const PAGES = [
-  ['oversikt', 'Framside'],
-  ['anbud', 'Anbud'],
+  ['oversikt', 'Forside'],
   ['innstillinger', 'Innstillinger'],
 ];
 
@@ -37,7 +35,7 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType }
 export default function ProjectPlatformScreen() {
   const colors = useColors();
   const nav = useNavigation();
-  const { family, familyId, applyFamilyPatch, requestShellTab } = useApp();
+  const { family, familyId, applyFamilyPatch, requestShellTab, members } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState('oversikt');
@@ -52,7 +50,6 @@ export default function ProjectPlatformScreen() {
   }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse]);
 
   const projects = useMemo(() => (Array.isArray(family?.projects) ? family.projects : []), [family?.projects]);
-  const tenders = useMemo(() => (Array.isArray(family?.tenders) ? family.tenders : []), [family?.tenders]);
 
   async function savePatch(id, patch) {
     await updateGroup(id, patch);
@@ -132,47 +129,29 @@ export default function ProjectPlatformScreen() {
     </View>
   );
 
-  if (page === 'anbud') {
-    return (
-      <View style={styles.fill}>
-        <View style={styles.head}>
-          <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
-          <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
-          {chips}
-        </View>
-        <AnbudScreen
-          company={{
-            id: familyId,
-            name: company.navn,
-            orgnr: company.organisasjonsnummer || '',
-            cpvCodes: family?.cpvCodes || [],
-            cpvSource: family?.cpvSource || '',
-            anbudInbox: family?.anbudInbox || [],
-            anbudInquiries: family?.anbudInquiries || [],
-          }}
-        />
-      </View>
-    );
-  }
-
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        {company.organisasjonsnummer}
-        {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}
-      </Text>
+      {page === 'innstillinger' ? (
+        <>
+          <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
+          <Text style={[styles.lead, { color: colors.muted }]}>
+            {company.organisasjonsnummer}
+            {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}
+          </Text>
+        </>
+      ) : null}
       {chips}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
 
       {page === 'oversikt' ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Row icon="business-outline" label="Adresse" value={company.addressLabel || 'Ikke registrert'} colors={colors} />
-          <Row icon="pricetag-outline" label="Næring" value={[company.naeringskode, company.naeringsbeskrivelse].filter(Boolean).join(' · ') || '—'} colors={colors} />
-          <Row icon="documents-outline" label="Anbud" value={String(tenders.length)} colors={colors} />
-          <Row icon="construct-outline" label="Prosjekt" value={String(projects.length)} colors={colors} />
-        </View>
+        <CompanyLanding
+          stored={company}
+          projects={projects}
+          members={members || []}
+          onProjects={() => requestShellTab?.('projects')}
+          onMembers={() => nav.navigate('GroupSettings')}
+        />
       ) : null}
 
       {page === 'innstillinger' ? (
@@ -188,34 +167,14 @@ export default function ProjectPlatformScreen() {
         </View>
       ) : null}
 
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={() => requestShellTab?.('projects')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-          <Text style={[styles.btnText, { color: colors.ink }]}>Åpne Prosjekt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => nav.navigate('GroupSettings')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-          <Text style={[styles.btnText, { color: colors.ink }]}>Medlemmer</Text>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
-  );
-}
-
-function Row({ icon, label, value, colors }) {
-  return (
-    <View style={styles.row}>
-      <Ionicons name={icon} size={18} color={colors.brand} />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
-        <Text style={{ color: colors.ink, fontWeight: '400' }}>{value}</Text>
-      </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
-  body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 760, width: '100%', alignSelf: 'flex-start' },
+  body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
   column: { alignSelf: 'flex-start', width: 360, maxWidth: '100%', gap: 10 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
@@ -241,5 +200,4 @@ const styles = StyleSheet.create({
   pick: { marginTop: 6, fontWeight: '400' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  row: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 6 },
 });

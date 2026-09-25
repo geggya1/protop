@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
 import { colors, radius } from '../src/theme';
-import { dismissCompanyOffer, shouldOfferCompany } from '../src/project/companyOffer';
+import { COMPANY_OFFER_DELAY_MS, dismissCompanyOffer, shouldOfferCompany } from '../src/project/companyOffer';
 
 /** Forslag rett etter innlogging: be om innpass eller opprett bedrift. Gratis. */
 export default function CompanyOfferModal() {
@@ -13,8 +13,13 @@ export default function CompanyOfferModal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!familiesReady) return;
-    setOpen(shouldOfferCompany({ uid, families, isChild }));
+    if (!familiesReady) return undefined;
+    if (!shouldOfferCompany({ uid, families, isChild })) {
+      setOpen(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setOpen(true), COMPANY_OFFER_DELAY_MS);
+    return () => clearTimeout(timer);
   }, [uid, families, familiesReady, isChild]);
 
   const close = () => {

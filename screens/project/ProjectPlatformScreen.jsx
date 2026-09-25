@@ -8,20 +8,12 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { updateGroup } from '../../src/utils/groups';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
-import {
-  PROJECT_PHASES,
-  TENDER_STATUSES,
-  companyFromBrreg,
-  createProjectRecord,
-  createTenderRecord,
-} from '../../src/project/company';
+import { companyFromBrreg } from '../../src/project/company';
 import { companyContextLabel } from '../../src/project/companyOffer';
 
 const PAGES = [
-  ['oversikt', 'Oversikt'],
+  ['oversikt', 'Framside'],
   ['innstillinger', 'Innstillinger'],
-  ['anbud', 'Anbud'],
-  ['prosjekt', 'Prosjekt'],
 ];
 
 function Field({ label, value, onChangeText, placeholder, colors, keyboardType }) {
@@ -43,14 +35,12 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType }
 export default function ProjectPlatformScreen() {
   const colors = useColors();
   const nav = useNavigation();
-  const { family, familyId, applyFamilyPatch } = useApp();
-  const company = family?.company?.organisasjonsnummer ? family.company : null;
+  const { family, familyId, applyFamilyPatch, requestShellTab } = useApp();
+  const company = family?.company?.navn ? family.company : null;
   const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState('oversikt');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [projectForm, setProjectForm] = useState({ name: '', number: '', place: '', client: '', phase: 'planlegging' });
-  const [tenderForm, setTenderForm] = useState({ title: '', client: '', deadline: '', amount: '', status: 'utkast' });
   const [phone, setPhone] = useState(company?.telefon || '');
   const [email, setEmail] = useState(company?.epostadresse || '');
 
@@ -83,7 +73,7 @@ export default function ProjectPlatformScreen() {
   }
 
   async function refreshFromBrreg() {
-    if (!company || busy) return;
+    if (!company?.organisasjonsnummer || busy) return;
     setBusy(true);
     setError('');
     try {
@@ -100,42 +90,6 @@ export default function ProjectPlatformScreen() {
       setEmail(next.epostadresse || '');
     } catch (e) {
       setError(e?.message || 'Kunne ikke hente fra Brønnøysund.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function addProject() {
-    const made = createProjectRecord(projectForm);
-    if (!made.ok) {
-      setError(made.error);
-      return;
-    }
-    setError('');
-    setBusy(true);
-    try {
-      await savePatch(familyId, { projects: [made.record, ...projects] });
-      setProjectForm({ name: '', number: '', place: '', client: '', phase: 'planlegging' });
-    } catch (e) {
-      setError(e?.message || 'Kunne ikke lagre prosjektet.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function addTender() {
-    const made = createTenderRecord(tenderForm);
-    if (!made.ok) {
-      setError(made.error);
-      return;
-    }
-    setError('');
-    setBusy(true);
-    try {
-      await savePatch(familyId, { tenders: [made.record, ...tenders] });
-      setTenderForm({ title: '', client: '', deadline: '', amount: '', status: 'utkast' });
-    } catch (e) {
-      setError(e?.message || 'Kunne ikke lagre anbudet.');
     } finally {
       setBusy(false);
     }
@@ -205,59 +159,15 @@ export default function ProjectPlatformScreen() {
         </View>
       ) : null}
 
-      {page === 'anbud' ? (
-        <View>
-          {tenders.map((item) => (
-            <View key={item.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.ink }]}>{item.title}</Text>
-              <Text style={[styles.cardMeta, { color: colors.muted }]}>
-                {[item.client, item.deadline, item.status, item.amount].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
-          ))}
-          <Field label="Anbud" value={tenderForm.title} onChangeText={(v) => setTenderForm((f) => ({ ...f, title: v }))} placeholder="Navn på anbudet" colors={colors} />
-          <Field label="Oppdragsgiver" value={tenderForm.client} onChangeText={(v) => setTenderForm((f) => ({ ...f, client: v }))} placeholder="Kunde" colors={colors} />
-          <Field label="Frist" value={tenderForm.deadline} onChangeText={(v) => setTenderForm((f) => ({ ...f, deadline: v }))} placeholder="ÅÅÅÅ-MM-DD" colors={colors} />
-          <Field label="Sum" value={tenderForm.amount} onChangeText={(v) => setTenderForm((f) => ({ ...f, amount: v }))} placeholder="Beløp" colors={colors} keyboardType="numeric" />
-          <View style={styles.chips}>
-            {TENDER_STATUSES.map((status) => (
-              <TouchableOpacity key={status} onPress={() => setTenderForm((f) => ({ ...f, status }))} style={[styles.chip, { borderColor: tenderForm.status === status ? colors.brand : colors.line, backgroundColor: colors.card }]}>
-                <Text style={{ color: colors.ink }}>{status}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity onPress={addTender} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
-            <Text style={styles.btnText}>Legg til anbud</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {page === 'prosjekt' ? (
-        <View>
-          {projects.map((item) => (
-            <View key={item.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.ink }]}>{item.number} · {item.name}</Text>
-              <Text style={[styles.cardMeta, { color: colors.muted }]}>
-                {[item.client, item.place, item.phase].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
-          ))}
-          <Field label="Prosjektnavn" value={projectForm.name} onChangeText={(v) => setProjectForm((f) => ({ ...f, name: v }))} placeholder="Navn" colors={colors} />
-          <Field label="Prosjektnummer" value={projectForm.number} onChangeText={(v) => setProjectForm((f) => ({ ...f, number: v }))} placeholder="P-100" colors={colors} />
-          <Field label="Kunde" value={projectForm.client} onChangeText={(v) => setProjectForm((f) => ({ ...f, client: v }))} placeholder="Oppdragsgiver" colors={colors} />
-          <Field label="Sted" value={projectForm.place} onChangeText={(v) => setProjectForm((f) => ({ ...f, place: v }))} placeholder="Sted" colors={colors} />
-          <View style={styles.chips}>
-            {PROJECT_PHASES.map((phase) => (
-              <TouchableOpacity key={phase} onPress={() => setProjectForm((f) => ({ ...f, phase }))} style={[styles.chip, { borderColor: projectForm.phase === phase ? colors.brand : colors.line, backgroundColor: colors.card }]}>
-                <Text style={{ color: colors.ink }}>{phase}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity onPress={addProject} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
-            <Text style={styles.btnText}>Opprett prosjekt</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      <TouchableOpacity onPress={() => requestShellTab?.('anbud')} style={[styles.btn, { backgroundColor: colors.brand }]}>
+        <Text style={styles.btnText}>Åpne Anbud</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => requestShellTab?.('projects')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
+        <Text style={[styles.btnText, { color: colors.ink }]}>Åpne Prosjekt</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => nav.navigate('GroupSettings')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
+        <Text style={[styles.btnText, { color: colors.ink }]}>Medlemmer</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

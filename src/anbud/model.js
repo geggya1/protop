@@ -1,0 +1,249 @@
+import { areaById, cpvByCode } from './catalog.js';
+
+function text(value) {
+  return String(value || '').trim();
+}
+
+function fail(state, error) {
+  return { ok: false, state, error };
+}
+
+function ok(state) {
+  return { ok: true, state, error: null };
+}
+
+export function normalizeCpvCode(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 2 || digits.length > 8) return '';
+  return digits.padEnd(8, '0');
+}
+
+export function normalizeCpvList(input) {
+  const rows = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const code = normalizeCpvCode(typeof row === 'string' ? row : row?.code);
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    const known = cpvByCode(code);
+    out.push({
+      code,
+      label: text(row?.label) || known?.label || `CPV ${code}`,
+    });
+  }
+  return out;
+}
+
+export function normalizeAreas(input) {
+  const rows = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const id = text(typeof row === 'string' ? row : row?.id);
+    const known = areaById(id);
+    if (!known || seen.has(known.id)) continue;
+    seen.add(known.id);
+    out.push({ id: known.id, name: known.name });
+  }
+  return out;
+}
+
+export function emptyAnbudState() {
+  return {
+    watch: {
+      companyName: '',
+      cpvCodes: [],
+      areas: [],
+      nationwide: false,
+      savedAt: null,
+      orgnr: '',
+      cpvSource: '',
+    },
+    notices: [],
+    bids: [],
+    syncedAt: null,
+  };
+}
+
+export function normalizeAnbudState(raw) {
+  const base = emptyAnbudState();
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const watch = src.watch && typeof src.watch === 'object' ? src.watch : {};
+  return {
+    watch: {
+      ...base.watch,
+      ...watch,
+      cpvCodes: Array.isArray(watch.cpvCodes) ? watch.cpvCodes : [],
+      areas: Array.isArray(watch.areas) ? watch.areas : [],
+    },
+    notices: Array.isArray(src.notices) ? src.notices : [],
+    bids: Array.isArray(src.bids) ? src.bids : [],
+    syncedAt: src.syncedAt || null,
+  };
+}
+
+export function saveTenderWatch(state, input) {
+  const companyName = text(input?.companyName);
+  if (!companyName) return fail(state, 'Bedriftsnavn må fylles ut.');
+  const cpvCodes = normalizeCpvList(input?.cpvCodes);
+  if (!cpvCodes.length) return fail(state, 'Registrer minst én CPV-kode.');
+  if (cpvCodes.length > 20) return fail(state, 'Maks 20 CPV-koder i ett varsel.');
+  const nationwide = !!input?.nationwide;
+  const areas = nationwide ? [] : normalizeAreas(input?.areas);
+  if (!nationwide && !areas.length) return fail(state, 'Velg minst ett fylke, eller hele Norge.');
+  return ok({
+    ...state,
+    watch: {
+      companyName,
+      cpvCodes,
+      areas,
+      nationwide,
+      savedAt: new Date().toISOString(),
+      orgnr: text(input?.orgnr).replace(/\D/g, '').slice(0, 9),
+      cpvSource: text(input?.cpvSource),
+    },
+  });
+}
+
+export function watchQuery(watch) {
+  if (!watch?.companyName || !watch.cpvCodes?.length) return null;
+  if (!watch.nationwide && !watch.areas?.length) return null;
+  return {
+    cpvCodes: watch.cpvCodes.map((row) => row.code),
+    locationIds: watch.nationwide ? [] : watch.areas.map((row) => row.id),
+  };
+}
+
+function asList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map((item) => text(item)).filter(Boolean);
+  if (value == null || value === '') return [];
+  return [text(value)].filter(Boolean);
+}
+
+export function normalizeDoffinHit(hit) {
+  const id = text(hit?.id);
+  if (!id) return null;
+  const buyers = Array.isArray(hit?.buyer) ? hit.buyer : [];
+  const amount = Number(hit?.estimatedValue?.amount);
+  return {
+    id,
+    title: text(hit?.heading) || 'Kunngjøring uten tittel',
+    buyer: buyers.map((row) => text(row?.name)).filter(Boolean).join(', '),
+    description: text(hit?.description),
+    places: asList(hit?.placeOfPerformance),
+    locationIds: asList(hit?.locationId),
+    amount: Number.isFinite(amount) ? amount : null,
+    currency: text(hit?.estimatedValue?.currencyCode) || 'NOK',
+    status: text(hit?.status) || 'ACTIVE',
+    publishedAt: text(hit?.publicationDate) || text(hit?.issueDate),
+    deadline: text(hit?.deadline),
+    url: `https://www.doffin.no/notices/${id}`,
+  };
+}
+
+export function mergeTenderNotices(state, hits, fetchedAt) {
+  const incoming = (Array.isArray(hits) ? hits : []).map(normalizeDoffinHit).filter(Boolean);
+  const byId = new Map();
+  for (const row of incoming) {
+    if (row.status && row.status !== 'ACTIVE') continue;
+    byId.set(row.id, row);
+  }
+  const previous = new Map((state.notices || []).map((row) => [row.id, row]));
+  const firstSync = !state.syncedAt;
+  const notices = [...byId.values()]
+    .map((row) => {
+      const kept = previous.get(row.id);
+      return {
+        ...row,
+        decision: kept?.decision || 'ubestemt',
+        interestAt: kept?.interestAt || null,
+        dossier: kept?.dossier || null,
+        isNew: !firstSync && !previous.has(row.id),
+      };
+    })
+    .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
+  for (const [id, kept] of previous) {
+    if (byId.has(id)) continue;
+    if (kept.decision && kept.decision !== 'ubestemt') {
+      notices.push({ ...kept, status: kept.status || 'ACTIVE', isNew: false });
+    }
+  }
+  return ok({
+    ...state,
+    notices,
+    syncedAt: fetchedAt || new Date().toISOString(),
+  });
+}
+
+const DECISIONS = new Set(['ubestemt', 'aktuell', 'forkastet', 'tilbud']);
+
+function noticeById(state, id) {
+  return (state.notices || []).find((row) => row.id === id) || null;
+}
+
+export function setNoticeDecision(state, id, decision) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  if (!DECISIONS.has(decision)) return fail(state, 'Ugyldig vurdering.');
+  if (decision === 'tilbud' && notice.decision !== 'aktuell' && notice.decision !== 'tilbud') {
+    return fail(state, 'Meld interesse og vurder konkurransen før det leveres tilbud.');
+  }
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (
+      row.id === id
+        ? {
+          ...row,
+          decision,
+          interestAt: decision === 'aktuell' ? (row.interestAt || new Date().toISOString()) : row.interestAt,
+        }
+        : row
+    )),
+  });
+}
+
+export function attachDossier(state, id, dossier) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  if (!dossier || typeof dossier !== 'object') return fail(state, 'Mangler konkurransegrunnlag.');
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (row.id === id ? { ...row, dossier } : row)),
+  });
+}
+
+export function createBidWork(state, id) {
+  const decided = setNoticeDecision(state, id, 'tilbud');
+  if (!decided.ok) return decided;
+  const notice = noticeById(decided.state, id);
+  if ((decided.state.bids || []).some((bid) => bid.noticeId === id)) return decided;
+  const bid = {
+    id: `bid_${id}`,
+    noticeId: id,
+    title: notice.title,
+    buyer: notice.buyer,
+    phase: 'trinn2',
+    createdAt: new Date().toISOString(),
+    dossier: notice.dossier || null,
+  };
+  return ok({ ...decided.state, bids: [bid, ...(decided.state.bids || [])] });
+}
+
+export function formatNok(amount) {
+  if (amount == null || !Number.isFinite(Number(amount))) return '';
+  return `${new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 0 }).format(Number(amount))} kr`;
+}
+
+export function formatWhen(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return String(iso).slice(0, 10);
+  return new Intl.DateTimeFormat('nb-NO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: iso.length > 10 ? '2-digit' : undefined,
+    minute: iso.length > 10 ? '2-digit' : undefined,
+  }).format(date);
+}

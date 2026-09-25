@@ -5,6 +5,9 @@
 import { isOrganizationType } from '../utils/groupTypes.js';
 import { isPersonalShell } from '../utils/personalShell.js';
 
+/** Vises først etter at personen har landet på dashbordet. */
+export const COMPANY_OFFER_DELAY_MS = 2 * 60 * 1000;
+
 const dismissedThisSession = new Set();
 
 export function dismissCompanyOffer(uid) {

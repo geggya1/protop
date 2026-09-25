@@ -6,6 +6,7 @@ import { childScheduleNavParams, lekserNavParams, klassenNavParams } from '../ut
 import { groupChildAppItems } from './childAppGroups.js';
 import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
+import { isOrganizationType } from '../utils/groupTypes.js';
 
 /**
  * Parent "Gjøremål" opens chore management for a child. Chores are child-only
@@ -32,6 +33,7 @@ export function buildShellModules({
   asParent,
   isSuperAdmin,
   familyId,
+  family = null,
   canImport,
   hasKids,
   childForSchedule,
@@ -53,10 +55,6 @@ export function buildShellModules({
     id: 'friends', icon: 'people', label: t('apps.friends'),
     action: { type: 'tab', tab: 'more', subView: 'friends' },
   });
-  mainItems.push({
-    id: 'projects', icon: 'business', label: t('tabs.projects'),
-    action: { type: 'tab', tab: 'projects' },
-  });
   mainItems.push(
     { id: 'plan', icon: 'calendar', label: t('tabs.plan'), action: { type: 'tab', tab: 'plan' } },
   );
@@ -77,6 +75,14 @@ export function buildShellModules({
   mainItems.push(
     { id: 'notes', icon: 'document-text', label: t('tabs.notes'), action: { type: 'tab', tab: 'notes' } },
   );
+  const onCompany = isOrganizationType(family?.type);
+  if (onCompany) {
+    mainItems.push(
+      { id: 'members', icon: 'people', label: 'Medlemmer', action: { type: 'nav', screen: 'GroupSettings' } },
+      { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
+      { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+    );
+  }
 
   sections.push({
     id: 'main',
@@ -279,7 +285,7 @@ export function buildShellModules({
     : isGrandparent
       ? applyGrandparentAppRestrictions(sections, grandparentModules)
       : sections;
-  return applyProtopShellSections(visible);
+  return applyProtopShellSections(visible, onCompany ? ['anbud', 'projects'] : []);
 }
 
 /**
@@ -377,13 +383,6 @@ export function buildChildDashboardApps({
   const skoleApps = buildChildSkoleApps({ t, familyId, child, aiEnabled, allowedApps, canEdit });
 
   const apps = [
-    {
-      id: 'projects',
-      icon: 'business',
-      label: t('tabs.projects'),
-      sub: 'HMS, fremdrift og økonomi',
-      action: { type: 'tab', tab: 'projects' },
-    },
     {
       id: 'stars',
       icon: 'checkbox',
@@ -539,13 +538,6 @@ export function buildParentDashboardApps({
   firstKid = null,
 }) {
   const apps = [
-    {
-      id: 'projects',
-      icon: 'business',
-      label: t('tabs.projects'),
-      sub: 'HMS, fremdrift og økonomi',
-      action: { type: 'tab', tab: 'projects' },
-    },
     {
       id: 'plan',
       icon: 'calendar',

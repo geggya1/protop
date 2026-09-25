@@ -72,7 +72,7 @@ import TeamCreateEventScreen from './screens/team/TeamCreateEventScreen';
 import TeamAddMemberScreen from './screens/team/TeamAddMemberScreen';
 import ClassroomShell from './components/ClassroomShell';
 import {
-  FriendsShell, CongregationShell, DaycareShell, GroupShell,
+  FriendsShell, CongregationShell, DaycareShell, GroupShell, CompanyShell,
 } from './components/SocialPlatformShell';
 import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
 import CreateCompanyScreen from './screens/company/CreateCompanyScreen';
@@ -1046,6 +1046,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="CongregationHome" component={CongregationShell} options={{ headerShown: false }} />
             <Stack.Screen name="DaycareHome" component={DaycareShell} options={{ headerShown: false }} />
             <Stack.Screen name="GroupHome" component={GroupShell} options={{ headerShown: false }} />
+            <Stack.Screen name="CompanyHome" component={CompanyShell} options={{ headerShown: false }} />
             <Stack.Screen name="FriendsJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'friends' }} />
             <Stack.Screen name="CongregationJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'congregation' }} />
             <Stack.Screen name="DaycareJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'daycare' }} />

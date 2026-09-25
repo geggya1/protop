@@ -83,11 +83,32 @@ export const flexGroupColors = {
   tabBar: '#f8fafc',
 };
 
+export const companyColors = {
+  bg: '#f4f8fc',
+  surface: '#ffffff',
+  surface2: '#E5F6FE',
+  line: '#d7e7f5',
+  ink: '#1a2744',
+  muted: '#5b6b82',
+  brand: '#1099F4',
+  brandSoft: '#E5F6FE',
+  accent: '#0284c7',
+  accentSoft: 'rgba(16, 153, 244, 0.14)',
+  tint: '#0369a1',
+  tintSoft: '#7dd3fc',
+  success: '#16a34a',
+  card: '#ffffff',
+  fab: '#1099F4',
+  stripe: '#38bdf8',
+  tabBar: '#f8fbfe',
+};
+
 export function themeForType(type) {
   const t = String(type || '').toLowerCase();
   if (t === 'friends') return friendsColors;
   if (t === 'congregation') return congregationColors;
   if (t === 'daycare') return daycareColors;
   if (t === 'group') return flexGroupColors;
+  if (t === 'company') return companyColors;
   return friendsColors;
 }

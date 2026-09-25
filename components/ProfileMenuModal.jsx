@@ -92,8 +92,14 @@ export default function ProfileMenuModal({ visible, onClose }) {
 
           <MenuRow
             compact={isDesktop}
+            icon="business-outline"
+            label="Opprett bedrift"
+            onPress={() => { onClose?.(); nav.navigate('CreateCompany'); }}
+          />
+          <MenuRow
+            compact={isDesktop}
             icon="swap-horizontal-outline"
-            label="Skift organisasjon"
+            label="Plattform"
             onPress={() => { onClose?.(); goPlatformOverview(nav); }}
           />
           <MenuRow

@@ -2,7 +2,7 @@
  * ProTop uses the Weekplan shell unchanged: same mobile dock, tablet rail,
  * and home grid. Only the module set changes.
  *
- * Kept: hjem, venner, prosjekt, kalender, e-post, oppgaver, notat,
+ * Kept: hjem, venner, kalender, e-post, oppgaver, notat,
  * plus innstillinger, varslinger, hjelp and the rest of the account section.
  * Family product modules are not shown.
  */
@@ -10,7 +10,7 @@
 export const PROTOP_PRODUCT_MODULE_IDS = [
   'home',
   'friends',
-  'projects',
+  'chat',
   'plan',
   'mail',
   'stars',
@@ -42,7 +42,7 @@ export const PROTOP_SHELL_MODULE_IDS = [
 export const PROTOP_SHELL_MODULE_ID_SET = new Set(PROTOP_SHELL_MODULE_IDS);
 
 /** Dock holds five shortcuts. Venner stays in the drawer (Hoved). */
-export const PROTOP_BOTTOM_SHORTCUT_IDS = ['home', 'projects', 'plan', 'mail', 'stars'];
+export const PROTOP_BOTTOM_SHORTCUT_IDS = ['home', 'plan', 'mail', 'stars', 'notes'];
 
 /** Home widgets that belong to the kept shell. Same grid, without family modules. */
 export const PROTOP_HOME_WIDGET_TYPES = [
@@ -69,13 +69,14 @@ export function isProtopHomeWidget(type) {
   return PROTOP_HOME_WIDGET_SET.has(type);
 }
 
-export function applyProtopShellSections(sections) {
+export function applyProtopShellSections(sections, extraIds = []) {
+  const extra = new Set(extraIds || []);
   return (sections || [])
     .map((section) => {
       if (section.id === 'account') return section;
       return {
         ...section,
-        items: (section.items || []).filter((item) => isProtopShellModule(item.id)),
+        items: (section.items || []).filter((item) => isProtopShellModule(item.id) || extra.has(item.id)),
       };
     })
     .filter((section) => (section.items || []).length > 0);

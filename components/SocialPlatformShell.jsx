@@ -8,8 +8,10 @@ import { db } from '../firebase';
 import { useApp } from '../src/context/AppContext';
 import { isGroupAdmin } from '../src/utils/groups';
 import {
-  isFriendsType, isCongregationType, isDaycareType, isFlexGroupType,
+  isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType,
 } from '../src/utils/groupTypes';
+import AnbudScreen from '../screens/anbud/AnbudScreen';
+import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -56,6 +58,9 @@ const TITLES = {
   members: 'Medlemmer',
   invite: 'Invitasjon',
   approvals: 'Godkjenninger',
+  apps: 'Apper',
+  anbud: 'Anbud',
+  projects: 'Prosjekt',
 };
 
 function matchesPlatformType(type, platformType) {
@@ -64,6 +69,7 @@ function matchesPlatformType(type, platformType) {
   if (platformType === 'congregation') return isCongregationType(t);
   if (platformType === 'daycare') return isDaycareType(t);
   if (platformType === 'group') return isFlexGroupType(t);
+  if (platformType === 'company') return isCompanyType(t);
   return false;
 }
 
@@ -121,7 +127,9 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'members') return <PlatformMembersScreen {...props} />;
     if (tab === 'invite') return <PlatformInviteScreen {...props} />;
     if (tab === 'approvals') return <PlatformApprovalsScreen {...props} />;
-    if (tab === 'more') return <PlatformMoreScreen {...props} />;
+    if (tab === 'more' || tab === 'apps') return <PlatformMoreScreen {...props} />;
+    if (tab === 'anbud') return <AnbudScreen company={group} />;
+    if (tab === 'projects') return <ProjectPlatformScreen />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;
     if (tab === 'ministry') return <PlatformMinistryScreen {...props} />;
@@ -181,7 +189,7 @@ export default function SocialPlatformShell({ platformType }) {
       <HelpTarget id="tabs">
         <View style={[styles.tabBar, { backgroundColor: c.tabBar, borderTopColor: c.line }]}>
           {config.tabs.map((item) => {
-            const on = tab === item.id || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
+            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'projects')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
             return (
               <TouchableOpacity
                 key={item.id}
@@ -243,4 +251,8 @@ export function DaycareShell() {
 
 export function GroupShell() {
   return <SocialPlatformShell platformType="group" />;
+}
+
+export function CompanyShell() {
+  return <SocialPlatformShell platformType="company" />;
 }

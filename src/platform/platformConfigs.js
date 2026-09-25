@@ -2,7 +2,7 @@
  * Plattformkonfigurasjon — styrer skall, faner og moduler.
  */
 import {
-  friendsColors, congregationColors, daycareColors, flexGroupColors,
+  friendsColors, congregationColors, daycareColors, flexGroupColors, companyColors,
 } from './platformThemes';
 
 export const PLATFORM_CONFIGS = {

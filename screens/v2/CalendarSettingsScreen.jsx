@@ -434,7 +434,7 @@ export default function CalendarSettingsScreen({
 
         <Text style={[styles.title, isDesktop && styles.titleDesktop]}>Kalenderinnstillinger</Text>
         <Text style={[styles.lead, isDesktop && styles.leadDesktop]}>
-          Koble til ekstern kalender (Outlook, Google, ICS) for å se private avtaler sammen med familiens plan — kun synlig for deg.
+          Koble til ekstern kalender (Outlook, Google, ICS) for å se avtalene dine — kun synlig for deg.
         </Text>
 
         {isParent ? (
@@ -655,7 +655,7 @@ export default function CalendarSettingsScreen({
             <View style={styles.privacyBox}>
               <Ionicons name="lock-closed" size={16} color={colors.muted} />
               <Text style={styles.privacyTxt}>
-                Eksterne kalendere er private. Barn og andre foreldre ser dem ikke i familiens kalender.
+                Eksterne kalendere er private og vises bare i din kalender.
               </Text>
             </View>
           </>

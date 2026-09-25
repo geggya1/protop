@@ -11,7 +11,7 @@ import { colors, MEMBER_COLORS, useLayout } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
-import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, memberLayerId, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
+import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
 import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventVisibleToUser } from '../../src/utils/events';
 import {
@@ -516,17 +516,20 @@ export default function PlanScreen({ active = true }) {
       .filter((e) => !(isParent && !isActingAsChild && e.sharedFromExternal))
       // Barn (og «som barn») ser bare hendelser de er med på / hele familien.
       // Foreldre ser alle hendelser på aktiv plattform; andre plattformer er allerede profilfiltrert.
-      .filter((e) => (
-        e.crossPlatform
-          ? true
-          : (isParent && !isActingAsChild && !isGrandparent
-            ? true
-            : eventVisibleToUser(e, viewerIds, {
-              asChild: asChildViewer,
-              isGrandparent,
-              members,
-            }))
-      ))
+      .filter((e) => {
+        if (e.crossPlatform) return true;
+        if (isParent && !isActingAsChild && !isGrandparent) {
+          if (e.createdBy && viewerIds.has(e.createdBy)) return true;
+          if (e.ownerUid && viewerIds.has(e.ownerUid)) return true;
+          const mids = Array.isArray(e.memberIds) ? e.memberIds.filter(Boolean) : [];
+          return mids.some((id) => viewerIds.has(id));
+        }
+        return eventVisibleToUser(e, viewerIds, {
+          asChild: asChildViewer,
+          isGrandparent,
+          members,
+        });
+      })
       .map((e) => ({
         ...e,
         occurrenceDateKey: k,
@@ -627,21 +630,12 @@ export default function PlanScreen({ active = true }) {
     };
 
     const famId = `fam:${familyId || 'family'}`;
-    const memberChildren = (members || [])
-      .filter((m) => m?.uid || m?.id)
-      .map((m) => ({
-        id: memberLayerId(m.uid || m.id),
-        label: (m.name || 'Medlem').split(' ')[0],
-        color: m.color || FAMILY_CALENDAR_COLOR,
-      }));
     if (!seen.has(famId)) {
       seen.add(famId);
       list.push({
         id: famId,
-        label: family?.name || 'Familien',
+        label: 'Min kalender',
         color: FAMILY_CALENDAR_COLOR,
-        expandable: memberChildren.length > 0,
-        children: memberChildren,
       });
     }
     (families || []).forEach((f, i) => {

@@ -20,10 +20,10 @@ assert.equal(getModuleIntro('classroom', 'messages').icon, 'chatbubbles');
 assert.equal(getModuleIntro('family', 'does-not-exist'), null);
 
 const chatNb = localizeIntro(getModuleIntro('family', 'chat'), 'nb');
-assert.equal(chatNb.title, 'Prat der familien allerede er');
+assert.equal(chatNb.title, 'Prat der du allerede er');
 
 const plan = localizeIntro(getModuleIntro('family', 'plan'), 'nb');
-assert.match(plan.title, /Uka/);
+assert.match(plan.title, /uke/i);
 assert.equal(plan.steps.length, 3);
 assert.ok(plan.accent);
 assert.ok(plan.icon);

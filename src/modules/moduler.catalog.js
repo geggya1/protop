@@ -12,10 +12,10 @@ export default {
       "name": "Kalender",
       "category": "main",
       "eyebrow": "Plan. Oversikt. Ro.",
-      "headline": "Hele familien, én plan",
-      "pitch": "Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.",
+      "headline": "Din kalender, én plan",
+      "pitch": "Samle egne avtaler, aktiviteter og påminnelser, så du vet hva som skjer – og når.",
       "benefits": [
-        "Se dagen og uken på tvers av familien",
+        "Se dagen og uken i din egen kalender",
         "Fordel avtaler og få varsler i tide",
         "Unngå dobbeltbookinger og glemte aktiviteter"
       ],

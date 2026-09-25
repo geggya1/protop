@@ -74,7 +74,7 @@ for (const id of TOP_TAB_HERO_IDS) {
 }
 
 const plan = resolveModuleHero('plan', 'nb');
-assert.equal(plan.title, 'Hele familien, én plan');
+assert.equal(plan.title, 'Din kalender, én plan');
 assert.equal(plan.kicker, 'Kalender');
 
 const assetsSrc = readFileSync(join(ROOT, 'src/modules/moduleActivationAssets.js'), 'utf8');

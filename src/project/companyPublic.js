@@ -302,12 +302,23 @@ export async function fetchPublicCompany(orgnr, { fetchImpl = fetch } = {}) {
   const enhet = await readJson(`${BRREG}/enheter/${id}`, fetchImpl);
   const company = shapePublicCompany(enhet);
   if (!company) return { ok: false, error: 'Fant ikke organisasjonsnummeret i Enhetsregisteret.' };
-  const [roller, units, accounts, signatur] = await Promise.all([
+  const browser = typeof window !== 'undefined' && fetchImpl === fetch;
+  const [roller, units, extras] = await Promise.all([
     readJson(`${BRREG}/enheter/${id}/roller`, fetchImpl).catch(() => null),
     readJson(`${BRREG}/underenheter?overordnetEnhet=${id}&size=50`, fetchImpl).catch(() => null),
-    readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
-    readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),
+    browser
+      ? fetch('/api/tender-proxy', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register', orgnr: id }),
+      }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
+      : Promise.all([
+        readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
+        readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),
+      ]).then(([accounts, signature]) => ({ accounts, signature })),
   ]);
+  const accounts = extras?.accounts || null;
+  const signatur = extras?.signature || null;
   return {
     ok: true,
     company,

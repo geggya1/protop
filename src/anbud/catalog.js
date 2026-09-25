@@ -41,6 +41,28 @@ export const TENDER_AREAS = [
   { id: 'NO073', name: 'Finnmark' },
 ];
 
+export const CPV_GROUPS = [
+  {
+    code: '45000000',
+    label: 'Bygge- og anleggsarbeid',
+    children: CPV_CODES.filter((row) => row.code.startsWith('45') && row.code !== '45000000'),
+  },
+  {
+    code: '71000000',
+    label: 'Arkitekt-, konstruksjons- og ingeniørtjenester',
+    children: [
+      ...CPV_CODES.filter((row) => row.code.startsWith('71') && row.code !== '71000000'),
+      { code: '71200000', label: 'Arkitekttjenester' },
+      { code: '71240000', label: 'Arkitekttjenester, ingeniørfag og planlegging' },
+      { code: '71250000', label: 'Arkitekttjenester, tilsyn' },
+      { code: '71310000', label: 'Rådgivende ingeniørtjenester' },
+      { code: '71311000', label: 'Rådgivning innen byggteknikk' },
+      { code: '71320000', label: 'Ingeniørtjenester, prosjektering' },
+      { code: '71322000', label: 'Ingeniørtjenester for bygg og anlegg' },
+    ],
+  },
+];
+
 export function cpvByCode(code) {
   return CPV_CODES.find((row) => row.code === String(code || '').trim()) || null;
 }

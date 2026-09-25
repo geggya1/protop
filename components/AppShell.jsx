@@ -489,6 +489,11 @@ function AppShellInner() {
             orgnr: family?.company?.organisasjonsnummer || '',
             cpvCodes: family?.cpvCodes || [],
             cpvSource: family?.cpvSource || '',
+            naeringskoder: [
+              family?.company?.naeringskode,
+              ...(family?.company?.egneNaeringskoder || []),
+            ].filter(Boolean),
+            naeringsbeskrivelse: family?.company?.naeringsbeskrivelse || '',
           }}
         />
       );

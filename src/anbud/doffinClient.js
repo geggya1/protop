@@ -32,6 +32,27 @@ async function companyViaProxy(orgnr) {
   return data;
 }
 
+export async function fetchTenderHits(query) {
+  const res = await fetch('/api/tender-proxy', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'search', ...query }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) throw new Error(data.error || 'Kunne ikke hente treff.');
+  return data;
+}
+
+export async function fetchRegisterExtras(orgnr) {
+  const res = await fetch('/api/tender-proxy', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'register', orgnr }),
+  });
+  if (!res.ok) return { accounts: null, signature: null };
+  return res.json().catch(() => ({ accounts: null, signature: null }));
+}
+
 /** Henter aktive Doffin-kunngjøringer for registrerte CPV-koder og område. */
 export async function fetchDoffinNotices(query) {
   if (isLocalWeb()) {

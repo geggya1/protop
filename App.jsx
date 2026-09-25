@@ -1081,7 +1081,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
               }}
             />
             <Stack.Screen name="FamilyOverview">
-              {(p) => <FamilyOverviewScreen {...p} reloadKey={reloadKey} />}
+              {(p) => (
+                <StackShellChrome title="Velg organisasjon">
+                  <FamilyOverviewScreen {...p} reloadKey={reloadKey} />
+                </StackShellChrome>
+              )}
             </Stack.Screen>
             <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
             <Stack.Screen name="ChildDashboard" component={ChildDashboardScreen} />

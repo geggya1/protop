@@ -1,9 +1,8 @@
-import React, { useState, useCallback, useLayoutEffect, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
   ScrollView, RefreshControl, Modal, Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { db, auth } from '../firebase';
 import {
   collection, getDocs, query, where, getDoc, doc,
@@ -121,10 +120,6 @@ export default function FamilyOverviewScreen({ reloadKey }) {
 
   const user = auth.currentUser;
   const isChild = !!user?.email?.endsWith('@weekplan.app');
-
-  useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
 
   useEffect(() => {
     if (!user?.uid || isChild) {
@@ -320,25 +315,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   }
 
   return (
-    <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>Organisasjon</Text>
-          <Text style={styles.hello}>Velg organisasjon</Text>
-        </View>
-        {canCreate && (
-          <HelpTarget id="add">
-            <TouchableOpacity
-              style={styles.plus}
-              onPress={() => setCreateOpen(true)}
-              accessibilityLabel="Ny organisasjon"
-            >
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </HelpTarget>
-        )}
-      </View>
-
+    <View style={styles.page}>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={(
@@ -397,10 +374,26 @@ export default function FamilyOverviewScreen({ reloadKey }) {
           </View>
         ) : null}
 
-        <Text style={styles.section}>Ditt arbeidsområde</Text>
+        <View style={styles.sectionRow}>
+          <Text style={styles.section}>Ditt arbeidsområde</Text>
+          {canCreate ? (
+            <HelpTarget id="add">
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => setCreateOpen(true)}
+                accessibilityLabel="Ny organisasjon"
+              >
+                <Ionicons name="add" size={16} color={colors.brand} />
+                <Text style={styles.addBtnTxt}>Ny organisasjon</Text>
+              </TouchableOpacity>
+            </HelpTarget>
+          ) : null}
+        </View>
         {personalList.length === 0 ? (
           <Text style={styles.empty}>Du kan bruke ProTop alene. En bedrift er valgfritt.</Text>
-        ) : personalList.map((item) => renderGroup(item))}
+        ) : (
+          <View style={styles.grid}>{personalList.map((item) => renderGroup(item))}</View>
+        )}
 
         <Text style={[styles.section, { marginTop: 18 }]}>Bedrifter ({orgList.length})</Text>
         {orgList.length === 0 ? (
@@ -416,14 +409,18 @@ export default function FamilyOverviewScreen({ reloadKey }) {
               <Text style={[styles.offerBtnTxt, styles.offerBtnQuietTxt]}>Opprett ny bedrift</Text>
             </TouchableOpacity>
           </View>
-        ) : orgList.map((item) => renderGroup(item))}
+        ) : (
+          <View style={styles.grid}>{orgList.map((item) => renderGroup(item))}</View>
+        )}
 
         {deactivated.length > 0 ? (
           <>
             <Text style={[styles.section, { marginTop: 18 }]}>
               {t('group.deactivatedSection')} ({deactivated.length})
             </Text>
-            {deactivated.map((item) => renderGroup(item, { off: true }))}
+            <View style={styles.grid}>
+              {deactivated.map((item) => renderGroup(item, { off: true }))}
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -473,29 +470,39 @@ export default function FamilyOverviewScreen({ reloadKey }) {
         onCancel={() => !reactivateBusy && setPendingReactivate(null)}
         onConfirm={confirmReactivate}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
+  body: { padding: 16, paddingBottom: 40, maxWidth: 760, width: '100%', alignSelf: 'flex-start' },
+  sectionRow: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 10,
   },
-  kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.6, color: colors.muted },
-  hello: { fontSize: 24, fontWeight: '900', color: colors.ink, marginTop: 2 },
-  plus: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.fab,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  body: { padding: 16, paddingBottom: 40 },
   section: {
-    marginBottom: 10, fontSize: 13, fontWeight: '800', color: colors.ink,
+    marginBottom: 10, fontSize: 13, fontWeight: '400', color: colors.ink,
   },
+  addBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+    marginBottom: 10,
+  },
+  addBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   inviteCard: {
+    alignSelf: 'flex-start',
+    width: 320,
+    maxWidth: '100%',
     flexDirection: 'row',
     gap: 12,
     alignItems: 'flex-start',
@@ -514,11 +521,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inviteTitle: { fontWeight: '900', fontSize: 16, color: colors.ink },
-  inviteSub: { fontWeight: '600', fontSize: 13, color: colors.muted, marginTop: 2 },
+  inviteTitle: { fontWeight: '400', fontSize: 16, color: colors.ink },
+  inviteSub: { fontWeight: '400', fontSize: 13, color: colors.muted, marginTop: 2 },
   inviteActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   inviteAccept: {
-    flex: 1,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
     backgroundColor: colors.brand,
     borderRadius: 10,
     paddingVertical: 10,
@@ -526,9 +534,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 40,
   },
-  inviteAcceptTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  inviteAcceptTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   inviteDecline: {
-    flex: 1,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
     backgroundColor: colors.card,
     borderRadius: 10,
     paddingVertical: 10,
@@ -538,10 +547,13 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     minHeight: 40,
   },
-  inviteDeclineTxt: { color: colors.ink, fontWeight: '800', fontSize: 13 },
-  inviteError: { color: colors.danger, fontWeight: '700', fontSize: 13, marginBottom: 8 },
-  empty: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  inviteDeclineTxt: { color: colors.ink, fontWeight: '400', fontSize: 13 },
+  inviteError: { color: colors.danger, fontWeight: '400', fontSize: 13, marginBottom: 8 },
+  empty: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 12, lineHeight: 18 },
   hereCard: {
+    alignSelf: 'flex-start',
+    width: 320,
+    maxWidth: '100%',
     backgroundColor: '#eff6ff',
     borderRadius: 14,
     borderWidth: 1.5,
@@ -549,9 +561,12 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 16,
   },
-  hereKicker: { fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.4, textTransform: 'uppercase' },
-  hereName: { marginTop: 2, fontSize: 18, fontWeight: '900', color: colors.ink },
+  hereKicker: { fontSize: 12, fontWeight: '400', color: colors.brand, letterSpacing: 0.4, textTransform: 'uppercase' },
+  hereName: { marginTop: 2, fontSize: 18, fontWeight: '400', color: colors.ink },
   offerCard: {
+    alignSelf: 'flex-start',
+    width: 320,
+    maxWidth: '100%',
     backgroundColor: colors.card,
     borderRadius: 14,
     borderWidth: 1,
@@ -559,16 +574,18 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  offerTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, marginBottom: 4 },
+  offerTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, marginBottom: 4 },
   offerBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: 12,
-    minHeight: 44,
+    minHeight: 40,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
-  offerBtnTxt: { color: '#fff', fontWeight: '800' },
+  offerBtnTxt: { color: '#fff', fontWeight: '400' },
   offerBtnQuiet: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
   offerBtnQuietTxt: { color: colors.ink },
   tileGrid: {
@@ -588,12 +605,13 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  tileLabel: { fontWeight: '800', color: colors.ink, marginTop: 8, fontSize: 12, textAlign: 'center' },
-  tileSub: { color: colors.muted, fontWeight: '600', fontSize: 10, marginTop: 2, textAlign: 'center' },
+  tileLabel: { fontWeight: '400', color: colors.ink, marginTop: 8, fontSize: 12, textAlign: 'center' },
+  tileSub: { color: colors.muted, fontWeight: '400', fontSize: 10, marginTop: 2, textAlign: 'center' },
   groupCard: {
+    width: 320,
+    maxWidth: '100%',
     backgroundColor: colors.card,
     borderRadius: 14,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.line,
     overflow: 'hidden',
@@ -611,57 +629,67 @@ const styles = StyleSheet.create({
   groupCardDaycare: { borderColor: '#fecdd3' },
   groupCardFlex: { borderColor: '#cbd5e1' },
   groupCardOff: { backgroundColor: '#eef1f5', borderColor: '#d5dbe3' },
-  groupName: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  groupName: { fontSize: 16, fontWeight: '400', color: colors.ink },
   groupNameOff: { color: '#94a3b8' },
-  groupSub: { marginTop: 2, fontSize: 12, color: colors.muted, fontWeight: '600' },
+  groupSub: { marginTop: 2, fontSize: 12, color: colors.muted, fontWeight: '400' },
   badgeOff: {
     marginTop: 4,
     alignSelf: 'flex-start',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: '#64748b',
     letterSpacing: 0.2,
     textTransform: 'uppercase',
   },
   settingsBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+    marginLeft: 12,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
     backgroundColor: '#f8fafc',
   },
   settingsTxt: {
     color: colors.brand,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 13,
   },
   reactivateBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#e4f5ea',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#d5dbe3',
+    marginLeft: 12,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reactivateTxt: { color: colors.success, fontWeight: '800', fontSize: 12 },
+  reactivateTxt: { color: colors.success, fontWeight: '400', fontSize: 12 },
   sheetBackdrop: {
     flex: 1, backgroundColor: 'rgba(26, 39, 68, 0.45)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   sheet: {
+    alignSelf: 'center',
+    width: 420,
+    maxWidth: '92%',
     backgroundColor: colors.card,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderRadius: radius.lg,
+    marginBottom: 24,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 28,
   },
-  sheetTitle: { fontSize: 22, fontWeight: '900', color: colors.ink },
-  sheetLead: { marginTop: 6, marginBottom: 16, color: colors.muted, fontWeight: '600', fontSize: 14 },
+  sheetTitle: { fontSize: 22, fontWeight: '400', color: colors.ink },
+  sheetLead: { marginTop: 6, marginBottom: 16, color: colors.muted, fontWeight: '400', fontSize: 14 },
   sheetRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
@@ -669,8 +697,8 @@ const styles = StyleSheet.create({
   sheetIcon: {
     width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
   },
-  sheetRowTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
-  sheetRowSub: { marginTop: 2, fontSize: 13, fontWeight: '600', color: colors.muted },
+  sheetRowTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  sheetRowSub: { marginTop: 2, fontSize: 13, fontWeight: '400', color: colors.muted },
   sheetCancel: { marginTop: 16, alignItems: 'center', paddingVertical: 12 },
-  sheetCancelTxt: { color: colors.muted, fontWeight: '800', fontSize: 15 },
+  sheetCancelTxt: { color: colors.muted, fontWeight: '400', fontSize: 15 },
 });

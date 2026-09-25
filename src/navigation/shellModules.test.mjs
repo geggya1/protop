@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildShellModules,
   buildParentDashboardApps,
@@ -110,5 +111,17 @@ function idsIn(sections) {
     assert.equal(names.includes(hidden), false, `${hidden} stays out of activation settings`);
   }
 }
+
+const linking = readFileSync(new URL('./linking.js', import.meta.url), 'utf8');
+assert.match(linking, /FamilyOverview:\s*'organisasjoner'/);
+assert.equal(linking.includes("FamilyOverview: 'families'"), false);
+
+const orgScreen = readFileSync(new URL('../../screens/FamilyOverviewScreen.jsx', import.meta.url), 'utf8');
+assert.equal(/fontWeight:\s*'[6-9]00'/.test(orgScreen), false);
+assert.match(orgScreen, /styles\.grid/);
+assert.match(orgScreen, /width: 320/);
+
+const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
+assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 
 console.log('shellModules.test.mjs: ok');

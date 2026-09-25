@@ -60,6 +60,7 @@ jobs:
           const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
           writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
           "
+          npm ci --prefix functions
           npx firebase deploy --only functions:tenderProxy --config firebase.functions.json --project protop-c189c --non-interactive
           rm -f firebase.functions.json
 

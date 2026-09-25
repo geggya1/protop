@@ -4,7 +4,8 @@ import {
   buildParentDashboardApps,
   buildChildDashboardApps,
 } from './shellModules.js';
-import { PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
+import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
+import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
 
 const t = (k) => k;
 const kid = { id: 'k1', name: 'Kari' };
@@ -95,6 +96,19 @@ function idsIn(sections) {
   assert.ok(ids.includes('notes'));
   assert.equal(ids.includes('chores'), false);
   assert.equal(ids.includes('skole'), false);
+}
+
+{
+  const activation = applyProtopActivationSections(listModulesByCategory());
+  assert.deepEqual(activation.map((s) => s.id), ['main']);
+  assert.deepEqual(
+    activation.flatMap((s) => s.items.map((i) => i.id)),
+    ['plan', 'mail', 'stars', 'notes', 'chat'],
+  );
+  const names = activation.flatMap((s) => s.items.map((i) => i.name));
+  for (const hidden of ['Gjøremål', 'Handleliste', 'Familiealbum', 'Skole', 'Kjøretøy', 'Dokumenter', 'Utleie']) {
+    assert.equal(names.includes(hidden), false, `${hidden} stays out of activation settings`);
+  }
 }
 
 console.log('shellModules.test.mjs: ok');

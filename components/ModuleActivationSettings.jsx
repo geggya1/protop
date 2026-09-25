@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, useLayout } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import { listModulesByCategory } from '../src/modules/moduleActivationRegistry';
+import { applyProtopActivationSections } from '../src/navigation/protopShell';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
 import { localizeModuleFields } from '../src/i18n/moduleCatalog';
 import { useI18n } from '../src/i18n';
@@ -25,7 +26,7 @@ export default function ModuleActivationSettings() {
   const { t, lang } = useI18n();
   const { isActivated, activateModule, deactivateModule, canManage } = useModuleAccess();
   const sections = useMemo(() => {
-    return listModulesByCategory().map((section) => ({
+    return applyProtopActivationSections(listModulesByCategory()).map((section) => ({
       ...section,
       title: t(CATEGORY_KEYS[section.id] || section.title) || section.title,
       items: (section.items || []).map((mod) => localizeModuleFields(mod, lang)),

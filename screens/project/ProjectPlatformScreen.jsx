@@ -10,9 +10,11 @@ import { updateGroup } from '../../src/utils/groups';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { companyContextLabel } from '../../src/project/companyOffer';
+import AnbudScreen from '../anbud/AnbudScreen';
 
 const PAGES = [
   ['oversikt', 'Framside'],
+  ['anbud', 'Anbud'],
   ['innstillinger', 'Innstillinger'],
 ];
 
@@ -113,6 +115,46 @@ export default function ProjectPlatformScreen() {
     );
   }
 
+  const chips = (
+    <View style={styles.chips}>
+      {PAGES.map(([id, label]) => {
+        const on = page === id;
+        return (
+          <TouchableOpacity
+            key={id}
+            onPress={() => { setPage(id); setError(''); }}
+            style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+          >
+            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '700' }}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  if (page === 'anbud') {
+    return (
+      <View style={styles.fill}>
+        <View style={styles.head}>
+          <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
+          {chips}
+        </View>
+        <AnbudScreen
+          company={{
+            id: familyId,
+            name: company.navn,
+            orgnr: company.organisasjonsnummer || '',
+            cpvCodes: family?.cpvCodes || [],
+            cpvSource: family?.cpvSource || '',
+            anbudInbox: family?.anbudInbox || [],
+            anbudInquiries: family?.anbudInquiries || [],
+          }}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
       <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
@@ -121,20 +163,7 @@ export default function ProjectPlatformScreen() {
         {company.organisasjonsnummer}
         {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}
       </Text>
-      <View style={styles.chips}>
-        {PAGES.map(([id, label]) => {
-          const on = page === id;
-          return (
-            <TouchableOpacity
-              key={id}
-              onPress={() => { setPage(id); setError(''); }}
-              style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-            >
-              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '700' }}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {chips}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
 
       {page === 'oversikt' ? (
@@ -159,9 +188,6 @@ export default function ProjectPlatformScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity onPress={() => requestShellTab?.('anbud')} style={[styles.btn, { backgroundColor: colors.brand }]}>
-        <Text style={styles.btnText}>Åpne Anbud</Text>
-      </TouchableOpacity>
       <TouchableOpacity onPress={() => requestShellTab?.('projects')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
         <Text style={[styles.btnText, { color: colors.ink }]}>Åpne Prosjekt</Text>
       </TouchableOpacity>
@@ -185,6 +211,8 @@ function Row({ icon, label, value, colors }) {
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   body: { padding: 16, paddingBottom: 48, gap: 10 },
   kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
   title: { fontSize: 26, fontWeight: '900' },

@@ -1038,7 +1038,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     letterSpacing: -0.3,
   },
@@ -1057,7 +1057,7 @@ const styles = StyleSheet.create({
   statsLine: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
   },
   toolbar: {
@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   tabOn: { backgroundColor: colors.card },
-  tabTxt: { fontSize: 12, fontWeight: '600', color: colors.muted },
+  tabTxt: { fontSize: 12, fontWeight: '400', color: colors.muted },
   tabTxtOn: { color: colors.brand },
   toolbarActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   iconAction: {
@@ -1111,9 +1111,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     borderColor: colors.brand,
   },
-  editToggleTxt: { fontSize: 13, fontWeight: '700', color: colors.brand },
+  editToggleTxt: { fontSize: 13, fontWeight: '400', color: colors.brand },
   editToggleTxtOn: { color: '#fff' },
   addBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1122,7 +1123,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Platform.OS === 'web' ? 10 : radius.sm,
   },
-  addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  addBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1188,10 +1189,10 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: 'flex-start',
   },
-  hintTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  hintTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
   hintBody: { fontSize: 14, color: colors.muted, lineHeight: 20 },
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  detailName: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  detailName: { fontSize: 18, fontWeight: '400', color: colors.ink },
   detailMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
   notes: {
     fontSize: 14,
@@ -1222,14 +1223,14 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
     marginTop: 2,
   },
@@ -1241,7 +1242,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: colors.muted,
@@ -1257,9 +1258,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
-  relChipTxt: { fontSize: 13, fontWeight: '600', color: colors.brand },
+  relChipTxt: { fontSize: 13, fontWeight: '400', color: colors.brand },
   detailActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1270,8 +1272,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.card,
   },
-  secondaryBtnTxt: { fontSize: 13, fontWeight: '600', color: colors.brand },
+  secondaryBtnTxt: { fontSize: 13, fontWeight: '400', color: colors.brand },
   dangerBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1279,7 +1282,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
   },
-  dangerBtnTxt: { fontSize: 13, fontWeight: '600', color: colors.danger },
+  dangerBtnTxt: { fontSize: 13, fontWeight: '400', color: colors.danger },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(26,39,68,0.45)',
@@ -1309,10 +1312,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  modalTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
   fieldLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 6,
     marginTop: 8,
@@ -1338,7 +1341,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   segOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  segTxt: { fontSize: 13, fontWeight: '600', color: colors.muted },
+  segTxt: { fontSize: 13, fontWeight: '400', color: colors.muted },
   segTxtOn: { color: colors.brand },
   inviteBlock: {
     marginTop: 12,
@@ -1348,7 +1351,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  inviteTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  inviteTitle: { fontSize: 14, fontWeight: '400', color: colors.ink },
   inviteSub: {
     fontSize: 13,
     color: colors.muted,
@@ -1362,7 +1365,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 10,
   },
-  switchLabel: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  switchLabel: { fontSize: 14, fontWeight: '400', color: colors.ink },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

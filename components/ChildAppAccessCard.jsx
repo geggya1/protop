@@ -79,7 +79,7 @@ export default function ChildAppAccessCard({
 const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -88,14 +88,14 @@ const styles = StyleSheet.create({
   },
   sectionTitleCompact: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.42,
     marginBottom: 2,
     marginLeft: 2,
   },
   sectionSub: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 8,
     marginLeft: 4,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   },
   count: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand,
     marginBottom: 8,
     marginLeft: 4,
@@ -126,14 +126,14 @@ const styles = StyleSheet.create({
   },
   groupTitle: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     marginBottom: 6,
     marginLeft: 4,
   },
   groupTitleCompact: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     marginBottom: 4,
     marginLeft: 2,
   },
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   iconOff: { backgroundColor: '#f1f5f9' },
-  label: { flex: 1, fontWeight: '700', fontSize: 15, color: colors.ink, minWidth: 0 },
+  label: { flex: 1, fontWeight: '400', fontSize: 15, color: colors.ink, minWidth: 0 },
   labelCompact: { fontWeight: '500', fontSize: 13 },
   labelOff: { color: colors.muted },
 });

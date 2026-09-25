@@ -866,7 +866,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       borderColor: colors.brand,
       backgroundColor: colors.brandSoft || '#e8eefc',
     },
-    tabTxt: { fontSize: 13, fontWeight: '600', color: colors.muted },
+    tabTxt: { fontSize: 13, fontWeight: '400', color: colors.muted },
     tabTxtActive: { color: colors.brand },
     block: { gap: 4 },
     section: {
@@ -880,7 +880,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     },
     fieldLabel: {
       fontSize: 13,
-      fontWeight: '600',
+      fontWeight: '400',
       color: colors.text,
       marginTop: 8,
       marginBottom: 4,
@@ -925,11 +925,12 @@ function makeStyles(colors, { pad, isDesktop }) {
     },
     secondaryBtnTxt: { color: colors.brand, fontWeight: '500' },
     dangerBtn: {
+      alignSelf: 'flex-start',
       alignItems: 'center',
       paddingVertical: 12,
       marginTop: 8,
     },
-    dangerBtnTxt: { color: colors.danger || '#b91c1c', fontWeight: '600' },
+    dangerBtnTxt: { color: colors.danger || '#b91c1c', fontWeight: '400' },
     formBox: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
@@ -974,7 +975,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       gap: 8,
       marginTop: 12,
     },
-    mapLinkTxt: { color: colors.brand, fontWeight: '600' },
+    mapLinkTxt: { color: colors.brand, fontWeight: '400' },
     mapFrame: { marginTop: 12, overflow: 'hidden', borderRadius: 12 },
     link: { color: colors.brand, marginTop: 2 },
     importCard: {
@@ -987,10 +988,11 @@ function makeStyles(colors, { pad, isDesktop }) {
       gap: 12,
     },
     importHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    importTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+    importTitle: { fontSize: 16, fontWeight: '400', color: colors.text },
     importBlurb: { fontSize: 13, color: colors.muted, marginTop: 4, lineHeight: 18 },
     importActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     importBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
@@ -1001,7 +1003,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       paddingVertical: 8,
       paddingHorizontal: 12,
     },
-    importBtnTxt: { color: colors.brand, fontWeight: '600', fontSize: 13 },
+    importBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
     modalBg: {
       flex: 1,
       backgroundColor: 'rgba(15,23,42,0.45)',
@@ -1014,7 +1016,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       padding: 18,
       maxHeight: '85%',
     },
-    modalTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 6 },
+    modalTitle: { fontSize: 18, fontWeight: '400', color: colors.text, marginBottom: 6 },
     modalBody: { fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 12 },
     modalList: { maxHeight: 320, marginBottom: 8 },
     importRow: {

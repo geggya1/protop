@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   headTxt: {
     flex: 1,
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 14,
     color: colors.ink,
   },
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   badgeSimple: { width: 28, height: 28, borderRadius: 14 },
-  badgeTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  badgeTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
   badgeTxtSimple: { fontSize: 14 },
   stepTxt: {
     flex: 1,

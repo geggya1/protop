@@ -219,7 +219,7 @@ export default function ChildListScreen() {
                 </Text>
                 {!!item.username && (
                   <Text style={styles.childUser}>
-                    Brukernavn: <Text style={{ fontWeight: '800' }}>{item.username}</Text>
+                    Brukernavn: <Text style={{ fontWeight: '400' }}>{item.username}</Text>
                   </Text>
                 )}
               </View>
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     paddingHorizontal: 2,
   },
-  title: { flex: 1, fontSize: 20, fontWeight: '800', color: '#0f172a' },
+  title: { flex: 1, fontSize: 20, fontWeight: '400', color: '#0f172a' },
 
   primaryBtnSm: {
     backgroundColor: '#0b74d1',
@@ -270,9 +270,10 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 4px 12px rgba(11,116,209,0.25)' }
       : { elevation: 2 }),
   },
-  primaryBtnSmText: { color: '#fff', fontWeight: '800' },
+  primaryBtnSmText: { color: '#fff', fontWeight: '400' },
 
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',
     paddingVertical: 14,
     paddingHorizontal: 18,
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 6px 16px rgba(11,116,209,0.25)' }
       : { elevation: 2 }),
   },
-  primaryBtnText: { color: '#fff', fontWeight: '800' },
+  primaryBtnText: { color: '#fff', fontWeight: '400' },
 
   childRow: {
     flexDirection: 'row',
@@ -302,8 +303,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: '#e2e8f0',
   },
-  childName: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
-  childMeta: { marginTop: 2, fontSize: 12, color: '#475569', fontWeight: '600' },
+  childName: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
+  childMeta: { marginTop: 2, fontSize: 12, color: '#475569', fontWeight: '400' },
   childUser: { marginTop: 2, fontSize: 12, color: '#0b1f33' },
 
   chevron: { fontSize: 26, color: '#0f172a', marginLeft: 8 },
@@ -314,6 +315,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 16,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#0b3d91' },
+  emptyTitle: { fontSize: 18, fontWeight: '400', color: '#0b3d91' },
   emptyText: { marginTop: 6, fontSize: 13, color: '#64748b', textAlign: 'center' },
 });

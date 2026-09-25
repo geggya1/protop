@@ -58,7 +58,7 @@ function Chip({ label, on, onPress, colors }) {
       accessibilityRole="button"
       style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
     >
-      <Text style={{ color: on ? '#fff' : colors.ink, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: on ? '#fff' : colors.ink, fontWeight: '400', fontSize: 13 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -369,16 +369,16 @@ export default function AnbudScreen({ company }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  inner: { padding: 16, paddingBottom: 48, gap: 10 },
+  inner: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 720, width: '100%', alignSelf: 'flex-start' },
   field: { gap: 4 },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   btn: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' },
-  btnText: { fontWeight: '700', fontSize: 13 },
+  btnText: { fontWeight: '400', fontSize: 13 },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   summary: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 4 },
-  summaryTitle: { fontWeight: '800', fontSize: 16 },
-  h2: { fontWeight: '800', fontSize: 18 },
-  error: { fontWeight: '700' },
+  summaryTitle: { fontWeight: '400', fontSize: 16 },
+  h2: { fontWeight: '400', fontSize: 18 },
+  error: { fontWeight: '400' },
 });

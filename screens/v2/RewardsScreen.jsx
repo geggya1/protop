@@ -1257,6 +1257,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   segBtn: {
+    alignSelf: 'flex-start',
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
@@ -1357,12 +1358,13 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
   filterRowDesk: { gap: 5 },
   filterBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
   filterBtnDesk: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
   filterOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  filterTxt: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  filterTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   filterTxtDesk: { fontWeight: '500', fontSize: 12 },
   filterTxtOn: { color: '#fff' },
   trashAction: {
@@ -1420,6 +1422,7 @@ const styles = StyleSheet.create({
   checkboxDone: { backgroundColor: colors.success, borderColor: colors.success },
   deskAddWrap: { marginBottom: 8, alignSelf: 'flex-start' },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: colors.card, borderRadius: 12, paddingVertical: 11, marginTop: 8,
     borderWidth: 1, borderColor: colors.line,
@@ -1455,7 +1458,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.starSoft,
     borderColor: '#fde68a',
   },
-  bal: { fontSize: 40, fontWeight: '600', color: colors.star },
+  bal: { fontSize: 40, fontWeight: '400', color: colors.star },
   balLbl: { fontWeight: '500', color: colors.ink, fontSize: 14 },
   budgetBar: {
     marginTop: 8, height: 6, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden',
@@ -1468,10 +1471,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffbeb', borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: '#fde68a',
   },
-  goalPreviewTitle: { fontWeight: '800', color: colors.ink, fontSize: 14 },
-  goalPreviewMeta: { marginTop: 4, color: colors.muted, fontWeight: '600', fontSize: 12 },
+  goalPreviewTitle: { fontWeight: '400', color: colors.ink, fontSize: 14 },
+  goalPreviewMeta: { marginTop: 4, color: colors.muted, fontWeight: '400', fontSize: 12 },
   goalManageLink: {
-    marginTop: 4, color: colors.brand, fontWeight: '800', fontSize: 13,
+    marginTop: 4, color: colors.brand, fontWeight: '400', fontSize: 13,
   },
   plus: { fontWeight: '500', color: colors.star, fontSize: 12, marginRight: 4 },
   doneRight: { flexDirection: 'row', alignItems: 'center' },

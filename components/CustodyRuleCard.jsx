@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  title: { flex: 1, fontWeight: '800', fontSize: 14, color: colors.ink, lineHeight: 20 },
-  label: { fontSize: 12, fontWeight: '800', color: colors.muted, textTransform: 'uppercase', marginTop: 4 },
+  title: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink, lineHeight: 20 },
+  label: { fontSize: 12, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', marginTop: 4 },
   parentRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10,
@@ -80,6 +80,6 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   chipOnB: { backgroundColor: '#ffedd5', borderColor: '#ea580c' },
-  chipTxt: { fontWeight: '700', fontSize: 13, color: colors.ink },
+  chipTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
   chipTxtOn: { color: colors.brand },
 });

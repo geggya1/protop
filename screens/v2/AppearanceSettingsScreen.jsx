@@ -173,7 +173,7 @@ export default function AppearanceSettingsScreen() {
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 48 },
   bodyDesk: { maxWidth: 560, width: '100%', alignSelf: 'center' },
-  title: { fontSize: 28, fontWeight: '700', marginTop: 8, marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '400', marginTop: 8, marginBottom: 6 },
   lead: { fontSize: 15, lineHeight: 21, marginBottom: 18 },
   previews: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginBottom: 22 },
   previewHit: { alignItems: 'center', width: 120 },
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   line: { height: 6, borderRadius: 3 },
   lineLight: { backgroundColor: '#d1d1d6' },
   lineDark: { backgroundColor: '#636366' },
-  previewLabel: { fontSize: 15, fontWeight: '600', marginBottom: 6 },
+  previewLabel: { fontSize: 15, fontWeight: '400', marginBottom: 6 },
   group: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   switchRow: {
     flexDirection: 'row',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(128,128,128,0.35)',
   },
   optionRowLast: {},
-  optionTitle: { fontSize: 16, fontWeight: '600' },
+  optionTitle: { fontSize: 16, fontWeight: '400' },
   optionHint: { fontSize: 13, marginTop: 2, lineHeight: 18 },
   optionValue: { flex: 1, textAlign: 'right', fontSize: 15 },
   timeRow: {

@@ -152,8 +152,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  profileName: { fontSize: 15, fontWeight: '900', color: colors.ink },
-  profileFam: { color: colors.muted, fontWeight: '600', marginTop: 1, fontSize: 12 },
+  profileName: { fontSize: 15, fontWeight: '400', color: colors.ink },
+  profileFam: { color: colors.muted, fontWeight: '400', marginTop: 1, fontSize: 12 },
   list: { flex: 1 },
   listContent: { gap: 2, paddingBottom: 4 },
   row: {
@@ -175,8 +175,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconCircleActive: { backgroundColor: colors.brand },
-  label: { flex: 1, fontWeight: '700', fontSize: 14, color: colors.ink },
-  labelActive: { color: colors.brand, fontWeight: '800' },
+  label: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink },
+  labelActive: { color: colors.brand, fontWeight: '400' },
   activeDot: {
     width: 6,
     height: 6,

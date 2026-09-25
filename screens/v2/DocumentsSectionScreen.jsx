@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   panelDesk: { borderRadius: 8, padding: 10 },
   listSection: {
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.muted,
     textTransform: 'uppercase',
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   },
   folderIconDesk: { width: 32, height: 32, borderRadius: 7 },
   folderEmoji: { fontSize: 16 },
-  folderName: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  folderName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   folderNameDesk: { fontWeight: '500', fontSize: 13 },
   folderMeta: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
 });

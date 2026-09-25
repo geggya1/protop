@@ -42,13 +42,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderColor: colors.line,
     backgroundColor: colors.card,
   },
-  title: { fontWeight: '900', fontSize: 18, color: colors.ink, flex: 1 },
+  title: { fontWeight: '400', fontSize: 18, color: colors.ink, flex: 1 },
   closeBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
   },
-  closeTxt: { fontWeight: '800', color: colors.brand },
+  closeTxt: { fontWeight: '400', color: colors.brand },
   body: { padding: 16, gap: 16, paddingBottom: 32 },
   section: { backgroundColor: colors.card, borderRadius: radius.md, padding: 14, gap: 8 },
-  h: { fontWeight: '900', fontSize: 17, color: colors.brand },
+  h: { fontWeight: '400', fontSize: 17, color: colors.brand },
   p: { fontSize: 14, lineHeight: 21, color: colors.ink },
 });

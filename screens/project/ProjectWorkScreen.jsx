@@ -192,7 +192,7 @@ export default function ProjectWorkScreen() {
           <Btn label="Opprett prosjekt" colors={colors} onPress={() => run(createProject(state, forms.project), () => setForms((current) => ({ ...current, project: { ...current.project, name: '', number: '' } })))} />
           {visibleProjects.map((item) => (
             <View key={item.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.number} {item.name}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{item.number} {item.name}</Text>
               <Text style={{ color: colors.muted }}>{item.client || 'Uten kunde'} · {item.phase} · {item.status}</Text>
               <View style={styles.rowWrap}>
                 {item.status !== 'arkivert' ? <Btn label="Åpne" tone="quiet" colors={colors} onPress={() => run(selectProject(state, item.id))} /> : null}
@@ -213,7 +213,7 @@ export default function ProjectWorkScreen() {
           <Btn label="Legg til aktivitet" colors={colors} onPress={() => run(addActivity(state, { ...forms.activity, predecessorId: forms.activity.predecessorId || null }), () => setForms((current) => ({ ...current, activity: { ...current.activity, name: '', predecessorId: '' } })))} />
           {scoped(state.activities).map((row) => (
             <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.name} · {row.progress}%</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name} · {row.progress}%</Text>
               <Text style={{ color: colors.muted }}>{row.owner || 'Uten ansvarlig'}</Text>
               <View style={styles.rowWrap}>
                 <Btn label="0%" tone="quiet" colors={colors} onPress={() => run(setActivityProgress(state, row.id, 0))} />
@@ -243,7 +243,7 @@ export default function ProjectWorkScreen() {
           <Btn label="Opprett SJA" colors={colors} onPress={() => run(addSja(state, forms.sja))} />
           {scoped(state.sja).map((row) => (
             <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.task} · {row.status}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.task} · {row.status}</Text>
               <Text style={{ color: colors.muted }}>{row.measures || 'Ingen tiltak ennå'}</Text>
               <View style={styles.rowWrap}>
                 <Btn label="Foreslå tiltak" tone="quiet" colors={colors} onPress={() => run(updateSja(state, row.id, { hazards: row.hazards, measures: suggestMeasures(row.hazards) }))} />
@@ -313,7 +313,7 @@ export default function ProjectWorkScreen() {
           <Field label="Tiltak ved lukking" value={forms.deviation.action} onChangeText={(v) => patch('deviation', 'action', v)} colors={colors} />
           {scoped(state.deviations).map((row) => (
             <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.title} · {row.type} · {row.status}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title} · {row.type} · {row.status}</Text>
               <Text style={{ color: colors.muted }}>{row.iso}</Text>
               {row.status !== 'lukket' ? (
                 <Btn label="Lukk avvik" colors={colors} onPress={() => run(closeDeviation(state, row.id, forms.deviation))} />
@@ -328,7 +328,7 @@ export default function ProjectWorkScreen() {
           </View>
           {scoped(state.checklists).map((list) => (
             <View key={list.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{list.title} · {checklistScore(list)}%</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{list.title} · {checklistScore(list)}%</Text>
               {list.items.map((item) => (
                 <Btn key={item.id} label={`${item.done ? '✓' : '○'} ${item.label}`} tone={item.done ? 'brand' : 'quiet'} colors={colors} onPress={() => run(toggleCheckItem(state, list.id, item.id))} />
               ))}
@@ -367,7 +367,7 @@ export default function ProjectWorkScreen() {
           />
           {scoped(state.meetings).map((row) => (
             <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.title} {row.date}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title} {row.date}</Text>
               <Text style={{ color: colors.muted }}>{row.minutes}</Text>
             </View>
           ))}
@@ -434,7 +434,7 @@ export default function ProjectWorkScreen() {
         <View style={styles.stack}>
           {state.procedures.map((row) => (
             <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.id} {row.title}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.id} {row.title}</Text>
               <Text style={{ color: colors.muted }}>{row.iso}</Text>
               <Text style={{ color: colors.ink }}>{row.body}</Text>
             </View>
@@ -489,21 +489,21 @@ const styles = StyleSheet.create({
   nav: { maxHeight: 48, flexGrow: 0 },
   navWide: { width: 180, flexGrow: 0 },
   navContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 14, alignItems: 'flex-start' },
-  navItem: { fontWeight: '700', fontSize: 15 },
+  navItem: { fontWeight: '400', fontSize: 15 },
   content: { flex: 1 },
-  contentInner: { padding: 16, paddingBottom: 48 },
+  contentInner: { padding: 16, paddingBottom: 48, maxWidth: 720, width: '100%', alignSelf: 'flex-start' },
   stack: { gap: 10 },
   field: { gap: 4 },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   inputMulti: { minHeight: 88, textAlignVertical: 'top' },
   btn: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' },
-  btnText: { fontWeight: '700', fontSize: 13 },
+  btnText: { fontWeight: '400', fontSize: 13 },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   summary: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 4 },
-  summaryTitle: { fontWeight: '800', fontSize: 16 },
-  h2: { fontWeight: '800', fontSize: 16, marginTop: 8 },
-  error: { fontWeight: '700' },
+  summaryTitle: { fontWeight: '400', fontSize: 16 },
+  h2: { fontWeight: '400', fontSize: 16, marginTop: 8 },
+  error: { fontWeight: '400' },
   report: { borderWidth: 1, borderRadius: 16, padding: 12, fontSize: 14, lineHeight: 20 },
 });

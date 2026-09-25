@@ -101,8 +101,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   textCol: { flex: 1, minWidth: 0 },
-  orgName: { fontSize: 13, fontWeight: '700', color: c.muted },
-  pageTitle: { fontSize: 20, fontWeight: '900', color: c.ink, marginTop: 1 },
+  orgName: { fontSize: 13, fontWeight: '400', color: c.muted },
+  pageTitle: { fontSize: 20, fontWeight: '400', color: c.ink, marginTop: 1 },
   modeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, minWidth: 0,
   },
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2,
   },
   modePillTxt: {
-    fontSize: 10, fontWeight: '800', color: c.brand, letterSpacing: 0.2,
+    fontSize: 10, fontWeight: '400', color: c.brand, letterSpacing: 0.2,
   },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBtn: {

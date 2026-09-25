@@ -458,9 +458,9 @@ export default function ChoreSettingsScreen() {
 
 const styles = StyleSheet.create({
   body: { padding: 16 },
-  screenTitle: { fontSize: 20, fontWeight: '700', color: colors.ink, marginBottom: 4 },
-  screenSub: { fontSize: 14, fontWeight: '600', color: colors.muted, marginBottom: 16 },
-  denied: { marginTop: 24, color: colors.muted, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  screenTitle: { fontSize: 20, fontWeight: '400', color: colors.ink, marginBottom: 4 },
+  screenSub: { fontSize: 14, fontWeight: '400', color: colors.muted, marginBottom: 16 },
+  denied: { marginTop: 24, color: colors.muted, fontWeight: '400', fontSize: 15, lineHeight: 22 },
 
   group: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
 
@@ -468,20 +468,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', padding: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  rowLabel: { fontWeight: '700', color: colors.ink, fontSize: 15 },
+  rowLabel: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   rowHint: { fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 },
   rowRight: { marginLeft: 12 },
 
   fieldWrap: { padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   fieldWrapLast: { borderBottomWidth: 0 },
-  fieldLabel: { fontWeight: '700', color: colors.ink, marginBottom: 8, fontSize: 14 },
+  fieldLabel: { fontWeight: '400', color: colors.ink, marginBottom: 8, fontSize: 14 },
   input: {
     borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 12,
     fontSize: 16, backgroundColor: colors.sunken, color: colors.ink,
   },
   hint: { fontSize: 12, color: colors.muted, marginTop: 6, lineHeight: 17 },
   quietBox: {
-    fontSize: 13, color: colors.muted, lineHeight: 19, fontWeight: '600',
+    fontSize: 13, color: colors.muted, lineHeight: 19, fontWeight: '400',
     backgroundColor: colors.sunken, borderRadius: 10, padding: 12,
   },
 
@@ -492,17 +492,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
   },
   chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
-  chipTxt: { fontWeight: '800', color: colors.muted, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
   chipTxtActive: { color: '#fff' },
 
   importPlanBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brandSoft, borderRadius: 12, paddingVertical: 12,
   },
-  importPlanBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  importPlanBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 
-  saveBtn: { marginTop: 20, backgroundColor: colors.brand, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  saveBtn: {
+    alignSelf: 'flex-start', marginTop: 20, backgroundColor: colors.brand, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   saveBtnDisabled: { backgroundColor: '#cbd5e1' },
-  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  saveBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
   saveBtnTxtDisabled: { color: colors.muted },
 });

@@ -233,16 +233,18 @@ const styles = StyleSheet.create({
   leftWide: { width: 80, gap: 4 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   titleWrap: { flexDirection: 'row', alignItems: 'center', maxWidth: '90%' },
-  title: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  title: { color: '#fff', fontSize: 18, fontWeight: '400' },
   subtitle: { color: '#dbeafe', fontSize: 12, marginLeft: 8 },
   pages: { flexDirection: 'row', marginLeft: 12 },
-  pageBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginRight: 6 },
-  pageText: { color: '#fff', fontWeight: '600' },
+  pageBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginRight: 6 },
+  pageText: { color: '#fff', fontWeight: '400' },
   right: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' },
   roundBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarBtn: { padding: 4 },
+  avatarBtn: {
+    alignSelf: 'flex-start', padding: 4 },
 });

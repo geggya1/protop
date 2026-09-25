@@ -230,7 +230,7 @@ export default function CreateCompanyScreen() {
               <Text style={styles.btnText}>{busy ? 'Sender…' : 'Send forespørsel'}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setJoinTarget(null)} style={styles.skip}>
-              <Text style={{ color: colors.muted, fontWeight: '800' }}>Avbryt</Text>
+              <Text style={{ color: colors.muted, fontWeight: '400' }}>Avbryt</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -244,7 +244,7 @@ export default function CreateCompanyScreen() {
             <Text style={[styles.lead, { color: colors.muted }]}>
               {sent?.companyName} har fått spørsmål om deltakelse. Du ser bare kort status til bedriften svarer.
             </Text>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Status: Sendt</Text>
+            <Text style={{ color: colors.ink, fontWeight: '400' }}>Status: Sendt</Text>
             <Text style={{ color: colors.muted }}>{sent?.createdAt ? new Date(sent.createdAt).toLocaleString('nb-NO') : ''}</Text>
             <TouchableOpacity onPress={() => { setSent(null); nav.goBack(); }} style={[styles.btn, { backgroundColor: colors.brand }]}>
               <Text style={styles.btnText}>Lukk</Text>
@@ -258,20 +258,21 @@ export default function CreateCompanyScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  body: { padding: 16, paddingBottom: 48, gap: 10 },
+  body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 420, width: '100%', alignSelf: 'flex-start' },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-  title: { fontSize: 26, fontWeight: '900' },
+  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4, textTransform: 'uppercase' },
+  title: { fontSize: 26, fontWeight: '400' },
   lead: { fontSize: 15, lineHeight: 21 },
-  label: { fontSize: 12, fontWeight: '700' },
+  label: { fontSize: 12, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  btn: { borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  btnText: { color: '#fff', fontWeight: '800' },
-  error: { fontWeight: '700' },
+  btn: {
+    alignSelf: 'flex-start', borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  btnText: { color: '#fff', fontWeight: '400' },
+  error: { fontWeight: '400' },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
-  cardTitle: { fontSize: 16, fontWeight: '800' },
+  cardTitle: { fontSize: 16, fontWeight: '400' },
   cardMeta: { fontSize: 13 },
-  pick: { marginTop: 6, fontWeight: '800' },
+  pick: { marginTop: 6, fontWeight: '400' },
   backdrop: { flex: 1, backgroundColor: 'rgba(26, 39, 68, 0.45)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10 },
   skip: { alignItems: 'center', paddingVertical: 10 },

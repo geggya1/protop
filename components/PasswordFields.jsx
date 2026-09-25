@@ -96,22 +96,23 @@ export default function PasswordFields({
 }
 
 const styles = StyleSheet.create({
-  lbl: { fontWeight: '800', color: colors.ink, fontSize: 16, marginTop: 4 },
-  hint: { color: colors.muted, fontWeight: '600' },
-  warn: { color: colors.warn, fontWeight: '700' },
-  ok: { color: '#047857', fontWeight: '700' },
+  lbl: { fontWeight: '400', color: colors.ink, fontSize: 16, marginTop: 4 },
+  hint: { color: colors.muted, fontWeight: '400' },
+  warn: { color: colors.warn, fontWeight: '400' },
+  ok: { color: '#047857', fontWeight: '400' },
   bad: { color: '#b91c1c' },
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 14, fontSize: 18, fontWeight: '600',
+    padding: 14, fontSize: 18, fontWeight: '400',
   },
   inputError: { borderColor: colors.danger },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12, paddingVertical: 14, borderRadius: radius.md,
     borderWidth: 1, borderColor: colors.line, backgroundColor: colors.sunken,
   },
-  toggleTxt: { fontWeight: '700', color: colors.ink, fontSize: 14 },
+  toggleTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   rulesBox: {
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     padding: 10, backgroundColor: colors.sunken,

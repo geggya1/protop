@@ -125,7 +125,7 @@ export default function ProjectPlatformScreen() {
             onPress={() => { setPage(id); setError(''); }}
             style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
           >
-            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '700' }}>{label}</Text>
+            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -176,24 +176,26 @@ export default function ProjectPlatformScreen() {
       ) : null}
 
       {page === 'innstillinger' ? (
-        <View>
+        <View style={styles.column}>
           <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
           <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} keyboardType="email-address" />
           <TouchableOpacity onPress={saveSettings} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
             <Text style={styles.btnText}>{busy ? 'Lagrer…' : 'Lagre innstillinger'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, styles.btnGap, { backgroundColor: colors.sunken }]} disabled={busy}>
+          <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, { backgroundColor: colors.sunken }]} disabled={busy}>
             <Text style={[styles.btnText, { color: colors.ink }]}>Hent på nytt fra Brønnøysund</Text>
           </TouchableOpacity>
         </View>
       ) : null}
 
-      <TouchableOpacity onPress={() => requestShellTab?.('projects')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-        <Text style={[styles.btnText, { color: colors.ink }]}>Åpne Prosjekt</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => nav.navigate('GroupSettings')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-        <Text style={[styles.btnText, { color: colors.ink }]}>Medlemmer</Text>
-      </TouchableOpacity>
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={() => requestShellTab?.('projects')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
+          <Text style={[styles.btnText, { color: colors.ink }]}>Åpne Prosjekt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => nav.navigate('GroupSettings')} style={[styles.btn, { backgroundColor: colors.sunken }]}>
+          <Text style={[styles.btnText, { color: colors.ink }]}>Medlemmer</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -204,7 +206,7 @@ function Row({ icon, label, value, colors }) {
       <Ionicons name={icon} size={18} color={colors.brand} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
-        <Text style={{ color: colors.ink, fontWeight: '700' }}>{value}</Text>
+        <Text style={{ color: colors.ink, fontWeight: '400' }}>{value}</Text>
       </View>
     </View>
   );
@@ -213,21 +215,30 @@ function Row({ icon, label, value, colors }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
-  body: { padding: 16, paddingBottom: 48, gap: 10 },
-  kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
-  title: { fontSize: 26, fontWeight: '900' },
-  lead: { fontSize: 15, lineHeight: 21 },
+  body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 760, width: '100%', alignSelf: 'flex-start' },
+  column: { alignSelf: 'flex-start', width: 360, maxWidth: '100%', gap: 10 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' },
+  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
+  title: { fontSize: 22, fontWeight: '400' },
+  lead: { fontSize: 15, lineHeight: 21, fontWeight: '400' },
   field: { gap: 4 },
-  label: { fontSize: 12, fontWeight: '700' },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  btn: { borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  btnGap: { marginTop: 8 },
-  btnText: { color: '#fff', fontWeight: '800' },
-  error: { fontWeight: '700' },
-  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
-  cardTitle: { fontSize: 16, fontWeight: '800' },
+  label: { fontSize: 12, fontWeight: '400' },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '400' },
+  btn: {
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  btnText: { color: '#fff', fontWeight: '400' },
+  error: { fontWeight: '400' },
+  card: { alignSelf: 'flex-start', width: 420, maxWidth: '100%', borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
+  cardTitle: { fontSize: 16, fontWeight: '400' },
   cardMeta: { fontSize: 13 },
-  pick: { marginTop: 6, fontWeight: '800' },
+  pick: { marginTop: 6, fontWeight: '400' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   row: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 6 },

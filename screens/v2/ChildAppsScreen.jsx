@@ -210,8 +210,8 @@ function KidIdentity({ kid, onCount, total, compact }) {
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   bodyDesktop: { paddingHorizontal: 12, paddingTop: 4 },
-  screenTitle: { fontSize: 22, fontWeight: '700', color: colors.ink, marginBottom: 6 },
-  screenTitleDesk: { fontSize: 18, fontWeight: '600', letterSpacing: -0.2, marginBottom: 4 },
+  screenTitle: { fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6 },
+  screenTitleDesk: { fontSize: 18, fontWeight: '400', letterSpacing: -0.2, marginBottom: 4 },
   lead: {
     fontSize: 13, fontWeight: '500', color: colors.muted, lineHeight: 18, marginBottom: 14,
   },
@@ -248,8 +248,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  kidName: { fontSize: 14, fontWeight: '600', color: colors.ink },
-  kidNameDesk: { fontSize: 13, fontWeight: '600' },
+  kidName: { fontSize: 14, fontWeight: '400', color: colors.ink },
+  kidNameDesk: { fontSize: 13, fontWeight: '400' },
   kidSub: { fontSize: 12, fontWeight: '500', color: colors.muted, marginTop: 1 },
   kidSubDesk: { fontSize: 11, fontWeight: '400' },
   kidBody: { paddingHorizontal: 8, paddingBottom: 8 },

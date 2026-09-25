@@ -78,14 +78,14 @@ const styles = StyleSheet.create({
   },
   wrapCompact: { paddingTop: 6, paddingBottom: 6 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 6 },
-  backTxt: { fontWeight: '700', color: colors.brand, fontSize: 13 },
+  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   kicker: {
-    fontSize: 11, fontWeight: '800', color: colors.muted,
+    fontSize: 11, fontWeight: '400', color: colors.muted,
     letterSpacing: 1, marginBottom: 4,
   },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   identityText: { flex: 1, minWidth: 0 },
-  heading: { fontSize: 24, fontWeight: '900', color: colors.ink },
+  heading: { fontSize: 24, fontWeight: '400', color: colors.ink },
   headingCompact: { fontSize: 20 },
-  sub: { color: colors.muted, fontWeight: '600', marginTop: 4, fontSize: 13, lineHeight: 18 },
+  sub: { color: colors.muted, fontWeight: '400', marginTop: 4, fontSize: 13, lineHeight: 18 },
 });

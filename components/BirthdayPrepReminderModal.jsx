@@ -355,21 +355,21 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 34, textAlign: 'center', marginBottom: 6 },
   title: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '400',
     color: '#0f1419',
     textAlign: 'center',
     letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand,
     textAlign: 'center',
     marginTop: 6,
   },
   lead: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#536471',
     textAlign: 'center',
     lineHeight: 20,
@@ -398,8 +398,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  suggestTitle: { fontSize: 14, fontWeight: '800', color: '#0f1419' },
-  suggestBody: { fontSize: 12, fontWeight: '600', color: '#536471', marginTop: 2, lineHeight: 16 },
+  suggestTitle: { fontSize: 14, fontWeight: '400', color: '#0f1419' },
+  suggestBody: { fontSize: 12, fontWeight: '400', color: '#536471', marginTop: 2, lineHeight: 16 },
   actions: {
     flexDirection: 'row',
     gap: 10,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.card,
   },
-  secondaryTxt: { fontWeight: '800', fontSize: 15, color: colors.ink },
+  secondaryTxt: { fontWeight: '400', fontSize: 15, color: colors.ink },
   primaryBtn: {
     flex: 1.4,
     minHeight: 48,
@@ -426,10 +426,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-  primaryTxt: { color: '#fff', fontWeight: '800', fontSize: 14, textAlign: 'center' },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 14, textAlign: 'center' },
   dismissLink: {
     alignItems: 'center',
     paddingVertical: 10,
   },
-  dismissTxt: { fontSize: 13, fontWeight: '700', color: colors.muted },
+  dismissTxt: { fontSize: 13, fontWeight: '400', color: colors.muted },
 });

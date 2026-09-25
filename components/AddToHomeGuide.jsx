@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
   },
   closeBtn: {
@@ -178,12 +178,12 @@ const styles = StyleSheet.create({
   appName: {
     color: '#fff',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '400',
   },
   appHost: {
     color: '#94a3b8',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     marginTop: 2,
   },
   steps: {
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   stepNum: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 24,
     minWidth: 22,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   stepTxt: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 24,
   },
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   footnote: {
     marginTop: 16,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     lineHeight: 17,
   },

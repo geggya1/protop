@@ -712,7 +712,7 @@ export default function ParentTaskScreen() {
                   <View style={styles.logDot} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.logText}>
-                      <Text style={{ fontWeight: '600' }}>{l.name || 'Ukjent'}</Text> — {l.text}
+                      <Text style={{ fontWeight: '400' }}>{l.name || 'Ukjent'}</Text> — {l.text}
                     </Text>
                     <Text style={styles.logTime}>{formatTs(l.createdAt)}</Text>
                   </View>
@@ -770,14 +770,15 @@ const styles = StyleSheet.create({
   body: { padding: 16 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   topRowDesk: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 },
-  backBtn: { padding: 6, borderRadius: 10, backgroundColor: colors.sunken },
+  backBtn: {
+    alignSelf: 'flex-start', padding: 6, borderRadius: 10, backgroundColor: colors.sunken },
   doneBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
     backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
   },
   doneBadgeOn: { backgroundColor: '#10b981', borderColor: '#10b981' },
-  doneBadgeTxt: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  doneBadgeTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
 
   label: { fontWeight: '500', color: colors.ink, fontSize: 13, marginBottom: 6, marginTop: 12 },
   hint: { fontSize: 12, color: '#94a3b8', marginBottom: 8 },
@@ -798,6 +799,7 @@ const styles = StyleSheet.create({
   },
   pickerField: { backgroundColor: colors.card },
   pickerBtn: {
+    alignSelf: 'flex-start',
     position: 'relative',
     overflow: 'hidden',
     flexDirection: 'row',
@@ -850,16 +852,17 @@ const styles = StyleSheet.create({
   attName: { fontWeight: '500', color: colors.ink, fontSize: 14 },
   attBy: { color: '#94a3b8', fontSize: 11, fontWeight: '400' },
   addAttBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#eef6ff', borderRadius: 10, paddingVertical: 10, marginBottom: 12,
     borderWidth: 1, borderColor: '#93c5fd', borderStyle: 'dashed',
   },
-  addAttTxt: { color: colors.brand, fontWeight: '600' },
+  addAttTxt: { color: colors.brand, fontWeight: '400' },
   uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   uploadingTxt: { color: colors.brand, fontWeight: '500' },
 
   section: { marginTop: 24, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 16 },
-  sectionTitle: { fontWeight: '600', fontSize: 15, color: colors.ink, marginBottom: 10 },
+  sectionTitle: { fontWeight: '400', fontSize: 15, color: colors.ink, marginBottom: 10 },
   emptyTxt: { color: '#94a3b8', fontWeight: '400', fontSize: 13 },
 
   commentRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
@@ -868,7 +871,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  commentName: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  commentName: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   commentTime: { color: '#94a3b8', fontSize: 11, fontWeight: '400' },
   commentText: { color: colors.ink, fontSize: 14, lineHeight: 20, marginTop: 2 },
 
@@ -888,10 +891,11 @@ const styles = StyleSheet.create({
   logTime: { color: '#94a3b8', fontSize: 11, fontWeight: '400', marginTop: 2 },
 
   deleteBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 20, paddingVertical: 12, borderRadius: 10,
     backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca',
   },
-  deleteTxt: { color: '#b91c1c', fontWeight: '600', fontSize: 14 },
+  deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 14 },
 });
 

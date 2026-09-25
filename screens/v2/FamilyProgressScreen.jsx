@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   barHint: { marginTop: 4, fontSize: 11, fontWeight: '400', color: colors.muted },
 
   expandBlock: { marginTop: 10, paddingLeft: 42 },
-  expandTitle: { fontWeight: '600', fontSize: 12, color: colors.ink, marginBottom: 6 },
+  expandTitle: { fontWeight: '400', fontSize: 12, color: colors.ink, marginBottom: 6 },
   dayBlock: { marginBottom: 10 },
   dayHead: { fontWeight: '500', fontSize: 12, color: colors.muted, marginBottom: 4 },
   dayHeadToday: { color: colors.brand },
@@ -701,13 +701,13 @@ const styles = StyleSheet.create({
   miniAttest: {
     backgroundColor: colors.brand, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
   },
-  miniAttestTxt: { color: '#fff', fontWeight: '600', fontSize: 11 },
+  miniAttestTxt: { color: '#fff', fontWeight: '400', fontSize: 11 },
 
   warnBox: {
     backgroundColor: '#fff7ed', borderRadius: 10, padding: 10,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  warnTitle: { fontWeight: '600', color: '#9a3412', marginBottom: 4, fontSize: 13 },
+  warnTitle: { fontWeight: '400', color: '#9a3412', marginBottom: 4, fontSize: 13 },
   warnLine: { color: '#9a3412', fontWeight: '400', fontSize: 12, marginBottom: 3, lineHeight: 17 },
   okDup: { color: colors.success, fontWeight: '500', fontSize: 12 },
   dayChips: { gap: 6, alignItems: 'center', height: 32, paddingVertical: 0 },
@@ -720,24 +720,25 @@ const styles = StyleSheet.create({
   dayChipTxt: { fontWeight: '500', fontSize: 12, color: colors.ink },
   dayChipTxtOn: { color: '#fff' },
   planKid: { paddingVertical: 6 },
-  planKidName: { fontWeight: '600', fontSize: 14, color: colors.ink, marginBottom: 4 },
+  planKidName: { fontWeight: '400', fontSize: 14, color: colors.ink, marginBottom: 4 },
 
   deskAddWrap: { alignSelf: 'flex-end' },
   bulkBtn: {
     backgroundColor: colors.brand, borderRadius: 10, paddingVertical: 11,
     alignItems: 'center', alignSelf: 'stretch',
   },
-  bulkBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  bulkBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   attestRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8,
   },
-  attestTitle: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  attestTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
   attestMeta: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
   attestBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
     minWidth: 80, alignItems: 'center',
   },
-  attestBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 12 },
+  attestBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
   footerHint: {
     marginTop: 4, fontSize: 12, color: colors.muted, fontWeight: '400',
     textAlign: 'center', lineHeight: 17,

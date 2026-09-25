@@ -85,11 +85,11 @@ export default function EmailActionScreen() {
 
 const styles = StyleSheet.create({
   container:{flex:1,alignItems:'center',justifyContent:'center',padding:24,backgroundColor:'#fff'},
-  title:{fontSize:22,fontWeight:'700',color:'#0f172a',marginBottom:10},
+  title:{fontSize:22,fontWeight: '400',color:'#0f172a',marginBottom:10},
   subtitle:{fontSize:15,color:'#334155',textAlign:'center',marginBottom:14},
   primary:{backgroundColor:'#0b74d1',paddingVertical:12,paddingHorizontal:20,borderRadius:12,minWidth:220,alignItems:'center'},
-  primaryText:{color:'#fff',fontSize:16,fontWeight:'700'},
+  primaryText:{color:'#fff',fontSize:16,fontWeight: '400'},
   secondary:{marginTop:12,backgroundColor:'#e2e8f0',paddingVertical:10,paddingHorizontal:20,borderRadius:12,minWidth:220,alignItems:'center'},
-  secondaryText:{color:'#0f172a',fontSize:15,fontWeight:'600'},
+  secondaryText:{color:'#0f172a',fontSize:15,fontWeight: '400'},
   error:{color:'#b91c1c',textAlign:'center',marginBottom:10},
 });

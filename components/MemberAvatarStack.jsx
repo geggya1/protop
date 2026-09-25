@@ -132,12 +132,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  extraTxt: { fontWeight: '800', color: colors.brand },
+  extraTxt: { fontWeight: '400', color: colors.brand },
   allPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: colors.brandSoft,
   },
-  allTxt: { fontSize: 10, fontWeight: '800', color: colors.brand },
+  allTxt: { fontSize: 10, fontWeight: '400', color: colors.brand },
 });

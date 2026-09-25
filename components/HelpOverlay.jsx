@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
     color: '#2563eb',
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   title: {
     marginTop: 4,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '400',
     color: '#0f1419',
     lineHeight: 26,
   },
@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowTitle: { fontSize: 13, fontWeight: '700', color: '#0f1419' },
+  rowTitle: { fontSize: 13, fontWeight: '400', color: '#0f1419' },
   rowBody: { fontSize: 12, lineHeight: 17, color: '#64748b', marginTop: 1 },
   chipGrid: {
     marginTop: 14,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     maxWidth: '100%',
   },
-  chipTxt: { fontSize: 12, fontWeight: '700', maxWidth: 140 },
+  chipTxt: { fontSize: 12, fontWeight: '400', maxWidth: 140 },
   stepBlock: {
     marginTop: 14,
     flexDirection: 'row',
@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 1,
   },
-  stepNumTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  stepNumTxt: { color: '#fff', fontSize: 13, fontWeight: '400' },
   stepTxt: {
     fontSize: 16,
     lineHeight: 23,
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   dots: {
     flexDirection: 'row',
@@ -788,19 +788,19 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 14,
   },
-  ctaTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  ctaTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   skip: {
     marginTop: 10,
     textAlign: 'center',
     color: '#64748b',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
   },
   skipQuiet: {
     marginTop: 4,
     textAlign: 'center',
     color: '#94a3b8',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 12,
   },
   moduleExtras: { marginTop: 2 },

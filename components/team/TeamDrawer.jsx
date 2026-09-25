@@ -123,16 +123,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4, borderLeftColor: c.stripe,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  headTitle: { flex: 1, fontSize: 20, fontWeight: '900', color: c.ink },
+  headTitle: { flex: 1, fontSize: 20, fontWeight: '400', color: c.ink },
   closeBtn: {
     width: 36, height: 36, borderRadius: 12, backgroundColor: c.surface2,
     alignItems: 'center', justifyContent: 'center',
   },
-  sportHint: { color: c.tint, fontWeight: '700', fontSize: 13, marginBottom: 4 },
-  codeHint: { color: c.muted, fontWeight: '700', fontSize: 12, marginBottom: 12 },
+  sportHint: { color: c.tint, fontWeight: '400', fontSize: 13, marginBottom: 4 },
+  codeHint: { color: c.muted, fontWeight: '400', fontSize: 12, marginBottom: 12 },
   section: { marginBottom: 16 },
   sectionTitle: {
-    color: c.muted, fontSize: 11, fontWeight: '800',
+    color: c.muted, fontSize: 11, fontWeight: '400',
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginLeft: 4,
   },
   row: {
@@ -140,11 +140,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 10, borderRadius: 14, marginBottom: 4,
   },
   rowOn: { backgroundColor: c.brandSoft },
-  rowTxt: { color: c.ink, fontWeight: '700', fontSize: 15 },
+  rowTxt: { color: c.ink, fontWeight: '400', fontSize: 15 },
   rowTxtOn: { color: c.brand },
   linkRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 12, paddingHorizontal: 10, marginBottom: 4,
   },
-  linkTxt: { color: c.brand, fontWeight: '800', fontSize: 15 },
+  linkTxt: { color: c.brand, fontWeight: '400', fontSize: 15 },
 });

@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
   calBox: {
     width: 14, height: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card,
   },
-  calTick: { fontSize: 9, fontWeight: '900', lineHeight: 12 },
+  calTick: { fontSize: 9, fontWeight: '400', lineHeight: 12 },
   calLblWrap: { flex: 1, minWidth: 0 },
-  calLbl: { fontSize: 12, fontWeight: '600', color: colors.ink },
-  calSub: { fontSize: 10, fontWeight: '600', color: colors.muted, marginTop: 1 },
-  calSubErr: { fontSize: 10, fontWeight: '700', color: '#b45309', marginTop: 1 },
+  calLbl: { fontSize: 12, fontWeight: '400', color: colors.ink },
+  calSub: { fontSize: 10, fontWeight: '400', color: colors.muted, marginTop: 1 },
+  calSubErr: { fontSize: 10, fontWeight: '400', color: '#b45309', marginTop: 1 },
 });

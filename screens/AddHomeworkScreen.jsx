@@ -471,12 +471,13 @@ function makeStyles(colors) {
     desktopRoot: { flex: 1, backgroundColor: 'transparent' },
     body: { padding: 16 },
     topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-    backBtn: { padding: 6, borderRadius: 10, backgroundColor: colors.sunken },
+    backBtn: {
+      alignSelf: 'flex-start', padding: 6, borderRadius: 10, backgroundColor: colors.sunken },
     intro: {
       fontSize: 13, fontWeight: '400', color: colors.muted, lineHeight: 18,
       marginBottom: 8, marginTop: 4,
     },
-    label: { fontWeight: '600', color: colors.ink, fontSize: 13, marginBottom: 6, marginTop: 14 },
+    label: { fontWeight: '400', color: colors.ink, fontSize: 13, marginBottom: 6, marginTop: 14 },
     hint: { fontSize: 12, color: '#94a3b8', marginBottom: 8, marginTop: 4 },
     input: {
       borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 12,
@@ -496,9 +497,10 @@ function makeStyles(colors) {
       backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
     },
     chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-    chipTxt: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+    chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
     chipTxtOn: { color: '#fff' },
     pickerBtn: {
+      alignSelf: 'flex-start',
       position: 'relative',
       overflow: 'hidden',
       flexDirection: 'row',
@@ -529,14 +531,16 @@ function makeStyles(colors) {
     attName: { fontWeight: '500', color: colors.ink, fontSize: 14 },
     attBy: { color: '#94a3b8', fontSize: 11 },
     addAttBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: '#eef6ff', borderRadius: 10, paddingVertical: 10, marginBottom: 12,
       borderWidth: 1, borderColor: '#93c5fd', borderStyle: 'dashed',
     },
-    addAttTxt: { color: colors.brand, fontWeight: '600' },
+    addAttTxt: { color: colors.brand, fontWeight: '400' },
     uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
     uploadingTxt: { color: colors.brand, fontWeight: '500' },
     helpBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       marginTop: 8, marginBottom: 12,
       borderWidth: 1, borderColor: colors.brand, borderRadius: radius.md,
@@ -545,10 +549,11 @@ function makeStyles(colors) {
     helpBtnTxt: { color: colors.brand, fontWeight: '500', fontSize: 14 },
     emptyTxt: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
     deleteBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       marginTop: 12, paddingVertical: 12, borderRadius: 10,
       backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca',
     },
-    deleteTxt: { color: '#b91c1c', fontWeight: '600', fontSize: 14 },
+    deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 14 },
   });
 }

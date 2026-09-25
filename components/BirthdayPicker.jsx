@@ -186,7 +186,7 @@ export default function BirthdayPicker({
         <View style={styles.summaryIcon}>
           <Ionicons name="calendar-outline" size={18} color={colors.brand} />
         </View>
-        <Text style={[styles.summaryDate, { color: colors.muted, fontWeight: '700' }]}>
+        <Text style={[styles.summaryDate, { color: colors.muted, fontWeight: '400' }]}>
           {emptyLabel || t('profile.pickDate')}
         </Text>
       </TouchableOpacity>
@@ -337,8 +337,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryDate: { fontWeight: '800', fontSize: 16, color: colors.ink },
-  summaryAge: { fontWeight: '600', fontSize: 13, color: colors.muted, marginTop: 2 },
+  summaryDate: { fontWeight: '400', fontSize: 16, color: colors.ink },
+  summaryAge: { fontWeight: '400', fontSize: 13, color: colors.muted, marginTop: 2 },
   editBtn: {
     width: 36,
     height: 36,
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  editBarTxt: { fontWeight: '700', color: colors.muted, fontSize: 13, flex: 1 },
+  editBarTxt: { fontWeight: '400', color: colors.muted, fontSize: 13, flex: 1 },
   editBarActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   doneEdit: {
     paddingHorizontal: 12,
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.brandSoft,
   },
-  doneEditTxt: { color: colors.brand, fontWeight: '800', fontSize: 13 },
+  doneEditTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   wrap: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -386,15 +386,15 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  navTxt: { fontSize: 22, fontWeight: '800', color: colors.brand, marginTop: -2 },
+  navTxt: { fontSize: 22, fontWeight: '400', color: colors.brand, marginTop: -2 },
   navTitleBtn: { flex: 1, alignItems: 'center', minWidth: 0, paddingHorizontal: 4 },
-  navTitle: { fontWeight: '800', fontSize: 15, color: colors.ink, textTransform: 'capitalize' },
-  navHint: { color: colors.muted, fontWeight: '600', fontSize: 11 },
+  navTitle: { fontWeight: '400', fontSize: 15, color: colors.ink, textTransform: 'capitalize' },
+  navHint: { color: colors.muted, fontWeight: '400', fontSize: 11 },
   weekRow: { flexDirection: 'row', width: '100%' },
   weekLbl: {
     flex: 1,
     textAlign: 'center',
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     fontSize: 11,
     textTransform: 'capitalize',
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   dayOn: { backgroundColor: colors.brand },
   dayToday: { borderWidth: 2, borderColor: colors.brand },
   dayOff: { opacity: 0.35 },
-  dayTxt: { fontWeight: '700', color: colors.ink, fontSize: 14 },
+  dayTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   dayOnTxt: { color: '#fff' },
   dayMuted: { color: colors.muted },
   yearGrid: {
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: 'center',
   },
-  yearTxt: { fontWeight: '800', fontSize: 15, color: colors.ink },
-  ageLine: { fontWeight: '800', fontSize: 14, textAlign: 'center', marginTop: 4 },
+  yearTxt: { fontWeight: '400', fontSize: 15, color: colors.ink },
+  ageLine: { fontWeight: '400', fontSize: 14, textAlign: 'center', marginTop: 4 },
   ageOk: { color: colors.brand },
   ageWait: { color: colors.muted },
 });

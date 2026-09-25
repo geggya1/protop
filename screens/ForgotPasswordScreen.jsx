@@ -65,14 +65,16 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 
 const s = StyleSheet.create({
   container:{ flex:1, padding:20, justifyContent:'center', backgroundColor: colors.bg },
-  title:{ fontSize:22, fontWeight:'700', textAlign:'center', marginBottom:10 },
+  title:{ fontSize:22, fontWeight: '400', textAlign:'center', marginBottom:10 },
   text:{ textAlign:'center', color:'#334155', marginBottom:14 },
   input:{ borderWidth:1, borderColor:'#cbd5e1', borderRadius:8, paddingHorizontal:12, paddingVertical:10, backgroundColor: colors.card, marginBottom:8 },
   inputError:{ borderColor:'#ef4444', backgroundColor:'#fff1f2' },
   error:{ color:'#b91c1c', textAlign:'center', marginBottom:8, fontSize:12 },
   info:{ color: colors.brand, textAlign:'center', marginBottom:8, fontSize:12 },
-  primaryBtn:{ backgroundColor: colors.brand, paddingVertical:14, borderRadius:16, alignItems:'center', marginTop:6 },
-  primaryText:{ color:'#fff', fontWeight:'700', fontSize:16 },
-  secondaryBtn:{ marginTop:12, alignItems:'center' },
-  secondaryText:{ color: colors.brand, fontWeight:'600' },
+  primaryBtn:{
+    alignSelf: 'flex-start', backgroundColor: colors.brand, paddingVertical:14, borderRadius:16, alignItems:'center', marginTop:6 },
+  primaryText:{ color:'#fff', fontWeight: '400', fontSize:16 },
+  secondaryBtn:{
+    alignSelf: 'flex-start', marginTop:12, alignItems:'center' },
+  secondaryText:{ color: colors.brand, fontWeight: '400' },
 });

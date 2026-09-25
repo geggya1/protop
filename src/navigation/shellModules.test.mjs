@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildShellModules,
   buildParentDashboardApps,
   buildChildDashboardApps,
 } from './shellModules.js';
-import { PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
+import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
+import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
 
 const t = (k) => k;
 const kid = { id: 'k1', name: 'Kari' };
@@ -96,5 +98,35 @@ function idsIn(sections) {
   assert.equal(ids.includes('chores'), false);
   assert.equal(ids.includes('skole'), false);
 }
+
+{
+  const activation = applyProtopActivationSections(listModulesByCategory());
+  assert.deepEqual(activation.map((s) => s.id), ['main']);
+  assert.deepEqual(
+    activation.flatMap((s) => s.items.map((i) => i.id)),
+    ['plan', 'mail', 'stars', 'notes', 'chat'],
+  );
+  const names = activation.flatMap((s) => s.items.map((i) => i.name));
+  for (const hidden of ['Gjøremål', 'Handleliste', 'Familiealbum', 'Skole', 'Kjøretøy', 'Dokumenter', 'Utleie']) {
+    assert.equal(names.includes(hidden), false, `${hidden} stays out of activation settings`);
+  }
+}
+
+const linking = readFileSync(new URL('./linking.js', import.meta.url), 'utf8');
+assert.match(linking, /FamilyOverview:\s*'organisasjoner'/);
+assert.equal(linking.includes("FamilyOverview: 'families'"), false);
+
+const orgScreen = readFileSync(new URL('../../screens/FamilyOverviewScreen.jsx', import.meta.url), 'utf8');
+assert.equal(/fontWeight:\s*'[6-9]00'/.test(orgScreen), false);
+assert.match(orgScreen, /styles\.grid/);
+assert.match(orgScreen, /width: 320/);
+
+const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
+assert.equal(/fontWeight:\s*'[6-9]00'/.test(company), false);
+assert.match(company, /alignSelf: 'flex-start'/);
+assert.match(company, /styles\.actions/);
+
+const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
+assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 
 console.log('shellModules.test.mjs: ok');

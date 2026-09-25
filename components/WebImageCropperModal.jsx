@@ -106,7 +106,7 @@ export default function WebImageCropperModal({
               />
             ) : (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                <Text style={{ fontWeight: '800', color: '#0f172a' }}>Crop støttes ikke her</Text>
+                <Text style={{ fontWeight: '400', color: '#0f172a' }}>Crop støttes ikke her</Text>
                 <Text style={{ marginTop: 8, color: '#334155', textAlign: 'center' }}>Prøv å bruke avatarvalg i stedet.</Text>
               </View>
             )}
@@ -134,14 +134,18 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', padding: 14 },
   card: { width: '100%', maxWidth: 900, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  headerTitle: { fontWeight: '900', fontSize: 16, color: '#0f172a' },
-  closeBtn: { padding: 8, borderRadius: 999, backgroundColor: '#f8fafc' },
+  headerTitle: { fontWeight: '400', fontSize: 16, color: '#0f172a' },
+  closeBtn: {
+    alignSelf: 'flex-start', padding: 8, borderRadius: 999, backgroundColor: '#f8fafc' },
   cropArea: { height: 440, backgroundColor: '#000' },
   actions: { flexDirection: 'row', gap: 10, padding: 14, borderTopWidth: 1, borderTopColor: '#e2e8f0', justifyContent: 'flex-end' },
-  btn: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, minWidth: 140, alignItems: 'center' },
-  cancelBtn: { backgroundColor: '#e2e8f0' },
-  cancelTxt: { color: '#0f172a', fontWeight: '800' },
-  okBtn: { backgroundColor: '#0b74d1' },
-  okTxt: { color: '#fff', fontWeight: '800' },
+  btn: {
+    alignSelf: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, minWidth: 140, alignItems: 'center' },
+  cancelBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#e2e8f0' },
+  cancelTxt: { color: '#0f172a', fontWeight: '400' },
+  okBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#0b74d1' },
+  okTxt: { color: '#fff', fontWeight: '400' },
 });
 

@@ -1202,6 +1202,7 @@ const styles = StyleSheet.create({
   },
   formTitle: { flex: 1, marginBottom: 0 },
   closeBtn: {
+    alignSelf: 'flex-start',
     padding: 6,
     borderRadius: 10,
     backgroundColor: colors.sunken,
@@ -1266,7 +1267,7 @@ const styles = StyleSheet.create({
   timeCapsule: { minWidth: 56 },
   capsuleDisabled: { opacity: 0.55 },
   capsuleTxt: {
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
     fontSize: 13,
   },
@@ -1280,6 +1281,7 @@ const styles = StyleSheet.create({
   labelDesk: { fontWeight: '500', fontSize: 13, marginTop: 10, marginBottom: 4 },
 
   pickerBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
     borderRadius: radius.md, padding: 14,
@@ -1287,7 +1289,7 @@ const styles = StyleSheet.create({
   pickerBtnTxt: { fontWeight: '500', color: colors.muted, fontSize: 14 },
   pickerBtnVal: { flex: 1, fontWeight: '500', color: colors.ink, fontSize: 15 },
   doneBtn: { alignSelf: 'flex-end', paddingHorizontal: 16, paddingVertical: 8, marginTop: 4 },
-  doneBtnTxt: { color: colors.brand, fontWeight: '600', fontSize: 15 },
+  doneBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
 
   webPickerWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1313,7 +1315,7 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   timeSep: { paddingTop: 24, alignItems: 'center' },
 
-  h: { fontWeight: '600', fontSize: 18, color: colors.ink },
+  h: { fontWeight: '400', fontSize: 18, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingBottom: 6 },
   wrapReadonly: { opacity: 0.85 },
   chip: {
@@ -1340,6 +1342,7 @@ const styles = StyleSheet.create({
   },
   visibilityActionsDesk: { justifyContent: 'flex-end' },
   visibilityCloseBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 12,
@@ -1350,20 +1353,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   visibilityCloseBtnDesk: { paddingVertical: 10, borderRadius: 8 },
-  visibilityCloseTxt: { fontWeight: '600', color: colors.ink, fontSize: 14 },
+  visibilityCloseTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   visibilityUpdateWrap: { flex: 1, minWidth: 120 },
   deleteBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginTop: 8, paddingVertical: 12, borderRadius: 12,
     backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca',
   },
   deleteBtnDesk: { paddingVertical: 10, borderRadius: 8, marginTop: 8 },
-  deleteTxt: { color: '#b91c1c', fontWeight: '600', fontSize: 14 },
+  deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 14 },
   deleteConfirmBox: {
     marginTop: 8, padding: 14, borderRadius: 14,
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', gap: 8,
   },
-  deleteConfirmTitle: { fontWeight: '600', fontSize: 15, color: '#7f1d1d' },
+  deleteConfirmTitle: { fontWeight: '400', fontSize: 15, color: '#7f1d1d' },
   deleteConfirmMsg: { fontWeight: '400', fontSize: 13, color: '#991b1b', lineHeight: 18 },
   deleteConfirmRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
   deleteCancelBtn: {
@@ -1371,12 +1375,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12, borderRadius: 12, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.line,
   },
-  deleteCancelTxt: { fontWeight: '600', color: colors.ink, fontSize: 14 },
+  deleteCancelTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   deleteConfirmBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingVertical: 12, borderRadius: 12, backgroundColor: '#b91c1c',
   },
-  deleteConfirmBtnTxt: { fontWeight: '600', color: '#fff', fontSize: 14 },
+  deleteConfirmBtnTxt: { fontWeight: '400', color: '#fff', fontSize: 14 },
 
   formRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -1403,7 +1407,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden',
   },
   sheetTitle: {
-    fontWeight: '600', fontSize: 15, color: colors.ink, textAlign: 'center',
+    fontWeight: '400', fontSize: 15, color: colors.ink, textAlign: 'center',
     paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.line,
   },
   sheetRow: {
@@ -1413,7 +1417,7 @@ const styles = StyleSheet.create({
   sheetRowLast: { borderBottomWidth: 0 },
   sheetRowTxt: { fontWeight: '500', fontSize: 15, color: colors.ink },
   sheetCancel: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line },
-  sheetCancelTxt: { fontWeight: '600', color: colors.brand, fontSize: 15 },
+  sheetCancelTxt: { fontWeight: '400', color: colors.brand, fontSize: 15 },
 
   customModalWrap: { flex: 1, backgroundColor: colors.sunken },
   customScreen: { flex: 1, padding: 16 },
@@ -1421,9 +1425,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
   },
   customBack: { padding: 4, width: 60 },
-  customTitle: { fontWeight: '600', fontSize: 17, color: colors.ink },
+  customTitle: { fontWeight: '400', fontSize: 17, color: colors.ink },
   customDone: { width: 60, alignItems: 'flex-end' },
-  customDoneTxt: { color: colors.brand, fontWeight: '600', fontSize: 15 },
+  customDoneTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
   customCard: {
     backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line,
     padding: 14, marginBottom: 12,
@@ -1440,7 +1444,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken, alignItems: 'center',
   },
   intervalPillOn: { backgroundColor: colors.brand },
-  intervalPillTxt: { fontWeight: '600', color: colors.ink, fontSize: 15 },
+  intervalPillTxt: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   intervalPillTxtOn: { color: '#fff' },
   intervalUnit: { fontWeight: '500', color: colors.muted, fontSize: 15, minWidth: 48 },
 
@@ -1454,7 +1458,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   weekChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  weekChipTxt: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  weekChipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   weekChipTxtOn: { color: '#fff' },
 
   readOnlyBanner: {

@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 14 },
   card: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  title: { fontSize: 16, fontWeight: '800', flex: 1 },
+  title: { fontSize: 16, fontWeight: '400', flex: 1 },
   when: { fontSize: 11 },
   bodyTxt: { fontSize: 14, lineHeight: 20 },
   author: { fontSize: 11 },

@@ -1010,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.6,
     color: colors.brand,
     textTransform: 'uppercase',
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.text,
     marginBottom: 8,
   },
@@ -1035,12 +1035,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   tabOn: { backgroundColor: colors.brand },
-  tabTxt: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+  tabTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   tabTxtOn: { color: '#fff' },
   section: { gap: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '400', color: colors.text, marginTop: 4 },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
   primaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1049,8 +1050,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1059,9 +1061,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
   },
-  secondaryBtnTxt: { color: colors.brand, fontWeight: '700', fontSize: 13 },
+  secondaryBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   btnDisabled: { opacity: 0.6 },
-  planHeadline: { fontSize: 20, fontWeight: '800', color: colors.text },
+  planHeadline: { fontSize: 20, fontWeight: '400', color: colors.text },
   planSummary: { color: colors.text, opacity: 0.85, marginBottom: 4 },
   cost: { color: colors.muted, marginBottom: 8, fontSize: 13 },
   dayCard: {
@@ -1086,12 +1088,12 @@ const styles = StyleSheet.create({
   },
   dayTop: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   dayActions: { alignItems: 'center', gap: 6 },
-  dayName: { fontSize: 12, fontWeight: '700', color: colors.brand, textTransform: 'uppercase' },
-  dayTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  dayName: { fontSize: 12, fontWeight: '400', color: colors.brand, textTransform: 'uppercase' },
+  dayTitle: { fontSize: 16, fontWeight: '400', color: colors.text },
   openHint: {
     marginTop: 8,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.brand,
   },
   swapBtn: {
@@ -1103,7 +1105,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(37,99,235,0.1)',
   },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
-  meta: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  meta: { color: colors.muted, fontSize: 12, fontWeight: '400' },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   tag: {
     backgroundColor: 'rgba(37,99,235,0.1)',
@@ -1111,7 +1113,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  tagTxt: { fontSize: 11, color: colors.brand, fontWeight: '600' },
+  tagTxt: { fontSize: 11, color: colors.brand, fontWeight: '400' },
   why: { marginTop: 8, fontStyle: 'italic', color: colors.text, opacity: 0.8 },
   desc: { marginTop: 4, color: colors.muted, fontSize: 13, lineHeight: 18 },
   instructions: {
@@ -1127,7 +1129,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 4,
   },
-  checkTitle: { fontWeight: '700', color: colors.text, fontSize: 15 },
+  checkTitle: { fontWeight: '400', color: colors.text, fontSize: 15 },
   checkSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   modalBackdrop: {
     flex: 1,
@@ -1158,7 +1160,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 14,
   },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
+  modalTitle: { fontSize: 22, fontWeight: '400', color: colors.text },
   modalClose: {
     width: 36,
     height: 36,
@@ -1174,7 +1176,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(0,0,0,0.03)',
   },
-  emptyTitle: { fontWeight: '700', fontSize: 16, color: colors.text },
+  emptyTitle: { fontWeight: '400', fontSize: 16, color: colors.text },
   input: {
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.1)',
@@ -1193,8 +1195,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0,0,0,0.08)',
   },
-  listTxt: { color: colors.text, fontWeight: '600', flex: 1 },
-  label: { marginTop: 12, marginBottom: 6, fontWeight: '700', color: colors.text },
+  listTxt: { color: colors.text, fontWeight: '400', flex: 1 },
+  label: { marginTop: 12, marginBottom: 6, fontWeight: '400', color: colors.text },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 12,
@@ -1203,7 +1205,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
   },
   chipOn: { backgroundColor: colors.brand },
-  chipTxt: { color: colors.text, fontWeight: '600', fontSize: 13 },
+  chipTxt: { color: colors.text, fontWeight: '400', fontSize: 13 },
   chipTxtOn: { color: '#fff' },
   numRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   numInput: {
@@ -1226,8 +1228,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  linkBtn: { marginTop: 8, marginBottom: 12 },
-  linkTxt: { color: colors.brand, fontWeight: '700' },
+  linkBtn: {
+    alignSelf: 'flex-start', marginTop: 8, marginBottom: 12 },
+  linkTxt: { color: colors.brand, fontWeight: '400' },
   quickLinks: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1245,5 +1248,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
   },
-  quickTxt: { fontWeight: '600', color: colors.text },
+  quickTxt: { fontWeight: '400', color: colors.text },
 });

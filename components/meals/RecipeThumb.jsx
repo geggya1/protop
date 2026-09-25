@@ -88,6 +88,6 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   starBadgeSm: { paddingHorizontal: 3 },
-  starTxt: { fontSize: 9, fontWeight: '800', color: colors.ink },
+  starTxt: { fontSize: 9, fontWeight: '400', color: colors.ink },
   starTxtSm: { fontSize: 8 },
 });

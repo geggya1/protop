@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   logoWord: {
     color: LOGO_WORD,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   logoWordStack: {
     fontSize: 13,
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: EYEBROW,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 1.7,
     textTransform: 'uppercase',
   },
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   headline: {
     color: TEXT,
     fontSize: 43,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: -0.4,
     lineHeight: 47,
   },
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   },
   checkMark: {
     color: CHECK_MARK,
-    fontWeight: '700',
+    fontWeight: '400',
     textAlign: 'center',
   },
   benefitTxt: {
@@ -637,6 +637,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: PRIMARY,
     paddingHorizontal: 18,
     alignItems: 'center',
@@ -661,12 +662,13 @@ const styles = StyleSheet.create({
   primaryTxt: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   primaryTxtStack: {
     fontSize: 14,
   },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',

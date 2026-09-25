@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   bodyDesk: { maxWidth: 720, alignSelf: 'center', width: '100%' },
   loading: { padding: 24 },
-  title: { fontSize: 22, fontWeight: '700', marginTop: 4 },
+  title: { fontSize: 22, fontWeight: '400', marginTop: 4 },
   lead: {
     fontSize: 16, lineHeight: 24, marginTop: 8,
   },

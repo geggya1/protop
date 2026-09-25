@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, useLayout } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import { listModulesByCategory } from '../src/modules/moduleActivationRegistry';
+import { applyProtopActivationSections } from '../src/navigation/protopShell';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
 import { localizeModuleFields } from '../src/i18n/moduleCatalog';
 import { useI18n } from '../src/i18n';
@@ -25,7 +26,7 @@ export default function ModuleActivationSettings() {
   const { t, lang } = useI18n();
   const { isActivated, activateModule, deactivateModule, canManage } = useModuleAccess();
   const sections = useMemo(() => {
-    return listModulesByCategory().map((section) => ({
+    return applyProtopActivationSections(listModulesByCategory()).map((section) => ({
       ...section,
       title: t(CATEGORY_KEYS[section.id] || section.title) || section.title,
       items: (section.items || []).map((mod) => localizeModuleFields(mod, lang)),
@@ -76,14 +77,14 @@ const styles = StyleSheet.create({
   block: { marginBottom: 4 },
   cat: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 8,
     marginTop: 8,
   },
-  catDesk: { fontSize: 11, fontWeight: '600' },
+  catDesk: { fontSize: 11, fontWeight: '400' },
   group: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -102,8 +103,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   rowCompact: { paddingVertical: 8, paddingHorizontal: 10 },
-  label: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  labelCompact: { fontSize: 13, fontWeight: '600' },
+  label: { fontSize: 15, fontWeight: '400', color: colors.ink },
+  labelCompact: { fontSize: 13, fontWeight: '400' },
   rowHint: { fontSize: 12, color: colors.muted, marginTop: 2, fontWeight: '400' },
   hint: { fontSize: 13, color: colors.muted, marginBottom: 12 },
 });

@@ -94,20 +94,20 @@ export default function TeamApprovalsScreen({ teamId }) {
 const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  lead: { color: c.muted, fontWeight: '600', fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  lead: { color: c.muted, fontWeight: '400', fontSize: 13, lineHeight: 18, marginBottom: 14 },
   card: { backgroundColor: c.surface, borderRadius: 14, padding: 14, marginBottom: 10 },
-  child: { color: c.ink, fontWeight: '900', fontSize: 17 },
-  parent: { color: c.muted, fontWeight: '600', marginTop: 4, fontSize: 13 },
+  child: { color: c.ink, fontWeight: '400', fontSize: 17 },
+  parent: { color: c.muted, fontWeight: '400', marginTop: 4, fontSize: 13 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   reject: {
     flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: c.surface2,
   },
-  rejectTxt: { color: c.ink, fontWeight: '800' },
+  rejectTxt: { color: c.ink, fontWeight: '400' },
   approve: {
     flex: 1.4, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: c.success,
   },
-  approveTxt: { color: '#fff', fontWeight: '900' },
+  approveTxt: { color: '#fff', fontWeight: '400' },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
-  emptyTitle: { color: c.ink, fontWeight: '800', fontSize: 16 },
-  emptySub: { color: c.muted, fontWeight: '600' },
+  emptyTitle: { color: c.ink, fontWeight: '400', fontSize: 16 },
+  emptySub: { color: c.muted, fontWeight: '400' },
 });

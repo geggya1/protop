@@ -398,6 +398,7 @@ const styles = StyleSheet.create({
   doneTitle: { color: colors.muted, textDecorationLine: 'line-through' },
   meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   doneBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft,
     borderRadius: 10,
     paddingHorizontal: 10,

@@ -50,19 +50,19 @@ const styles = StyleSheet.create({
   wrap: { flexShrink: 1 },
   blank: { height: 8 },
   blockGap: { marginTop: 3 },
-  bold: { fontWeight: '800' },
+  bold: { fontWeight: '400' },
   italic: { fontStyle: 'italic' },
   underline: { textDecorationLine: 'underline' },
   code: {
     fontFamily: 'monospace',
     backgroundColor: '#f1f5f9',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
   },
   codeUser: {
     fontFamily: 'monospace',
     backgroundColor: 'rgba(255,255,255,0.18)',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
   },
 });

@@ -295,8 +295,8 @@ export default function DashboardThemeGalleryScreen() {
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 48, maxWidth: 430, alignSelf: 'center', width: '100%' },
-  kicker: { fontSize: 12, fontWeight: '600', color: colors.muted, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
-  title: { fontSize: 22, fontWeight: '700', color: colors.ink, marginTop: 4 },
+  kicker: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
+  title: { fontSize: 22, fontWeight: '400', color: colors.ink, marginTop: 4 },
   lead: { fontSize: 15, color: colors.muted, lineHeight: 22, marginTop: 8, marginBottom: 12 },
   roleRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   roleChip: {
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line,
   },
   roleChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  roleTxt: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  roleTxt: { fontSize: 14, fontWeight: '400', color: colors.ink },
   roleTxtOn: { color: colors.brand },
   phone: {
     backgroundColor: soft.bg,

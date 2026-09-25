@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink },
   sub: { marginTop: 2, fontSize: 13, fontWeight: '500', color: colors.muted, lineHeight: 18 },
   closeBtn: {
     width: 32,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   scrollBody: { paddingBottom: 8, gap: 10 },
   countHint: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 2,
   },
@@ -244,14 +244,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  loadingTxt: { color: colors.muted, fontWeight: '600' },
+  loadingTxt: { color: colors.muted, fontWeight: '400' },
   emptyBox: { paddingVertical: 20, alignItems: 'center', gap: 10 },
-  emptyTxt: { color: colors.muted, fontWeight: '600' },
+  emptyTxt: { color: colors.muted, fontWeight: '400' },
   ghostBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  ghostTxt: { color: colors.brand, fontWeight: '700' },
+  ghostTxt: { color: colors.brand, fontWeight: '400' },
   group: {
     backgroundColor: '#f8fafc',
     borderRadius: 12,
@@ -259,7 +260,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   groupTitle: {
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 11,
     color: colors.muted,
     textTransform: 'uppercase',
@@ -275,10 +276,10 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
   },
-  name: { flex: 1, fontWeight: '600', color: colors.ink, fontSize: 14 },
-  amt: { color: colors.muted, fontWeight: '600', fontSize: 13, textAlign: 'right' },
+  name: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 14 },
+  amt: { color: colors.muted, fontWeight: '400', fontSize: 13, textAlign: 'right' },
   picker: { marginTop: 4, gap: 4 },
-  pickerTitle: { fontWeight: '700', fontSize: 13, color: colors.ink, marginBottom: 4 },
+  pickerTitle: { fontWeight: '400', fontSize: 13, color: colors.ink, marginBottom: 4 },
   pickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -288,7 +289,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   pickRowOn: { backgroundColor: colors.brandSoft },
-  pickName: { fontWeight: '700', fontSize: 14, color: colors.ink },
+  pickName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   pickMeta: { fontSize: 11, color: colors.muted, fontWeight: '500', marginTop: 1 },
   primary: {
     marginTop: 12,
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     minHeight: 48,
   },
-  primaryTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   dismiss: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
-  dismissTxt: { color: colors.muted, fontWeight: '700', fontSize: 14 },
+  dismissTxt: { color: colors.muted, fontWeight: '400', fontSize: 14 },
 });

@@ -94,6 +94,7 @@ export function OrDivider({ label = 'OR' }) {
 const styles = StyleSheet.create({
   wrap: { gap: 12, width: '100%' },
   btn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.55 },
   btnTxt: {
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: 0.1,
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
   },
   orLine: { flex: 1, height: 1, backgroundColor: colors.line },
   orTxt: {
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 13,
     color: colors.muted,
     letterSpacing: 0.5,

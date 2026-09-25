@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     color: colors.brand,
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
     lineHeight: 26,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   },
   secondaryTxt: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
   },
   primaryBtn: {
@@ -243,10 +243,11 @@ const styles = StyleSheet.create({
   },
   primaryTxt: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     color: '#fff',
   },
   closeBtn: {
+    alignSelf: 'flex-start',
     position: 'absolute',
     top: 10,
     right: 10,
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     zIndex: 1,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#fff',
   },
 });

@@ -116,8 +116,8 @@ export default function SelectFamilyScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16, backgroundColor: '#fff' },
-  header: { fontSize: 22, fontWeight: '800', marginBottom: 12, color: '#0f172a' },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 8, color: '#0f172a', textAlign: 'center' },
+  header: { fontSize: 22, fontWeight: '400', marginBottom: 12, color: '#0f172a' },
+  title: { fontSize: 20, fontWeight: '400', marginBottom: 8, color: '#0f172a', textAlign: 'center' },
   muted: { color: '#64748b', textAlign: 'center', marginTop: 8 },
 
   card: {
@@ -127,11 +127,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#0b74d1',
   },
-  name: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  name: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
   meta: { fontSize: 12, color: '#475569', marginTop: 4 },
-  link: { marginTop: 10, color: '#0b74d1', fontWeight: '700' },
+  link: { marginTop: 10, color: '#0b74d1', fontWeight: '400' },
 
   btn: {
+    alignSelf: 'flex-start',
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 18,
@@ -139,6 +140,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnSecondary: { borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#fff' },
-  btnText: { fontWeight: '700' },
+  btnText: { fontWeight: '400' },
   btnTextSecondary: { color: '#0f172a' },
 });

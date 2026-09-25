@@ -206,8 +206,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  title: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  body: { marginTop: 8, fontSize: 14, lineHeight: 21, fontWeight: '600', color: colors.muted },
+  title: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  body: { marginTop: 8, fontSize: 14, lineHeight: 21, fontWeight: '400', color: colors.muted },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -215,9 +215,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
-  checkTxt: { flex: 1, fontWeight: '700', fontSize: 14, color: colors.ink, lineHeight: 20 },
+  checkTxt: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink, lineHeight: 20 },
   nameBlock: { marginTop: 14 },
-  nameHint: { fontWeight: '700', fontSize: 12, color: colors.muted, marginBottom: 6 },
+  nameHint: { fontWeight: '400', fontSize: 12, color: colors.muted, marginBottom: 6 },
   nameInput: {
     borderWidth: 1.5,
     borderColor: colors.line,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     backgroundColor: colors.bg,
   },
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
-  cancelTxt: { fontWeight: '800', color: colors.muted, fontSize: 15 },
+  cancelTxt: { fontWeight: '400', color: colors.muted, fontSize: 15 },
   confirmBtn: {
     flex: 1,
     paddingVertical: 12,
@@ -250,5 +250,5 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
   confirmDanger: { backgroundColor: colors.danger },
-  confirmTxt: { fontWeight: '800', color: '#fff', fontSize: 15 },
+  confirmTxt: { fontWeight: '400', color: '#fff', fontSize: 15 },
 });

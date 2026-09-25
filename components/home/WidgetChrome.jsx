@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     width: 30, height: 30, alignItems: 'center', justifyContent: 'center',
   },
   title: {
-    fontSize: 15, color: soft.ink, fontWeight: '700',
+    fontSize: 15, color: soft.ink, fontWeight: '400',
     fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined,
     lineHeight: 19,
   },
@@ -276,9 +276,9 @@ const styles = StyleSheet.create({
   headerLink: { fontSize: 12, color: soft.muted },
   dateWrap: { alignItems: 'flex-end' },
   dateKicker: { fontSize: 11, color: soft.muted, marginBottom: 1 },
-  dateValue: { fontSize: 13, color: soft.ink, fontWeight: '600' },
+  dateValue: { fontSize: 13, color: soft.ink, fontWeight: '400' },
   statWrap: { alignItems: 'flex-end' },
-  statValue: { fontSize: 15, color: soft.ink, fontWeight: '600' },
+  statValue: { fontSize: 15, color: soft.ink, fontWeight: '400' },
   statHint: { fontSize: 11, color: soft.muted, marginTop: 1, maxWidth: 92, textAlign: 'right' },
   body: { gap: 6, flex: 1 },
   pill: {
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   },
   glyph: { alignItems: 'center', justifyContent: 'center' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { color: '#fff', fontWeight: '600' },
+  avatarTxt: { color: '#fff', fontWeight: '400' },
   checkOn: { backgroundColor: '#34C759', alignItems: 'center', justifyContent: 'center' },
   checkOff: { borderWidth: 1.5, borderColor: '#C8CDD6' },
   foot: {
@@ -320,5 +320,5 @@ const styles = StyleSheet.create({
   },
   ctaTxt: { fontSize: 12, color: soft.sage },
   ctaFullTxt: { fontSize: 14, color: soft.sage },
-  ringTxt: { fontSize: 10, color: soft.ink, fontWeight: '600' },
+  ringTxt: { fontSize: 10, color: soft.ink, fontWeight: '400' },
 });

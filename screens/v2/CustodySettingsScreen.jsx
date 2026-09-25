@@ -382,7 +382,7 @@ export default function CustodySettingsScreen({ inShell = false, onBack, child: 
 const styles = StyleSheet.create({
   lead: { marginBottom: 12 },
   section: {
-    fontSize: 12, fontWeight: '800', color: colors.muted, textTransform: 'uppercase',
+    fontSize: 12, fontWeight: '400', color: colors.muted, textTransform: 'uppercase',
     letterSpacing: 0.8, marginTop: 8, marginBottom: 6, marginLeft: 2,
   },
   card: {
@@ -390,16 +390,16 @@ const styles = StyleSheet.create({
     borderColor: colors.line, padding: 14, gap: 12,
   },
   rowBetween: { flexDirection: 'row', alignItems: 'center' },
-  rowTitle: { fontWeight: '800', fontSize: 15, color: colors.ink },
-  rowSub: { fontSize: 12, color: colors.muted, fontWeight: '600', marginTop: 2 },
+  rowTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
+  rowSub: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
   cardHint: { fontSize: 13, lineHeight: 18, marginBottom: 4 },
   sideBlock: { gap: 4 },
-  sideLbl: { fontSize: 11, fontWeight: '800', color: colors.muted, textTransform: 'uppercase' },
-  sideName: { fontSize: 17, fontWeight: '800', color: colors.ink },
-  sideHint: { fontSize: 12, color: colors.muted, fontWeight: '600' },
+  sideLbl: { fontSize: 11, fontWeight: '400', color: colors.muted, textTransform: 'uppercase' },
+  sideName: { fontSize: 17, fontWeight: '400', color: colors.ink },
+  sideHint: { fontSize: 12, color: colors.muted, fontWeight: '400' },
   labelInput: {
     borderWidth: 1, borderColor: colors.line, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontWeight: '600',
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontWeight: '400',
     color: colors.ink, backgroundColor: colors.bg,
   },
   swapBtn: {
@@ -407,9 +407,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12,
     borderRadius: 10, backgroundColor: colors.brandSoft,
   },
-  swapTxt: { color: colors.brand, fontWeight: '800', fontSize: 13 },
+  swapTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   linkRow: { gap: 8, marginTop: 4, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  linkLbl: { fontSize: 12, fontWeight: '700', color: colors.muted },
+  linkLbl: { fontSize: 12, fontWeight: '400', color: colors.muted },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10,
@@ -417,16 +417,18 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   chipOnB: { backgroundColor: '#ffedd5', borderColor: '#ea580c' },
-  chipTxt: { fontWeight: '700', fontSize: 13, color: colors.ink },
+  chipTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
   chipTxtOn: { color: colors.brand },
   addBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.brand,
     backgroundColor: colors.brandSoft,
   },
-  addBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
-  templateBtn: { alignItems: 'center', paddingVertical: 8 },
-  templateBtnTxt: { color: colors.brand, fontWeight: '700', fontSize: 13 },
+  addBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
+  templateBtn: {
+    alignSelf: 'flex-start', alignItems: 'center', paddingVertical: 8 },
+  templateBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  centerTitle: { fontSize: 18, fontWeight: '800', color: colors.ink, marginBottom: 8 },
+  centerTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, marginBottom: 8 },
 });

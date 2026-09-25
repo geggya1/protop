@@ -94,9 +94,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1d5db',
     marginBottom: 12,
   },
-  title: { fontSize: 20, fontWeight: '900', color: colors.ink },
-  titleDesktop: { fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
-  sub: { color: colors.muted, fontWeight: '600', fontSize: 13, marginTop: 4, marginBottom: 12 },
+  title: { fontSize: 20, fontWeight: '400', color: colors.ink },
+  titleDesktop: { fontSize: 16, fontWeight: '400', letterSpacing: -0.2 },
+  sub: { color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 4, marginBottom: 12 },
   subDesktop: { fontWeight: '400', fontSize: 12, marginBottom: 8 },
   list: { flexGrow: 0 },
   listContent: { paddingBottom: 8 },
@@ -127,9 +127,9 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 6,
   },
-  rowLabel: { fontWeight: '800', fontSize: 15, color: colors.ink },
+  rowLabel: { fontWeight: '400', fontSize: 15, color: colors.ink },
   rowLabelDesk: { fontWeight: '500', fontSize: 14 },
-  rowSub: { fontWeight: '600', fontSize: 12, color: colors.muted, marginTop: 2 },
+  rowSub: { fontWeight: '400', fontSize: 12, color: colors.muted, marginTop: 2 },
   rowSubDesk: { fontWeight: '400' },
   cancel: {
     marginTop: 10,
@@ -141,6 +141,6 @@ const styles = StyleSheet.create({
   cancelDesktop: {
     paddingVertical: 8,
   },
-  cancelTxt: { fontWeight: '800', fontSize: 15, color: colors.ink },
+  cancelTxt: { fontWeight: '400', fontSize: 15, color: colors.ink },
   cancelTxtDesk: { fontWeight: '500', fontSize: 13 },
 });

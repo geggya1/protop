@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.65 },
   web: { cursor: 'pointer' },
-  txt: { fontWeight: '700', fontSize: 13 },
+  txt: { fontWeight: '400', fontSize: 13 },
   txtLight: {
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 1 },

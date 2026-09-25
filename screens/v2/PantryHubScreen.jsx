@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   asideKicker: {
-    fontSize: 11, fontWeight: '600', color: colors.muted,
+    fontSize: 11, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.4,
   },
   asideLead: { fontSize: 13, fontWeight: '400', color: colors.muted, lineHeight: 18 },
@@ -564,6 +564,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: colors.ink, fontWeight: '400',
   },
   dateBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: 12, minHeight: 46, position: 'relative', overflow: 'hidden',

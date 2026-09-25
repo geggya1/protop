@@ -78,7 +78,7 @@ export default function PlatformAbsenceScreen({ config, groupId }) {
           <Text style={[styles.name, { color: c.ink }]}>{a.childName}</Text>
           <Text style={[styles.meta, { color: c.muted }]}>{a.dateKey} · {a.reason || 'Ingen årsak oppgitt'}</Text>
           <View style={[styles.badge, { backgroundColor: a.status === 'pending' ? '#fef3c7' : c.brandSoft }]}>
-            <Text style={{ color: a.status === 'pending' ? '#b45309' : c.brand, fontSize: 11, fontWeight: '700' }}>
+            <Text style={{ color: a.status === 'pending' ? '#b45309' : c.brand, fontSize: 11, fontWeight: '400' }}>
               {a.status === 'pending' ? 'Venter' : 'Registrert'}
             </Text>
           </View>
@@ -93,13 +93,14 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 12, paddingBottom: 32 },
   lead: { fontSize: 13, lineHeight: 18 },
   addBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 14 },
-  addTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  addTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   form: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-  saveBtn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  saveTxt: { color: '#fff', fontWeight: '800' },
+  saveBtn: {
+    alignSelf: 'flex-start', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  saveTxt: { color: '#fff', fontWeight: '400' },
   card: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 4 },
-  name: { fontSize: 15, fontWeight: '800' },
+  name: { fontSize: 15, fontWeight: '400' },
   meta: { fontSize: 12 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginTop: 4 },
 });

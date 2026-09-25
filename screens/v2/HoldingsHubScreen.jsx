@@ -1097,6 +1097,7 @@ const styles = StyleSheet.create({
   lookupRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   lookupInput: { flex: 1, marginTop: 0 },
   lookupBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.brand, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 12,

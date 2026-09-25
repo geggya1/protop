@@ -635,7 +635,7 @@ export default function FriendsHubScreen({ inShell = false }) {
 
 const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 40 },
-  pageTitle: { fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: 6 },
+  pageTitle: { fontSize: 22, fontWeight: '400', color: colors.text, marginBottom: 6 },
   hint: { color: colors.muted, fontSize: 14, marginBottom: 12, lineHeight: 20 },
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: 14, alignItems: 'stretch' },
   addBtn: {
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
   },
-  addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  addBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   addBtnSub: { color: 'rgba(255,255,255,0.82)', fontSize: 11, marginTop: 1, fontWeight: '500' },
   qrBtn: {
     width: 88,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
   },
-  qrBtnTxt: { color: colors.brand, fontWeight: '700', fontSize: 11, textAlign: 'center' },
+  qrBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 11, textAlign: 'center' },
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -675,9 +675,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  toastTxt: { flex: 1, color: '#166534', fontSize: 13, fontWeight: '600' },
+  toastTxt: { flex: 1, color: '#166534', fontSize: 13, fontWeight: '400' },
   section: { marginBottom: 22 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '400', color: colors.text, marginBottom: 4 },
   sectionHint: { fontSize: 12, color: colors.muted, marginBottom: 10, lineHeight: 17 },
   empty: { color: colors.muted, fontSize: 13, paddingVertical: 8 },
   personRow: {
@@ -690,9 +690,10 @@ const styles = StyleSheet.create({
   },
   personMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   personBody: { flex: 1, minWidth: 0 },
-  personName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  personName: { fontSize: 15, fontWeight: '400', color: colors.text },
   personSub: { fontSize: 12, color: colors.muted, marginTop: 1 },
-  moreBtn: { padding: 8 },
+  moreBtn: {
+    alignSelf: 'flex-start', padding: 8 },
   requestCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,14 +704,16 @@ const styles = StyleSheet.create({
   },
   requestBody: { flex: 1, minWidth: 0 },
   acceptBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
   },
-  acceptTxt: { color: '#fff', fontWeight: '600', fontSize: 12 },
-  declineBtn: { paddingHorizontal: 8, paddingVertical: 5 },
-  declineTxt: { color: colors.muted, fontWeight: '600', fontSize: 12 },
+  acceptTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
+  declineBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 5 },
+  declineTxt: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   outgoingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -723,7 +726,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 3,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     overflow: 'hidden',
   },
   statusPending: { color: '#b45309' },
@@ -731,15 +734,18 @@ const styles = StyleSheet.create({
   statusWithdrawn: { color: colors.muted },
   outgoingActions: { alignItems: 'flex-end', gap: 4 },
   resendBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft || '#eff6ff',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
   },
-  resendTxt: { color: colors.brand, fontWeight: '700', fontSize: 11 },
-  withdrawBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  withdrawTxt: { color: colors.muted, fontWeight: '600', fontSize: 11 },
+  resendTxt: { color: colors.brand, fontWeight: '400', fontSize: 11 },
+  withdrawBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4 },
+  withdrawTxt: { color: colors.muted, fontWeight: '400', fontSize: 11 },
   dismissBtn: {
+    alignSelf: 'flex-start',
     padding: 8,
     borderRadius: 8,
   },

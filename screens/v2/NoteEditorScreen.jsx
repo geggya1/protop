@@ -273,11 +273,12 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
   },
-  saveBtn: { backgroundColor: colors.brand, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  saveTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  saveBtn: {
+    alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  saveTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   body: { padding: 16, paddingBottom: 40 },
   titleInput: {
-    fontSize: 24, fontWeight: '900', color: colors.ink, marginBottom: 12,
+    fontSize: 24, fontWeight: '400', color: colors.ink, marginBottom: 12,
     borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 8,
   },
   toolbar: {
@@ -285,27 +286,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: 8, borderWidth: 1, borderColor: colors.line,
   },
   fmtBtn: {
+    alignSelf: 'flex-start',
     minWidth: 40, height: 40, borderRadius: 8, backgroundColor: colors.card,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: 10,
   },
-  fmtTxt: { fontWeight: '700', color: colors.brand, fontSize: 16 },
-  fmtBold: { fontWeight: '900' },
-  aiBtn: { flexDirection: 'row', gap: 4, minWidth: 44, paddingHorizontal: 8 },
-  aiBtnTxt: { fontWeight: '800', color: colors.brand, fontSize: 12 },
+  fmtTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  fmtBold: { fontWeight: '400' },
+  aiBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', gap: 4, minWidth: 44, paddingHorizontal: 8 },
+  aiBtnTxt: { fontWeight: '400', color: colors.brand, fontSize: 12 },
   bodyInput: {
     minHeight: Platform.OS === 'web' ? 320 : 280,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     padding: 14, fontSize: 16, lineHeight: 24, fontWeight: '500', color: colors.ink,
   },
-  hint: { marginTop: 10, color: colors.muted, fontSize: 12, fontWeight: '600' },
+  hint: { marginTop: 10, color: colors.muted, fontSize: 12, fontWeight: '400' },
   recordingBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.line,
     backgroundColor: colors.card,
   },
   pulse: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
-  recordingTxt: { flex: 1, fontWeight: '600', color: colors.ink, fontSize: 14 },
+  recordingTxt: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 14 },
   stopBtn: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#ef4444',
     alignItems: 'center', justifyContent: 'center',

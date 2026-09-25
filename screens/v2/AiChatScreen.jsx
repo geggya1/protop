@@ -444,13 +444,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.line,
   },
-  backBtn: { padding: 2 },
+  backBtn: {
+    alignSelf: 'flex-start', padding: 2 },
   iconBtn: {
     width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
   },
-  headerTitle: { fontWeight: '800', fontSize: 15, color: colors.ink },
-  headerSub: { color: colors.muted, fontWeight: '600', fontSize: 11 },
+  headerTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
+  headerSub: { color: colors.muted, fontWeight: '400', fontSize: 11 },
 
   disclaimer: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -458,7 +459,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10, marginTop: 6,
     borderRadius: 8, borderWidth: 1, borderColor: '#fde68a',
   },
-  disclaimerTxt: { flex: 1, color: '#92400e', fontSize: 11, fontWeight: '600' },
+  disclaimerTxt: { flex: 1, color: '#92400e', fontSize: 11, fontWeight: '400' },
 
   chipsRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#bfdbfe',
     maxHeight: 28, justifyContent: 'center',
   },
-  chipText: { color: '#0b74d1', fontWeight: '600', fontSize: 12, lineHeight: 16 },
+  chipText: { color: '#0b74d1', fontWeight: '400', fontSize: 12, lineHeight: 16 },
 
   historyBackdrop: {
     flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end',
@@ -482,28 +483,28 @@ const styles = StyleSheet.create({
   historyHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8,
   },
-  historyTitle: { fontWeight: '900', fontSize: 17, color: colors.ink },
+  historyTitle: { fontWeight: '400', fontSize: 17, color: colors.ink },
   historyNew: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  historyNewTxt: { fontWeight: '800', fontSize: 14, color: colors.brand },
+  historyNewTxt: { fontWeight: '400', fontSize: 14, color: colors.brand },
   historyEmpty: {
-    paddingVertical: 20, color: colors.muted, fontWeight: '600', fontSize: 13, textAlign: 'center',
+    paddingVertical: 20, color: colors.muted, fontWeight: '400', fontSize: 13, textAlign: 'center',
   },
   historyRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   historyRowActive: { backgroundColor: '#eef6ff', marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 10 },
-  historyName: { fontWeight: '800', fontSize: 14, color: colors.ink },
+  historyName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   historyPreview: { fontSize: 12, fontWeight: '500', color: colors.muted, marginTop: 2 },
-  historyTime: { fontSize: 11, fontWeight: '600', color: colors.muted },
+  historyTime: { fontSize: 11, fontWeight: '400', color: colors.muted },
 
   chatList: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4, flexGrow: 1 },
-  stampTxt: { fontSize: 10, fontWeight: '700', color: '#94a3b8', textAlign: 'right' },
+  stampTxt: { fontSize: 10, fontWeight: '400', color: '#94a3b8', textAlign: 'right' },
   swipeHint: {
-    textAlign: 'center', fontSize: 10, fontWeight: '600', color: '#94a3b8',
+    textAlign: 'center', fontSize: 10, fontWeight: '400', color: '#94a3b8',
     paddingBottom: 2,
   },
 
@@ -532,7 +533,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 14, padding: 8,
     borderWidth: 1, borderColor: colors.line,
   },
-  typingTxt: { color: colors.muted, fontWeight: '600', fontSize: 12 },
+  typingTxt: { color: colors.muted, fontWeight: '400', fontSize: 12 },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,

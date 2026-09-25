@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   meta: { flex: 1, minWidth: 0 },
   name: { fontSize: 13, fontWeight: '500', color: colors.ink },
-  pct: { fontSize: 12, color: colors.success, marginTop: 2, fontWeight: '600' },
+  pct: { fontSize: 12, color: colors.success, marginTop: 2, fontWeight: '400' },
   pctErr: { color: colors.danger },
   track: {
     marginTop: 8,

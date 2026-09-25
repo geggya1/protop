@@ -1194,14 +1194,14 @@ export default function ChildDashboardScreen() {
         )}
 
         <View style={{ marginHorizontal: 12, marginTop: 8, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: '#0f172a' }}>Gjøremål</Text>
+          <Text style={{ fontSize: 16, fontWeight: '400', color: '#0f172a' }}>Gjøremål</Text>
           {isAdmin && (
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fef3c7', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#fde68a' }}
               onPress={() => setAttestPanelVisible(true)}
             >
               <Ionicons name="shield-checkmark" size={16} color="#d97706" />
-              <Text style={{ fontWeight: '800', color: '#92400e', fontSize: 12 }}>
+              <Text style={{ fontWeight: '400', color: '#92400e', fontSize: 12 }}>
                 Attestering {weekAttestStats.pending > 0 ? `(${weekAttestStats.pending})` : ''}
               </Text>
             </TouchableOpacity>
@@ -1543,7 +1543,7 @@ export default function ChildDashboardScreen() {
           onPress={() => navigation.navigate('ChildSchedule', childScheduleNavParams({ familyId, child, canEdit: canEdit || isAdmin }))}
         >
           <MaterialCommunityIcons name="calendar-plus" size={24} color="#0b74d1" />
-          <Text style={{ color: '#0b74d1', fontWeight: '700', marginLeft: 8 }}>
+          <Text style={{ color: '#0b74d1', fontWeight: '400', marginLeft: 8 }}>
             {isAdmin ? 'Legg inn timeplan…' : 'Ingen timeplan ennå'}
           </Text>
         </TouchableOpacity>
@@ -2121,14 +2121,16 @@ const styles = StyleSheet.create({
   },
   leftHeader: { flex: 1 },
   modeSwitch: { flexDirection: 'row', backgroundColor: '#e7f2fb', borderRadius: 12, padding: 4, alignSelf: 'flex-start' },
-  modeBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10 },
+  modeBtn: {
+    alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10 },
   modeBtnActive: { backgroundColor: '#0b74d1' },
-  modeText: { fontWeight: '700', color: '#0b74d1' },
+  modeText: { fontWeight: '400', color: '#0b74d1' },
   modeTextActive: { color: '#fff' },
   dateRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dateText: { fontSize: 16, fontWeight: '800', color: '#0b3d91' },
-  todayBtn: { marginLeft: 'auto', backgroundColor: '#eef6ff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  todayText: { color: '#0b74d1', fontWeight: '800' },
+  dateText: { fontSize: 16, fontWeight: '400', color: '#0b3d91' },
+  todayBtn: {
+    alignSelf: 'flex-start', marginLeft: 'auto', backgroundColor: '#eef6ff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  todayText: { color: '#0b74d1', fontWeight: '400' },
   pointsBag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2137,8 +2139,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
   },
-  pointsText: { color: '#fff', fontWeight: '900', marginLeft: 6 },
-  bagOfTotal: { color: '#6b7280', fontWeight: '700', fontSize: 11, marginTop: 2 },
+  pointsText: { color: '#fff', fontWeight: '400', marginLeft: 6 },
+  bagOfTotal: { color: '#6b7280', fontWeight: '400', fontSize: 11, marginTop: 2 },
 
   coinLayer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 9999, elevation: 10, pointerEvents: 'none' },
   coinImg: { position: 'absolute', top: 0 },
@@ -2147,9 +2149,10 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row', paddingHorizontal: 4,
   },
-  tabBtn: { minWidth: 92, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center' },
+  tabBtn: {
+    alignSelf: 'flex-start', minWidth: 92, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 3, borderBottomColor: '#0b74d1' },
-  tabTxt: { fontSize: 13, fontWeight: '700', color: '#6b7280' },
+  tabTxt: { fontSize: 13, fontWeight: '400', color: '#6b7280' },
   tabTxtActive: { color: '#0b74d1' },
 
   profileCard: {
@@ -2158,21 +2161,21 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   profileAvatar: {},
-  profileName: { fontSize: 20, fontWeight: '900', color: '#0f172a' },
-  profileSub: { fontSize: 14, color: '#6b7280', marginTop: 2, fontWeight: '600' },
+  profileName: { fontSize: 20, fontWeight: '400', color: '#0f172a' },
+  profileSub: { fontSize: 14, color: '#6b7280', marginTop: 2, fontWeight: '400' },
   profileBadgeRow: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   profileBadge: { backgroundColor: '#eef6ff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  profileBadgeTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 12 },
+  profileBadgeTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 12 },
 
-  calTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', marginBottom: 8 },
-  calSub: { fontSize: 13, color: '#64748b', fontWeight: '600', marginBottom: 4, lineHeight: 18 },
+  calTitle: { fontSize: 16, fontWeight: '400', color: '#0f172a', marginBottom: 8 },
+  calSub: { fontSize: 13, color: '#64748b', fontWeight: '400', marginBottom: 4, lineHeight: 18 },
   calModeSwitch: {
     flexDirection: 'row', backgroundColor: '#fff', borderRadius: 999, padding: 4,
     marginTop: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e5e7eb',
   },
   calModeBtn: { flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center' },
   calModeBtnActive: { backgroundColor: '#0b74d1' },
-  calModeText: { fontWeight: '800', color: '#64748b', fontSize: 13 },
+  calModeText: { fontWeight: '400', color: '#64748b', fontSize: 13 },
   calModeTextActive: { color: '#fff' },
   calNavRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -2184,15 +2187,15 @@ const styles = StyleSheet.create({
   },
   calNavCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   calWeekBadge: {
-    fontWeight: '900', color: '#0b74d1', fontSize: 12, backgroundColor: '#eef6ff',
+    fontWeight: '400', color: '#0b74d1', fontSize: 12, backgroundColor: '#eef6ff',
     paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', marginBottom: 4,
   },
-  calNavLabel: { fontWeight: '800', color: '#0f172a', fontSize: 14, textAlign: 'center' },
+  calNavLabel: { fontWeight: '400', color: '#0f172a', fontSize: 14, textAlign: 'center' },
   calTodayBtn: {
     alignSelf: 'center', marginTop: 8, paddingHorizontal: 14, paddingVertical: 6,
     borderRadius: 999, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e5e7eb',
   },
-  calTodayTxt: { fontWeight: '800', color: '#0b74d1', fontSize: 13 },
+  calTodayTxt: { fontWeight: '400', color: '#0b74d1', fontSize: 13 },
   calGrid: { flexDirection: 'row', gap: 6, flexWrap: 'nowrap', justifyContent: 'space-between' },
   calCell: {
     flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, paddingVertical: 10,
@@ -2200,17 +2203,17 @@ const styles = StyleSheet.create({
   },
   calCellToday: { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
   calCellAnchor: { borderColor: '#0b74d1', borderWidth: 2 },
-  calDow: { fontSize: 10, fontWeight: '800', color: '#94a3b8' },
+  calDow: { fontSize: 10, fontWeight: '400', color: '#94a3b8' },
   calDowToday: { color: '#0b74d1' },
-  calDate: { fontSize: 18, fontWeight: '900', color: '#0f172a', marginTop: 2 },
+  calDate: { fontSize: 18, fontWeight: '400', color: '#0f172a', marginTop: 2 },
   calDateToday: { color: '#0b74d1' },
-  calPts: { fontSize: 11, fontWeight: '800', color: '#6b7280', marginTop: 4 },
+  calPts: { fontSize: 11, fontWeight: '400', color: '#6b7280', marginTop: 4 },
   calBar: { width: '80%', height: 4, backgroundColor: '#e5e7eb', borderRadius: 4, marginTop: 4, overflow: 'hidden' },
   calBarFill: { height: 4, backgroundColor: '#0b74d1', borderRadius: 4 },
   calEmpty: { fontSize: 14, color: '#d1d5db', marginTop: 4 },
 
   calMonthHead: { flexDirection: 'row', marginTop: 12, marginBottom: 4 },
-  calMonthHeadTxt: { flex: 1, textAlign: 'center', fontWeight: '700', color: '#94a3b8', fontSize: 11 },
+  calMonthHeadTxt: { flex: 1, textAlign: 'center', fontWeight: '400', color: '#94a3b8', fontSize: 11 },
   calMonthGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calMonthCell: {
     width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center',
@@ -2219,14 +2222,14 @@ const styles = StyleSheet.create({
   calMonthCellToday: { backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#93c5fd' },
   calMonthCellAnchor: { backgroundColor: '#0b74d1' },
   calMonthCellOutside: { opacity: 0.35 },
-  calMonthDate: { fontWeight: '800', color: '#0f172a', fontSize: 14 },
+  calMonthDate: { fontWeight: '400', color: '#0f172a', fontSize: 14 },
   calMonthDateToday: { color: '#0b74d1' },
   calMonthDateAnchor: { color: '#fff' },
   calMonthDots: { flexDirection: 'row', gap: 2, marginTop: 2 },
   calMonthDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#0b74d1' },
   calMonthDotAnchor: { backgroundColor: '#fff' },
   calWeekDayLbl: {
-    fontWeight: '800', color: '#64748b', fontSize: 13, marginBottom: 6,
+    fontWeight: '400', color: '#64748b', fontSize: 13, marginBottom: 6,
     textTransform: 'capitalize',
   },
 
@@ -2234,8 +2237,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12,
     padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#e5e7eb',
   },
-  calTaskTitle: { fontWeight: '800', color: '#0f172a', fontSize: 15 },
-  calTaskSub: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '600' },
+  calTaskTitle: { fontWeight: '400', color: '#0f172a', fontSize: 15 },
+  calTaskSub: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '400' },
   calEventDot: { width: 10, height: 10, borderRadius: 5, marginRight: 12, marginTop: 4 },
 
   programRow: {
@@ -2243,23 +2246,24 @@ const styles = StyleSheet.create({
     marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb',
   },
   programTime: { backgroundColor: '#0b74d1', paddingHorizontal: 10, paddingVertical: 12, minWidth: 64, alignItems: 'center' },
-  programTimeTxt: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  programTimeTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   programBody: { padding: 12, flex: 1 },
-  programTitle: { fontWeight: '800', color: '#0f172a', fontSize: 15 },
+  programTitle: { fontWeight: '400', color: '#0f172a', fontSize: 15 },
 
   scheduleCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  scheduleEditBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#eef6ff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  scheduleEditTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 13 },
+  scheduleEditBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#eef6ff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  scheduleEditTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 13 },
   aiImportCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#eef6ff', borderRadius: 14, padding: 14, marginTop: 16,
     borderWidth: 1, borderColor: '#bfdbfe',
   },
-  aiImportTitle: { fontWeight: '900', color: '#0f172a', fontSize: 15 },
-  aiImportSub: { color: '#64748b', fontSize: 12, fontWeight: '600', marginTop: 4, lineHeight: 17 },
+  aiImportTitle: { fontWeight: '400', color: '#0f172a', fontSize: 15 },
+  aiImportSub: { color: '#64748b', fontSize: 12, fontWeight: '400', marginTop: 4, lineHeight: 17 },
   schedulePhotoPreviewWrap: { alignItems: 'center', gap: 6, marginBottom: 8 },
   schedulePhotoPreview: { width: '100%', height: 200, borderRadius: 12, backgroundColor: '#f1f5f9' },
-  schedulePhotoHint: { color: '#6b7280', fontSize: 12, fontWeight: '600' },
+  schedulePhotoHint: { color: '#6b7280', fontSize: 12, fontWeight: '400' },
 
   weekStrip: {
     backgroundColor: '#fff',
@@ -2274,14 +2278,14 @@ const styles = StyleSheet.create({
   dayCellToday: { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
   dayCellActive: { backgroundColor: '#e7f2fb', borderColor: '#0b74d1' },
   dayCellTodayAnchor: { backgroundColor: '#dbeafe', borderColor: '#0b74d1', borderWidth: 2 },
-  dayCellDow: { fontSize: 12, color: '#6b7280', fontWeight: '800' },
+  dayCellDow: { fontSize: 12, color: '#6b7280', fontWeight: '400' },
   dayCellDowToday: { color: '#0b74d1' },
   dayCellDowActive: { color: '#0b74d1' },
-  dayCellDate: { fontSize: 16, fontWeight: '900', color: '#111827' },
+  dayCellDate: { fontSize: 16, fontWeight: '400', color: '#111827' },
   dayCellDateToday: { color: '#0b74d1' },
   dayCellDateActive: { color: '#0b3d91' },
-  dayCellTodayLbl: { fontSize: 9, fontWeight: '900', color: '#0b74d1', marginTop: 1 },
-  dayCellPts: { fontSize: 12, fontWeight: '800', color: '#6b7280' },
+  dayCellTodayLbl: { fontSize: 9, fontWeight: '400', color: '#0b74d1', marginTop: 1 },
+  dayCellPts: { fontSize: 12, fontWeight: '400', color: '#6b7280' },
   dayCellPtsToday: { color: '#0b74d1' },
   dayCellPtsActive: { color: '#0b74d1' },
 
@@ -2291,18 +2295,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffbeb', borderRadius: 10, padding: 10,
     borderWidth: 1, borderColor: '#fde68a',
   },
-  futureHintTxt: { flex: 1, color: '#92400e', fontSize: 12, fontWeight: '600', lineHeight: 16 },
+  futureHintTxt: { flex: 1, color: '#92400e', fontSize: 12, fontWeight: '400', lineHeight: 16 },
 
   noteCard: { marginHorizontal: 12, marginTop: 10, marginBottom: 8, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 },
   noteHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  noteTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
-  noteDatePill: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#eef6ff', borderRadius: 8, color: '#0b74d1', fontWeight: '800', fontSize: 12 },
-  noteEditBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#cbd5e1', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#f8fafc' },
-  noteEditTxt: { color: '#0b74d1', fontWeight: '800' },
+  noteTitle: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
+  noteDatePill: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#eef6ff', borderRadius: 8, color: '#0b74d1', fontWeight: '400', fontSize: 12 },
+  noteEditBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#cbd5e1', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#f8fafc' },
+  noteEditTxt: { color: '#0b74d1', fontWeight: '400' },
 
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  timeTxt: { width: 56, fontVariant: ['tabular-nums'], color: '#0b74d1', fontWeight: '900' },
-  timeTitle: { flex: 1, color: '#0f172a', fontWeight: '700' },
+  timeTxt: { width: 56, fontVariant: ['tabular-nums'], color: '#0b74d1', fontWeight: '400' },
+  timeTitle: { flex: 1, color: '#0f172a', fontWeight: '400' },
   noteBody: { marginTop: 8, color: '#0f172a', lineHeight: 20 },
 
   row: {
@@ -2316,24 +2321,25 @@ const styles = StyleSheet.create({
   iconWrap: { width: 72, height: 72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef6ff', marginRight: 12, overflow: 'hidden' },
   iconImg: { width: 60, height: 60, borderRadius: 12 },
   textWrap: { flex: 1 },
-  title: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  title: { fontSize: 18, fontWeight: '400', color: '#111827' },
   titleDone: { textDecorationLine: 'line-through', color: '#065f46' },
-  sub: { marginTop: 2, color: '#6b7280', fontSize: 12, fontWeight: '700' },
+  sub: { marginTop: 2, color: '#6b7280', fontSize: 12, fontWeight: '400' },
   rightWrap: { alignItems: 'center', justifyContent: 'center', gap: 10, flexDirection: 'row' },
   pointsBadge: {
     minWidth: 42, textAlign: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
-    fontSize: 12, fontWeight: '900', backgroundColor: '#e7f2fb', color: '#0b74d1',
+    fontSize: 12, fontWeight: '400', backgroundColor: '#e7f2fb', color: '#0b74d1',
   },
   pointsBadgeDone: { backgroundColor: '#bbf7d0', color: '#065f46' },
   pointsBadgeAttested: { backgroundColor: '#fef3c7', color: '#92400e' },
   attestBadge: { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  attestBadgeTxt: { fontWeight: '800', fontSize: 10, color: '#92400e' },
+  attestBadgeTxt: { fontWeight: '400', fontSize: 10, color: '#92400e' },
   pendingBadge: { backgroundColor: '#fff7ed', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  pendingBadgeTxt: { fontWeight: '800', fontSize: 10, color: '#c2410c' },
-  attestBtn: { padding: 6, marginRight: 4 },
+  pendingBadgeTxt: { fontWeight: '400', fontSize: 10, color: '#c2410c' },
+  attestBtn: {
+    alignSelf: 'flex-start', padding: 6, marginRight: 4 },
 
   emptyWrap: { marginTop: 40, alignItems: 'center', paddingHorizontal: 20 },
-  emptyTitle: { fontSize: 16, fontWeight: '900', color: '#0b3d91', marginBottom: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: '400', color: '#0b3d91', marginBottom: 8 },
   emptyText: { fontSize: 13, color: '#6b7280', textAlign: 'center' },
 
   fab: {
@@ -2351,8 +2357,8 @@ const styles = StyleSheet.create({
 
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-end' },
   menuCard: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 4, maxHeight: '85%' },
-  menuTitle: { fontWeight: '900', color: '#0f172a', fontSize: 18, marginBottom: 2 },
-  menuContext: { color: '#64748b', fontWeight: '700', fontSize: 13, marginBottom: 10 },
+  menuTitle: { fontWeight: '400', color: '#0f172a', fontSize: 18, marginBottom: 2 },
+  menuContext: { color: '#64748b', fontWeight: '400', fontSize: 13, marginBottom: 10 },
   menuItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 12, paddingHorizontal: 4, borderRadius: 12,
@@ -2363,22 +2369,23 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   menuItemIconDisabled: { backgroundColor: '#f1f5f9' },
-  menuItemTxt: { fontSize: 16, color: '#0f172a', fontWeight: '800' },
+  menuItemTxt: { fontSize: 16, color: '#0f172a', fontWeight: '400' },
   menuItemTxtDisabled: { color: '#94a3b8' },
-  menuItemHint: { fontSize: 12, color: '#64748b', fontWeight: '600', marginTop: 2 },
-  menuHint: { color: '#64748b', marginTop: 8, marginLeft: 2, fontSize: 13, fontWeight: '600' },
+  menuItemHint: { fontSize: 12, color: '#64748b', fontWeight: '400', marginTop: 2 },
+  menuHint: { color: '#64748b', marginTop: 8, marginLeft: 2, fontSize: 13, fontWeight: '400' },
   menuCancel: { marginTop: 6, alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 8 },
-  menuCancelTxt: { color: '#0b74d1', fontWeight: '800' },
+  menuCancelTxt: { color: '#0b74d1', fontWeight: '400' },
 
   // Dashboard-slettemodal
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   confirmCard: { backgroundColor: '#fff', padding: 16, borderRadius: 16, width: '100%', maxWidth: 420, borderWidth: 1, borderColor: '#e2e8f0' },
-  confirmTitle: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
-  confirmSub: { marginTop: 4, fontWeight: '800', color: '#0b3d91' },
+  confirmTitle: { fontSize: 18, fontWeight: '400', color: '#0f172a' },
+  confirmSub: { marginTop: 4, fontWeight: '400', color: '#0b3d91' },
   confirmText: { marginTop: 10, color: '#0f172a' },
   btnRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  btn: { flexGrow: 1, minWidth: 120, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnTxt: { fontWeight: '800' },
+  btn: {
+    alignSelf: 'flex-start', flexGrow: 1, minWidth: 120, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { fontWeight: '400' },
   btnGhost: { backgroundColor: '#f1f5f9' },
   btnGhostTxt: { color: '#0f172a' },
   btnPrimary: { backgroundColor: '#0b74d1' },
@@ -2387,19 +2394,20 @@ const styles = StyleSheet.create({
   // «Gratulerer»-popup
   congratsOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
   congratsCard: { backgroundColor: '#fff', padding: 18, borderRadius: 16, width: '80%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', position: 'relative' },
-  closeBtn: { position: 'absolute', right: 10, top: 10, padding: 6, borderRadius: 12, backgroundColor: '#f1f5f9' },
-  congratsTitle: { fontSize: 22, fontWeight: '900', color: '#0f172a', marginTop: 4 },
-  congratsText: { marginTop: 4, color: '#0b74d1', fontWeight: '900', textAlign: 'center', fontSize: 28 },
+  closeBtn: {
+    alignSelf: 'flex-start', position: 'absolute', right: 10, top: 10, padding: 6, borderRadius: 12, backgroundColor: '#f1f5f9' },
+  congratsTitle: { fontSize: 22, fontWeight: '400', color: '#0f172a', marginTop: 4 },
+  congratsText: { marginTop: 4, color: '#0b74d1', fontWeight: '400', textAlign: 'center', fontSize: 28 },
   congratsBar: { marginTop: 14, height: 10, width: '100%', backgroundColor: '#e7effe', borderRadius: 999, overflow: 'hidden' },
   congratsBarFill: { height: 10, backgroundColor: '#10b981', borderRadius: 999 },
-  congratsProgress: { marginTop: 6, color: '#334155', fontWeight: '700', textAlign: 'center', fontSize: 14 },
-  congratsBonus: { marginTop: 10, color: '#d97706', fontWeight: '900', textAlign: 'center', fontSize: 16 },
+  congratsProgress: { marginTop: 6, color: '#334155', fontWeight: '400', textAlign: 'center', fontSize: 14 },
+  congratsBonus: { marginTop: 10, color: '#d97706', fontWeight: '400', textAlign: 'center', fontSize: 16 },
 
   // Attesteringspanel / delte modal-stiler
   summaryOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
   summaryCard: { backgroundColor: '#fff', padding: 18, borderRadius: 16, width: '90%', maxWidth: 520, borderWidth: 1, borderColor: '#e2e8f0', position: 'relative' },
-  summaryTitle: { fontSize: 18, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginTop: 4 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', marginTop: 12 },
+  summaryTitle: { fontSize: 18, fontWeight: '400', color: '#0f172a', textAlign: 'center', marginTop: 4 },
+  sectionTitle: { fontSize: 14, fontWeight: '400', color: '#0f172a', marginTop: 12 },
 
   landingHero: {
     backgroundColor: '#0b74d1',
@@ -2414,38 +2422,39 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
   },
-  homeGreeting: { color: '#fff', fontWeight: '900', fontSize: 22 },
-  homeDate: { color: '#bfdbfe', fontWeight: '700', fontSize: 14, marginTop: 2, textTransform: 'capitalize' },
-  homeHeadline: { color: '#fff', fontWeight: '800', fontSize: 17, marginTop: 12, lineHeight: 24 },
+  homeGreeting: { color: '#fff', fontWeight: '400', fontSize: 22 },
+  homeDate: { color: '#bfdbfe', fontWeight: '400', fontSize: 14, marginTop: 2, textTransform: 'capitalize' },
+  homeHeadline: { color: '#fff', fontWeight: '400', fontSize: 17, marginTop: 12, lineHeight: 24 },
   homeWeekRow: { marginTop: 14 },
-  homeWeekLabel: { color: '#dbeafe', fontWeight: '700', fontSize: 13 },
+  homeWeekLabel: { color: '#dbeafe', fontWeight: '400', fontSize: 13 },
   homeProgressTrack: { height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.25)', marginTop: 8, overflow: 'hidden' },
   homeProgressFill: { height: 6, borderRadius: 999, backgroundColor: '#fff' },
 
   homeSection: { marginBottom: 14 },
   homeSectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 },
-  homeSectionTitle: { fontWeight: '900', fontSize: 18, color: '#0f172a' },
-  homeSectionMeta: { fontWeight: '800', fontSize: 13, color: '#64748b' },
+  homeSectionTitle: { fontWeight: '400', fontSize: 18, color: '#0f172a' },
+  homeSectionMeta: { fontWeight: '400', fontSize: 13, color: '#64748b' },
   homeTaskList: { gap: 0 },
   homeEmpty: {
     backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0',
     padding: 20, alignItems: 'center',
   },
   homeEmptyIcon: { fontSize: 40, marginBottom: 8 },
-  homeEmptyTxt: { color: '#64748b', fontWeight: '700', textAlign: 'center', fontSize: 14 },
+  homeEmptyTxt: { color: '#64748b', fontWeight: '400', textAlign: 'center', fontSize: 14 },
   homeEmptyBtn: {
+    alignSelf: 'flex-start',
     marginTop: 12, backgroundColor: '#eef6ff', borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 8,
   },
-  homeEmptyBtnTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 13 },
+  homeEmptyBtnTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 13 },
 
   homeNoteCard: {
     backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0',
     padding: 14, marginBottom: 14,
   },
-  homeNoteTitle: { fontWeight: '900', color: '#0f172a', fontSize: 14, marginBottom: 6 },
-  homeNoteText: { color: '#334155', fontWeight: '600', fontSize: 14, lineHeight: 20 },
-  homeNoteLinkTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 13, marginTop: 8 },
+  homeNoteTitle: { fontWeight: '400', color: '#0f172a', fontSize: 14, marginBottom: 6 },
+  homeNoteText: { color: '#334155', fontWeight: '400', fontSize: 14, lineHeight: 20 },
+  homeNoteLinkTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 13, marginTop: 8 },
 
   noteModalWrap: { flex: 1, backgroundColor: '#f4f7fb' },
   noteModalHeader: {
@@ -2454,15 +2463,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
   noteModalBack: { width: 44, padding: 4 },
-  noteModalTitle: { fontWeight: '900', fontSize: 17, color: '#0f172a' },
+  noteModalTitle: { fontWeight: '400', fontSize: 17, color: '#0f172a' },
   noteModalEdit: { width: 64, alignItems: 'flex-end' },
-  noteModalEditTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 15 },
+  noteModalEditTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 15 },
   noteModalBody: { padding: 16, paddingBottom: 40 },
-  noteModalDate: { color: '#64748b', fontWeight: '700', fontSize: 14, marginBottom: 16, textTransform: 'capitalize' },
+  noteModalDate: { color: '#64748b', fontWeight: '400', fontSize: 14, marginBottom: 16, textTransform: 'capitalize' },
   noteModalSection: { marginBottom: 20 },
-  noteModalSectionTitle: { fontWeight: '900', fontSize: 15, color: '#0f172a', marginBottom: 10 },
-  noteModalText: { color: '#0f172a', fontSize: 16, lineHeight: 24, fontWeight: '600' },
-  noteModalEmpty: { color: '#64748b', fontWeight: '700', fontSize: 15, textAlign: 'center', marginTop: 40 },
+  noteModalSectionTitle: { fontWeight: '400', fontSize: 15, color: '#0f172a', marginBottom: 10 },
+  noteModalText: { color: '#0f172a', fontSize: 16, lineHeight: 24, fontWeight: '400' },
+  noteModalEmpty: { color: '#64748b', fontWeight: '400', fontSize: 15, textAlign: 'center', marginTop: 40 },
 
   homeAdminBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -2470,13 +2479,13 @@ const styles = StyleSheet.create({
     padding: 14, marginBottom: 10,
   },
   homeAdminIcon: { fontSize: 22 },
-  homeAdminTitle: { fontWeight: '800', color: '#92400e', fontSize: 14 },
-  homeAdminSub: { color: '#b45309', fontWeight: '700', fontSize: 12, marginTop: 2 },
-  homeAdminAction: { fontWeight: '900', color: '#d97706', fontSize: 13 },
+  homeAdminTitle: { fontWeight: '400', color: '#92400e', fontSize: 14 },
+  homeAdminSub: { color: '#b45309', fontWeight: '400', fontSize: 12, marginTop: 2 },
+  homeAdminAction: { fontWeight: '400', color: '#d97706', fontSize: 13 },
 
   landingKicker: {
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '400',
     letterSpacing: 1.2,
     color: '#64748b',
     marginBottom: 8,
@@ -2492,47 +2501,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickNavIcon: { fontSize: 22 },
-  quickNavTxt: { marginTop: 4, fontWeight: '800', color: '#0f172a', fontSize: 12 },
-  landingTitle: { color: '#fff', fontWeight: '900', fontSize: 20 },
-  landingSub: { color: '#dbeafe', fontWeight: '700', marginTop: 2 },
+  quickNavTxt: { marginTop: 4, fontWeight: '400', color: '#0f172a', fontSize: 12 },
+  landingTitle: { color: '#fff', fontWeight: '400', fontSize: 20 },
+  landingSub: { color: '#dbeafe', fontWeight: '400', marginTop: 2 },
   landingStatsRow: { flexDirection: 'row', gap: 10, marginTop: 2 },
   landingStatCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12,
   },
-  landingStatLabel: { color: '#64748b', fontWeight: '700', fontSize: 12 },
-  landingStatValue: { color: '#0f172a', fontWeight: '900', fontSize: 24, marginTop: 4 },
-  landingStatHint: { color: '#64748b', fontWeight: '700', fontSize: 12 },
+  landingStatLabel: { color: '#64748b', fontWeight: '400', fontSize: 12 },
+  landingStatValue: { color: '#0f172a', fontWeight: '400', fontSize: 24, marginTop: 4 },
+  landingStatHint: { color: '#64748b', fontWeight: '400', fontSize: 12 },
   landingProgressTrack: { height: 8, borderRadius: 999, backgroundColor: '#dbeafe', marginTop: 8, marginBottom: 10, overflow: 'hidden' },
   landingProgressFill: { height: 8, borderRadius: 999, backgroundColor: '#0b74d1' },
   landingCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12, marginBottom: 10 },
-  landingCardTitle: { fontWeight: '900', color: '#0f172a', marginBottom: 8, fontSize: 15 },
-  landingCardText: { color: '#334155', fontWeight: '600', marginBottom: 4 },
+  landingCardTitle: { fontWeight: '400', color: '#0f172a', marginBottom: 8, fontSize: 15 },
+  landingCardText: { color: '#334155', fontWeight: '400', marginBottom: 4 },
   landingInlineBtn: {
     alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#eef6ff',
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7,
   },
-  landingInlineBtnTxt: { color: '#0b74d1', fontWeight: '800', fontSize: 12 },
+  landingInlineBtnTxt: { color: '#0b74d1', fontWeight: '400', fontSize: 12 },
   nextTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   nextTaskIcon: { fontSize: 18 },
-  nextTaskTxt: { flex: 1, color: '#0f172a', fontWeight: '700' },
+  nextTaskTxt: { flex: 1, color: '#0f172a', fontWeight: '400' },
 
   adminPanelCard: { backgroundColor: '#fffbeb', borderRadius: 12, borderWidth: 1, borderColor: '#fde68a', padding: 12, marginBottom: 10 },
-  adminPanelTitle: { fontWeight: '900', color: '#92400e', fontSize: 15 },
-  adminPanelSub: { color: '#92400e', marginTop: 6, fontWeight: '700', fontSize: 12 },
-  adminPanelBtn: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 6 },
-  adminPanelBtnTxt: { color: '#92400e', fontWeight: '900', fontSize: 12 },
+  adminPanelTitle: { fontWeight: '400', color: '#92400e', fontSize: 15 },
+  adminPanelSub: { color: '#92400e', marginTop: 6, fontWeight: '400', fontSize: 12 },
+  adminPanelBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 6 },
+  adminPanelBtnTxt: { color: '#92400e', fontWeight: '400', fontSize: 12 },
   adminQuickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   adminQuickBtn: {
     flex: 1, backgroundColor: '#ecfeff', borderWidth: 1, borderColor: '#a5f3fc',
     borderRadius: 10, paddingVertical: 10, alignItems: 'center',
   },
-  adminQuickTxt: { fontWeight: '900', color: '#0e7490', fontSize: 12 },
+  adminQuickTxt: { fontWeight: '400', color: '#0e7490', fontSize: 12 },
 
   attestPanelStats: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 10 },
-  attestPanelStatTxt: { fontWeight: '800', color: '#0f172a', fontSize: 12 },
+  attestPanelStatTxt: { fontWeight: '400', color: '#0f172a', fontSize: 12 },
   attestDayWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   attestDayChip: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   attestDayChipOn: { backgroundColor: '#0b74d1', borderColor: '#0b74d1' },
-  attestDayChipTxt: { color: '#334155', fontWeight: '800', fontSize: 12 },
+  attestDayChipTxt: { color: '#334155', fontWeight: '400', fontSize: 12 },
   attestDayChipTxtOn: { color: '#fff' },
 });

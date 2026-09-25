@@ -241,7 +241,8 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1, color: '#fff', fontWeight: '500', fontSize: 15 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  iconBtn: { padding: 6 },
+  iconBtn: {
+    alignSelf: 'flex-start', padding: 6 },
   stage: {
     flex: 1,
     alignItems: 'center',
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  infoTitle: { fontSize: 16, fontWeight: '600', color: colors.ink, marginBottom: 8 },
+  infoTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, marginBottom: 8 },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

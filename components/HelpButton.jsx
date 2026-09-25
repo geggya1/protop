@@ -93,6 +93,7 @@ export default function HelpButton({
 
 const styles = StyleSheet.create({
   btn: {
+    alignSelf: 'flex-start',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

@@ -337,9 +337,9 @@ const styles = StyleSheet.create({
   body: { padding: 16 },
   bodyModal: { padding: 0, paddingBottom: 4 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-  backTxt: { color: colors.brand, fontWeight: '600' },
-  title: { fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: 6 },
-  titleModal: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  backTxt: { color: colors.brand, fontWeight: '400' },
+  title: { fontSize: 22, fontWeight: '400', color: colors.text, marginBottom: 6 },
+  titleModal: { fontSize: 18, fontWeight: '400', marginBottom: 4 },
   lead: { fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 16 },
   leadModal: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   modeChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   modeTxt: { color: colors.ink || colors.text, fontWeight: '500', fontSize: 12 },
   modeTxtOn: { color: '#fff' },
-  label: { fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5 },
+  label: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 5 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.text,
     textAlign: 'center',
   },
@@ -414,6 +414,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   doneBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: 8,
     paddingVertical: 12,
@@ -422,10 +423,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  doneBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  doneBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  cancelBtn: { paddingHorizontal: 12, paddingVertical: 8 },
-  cancelTxt: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+  cancelBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8 },
+  cancelTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   submit: {
     backgroundColor: colors.brand,
     borderRadius: 8,
@@ -436,5 +438,5 @@ const styles = StyleSheet.create({
   },
   submitModal: { flex: 0, minWidth: 160 },
   submitDisabled: { opacity: 0.45 },
-  submitTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  submitTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
 });

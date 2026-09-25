@@ -85,3 +85,14 @@ export function applyProtopShellSections(sections, extraIds = []) {
 export function applyProtopShellApps(apps) {
   return (apps || []).filter((app) => PROTOP_PRODUCT_MODULE_IDS.includes(app.id));
 }
+
+/** Activation settings only lists modules that belong in the ProTop shell. */
+export function applyProtopActivationSections(sections) {
+  const allowed = new Set(PROTOP_PRODUCT_MODULE_IDS);
+  return (sections || [])
+    .map((section) => ({
+      ...section,
+      items: (section.items || []).filter((mod) => allowed.has(mod.id)),
+    }))
+    .filter((section) => (section.items || []).length > 0);
+}

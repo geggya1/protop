@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
   bodyDesk: { maxWidth: 760, alignSelf: 'center', width: '100%' },
   hero: { gap: 6 },
   heroInShell: { marginBottom: 2 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
+  title: { fontSize: 22, fontWeight: '400', color: colors.ink, letterSpacing: -0.3 },
   statsRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   stat: {
     flex: 1,
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 10,
   },
-  statNum: { fontSize: 20, fontWeight: '800', color: colors.brand },
+  statNum: { fontSize: 20, fontWeight: '400', color: colors.brand },
   statLbl: { fontSize: 11, color: colors.muted, marginTop: 2 },
   filterScroll: { marginHorizontal: -4 },
   filterPill: {
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   filterPillOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  filterTxt: { fontSize: 12, fontWeight: '600', color: colors.muted },
+  filterTxt: { fontSize: 12, fontWeight: '400', color: colors.muted },
   filterTxtOn: { color: colors.brand },
   searchRow: {
     flexDirection: 'row',
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 4,
   },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  sectionTitle: { fontSize: 13, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
   countryList: { gap: 6 },
   countryRow: {
     flexDirection: 'row',
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
   },
   flag: { fontSize: 22, width: 32, textAlign: 'center' },
   countryMeta: { flex: 1, minWidth: 0 },
-  countryName: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  countryName: { fontSize: 15, fontWeight: '400', color: colors.ink },
   countryNameOn: { color: '#134e4a' },
   countrySub: { fontSize: 12, color: colors.muted, marginTop: 1 },
   scratchBadge: {
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
   },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   sheetFlag: { fontSize: 36 },
-  sheetTitle: { fontSize: 18, fontWeight: '800', color: colors.ink },
+  sheetTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
   sheetSub: { fontSize: 13, color: colors.muted },
   visitCard: {
     borderWidth: 1,
@@ -990,14 +990,15 @@ const styles = StyleSheet.create({
   },
   visitImg: { width: '100%', height: 140, backgroundColor: colors.line },
   visitBody: { padding: 12, gap: 4 },
-  visitYear: { fontWeight: '800', color: colors.ink, fontSize: 14 },
+  visitYear: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   visitMembers: { fontSize: 13, color: colors.muted },
   visitComment: { fontSize: 14, color: colors.ink, marginTop: 4, lineHeight: 20 },
   visitActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  linkBtn: { paddingVertical: 4 },
-  linkTxt: { fontWeight: '700', color: colors.brand, fontSize: 13 },
+  linkBtn: {
+    alignSelf: 'flex-start', paddingVertical: 4 },
+  linkTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   field: { marginBottom: 12 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: colors.muted, marginBottom: 6 },
+  fieldLabel: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -1009,7 +1010,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   inputMulti: { minHeight: 80, textAlignVertical: 'top' },
-  countryPicked: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  countryPicked: { fontSize: 16, fontWeight: '400', color: colors.ink },
   memberWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   memberChip: {
     flexDirection: 'row',
@@ -1023,11 +1024,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   memberChipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  memberChipTxt: { fontSize: 13, fontWeight: '600', color: colors.muted, maxWidth: 80 },
+  memberChipTxt: { fontSize: 13, fontWeight: '400', color: colors.muted, maxWidth: 80 },
   memberChipTxtOn: { color: colors.brand },
   placePickWrap: { marginBottom: 12 },
   placePickHint: { fontSize: 12, color: colors.muted, marginBottom: 8, marginTop: 2 },
-  selectedPlaceLabel: { fontSize: 13, fontWeight: '700', color: colors.brand, marginTop: 4 },
+  selectedPlaceLabel: { fontSize: 13, fontWeight: '400', color: colors.brand, marginTop: 4 },
   skipYearRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1035,7 +1036,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingVertical: 4,
   },
-  skipYearTxt: { fontSize: 14, fontWeight: '600', color: colors.ink, flex: 1 },
+  skipYearTxt: { fontSize: 14, fontWeight: '400', color: colors.ink, flex: 1 },
   placeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1050,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   placeChipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
   placeChipScratched: { borderColor: '#99f6e4' },
-  placeChipTxt: { fontSize: 13, fontWeight: '600', color: colors.ink, flexShrink: 1 },
+  placeChipTxt: { fontSize: 13, fontWeight: '400', color: colors.ink, flexShrink: 1 },
   placeChipTxtOn: { color: colors.brand },
   row2: { flexDirection: 'row', gap: 10 },
   pickRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
@@ -1063,6 +1064,6 @@ const styles = StyleSheet.create({
   },
   imagePreview: { width: '100%', height: 160 },
   imageEmpty: { height: 120, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  imageEmptyTxt: { color: colors.muted, fontWeight: '600' },
+  imageEmptyTxt: { color: colors.muted, fontWeight: '400' },
   formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 12 },
 });

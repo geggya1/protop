@@ -34,7 +34,7 @@ export default function ModuleAccessSettingsScreen({ onBack }) {
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   bodyDesk: { paddingHorizontal: 12, paddingTop: 4, maxWidth: 680 },
-  title: { fontSize: 20, fontWeight: '700', color: colors.ink, marginBottom: 8 },
-  titleDesk: { fontSize: 17, fontWeight: '600' },
+  title: { fontSize: 20, fontWeight: '400', color: colors.ink, marginBottom: 8 },
+  titleDesk: { fontSize: 17, fontWeight: '400' },
   hint: { fontSize: 13, lineHeight: 19, color: colors.muted, marginBottom: 14, fontWeight: '400' },
 });

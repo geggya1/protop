@@ -314,6 +314,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   closeBtn: {
+    alignSelf: 'flex-start',
     position: 'absolute',
     right: 10,
     top: 10,
@@ -327,7 +328,7 @@ const styles = StyleSheet.create({
   kicker: {
     textAlign: 'center',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
@@ -345,14 +346,14 @@ const styles = StyleSheet.create({
   heroEmoji: { fontSize: 36, marginBottom: 4 },
   heroTitle: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
   },
   heroBody: {
     marginTop: 6,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#475569',
     textAlign: 'center',
     lineHeight: 20,
@@ -366,19 +367,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   scoreBlock: { alignItems: 'center', minWidth: 88 },
-  scoreLabel: { fontSize: 11, fontWeight: '800', color: colors.muted, textTransform: 'uppercase' },
+  scoreLabel: { fontSize: 11, fontWeight: '400', color: colors.muted, textTransform: 'uppercase' },
   scoreValue: {
     fontSize: 36,
-    fontWeight: '900',
+    fontWeight: '400',
     color: colors.brand,
     fontVariant: ['tabular-nums'],
     lineHeight: 40,
   },
   scoreMax: { color: colors.ink },
-  scoreUnit: { fontSize: 13, fontWeight: '700', color: colors.muted, marginTop: 1 },
+  scoreUnit: { fontSize: 13, fontWeight: '400', color: colors.muted, marginTop: 1 },
   scoreDivider: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     paddingBottom: 18,
   },
@@ -399,7 +400,7 @@ const styles = StyleSheet.create({
   pctTxt: {
     marginTop: 8,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '400',
     color: '#0f172a',
   },
 
@@ -415,7 +416,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fde68a',
   },
-  remainTxt: { fontWeight: '800', fontSize: 13, color: '#92400e' },
+  remainTxt: { fontWeight: '400', fontSize: 13, color: '#92400e' },
   doneChip: { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
   doneTxt: { color: '#047857' },
 
@@ -435,9 +436,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#f8fafc',
   },
-  expandTitle: { flex: 1, fontWeight: '800', fontSize: 14, color: colors.ink },
+  expandTitle: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink },
   expandBadge: {
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.brand,
     backgroundColor: '#eef6ff',
@@ -460,10 +461,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  dayName: { flex: 1, fontWeight: '700', color: colors.ink, fontSize: 13 },
+  dayName: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 13 },
   dayNameActive: { color: '#0b3d91' },
   dayScore: {
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.muted,
     fontVariant: ['tabular-nums'],
@@ -484,9 +485,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   },
-  taskTitle: { flex: 1, fontWeight: '700', color: colors.ink, fontSize: 13 },
-  taskMeta: { marginTop: 2, fontSize: 11, fontWeight: '600', color: colors.muted },
-  emptyTxt: { color: colors.muted, fontWeight: '600', fontSize: 13, paddingVertical: 8 },
+  taskTitle: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 13 },
+  taskMeta: { marginTop: 2, fontSize: 11, fontWeight: '400', color: colors.muted },
+  emptyTxt: { color: colors.muted, fontWeight: '400', fontSize: 13, paddingVertical: 8 },
 
   cta: {
     marginTop: 14,
@@ -495,5 +496,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  ctaTxt: { color: '#fff', fontWeight: '900', fontSize: 15 },
+  ctaTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
 });

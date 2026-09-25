@@ -331,8 +331,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     marginBottom: 6,
   },
-  saveBtnTopTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  pageTitle: { fontWeight: '600', fontSize: 17, color: colors.ink, marginTop: 4 },
+  saveBtnTopTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
+  pageTitle: { fontWeight: '400', fontSize: 17, color: colors.ink, marginTop: 4 },
   pageTitleDesk: { fontWeight: '500', fontSize: 15 },
   pageSub: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 8 },
   childHint: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   panelDesk: { borderRadius: 8, padding: 10 },
   lbl: {
-    fontSize: 11, fontWeight: '600', color: colors.muted, marginBottom: 6,
+    fontSize: 11, fontWeight: '400', color: colors.muted, marginBottom: 6,
     textTransform: 'uppercase', letterSpacing: 0.3,
   },
   hint: { color: colors.muted, fontWeight: '400', fontSize: 12, marginBottom: 6 },
@@ -359,6 +359,7 @@ const styles = StyleSheet.create({
   inputDesk: { borderRadius: 8, paddingVertical: 8, fontSize: 13, fontWeight: '400' },
   modeRow: { gap: 6 },
   modeBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: colors.card,
@@ -377,6 +378,7 @@ const styles = StyleSheet.create({
   memberRowOn: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
   memberName: { fontWeight: '500', color: colors.ink, fontSize: 13 },
   deleteBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginTop: 16, paddingVertical: 10,
   },

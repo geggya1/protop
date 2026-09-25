@@ -288,7 +288,7 @@ export default function ChildProfileScreen({ route, navigation }) {
 
         <Text style={styles.ageLabel}>Alder: {calculateAge(birthday) ?? '—'} år</Text>
         <Text style={styles.infoRow}>
-          Brukernavn: <Text style={{ fontWeight: 'bold' }}>{username}</Text>
+          Brukernavn: <Text style={{ fontWeight: '400' }}>{username}</Text>
         </Text>
 
         <TextInput style={styles.input} placeholder="Navn" value={name} onChangeText={setName} editable={!busy} />
@@ -306,13 +306,13 @@ export default function ChildProfileScreen({ route, navigation }) {
           </Text>
 
           <Text style={styles.loginText}>
-            Brukernavn: <Text style={{ fontWeight: 'bold' }}>{username || 'Mangler brukernavn'}</Text>
+            Brukernavn: <Text style={{ fontWeight: '400' }}>{username || 'Mangler brukernavn'}</Text>
           </Text>
 
           {!editingPassword ? (
             <View style={styles.passwordRow}>
               <Text style={styles.loginText}>
-                Passord: <Text style={{ fontWeight: 'bold' }}>{password}</Text>
+                Passord: <Text style={{ fontWeight: '400' }}>{password}</Text>
               </Text>
               <TouchableOpacity onPress={() => setEditingPassword(true)} disabled={busy}>
                 <Feather name="edit-2" size={18} color="#007AFF" style={{ marginLeft: 8 }} />
@@ -385,7 +385,7 @@ export default function ChildProfileScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 20, paddingTop: 24, backgroundColor: '#f6fbff' },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 25, textAlign: 'center', color: '#0f172a' },
+  title: { fontSize: 22, fontWeight: '400', marginBottom: 25, textAlign: 'center', color: '#0f172a' },
   input: {
     borderWidth: 1,
     borderColor: '#cbd5e1',
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: '#e2e8f0',
   },
-  link: { textAlign: 'center', color: '#0b74d1', marginBottom: 15, fontWeight: '600' },
+  link: { textAlign: 'center', color: '#0b74d1', marginBottom: 15, fontWeight: '400' },
   ageLabel: { textAlign: 'center', fontSize: 16, marginBottom: 20, color: '#334155' },
   infoRow: { fontSize: 16, textAlign: 'center', marginBottom: 8, color: '#334155' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
@@ -421,20 +421,22 @@ const styles = StyleSheet.create({
   passwordRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
 
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '400' },
 
   dangerBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#ee3a3a',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
-  dangerBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  dangerBtnText: { color: '#fff', fontSize: 16, fontWeight: '400' },
 
   cropButtons: {
     flexDirection: 'row',
@@ -443,17 +445,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   cropCancelBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: '#1f2937',
   },
   cropSaveBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: '#0b74d1',
   },
-  cancel: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  save: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  cancel: { color: '#fff', fontSize: 16, fontWeight: '400' },
+  save: { color: '#fff', fontSize: 16, fontWeight: '400' },
 });

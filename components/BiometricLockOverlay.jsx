@@ -122,10 +122,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logo: { marginBottom: 4 },
-  title: { fontSize: 22, fontWeight: '900', color: '#0f1419', textAlign: 'center' },
-  body: { fontSize: 14, fontWeight: '600', color: '#536471', textAlign: 'center', lineHeight: 20 },
-  error: { fontSize: 13, fontWeight: '600', color: '#b91c1c', textAlign: 'center' },
+  title: { fontSize: 22, fontWeight: '400', color: '#0f1419', textAlign: 'center' },
+  body: { fontSize: 14, fontWeight: '400', color: '#536471', textAlign: 'center', lineHeight: 20 },
+  error: { fontSize: 13, fontWeight: '400', color: '#b91c1c', textAlign: 'center' },
   btn: {
+    alignSelf: 'flex-start',
     marginTop: 8,
     backgroundColor: colors.brand,
     borderRadius: radius.pill,
@@ -135,5 +136,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
 });

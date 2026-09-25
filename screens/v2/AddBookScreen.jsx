@@ -276,9 +276,9 @@ export default function AddBookScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  screenSub: { fontSize: 14, fontWeight: '600', color: colors.muted, marginBottom: 8 },
+  screenSub: { fontSize: 14, fontWeight: '400', color: colors.muted, marginBottom: 8 },
   sectionTitle: {
-    fontSize: 13, fontWeight: '800', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginTop: 12, marginBottom: 8, marginLeft: 4,
   },
@@ -301,16 +301,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
-  hint: { color: colors.muted, fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 17 },
+  hint: { color: colors.muted, fontSize: 12, fontWeight: '400', marginTop: 8, lineHeight: 17 },
   coverPreview: {
     width: 72, height: 100, borderRadius: 8, alignSelf: 'center',
     marginTop: 12, backgroundColor: '#e2e8f0',
   },
-  lbl: { fontWeight: '800', color: colors.ink, fontSize: 13, marginTop: 10, marginBottom: 6 },
+  lbl: { fontWeight: '400', color: colors.ink, fontSize: 13, marginTop: 10, marginBottom: 6 },
   input: {
     backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line,
     borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'web' ? 10 : 12,
-    fontSize: 16, fontWeight: '600', color: colors.ink,
+    fontSize: 16, fontWeight: '400', color: colors.ink,
   },
   row2: { flexDirection: 'row', gap: 10 },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line,
   },
   statusChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  statusChipTxt: { fontWeight: '800', color: colors.muted, fontSize: 13 },
+  statusChipTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
   statusChipTxtOn: { color: colors.brand },
   notes: { minHeight: 72, textAlignVertical: 'top' },
 });

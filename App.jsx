@@ -1081,7 +1081,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
               }}
             />
             <Stack.Screen name="FamilyOverview">
-              {(p) => <FamilyOverviewScreen {...p} reloadKey={reloadKey} />}
+              {(p) => (
+                <StackShellChrome title="Velg organisasjon">
+                  <FamilyOverviewScreen {...p} reloadKey={reloadKey} />
+                </StackShellChrome>
+              )}
             </Stack.Screen>
             <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
             <Stack.Screen name="ChildDashboard" component={ChildDashboardScreen} />
@@ -1178,7 +1182,7 @@ class ErrorBoundary extends React.Component {
     // RN-web should render this as normal UI (instead of blank page).
     return (
       <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
-        <Text style={{ fontWeight: '900', fontSize: 18, marginBottom: 10, color: '#b91c1c' }}>
+        <Text style={{ fontWeight: '400', fontSize: 18, marginBottom: 10, color: '#b91c1c' }}>
           App error
         </Text>
         <Text style={{ fontFamily: 'monospace', fontSize: 12, color: '#111827' }}>

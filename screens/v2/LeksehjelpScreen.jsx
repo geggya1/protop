@@ -60,7 +60,7 @@ function StepRail({ steps, colors }) {
               )}
             </View>
             <Text
-              style={[styles.stepTitle, cur && { color: colors.brand, fontWeight: '600' }]}
+              style={[styles.stepTitle, cur && { color: colors.brand, fontWeight: '400' }]}
               numberOfLines={1}
             >
               {s.title}
@@ -966,7 +966,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       paddingVertical: 5,
       borderRadius: 999,
     },
-    masteryBadgeTxt: { fontWeight: '700', fontSize: 12, color: colors.ink },
+    masteryBadgeTxt: { fontWeight: '400', fontSize: 12, color: colors.ink },
     masteryLead: { fontSize: 13, lineHeight: 18, color: colors.muted, fontWeight: '500' },
     masteryLink: {
       flexDirection: 'row',
@@ -974,7 +974,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       gap: 6,
       marginTop: 2,
     },
-    masteryLinkTxt: { fontWeight: '600', fontSize: 13, color: colors.brand, flex: 1 },
+    masteryLinkTxt: { fontWeight: '400', fontSize: 13, color: colors.brand, flex: 1 },
     helpAside: {
       backgroundColor: colors.successSoft || '#ecfdf5',
       borderRadius: radius.md,
@@ -982,7 +982,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       gap: 12,
     },
     helpAsideDesk: { width: 260, flexShrink: 0 },
-    helpTitle: { fontWeight: '700', fontSize: 15, color: colors.ink, marginBottom: 4 },
+    helpTitle: { fontWeight: '400', fontSize: 15, color: colors.ink, marginBottom: 4 },
     helpRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     helpIcon: {
       width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff',
@@ -1000,6 +1000,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       gap: 8,
     },
     topIconBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
@@ -1010,7 +1011,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.line,
     },
-    resetTxt: { fontWeight: '600', fontSize: 13, color: colors.ink },
+    resetTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
     tryPill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1020,7 +1021,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderRadius: 999,
       backgroundColor: colors.brandSoft,
     },
-    tryTxt: { fontSize: 12, fontWeight: '700' },
+    tryTxt: { fontSize: 12, fontWeight: '400' },
     childPick: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: colors.card, borderRadius: radius.sm, paddingVertical: 11, paddingHorizontal: 12,
@@ -1033,8 +1034,8 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       paddingVertical: 12, paddingHorizontal: 12, marginBottom: 14,
       borderWidth: 1, borderColor: colors.brand,
     },
-    homeworkKicker: { fontWeight: '700', fontSize: 11, color: colors.brand, textTransform: 'uppercase' },
-    homeworkTitle: { fontWeight: '600', fontSize: 15, color: colors.ink, marginTop: 2 },
+    homeworkKicker: { fontWeight: '400', fontSize: 11, color: colors.brand, textTransform: 'uppercase' },
+    homeworkTitle: { fontWeight: '400', fontSize: 15, color: colors.ink, marginTop: 2 },
     lekseList: { marginBottom: 10, gap: 6 },
     lekseRow: {
       flexDirection: 'row',
@@ -1052,10 +1053,10 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       width: 32, height: 32, borderRadius: 10,
       alignItems: 'center', justifyContent: 'center',
     },
-    lekseTitle: { fontWeight: '600', fontSize: 14, color: colors.ink },
+    lekseTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
     lekseMeta: { fontSize: 12, color: colors.muted, marginTop: 2, fontWeight: '500' },
     label: {
-      fontWeight: '700', fontSize: 14, color: colors.ink, marginBottom: 4, marginTop: 2,
+      fontWeight: '400', fontSize: 14, color: colors.ink, marginBottom: 4, marginTop: 2,
     },
     inputHint: {
       fontSize: 12,
@@ -1088,14 +1089,14 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderRadius: 999,
       marginBottom: 2,
     },
-    themeAgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    themeAgeTxt: { color: '#fff', fontSize: 11, fontWeight: '400' },
     themeKicker: {
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: '400',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
     },
-    themeTitle: { fontSize: 20, fontWeight: '800', color: colors.ink },
+    themeTitle: { fontSize: 20, fontWeight: '400', color: colors.ink },
     themeBlurb: { fontSize: 13, lineHeight: 18, color: colors.muted, fontWeight: '500' },
     missionBlock: { marginBottom: 8, gap: 4 },
     missionRow: {
@@ -1114,7 +1115,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       width: 32, height: 32, borderRadius: 10,
       alignItems: 'center', justifyContent: 'center',
     },
-    missionTitle: { fontWeight: '700', fontSize: 14, color: colors.ink },
+    missionTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
     missionMeta: { fontSize: 12, color: colors.muted, marginTop: 2, fontWeight: '500', lineHeight: 16 },
     input: {
       minHeight: inputMinH,
@@ -1135,11 +1136,12 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     },
     photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     photoBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       backgroundColor: '#fff', borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12,
       borderWidth: 1, borderColor: colors.line,
     },
-    photoTxt: { fontWeight: '600', color: colors.brand, fontSize: 13 },
+    photoTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
     previewWrap: { position: 'relative', marginBottom: 14, borderRadius: radius.sm, overflow: 'hidden' },
     preview: { width: '100%', height: 180, backgroundColor: colors.line },
     clearImg: {
@@ -1160,22 +1162,22 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       minHeight: isPhone ? 56 : 48,
     },
     primaryCopy: { flexShrink: 1 },
-    primaryTxt: { color: '#fff', fontWeight: '800', fontSize: isPhone ? 16 : 15 },
+    primaryTxt: { color: '#fff', fontWeight: '400', fontSize: isPhone ? 16 : 15 },
     primarySub: {
       color: 'rgba(255,255,255,0.9)',
-      fontWeight: '600',
+      fontWeight: '400',
       fontSize: 12,
       marginTop: 2,
     },
     secondary: {
       alignItems: 'center', justifyContent: 'center', paddingVertical: 12,
     },
-    secondaryTxt: { fontWeight: '600', fontSize: 14 },
+    secondaryTxt: { fontWeight: '400', fontSize: 14 },
     footnote: {
       marginTop: 14, fontSize: 12, color: colors.muted, textAlign: 'center',
       fontWeight: '500', lineHeight: 17,
     },
-    error: { color: colors.danger, fontWeight: '600', marginBottom: 10, fontSize: 13 },
+    error: { color: colors.danger, fontWeight: '400', marginBottom: 10, fontSize: 13 },
     sessionShell: {
       flex: 1,
       minHeight: 0,
@@ -1195,12 +1197,12 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.line,
     },
-    metaTxt: { fontWeight: '700', fontSize: 13, color: colors.ink },
+    metaTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
     engineHint: {
       marginTop: 2,
       marginBottom: 4,
       fontSize: 11,
-      fontWeight: '600',
+      fontWeight: '400',
       color: colors.muted,
     },
     metaSub: { color: colors.muted, fontSize: 12, fontWeight: '500', marginTop: 2, marginBottom: 8 },
@@ -1212,7 +1214,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       flexGrow: 1,
     },
     typing: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    typingTxt: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+    typingTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
     quickList: {
       marginTop: 14,
       paddingTop: 12,
@@ -1222,7 +1224,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     },
     quickListLabel: {
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: '400',
       color: colors.muted,
       textTransform: 'uppercase',
       letterSpacing: 0.4,
@@ -1243,7 +1245,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     },
     quickAnswerTxt: {
       flex: 1,
-      fontWeight: '600',
+      fontWeight: '400',
       fontSize: 14,
       lineHeight: 19,
       color: colors.ink,
@@ -1257,8 +1259,9 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderTopColor: colors.line,
       backgroundColor: colors.bg,
     },
-    actionBtn: { alignItems: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 4 },
-    actionTxt: { fontSize: 11, fontWeight: '600', color: colors.brand },
+    actionBtn: {
+      alignSelf: 'flex-start', alignItems: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 4 },
+    actionTxt: { fontSize: 11, fontWeight: '400', color: colors.brand },
     composer: {
       flexDirection: 'row', alignItems: 'flex-end', gap: 8,
       padding: 12, paddingBottom: Platform.OS === 'ios' ? 16 : 12,
@@ -1286,13 +1289,13 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     modalCard: {
       backgroundColor: colors.card, borderRadius: radius.md, padding: 20,
     },
-    modalTitle: { fontWeight: '700', fontSize: 18, color: colors.ink, marginBottom: 8 },
+    modalTitle: { fontWeight: '400', fontSize: 18, color: colors.ink, marginBottom: 8 },
     modalBody: { color: colors.muted, fontWeight: '500', fontSize: 14, lineHeight: 20, marginBottom: 16 },
     kidRow: {
       flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
     },
-    kidName: { flex: 1, fontWeight: '600', fontSize: 16, color: colors.ink },
+    kidName: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
   });
 }
 
@@ -1307,7 +1310,7 @@ const styles = StyleSheet.create({
     width: 18, height: 18, borderRadius: 9, backgroundColor: '#94a3b8',
     alignItems: 'center', justifyContent: 'center',
   },
-  stepDotTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  stepDotTxt: { color: '#fff', fontSize: 10, fontWeight: '400' },
   stepTitle: { fontSize: 12, fontWeight: '500', color: '#5b6b82', maxWidth: 110 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 10, maxWidth: '100%' },
   bubbleRowMine: { justifyContent: 'flex-end' },

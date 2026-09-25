@@ -129,8 +129,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   disabled: { opacity: 0.45 },
-  txt: { flex: 1, fontWeight: '600', fontSize: 14, color: colors.ink },
+  txt: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink },
   placeholder: { color: colors.muted, fontWeight: '400' },
   doneBtn: { alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 4 },
-  doneTxt: { color: colors.brand, fontWeight: '800', fontSize: 15 },
+  doneTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
 });

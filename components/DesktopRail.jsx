@@ -360,11 +360,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken,
   },
   sectionTitle: {
-    fontSize: 11, fontWeight: '700', color: colors.muted,
+    fontSize: 11, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.45,
   },
   appSectionTitle: {
-    fontSize: 12, fontWeight: '700', color: colors.ink,
+    fontSize: 12, fontWeight: '400', color: colors.ink,
     textTransform: 'none', letterSpacing: 0,
   },
   row: {
@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
   rowLabelActive: { fontWeight: '500', color: colors.brand },
   empty: { color: colors.muted, fontWeight: '400', fontSize: 12, paddingHorizontal: 8, marginTop: 8 },
   collapseBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 6, marginTop: 2,
   },

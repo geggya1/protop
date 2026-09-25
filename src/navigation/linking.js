@@ -307,7 +307,7 @@ export const linking = {
       GroupJoin: 'group/join',
       ChatThread: 'chat/:chatId',
       EventForm: 'event/new',
-      FamilyOverview: 'families',
+      FamilyOverview: 'organisasjoner',
       FamilyDashboard: 'family/:familyId',
       AddFamily: 'families/new',
       AddChild: 'families/:familyId/add-child',

@@ -617,7 +617,7 @@ function makeStyles(colors) {
       paddingHorizontal: 12,
       paddingVertical: 8,
     },
-    playBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
+    playBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
     tipCard: {
       flexDirection: 'row',
       alignItems: 'center',

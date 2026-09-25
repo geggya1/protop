@@ -93,16 +93,16 @@ export default function GamePreviewScreen() {
 
 const styles = StyleSheet.create({
   body: { padding: 20, paddingBottom: 60, gap: 10, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  title: { fontSize: 24, fontWeight: '800', color: colors.ink },
+  title: { fontSize: 24, fontWeight: '400', color: colors.ink },
   sub: { color: colors.muted, marginBottom: 12, lineHeight: 20 },
   row: {
     backgroundColor: colors.card, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: colors.line,
   },
-  rowTxt: { fontWeight: '700', color: colors.ink, fontSize: 16 },
+  rowTxt: { fontWeight: '400', color: colors.ink, fontSize: 16 },
   back: {
     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.brandSoft,
     zIndex: 2,
   },
-  backTxt: { color: colors.brand, fontWeight: '700' },
+  backTxt: { color: colors.brand, fontWeight: '400' },
 });

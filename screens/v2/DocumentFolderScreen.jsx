@@ -964,14 +964,15 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
   },
   heroEmoji: { fontSize: 18 },
-  heroTitle: { fontSize: 17, fontWeight: '600', color: colors.ink },
+  heroTitle: { fontSize: 17, fontWeight: '400', color: colors.ink },
   heroTitleDesk: { fontSize: 15, fontWeight: '500' },
   heroMeta: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 1 },
   shareEditBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 6,
   },
-  shareEditTxt: { color: colors.brand, fontWeight: '600', fontSize: 13 },
+  shareEditTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
 
   actionsRow: {
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 2,
@@ -1031,7 +1032,7 @@ const styles = StyleSheet.create({
   },
   panelDesk: { borderRadius: 8 },
   sectionLbl: {
-    fontSize: 12, fontWeight: '600', color: colors.muted,
+    fontSize: 12, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2,
   },
   sectionLblDesk: { fontWeight: '500', fontSize: 11 },
@@ -1047,7 +1048,7 @@ const styles = StyleSheet.create({
   },
   folderIconDesk: { width: 28, height: 28, borderRadius: 7 },
   folderEmoji: { fontSize: 15 },
-  folderName: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  folderName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   folderNameDesk: { fontWeight: '500', fontSize: 13 },
   folderMeta: { fontSize: 11, color: colors.muted, fontWeight: '400', marginTop: 1 },
 
@@ -1071,11 +1072,11 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 8, backgroundColor: '#e2e8f0',
   },
   fileThumbDesk: { width: 32, height: 32, borderRadius: 7 },
-  fileName: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  fileName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   fileNameDesk: { fontWeight: '500', fontSize: 13 },
   fileMeta: { fontSize: 11, color: colors.muted, fontWeight: '400', marginTop: 1 },
   amountBadge: {
-    fontSize: 12, fontWeight: '600', color: colors.brand, maxWidth: 96, textAlign: 'right',
+    fontSize: 12, fontWeight: '400', color: colors.brand, maxWidth: 96, textAlign: 'right',
   },
 
   viewerRoot: {
@@ -1085,7 +1086,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12, gap: 12,
   },
-  viewerTitle: { flex: 1, color: '#fff', fontWeight: '600', fontSize: 15 },
+  viewerTitle: { flex: 1, color: '#fff', fontWeight: '400', fontSize: 15 },
   viewerImageWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12 },
   viewerImage: { width: '100%', height: '100%', maxWidth: 960 },
 
@@ -1095,7 +1096,7 @@ const styles = StyleSheet.create({
     maxWidth: 420, width: '100%', alignSelf: 'center',
   },
   modalCardDesk: { borderRadius: 12, padding: 16 },
-  modalTitle: { fontSize: 16, fontWeight: '600', color: colors.ink, marginBottom: 12 },
+  modalTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, marginBottom: 12 },
   modalTitleDesk: { fontSize: 15, fontWeight: '500', marginBottom: 10 },
   input: {
     borderWidth: 1, borderColor: colors.line, borderRadius: 10,
@@ -1111,13 +1112,15 @@ const styles = StyleSheet.create({
   presetBtnOn: { borderColor: colors.brand, backgroundColor: '#eef6ff' },
   presetEmoji: { fontSize: 18 },
   modalActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
-  cancelBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e5e7eb' },
+  cancelBtn: {
+    alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e5e7eb' },
   cancelTxt: { color: colors.ink, fontWeight: '500' },
   saveBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16,
     minWidth: 90, alignItems: 'center',
   },
   saveBtnDisabled: { opacity: 0.5 },
-  saveBtnTxt: { color: '#fff', fontWeight: '600' },
+  saveBtnTxt: { color: '#fff', fontWeight: '400' },
 });
 

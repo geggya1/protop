@@ -890,23 +890,23 @@ const styles = StyleSheet.create({
   },
   topBarDesk: { paddingVertical: 6 },
   backBtn: { flexDirection: 'row', alignItems: 'center', width: 72 },
-  backTxt: { color: colors.brand, fontWeight: '700', fontSize: 15 },
-  topTitle: { flex: 1, textAlign: 'center', fontWeight: '800', fontSize: 16, color: colors.ink },
-  topTitleDesk: { ...deskType.title, fontWeight: '600' },
+  backTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
+  topTitle: { flex: 1, textAlign: 'center', fontWeight: '400', fontSize: 16, color: colors.ink },
+  topTitleDesk: { ...deskType.title, fontWeight: '400' },
 
   body: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   bodyDesk: { paddingHorizontal: 12, paddingTop: 8, maxWidth: 720 },
 
-  lead: { fontSize: 15, fontWeight: '600', color: colors.ink, marginBottom: 6, lineHeight: 22 },
+  lead: { fontSize: 15, fontWeight: '400', color: colors.ink, marginBottom: 6, lineHeight: 22 },
   leadDesk: { ...deskType.body, fontWeight: '400', marginBottom: 4 },
-  deviceHint: { fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 12 },
+  deviceHint: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 12 },
 
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: 12, paddingVertical: Platform.OS === 'web' ? 10 : 8, marginBottom: 12,
   },
-  searchInput: { flex: 1, fontSize: 15, color: colors.ink, fontWeight: '600', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null) },
+  searchInput: { flex: 1, fontSize: 15, color: colors.ink, fontWeight: '400', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null) },
 
   chipRow: { gap: 8, paddingBottom: 8, paddingRight: 8 },
   chip: {
@@ -915,12 +915,12 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  chipTxt: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  chipTxt: { fontSize: 13, fontWeight: '400', color: colors.ink },
   chipTxtOn: { color: '#fff' },
 
   section: { marginTop: 16 },
   sectionTitle: {
-    fontSize: 13, fontWeight: '800', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginLeft: 2,
   },
   sectionTitleDesk: { ...deskType.section, marginBottom: 6 },
@@ -943,9 +943,9 @@ const styles = StyleSheet.create({
     width: 52, height: 52, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  articleTitle: { fontSize: 15, fontWeight: '800', color: colors.ink },
-  articleTitleDesk: { fontSize: 13, fontWeight: '600' },
-  articleSub: { fontSize: 12, fontWeight: '600', color: colors.muted, marginTop: 2 },
+  articleTitle: { fontSize: 15, fontWeight: '400', color: colors.ink },
+  articleTitleDesk: { fontSize: 13, fontWeight: '400' },
+  articleSub: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 2 },
   articleSubDesk: { fontSize: 12, fontWeight: '400' },
 
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -958,18 +958,18 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  catTitle: { fontSize: 14, fontWeight: '800', color: colors.ink },
-  catTitleDesk: { fontSize: 12, fontWeight: '600' },
+  catTitle: { fontSize: 14, fontWeight: '400', color: colors.ink },
+  catTitleDesk: { fontSize: 12, fontWeight: '400' },
 
   newsTeaser: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line,
     padding: 14,
   },
-  newsEyebrow: { fontSize: 11, fontWeight: '800', color: colors.brand, textTransform: 'uppercase' },
-  newsTitle: { fontSize: 16, fontWeight: '800', color: colors.ink, marginTop: 4 },
-  newsTitleDesk: { fontSize: 14, fontWeight: '600' },
-  newsMeta: { fontSize: 12, fontWeight: '600', color: colors.muted, marginTop: 4 },
+  newsEyebrow: { fontSize: 11, fontWeight: '400', color: colors.brand, textTransform: 'uppercase' },
+  newsTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, marginTop: 4 },
+  newsTitleDesk: { fontSize: 14, fontWeight: '400' },
+  newsMeta: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 4 },
   newsDayBlock: { marginBottom: 16 },
   newsRow: {
     padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
@@ -978,18 +978,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap',
   },
   newsBadge: {
-    fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+    fontSize: 11, fontWeight: '400', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
     overflow: 'hidden',
   },
   newsBadgeMajor: { backgroundColor: '#dbeafe', color: colors.brand },
   newsBadgeFix: { backgroundColor: '#f1f5f9', color: colors.muted },
-  newsVersion: { fontSize: 12, fontWeight: '700', color: colors.muted },
+  newsVersion: { fontSize: 12, fontWeight: '400', color: colors.muted },
 
   heroBand: { borderRadius: 16, padding: 16, marginBottom: 12 },
-  kicker: { fontSize: 12, fontWeight: '800', color: colors.muted, textTransform: 'uppercase', marginBottom: 4 },
-  heroTitle: { fontSize: 22, fontWeight: '900', color: colors.ink, marginBottom: 6 },
-  heroTitleDesk: { fontSize: 18, fontWeight: '700' },
-  heroSummary: { fontSize: 15, fontWeight: '600', color: colors.ink, lineHeight: 22 },
+  kicker: { fontSize: 12, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', marginBottom: 4 },
+  heroTitle: { fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6 },
+  heroTitleDesk: { fontSize: 18, fontWeight: '400' },
+  heroSummary: { fontSize: 15, fontWeight: '400', color: colors.ink, lineHeight: 22 },
   heroSummaryDesk: { fontSize: 13, fontWeight: '400', lineHeight: 20 },
 
   tipBox: {
@@ -997,7 +997,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef6ff', borderRadius: 12, padding: 12, marginBottom: 10,
   },
   tipBoxSoft: { backgroundColor: '#f8fafc' },
-  tipTxt: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.ink, lineHeight: 19 },
+  tipTxt: { flex: 1, fontSize: 13, fontWeight: '400', color: colors.ink, lineHeight: 19 },
 
   stepRow: {
     flexDirection: 'row', gap: 12, padding: 12,
@@ -1007,21 +1007,23 @@ const styles = StyleSheet.create({
     width: 26, height: 26, borderRadius: 8, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
-  stepNumTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  stepTxt: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.ink, lineHeight: 20 },
+  stepNumTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  stepTxt: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
   stepTxtDesk: { fontSize: 13, fontWeight: '500' },
 
   ctaRow: { gap: 10, marginTop: 16 },
   primaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16,
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 12, paddingVertical: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
   },
-  secondaryBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  secondaryBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 
   botList: { padding: 16, paddingBottom: 24 },
   bubble: {
@@ -1029,7 +1031,7 @@ const styles = StyleSheet.create({
   },
   bubbleUser: { alignSelf: 'flex-end', backgroundColor: colors.brand },
   bubbleBot: { alignSelf: 'flex-start', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
-  bubbleTxt: { fontSize: 14, fontWeight: '600', color: colors.ink, lineHeight: 20 },
+  bubbleTxt: { fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
   bubbleTxtUser: { color: '#fff' },
   bubbleTxtDesk: { fontSize: 13, fontWeight: '400' },
 
@@ -1037,7 +1039,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#0f766e', paddingVertical: 12, paddingHorizontal: 12,
   },
-  escalateTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  escalateTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
 
   composer: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
@@ -1046,7 +1048,7 @@ const styles = StyleSheet.create({
   composerInput: {
     flex: 1, maxHeight: 120, minHeight: 40, borderRadius: 12, borderWidth: 1,
     borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 15, fontWeight: '600', color: colors.ink,
+    fontSize: 15, fontWeight: '400', color: colors.ink,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
   },
   sendBtn: {
@@ -1058,18 +1060,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  ticketNum: { fontSize: 12, fontWeight: '800', color: colors.brand },
+  ticketNum: { fontSize: 12, fontWeight: '400', color: colors.brand },
   ticketHeader: { marginBottom: 12 },
   statusPill: {
     backgroundColor: '#eef6ff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
-  statusPillTxt: { fontSize: 11, fontWeight: '800', color: colors.brand },
+  statusPillTxt: { fontSize: 11, fontWeight: '400', color: colors.brand },
 
-  fieldLabel: { fontSize: 13, fontWeight: '800', color: colors.ink, marginTop: 12, marginBottom: 6 },
-  fieldHint: { fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8, lineHeight: 18 },
+  fieldLabel: { fontSize: 13, fontWeight: '400', color: colors.ink, marginTop: 12, marginBottom: 6 },
+  fieldHint: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 8, lineHeight: 18 },
   field: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, fontWeight: '600', color: colors.ink,
+    paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, fontWeight: '400', color: colors.ink,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
   },
   fieldArea: { minHeight: 140 },
@@ -1077,9 +1079,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 10,
     alignSelf: 'flex-start',
   },
-  attachTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  attachTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
   attachPreview: { width: '100%', height: 160, borderRadius: 12, marginBottom: 12, backgroundColor: '#e2e8f0' },
   msgImage: { width: 180, height: 120, borderRadius: 10, marginTop: 8 },
 
-  empty: { padding: 16, textAlign: 'center', color: colors.muted, fontWeight: '600' },
+  empty: { padding: 16, textAlign: 'center', color: colors.muted, fontWeight: '400' },
 });

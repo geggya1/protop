@@ -850,7 +850,7 @@ export default function ActivityDetailScreen({ route, navigation }) {
               </ScrollView>
               <View style={styles.presetWrap}>
                 {presetsForActivity(activityTypeId, presetFilter).length === 0 ? (
-                  <Text style={{ color: '#64748b', fontWeight: '700', fontSize: 12 }}>
+                  <Text style={{ color: '#64748b', fontWeight: '400', fontSize: 12 }}>
                     Ingen forslag i denne kategorien. Skriv eget navn under.
                   </Text>
                 ) : (
@@ -1031,6 +1031,7 @@ const styles = StyleSheet.create({
 
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 4 },
   chipBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1042,11 +1043,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chipDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
-  chipTxt: { color: colors.brand, fontWeight: '800', fontSize: 12 },
+  chipTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
 
   programBlock: { marginTop: 18 },
-  blockTitle: { fontSize: 18, fontWeight: '800', color: colors.ink },
-  blockHelp: { marginTop: 4, color: colors.muted, fontWeight: '600', fontSize: 13, lineHeight: 18 },
+  blockTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  blockHelp: { marginTop: 4, color: colors.muted, fontWeight: '400', fontSize: 13, lineHeight: 18 },
 
   dayStrip: { gap: 8, paddingVertical: 14 },
   dayPill: {
@@ -1061,7 +1062,7 @@ const styles = StyleSheet.create({
   },
   dayPillOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   dayPillHas: { borderColor: '#93c5fd', backgroundColor: colors.brandSoft },
-  dayPillTxt: { fontWeight: '800', color: colors.ink, fontSize: 13 },
+  dayPillTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   dayPillTxtOn: { color: '#fff' },
   dayDot: { marginTop: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand },
   dayDotSpacer: { marginTop: 6, width: 6, height: 6 },
@@ -1073,16 +1074,17 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: 14,
   },
-  dayPanelTitle: { fontWeight: '800', fontSize: 16, color: colors.ink, marginBottom: 8 },
-  fieldLabel: { fontWeight: '700', color: colors.ink, fontSize: 12, marginTop: 4 },
+  dayPanelTitle: { fontWeight: '400', fontSize: 16, color: colors.ink, marginBottom: 8 },
+  fieldLabel: { fontWeight: '400', color: colors.ink, fontSize: 12, marginTop: 4 },
   focusRow: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
   saveFocusBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  saveFocusTxt: { color: '#fff', fontWeight: '800' },
+  saveFocusTxt: { color: '#fff', fontWeight: '400' },
 
   suggestChip: {
     backgroundColor: colors.brandSoft,
@@ -1092,8 +1094,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfdbfe',
   },
-  suggestChipTxt: { color: colors.brand, fontWeight: '700', fontSize: 12 },
+  suggestChipTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   suggestBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1104,10 +1107,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfdbfe',
   },
-  suggestBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 12 },
+  suggestBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
 
   exHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
   addExBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1116,10 +1120,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  addExTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  addExTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
 
   emptyDay: { paddingVertical: 20, alignItems: 'center', paddingHorizontal: 8 },
-  emptyDayTxt: { color: colors.muted, fontWeight: '600', textAlign: 'center', lineHeight: 18 },
+  emptyDayTxt: { color: colors.muted, fontWeight: '400', textAlign: 'center', lineHeight: 18 },
 
   exRow: {
     flexDirection: 'row',
@@ -1137,11 +1141,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exIndexTxt: { fontWeight: '800', color: colors.brand, fontSize: 12 },
-  exName: { fontWeight: '800', color: colors.ink, fontSize: 15 },
-  exMeta: { marginTop: 2, color: colors.muted, fontWeight: '600', fontSize: 12 },
+  exIndexTxt: { fontWeight: '400', color: colors.brand, fontSize: 12 },
+  exName: { fontWeight: '400', color: colors.ink, fontSize: 15 },
+  exMeta: { marginTop: 2, color: colors.muted, fontWeight: '400', fontSize: 12 },
   exNotes: { marginTop: 2, color: colors.muted, fontSize: 12 },
-  iconBtn: { padding: 6 },
+  iconBtn: {
+    alignSelf: 'flex-start', padding: 6 },
 
   input: {
     marginTop: 8,
@@ -1150,7 +1155,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     padding: 12,
     backgroundColor: colors.card,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
   },
 
@@ -1171,11 +1176,12 @@ const styles = StyleSheet.create({
     padding: 16,
     ...(Platform.OS === 'web' ? { boxShadow: '0 16px 40px rgba(15,23,42,0.18)' } : {}),
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.ink },
-  modalHelp: { marginTop: 6, color: colors.muted, fontWeight: '600', fontSize: 12, lineHeight: 16 },
-  modalSectionTitle: { marginTop: 14, fontWeight: '800', color: colors.ink },
+  modalTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  modalHelp: { marginTop: 6, color: colors.muted, fontWeight: '400', fontSize: 12, lineHeight: 16 },
+  modalSectionTitle: { marginTop: 14, fontWeight: '400', color: colors.ink },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 14, justifyContent: 'flex-end' },
   btn: {
+    alignSelf: 'flex-start',
     borderRadius: radius.sm,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -1185,7 +1191,7 @@ const styles = StyleSheet.create({
   },
   btnGhost: { backgroundColor: colors.line },
   btnPrimary: { backgroundColor: colors.brand },
-  btnTxt: { fontWeight: '800' },
+  btnTxt: { fontWeight: '400' },
 
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   typeChip: {
@@ -1199,7 +1205,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  typeChipTxt: { fontWeight: '800', color: colors.ink, fontSize: 13 },
+  typeChipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
 
   segRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   segBtn: {
@@ -1207,11 +1213,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.card,
   },
   segBtnOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  segTxt: { fontWeight: '800', color: colors.ink },
+  segTxt: { fontWeight: '400', color: colors.ink },
   segTxtOn: { color: '#fff' },
 
   memberRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 4 },
-  memberName: { fontWeight: '800', color: colors.ink },
+  memberName: { fontWeight: '400', color: colors.ink },
 
   miniChip: {
     borderWidth: 1.5,
@@ -1222,16 +1228,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   miniChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  miniChipTxt: { fontWeight: '800', color: colors.ink, fontSize: 12 },
+  miniChipTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
 
   presetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   presetBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  presetBtnTxt: { fontWeight: '800', color: colors.ink, fontSize: 12 },
+  presetBtnTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
 
   numGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
   numCell: { width: '47%' },

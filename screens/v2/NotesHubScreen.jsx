@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   },
   listCardDesk: { borderRadius: 8, padding: 10 },
   listSection: {
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.muted,
     textTransform: 'uppercase',
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   noteIconDesk: { width: 32, height: 32, borderRadius: 7 },
-  noteTitle: { fontWeight: '600', fontSize: 15, color: colors.ink },
+  noteTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
   noteTitleDesk: { fontWeight: '500', fontSize: 14 },
   notePreview: { color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 2 },
   notePreviewDesk: { fontSize: 12 },
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   archiveToggleDesk: { justifyContent: 'flex-start', paddingVertical: 6 },
-  archiveToggleTxt: { fontWeight: '600', color: colors.brand, fontSize: 13 },
+  archiveToggleTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   archiveToggleTxtDesk: { fontWeight: '500', fontSize: 12 },
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end',
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: colors.line, marginBottom: 14,
   },
-  modalTitle: { fontWeight: '700', fontSize: 18, color: colors.ink, marginBottom: 12 },
+  modalTitle: { fontWeight: '400', fontSize: 18, color: colors.ink, marginBottom: 12 },
   modalTitleDesk: { fontWeight: '500', fontSize: 16, marginBottom: 10 },
   modalInput: {
     backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
@@ -544,12 +544,12 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: colors.brand, borderRadius: 12,
     paddingVertical: 14, alignItems: 'center',
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '600' },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400' },
   secondaryBtn: {
     flex: 1, backgroundColor: colors.brandSoft, borderRadius: 12,
     paddingVertical: 14, alignItems: 'center',
   },
-  secondaryBtnTxt: { color: colors.brand, fontWeight: '600' },
+  secondaryBtnTxt: { color: colors.brand, fontWeight: '400' },
   modalBtnDesk: { paddingVertical: 10, borderRadius: 8 },
   recordingPanel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   recordingHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10,
   },
-  recordingLbl: { flex: 1, fontWeight: '600', color: colors.ink, fontSize: 13 },
+  recordingLbl: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 13 },
   liveScroll: { maxHeight: 160 },
   pulse: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#ef4444' },
   recordingTxt: { fontWeight: '500', color: colors.ink, fontSize: 15, lineHeight: 22 },
@@ -577,13 +577,14 @@ const styles = StyleSheet.create({
   manualCard: {
     backgroundColor: colors.card, borderRadius: radius.lg, padding: 20, maxWidth: 480, alignSelf: 'center', width: '100%',
   },
-  manualTitle: { fontWeight: '600', fontSize: 18, marginBottom: 4 },
+  manualTitle: { fontWeight: '400', fontSize: 18, marginBottom: 4 },
   manualInput: {
     minHeight: 120, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     padding: 12, fontSize: 16, textAlignVertical: 'top', marginBottom: 14,
   },
   manualActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, alignItems: 'center' },
-  cancelTxt: { color: colors.muted, fontWeight: '600' },
-  saveManualBtn: { backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10 },
-  saveManualTxt: { color: '#fff', fontWeight: '600' },
+  cancelTxt: { color: colors.muted, fontWeight: '400' },
+  saveManualBtn: {
+    alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10 },
+  saveManualTxt: { color: '#fff', fontWeight: '400' },
 });

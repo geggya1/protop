@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   },
   tabItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
   tabItemOn: {},
-  tabLabel: { fontSize: 10, fontWeight: '700' },
+  tabLabel: { fontSize: 10, fontWeight: '400' },
 });
 
 export function FriendsShell() {

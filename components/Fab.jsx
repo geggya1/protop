@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   fabDesktopTxt: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
   },
 });

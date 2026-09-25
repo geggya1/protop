@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 8, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center',
   },
-  familyName: { fontWeight: '600', fontSize: 13, color: colors.ink },
+  familyName: { fontWeight: '400', fontSize: 13, color: colors.ink },
   familyNameOn: { color: colors.ink },
   familyMeta: { fontWeight: '400', fontSize: 11, color: colors.muted, marginTop: 1 },
 });

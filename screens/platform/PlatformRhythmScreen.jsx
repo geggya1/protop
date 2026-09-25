@@ -63,9 +63,9 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 14, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'stretch', marginBottom: 4, minHeight: 56 },
   timeCol: { width: 64, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  time: { fontSize: 13, fontWeight: '800' },
+  time: { fontSize: 13, fontWeight: '400' },
   line: { position: 'absolute', left: 31, top: 48, width: 2, height: 24 },
   content: { flex: 1, borderRadius: 14, padding: 12, borderWidth: 1 },
-  label: { fontSize: 15, fontWeight: '700' },
+  label: { fontSize: 15, fontWeight: '400' },
   desc: { fontSize: 12, marginTop: 4 },
 });

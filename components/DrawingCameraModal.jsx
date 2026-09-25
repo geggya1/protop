@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  title: { color: '#fff', fontWeight: '800', fontSize: 17 },
+  title: { color: '#fff', fontWeight: '400', fontSize: 17 },
   closeBtn: {
     width: 40,
     height: 40,
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     minWidth: 44,
     alignItems: 'center',
   },
-  flashTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  flashTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
   flashHint: { color: '#fbbf24', fontSize: 10, marginTop: 2 },
   modeBtn: {
     flex: 1,
@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     minWidth: 0,
   },
-  modeBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  modeBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   shutter: {
     width: 72,
     height: 72,
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 2,
   },
-  galleryTxt: { color: '#fff', fontWeight: '600', fontSize: 12 },
+  galleryTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
   gate: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(11,18,32,0.96)',
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  permTitle: { color: '#fff', fontWeight: '800', fontSize: 20, textAlign: 'center' },
+  permTitle: { color: '#fff', fontWeight: '400', fontSize: 20, textAlign: 'center' },
   permBody: {
     color: '#cbd5e1',
     fontSize: 15,
@@ -803,6 +803,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   actionBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',
     paddingVertical: 14,
     paddingHorizontal: 22,
@@ -810,8 +811,9 @@ const styles = StyleSheet.create({
     minWidth: 200,
     alignItems: 'center',
   },
-  actionBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  actionBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     marginTop: 14,
     paddingVertical: 12,
     paddingHorizontal: 18,
@@ -820,9 +822,9 @@ const styles = StyleSheet.create({
     minWidth: 200,
     alignItems: 'center',
   },
-  secondaryBtnTxt: { color: '#fff', fontWeight: '700' },
+  secondaryBtnTxt: { color: '#fff', fontWeight: '400' },
   cancelLink: { marginTop: 18 },
-  cancelLinkTxt: { color: '#94a3b8', fontWeight: '600' },
+  cancelLinkTxt: { color: '#94a3b8', fontWeight: '400' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -830,5 +832,5 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  loadingTxt: { color: '#fff', fontWeight: '600' },
+  loadingTxt: { color: '#fff', fontWeight: '400' },
 });

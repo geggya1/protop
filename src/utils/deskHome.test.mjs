@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   childDayCopy,
   childTip,
@@ -178,5 +179,13 @@ assert.equal(prepareDone.empty, true);
 
 assert.equal(timelineEventLabel({ title: 'Skolelevering' }), 'Skolelevering');
 assert.equal(timelineEventLabel({ title: 'Fotball trening' }), 'Fotball');
+
+const dash = readFileSync(new URL('../../components/DeskHomeDashboard.jsx', import.meta.url), 'utf8');
+for (const hidden of ['Familieoversikt', 'Handleliste', 'Middag']) {
+  assert.equal(dash.includes(hidden), false, `${hidden} stays off the desk home`);
+}
+assert.match(dash, /Oppgaver/);
+assert.match(dash, /Notat/);
+assert.match(dash, /Været/);
 
 console.log('deskHome tests ok');

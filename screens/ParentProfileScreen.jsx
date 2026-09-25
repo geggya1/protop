@@ -653,7 +653,7 @@ export default function ParentProfileScreen() {
                   <Text>Avbryt</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleCropConfirm} style={[styles.roundBtn, { backgroundColor: '#0b74d1' }]}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Bruk bilde</Text>
+                  <Text style={{ color: '#fff', fontWeight: '400' }}>Bruk bilde</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -708,22 +708,24 @@ const styles = StyleSheet.create({
   avatar: { width: 112, height: 112, borderRadius: 999, backgroundColor: '#e2e8f0' },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8, justifyContent: 'center' },
   badge: { flexDirection: 'row', gap: 6, backgroundColor: '#0b74d1', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, alignItems: 'center' },
-  badgeTxt: { color: '#fff', fontWeight: '800', fontSize: 11 },
-  linkBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#eaf2ff', borderRadius: 10 },
-  linkBtnTxt: { color: '#0b74d1', fontWeight: '700' },
+  badgeTxt: { color: '#fff', fontWeight: '400', fontSize: 11 },
+  linkBtn: {
+    alignSelf: 'flex-start', marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#eaf2ff', borderRadius: 10 },
+  linkBtnTxt: { color: '#0b74d1', fontWeight: '400' },
   input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, marginTop: 12, backgroundColor: '#fff' },
   email: { textAlign: 'center', color: '#64748b', marginVertical: 10 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, alignItems: 'center' },
   switchLabel: { fontSize: 16, color: '#0f172a' },
-  primaryBtn: { backgroundColor: '#0b74d1', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 18 },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#0b74d1', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 18 },
+  primaryBtnText: { color: '#fff', fontWeight: '400', fontSize: 16 },
   banner: { borderRadius: 10, padding: 12, marginBottom: 8 },
-  bannerTitle: { fontWeight: '800', color: '#b91c1c', marginBottom: 4 },
+  bannerTitle: { fontWeight: '400', color: '#b91c1c', marginBottom: 4 },
   bannerText: { color: '#0f172a' },
   drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   drawer: { position: 'absolute', right: 0, top: 0, bottom: 0, width: '70%', backgroundColor: '#fff', padding: 16, zIndex: 2, elevation: 6 },
   drawerHeader: { marginBottom: 2 },
-  drawerTitle: { fontSize: 18, fontWeight: '700' },
+  drawerTitle: { fontSize: 18, fontWeight: '400' },
   drawerSub: { color: '#64748b', marginBottom: 8 },
   drawerList: { flex: 1 },
   drawerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eef2f7' },
@@ -733,5 +735,6 @@ const styles = StyleSheet.create({
   cropCard: { width: 380, maxWidth: '92%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden' },
   cropperArea: { height: 340, position: 'relative' },
   cropActions: { flexDirection: 'row', justifyContent: 'space-between', padding: 12 },
-  roundBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minWidth: 110 },
+  roundBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minWidth: 110 },
 });

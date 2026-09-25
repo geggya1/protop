@@ -153,14 +153,14 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 13,
     color: '#3f3a2f',
     letterSpacing: 0.2,
   },
   meta: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#8a7d64',
   },
   paper: {
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   lineBody: { flex: 1, gap: 2 },
   note: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     marginTop: 2,
   },
   inkFresh: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   askTxt: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#b45309',
   },
   moreHint: {

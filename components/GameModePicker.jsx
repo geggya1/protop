@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   wrapSimple: { gap: 12 },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     letterSpacing: -0.3,
   },
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   copy: { flex: 1, gap: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  cardTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
   cardTitleSimple: { fontSize: 18 },
   cardSub: { fontSize: 12, lineHeight: 17, color: colors.muted, fontWeight: '500' },
   cardSubSimple: { fontSize: 14, lineHeight: 20 },

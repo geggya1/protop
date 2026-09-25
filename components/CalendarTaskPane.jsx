@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   },
   gutterLbl: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     letterSpacing: 0.6,
     transform: [{ rotate: '-90deg' }],
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   filterLbl: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     paddingHorizontal: 8,
     paddingTop: 4,
@@ -241,8 +241,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eef2f6',
   },
   rowBody: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 11, fontWeight: '600', color: colors.ink },
-  rowMeta: { fontSize: 9, fontWeight: '600', color: colors.muted, marginTop: 1 },
+  rowTitle: { fontSize: 11, fontWeight: '400', color: colors.ink },
+  rowMeta: { fontSize: 9, fontWeight: '400', color: colors.muted, marginTop: 1 },
   add: { alignSelf: 'flex-end', paddingHorizontal: 6, paddingVertical: 2 },
-  addTxt: { color: colors.brand, fontWeight: '800', fontSize: 14, lineHeight: 16 },
+  addTxt: { color: colors.brand, fontWeight: '400', fontSize: 14, lineHeight: 16 },
 });

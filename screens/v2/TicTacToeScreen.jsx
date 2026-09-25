@@ -384,7 +384,7 @@ function makeStyles(simpleUi, contentMax, board) {
     },
     statusWin: { backgroundColor: colors.successSoft, borderColor: colors.success },
     status: {
-      textAlign: 'center', fontWeight: '800', fontSize: simpleUi ? 20 : 17, color: colors.ink,
+      textAlign: 'center', fontWeight: '400', fontSize: simpleUi ? 20 : 17, color: colors.ink,
     },
     statusWinTxt: { color: colors.success, fontSize: simpleUi ? 22 : 19 },
     inviteBoard: {
@@ -395,8 +395,8 @@ function makeStyles(simpleUi, contentMax, board) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingVertical: 8, paddingHorizontal: 6,
     },
-    inviteName: { fontWeight: '600', color: colors.ink },
-    inviteStatus: { fontWeight: '600', color: colors.muted },
+    inviteName: { fontWeight: '400', color: colors.ink },
+    inviteStatus: { fontWeight: '400', color: colors.muted },
     playersRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20,
     },
@@ -406,9 +406,9 @@ function makeStyles(simpleUi, contentMax, board) {
       borderWidth: 1, borderColor: colors.line, maxWidth: 160, minWidth: 110,
     },
     playerChipMe: { borderColor: colors.brand, borderWidth: 2, backgroundColor: colors.brandSoft },
-    playerMark: { fontSize: 22, fontWeight: '800' },
-    playerName: { fontWeight: '700', fontSize: 14, color: colors.ink, flex: 1 },
-    vs: { color: colors.muted, fontWeight: '800', fontSize: 14 },
+    playerMark: { fontSize: 22, fontWeight: '400' },
+    playerName: { fontWeight: '400', fontSize: 14, color: colors.ink, flex: 1 },
+    vs: { color: colors.muted, fontWeight: '400', fontSize: 14 },
     board: {
       flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'center',
       backgroundColor: colors.line, borderRadius: 18,
@@ -416,13 +416,13 @@ function makeStyles(simpleUi, contentMax, board) {
     cell: {
       backgroundColor: colors.card, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
     },
-    cellTxt: { fontWeight: '800', color: colors.ink },
-    spectator: { textAlign: 'center', color: colors.muted, marginTop: 16, fontWeight: '600' },
+    cellTxt: { fontWeight: '400', color: colors.ink },
+    spectator: { textAlign: 'center', color: colors.muted, marginTop: 16, fontWeight: '400' },
     primary: {
       backgroundColor: colors.brand, borderRadius: 14, paddingVertical: 16,
       alignItems: 'center', marginTop: 24, alignSelf: 'center', paddingHorizontal: 40,
       minWidth: 200,
     },
-    primaryTxt: { color: '#fff', fontWeight: '700', fontSize: 17 },
+    primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 17 },
   });
 }

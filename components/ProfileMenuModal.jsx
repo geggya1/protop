@@ -208,9 +208,9 @@ const styles = StyleSheet.create({
   headerDesktop: {
     marginBottom: 10, paddingBottom: 10,
   },
-  name: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  nameDesktop: { fontSize: 14, fontWeight: '600' },
-  sub: { color: colors.muted, fontWeight: '600', fontSize: 13, marginTop: 2 },
+  name: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  nameDesktop: { fontSize: 14, fontWeight: '400' },
+  sub: { color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 2 },
   subDesktop: { fontWeight: '400', fontSize: 12 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   rowCompact: {
     paddingVertical: 7, minHeight: 34, gap: 10,
   },
-  rowLabel: { flex: 1, fontWeight: '700', fontSize: 16, color: colors.ink },
+  rowLabel: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
   rowLabelCompact: { fontSize: 13, fontWeight: '500' },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: 6 },
 });

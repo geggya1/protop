@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   struck: { textDecorationLine: 'line-through', color: soft.quiet },
   timeMuted: { fontSize: 12, color: soft.muted, fontFamily: sans },
   timeBold: {
-    width: 46, fontSize: 14, color: soft.ink, fontWeight: '600', fontFamily: sans, fontVariant: ['tabular-nums'],
+    width: 46, fontSize: 14, color: soft.ink, fontWeight: '400', fontFamily: sans, fontVariant: ['tabular-nums'],
   },
   timeEnd: { fontSize: 12, color: soft.muted, fontFamily: sans, fontVariant: ['tabular-nums'] },
   timeStack: { width: 46 },
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#1F8A4C', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5,
   },
-  durationTxt: { fontSize: 12, color: '#fff', fontWeight: '600', fontFamily: sans },
+  durationTxt: { fontSize: 12, color: '#fff', fontWeight: '400', fontFamily: sans },
   bubbleDot: {
     position: 'absolute', right: -3, bottom: -2, width: 16, height: 16, borderRadius: 8,
     backgroundColor: '#2F80ED', alignItems: 'center', justifyContent: 'center',
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     flex: 1, minWidth: 0, backgroundColor: soft.cream,
     borderRadius: 10, padding: 5, minHeight: 56,
   },
-  weekLbl: { fontSize: 12, color: soft.ink, fontWeight: '600', marginBottom: 6, fontFamily: sans },
+  weekLbl: { fontSize: 12, color: soft.ink, fontWeight: '400', marginBottom: 6, fontFamily: sans },
   weekItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
   weekDot: { width: 6, height: 6, borderRadius: 3 },
   weekHint: { fontSize: 10, color: soft.muted, fontFamily: sans, flex: 1 },

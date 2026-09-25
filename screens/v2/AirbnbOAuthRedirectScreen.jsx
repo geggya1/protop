@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   title: {
     marginTop: 16,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink || colors.text || '#0f172a',
     textAlign: 'center',
   },
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   sub: {
     marginTop: 8,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     textAlign: 'center',
     maxWidth: 320,

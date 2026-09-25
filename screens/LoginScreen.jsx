@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   },
   safe: { flex: 1, paddingHorizontal: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '800', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -487,9 +487,9 @@ const styles = StyleSheet.create({
   cardWide: { marginTop: 40 },
   logoImg: { marginBottom: 14, alignSelf: 'flex-start' },
   heading: {
-    fontSize: 28, fontWeight: '900', color: colors.ink, marginBottom: 8, letterSpacing: -0.4,
+    fontSize: 28, fontWeight: '400', color: colors.ink, marginBottom: 8, letterSpacing: -0.4,
   },
-  sub: { color: colors.muted, fontWeight: '600', marginBottom: 20, lineHeight: 20 },
+  sub: { color: colors.muted, fontWeight: '400', marginBottom: 20, lineHeight: 20 },
   input: {
     width: '100%',
     borderWidth: 1,
@@ -504,15 +504,17 @@ const styles = StyleSheet.create({
   },
   pwWrap: { position: 'relative', width: '100%' },
   pwInput: { paddingRight: 72, marginBottom: 8 },
-  eyeBtn: { position: 'absolute', right: 16, top: 14, padding: 4 },
-  eyeTxt: { color: colors.brand, fontWeight: '700', fontSize: 13 },
+  eyeBtn: {
+    alignSelf: 'flex-start', position: 'absolute', right: 16, top: 14, padding: 4 },
+  eyeTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   forgotLine: {
     color: colors.muted, fontSize: 13, fontWeight: '500', marginBottom: 14, marginTop: 2,
   },
-  linkInline: { color: colors.brand, fontWeight: '700', textDecorationLine: 'underline' },
-  errorText: { color: colors.danger, marginBottom: 10, fontSize: 13, fontWeight: '600' },
-  infoText: { color: colors.brand, marginBottom: 10, fontSize: 12, fontWeight: '600' },
+  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  errorText: { color: colors.danger, marginBottom: 10, fontSize: 13, fontWeight: '400' },
+  infoText: { color: colors.brand, marginBottom: 10, fontSize: 12, fontWeight: '400' },
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     paddingVertical: 15,
     borderRadius: radius.pill,
@@ -521,14 +523,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 4,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  primaryBtnText: { color: '#fff', fontWeight: '400', fontSize: 16 },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },
   signupMuted: { color: colors.muted, fontWeight: '500', fontSize: 14 },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     marginTop: 14, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.pill,
     borderWidth: 1, borderColor: colors.line, alignItems: 'center', backgroundColor: colors.card,
   },
-  secondaryBtnText: { color: colors.ink, fontWeight: '700' },
+  secondaryBtnText: { color: colors.ink, fontWeight: '400' },
 });

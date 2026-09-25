@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Linking, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View,
+  Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
@@ -320,10 +320,17 @@ export default function TenderAlert({ company, colors, onBids }) {
           <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
         </View>
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator
+          style={styles.tableScroll}
+          contentContainerStyle={styles.tableContent}
+        >
         <View style={styles.table}>
           <View style={[styles.tr, { borderColor: colors.line }]}>
             {['Publisert', 'Type', 'Frist', 'Konkurranse', 'Oppdragsgiver', 'Sted', 'Matcher'].map((label) => (
-              <Text key={label} style={[styles.th, { color: colors.ink }]}>{label}</Text>
+              <Text key={label} style={[label === 'Konkurranse' ? styles.thWide : styles.th, { color: colors.ink }]}>{label}</Text>
             ))}
           </View>
           {rows.map((row) => {
@@ -363,6 +370,7 @@ export default function TenderAlert({ company, colors, onBids }) {
           })}
           {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}</Text> : null}
         </View>
+        </ScrollView>
       </View>
       <View style={[styles.side, wide && styles.sideWide]}>
         {summary}
@@ -466,7 +474,13 @@ const styles = StyleSheet.create({
   side: { gap: 10, width: '100%' },
   sideWide: { width: 320, flexShrink: 0, marginLeft: 24 },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  table: { width: '100%' },
+  tableScroll: {
+    width: '100%',
+    maxWidth: '100%',
+    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+  },
+  tableContent: { flexGrow: 1 },
+  table: { width: 1120, minWidth: 1120 },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -474,7 +488,8 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   tr: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'flex-start' },
-  th: { flex: 1, minWidth: 90, fontSize: 12, fontWeight: '600', padding: 8 },
-  td: { flex: 1, minWidth: 90, fontSize: 13, fontWeight: '400', padding: 8 },
-  tdWide: { flex: 2, minWidth: 180, fontSize: 13, fontWeight: '400', padding: 8 },
+  th: { width: 120, flexGrow: 0, flexShrink: 0, fontSize: 12, fontWeight: '600', padding: 8 },
+  thWide: { width: 400, flexGrow: 0, flexShrink: 0, fontSize: 12, fontWeight: '600', padding: 8 },
+  td: { width: 120, flexGrow: 0, flexShrink: 0, fontSize: 13, fontWeight: '400', padding: 8 },
+  tdWide: { width: 400, flexGrow: 0, flexShrink: 0, fontSize: 13, fontWeight: '400', padding: 8 },
 });

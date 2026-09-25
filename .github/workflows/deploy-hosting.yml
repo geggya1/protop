@@ -51,4 +51,7 @@ jobs:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
+      - name: Deploy tender proxy function
+        run: npx firebase deploy --only functions:tenderProxy --project protop-c189c --non-interactive
+
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

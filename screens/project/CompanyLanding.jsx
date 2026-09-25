@@ -7,7 +7,6 @@ import { useColors } from '../../src/context/ThemeContext';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { fetchWeatherForecast, roundTemp, searchWeatherPlaces } from '../../src/utils/weather';
 import { formatGreetingDate } from '../../src/utils/timeGreeting';
-import { lookupCompanyCpv } from '../../src/anbud/companyLookup';
 import {
   fetchPublicCompany,
   nbDate,
@@ -116,7 +115,12 @@ export default function CompanyLanding({
       return undefined;
     }
     let alive = true;
-    lookupCompanyCpv(id)
+    fetch('/api/tender-proxy', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'lookup', orgnr: id }),
+    })
+      .then((res) => (res.ok ? res.json() : { cpvCodes: [] }))
       .then((data) => {
         if (!alive) return;
         const found = Array.isArray(data?.cpvCodes) ? data.cpvCodes : [];

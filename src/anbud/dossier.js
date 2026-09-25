@@ -33,6 +33,17 @@ export function summarizeNotice(notice) {
   const rows = flattenNoticeFields(notice?.eform);
   const documentsUrl = notice?.competitionDocsUrl || first(rows, /anskaffelsesdokumentene/i);
   const submissionUrl = first(rows, /adresse for innlevering/i) || documentsUrl;
+  const linkRows = rows.filter((row) => /^https?:\/\//i.test(row.value));
+  const documents = [];
+  const seenDocs = new Set();
+  for (const row of [{ title: 'Anskaffelsesdokumenter', value: documentsUrl }, ...linkRows.map((row) => ({ title: row.label, value: row.value }))]) {
+    if (!row.value || seenDocs.has(row.value)) continue;
+    seenDocs.add(row.value);
+    documents.push({ title: row.title || 'Dokument', url: row.value });
+  }
+  const qa = rows
+    .filter((row) => /spørsmål|tilleggsopplys|svar fra oppdragsgiver/i.test(row.label))
+    .map((row) => ({ question: row.label, answer: row.value }));
   const cpv = [...new Set([...(notice?.directCpvCodes || []), ...(notice?.allCpvCodes || [])])];
   const espd = all(rows, /espd|uteluk|exclusion/i);
   const lots = [];
@@ -54,8 +65,8 @@ export function summarizeNotice(notice) {
     procedure: first(rows, /type prosedyre/i),
     estimatedValue: first(rows, /anslått verdi/i) || notice?.core?.estimatedValue?.fullLocalizedText || '',
     duration: first(rows, /^varighet/i),
-    submissionDeadline: first(rows, /frist for mottak av tilbud/i),
-    questionDeadline: first(rows, /tilleggsopplysninger/i),
+    submissionDeadline: first(rows, /frist for mottak av tilbud/i) || text(notice?.deadline),
+    questionDeadline: first(rows, /tilleggsopplysninger/i) || text(notice?.qualificationDeadline),
     validity: first(rows, /må være gyldig/i),
     languages: first(rows, /språk der anskaffelsesdokumentene/i),
     electronicSubmission: first(rows, /elektronisk innlevering/i),
@@ -67,8 +78,8 @@ export function summarizeNotice(notice) {
     cpvCodes: cpv,
     espd: espd[0] || '',
     lots: lots.filter((lot) => lot.id),
-    documents: documentsUrl ? [{ title: 'Anskaffelsesdokumenter', url: documentsUrl }] : [],
-    qa: [],
+    documents,
+    qa,
     noticeUrl: notice?.id ? `https://www.doffin.no/notices/${notice.id}` : '',
     fetchedAt: new Date().toISOString(),
   };

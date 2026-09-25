@@ -9,6 +9,8 @@ import {
   setNoticeDecision,
   attachDossier,
   createBidWork,
+  registerInterest,
+  saveSupplierProfile,
   watchQuery,
 } from './model.js';
 
@@ -81,6 +83,19 @@ const same = kept.notices.find((row) => row.id === marked.notices[0].id);
 assert.equal(same.decision, 'aktuell');
 assert.equal(same.dossier.procedure, 'Åpen');
 assert.equal(createBidWork(merged, merged.notices[0].id).ok, false);
+const blocked = registerInterest(withFile, withFile.notices[0].id, withFile.notices[0].dossier);
+assert.equal(blocked.ok, false);
+const withProfile = saveSupplierProfile(withFile, {
+  contactName: 'Kari Nord',
+  email: 'anbud@nordbygg.no',
+  username: 'nordbygg',
+  portal: 'mercell',
+  companyName: 'Nord Bygg',
+}).state;
+assert.equal(withProfile.supplierProfile.username, 'nordbygg');
+const filed = registerInterest(withProfile, withProfile.notices[0].id, withProfile.notices[0].dossier).state;
+assert.equal(filed.bids[0].interest.username, 'nordbygg');
+assert.equal(filed.bids[0].dossier.procedure, 'Åpen');
 const bidState = createBidWork(withFile, withFile.notices[0].id).state;
 assert.equal(bidState.bids[0].phase, 'trinn2');
 assert.equal(bidState.bids[0].noticeId, withFile.notices[0].id);

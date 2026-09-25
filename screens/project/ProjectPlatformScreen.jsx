@@ -135,7 +135,7 @@ export default function ProjectPlatformScreen() {
   if (page === 'anbud') {
     return (
       <View style={styles.fill}>
-        <View style={styles.body}>
+        <View style={styles.head}>
           <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
           <Text style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
           {chips}
@@ -210,6 +210,7 @@ function Row({ icon, label, value, colors }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   body: { padding: 16, paddingBottom: 48, gap: 10 },
   kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
   title: { fontSize: 26, fontWeight: '900' },

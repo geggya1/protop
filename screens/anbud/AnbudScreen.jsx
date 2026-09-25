@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
-import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
-import { fetchCompanyCpv, fetchCompetitionFile, fetchDoffinNotices } from '../../src/anbud/doffinClient';
+import { TENDER_AREAS } from '../../src/anbud/catalog';
+import { fetchCompetitionFile, fetchDoffinNotices } from '../../src/anbud/doffinClient';
 import {
   attachDossier,
   createBidWork,
@@ -70,10 +70,6 @@ export default function AnbudScreen({ company }) {
   const [companyName, setCompanyName] = useState('');
   const [orgnr, setOrgnr] = useState('');
   const [cpvSource, setCpvSource] = useState('');
-  const [fetchedLabels, setFetchedLabels] = useState({});
-  const [lookupNote, setLookupNote] = useState('');
-  const [lookingUp, setLookingUp] = useState(false);
-  const [selectedCpv, setSelectedCpv] = useState(() => new Set());
   const [nationwide, setNationwide] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState(() => new Set());
   const [syncing, setSyncing] = useState(false);
@@ -93,12 +89,7 @@ export default function AnbudScreen({ company }) {
       const fromCompany = !watch.savedAt && company?.name;
       setCompanyName(fromCompany ? company.name : (watch.companyName || company?.name || ''));
       setOrgnr(fromCompany ? (company.orgnr || '') : (watch.orgnr || company?.orgnr || ''));
-      setCpvSource(fromCompany ? (company.cpvSource || '') : (watch.cpvSource || company?.cpvSource || ''));
-      const codes = fromCompany ? (company.cpvCodes || []) : (watch.cpvCodes?.length ? watch.cpvCodes : (company?.cpvCodes || []));
-      const labels = {};
-      codes.forEach((row) => { if (row?.label) labels[row.code] = row.label; });
-      setFetchedLabels(labels);
-      setSelectedCpv(new Set(codes.map((row) => row.code).filter(Boolean)));
+      setCpvSource(company?.cpvSource || watch.cpvSource || '');
       setNationwide(!!watch.nationwide);
       setSelectedAreas(new Set(watch.areas.map((row) => row.id)));
       setReady(true);
@@ -165,14 +156,12 @@ export default function AnbudScreen({ company }) {
   }, [ready, queryKey]);
 
   function currentInput() {
+    const cpvCodes = (company?.cpvCodes || []).filter((row) => row?.code);
     return {
       companyName,
       orgnr,
-      cpvSource,
-      cpvCodes: [...selectedCpv].map((code) => {
-        const known = CPV_CODES.find((row) => row.code === code);
-        return { code, label: fetchedLabels[code] || known?.label || `CPV ${code}` };
-      }),
+      cpvSource: company?.cpvSource || cpvSource,
+      cpvCodes,
       nationwide,
       areas: [...selectedAreas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
     };
@@ -201,40 +190,11 @@ export default function AnbudScreen({ company }) {
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       <Field label="Organisasjonsnummer" value={orgnr} onChangeText={setOrgnr} placeholder="9 siffer" colors={colors} />
       <Field label="Bedrift" value={companyName} onChangeText={setCompanyName} placeholder="Fylles ut fra Enhetsregisteret" colors={colors} />
-      <Btn
-        label={lookingUp ? 'Henter …' : 'Hent CPV fra register'}
-        colors={colors}
-        onPress={async () => {
-          setLookingUp(true);
-          setLookupNote('');
-          setError('');
-          try {
-            const data = await fetchCompanyCpv(orgnr);
-            setCompanyName(data.company?.name || companyName);
-            setOrgnr(data.company?.orgnr || orgnr);
-            const labels = {};
-            const codes = new Set();
-            for (const row of data.cpvCodes || []) {
-              codes.add(row.code);
-              labels[row.code] = row.label;
-            }
-            setFetchedLabels(labels);
-            setSelectedCpv(codes);
-            setCpvSource(codes.size ? 'doffin' : '');
-            setLookupNote(codes.size
-              ? `Hentet ${codes.size} koder fra Doffin-tildelinger${data.winners?.length ? ` for ${data.winners.join(', ')}` : ''}. Ta bort eller legg til koder før du lagrer.`
-              : 'Bedriften er i Enhetsregisteret, men har ingen offentlige CPV-koder på Doffin. Legg inn kodene manuelt.');
-          } catch (err) {
-            setError(err?.message || 'Kunne ikke hente bedriften.');
-          } finally {
-            setLookingUp(false);
-          }
-        }}
-      />
-      {lookupNote ? <Text style={{ color: colors.muted }}>{lookupNote}</Text> : null}
       <Text style={{ color: colors.muted }}>
         CPV-kodene velges med pennen øverst til høyre på bedriftssiden. De brukes i anbudsvarslingen.
-        {selectedCpv.size ? ` Valgt: ${[...selectedCpv].join(', ')}.` : ''}
+        {(company?.cpvCodes || []).length
+          ? ` Valgt: ${(company.cpvCodes || []).map((row) => row.code).filter(Boolean).join(', ')}.`
+          : ' Ingen egne koder er lagret ennå.'}
       </Text>
       <Text style={[styles.label, { color: colors.muted }]}>Område</Text>
       <View style={styles.rowWrap}>
@@ -255,12 +215,8 @@ export default function AnbudScreen({ company }) {
         onPress={() => {
           const input = currentInput();
           const next = apply(saveTenderWatch(state, input));
-          if (company?.id) {
-            updateGroup(company.id, {
-              orgnr: input.orgnr,
-              cpvCodes: input.cpvCodes,
-              cpvSource: input.cpvSource,
-            }).catch(() => {});
+          if (company?.id && input.orgnr) {
+            updateGroup(company.id, { orgnr: input.orgnr }).catch(() => {});
           }
           if (next) refresh(next);
         }}

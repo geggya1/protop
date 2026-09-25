@@ -110,6 +110,7 @@ export default function ProjectPlatformScreen() {
       }
       next.telefon = phone.trim() || company.telefon || '';
       next.epostadresse = email.trim() || next.epostadresse;
+      next.egneNaeringskoder = company.egneNaeringskoder || [];
       await savePatch(familyId, { company: next, name: next.navn });
       setEmail(next.epostadresse || '');
     } catch (e) {
@@ -177,7 +178,7 @@ export default function ProjectPlatformScreen() {
   }
 
   return (
-    <View nativeID="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
+    <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
       contentContainerStyle={styles.body}
       keyboardShouldPersistTaps="handled"

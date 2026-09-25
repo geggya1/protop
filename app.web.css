@@ -73,9 +73,12 @@ button, input, select, textarea { font-family: var(--app-font); }
 
 /* Bedriftssiden skal ikke ha fet skrift. Regelen treffer id-en, ikke bare data-attributtet. */
 #company-page,
-#company-page * {
+#company-page *,
+[data-company-page="1"],
+[data-company-page="1"] * {
   font-weight: 400 !important;
   font-synthesis: none !important;
+  font-variation-settings: 'wght' 400 !important;
 }
 button, [role="button"] { cursor: pointer; }
 

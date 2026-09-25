@@ -80,7 +80,7 @@ export default function CompanyLanding({
   const [error, setError] = useState('');
   const [forecast, setForecast] = useState(null);
   const [placeName, setPlaceName] = useState('');
-  const [cpvCodes, setCpvCodes] = useState(storedCpv);
+  const [publicCpv, setPublicCpv] = useState([]);
   const [cpvSource, setCpvSource] = useState('');
   const profile = live?.company || storedCompanyProfile(stored);
   const orgnr = stored?.organisasjonsnummer || '';
@@ -108,15 +108,11 @@ export default function CompanyLanding({
     return () => { alive = false; };
   }, [orgnr]);
 
-  const storedCpvKey = (storedCpv || []).map((row) => row.code).filter(Boolean).join(',');
   useEffect(() => {
-    const saved = storedCpvKey
-      ? storedCpvKey.split(',').map((code) => (storedCpv || []).find((row) => row.code === code) || { code })
-      : [];
     const id = String(orgnr || '').replace(/\D/g, '');
     if (id.length !== 9) {
-      setCpvCodes(saved);
-      setCpvSource(saved.length ? 'Lagret på bedriften' : '');
+      setPublicCpv([]);
+      setCpvSource('');
       return undefined;
     }
     let alive = true;
@@ -124,21 +120,16 @@ export default function CompanyLanding({
       .then((data) => {
         if (!alive) return;
         const found = Array.isArray(data?.cpvCodes) ? data.cpvCodes : [];
-        if (found.length) {
-          setCpvCodes(found);
-          setCpvSource('Offentlige tildelinger på Doffin');
-          return;
-        }
-        setCpvCodes(saved);
-        setCpvSource(saved.length ? 'Lagret på bedriften' : '');
+        setPublicCpv(found);
+        setCpvSource(found.length ? 'Offentlige tildelinger på Doffin' : '');
       })
       .catch(() => {
         if (!alive) return;
-        setCpvCodes(saved);
-        setCpvSource(saved.length ? 'Lagret på bedriften' : '');
+        setPublicCpv([]);
+        setCpvSource('');
       });
     return () => { alive = false; };
-  }, [orgnr, storedCpvKey]);
+  }, [orgnr]);
 
   const query = weatherQuery(profile);
   useEffect(() => {
@@ -422,7 +413,7 @@ export default function CompanyLanding({
             <Text style={[styles.mutedLine, { color: colors.muted }]}>
               {cpvSource || 'Søkes i offentlige tildelinger på Doffin.'}
             </Text>
-            {cpvCodes.length ? cpvCodes.map((row) => (
+            {publicCpv.length ? publicCpv.map((row) => (
               <View key={row.code} style={styles.listRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.code}</Text>
@@ -432,6 +423,16 @@ export default function CompanyLanding({
             )) : (
               <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen CPV-koder er funnet i offentlige tildelinger.</Text>
             )}
+            {(storedCpv || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
+                {storedCpv.map((row) => (
+                  <Text key={row.code} style={[styles.factValue, { color: colors.ink }]}>
+                    {[row.code, row.label].filter(Boolean).join(' · ')}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </Card>
 
           {roles.length ? (

@@ -149,6 +149,7 @@ export default function ProjectPlatformScreen() {
           stored={company}
           projects={projects}
           members={members || []}
+          cpvCodes={family?.cpvCodes || []}
           onProjects={() => requestShellTab?.('projects')}
           onMembers={() => nav.navigate('GroupSettings')}
         />

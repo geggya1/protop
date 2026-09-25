@@ -7,6 +7,7 @@ import {
   shapePublicAccounts,
   shapePublicCompany,
   shapePublicRoles,
+  shapePublicSignature,
   shapePublicUnits,
   weatherQuery,
 } from './companyPublic.js';
@@ -114,6 +115,35 @@ const fetched = await fetchPublicCompany('916538804', {
 assert.equal(fetched.ok, true);
 assert.equal(fetched.company.navn, 'CONSULT1 AS');
 assert.equal(fetched.accounts, null);
+assert.equal(fetched.signature, null);
+
+const signature = shapePublicSignature({
+  signeringsGrunnlag: {
+    signaturProkuraRoller: { signaturProkuraFritekst: 'Daglig leder alene. Styrets leder alene.' },
+  },
+  signeringsKombinasjon: {
+    kombinasjon: [
+      {
+        tekstforklaring: 'Styret i fellesskap',
+        personRolleKombinasjon: [
+          { navn: 'Torbjørn Øgreid Coll', rolle: { tekstforklaring: 'Styrets leder' } },
+          { navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Styremedlem' } },
+        ],
+      },
+      {
+        tekstforklaring: 'Daglig leder eller styrets leder hver for seg',
+        personRolleKombinasjon: [{ navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Daglig leder' } }],
+      },
+      {
+        tekstforklaring: 'Daglig leder eller styrets leder hver for seg',
+        personRolleKombinasjon: [{ navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Daglig leder' } }],
+      },
+    ],
+  },
+});
+assert.equal(signature.fritekst, 'Daglig leder alene. Styrets leder alene.');
+assert.equal(signature.kombinasjoner.length, 2);
+assert.equal(signature.kombinasjoner[1].personer[0].rolle, 'Daglig leder');
 assert.match(fetched.brregUrl, /916538804/);
 
 const missing = await fetchPublicCompany('123', { fetchImpl: async () => { throw new Error('skal ikke kalles'); } });

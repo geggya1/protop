@@ -221,9 +221,7 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
     .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
   for (const [id, kept] of previous) {
     if (byId.has(id)) continue;
-    if (kept.decision && kept.decision !== 'ubestemt') {
-      notices.push({ ...kept, status: kept.status || 'ACTIVE', isNew: false });
-    }
+    notices.push({ ...kept, isNew: false });
   }
   return ok({
     ...state,

@@ -122,7 +122,8 @@ assert.match(orgScreen, /styles\.grid/);
 assert.match(orgScreen, /width: 320/);
 
 const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
-assert.equal(/fontWeight:\s*'[6-9]00'/.test(company), false);
+assert.equal(/fontWeight:\s*'[7-9]00'/.test(company), false);
+assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
 assert.equal(company.includes('GroupSettings'), false);
 

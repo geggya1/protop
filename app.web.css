@@ -71,7 +71,7 @@ body {
 }
 button, input, select, textarea { font-family: var(--app-font); }
 
-/* Bedriftssiden skal ikke ha fet skrift. Regelen treffer id-en, ikke bare data-attributtet. */
+/* Bedriftssiden har vanlig skrift. Bare overskrifter er fete. */
 #company-page,
 #company-page *,
 [data-company-page="1"],
@@ -79,6 +79,11 @@ button, input, select, textarea { font-family: var(--app-font); }
   font-weight: 400 !important;
   font-synthesis: none !important;
   font-variation-settings: 'wght' 400 !important;
+}
+#company-page [data-heading="1"],
+[data-company-page="1"] [data-heading="1"] {
+  font-weight: 600 !important;
+  font-variation-settings: 'wght' 600 !important;
 }
 button, [role="button"] { cursor: pointer; }
 

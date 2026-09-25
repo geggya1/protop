@@ -94,7 +94,7 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
           );
         })}
       </View>
-      <Field label="Adresse til innloggingen" value={portalUrl} onChangeText={(value) => { setPortalUrl(value); setPortalName(portalFromUrl(value).name); }} colors={colors} placeholder="https://www.mercell.com/" keyboardType="url" />
+      <Field label="Adresse til innloggingen" value={portalUrl} onChangeText={(value) => { setPortalUrl(value); setPortalName(portalFromUrl(value).name); }} colors={colors} placeholder="https://app.mercell.com/auth/login?bidding" keyboardType="url" />
       {portalFromUrl(portalUrl).url ? (
         <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(portalFromUrl(portalUrl).url)}>Åpne {portalName || 'portalen'}</Text>
       ) : null}

@@ -90,12 +90,12 @@ const withProfile = saveSupplierProfile(withFile, {
   email: 'anbud@nordbygg.no',
   username: 'nordbygg',
   portal: 'Mercell',
-  portalUrl: 'https://www.mercell.com/',
+  portalUrl: 'https://app.mercell.com/auth/login?bidding',
   companyName: 'Nord Bygg',
 }).state;
 assert.equal(withProfile.supplierProfile.username, 'nordbygg');
 assert.equal(withProfile.supplierProfile.portal, 'Mercell');
-assert.match(withProfile.supplierProfile.portalUrl, /^https:\/\/www\.mercell\.com/);
+assert.match(withProfile.supplierProfile.portalUrl, /^https:\/\/app\.mercell\.com\/auth\/login/);
 assert.equal(saveSupplierProfile(withFile, {
   contactName: 'Kari Nord',
   email: 'anbud@nordbygg.no',

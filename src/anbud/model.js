@@ -90,9 +90,9 @@ export function normalizeAnbudState(raw) {
 }
 
 export const LOGIN_PORTALS = [
-  { id: 'mercell', name: 'Mercell', url: 'https://www.mercell.com/' },
-  { id: 'eusupply', name: 'EU Supply', url: 'https://eu.eu-supply.com/' },
-  { id: 'tendsign', name: 'TendSign', url: 'https://tendsign.com/' },
+  { id: 'mercell', name: 'Mercell', url: 'https://app.mercell.com/auth/login?bidding' },
+  { id: 'eusupply', name: 'EU Supply', url: 'https://eu.eu-supply.com/login.asp' },
+  { id: 'tendsign', name: 'TendSign', url: 'https://tendsign.no/login.aspx' },
 ];
 
 export function portalFromUrl(value) {

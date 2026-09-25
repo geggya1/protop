@@ -23,18 +23,18 @@ function idsIn(sections) {
     familyId: 'F', hasKids: true, childForSchedule: kid, firstKid: kid,
   });
   const ids = idsIn(sections);
-  for (const id of ['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal', 'moduleAccess']) {
+  for (const id of ['home', 'friends', 'chat', 'plan', 'mail', 'stars', 'notes', 'settings', 'help', 'legal', 'moduleAccess']) {
     assert.ok(ids.includes(id), id);
   }
   const account = sections.find((s) => s.id === 'account');
   assert.ok(account.items.some((i) => i.id === 'settings'));
   assert.ok(account.items.some((i) => i.id === 'help'));
   assert.ok(account.items.some((i) => i.id === 'legal'));
-  for (const hidden of ['chat', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
-    assert.equal(ids.includes(hidden), false, `${hidden} stays out of the ProTop shell`);
+  for (const hidden of ['projects', 'anbud', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
+    assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
-  assert.deepEqual(main, ['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes']);
+  assert.deepEqual(main, ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes']);
   assert.ok(main.indexOf('friends') < main.indexOf('plan'));
   assert.ok(main.includes('mail'));
   assert.ok(main.includes('notes'));
@@ -47,6 +47,20 @@ function idsIn(sections) {
   });
   assert.ok(idsIn(noFamily).includes('friends'), 'Venner is in the shell without a family id');
   assert.ok(idsIn(noFamily).includes('mail'));
+  assert.equal(idsIn(noFamily).includes('anbud'), false);
+}
+
+{
+  const company = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'F', family: { type: 'organization', name: 'ProTop AS' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+  });
+  const ids = idsIn(company);
+  assert.ok(ids.includes('anbud'));
+  assert.ok(ids.includes('projects'));
+  assert.ok(ids.includes('members'));
+  assert.ok(ids.includes('mail'));
 }
 
 {
@@ -66,7 +80,7 @@ function idsIn(sections) {
     t, familyId: 'F', eventCount: 2, hasKids: true, firstKid: kid,
   });
   const ids = parentApps.map((a) => a.id);
-  assert.deepEqual(ids.sort(), ['friends', 'mail', 'notes', 'plan', 'projects', 'stars']);
+  assert.deepEqual(ids.sort(), ['chat', 'friends', 'mail', 'notes', 'plan', 'stars']);
 }
 
 {
@@ -75,7 +89,7 @@ function idsIn(sections) {
   });
   const ids = childApps.map((a) => a.id);
   for (const id of ids) {
-    assert.ok(['home', 'friends', 'projects', 'plan', 'mail', 'stars', 'notes'].includes(id), id);
+    assert.ok(['home', 'friends', 'chat', 'plan', 'mail', 'stars', 'notes'].includes(id), id);
   }
   assert.ok(ids.includes('plan'));
   assert.ok(ids.includes('notes'));

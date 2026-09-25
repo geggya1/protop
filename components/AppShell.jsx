@@ -19,6 +19,10 @@ import NotesHubScreen from '../screens/v2/NotesHubScreen';
 import ChatTabScreen from '../screens/v2/ChatTabScreen';
 import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
+import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
+import AnbudScreen from '../screens/anbud/AnbudScreen';
+import { isOrganizationType } from '../src/utils/groupTypes';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -476,6 +480,21 @@ function AppShellInner() {
     if (tab === 'chat') return <ChatTabScreen />;
     if (tab === 'notes') return <NotesHubScreen />;
     if (tab === 'mail') return <MailHubScreen />;
+    if (tab === 'anbud') {
+      return (
+        <AnbudScreen
+          company={{
+            id: familyId,
+            name: family?.company?.navn || family?.name || '',
+            orgnr: family?.company?.organisasjonsnummer || '',
+            cpvCodes: family?.cpvCodes || [],
+            cpvSource: family?.cpvSource || '',
+          }}
+        />
+      );
+    }
+    if (tab === 'projects') return <ProjectWorkScreen />;
+    if (isOrganizationType(family?.type) && tab === 'home') return <ProjectPlatformScreen />;
     if (tab === 'more') {
       return (
         <MoreHubScreen
@@ -485,7 +504,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild]);
+  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family]);
 
   const body = (
     <>

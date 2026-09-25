@@ -10,6 +10,7 @@
 export const PROTOP_PRODUCT_MODULE_IDS = [
   'home',
   'friends',
+  'chat',
   'plan',
   'mail',
   'stars',
@@ -68,13 +69,14 @@ export function isProtopHomeWidget(type) {
   return PROTOP_HOME_WIDGET_SET.has(type);
 }
 
-export function applyProtopShellSections(sections) {
+export function applyProtopShellSections(sections, extraIds = []) {
+  const extra = new Set(extraIds || []);
   return (sections || [])
     .map((section) => {
       if (section.id === 'account') return section;
       return {
         ...section,
-        items: (section.items || []).filter((item) => isProtopShellModule(item.id)),
+        items: (section.items || []).filter((item) => isProtopShellModule(item.id) || extra.has(item.id)),
       };
     })
     .filter((section) => (section.items || []).length > 0);

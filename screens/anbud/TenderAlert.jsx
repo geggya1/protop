@@ -452,13 +452,13 @@ export default function TenderAlert({ company, colors, onBids }) {
 }
 
 const styles = StyleSheet.create({
-  layout: { gap: 16 },
-  layoutWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  layout: { gap: 16, width: '100%', alignSelf: 'stretch' },
+  layoutWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   main: { flex: 1, gap: 8, minWidth: 0 },
-  side: { gap: 10 },
-  sideWide: { width: 340 },
+  side: { gap: 10, width: '100%' },
+  sideWide: { width: 320, flexShrink: 0, marginLeft: 24 },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  table: { width: '100%', minWidth: 860 },
+  table: { width: '100%' },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

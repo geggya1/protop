@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
-import IntakePanel from './IntakePanel';
 import TenderAlert from './TenderAlert';
 
 const STEPS = [
@@ -12,7 +11,6 @@ const STEPS = [
 export default function AnbudScreen({ company }) {
   const colors = useColors();
   const [step, setStep] = useState('varsling');
-  const [intake, setIntake] = useState('');
   const [bids, setBids] = useState([]);
 
   return (
@@ -46,28 +44,13 @@ export default function AnbudScreen({ company }) {
           {!bids.length ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Merk et treff som aktuelt og meld interesse.</Text> : null}
         </View>
       )}
-      <TouchableOpacity onPress={() => setIntake(intake ? '' : 'manuell')} accessibilityRole="button">
-        <Text style={{ color: colors.muted, fontWeight: '400' }}>{intake ? 'Skjul andre innganger' : 'Andre innganger: ProTop og manuelt'}</Text>
-      </TouchableOpacity>
-      {intake ? (
-        <View style={{ gap: 8 }}>
-          <View style={styles.row}>
-            {[['protop', 'Fra ProTop'], ['manuell', 'Manuelt']].map(([id, label]) => (
-              <TouchableOpacity key={id} onPress={() => setIntake(id)} accessibilityRole="button">
-                <Text style={{ color: intake === id ? colors.brand : colors.ink, fontWeight: '400' }}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <IntakePanel mode={intake} colors={colors} company={company} />
-        </View>
-      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch' },
+  inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   bid: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

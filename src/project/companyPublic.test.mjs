@@ -7,6 +7,7 @@ import {
   shapePublicAccounts,
   shapePublicCompany,
   shapePublicRoles,
+  shapePublicSignature,
   shapePublicUnits,
   weatherQuery,
 } from './companyPublic.js';
@@ -48,6 +49,14 @@ assert.equal(company.navn, 'CONSULT1 AS');
 assert.equal(company.organisasjonsform, 'Aksjeselskap');
 assert.equal(company.ansatte, 19);
 assert.equal(company.naeringer[0].kode, '71.121');
+const several = shapePublicCompany({
+  organisasjonsnummer: '123456789',
+  navn: 'Flere AS',
+  naeringskode1: { kode: '71.121', beskrivelse: 'Bygg' },
+  naeringskode2: { kode: '41.200', beskrivelse: 'Oppføring av bygninger' },
+  naeringskoder: [{ kode: '71.121', beskrivelse: 'Bygg' }, { kode: '43.210', beskrivelse: 'Elektrisk installasjon' }],
+});
+assert.deepEqual(several.naeringer.map((row) => row.kode), ['71.121', '41.200', '43.210']);
 assert.equal(company.forretning.poststed, 'SANDNES');
 assert.equal(company.kapital.aksjer, 3000);
 assert.equal(company.formaal[0], 'Eiendom og investering.');
@@ -114,6 +123,35 @@ const fetched = await fetchPublicCompany('916538804', {
 assert.equal(fetched.ok, true);
 assert.equal(fetched.company.navn, 'CONSULT1 AS');
 assert.equal(fetched.accounts, null);
+assert.equal(fetched.signature, null);
+
+const signature = shapePublicSignature({
+  signeringsGrunnlag: {
+    signaturProkuraRoller: { signaturProkuraFritekst: 'Daglig leder alene. Styrets leder alene.' },
+  },
+  signeringsKombinasjon: {
+    kombinasjon: [
+      {
+        tekstforklaring: 'Styret i fellesskap',
+        personRolleKombinasjon: [
+          { navn: 'Torbjørn Øgreid Coll', rolle: { tekstforklaring: 'Styrets leder' } },
+          { navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Styremedlem' } },
+        ],
+      },
+      {
+        tekstforklaring: 'Daglig leder eller styrets leder hver for seg',
+        personRolleKombinasjon: [{ navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Daglig leder' } }],
+      },
+      {
+        tekstforklaring: 'Daglig leder eller styrets leder hver for seg',
+        personRolleKombinasjon: [{ navn: 'Anders Rolandsen', rolle: { tekstforklaring: 'Daglig leder' } }],
+      },
+    ],
+  },
+});
+assert.equal(signature.fritekst, 'Daglig leder alene. Styrets leder alene.');
+assert.equal(signature.kombinasjoner.length, 2);
+assert.equal(signature.kombinasjoner[1].personer[0].rolle, 'Daglig leder');
 assert.match(fetched.brregUrl, /916538804/);
 
 const missing = await fetchPublicCompany('123', { fetchImpl: async () => { throw new Error('skal ikke kalles'); } });

@@ -4,6 +4,7 @@
  */
 
 const BRREG = 'https://data.brreg.no/enhetsregisteret/api';
+const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 
 function text(value) {
@@ -39,10 +40,20 @@ function addressBlock(addr) {
 }
 
 function industryCodes(raw) {
-  return ['naeringskode1', 'naeringskode2', 'naeringskode3']
+  const listed = Array.isArray(raw?.naeringskoder) ? raw.naeringskoder : [];
+  const rows = ['naeringskode1', 'naeringskode2', 'naeringskode3']
     .map((key) => raw?.[key])
+    .concat(listed);
+  const seen = new Set();
+  return rows
     .filter((row) => row && (row.kode || row.beskrivelse))
-    .map((row) => ({ kode: text(row.kode), beskrivelse: text(row.beskrivelse) }));
+    .map((row) => ({ kode: text(row.kode), beskrivelse: text(row.beskrivelse) }))
+    .filter((row) => {
+      const key = `${row.kode}|${row.beskrivelse}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export function shapePublicCompany(raw) {
@@ -153,6 +164,31 @@ export function shapePublicAccounts(payload) {
     gjeld: amount(gjeld, 'sumGjeld'),
     eiendeler: amount(eiendeler, 'sumEiendeler'),
   };
+}
+
+export function shapePublicSignature(payload) {
+  const basis = payload?.signeringsGrunnlag;
+  const combos = payload?.signeringsKombinasjon?.kombinasjon;
+  if (!basis && !Array.isArray(combos)) return null;
+  const seen = new Set();
+  const kombinasjoner = (combos || []).map((row) => {
+    const personer = (row.personRolleKombinasjon || []).map((person) => ({
+      navn: text(person.navn),
+      rolle: text(person.rolle?.tekstforklaring),
+    })).filter((person) => person.navn);
+    return {
+      tekst: text(row.tekstforklaring),
+      personer,
+    };
+  }).filter((row) => {
+    const key = `${row.tekst}|${row.personer.map((person) => person.navn).join(',')}`;
+    if (!row.personer.length || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const fritekst = text(basis?.signaturProkuraRoller?.signaturProkuraFritekst);
+  if (!fritekst && !kombinasjoner.length) return null;
+  return { fritekst, kombinasjoner };
 }
 
 export function shapePublicUnits(payload) {
@@ -266,10 +302,11 @@ export async function fetchPublicCompany(orgnr, { fetchImpl = fetch } = {}) {
   const enhet = await readJson(`${BRREG}/enheter/${id}`, fetchImpl);
   const company = shapePublicCompany(enhet);
   if (!company) return { ok: false, error: 'Fant ikke organisasjonsnummeret i Enhetsregisteret.' };
-  const [roller, units, accounts] = await Promise.all([
+  const [roller, units, accounts, signatur] = await Promise.all([
     readJson(`${BRREG}/enheter/${id}/roller`, fetchImpl).catch(() => null),
     readJson(`${BRREG}/underenheter?overordnetEnhet=${id}&size=50`, fetchImpl).catch(() => null),
     readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
+    readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),
   ]);
   return {
     ok: true,
@@ -277,6 +314,7 @@ export async function fetchPublicCompany(orgnr, { fetchImpl = fetch } = {}) {
     roles: shapePublicRoles(roller),
     units: shapePublicUnits(units),
     accounts: shapePublicAccounts(accounts),
+    signature: shapePublicSignature(signatur),
     brregUrl: `https://virksomhet.brreg.no/nb/oppslag/enhet/${id}`,
   };
 }

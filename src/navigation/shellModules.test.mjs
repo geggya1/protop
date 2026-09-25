@@ -61,7 +61,7 @@ function idsIn(sections) {
   const ids = idsIn(company);
   assert.ok(ids.includes('anbud'));
   assert.ok(ids.includes('projects'));
-  assert.ok(ids.includes('members'));
+  assert.equal(ids.includes('members'), false);
   assert.ok(ids.includes('mail'));
 }
 
@@ -124,7 +124,7 @@ assert.match(orgScreen, /width: 320/);
 const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
 assert.equal(/fontWeight:\s*'[6-9]00'/.test(company), false);
 assert.match(company, /alignSelf: 'flex-start'/);
-assert.match(company, /styles\.actions/);
+assert.equal(company.includes('GroupSettings'), false);
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);

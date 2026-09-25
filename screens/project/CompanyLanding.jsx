@@ -7,6 +7,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { fetchWeatherForecast, roundTemp, searchWeatherPlaces } from '../../src/utils/weather';
 import { formatGreetingDate } from '../../src/utils/timeGreeting';
+import { lookupCompanyCpv } from '../../src/anbud/companyLookup';
 import {
   fetchPublicCompany,
   nbDate,
@@ -67,8 +68,9 @@ export default function CompanyLanding({
   stored,
   projects = [],
   members = [],
+  cpvCodes: storedCpv = [],
   onProjects,
-  onMembers,
+  onSettings,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -78,6 +80,8 @@ export default function CompanyLanding({
   const [error, setError] = useState('');
   const [forecast, setForecast] = useState(null);
   const [placeName, setPlaceName] = useState('');
+  const [publicCpv, setPublicCpv] = useState([]);
+  const [cpvSource, setCpvSource] = useState('');
   const profile = live?.company || storedCompanyProfile(stored);
   const orgnr = stored?.organisasjonsnummer || '';
 
@@ -100,6 +104,29 @@ export default function CompanyLanding({
       })
       .finally(() => {
         if (alive) setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [orgnr]);
+
+  useEffect(() => {
+    const id = String(orgnr || '').replace(/\D/g, '');
+    if (id.length !== 9) {
+      setPublicCpv([]);
+      setCpvSource('');
+      return undefined;
+    }
+    let alive = true;
+    lookupCompanyCpv(id)
+      .then((data) => {
+        if (!alive) return;
+        const found = Array.isArray(data?.cpvCodes) ? data.cpvCodes : [];
+        setPublicCpv(found);
+        setCpvSource(found.length ? 'Offentlige tildelinger på Doffin' : '');
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPublicCpv([]);
+        setCpvSource('');
       });
     return () => { alive = false; };
   }, [orgnr]);
@@ -146,10 +173,7 @@ export default function CompanyLanding({
   const roles = live?.roles || [];
   const units = live?.units || [];
   const accounts = live?.accounts || null;
-  const industry = (profile?.naeringer || [])
-    .map((row) => [row.kode, row.beskrivelse].filter(Boolean).join(' · '))
-    .filter(Boolean)
-    .join('\n');
+  const signature = live?.signature || null;
   const activeProjects = projects.filter((row) => row?.status !== 'arkivert');
   const phaseCounts = activeProjects.reduce((map, row) => {
     const key = row.phase || 'ukjent';
@@ -208,7 +232,7 @@ export default function CompanyLanding({
         <TouchableOpacity key={row.id || row.number} style={styles.listRow} onPress={onProjects}>
           <Ionicons name="construct-outline" size={16} color={colors.brand} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={1}>
+            <Text style={{ color: colors.ink, fontWeight: '400' }} numberOfLines={1}>
               {[row.number, row.name].filter(Boolean).join(' · ') || 'Prosjekt'}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
@@ -217,10 +241,6 @@ export default function CompanyLanding({
           </View>
         </TouchableOpacity>
       ))}
-      <TouchableOpacity onPress={onMembers} style={styles.memberLink} accessibilityRole="button">
-        <Ionicons name="people-outline" size={16} color={colors.brand} />
-        <Text style={[styles.link, { color: colors.brand }]}>Medlemmer</Text>
-      </TouchableOpacity>
     </Card>
   );
 
@@ -245,14 +265,17 @@ export default function CompanyLanding({
             <Ionicons name="construct-outline" size={15} color="#fff" />
             <Text style={styles.primaryTxt}>Prosjekt</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.ghostBtn, { backgroundColor: colors.card, borderColor: colors.line }]} onPress={onMembers}>
-            <Ionicons name="people-outline" size={15} color={colors.ink} />
-            <Text style={[styles.ghostTxt, { color: colors.ink }]}>Medlemmer</Text>
+          <TouchableOpacity
+            onPress={onSettings}
+            accessibilityLabel="Innstillinger for bedriften"
+            style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <Ionicons name="pencil" size={16} color={colors.ink} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {!!error && <Text style={{ color: colors.danger, fontWeight: '700' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
       {loading && !live ? <Text style={{ color: colors.muted }}>Henter offentlige opplysninger…</Text> : null}
 
       <View style={[styles.columns, wide && styles.columnsWide]}>
@@ -282,7 +305,24 @@ export default function CompanyLanding({
               <Fact label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
               <Fact label="Vedtekter" value={nbDate(profile?.vedtektsdato)} colors={colors} />
             </View>
-            {industry ? <Fact label="Næring" value={industry} colors={colors} /> : null}
+            {(profile?.naeringer || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Næringskoder</Text>
+                {profile.naeringer.map((row) => (
+                  <Text key={`${row.kode}-${row.beskrivelse}`} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>
+                    {[row.kode, row.beskrivelse].filter(Boolean).join(' · ')}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {(stored?.egneNaeringskoder || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
+                {stored.egneNaeringskoder.map((row) => (
+                  <Text key={row} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>{row}</Text>
+                ))}
+              </View>
+            ) : null}
             {profile?.historiskeNavn?.length ? (
               <Fact label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
             ) : null}
@@ -313,7 +353,7 @@ export default function CompanyLanding({
                     size={16}
                     color={colors.brand}
                   />
-                  <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{row.label}</Text>
+                  <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row.label}</Text>
                   <Text style={{ color: colors.muted }}>{row.value}</Text>
                 </View>
               ))}
@@ -349,13 +389,59 @@ export default function CompanyLanding({
             </Card>
           ) : null}
 
+          {signature ? (
+            <Card colors={colors}>
+              <SectionTitle colors={colors}>Signaturrett</SectionTitle>
+              {signature.fritekst ? (
+                <Text style={[styles.body, { color: colors.ink }]}>{signature.fritekst}</Text>
+              ) : null}
+              {signature.kombinasjoner.map((row) => (
+                <View key={`${row.tekst}-${row.personer.map((person) => person.navn).join('-')}`} style={styles.listRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.tekst || 'Kan signere'}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {row.personer.map((person) => [person.navn, person.rolle].filter(Boolean).join(', ')).join(' · ')}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          <Card colors={colors}>
+            <SectionTitle colors={colors}>CPV-koder</SectionTitle>
+            <Text style={[styles.mutedLine, { color: colors.muted }]}>
+              {cpvSource || 'Søkes i offentlige tildelinger på Doffin.'}
+            </Text>
+            {publicCpv.length ? publicCpv.map((row) => (
+              <View key={row.code} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.code}</Text>
+                  {row.label ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.label}</Text> : null}
+                </View>
+              </View>
+            )) : (
+              <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen CPV-koder er funnet i offentlige tildelinger.</Text>
+            )}
+            {(storedCpv || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
+                {storedCpv.map((row) => (
+                  <Text key={row.code} style={[styles.factValue, { color: colors.ink }]}>
+                    {[row.code, row.label].filter(Boolean).join(' · ')}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </Card>
+
           {roles.length ? (
             <Card colors={colors}>
               <SectionTitle colors={colors}>Roller</SectionTitle>
               {roles.map((row) => (
                 <View key={`${row.rolle}-${row.navn}`} style={styles.listRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.navn}</Text>
+                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.navn}</Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>{row.rolle}</Text>
                   </View>
                 </View>
@@ -369,7 +455,7 @@ export default function CompanyLanding({
               {units.map((row) => (
                 <View key={row.organisasjonsnummer} style={styles.listRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.navn}</Text>
+                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.navn}</Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {[row.organisasjonsnummer, row.naering, row.adresse].filter(Boolean).join(' · ')}
                     </Text>
@@ -381,7 +467,7 @@ export default function CompanyLanding({
 
           {live?.brregUrl ? (
             <TouchableOpacity onPress={() => openUrl(live.brregUrl)}>
-              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret og Regnskapsregisteret</Text>
+              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. CPV fra Doffin. Registerdetaljene ligger på forsiden inntil videre.</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -402,22 +488,21 @@ const webShadow = Platform.OS === 'web'
 const styles = StyleSheet.create({
   page: { paddingBottom: 28, gap: 14 },
   hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
-  hello: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
+  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
+  hello: { fontSize: 28, fontWeight: '400', letterSpacing: -0.4 },
   heroSub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
-  heroMeta: { fontSize: 13, fontWeight: '600', textTransform: 'capitalize' },
+  heroMeta: { fontSize: 13, fontWeight: '400', textTransform: 'capitalize' },
   weatherPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
   },
-  pillTxt: { fontSize: 12, fontWeight: '700' },
+  pillTxt: { fontSize: 12, fontWeight: '400' },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10 },
-  primaryTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  ghostBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1,
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  penBtn: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  ghostTxt: { fontWeight: '700', fontSize: 13 },
   columns: { gap: 12 },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainCol: { flex: 1.4, gap: 12, minWidth: 0 },
@@ -425,25 +510,24 @@ const styles = StyleSheet.create({
   sideColWide: { flex: 0.9, maxWidth: 420 },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8, ...webShadow },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '800' },
-  link: { fontWeight: '700', fontSize: 13 },
-  lead: { fontSize: 15, fontWeight: '700' },
+  cardTitle: { fontSize: 16, fontWeight: '400' },
+  link: { fontWeight: '400', fontSize: 13 },
+  lead: { fontSize: 15, fontWeight: '400' },
   body: { fontSize: 15, lineHeight: 21 },
   mutedLine: { fontSize: 13, lineHeight: 18 },
   factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   fact: { minWidth: 140, flexGrow: 1, gap: 2 },
-  factLabel: { fontSize: 12, fontWeight: '700' },
-  factValue: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  factLabel: { fontSize: 12, fontWeight: '400' },
+  factValue: { fontSize: 14, fontWeight: '400', lineHeight: 19 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   statRow: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, borderRadius: 12, padding: 10, gap: 2, minWidth: 0 },
-  statValue: { fontSize: 16, fontWeight: '800' },
+  statValue: { fontSize: 16, fontWeight: '400' },
   weatherNow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weatherTemp: { fontSize: 28, fontWeight: '800' },
+  weatherTemp: { fontSize: 28, fontWeight: '400' },
   weatherLabel: { flex: 1, fontSize: 13, lineHeight: 18 },
   forecastRow: { flexDirection: 'row', gap: 8 },
   forecastCol: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
-  forecastVal: { fontSize: 12, fontWeight: '700' },
-  source: { fontSize: 12, fontWeight: '600' },
-  memberLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
+  forecastVal: { fontSize: 12, fontWeight: '400' },
+  source: { fontSize: 12, fontWeight: '400' },
 });

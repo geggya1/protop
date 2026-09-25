@@ -583,11 +583,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   kicker: {
-    fontWeight: '600', color: colors.muted, letterSpacing: 0.6,
+    fontWeight: '400', color: colors.muted, letterSpacing: 0.6,
     fontSize: 11, textTransform: 'uppercase',
   },
-  headTitle: { fontSize: 20, fontWeight: '700', color: colors.ink, marginTop: 1 },
-  headTitleDesk: { fontSize: 16, fontWeight: '600' },
+  headTitle: { fontSize: 20, fontWeight: '400', color: colors.ink, marginTop: 1 },
+  headTitleDesk: { fontSize: 16, fontWeight: '400' },
   plus: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.fab,
     alignItems: 'center', justifyContent: 'center',
@@ -611,15 +611,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   inviteIconDesk: { width: 28, height: 28, borderRadius: 6 },
-  inviteTitle: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  inviteTitleDesk: { fontWeight: '600', fontSize: 13 },
+  inviteTitle: { color: '#fff', fontWeight: '400', fontSize: 14 },
+  inviteTitleDesk: { fontWeight: '400', fontSize: 13 },
   inviteSub: { color: 'rgba(255,255,255,0.88)', fontWeight: '500', fontSize: 12, marginTop: 1 },
   inviteSubDesk: { fontWeight: '400', fontSize: 11 },
   section: {
-    fontWeight: '700', fontSize: 12, color: colors.muted, marginBottom: 8,
+    fontWeight: '400', fontSize: 12, color: colors.muted, marginBottom: 8,
     letterSpacing: 0.5, textTransform: 'uppercase',
   },
-  sectionDesk: { fontWeight: '600', fontSize: 11, letterSpacing: 0.42, marginBottom: 6 },
+  sectionDesk: { fontWeight: '400', fontSize: 11, letterSpacing: 0.42, marginBottom: 6 },
   sectionSpaced: { marginTop: 16 },
   listCard: {
     backgroundColor: colors.card,
@@ -660,8 +660,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minHeight: 96,
   },
-  cardName: { fontWeight: '600', fontSize: 13, color: colors.ink, textAlign: 'center', width: '100%' },
-  cardNameDesk: { fontSize: 13, fontWeight: '600' },
+  cardName: { fontWeight: '400', fontSize: 13, color: colors.ink, textAlign: 'center', width: '100%' },
+  cardNameDesk: { fontSize: 13, fontWeight: '400' },
   cardSub: { color: colors.muted, fontWeight: '400', fontSize: 11, textAlign: 'center' },
   cardSubDesk: { fontSize: 11, fontWeight: '400' },
   rowInactive: {
@@ -671,11 +671,11 @@ const styles = StyleSheet.create({
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' },
   inactiveLabel: {
-    color: colors.danger, fontWeight: '700', fontSize: 10,
+    color: colors.danger, fontWeight: '400', fontSize: 10,
     letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 1,
   },
-  name: { fontWeight: '600', fontSize: 14, color: colors.ink },
-  nameDesk: { fontSize: 13, fontWeight: '600' },
+  name: { fontWeight: '400', fontSize: 14, color: colors.ink },
+  nameDesk: { fontSize: 13, fontWeight: '400' },
   nameInactive: { color: '#7f1d1d' },
   sub: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   subDesk: { fontSize: 11 },
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, alignSelf: 'flex-start',
   },
   secondaryDesk: { borderRadius: 7, paddingVertical: 7, paddingHorizontal: 10 },
-  secondaryTxt: { color: colors.ink, fontWeight: '600', fontSize: 13 },
+  secondaryTxt: { color: colors.ink, fontWeight: '400', fontSize: 13 },
   secondaryTxtDesk: { fontWeight: '500', fontSize: 13 },
   homeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -696,14 +696,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   homeBtnDesk: { borderRadius: 7, paddingVertical: 7, paddingHorizontal: 10 },
-  homeBtnTxt: { color: colors.brand, fontWeight: '600', fontSize: 13 },
+  homeBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   homeBtnTxtDesk: { fontWeight: '500' },
   archiveToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 10, marginTop: 14, alignSelf: 'flex-start',
   },
   archiveToggleDesk: { paddingVertical: 8, marginTop: 12 },
-  archiveToggleTxt: { fontWeight: '600', color: colors.brand, fontSize: 13 },
+  archiveToggleTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   archiveToggleTxtDesk: { fontWeight: '500', fontSize: 12 },
   archivedBlock: { marginTop: 4 },
   archivedHint: {
@@ -713,5 +713,5 @@ const styles = StyleSheet.create({
   primary: {
     backgroundColor: colors.brand, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20,
   },
-  primaryTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
 });

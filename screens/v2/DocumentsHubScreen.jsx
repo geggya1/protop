@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   },
   panelDesk: { borderRadius: 8, padding: 10 },
   listSection: {
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 11,
     color: colors.muted,
     textTransform: 'uppercase',

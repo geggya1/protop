@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   },
   dateWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   dateWeek: {
-    fontSize: 11, color: '#E24B4A', fontFamily: soft.body, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '600',
+    fontSize: 11, color: '#E24B4A', fontFamily: soft.body, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '400',
   },
   dateNum: { fontSize: 42, color: '#1C1C1E', fontFamily: soft.display, lineHeight: 46 },
   dateNumSm: { fontSize: 36, color: '#1C1C1E', fontFamily: soft.display, lineHeight: 40 },

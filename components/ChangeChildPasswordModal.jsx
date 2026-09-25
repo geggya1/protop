@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  title: { fontSize: 18, fontWeight: '800', color: colors.ink },
+  title: { fontSize: 18, fontWeight: '400', color: colors.ink },
   body: { fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 14 },
-  label: { fontWeight: '700', color: colors.ink, marginBottom: 6, fontSize: 14 },
+  label: { fontWeight: '400', color: colors.ink, marginBottom: 6, fontSize: 14 },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -172,9 +172,10 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eyeBtn: { padding: 8 },
+  eyeBtn: {
+    alignSelf: 'flex-start', padding: 8 },
   hint: { fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 17 },
-  error: { color: '#b91c1c', fontWeight: '700', fontSize: 13, marginTop: 8 },
+  error: { color: '#b91c1c', fontWeight: '400', fontSize: 13, marginTop: 8 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   btn: {
     flex: 1,
@@ -185,8 +186,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   btnMuted: { backgroundColor: colors.sunken },
-  btnMutedTxt: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  btnMutedTxt: { color: colors.ink, fontWeight: '400', fontSize: 15 },
   btnPrimary: { backgroundColor: colors.brand },
-  btnPrimaryTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  btnPrimaryTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   btnDisabled: { opacity: 0.7 },
 });

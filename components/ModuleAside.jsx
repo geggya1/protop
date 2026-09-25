@@ -113,14 +113,14 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   title: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 20,
   },
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft,
     color: colors.brand,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     textAlign: 'center',
     lineHeight: 18,
     overflow: 'hidden',
@@ -162,5 +162,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingVertical: 6,
   },
-  helpTxt: { color: colors.brand, fontWeight: '700', fontSize: 13 },
+  helpTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
 });

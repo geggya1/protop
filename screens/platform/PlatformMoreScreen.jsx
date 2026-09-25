@@ -41,5 +41,5 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '47%', borderRadius: 16, padding: 14, borderWidth: 1, gap: 10, minHeight: 100 },
   iconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 13, fontWeight: '700', lineHeight: 17 },
+  label: { fontSize: 13, fontWeight: '400', lineHeight: 17 },
 });

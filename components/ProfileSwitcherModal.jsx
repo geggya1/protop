@@ -96,8 +96,8 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '85%',
   },
-  title: { fontSize: 22, fontWeight: '900', color: colors.ink, textAlign: 'center' },
-  sub: { color: colors.muted, fontWeight: '600', textAlign: 'center', marginTop: 4, marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: '400', color: colors.ink, textAlign: 'center' },
+  sub: { color: colors.muted, fontWeight: '400', textAlign: 'center', marginTop: 4, marginBottom: 16 },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   avatarRingSelected: { borderColor: colors.brand },
-  tileName: { marginTop: 8, fontWeight: '800', fontSize: 14, color: colors.ink },
-  tileSub: { fontWeight: '600', fontSize: 12, color: colors.muted, marginTop: 2 },
+  tileName: { marginTop: 8, fontWeight: '400', fontSize: 14, color: colors.ink },
+  tileSub: { fontWeight: '400', fontSize: 12, color: colors.muted, marginTop: 2 },
   check: { position: 'absolute', top: 4, right: 4 },
   closeBtn: {
     marginTop: 12,
@@ -128,5 +128,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
-  closeTxt: { color: colors.muted, fontWeight: '700', fontSize: 15 },
+  closeTxt: { color: colors.muted, fontWeight: '400', fontSize: 15 },
 });

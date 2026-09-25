@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   },
   panelDesk: { borderRadius: 8, padding: 10 },
   listSection: {
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.muted,
     textTransform: 'uppercase',
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'visible',
   },
   listIconDesk: { width: 32, height: 32, borderRadius: 7 },
-  listName: { fontWeight: '600', fontSize: 15, color: colors.ink },
+  listName: { fontWeight: '400', fontSize: 15, color: colors.ink },
   listNameDesk: { fontWeight: '500', fontSize: 14 },
   listMeta: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
   listMetaDesk: { fontSize: 11 },
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   archiveToggleDesk: { justifyContent: 'flex-start', paddingVertical: 6 },
-  archiveToggleTxt: { fontWeight: '600', color: colors.brand, fontSize: 13 },
+  archiveToggleTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   archiveToggleTxtDesk: { fontWeight: '500', fontSize: 12 },
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end',
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: colors.line, marginBottom: 14,
   },
-  modalTitle: { fontWeight: '600', fontSize: 17, color: colors.ink, marginBottom: 12 },
+  modalTitle: { fontWeight: '400', fontSize: 17, color: colors.ink, marginBottom: 12 },
   modalTitleDesk: { fontWeight: '500', fontSize: 16, marginBottom: 10 },
   modalInput: {
     backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
@@ -497,11 +497,11 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: colors.brand, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '600' },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400' },
   secondaryBtn: {
     flex: 1, backgroundColor: colors.brandSoft, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  secondaryBtnTxt: { color: colors.brand, fontWeight: '600' },
+  secondaryBtnTxt: { color: colors.brand, fontWeight: '400' },
   modalBtnDesk: { paddingVertical: 10, borderRadius: 8 },
 });

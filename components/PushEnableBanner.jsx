@@ -237,7 +237,7 @@ export default function PushEnableBanner() {
           paddingBottom: 6,
           border: 'none',
           color: '#fff',
-          fontWeight: 800,
+          fontWeight: '400',
           fontSize: 12,
           cursor: busy ? 'wait' : 'pointer',
           opacity: busy ? 0.7 : 1,
@@ -288,8 +288,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  txt: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.ink, lineHeight: 16 },
+  txt: { flex: 1, fontSize: 12, fontWeight: '400', color: colors.ink, lineHeight: 16 },
   btn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: 8,
     paddingHorizontal: 10,
@@ -298,5 +299,5 @@ const styles = StyleSheet.create({
   },
   btnPressed: { opacity: 0.88 },
   btnBusy: { opacity: 0.7 },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
 });

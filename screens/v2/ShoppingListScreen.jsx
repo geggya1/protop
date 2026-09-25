@@ -1432,10 +1432,10 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   topActions: { alignItems: 'flex-end', gap: 6, flexShrink: 0 },
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  listTitle: { fontSize: 18, fontWeight: '700', color: colors.ink, letterSpacing: -0.2 },
-  listTitleDesk: { fontSize: 16, fontWeight: '600' },
+  listTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, letterSpacing: -0.2 },
+  listTitleDesk: { fontSize: 16, fontWeight: '400' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 2, alignSelf: 'flex-start' },
-  backTxt: { fontWeight: '600', color: colors.brand, fontSize: 13 },
+  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   settingsBtn: {
     width: 36, height: 36, borderRadius: 8, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
@@ -1451,20 +1451,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef6ff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: 1, borderColor: '#bfdbfe',
   },
-  sessionBannerTxt: { flex: 1, color: colors.ink, fontWeight: '700', fontSize: 12 },
-  flyerLink: { color: colors.brand, fontWeight: '800', fontSize: 12 },
+  sessionBannerTxt: { flex: 1, color: colors.ink, fontWeight: '400', fontSize: 12 },
+  flyerLink: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   receiptRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4,
   },
-  receiptTxt: { color: colors.muted, fontWeight: '600', fontSize: 12 },
+  receiptTxt: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   badges: { flexDirection: 'row', gap: 8 },
   badgesMobile: { gap: 4 },
   countBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  countTxt: { fontWeight: '600', color: colors.brand, fontSize: 12 },
+  countTxt: { fontWeight: '400', color: colors.brand, fontSize: 12 },
 
   filterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   filterRowDesk: { gap: 5 },
   filterBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
@@ -1498,14 +1499,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: colors.line, marginBottom: 8,
   },
-  addSheetTitle: { fontSize: 17, fontWeight: '600', color: colors.ink, marginBottom: 4 },
+  addSheetTitle: { fontSize: 17, fontWeight: '400', color: colors.ink, marginBottom: 4 },
   addSheetTitleDesk: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   addSuccessBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#dcfce7', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10,
     borderWidth: 1, borderColor: '#86efac', marginBottom: 6,
   },
-  addSuccessTxt: { flex: 1, fontWeight: '600', color: '#166534', fontSize: 13 },
+  addSuccessTxt: { flex: 1, fontWeight: '400', color: '#166534', fontSize: 13 },
   scanLink: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10,
@@ -1513,15 +1514,16 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   scanLinkDesk: { paddingVertical: 5, borderRadius: 6 },
-  scanLinkTxt: { color: colors.brand, fontWeight: '600', fontSize: 13 },
+  scanLinkTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   scanLinkTxtDesk: { fontWeight: '500', fontSize: 13 },
   imageAttachBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 10, borderWidth: 1, borderColor: colors.line,
     backgroundColor: '#f8fafc', paddingVertical: 10, paddingHorizontal: 12,
   },
   imageAttachBtnDesk: { borderRadius: 8, paddingVertical: 8 },
-  imageAttachTitle: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  imageAttachTitle: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   imageAttachHint: { fontWeight: '400', color: colors.muted, fontSize: 11, marginTop: 1 },
   imageAttachedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -1542,11 +1544,12 @@ const styles = StyleSheet.create({
 
   catSection: { gap: 8 },
   catExpandBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#f8fafc', borderRadius: 8, padding: 10,
     borderWidth: 1, borderColor: colors.line,
   },
-  catExpandLbl: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  catExpandLbl: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   catExpandHint: { fontWeight: '400', color: colors.muted, fontSize: 12, marginTop: 2 },
   catChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   catChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.line },
@@ -1560,7 +1563,7 @@ const styles = StyleSheet.create({
   recurToggleTxt: { fontWeight: '500', color: colors.brand, fontSize: 12 },
 
   catHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: 8 },
-  catTitle: { fontWeight: '600', color: colors.ink, fontSize: 13 },
+  catTitle: { fontWeight: '400', color: colors.ink, fontSize: 13 },
 
   itemRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
@@ -1569,6 +1572,7 @@ const styles = StyleSheet.create({
   itemDone: { opacity: 0.65, backgroundColor: '#f0fdf4' },
   trashRow: { opacity: 0.9, backgroundColor: '#f8fafc' },
   restoreBtn: {
+    alignSelf: 'flex-start',
     padding: 8, borderRadius: 8, backgroundColor: '#eef6ff',
     borderWidth: 1, borderColor: '#93c5fd',
   },
@@ -1578,7 +1582,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
   },
   checkboxDone: { backgroundColor: '#10b981', borderColor: '#10b981' },
-  itemTitle: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  itemTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
   itemTitleDone: { textDecorationLine: 'line-through', color: colors.muted },
   itemDesc: { marginTop: 2, fontWeight: '400', fontSize: 12, color: colors.muted },
   itemDescDone: { textDecorationLine: 'line-through' },
@@ -1597,7 +1601,7 @@ const styles = StyleSheet.create({
   modalCardDesk: {
     maxWidth: 420, width: '100%', borderRadius: 12, padding: 16, gap: 6,
   },
-  modalTitle: { fontSize: 17, fontWeight: '600', color: colors.ink, marginBottom: 4 },
+  modalTitle: { fontSize: 17, fontWeight: '400', color: colors.ink, marginBottom: 4 },
   modalTitleDesk: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   modalLabel: { fontWeight: '500', color: colors.ink, fontSize: 13, marginTop: 2 },
   modalLabelDesk: { fontWeight: '500', fontSize: 12 },
@@ -1608,9 +1612,11 @@ const styles = StyleSheet.create({
   modalInputDesk: { paddingVertical: 8, paddingHorizontal: 12, fontSize: 14, borderRadius: 8 },
   modalDescInput: { minHeight: 44, textAlignVertical: 'top' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
-  modalCancelBtn: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e5e7eb' },
+  modalCancelBtn: {
+    alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e5e7eb' },
   modalCancelTxt: { fontWeight: '500', color: colors.ink, fontSize: 14 },
-  modalSaveBtn: { paddingVertical: 9, paddingHorizontal: 16, borderRadius: 8, backgroundColor: colors.brand },
-  modalSaveTxt: { fontWeight: '600', color: '#fff', fontSize: 14 },
+  modalSaveBtn: {
+    alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 16, borderRadius: 8, backgroundColor: colors.brand },
+  modalSaveTxt: { fontWeight: '400', color: '#fff', fontSize: 14 },
   modalBtnDesk: { paddingVertical: 8, borderRadius: 7 },
 });

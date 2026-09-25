@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     textAlign: 'center',
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 13,
     color: colors.brand,
     textTransform: 'uppercase',
@@ -349,35 +349,35 @@ const styles = StyleSheet.create({
   },
   lead: {
     textAlign: 'center',
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 22,
     color: colors.ink,
     lineHeight: 30,
   },
   question: {
     textAlign: 'center',
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 17,
     color: colors.ink,
     marginTop: 4,
   },
   hint: {
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 14,
     color: colors.muted,
     lineHeight: 20,
   },
   queue: {
     textAlign: 'center',
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 12,
     color: colors.brand,
   },
   error: {
     textAlign: 'center',
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 13,
   },
   row: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
   acceptTxt: {
     color: '#fff',
-    fontWeight: '900',
+    fontWeight: '400',
     fontSize: 16,
   },
   declineBtn: {
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   },
   declineTxt: {
     color: colors.ink,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 16,
   },
   disabled: { opacity: 0.55 },

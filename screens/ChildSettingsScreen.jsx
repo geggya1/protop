@@ -832,7 +832,7 @@ export default function ChildSettingsScreen() {
                       <Text style={styles.themeEmoji}>{theme.emoji}</Text>
                     ) : null}
                   </View>
-                  <Text style={[styles.themeLabel, selected && { color: theme.brand, fontWeight: '900' }]}>
+                  <Text style={[styles.themeLabel, selected && { color: theme.brand, fontWeight: '400' }]}>
                     {theme.label}
                   </Text>
                   {theme.pattern ? (
@@ -1348,15 +1348,15 @@ const styles = StyleSheet.create({
   body: { padding: 16 },
   bodyDesktop: { paddingHorizontal: 12, paddingTop: 8, maxWidth: 680 },
 
-  screenTitle: { fontSize: 28, fontWeight: '900', color: colors.ink, marginBottom: 4 },
-  screenSub: { fontSize: 14, fontWeight: '600', color: colors.muted, marginBottom: 8 },
+  screenTitle: { fontSize: 28, fontWeight: '400', color: colors.ink, marginBottom: 4 },
+  screenSub: { fontSize: 14, fontWeight: '400', color: colors.muted, marginBottom: 8 },
 
   hubSection: {
-    fontSize: 13, fontWeight: '800', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginTop: 18, marginBottom: 8, marginLeft: 4,
   },
-  hubSectionDesk: { fontSize: 11, fontWeight: '600', letterSpacing: 0.42, marginTop: 14, marginBottom: 6 },
+  hubSectionDesk: { fontSize: 11, fontWeight: '400', letterSpacing: 0.42, marginTop: 14, marginBottom: 6 },
 
   navRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -1364,9 +1364,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   navRowCompact: { paddingVertical: 10, paddingHorizontal: 12 },
-  navRowLabel: { fontWeight: '700', fontSize: 15, color: colors.ink },
+  navRowLabel: { fontWeight: '400', fontSize: 15, color: colors.ink },
   navRowLabelDesk: { fontSize: 13, fontWeight: '500' },
-  navRowDetail: { fontSize: 13, fontWeight: '600', color: colors.muted, maxWidth: '40%' },
+  navRowDetail: { fontSize: 13, fontWeight: '400', color: colors.muted, maxWidth: '40%' },
   iconCircle: {
     width: 32, height: 32, borderRadius: 8, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center',
@@ -1379,9 +1379,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   profileCardDesk: { padding: 10, gap: 10 },
-  profileName: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  profileNameDesk: { fontSize: 14, fontWeight: '600' },
-  profileSub: { fontSize: 13, color: colors.muted, marginTop: 2, fontWeight: '600' },
+  profileName: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  profileNameDesk: { fontSize: 14, fontWeight: '400' },
+  profileSub: { fontSize: 13, color: colors.muted, marginTop: 2, fontWeight: '400' },
 
   guardianNotice: {
     flexDirection: 'row',
@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
   guardianNoticeTxt: {
     flex: 1,
     color: colors.ink,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
     lineHeight: 19,
   },
@@ -1422,24 +1422,25 @@ const styles = StyleSheet.create({
   },
   qrBox: { alignItems: 'center', marginVertical: 16 },
   shareBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brandSoft, borderRadius: 12, paddingVertical: 12, marginTop: 8,
   },
-  shareBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  shareBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
   loginCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 6,
   },
-  loginCardTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  loginCardTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
   loginCardHint: {
     fontSize: 13,
     color: colors.muted,
     lineHeight: 18,
     marginBottom: 12,
   },
-  loginLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 6 },
+  loginLabel: { fontSize: 13, fontWeight: '400', color: colors.ink, marginBottom: 6 },
   lockedUsernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1451,7 +1452,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  lockedUsername: { flex: 1, fontSize: 17, fontWeight: '800', color: colors.ink },
+  lockedUsername: { flex: 1, fontSize: 17, fontWeight: '400', color: colors.ink },
 
   group: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   custodyLink: {
@@ -1464,15 +1465,15 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: 14,
   },
-  custodyLinkTitle: { fontWeight: '800', fontSize: 14, color: colors.ink },
-  custodyLinkSub: { fontSize: 12, color: colors.muted, fontWeight: '600', marginTop: 2 },
+  custodyLinkTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
+  custodyLinkSub: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', padding: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   rowLast: { borderBottomWidth: 0 },
-  rowLabel: { fontWeight: '700', color: colors.ink, fontSize: 15 },
+  rowLabel: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   rowHint: { fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 },
   rowHintDesk: { fontSize: 11, fontWeight: '400' },
   rowRight: { marginLeft: 12 },
@@ -1492,8 +1493,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2,
     borderWidth: 2, borderColor: '#fff',
   },
-  ageBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 11 },
-  heroName: { fontWeight: '900', fontSize: 17, color: colors.ink, marginBottom: 14 },
+  ageBadgeTxt: { color: '#fff', fontWeight: '400', fontSize: 11 },
+  heroName: { fontWeight: '400', fontSize: 17, color: colors.ink, marginBottom: 14 },
 
   photoActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   photoChip: {
@@ -1501,18 +1502,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9,
   },
   photoChipDanger: { backgroundColor: '#fee2e2' },
-  photoChipTxt: { color: colors.brand, fontWeight: '800', fontSize: 13 },
+  photoChipTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
 
   avatarToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 14,
     paddingVertical: 6, paddingHorizontal: 4,
   },
-  avatarToggleTxt: { color: colors.brand, fontWeight: '800', fontSize: 13 },
+  avatarToggleTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   avatarPickerWrap: { marginTop: 10, width: '100%', alignItems: 'center' },
 
   fieldWrap: { padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   fieldWrapLast: { borderBottomWidth: 0 },
-  fieldLabel: { fontWeight: '700', color: colors.ink, marginBottom: 8, fontSize: 14 },
+  fieldLabel: { fontWeight: '400', color: colors.ink, marginBottom: 8, fontSize: 14 },
   input: {
     borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 12,
     fontSize: 16, backgroundColor: colors.sunken, color: colors.ink,
@@ -1520,8 +1521,10 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, color: colors.muted, marginTop: 6, lineHeight: 17 },
 
   passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eyeBtn: { padding: 8 },
+  eyeBtn: {
+    alignSelf: 'flex-start', padding: 8 },
   changePasswordBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1531,7 +1534,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
   },
-  changePasswordBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  changePasswordBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 
   aiFooter: { padding: 14, gap: 10 },
   aiDisclaimer: {
@@ -1539,13 +1542,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffbeb', padding: 10, borderRadius: 10,
     borderWidth: 1, borderColor: '#fde68a',
   },
-  aiDisclaimerTxt: { flex: 1, color: '#92400e', fontSize: 12, fontWeight: '600', lineHeight: 18 },
+  aiDisclaimerTxt: { flex: 1, color: '#92400e', fontSize: 12, fontWeight: '400', lineHeight: 18 },
 
   importPlanBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brandSoft, borderRadius: 12, paddingVertical: 12,
   },
-  importPlanBtnTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  importPlanBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 
   notifBlock: {
     padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, gap: 14,
@@ -1555,11 +1559,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  channelLabel: { fontWeight: '700', color: colors.ink, fontSize: 14 },
+  channelLabel: { fontWeight: '400', color: colors.ink, fontSize: 14 },
 
-  saveBtn: { marginTop: 20, backgroundColor: colors.brand, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  saveBtn: {
+    alignSelf: 'flex-start', marginTop: 20, backgroundColor: colors.brand, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   saveBtnDisabled: { backgroundColor: '#cbd5e1' },
-  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  saveBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
   saveBtnTxtDisabled: { color: colors.muted },
 
   themeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 14 },
@@ -1575,15 +1580,15 @@ const styles = StyleSheet.create({
   },
   themeAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: '38%' },
   themeEmoji: { fontSize: 18, zIndex: 1 },
-  themeLabel: { fontSize: 12, fontWeight: '700', color: colors.muted },
-  themePatternHint: { fontSize: 10, fontWeight: '600', color: colors.muted, opacity: 0.8, marginTop: 1 },
+  themeLabel: { fontSize: 12, fontWeight: '400', color: colors.muted },
+  themePatternHint: { fontSize: 10, fontWeight: '400', color: colors.muted, opacity: 0.8, marginTop: 1 },
   themePreview: {
     marginHorizontal: 14, marginBottom: 14, height: 88, borderRadius: 12,
     overflow: 'hidden', borderWidth: 1, borderColor: colors.line,
     alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10,
   },
   themePreviewTxt: {
-    zIndex: 2, fontSize: 12, fontWeight: '800', color: colors.ink,
+    zIndex: 2, fontSize: 12, fontWeight: '400', color: colors.ink,
     backgroundColor: 'rgba(255,255,255,0.72)', paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 999,
   },

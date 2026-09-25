@@ -197,13 +197,13 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   title: {
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.35,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   titleDesk: {
     fontSize: 26,
     lineHeight: 30,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   titlePhone: {
     fontSize: 18,

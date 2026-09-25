@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headTitle: { flex: 1, textAlign: 'center', fontWeight: '700', fontSize: 16, color: colors.ink },
+  headTitle: { flex: 1, textAlign: 'center', fontWeight: '400', fontSize: 16, color: colors.ink },
   body: { padding: 16, gap: 12, paddingBottom: 40 },
   hint: { fontWeight: '500', fontSize: 14, color: colors.muted, lineHeight: 20 },
   currentBox: {
@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 14,
   },
-  currentLbl: { fontWeight: '600', fontSize: 11, color: colors.muted, textTransform: 'uppercase' },
-  currentVal: { fontWeight: '700', fontSize: 16, color: colors.ink, marginTop: 2 },
+  currentLbl: { fontWeight: '400', fontSize: 11, color: colors.muted, textTransform: 'uppercase' },
+  currentVal: { fontWeight: '400', fontSize: 16, color: colors.ink, marginTop: 2 },
   currentSub: { fontWeight: '500', fontSize: 12, color: colors.muted, marginTop: 2 },
   searchRow: {
     flexDirection: 'row',
@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: colors.ink },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quickBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.brandSoft,
   },
-  quickTxt: { fontWeight: '600', fontSize: 13, color: colors.brand },
+  quickTxt: { fontWeight: '400', fontSize: 13, color: colors.brand },
   hit: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -161,5 +162,5 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   hitTxt: { flex: 1, fontWeight: '500', fontSize: 14, color: colors.ink },
-  err: { fontWeight: '600', fontSize: 13, color: colors.danger },
+  err: { fontWeight: '400', fontSize: 13, color: colors.danger },
 });

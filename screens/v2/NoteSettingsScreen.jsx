@@ -205,11 +205,11 @@ export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
 }
 
 const styles = StyleSheet.create({
-  label: { fontWeight: '800', color: colors.ink, marginTop: 16, marginBottom: 6 },
-  hint: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 10 },
+  label: { fontWeight: '400', color: colors.ink, marginTop: 16, marginBottom: 6 },
+  hint: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 10 },
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 14, fontSize: 16, fontWeight: '600', color: colors.ink,
+    padding: 14, fontSize: 16, fontWeight: '400', color: colors.ink,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -219,11 +219,11 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipOwner: { opacity: 0.85 },
   chipDisabled: { opacity: 0.6 },
-  chipTxt: { fontWeight: '800', color: colors.ink, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   chipTxtOn: { color: '#fff' },
-  statusTxt: { marginTop: 10, fontWeight: '700', color: colors.muted, fontSize: 13 },
+  statusTxt: { marginTop: 10, fontWeight: '400', color: colors.muted, fontSize: 13 },
   section: {
-    fontSize: 12, fontWeight: '800', color: colors.muted, textTransform: 'uppercase',
+    fontSize: 12, fontWeight: '400', color: colors.muted, textTransform: 'uppercase',
     letterSpacing: 0.8, marginTop: 24, marginBottom: 8,
   },
   actionRow: {
@@ -231,10 +231,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.line, marginBottom: 8,
   },
   actionDanger: { borderColor: '#fecaca', backgroundColor: '#fff1f2' },
-  actionTxt: { flex: 1, fontWeight: '800', color: colors.ink, fontSize: 15 },
+  actionTxt: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 15 },
   infoBox: {
     backgroundColor: '#fff7ed', borderRadius: radius.md, padding: 12, marginTop: 12,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  infoTxt: { color: '#9a3412', fontWeight: '700', fontSize: 13 },
+  infoTxt: { color: '#9a3412', fontWeight: '400', fontSize: 13 },
 });

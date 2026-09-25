@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   connectBtn: {
+    alignSelf: 'flex-start',
     height: 48,
     minHeight: 48,
     flexDirection: 'row',
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
   },
   connectTxt: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 15,
     letterSpacing: 0.2,
   },
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
   },
   markTxt: {
     color: STRAVA_ORANGE,
-    fontWeight: '900',
+    fontWeight: '400',
     textAlign: 'center',
   },
   poweredRow: {

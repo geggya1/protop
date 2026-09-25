@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 4px 14px rgba(15,23,42,0.06)' }
       : { elevation: 2 }),
   },
-  title: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  title: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
   desc: { marginTop: 6, color: '#334155' },
 
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
@@ -160,11 +160,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#eef6ff',
     color: '#0b74d1',
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 12,
   },
 
   emptyWrap: { alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#0b3d91' },
+  emptyTitle: { fontSize: 18, fontWeight: '400', color: '#0b3d91' },
   emptyText: { marginTop: 6, fontSize: 13, color: '#64748b', textAlign: 'center' },
 });

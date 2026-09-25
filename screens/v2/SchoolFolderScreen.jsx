@@ -131,7 +131,7 @@ function makeStyles(colors, layout = {}) {
     };
   return StyleSheet.create({
     section: {
-      fontWeight: '800',
+      fontWeight: '400',
       fontSize: 18,
       color: colors.ink,
       marginBottom: 12,
@@ -169,7 +169,7 @@ function makeStyles(colors, layout = {}) {
     },
     appArt: { width: 44, height: 44 },
     appLabel: {
-      fontWeight: '800',
+      fontWeight: '400',
       color: colors.ink,
       marginTop: 10,
       fontSize: 13,
@@ -178,7 +178,7 @@ function makeStyles(colors, layout = {}) {
     appLabelDesktop: { fontSize: 14 },
     appSub: {
       color: colors.muted,
-      fontWeight: '600',
+      fontWeight: '400',
       fontSize: 11,
       marginTop: 2,
       textAlign: 'center',
@@ -201,7 +201,7 @@ function makeStyles(colors, layout = {}) {
     cardBadgeTxt: {
       color: '#fff',
       fontSize: 10,
-      fontWeight: '900',
+      fontWeight: '400',
       lineHeight: 12,
     },
     empty: {
@@ -212,6 +212,6 @@ function makeStyles(colors, layout = {}) {
       borderColor: colors.line,
       marginTop: 8,
     },
-    emptyTxt: { color: colors.muted, fontWeight: '600' },
+    emptyTxt: { color: colors.muted, fontWeight: '400' },
   });
 }

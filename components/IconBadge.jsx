@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   txt: {
     color: '#fff',
-    fontWeight: '900',
+    fontWeight: '400',
     textAlign: 'center',
   },
 });

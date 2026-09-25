@@ -168,11 +168,12 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 12px 28px rgba(0,0,0,0.15)' }
       : { elevation: 6 }),
   },
-  title: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  title: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
   msg: { marginTop: 8, color: '#334155' },
   row: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 14 },
-  btn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
-  btnTxt: { color: '#fff', fontWeight: '800' },
+  btn: {
+    alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
+  btnTxt: { color: '#fff', fontWeight: '400' },
   muted: { backgroundColor: '#e5e7eb' },
   primary: { backgroundColor: colors.brand },
   danger: { backgroundColor: '#b00020' },

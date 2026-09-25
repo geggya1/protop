@@ -129,11 +129,11 @@ export default function PlatformCreateEventScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  cancel: { fontSize: 15, fontWeight: '600' },
-  headTitle: { fontSize: 16, fontWeight: '800' },
-  save: { fontSize: 15, fontWeight: '800' },
+  cancel: { fontSize: 15, fontWeight: '400' },
+  headTitle: { fontSize: 16, fontWeight: '400' },
+  save: { fontSize: 15, fontWeight: '400' },
   body: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontSize: 12, fontWeight: '400', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 14 },
   area: { minHeight: 100 },
 });

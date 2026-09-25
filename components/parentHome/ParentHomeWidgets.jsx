@@ -1157,7 +1157,8 @@ const styles = StyleSheet.create({
   timelineSub: {
     fontSize: 11, color: soft.muted, marginTop: 1, fontWeight: soft.wReg, fontFamily: soft.body,
   },
-  seeAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingTop: 6 },
+  seeAllBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 2, paddingTop: 6 },
   emptyTxt: {
     fontSize: 12, color: soft.muted, fontWeight: soft.wReg, paddingVertical: 6, fontFamily: soft.body,
   },

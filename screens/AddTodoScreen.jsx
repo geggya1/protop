@@ -376,7 +376,7 @@ export default function AddTodoScreen({ route, navigation }) {
       prefix="Fra: "
       placeholder="Velg startdato"
       style={[DATE_FIELD_STYLE, styleExtra]}
-      textStyle={{ fontWeight: '700', color: '#0b1f33' }}
+      textStyle={{ fontWeight: '400', color: '#0b1f33' }}
     />
   );
   /** MAL-IKONER — on web skip Storage (CORS blocks it), use emoji fallback instead */
@@ -834,7 +834,7 @@ export default function AddTodoScreen({ route, navigation }) {
             </View>
           ) : (
             <View style={styles.budgetCard}>
-              <Text style={{ color: '#b45309', fontWeight: '700' }}>
+              <Text style={{ color: '#b45309', fontWeight: '400' }}>
                 ⚠️ Belønningsmodus er ikke satt for dette barnet. Gå til gjøremålsinnstillinger for å velge ingen, penger eller stjerner.
               </Text>
             </View>
@@ -862,14 +862,14 @@ export default function AddTodoScreen({ route, navigation }) {
                   >
                     <div style={{ fontSize: 36, lineHeight: '56px', textAlign: 'center' }}>{item.icon || '✅'}</div>
                     <div style={{
-                      fontSize: 12, fontWeight: 700, color: '#0b1f33', marginTop: 4,
+                      fontSize: 12, fontWeight: '400', color: '#0b1f33', marginTop: 4,
                       lineHeight: '16px', minHeight: 32,
                       display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                       overflow: 'hidden', wordBreak: 'break-word',
                     }}>
                       {item.title}
                     </div>
-                    {sel && <div style={{ fontSize: 10, fontWeight: 800, color: '#0b74d1', marginTop: 2 }}>✓ Valgt</div>}
+                    {sel && <div style={{ fontSize: 10, fontWeight: '400', color: '#0b74d1', marginTop: 2 }}>✓ Valgt</div>}
                   </div>
                 );
               })}
@@ -979,7 +979,7 @@ export default function AddTodoScreen({ route, navigation }) {
                   icon="stop-circle-outline"
                   min={recurrenceStartKey}
                   style={[DATE_FIELD_STYLE, { marginTop: 8 }]}
-                  textStyle={{ fontWeight: '700', color: '#0b1f33' }}
+                  textStyle={{ fontWeight: '400', color: '#0b1f33' }}
                 />
               ) : null}
 
@@ -1016,7 +1016,7 @@ export default function AddTodoScreen({ route, navigation }) {
                 onChange={setStartDate}
                 placeholder="Velg startdato"
                 style={DATE_FIELD_STYLE}
-                textStyle={{ fontWeight: '700', color: '#0b1f33' }}
+                textStyle={{ fontWeight: '400', color: '#0b1f33' }}
                 iconColor="#0b74d1"
               />
 
@@ -1026,7 +1026,7 @@ export default function AddTodoScreen({ route, navigation }) {
                 onChange={setDueDate}
                 placeholder="Velg dato"
                 style={DATE_FIELD_STYLE}
-                textStyle={{ fontWeight: '700', color: '#0b1f33' }}
+                textStyle={{ fontWeight: '400', color: '#0b1f33' }}
                 iconColor="#0b74d1"
               />
               <Text style={{ color:'#6b7280', marginTop:6 }}>
@@ -1295,54 +1295,54 @@ export default function AddTodoScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: '#f6f9fc', padding: 14 },
-  h1: { fontSize: 22, fontWeight: '800', color: '#0b1f33' },
+  h1: { fontSize: 22, fontWeight: '400', color: '#0b1f33' },
   help: { color: '#64748b', marginTop: 4, marginBottom: 10 },
 
   budgetCard: { backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
   lockTxt: { marginTop: 6, fontSize: 12, color: '#6b7280' },
   budgetRow: { marginTop: 8, gap: 6 },
   budgetPill: { flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#eef6ff', paddingVertical:6, paddingHorizontal:8, borderRadius:8 },
-  pillTxt: { color:'#0b1f33', fontWeight:'700', fontSize:12 },
+  pillTxt: { color:'#0b1f33', fontWeight: '400', fontSize:12 },
 
   overBudgetBanner: {
     marginTop: 8, flexDirection:'row', gap:8, alignItems:'center',
     backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1,
     paddingHorizontal:10, paddingVertical:8, borderRadius:8
   },
-  overBudgetText: { color:'#991b1b', fontWeight:'700', flexShrink:1 },
+  overBudgetText: { color:'#991b1b', fontWeight: '400', flexShrink:1 },
 
-  section: { marginTop: 12, marginBottom: 8, fontWeight: '800', color: '#0b1f33', fontSize: 16 },
-  sectionSmall: { fontWeight:'800', color:'#0b1f33', fontSize:14 },
+  section: { marginTop: 12, marginBottom: 8, fontWeight: '400', color: '#0b1f33', fontSize: 16 },
+  sectionSmall: { fontWeight: '400', color:'#0b1f33', fontSize:14 },
 
   tile: {
     width: 120, padding: 8, borderRadius: 12, backgroundColor: colors.card,
     ...(Platform.OS === 'web' ? { boxShadow: '0 2px 10px rgba(2,6,23,0.06)' } : { elevation: 1 })
   },
   tileImg: { width: '100%', height: 80, borderRadius: 10, backgroundColor: '#eef2ff' },
-  tileTxt: { marginTop: 6, fontSize: 12, fontWeight: '700', color: '#0b1f33', lineHeight: 16, minHeight: 32, textAlign: 'center' },
+  tileTxt: { marginTop: 6, fontSize: 12, fontWeight: '400', color: '#0b1f33', lineHeight: 16, minHeight: 32, textAlign: 'center' },
 
-  label: { marginTop: 10, marginBottom: 6, fontWeight: '700', color: '#0b1f33' },
-  subLabel: { marginTop: 8, marginBottom: 6, fontWeight: '600', color: '#334155' },
+  label: { marginTop: 10, marginBottom: 6, fontWeight: '400', color: '#0b1f33' },
+  subLabel: { marginTop: 8, marginBottom: 6, fontWeight: '400', color: '#334155' },
   input: { backgroundColor: colors.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
 
   chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#e7f2fb' },
   chipActive: { backgroundColor: '#0b74d1' },
-  chipText: { color: '#0b74d1', fontWeight: '700' },
+  chipText: { color: '#0b74d1', fontWeight: '400' },
   chipTextActive: { color: '#fff' },
 
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, padding: 10, borderRadius: 10, marginBottom: 6 },
-  dayLabel: { fontWeight: '600', color: '#0b1f33' },
+  dayLabel: { fontWeight: '400', color: '#0b1f33' },
 
   formRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.card, borderWidth: 1, borderColor: '#e5e7eb',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8,
   },
-  formRowLabel: { fontWeight: '800', color: '#0b1f33', fontSize: 15 },
+  formRowLabel: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
   formRowRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  formRowValue: { fontWeight: '700', color: '#64748b', fontSize: 14, textAlign: 'right' },
-  repeatHint: { marginTop: 4, marginBottom: 8, color: '#64748b', fontSize: 13, fontWeight: '600' },
+  formRowValue: { fontWeight: '400', color: '#64748b', fontSize: 14, textAlign: 'right' },
+  repeatHint: { marginTop: 4, marginBottom: 8, color: '#64748b', fontSize: 13, fontWeight: '400' },
 
   weekChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   weekChip: {
@@ -1350,14 +1350,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: 1, borderColor: '#e5e7eb',
   },
   weekChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  weekChipTxt: { fontWeight: '900', color: '#0b1f33', fontSize: 13 },
+  weekChipTxt: { fontWeight: '400', color: '#0b1f33', fontSize: 13 },
   weekChipTxtOn: { color: '#fff' },
 
   sheet: {
     backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden', width: '100%', maxWidth: 420,
   },
   sheetTitle: {
-    fontWeight: '800', fontSize: 16, color: '#0b1f33', textAlign: 'center',
+    fontWeight: '400', fontSize: 16, color: '#0b1f33', textAlign: 'center',
     paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
   },
   sheetRow: {
@@ -1365,9 +1365,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
   },
   sheetRowLast: { borderBottomWidth: 0 },
-  sheetRowTxt: { fontWeight: '700', fontSize: 16, color: '#0b1f33' },
+  sheetRowTxt: { fontWeight: '400', fontSize: 16, color: '#0b1f33' },
   sheetCancel: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
-  sheetCancelTxt: { fontWeight: '800', color: colors.brand, fontSize: 16 },
+  sheetCancelTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
 
   customModalWrap: { flex: 1, backgroundColor: '#f3f4f6' },
   customScreen: { flex: 1, padding: 16 },
@@ -1375,15 +1375,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
   },
   customBack: { padding: 4, width: 60 },
-  customTitle: { fontWeight: '900', fontSize: 18, color: '#0b1f33' },
+  customTitle: { fontWeight: '400', fontSize: 18, color: '#0b1f33' },
   customDone: { width: 60, alignItems: 'flex-end' },
-  customDoneTxt: { color: colors.brand, fontWeight: '800', fontSize: 16 },
+  customDoneTxt: { color: colors.brand, fontWeight: '400', fontSize: 16 },
   customCard: {
     backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb',
     padding: 14, marginBottom: 12,
   },
   customRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  customRowLabel: { fontWeight: '800', color: '#0b1f33', fontSize: 15 },
+  customRowLabel: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
   customDivider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 12 },
   intervalPickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   intervalScroll: { flex: 1, maxHeight: 140 },
@@ -1393,24 +1393,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6', alignItems: 'center',
   },
   intervalPillOn: { backgroundColor: colors.brand },
-  intervalPillTxt: { fontWeight: '800', color: '#0b1f33', fontSize: 15 },
+  intervalPillTxt: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
   intervalPillTxtOn: { color: '#fff' },
-  intervalUnit: { fontWeight: '800', color: '#64748b', fontSize: 16, minWidth: 48 },
+  intervalUnit: { fontWeight: '400', color: '#64748b', fontSize: 16, minWidth: 48 },
 
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   iconPreview: { width: 64, height: 64, borderRadius: 12, backgroundColor: '#e2e8f0' },
 
-  secondaryBtn: { backgroundColor: '#e7f2fb', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  secondaryTxt: { color: '#0b74d1', fontWeight: '700' },
+  secondaryBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#e7f2fb', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  secondaryTxt: { color: '#0b74d1', fontWeight: '400' },
 
   inlineError: { marginTop: 12, backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1, padding:10, borderRadius:10, flexDirection:'row', alignItems:'center', gap:8 },
-  inlineErrorText: { color:'#991b1b', fontWeight:'700', flexShrink:1 },
+  inlineErrorText: { color:'#991b1b', fontWeight: '400', flexShrink:1 },
 
-  saveBtn: { marginTop: 14, backgroundColor: '#0b74d1', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  saveTxt: { color: '#fff', fontWeight: '800' },
+  saveBtn: {
+    alignSelf: 'flex-start', marginTop: 14, backgroundColor: '#0b74d1', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  saveTxt: { color: '#fff', fontWeight: '400' },
 
-  deleteBtn: { marginTop: 12, backgroundColor: '#fee2e2', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
-  deleteTxt: { color: '#b91c1c', fontWeight: '800' },
+  deleteBtn: {
+    alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#fee2e2', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
+  deleteTxt: { color: '#b91c1c', fontWeight: '400' },
 
   // Dialoger
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', padding: 16 },
@@ -1418,8 +1421,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, width: '100%', maxWidth: 420, borderRadius: 16,
     padding: 18, borderWidth: 1, borderColor: '#e2e8f0'
   },
-  dialogTitle: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
-  dialogMsg: { color: '#0f172a', marginTop: 8, fontWeight: '700' },
+  dialogTitle: { fontSize: 18, fontWeight: '400', color: '#0f172a' },
+  dialogMsg: { color: '#0f172a', marginTop: 8, fontWeight: '400' },
 
   actionBar: {
     marginTop: 14,
@@ -1429,12 +1432,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   actionBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
     backgroundColor: '#0b74d1', minWidth: 120, alignItems: 'center', justifyContent: 'center'
   },
   actionBtnDestructive: { backgroundColor: '#dc2626' },
   actionBtnCancel: { backgroundColor: '#e5e7eb' },
-  actionBtnTxt: { color: '#fff', fontWeight: '800' },
+  actionBtnTxt: { color: '#fff', fontWeight: '400' },
 
   confirmIconWrap: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: '#ecfdf5',

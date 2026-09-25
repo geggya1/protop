@@ -559,16 +559,17 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { boxShadow: '0 18px 40px rgba(15,23,42,0.22)' } : {}),
   },
   closeBtn: {
+    alignSelf: 'flex-start',
     position: 'absolute', right: 10, top: 10, padding: 6,
     borderRadius: 12, backgroundColor: '#f1f5f9',
   },
-  congratsTitle: { fontSize: 22, fontWeight: '900', color: '#0f172a', marginTop: 4 },
+  congratsTitle: { fontSize: 22, fontWeight: '400', color: '#0f172a', marginTop: 4 },
   congratsText: {
-    marginTop: 4, color: '#0b74d1', fontWeight: '900',
+    marginTop: 4, color: '#0b74d1', fontWeight: '400',
     textAlign: 'center', fontSize: 28,
   },
   congratsQuiet: {
-    marginTop: 6, color: '#475569', fontWeight: '600',
+    marginTop: 6, color: '#475569', fontWeight: '400',
     textAlign: 'center', fontSize: 15, lineHeight: 22,
   },
   congratsBar: {
@@ -577,11 +578,11 @@ const styles = StyleSheet.create({
   },
   congratsBarFill: { height: 10, backgroundColor: '#10b981', borderRadius: 999 },
   congratsProgress: {
-    marginTop: 6, color: '#334155', fontWeight: '700',
+    marginTop: 6, color: '#334155', fontWeight: '400',
     textAlign: 'center', fontSize: 14,
   },
   congratsBonus: {
-    marginTop: 10, color: '#d97706', fontWeight: '900',
+    marginTop: 10, color: '#d97706', fontWeight: '400',
     textAlign: 'center', fontSize: 16,
   },
 });

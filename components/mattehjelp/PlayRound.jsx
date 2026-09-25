@@ -122,7 +122,7 @@ export default function PlayRound({
 const styles = StyleSheet.create({
   wrap: { width: '100%', paddingVertical: 20, paddingHorizontal: 14 },
   prompt: {
-    fontSize: 22, fontWeight: '800', color: '#152c4b', textAlign: 'center', marginBottom: 14,
+    fontSize: 22, fontWeight: '400', color: '#152c4b', textAlign: 'center', marginBottom: 14,
   },
   hero: { fontSize: 64, textAlign: 'center', marginBottom: 12 },
   items: {
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 12,
     borderWidth: 1, borderColor: '#d6e1ef', minHeight: 120,
   },
-  pileLabel: { fontWeight: '800', color: '#53667f', marginBottom: 6 },
+  pileLabel: { fontWeight: '400', color: '#53667f', marginBottom: 6 },
   pileItems: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   options: { width: '100%', gap: 10, marginTop: 4 },
   opt: {
@@ -145,11 +145,11 @@ const styles = StyleSheet.create({
   },
   optOk: { backgroundColor: '#ecfdf5', borderColor: '#059669' },
   optNo: { backgroundColor: '#fef2f2', borderColor: '#dc2626' },
-  optTxt: { fontSize: 18, fontWeight: '700', color: '#152c4b', flex: 1 },
+  optTxt: { fontSize: 18, fontWeight: '400', color: '#152c4b', flex: 1 },
   explainOk: {
-    marginTop: 14, textAlign: 'center', color: '#059669', fontWeight: '700', fontSize: 15,
+    marginTop: 14, textAlign: 'center', color: '#059669', fontWeight: '400', fontSize: 15,
   },
   explainNo: {
-    marginTop: 14, textAlign: 'center', color: '#b45309', fontWeight: '600', fontSize: 14,
+    marginTop: 14, textAlign: 'center', color: '#b45309', fontWeight: '400', fontSize: 14,
   },
 });

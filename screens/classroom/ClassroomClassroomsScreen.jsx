@@ -263,12 +263,12 @@ const styles = StyleSheet.create({
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, gap: 10,
   },
-  loadingTxt: { color: c.muted, fontWeight: '700', fontSize: 13 },
+  loadingTxt: { color: c.muted, fontWeight: '400', fontSize: 13 },
   head: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
   },
-  title: { fontSize: 28, fontWeight: '900', color: c.ink },
+  title: { fontSize: 28, fontWeight: '400', color: c.ink },
   plus: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: c.fab,
     alignItems: 'center', justifyContent: 'center',
@@ -276,33 +276,35 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   list: { padding: 16, paddingBottom: 40, flexGrow: 1 },
   joinBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: c.surface, borderRadius: 16, paddingVertical: 14, marginBottom: 12,
     borderWidth: 1, borderColor: c.line,
   },
   createBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: c.brand, borderRadius: 16, paddingVertical: 14, marginBottom: 10,
   },
-  createBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 15 },
-  joinTxt: { color: c.brand, fontWeight: '800', fontSize: 15 },
+  createBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
+  joinTxt: { color: c.brand, fontWeight: '400', fontSize: 15 },
   section: {
-    color: c.muted, fontWeight: '800', fontSize: 12, textTransform: 'uppercase', marginBottom: 6,
+    color: c.muted, fontWeight: '400', fontSize: 12, textTransform: 'uppercase', marginBottom: 6,
   },
   hint: {
-    color: c.muted, fontWeight: '600', fontSize: 12, lineHeight: 17, marginBottom: 10,
+    color: c.muted, fontWeight: '400', fontSize: 12, lineHeight: 17, marginBottom: 10,
   },
   errorBox: {
     backgroundColor: '#fef2f2', borderRadius: 12, padding: 12, marginBottom: 12,
     borderWidth: 1, borderColor: '#fecaca', gap: 8,
   },
-  errorTxt: { color: '#b91c1c', fontWeight: '700', fontSize: 13 },
+  errorTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 13 },
   noteBox: {
     backgroundColor: '#eef2ff', borderRadius: 12, padding: 12, marginBottom: 12,
     borderWidth: 1, borderColor: '#c7d2fe', gap: 8,
   },
-  noteTxt: { color: c.ink, fontWeight: '700', fontSize: 13 },
-  retryTxt: { color: c.brand, fontWeight: '800', fontSize: 13 },
+  noteTxt: { color: c.ink, fontWeight: '400', fontSize: 13 },
+  retryTxt: { color: c.brand, fontWeight: '400', fontSize: 13 },
   rowWrap: {
     backgroundColor: c.surface, borderRadius: 14, marginBottom: 8,
     borderWidth: 1, borderColor: c.line, overflow: 'hidden',
@@ -321,6 +323,7 @@ const styles = StyleSheet.create({
     backgroundColor: c.brandSoft,
   },
   reactivateBtn: {
+    alignSelf: 'flex-start',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
@@ -328,28 +331,29 @@ const styles = StyleSheet.create({
     borderTopColor: '#d5dbe3',
     backgroundColor: '#e4f5ea',
   },
-  reactivateTxt: { color: '#15803d', fontWeight: '800', fontSize: 13 },
-  rowName: { color: c.ink, fontWeight: '800', fontSize: 16 },
+  reactivateTxt: { color: '#15803d', fontWeight: '400', fontSize: 13 },
+  rowName: { color: c.ink, fontWeight: '400', fontSize: 16 },
   rowNameOff: { color: c.muted },
-  rowSub: { color: c.muted, fontWeight: '600', fontSize: 12, marginTop: 2 },
+  rowSub: { color: c.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
   badgeOff: {
     marginTop: 4, alignSelf: 'flex-start',
-    color: c.muted, fontWeight: '800', fontSize: 11, textTransform: 'uppercase',
+    color: c.muted, fontWeight: '400', fontSize: 11, textTransform: 'uppercase',
   },
   empty: {
     alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20,
     backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.line,
   },
-  emptyTitle: { color: c.ink, fontWeight: '800', fontSize: 17 },
-  emptySub: { color: c.muted, textAlign: 'center', marginTop: 8, lineHeight: 20, fontWeight: '600' },
+  emptyTitle: { color: c.ink, fontWeight: '400', fontSize: 17 },
+  emptySub: { color: c.muted, textAlign: 'center', marginTop: 8, lineHeight: 20, fontWeight: '400' },
   emptyBtn: {
+    alignSelf: 'flex-start',
     marginTop: 16, backgroundColor: c.brand, borderRadius: 14,
     paddingHorizontal: 18, paddingVertical: 12,
   },
-  emptyBtnTxt: { color: '#fff', fontWeight: '800' },
+  emptyBtnTxt: { color: '#fff', fontWeight: '400' },
   familyLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 16, paddingVertical: 12,
   },
-  familyLinkTxt: { color: c.tint, fontWeight: '800' },
+  familyLinkTxt: { color: c.tint, fontWeight: '400' },
 });

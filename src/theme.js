@@ -39,18 +39,17 @@ export const MEMBER_COLORS = [
 export const space = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32 };
 
 /**
- * Desktop-typografi: vanlig vekt som standard, semibold kun for hierarki.
- * Mobil/nettbrett beholder den tyngre Nunito-skalaen i komponentene.
+ * Desktop-typografi: vanlig skrift, uten fet vekt.
  */
 export const deskType = {
-  brand: { fontSize: 15, fontWeight: '600' },
-  title: { fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
+  brand: { fontSize: 15, fontWeight: '400' },
+  title: { fontSize: 16, fontWeight: '400', letterSpacing: -0.2 },
   section: {
-    fontSize: 11, fontWeight: '600', letterSpacing: 0.42,
+    fontSize: 11, fontWeight: '400', letterSpacing: 0.42,
     textTransform: 'uppercase', color: colors.muted,
   },
   nav: { fontSize: 13, fontWeight: '500' },
-  navActive: { fontSize: 13, fontWeight: '600' },
+  navActive: { fontSize: 13, fontWeight: '400' },
   body: { fontSize: 13, fontWeight: '400' },
   label: { fontSize: 13, fontWeight: '500' },
   meta: { fontSize: 12, fontWeight: '400', color: colors.muted },

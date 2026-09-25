@@ -71,10 +71,10 @@ export default function ConfirmationScreen({ route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  title: { fontSize: 24, fontWeight: '400', marginBottom: 20, textAlign: 'center' },
   text: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
   credential: { fontSize: 16, marginBottom: 6 },
-  bold: { fontWeight: 'bold', color: '#000' },
+  bold: { fontWeight: '400', color: '#000' },
   info: { fontSize: 14, marginTop: 15, textAlign: 'center', color: '#333' },
   link: { color: '#007bff', textDecorationLine: 'underline' },
   button: { width: '80%', padding: 12, marginTop: 20, backgroundColor: '#007bff', borderRadius: 6, alignItems: 'center' },

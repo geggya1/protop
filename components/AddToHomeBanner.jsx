@@ -96,11 +96,12 @@ const styles = StyleSheet.create({
   txt: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#f8fafc',
     lineHeight: 16,
   },
   btn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#020617',
     borderRadius: 999,
     paddingHorizontal: 14,
@@ -110,7 +111,7 @@ const styles = StyleSheet.create({
   },
   btnTxt: {
     color: '#fff',
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 13,
   },
 });

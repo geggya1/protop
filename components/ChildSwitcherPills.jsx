@@ -49,6 +49,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
   chipOn: { backgroundColor: '#eef6ff', borderColor: '#93c5fd' },
-  chipTxt: { fontWeight: '700', color: colors.muted, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
   chipTxtOn: { color: '#0b74d1' },
 });

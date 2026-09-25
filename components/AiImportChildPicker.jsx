@@ -50,12 +50,12 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card, borderRadius: 16, padding: 20, gap: 8,
   },
-  title: { fontWeight: '900', fontSize: 17, color: colors.ink, marginBottom: 8 },
+  title: { fontWeight: '400', fontSize: 17, color: colors.ink, marginBottom: 8 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
   },
-  name: { flex: 1, fontWeight: '700', fontSize: 16, color: colors.ink },
+  name: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
   cancel: { alignItems: 'center', paddingTop: 12 },
-  cancelTxt: { color: colors.muted, fontWeight: '800' },
+  cancelTxt: { color: colors.muted, fontWeight: '400' },
 });

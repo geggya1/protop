@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 24 },
   body: { padding: 16, paddingBottom: 24 },
   bodyModal: { padding: 0, paddingBottom: 4 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.ink, marginBottom: 6 },
-  titleModal: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  title: { fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6 },
+  titleModal: { fontSize: 18, fontWeight: '400', marginBottom: 4 },
   lead: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 18 },
   leadModal: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
   card: {
@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 0,
   },
-  name: { fontSize: 18, fontWeight: '800', color: colors.ink, marginTop: 4 },
-  handle: { fontSize: 16, fontWeight: '700', color: colors.brand },
+  name: { fontSize: 18, fontWeight: '400', color: colors.ink, marginTop: 4 },
+  handle: { fontSize: 16, fontWeight: '400', color: colors.brand },
   qrWrap: {
     marginTop: 12,
     marginBottom: 8,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     alignSelf: 'stretch',
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignSelf: 'stretch',
   },
-  secondaryBtnTxt: { color: colors.brand, fontWeight: '700', fontSize: 14 },
+  secondaryBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
   missingCard: {
     alignItems: 'center',
     gap: 10,
@@ -221,6 +221,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },
-  missingTitle: { fontSize: 16, fontWeight: '800', color: colors.ink, textAlign: 'center' },
+  missingTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, textAlign: 'center' },
   missingBody: { fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 18 },
 });

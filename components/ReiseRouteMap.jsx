@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   emptyTxt: {
     color: '#0f766e',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     opacity: 0.85,
     textAlign: 'center',
     paddingHorizontal: 24,
@@ -291,8 +291,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   legendBadgeWarn: { borderColor: '#f59e0b', backgroundColor: '#fff7ed' },
-  legendBadgeTxt: { fontSize: 12, fontWeight: '800', color: '#0d9488' },
-  legendName: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  legendBadgeTxt: { fontSize: 12, fontWeight: '400', color: '#0d9488' },
+  legendName: { fontSize: 14, fontWeight: '400', color: '#0f172a' },
   legendPlace: { fontSize: 12, color: '#64748b', marginTop: 1 },
   hint: { fontSize: 12, color: '#b45309', fontWeight: '500' },
   mapAction: {
@@ -305,5 +305,5 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#ccfbf1',
   },
-  mapActionTxt: { fontSize: 13, fontWeight: '700', color: '#0f766e' },
+  mapActionTxt: { fontSize: 13, fontWeight: '400', color: '#0f766e' },
 });

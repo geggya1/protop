@@ -152,7 +152,7 @@ export default function MailSignatureSettings({ prefs, onChange }) {
 
 const styles = StyleSheet.create({
   kicker: {
-    fontSize: 11, fontWeight: '600', color: colors.muted, letterSpacing: 0.42,
+    fontSize: 11, fontWeight: '400', color: colors.muted, letterSpacing: 0.42,
     textTransform: 'uppercase', marginBottom: 8, marginTop: 18,
   },
   hint: { fontSize: 12, fontWeight: '400', color: colors.muted, lineHeight: 16 },
@@ -178,18 +178,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8,
   },
-  secondaryTxt: { fontSize: 12, fontWeight: '600', color: colors.ink },
-  linkDanger: { color: colors.danger, fontWeight: '600', fontSize: 12 },
+  secondaryTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
+  linkDanger: { color: colors.danger, fontWeight: '400', fontSize: 12 },
   preview: {
     marginTop: 12, padding: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: '#f8fafc',
   },
-  previewLbl: { fontSize: 10, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', marginBottom: 6 },
+  previewLbl: { fontSize: 10, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', marginBottom: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   chip: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
     borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
   },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { fontSize: 12, fontWeight: '600', color: colors.muted },
+  chipTxt: { fontSize: 12, fontWeight: '400', color: colors.muted },
   chipTxtOn: { color: colors.brand },
 });

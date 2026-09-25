@@ -291,10 +291,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   tagChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  tagChipTxt: { fontWeight: '700', color: colors.ink, fontSize: 12 },
+  tagChipTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
   tagChipTxtOn: { color: '#fff' },
   catRow: { gap: 8, marginBottom: 12, paddingRight: 8 },
   catBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   catBtnOn: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
-  catTxt: { fontWeight: '700', color: colors.ink, fontSize: 12 },
+  catTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
   catTxtOn: { color: '#fff' },
   panel: {
     backgroundColor: colors.card,
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
   panelDesk: { paddingHorizontal: 12 },
   listSection: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     paddingHorizontal: 8,
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
   emptyInline: {
     textAlign: 'center',
     color: colors.muted,
-    fontWeight: '600',
+    fontWeight: '400',
     paddingVertical: 28,
     paddingHorizontal: 16,
   },
@@ -347,8 +348,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 2,
   },
-  recipeTag: { fontSize: 11, fontWeight: '800', color: colors.brand },
+  recipeTag: { fontSize: 11, fontWeight: '400', color: colors.brand },
   recipeTitle: { fontSize: 15, fontWeight: '400', color: colors.ink },
   recipeTitleDesk: { fontSize: 14 },
-  recipeMeta: { fontSize: 12, color: colors.muted, fontWeight: '600', marginTop: 2 },
+  recipeMeta: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
 });

@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   appBar: {
     fontFamily: bodyFont,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 14,
     color: colors.ink,
     marginBottom: 10,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   calDay: {
     fontFamily: bodyFont,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     textAlign: 'center',
     marginBottom: 2,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     fontFamily: bodyFont,
     color: '#fff',
     fontSize: 8,
-    fontWeight: '800',
+    fontWeight: '400',
     textAlign: 'center',
   },
   calFooter: {
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   calFooterTxt: {
     fontFamily: bodyFont,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
   },
   taskRow: {
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: bodyFont,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
   },
   taskDone: {
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   rewardTxt: {
     fontFamily: bodyFont,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: '#92400e',
   },
   eventCard: {
@@ -279,25 +279,25 @@ const styles = StyleSheet.create({
   eventMonth: {
     fontFamily: bodyFont,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
   },
   eventDay: {
     fontFamily: bodyFont,
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '400',
     color: colors.ink,
   },
   eventTitle: {
     fontFamily: bodyFont,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
   },
   eventMeta: {
     fontFamily: bodyFont,
     fontSize: 9,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginTop: 2,
   },
@@ -314,14 +314,14 @@ const styles = StyleSheet.create({
   codeTxt: {
     fontFamily: bodyFont,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand,
   },
   caption: {
     fontFamily: bodyFont,
     marginTop: 12,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
     lineHeight: 18,

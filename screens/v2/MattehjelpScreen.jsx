@@ -465,7 +465,7 @@ function makeStyles(colors, isPhone) {
       marginBottom: 6, paddingVertical: 2,
     },
     welcomeTitle: {
-      fontSize: isPhone ? 20 : 24, fontWeight: '800', color: colors.ink,
+      fontSize: isPhone ? 20 : 24, fontWeight: '400', color: colors.ink,
     },
     welcomeLead: {
       fontSize: 13, color: colors.muted, marginTop: 2, lineHeight: 18,
@@ -475,9 +475,9 @@ function makeStyles(colors, isPhone) {
       backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6,
       borderRadius: 999, borderWidth: 1, borderColor: colors.line,
     },
-    starBadgeTxt: { fontWeight: '800', color: colors.ink },
+    starBadgeTxt: { fontWeight: '400', color: colors.ink },
     stepLabel: {
-      fontWeight: '800', fontSize: 13, color: colors.ink,
+      fontWeight: '400', fontSize: 13, color: colors.ink,
       marginTop: 10, marginBottom: 6, letterSpacing: 0.2,
     },
     ageRow: { gap: 8, paddingRight: 8, paddingBottom: 2 },
@@ -485,8 +485,8 @@ function makeStyles(colors, isPhone) {
       minWidth: 88, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12,
       borderWidth: 1, gap: 2,
     },
-    ageChipYears: { fontSize: 12, fontWeight: '800', color: colors.ink },
-    ageChipLabel: { fontSize: 12, fontWeight: '600', color: colors.muted },
+    ageChipYears: { fontSize: 12, fontWeight: '400', color: colors.ink },
+    ageChipLabel: { fontSize: 12, fontWeight: '400', color: colors.muted },
     ageChipOn: { color: '#fff' },
     worldHint: {
       fontSize: 12, color: colors.muted, lineHeight: 16, marginTop: 4, marginBottom: 2,
@@ -497,7 +497,7 @@ function makeStyles(colors, isPhone) {
       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16,
       borderWidth: 1, borderColor: colors.line, backgroundColor: '#fff',
     },
-    subjectTxt: { fontWeight: '600', fontSize: 13, color: colors.ink },
+    subjectTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
     modeCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       backgroundColor: '#fff', borderRadius: 14, padding: 12,
@@ -506,7 +506,7 @@ function makeStyles(colors, isPhone) {
     modeIcon: {
       width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
     },
-    modeTitle: { fontWeight: '800', fontSize: 15, color: colors.ink },
+    modeTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
     modeBlurb: { fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 },
     topicRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -514,7 +514,7 @@ function makeStyles(colors, isPhone) {
       borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card || '#fff',
       marginBottom: 6,
     },
-    topicTitle: { fontWeight: '700', fontSize: 14, color: colors.ink },
+    topicTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
     topicGoal: { fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 },
     empty: { color: colors.muted, fontSize: 13, marginBottom: 4 },
     tipBox: {
@@ -526,14 +526,15 @@ function makeStyles(colors, isPhone) {
     linkLekse: {
       marginTop: 8, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
     },
-    linkLekseTxt: { color: colors.brand, fontWeight: '700', fontSize: 13, flex: 1 },
+    linkLekseTxt: { color: colors.brand, fontWeight: '400', fontSize: 13, flex: 1 },
     playShell: { flex: 1, gap: 8 },
     playTop: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },
-    backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    backTxt: { fontWeight: '600', color: colors.ink },
-    progressTxt: { fontWeight: '700', color: colors.muted, fontSize: 13 },
+    backBtn: {
+      alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4 },
+    backTxt: { fontWeight: '400', color: colors.ink },
+    progressTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
     aiBody: { paddingBottom: 40, gap: 8 },
     bubble: {
       borderRadius: 14, padding: 12, marginBottom: 6, maxWidth: '92%',
@@ -548,18 +549,19 @@ function makeStyles(colors, isPhone) {
       paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
       backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: colors.brand,
     },
-    aiChipTxt: { color: colors.brand, fontWeight: '700' },
+    aiChipTxt: { color: colors.brand, fontWeight: '400' },
     composer: { marginTop: 10 },
     sendBtn: {
+      alignSelf: 'flex-start',
       backgroundColor: colors.brand, borderRadius: 14, paddingVertical: 14, alignItems: 'center',
     },
-    sendTxt: { color: '#fff', fontWeight: '800' },
+    sendTxt: { color: '#fff', fontWeight: '400' },
     quickPrompts: { gap: 6, marginTop: 10 },
     quick: {
       padding: 12, borderRadius: 12, backgroundColor: '#fff',
       borderWidth: 1, borderColor: colors.line,
     },
-    quickTxt: { fontWeight: '600', color: colors.ink, fontSize: 13 },
-    err: { color: '#dc2626', fontWeight: '600', marginTop: 8 },
+    quickTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
+    err: { color: '#dc2626', fontWeight: '400', marginTop: 8 },
   });
 }

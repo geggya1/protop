@@ -201,14 +201,14 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface2,
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { flex: 1, fontSize: 18, fontWeight: '900', color: c.ink },
+  title: { flex: 1, fontSize: 18, fontWeight: '400', color: c.ink },
   publish: {
     backgroundColor: c.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
   },
-  publishTxt: { color: '#fff', fontWeight: '900' },
+  publishTxt: { color: '#fff', fontWeight: '400' },
   body: { padding: 16, paddingBottom: 40 },
   titleInput: {
-    color: c.ink, fontWeight: '800', fontSize: 20, marginBottom: 12,
+    color: c.ink, fontWeight: '400', fontSize: 20, marginBottom: 12,
   },
   bodyInput: {
     minHeight: 140, color: c.ink, fontWeight: '500', fontSize: 16, lineHeight: 24, marginBottom: 16,
@@ -224,11 +224,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: c.surface, borderRadius: 14, padding: 14,
   },
-  addImgTxt: { color: c.brand, fontWeight: '800', fontSize: 14 },
+  addImgTxt: { color: c.brand, fontWeight: '400', fontSize: 14 },
   deleteBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 24, paddingVertical: 14, borderRadius: 14,
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca',
   },
-  deleteTxt: { color: '#b91c1c', fontWeight: '800', fontSize: 15 },
+  deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 15 },
 });

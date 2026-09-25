@@ -82,28 +82,29 @@ export default function PhoneInput({ value, onChange, placeholder, style }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   dialBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     paddingHorizontal: 12, paddingVertical: 14,
   },
   dialFlag: { fontSize: 18 },
-  dialTxt: { fontWeight: '800', color: colors.ink, fontSize: 16 },
+  dialTxt: { fontWeight: '400', color: colors.ink, fontSize: 16 },
   input: {
     flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.md, padding: 14, fontSize: 18, fontWeight: '600',
+    borderRadius: radius.md, padding: 14, fontSize: 18, fontWeight: '400',
   },
   backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     maxHeight: '70%', paddingBottom: 24,
   },
-  sheetTitle: { fontWeight: '900', fontSize: 18, padding: 16, color: colors.ink },
+  sheetTitle: { fontWeight: '400', fontSize: 18, padding: 16, color: colors.ink },
   countryRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16,
     borderBottomWidth: 1, borderBottomColor: colors.line,
   },
   countryActive: { backgroundColor: colors.brandSoft },
   countryFlag: { fontSize: 22, width: 36 },
-  countryName: { flex: 1, fontWeight: '700', color: colors.ink, fontSize: 16 },
-  countryDial: { fontWeight: '800', color: colors.muted },
+  countryName: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 16 },
+  countryDial: { fontWeight: '400', color: colors.muted },
 });

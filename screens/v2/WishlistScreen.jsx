@@ -1046,11 +1046,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6,
   },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  iconBtn: { padding: 6 },
+  iconBtn: {
+    alignSelf: 'flex-start', padding: 6 },
   scrollContent: { paddingBottom: 28, gap: 2 },
   scrollContentDesk: { paddingBottom: 20 },
   deskAddWrap: { marginBottom: 8, alignSelf: 'flex-start' },
-  title: { fontWeight: '600', fontSize: 18, color: colors.ink, marginTop: 2 },
+  title: { fontWeight: '400', fontSize: 18, color: colors.ink, marginTop: 2 },
   titleDesk: { fontWeight: '500', fontSize: 16 },
   forLabel: { color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 2 },
   forLabelDesk: { fontSize: 12 },
@@ -1100,9 +1101,9 @@ const styles = StyleSheet.create({
     width: 18, height: 18, borderRadius: 9, backgroundColor: '#ec4899',
     alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff',
   },
-  thumbReservedTxt: { color: '#fff', fontSize: 10, fontWeight: '800', lineHeight: 12 },
+  thumbReservedTxt: { color: '#fff', fontSize: 10, fontWeight: '400', lineHeight: 12 },
   thumbPurchasedBadge: { backgroundColor: '#16a34a' },
-  cardTitleCompact: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  cardTitleCompact: { fontWeight: '400', fontSize: 14, color: colors.ink },
   cardBrandCompact: { color: colors.muted, fontWeight: '400', fontSize: 11, marginTop: 1 },
   statusDotInline: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
   statusDotOpen: { backgroundColor: colors.success },
@@ -1125,7 +1126,7 @@ const styles = StyleSheet.create({
   menuSheetDesk: {
     borderRadius: 12, padding: 14, paddingBottom: 14, maxWidth: 420, width: '100%',
   },
-  menuTitle: { fontWeight: '600', fontSize: 16, color: colors.ink, marginBottom: 8 },
+  menuTitle: { fontWeight: '400', fontSize: 16, color: colors.ink, marginBottom: 8 },
   menuTitleDesk: { fontWeight: '500', fontSize: 15, marginBottom: 6 },
   menuRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1145,7 +1146,7 @@ const styles = StyleSheet.create({
     maxWidth: 420, width: '100%',
     borderRadius: 12, marginBottom: 0, padding: 16, paddingBottom: 16, maxHeight: '85%',
   },
-  modalTitle: { fontWeight: '600', fontSize: 16, color: colors.ink, marginBottom: 10 },
+  modalTitle: { fontWeight: '400', fontSize: 16, color: colors.ink, marginBottom: 10 },
   modalTitleDesk: { fontWeight: '500', fontSize: 15, marginBottom: 8 },
   imagePicker: {
     borderRadius: 10, overflow: 'hidden', marginBottom: 10,
@@ -1186,7 +1187,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: colors.brand, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   secondaryBtn: {
     flex: 1, backgroundColor: colors.brandSoft, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',

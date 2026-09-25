@@ -438,12 +438,12 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center',
     padding: 32, gap: 8,
   },
-  deniedTitle: { fontWeight: '700', fontSize: 18, color: colors.ink },
+  deniedTitle: { fontWeight: '400', fontSize: 18, color: colors.ink },
   deniedSub: {
     textAlign: 'center', color: colors.muted, lineHeight: 20, maxWidth: 280,
   },
   intro: {
-    color: colors.muted, fontWeight: '600', fontSize: 13, lineHeight: 18,
+    color: colors.muted, fontWeight: '400', fontSize: 13, lineHeight: 18,
     marginBottom: 4, marginTop: 4,
   },
   searchWrap: {
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 12,
   },
   section: {
-    fontSize: 14, fontWeight: '800', color: colors.ink,
+    fontSize: 14, fontWeight: '400', color: colors.ink,
     marginTop: 18, marginBottom: 8, marginLeft: 4,
   },
   sectionDesktop: {
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginLeft: 2,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0,
     textTransform: 'none',
     color: colors.ink,
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     width: 24, height: 24, borderRadius: 5,
   },
   iconCircleHighlight: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  label: { flex: 1, fontWeight: '800', fontSize: 16, color: colors.ink },
+  label: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
   labelCompact: { fontWeight: '500', fontSize: 13 },
   labelHighlight: { color: '#fff' },
 });

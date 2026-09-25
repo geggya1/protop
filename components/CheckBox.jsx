@@ -32,6 +32,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   boxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  tick: { color: '#fff', fontWeight: '900', fontSize: 18, lineHeight: 20 },
-  label: { flex: 1, fontWeight: '800', fontSize: 16, color: colors.ink },
+  tick: { color: '#fff', fontWeight: '400', fontSize: 18, lineHeight: 20 },
+  label: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
 });

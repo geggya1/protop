@@ -35,6 +35,7 @@ export default function ShellAddButton({ label, onPress, accessibilityLabel }) {
 
 const styles = StyleSheet.create({
   btn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,

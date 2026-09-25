@@ -568,7 +568,7 @@ export default function EditProfileScreen() {
               </Text>
               {username.trim() ? (
                 checking ? null : (
-                  <Text style={{ fontWeight: '700', fontSize: 13, color: taken ? colors.danger : colors.brand, marginBottom: 4 }}>
+                  <Text style={{ fontWeight: '400', fontSize: 13, color: taken ? colors.danger : colors.brand, marginBottom: 4 }}>
                     {taken ? t('profile.usernameTaken') : isValidUsername(username) ? t('profile.usernameFree') : t('common.required')}
                   </Text>
                 )
@@ -833,11 +833,11 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  screenTitle: { fontSize: 20, fontWeight: '700', color: colors.ink, marginBottom: 4 },
-  emailLine: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 12 },
+  screenTitle: { fontSize: 20, fontWeight: '400', color: colors.ink, marginBottom: 4 },
+  emailLine: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 12 },
 
   sectionTitle: {
-    fontSize: 13, fontWeight: '800', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginTop: 18, marginBottom: 8, marginLeft: 4,
   },
@@ -847,8 +847,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, marginBottom: 4,
   },
 
-  lbl: { fontWeight: '800', color: colors.ink, fontSize: 14, marginTop: 10, marginBottom: 6 },
-  hint: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  lbl: { fontWeight: '400', color: colors.ink, fontSize: 14, marginTop: 10, marginBottom: 6 },
+  hint: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 8, lineHeight: 18 },
   lockedUsernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -861,10 +861,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 6,
   },
-  lockedUsername: { flex: 1, fontSize: 16, fontWeight: '800', color: colors.ink },
+  lockedUsername: { flex: 1, fontSize: 16, fontWeight: '400', color: colors.ink },
   input: {
     backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 12, fontSize: 16, fontWeight: '600', marginBottom: 4,
+    padding: 12, fontSize: 16, fontWeight: '400', marginBottom: 4,
   },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
@@ -873,16 +873,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999,
   },
   chipMuted: { backgroundColor: '#e2e8f0' },
-  chipTxt: { fontWeight: '800', color: colors.ink, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   saveHint: {
-    marginTop: 8, textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 13,
+    marginTop: 8, textAlign: 'center', color: colors.muted, fontWeight: '400', fontSize: 13,
   },
 
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand, borderRadius: radius.md,
     paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
 
   langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   langChip: {
@@ -893,12 +894,12 @@ const styles = StyleSheet.create({
   },
   langChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   langFlag: { fontSize: 16 },
-  langName: { flex: 1, fontWeight: '700', fontSize: 13, color: colors.ink },
+  langName: { flex: 1, fontWeight: '400', fontSize: 13, color: colors.ink },
   langNameActive: { color: '#fff' },
 
   switchRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 8,
   },
-  switchLbl: { fontWeight: '700', fontSize: 14, color: colors.ink },
+  switchLbl: { fontWeight: '400', fontSize: 14, color: colors.ink },
 });

@@ -315,7 +315,7 @@ function TicTacToeLocal({ simpleUi, initialMode = 'hotseat' }) {
                     accessibilityRole="button"
                     accessibilityLabel={cell ? `Rute ${idx + 1}, ${cell}` : `Rute ${idx + 1}, tom`}
                   >
-                    <Text style={{ fontSize: markSize, fontWeight: '800', color: colors.ink }}>
+                    <Text style={{ fontSize: markSize, fontWeight: '400', color: colors.ink }}>
                       {cell === 'X' ? '✕' : cell === 'O' ? '○' : ''}
                     </Text>
                   </Pressable>
@@ -951,7 +951,7 @@ function Mines({ simpleUi }) {
                   },
                 ]}
               >
-                <Text style={{ fontSize: board.cell * 0.4, fontWeight: '700', color: colors.ink }}>
+                <Text style={{ fontSize: board.cell * 0.4, fontWeight: '400', color: colors.ink }}>
                   {cell.o ? (cell.m ? '💣' : (cell.n || '')) : ''}
                 </Text>
               </Pressable>
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
   },
   chipSimple: { paddingVertical: 10, paddingHorizontal: 14 },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { color: colors.muted, fontWeight: '700', fontSize: 13 },
+  chipTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   chipTxtOn: { color: colors.brand },
   tttBoard: {
     alignSelf: 'center',
@@ -1118,7 +1118,7 @@ const styles = StyleSheet.create({
   statusTxt: {
     textAlign: 'center',
     color: colors.ink,
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 16,
   },
   statusTxtWin: { color: colors.success, fontSize: 18 },
@@ -1135,7 +1135,7 @@ const styles = StyleSheet.create({
   memCardOpen: { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.brandSoft },
   hangStage: { alignItems: 'center', marginBottom: 16 },
   hangFigure: { fontSize: 64, marginBottom: 8 },
-  hangWord: { letterSpacing: 6, color: colors.ink, fontWeight: '700', textAlign: 'center' },
+  hangWord: { letterSpacing: 6, color: colors.ink, fontWeight: '400', textAlign: 'center' },
   letters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignSelf: 'center' },
   letter: {
     backgroundColor: colors.card,
@@ -1145,8 +1145,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   letterOff: { opacity: 0.3 },
-  letterTxt: { fontWeight: '700', color: colors.ink },
-  big: { fontSize: 32, fontWeight: '700', color: colors.ink, marginTop: 8, textAlign: 'center' },
+  letterTxt: { fontWeight: '400', color: colors.ink },
+  big: { fontSize: 32, fontWeight: '400', color: colors.ink, marginTop: 8, textAlign: 'center' },
   playBtnLg: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1159,7 +1159,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     minWidth: 120,
   },
-  playBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  playBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
   row: { flexDirection: 'row' },
   rowCenter: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16,
@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
   },
   g2048: { alignSelf: 'center' },
   t2048: { alignItems: 'center', justifyContent: 'center' },
-  t2048n: { fontWeight: '800' },
+  t2048n: { fontWeight: '400' },
   dirBtn: {
     width: 56, height: 56, borderRadius: 16, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
@@ -1180,7 +1180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  slideTxt: { fontWeight: '800', color: colors.ink },
+  slideTxt: { fontWeight: '400', color: colors.ink },
   cardArena: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1190,9 +1190,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   cardPile: { alignItems: 'center', gap: 8 },
-  pileLabel: { fontWeight: '700', color: colors.muted, fontSize: 13 },
-  pileCount: { color: colors.muted, fontWeight: '600' },
-  vs: { fontWeight: '900', color: colors.brand, fontSize: 18 },
+  pileLabel: { fontWeight: '400', color: colors.muted, fontSize: 13 },
+  pileCount: { color: colors.muted, fontWeight: '400' },
+  vs: { fontWeight: '400', color: colors.brand, fontSize: 18 },
   playingCard: {
     width: 110, height: 150, borderRadius: 14, backgroundColor: colors.card,
     borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
@@ -1207,13 +1207,13 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
     marginVertical: 12,
   },
-  cardFace: { fontSize: 36, fontWeight: '700', color: colors.ink },
-  cardFaceSm: { fontSize: 22, fontWeight: '700', color: colors.ink },
-  cardFaceLg: { fontSize: 48, fontWeight: '800', color: colors.ink },
+  cardFace: { fontSize: 36, fontWeight: '400', color: colors.ink },
+  cardFaceSm: { fontSize: 22, fontWeight: '400', color: colors.ink },
+  cardFaceLg: { fontSize: 48, fontWeight: '400', color: colors.ink },
   cardRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   bjTable: {
     alignSelf: 'center', width: '100%', maxWidth: 480, backgroundColor: '#166534',
     borderRadius: 20, padding: 20, alignItems: 'center',
   },
-  bjLabel: { color: '#bbf7d0', fontWeight: '700', marginBottom: 8, fontSize: 14 },
+  bjLabel: { color: '#bbf7d0', fontWeight: '400', marginBottom: 8, fontSize: 14 },
 });

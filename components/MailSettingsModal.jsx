@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  title: { fontSize: 16, fontWeight: '600', color: colors.ink, letterSpacing: -0.2 },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink, letterSpacing: -0.2 },
   closeBtn: {
     width: 28, height: 28, borderRadius: 6,
     alignItems: 'center', justifyContent: 'center',
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 0 },
   scrollInner: { paddingBottom: 12 },
   kicker: {
-    fontSize: 11, fontWeight: '600', color: colors.muted, letterSpacing: 0.42,
+    fontSize: 11, fontWeight: '400', color: colors.muted, letterSpacing: 0.42,
     textTransform: 'uppercase', marginBottom: 8,
   },
   hint: { fontSize: 12, fontWeight: '400', color: colors.muted, lineHeight: 16 },
@@ -206,11 +206,11 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 6, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
-  accountEmail: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  accountEmail: { fontSize: 13, fontWeight: '400', color: colors.ink },
   accountMeta: { fontSize: 11, fontWeight: '400', color: colors.muted, marginTop: 2 },
   accountActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
-  link: { color: colors.brand, fontWeight: '600', fontSize: 12 },
-  linkDanger: { color: colors.danger, fontWeight: '600', fontSize: 12 },
+  link: { color: colors.brand, fontWeight: '400', fontSize: 12 },
+  linkDanger: { color: colors.danger, fontWeight: '400', fontSize: 12 },
   connectBtn: {
     marginTop: 12,
     flexDirection: 'row',
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignSelf: 'flex-start',
   },
-  connectTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  connectTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',

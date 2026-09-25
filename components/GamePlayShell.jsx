@@ -121,7 +121,7 @@ function makeStyles(layout, contentMax, simpleUi) {
     title: {
       flex: 1,
       fontSize: simpleUi ? 26 : layout.isDesktop ? 24 : 22,
-      fontWeight: '700',
+      fontWeight: '400',
       color: colors.ink,
       letterSpacing: -0.3,
     },
@@ -134,7 +134,7 @@ function makeStyles(layout, contentMax, simpleUi) {
       borderRadius: 14,
       backgroundColor: colors.brandSoft,
     },
-    resetTxt: { color: colors.brand, fontWeight: '700', fontSize: simpleUi ? 15 : 13 },
+    resetTxt: { color: colors.brand, fontWeight: '400', fontSize: simpleUi ? 15 : 13 },
     playArea: {
       width: '100%',
       alignItems: 'stretch',

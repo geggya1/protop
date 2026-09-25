@@ -150,9 +150,9 @@ const styles = StyleSheet.create({
   sub: { marginBottom: 4 },
   body: { gap: 10, marginTop: 8, marginBottom: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 4 },
-  backTxt: { fontWeight: '800', color: colors.brand, fontSize: 16 },
-  backTxtPlain: { fontWeight: '600', fontSize: 13 },
-  plainTitle: { fontSize: 16, fontWeight: '600', color: colors.ink, letterSpacing: -0.2, marginTop: 2 },
+  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxtPlain: { fontWeight: '400', fontSize: 13 },
+  plainTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, letterSpacing: -0.2, marginTop: 2 },
   plainSub: { fontSize: 13, fontWeight: '400', color: colors.muted, marginTop: 4, marginBottom: 4 },
   choice: {
     backgroundColor: colors.card, borderRadius: radius.md, padding: 16, minHeight: 64,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     minHeight: 44, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5,
   },
   choiceOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  choiceTxt: { flex: 1, fontWeight: '800', fontSize: 18, color: colors.ink },
+  choiceTxt: { flex: 1, fontWeight: '400', fontSize: 18, color: colors.ink },
   choiceTxtCompact: { fontSize: 15 },
   grid: {
     flexDirection: 'row',
@@ -184,6 +184,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft,
     borderColor: colors.brand,
   },
-  chipTxt: { fontWeight: '700', fontSize: 14, color: colors.ink },
+  chipTxt: { fontWeight: '400', fontSize: 14, color: colors.ink },
   chipTxtOn: { color: colors.brand },
 });

@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     marginTop: 8,
   },
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 8,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: colors.muted,
@@ -668,13 +668,13 @@ const styles = StyleSheet.create({
   },
   placeholderTxt: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.brand,
     textAlign: 'center',
   },
   nodeName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
     lineHeight: 15,
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 6,
   },
-  badgeTxt: { fontSize: 9, fontWeight: '700', color: '#fff' },
+  badgeTxt: { fontSize: 9, fontWeight: '400', color: '#fff' },
   pedigree: {
     padding: 16,
     gap: 18,
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   pedRow: { gap: 8 },
   pedLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: colors.muted,
@@ -709,7 +709,7 @@ const styles = StyleSheet.create({
   },
   overview: { gap: 16 },
   overviewBlock: { gap: 8 },
-  overviewTitle: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  overviewTitle: { fontSize: 13, fontWeight: '400', color: colors.ink },
   overviewCount: { fontWeight: '500', color: colors.muted },
   overviewChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipName: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  chipName: { fontSize: 13, fontWeight: '400', color: colors.ink },
   chipNameOn: { color: colors.brand },
   chipMeta: { fontSize: 11, color: colors.muted, marginTop: 1 },
 });

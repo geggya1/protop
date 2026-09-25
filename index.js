@@ -70,7 +70,7 @@ class RootErrorBoundary extends React.Component {
     const firestoreAssert = isFirestoreAssertError(this.state.error);
     return (
       <View style={{ flex: 1, padding: 24, backgroundColor: '#fff', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: '700', fontSize: 18, marginBottom: 8, color: '#b91c1c' }}>
+        <Text style={{ fontWeight: '400', fontSize: 18, marginBottom: 8, color: '#b91c1c' }}>
           Noe gikk galt
         </Text>
         <Text style={{ fontSize: 14, color: '#111827' }}>
@@ -95,7 +95,7 @@ class RootErrorBoundary extends React.Component {
               borderRadius: 10,
             }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Last siden på nytt</Text>
+            <Text style={{ color: '#fff', fontWeight: '400' }}>Last siden på nytt</Text>
           </Pressable>
         ) : null}
       </View>

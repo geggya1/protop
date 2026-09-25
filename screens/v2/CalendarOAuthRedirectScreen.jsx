@@ -199,26 +199,28 @@ const styles = StyleSheet.create({
   title: {
     marginTop: 16,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
   },
   sub: {
     marginTop: 8,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     textAlign: 'center',
     maxWidth: 360,
   },
   btn: {
+    alignSelf: 'flex-start',
     marginTop: 20,
     backgroundColor: colors.brand,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  linkBtn: { marginTop: 20, padding: 8 },
-  linkTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
+  linkBtn: {
+    alignSelf: 'flex-start', marginTop: 20, padding: 8 },
+  linkTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 });

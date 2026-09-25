@@ -1269,7 +1269,7 @@ const styles = StyleSheet.create({
   contentColDesk: { maxWidth: 720 },
   pageHead: { gap: 2, marginBottom: 4 },
   pageHeadDesk: { marginBottom: 0 },
-  pageTitle: { fontSize: 20, fontWeight: '600', color: colors.ink },
+  pageTitle: { fontSize: 20, fontWeight: '400', color: colors.ink },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 180 },
   listContent: { paddingBottom: 40, flexGrow: 1, paddingTop: 2 },
   toolbar: {
@@ -1288,6 +1288,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   settingsBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 6,
     height: 40, paddingHorizontal: 12, borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line,
@@ -1313,7 +1314,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   cardIconDesk: { width: 32, height: 32, borderRadius: 8 },
-  cardTitle: { fontWeight: '600', color: colors.ink, fontSize: 14 },
+  cardTitle: { fontWeight: '400', color: colors.ink, fontSize: 14 },
   cardTitleDesk: { fontWeight: '500', fontSize: 13 },
   cardSub: { marginTop: 1, color: colors.muted, fontWeight: '400', fontSize: 12 },
 
@@ -1322,7 +1323,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch', paddingTop: 4, paddingHorizontal: 0, gap: 14, width: '100%',
   },
   hubIntroDesk: { gap: 4, marginBottom: 2 },
-  hubTitleDesk: { fontSize: 18, fontWeight: '600', color: colors.ink },
+  hubTitleDesk: { fontSize: 18, fontWeight: '400', color: colors.ink },
   hubLeadDesk: { fontSize: 13, color: colors.muted, fontWeight: '400', lineHeight: 19, maxWidth: 560 },
   hubStatsRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%',
@@ -1333,11 +1334,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 12, gap: 2,
   },
   hubStatCardLink: { alignItems: 'flex-start', justifyContent: 'center', minHeight: 56 },
-  hubStatVal: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  hubStatVal: { fontSize: 16, fontWeight: '400', color: colors.ink },
   hubStatLbl: { fontSize: 11, fontWeight: '500', color: colors.muted },
   hubMoreDesk: { width: '100%', marginTop: 4 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: colors.ink },
-  emptyTitleDesk: { fontWeight: '600', fontSize: 15, textAlign: 'left', alignSelf: 'flex-start' },
+  emptyTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  emptyTitleDesk: { fontWeight: '400', fontSize: 15, textAlign: 'left', alignSelf: 'flex-start' },
   emptyLead: { textAlign: 'center', marginBottom: 6, paddingHorizontal: 8, fontSize: 13 },
   emptyLeadDesk: { textAlign: 'left', alignSelf: 'flex-start', paddingHorizontal: 0, marginBottom: 0 },
   typePickGrid: {
@@ -1370,7 +1371,7 @@ const styles = StyleSheet.create({
   },
   typePickIconDesk: { width: 40, height: 40, borderRadius: 10 },
   typePickLabel: { fontWeight: '500', fontSize: 12, color: colors.ink, textAlign: 'center' },
-  typePickLabelDesk: { fontSize: 13, fontWeight: '600', textAlign: 'left' },
+  typePickLabelDesk: { fontSize: 13, fontWeight: '400', textAlign: 'left' },
   typePickBlurbDesk: {
     fontSize: 11, color: colors.muted, fontWeight: '400', lineHeight: 15, textAlign: 'left',
   },
@@ -1380,7 +1381,7 @@ const styles = StyleSheet.create({
   textCtaTxt: { fontWeight: '500', fontSize: 13, color: colors.brand },
 
   sectionLbl: {
-    color: colors.muted, fontWeight: '600', fontSize: 11,
+    color: colors.muted, fontWeight: '400', fontSize: 11,
     textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6, marginTop: 4,
   },
   sectionLblDesk: { fontWeight: '500', fontSize: 11 },
@@ -1402,7 +1403,7 @@ const styles = StyleSheet.create({
 
   browseBody: { paddingBottom: 32, gap: 4 },
   settingsBody: { paddingBottom: 40, gap: 4 },
-  settingsTitle: { fontWeight: '600', fontSize: 18, color: colors.ink },
+  settingsTitle: { fontWeight: '400', fontSize: 18, color: colors.ink },
   settingsTitleDesk: { fontWeight: '500', fontSize: 16 },
   settingsLead: {
     color: colors.muted, fontSize: 13, fontWeight: '400', lineHeight: 18, marginBottom: 8,
@@ -1413,7 +1414,7 @@ const styles = StyleSheet.create({
   browseIcon: {
     width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
   },
-  browseTitle: { fontWeight: '600', fontSize: 18, color: colors.ink },
+  browseTitle: { fontWeight: '400', fontSize: 18, color: colors.ink },
   browseTitleDesk: { fontWeight: '500', fontSize: 16 },
   browseBlurb: { color: colors.muted, fontWeight: '400', fontSize: 13, marginTop: 2 },
   programRow: {
@@ -1423,7 +1424,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
   },
   programRowOn: { backgroundColor: '#f8fafc', marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 8 },
-  programTitle: { fontWeight: '600', fontSize: 14, color: colors.ink },
+  programTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
   programTitleDesk: { fontWeight: '500', fontSize: 13 },
   programMeta: { color: colors.brand, fontWeight: '500', fontSize: 11, marginTop: 2 },
   programBlurb: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 3, lineHeight: 16 },
@@ -1432,7 +1433,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand, borderRadius: 10, paddingVertical: 12,
   },
   primaryCtaDesk: { alignSelf: 'flex-start', paddingHorizontal: 16, borderRadius: 8 },
-  primaryCtaTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  primaryCtaTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   stravaCta: {
     marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#fc4c02', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 14,
@@ -1441,7 +1442,7 @@ const styles = StyleSheet.create({
     marginTop: 8, color: colors.muted, fontSize: 12, fontWeight: '400', lineHeight: 17,
   },
   viewOnStrava: {
-    color: '#FC5200', fontWeight: '700', textDecorationLine: 'underline',
+    color: '#FC5200', fontWeight: '400', textDecorationLine: 'underline',
   },
   setupLink: { marginTop: 10, paddingVertical: 4 },
   setupLinkTxt: { color: colors.brand, fontWeight: '500', fontSize: 13 },
@@ -1477,7 +1478,7 @@ const styles = StyleSheet.create({
   healthStat: {
     flex: 1, backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 10, alignItems: 'center',
   },
-  healthVal: { fontWeight: '600', fontSize: 13, color: colors.ink },
+  healthVal: { fontWeight: '400', fontSize: 13, color: colors.ink },
   healthKey: { fontWeight: '400', fontSize: 11, color: colors.muted, marginTop: 2 },
   weightLbl: { fontWeight: '500', fontSize: 12, color: colors.ink, marginBottom: 4 },
   weightRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
@@ -1523,11 +1524,11 @@ const styles = StyleSheet.create({
   modalCardDesk: {
     borderRadius: 12, justifyContent: 'center', marginBottom: 0, padding: 16, maxWidth: 440,
   },
-  modalTitle: { fontSize: 16, fontWeight: '600', color: colors.ink },
+  modalTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
   modalTitleDesk: { fontSize: 15, fontWeight: '500' },
   modalHelp: { marginTop: 4, color: colors.muted, fontWeight: '400', fontSize: 12, lineHeight: 17 },
   modalSectionTitle: {
-    marginTop: 12, fontWeight: '600', color: colors.muted, fontSize: 11,
+    marginTop: 12, fontWeight: '400', color: colors.muted, fontSize: 11,
     textTransform: 'uppercase', letterSpacing: 0.3,
   },
   input: {
@@ -1552,7 +1553,7 @@ const styles = StyleSheet.create({
   btnDesk: { borderRadius: 8, paddingVertical: 10 },
   btnGhost: { backgroundColor: colors.bg },
   btnPrimary: { backgroundColor: colors.brand },
-  btnTxt: { fontWeight: '600', fontSize: 14 },
+  btnTxt: { fontWeight: '400', fontSize: 14 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   memberName: { fontWeight: '500', color: colors.ink, fontSize: 13 },
 });

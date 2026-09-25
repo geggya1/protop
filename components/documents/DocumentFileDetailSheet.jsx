@@ -232,9 +232,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
   },
-  previewHintTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  title: { fontWeight: '900', fontSize: 18, color: colors.ink },
-  sub: { fontSize: 13, color: colors.muted, fontWeight: '600', marginTop: 4 },
+  previewHintTxt: { color: '#fff', fontSize: 12, fontWeight: '400' },
+  title: { fontWeight: '400', fontSize: 18, color: colors.ink },
+  sub: { fontSize: 13, color: colors.muted, fontWeight: '400', marginTop: 4 },
   infoCard: {
     backgroundColor: '#f8fafc', borderRadius: radius.md, paddingHorizontal: 14,
     marginBottom: 16, borderWidth: 1, borderColor: colors.line,
@@ -243,9 +243,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11,
     borderBottomWidth: 1, borderBottomColor: colors.line, gap: 12,
   },
-  infoLbl: { fontSize: 13, color: colors.muted, fontWeight: '700' },
-  infoVal: { fontSize: 13, color: colors.ink, fontWeight: '700', flex: 1, textAlign: 'right' },
+  infoLbl: { fontSize: 13, color: colors.muted, fontWeight: '400' },
+  infoVal: { fontSize: 13, color: colors.ink, fontWeight: '400', flex: 1, textAlign: 'right' },
   primaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: 14, marginBottom: 12,
   },
@@ -253,19 +254,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10,
     minWidth: 88, alignItems: 'center',
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   actions: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
-  actionBtn: { alignItems: 'center', gap: 4, padding: 8, minWidth: 72 },
-  actionTxt: { fontSize: 12, fontWeight: '700', color: colors.ink },
-  closeBtn: { alignItems: 'center', paddingVertical: 12 },
-  closeTxt: { fontSize: 15, fontWeight: '700', color: colors.muted },
+  actionBtn: {
+    alignSelf: 'flex-start', alignItems: 'center', gap: 4, padding: 8, minWidth: 72 },
+  actionTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
+  closeBtn: {
+    alignSelf: 'flex-start', alignItems: 'center', paddingVertical: 12 },
+  closeTxt: { fontSize: 15, fontWeight: '400', color: colors.muted },
   renameBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24,
   },
   renameCard: {
     backgroundColor: colors.card, borderRadius: radius.lg, padding: 20, gap: 12,
   },
-  renameTitle: { fontSize: 18, fontWeight: '900', color: colors.ink },
+  renameTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
   renameInput: {
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: colors.ink,

@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -146,32 +146,32 @@ const styles = StyleSheet.create({
   },
   version: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 6,
   },
   title: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     marginBottom: 4,
   },
   date: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 10,
   },
   body: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 22,
     marginBottom: 10,
   },
   hint: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     lineHeight: 18,
     marginBottom: 16,
@@ -182,6 +182,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderRadius: 12,
@@ -189,10 +190,11 @@ const styles = StyleSheet.create({
   },
   secondaryTxt: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
   },
   primaryBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderRadius: 12,
@@ -200,7 +202,7 @@ const styles = StyleSheet.create({
   },
   primaryTxt: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '400',
     color: '#fff',
   },
 });

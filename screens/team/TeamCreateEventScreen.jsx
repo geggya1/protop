@@ -141,7 +141,7 @@ export default function TeamCreateEventScreen() {
               onChange={(e) => setDateKey(e.target.value)}
               style={{
                 width: '100%', padding: 14, borderRadius: 16, border: `1px solid ${c.line}`,
-                background: c.surface, color: c.ink, fontWeight: 700, fontSize: 16,
+                background: c.surface, color: c.ink, fontWeight: '400', fontSize: 16,
               }}
             />
           </View>
@@ -163,7 +163,7 @@ export default function TeamCreateEventScreen() {
               onChange={(e) => setStartTime(e.target.value)}
               style={{
                 width: '100%', padding: 14, borderRadius: 16, border: `1px solid ${c.line}`,
-                background: c.surface, color: c.ink, fontWeight: 700, fontSize: 16,
+                background: c.surface, color: c.ink, fontWeight: '400', fontSize: 16,
               }}
             />
           </View>
@@ -254,29 +254,30 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: c.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: 20, fontWeight: '900', color: c.ink },
+  title: { fontSize: 20, fontWeight: '400', color: c.ink },
   body: { padding: 16, paddingBottom: 40 },
-  label: { color: c.ink, fontWeight: '800', fontSize: 13, marginBottom: 6, marginTop: 10 },
+  label: { color: c.ink, fontWeight: '400', fontSize: 13, marginBottom: 6, marginTop: 10 },
   subLabel: {
-    color: c.muted, fontWeight: '800', fontSize: 11, letterSpacing: 0.6,
+    color: c.muted, fontWeight: '400', fontSize: 11, letterSpacing: 0.6,
     textTransform: 'uppercase', marginTop: 10, marginBottom: 6,
   },
-  hint: { color: c.muted, fontWeight: '600', fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  hint: { color: c.muted, fontWeight: '400', fontSize: 13, marginBottom: 8, lineHeight: 18 },
   input: {
     backgroundColor: c.surface, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 14,
-    color: c.ink, fontWeight: '700', fontSize: 16, borderWidth: 1, borderColor: c.line,
+    color: c.ink, fontWeight: '400', fontSize: 16, borderWidth: 1, borderColor: c.line,
   },
   dateWrap: { marginBottom: 4 },
   inviteActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   miniBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: c.brandSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
-  miniBtnTxt: { color: c.brand, fontWeight: '800', fontSize: 13 },
+  miniBtnTxt: { color: c.brand, fontWeight: '400', fontSize: 13 },
   miniBtnGhost: {
     backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: 1, borderColor: c.line,
   },
-  miniBtnGhostTxt: { color: c.muted, fontWeight: '800', fontSize: 13 },
+  miniBtnGhostTxt: { color: c.muted, fontWeight: '400', fontSize: 13 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -284,11 +285,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: c.line, maxWidth: '100%',
   },
   chipOn: { backgroundColor: c.brandSoft, borderColor: c.brand },
-  chipTxt: { color: c.ink, fontWeight: '700', fontSize: 13, maxWidth: 160 },
+  chipTxt: { color: c.ink, fontWeight: '400', fontSize: 13, maxWidth: 160 },
   chipTxtOn: { color: c.brand },
   btn: {
+    alignSelf: 'flex-start',
     marginTop: 24, backgroundColor: c.brand, borderRadius: 16,
     paddingVertical: 16, alignItems: 'center',
   },
-  btnTxt: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
 });

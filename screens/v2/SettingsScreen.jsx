@@ -421,7 +421,7 @@ export default function SettingsScreen({ setSubView } = {}) {
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
   bodyDesktop: { paddingHorizontal: 12, paddingTop: 4, maxWidth: 680 },
-  screenTitle: { fontSize: 20, fontWeight: '700', color: colors.ink, marginBottom: 12 },
+  screenTitle: { fontSize: 20, fontWeight: '400', color: colors.ink, marginBottom: 12 },
   screenTitleDesktop: { fontSize: 22, marginBottom: 12 },
 
   profileCard: {
@@ -434,18 +434,18 @@ const styles = StyleSheet.create({
     borderRadius: 0, padding: 10, marginBottom: 0, gap: 10,
   },
   profileGroup: { marginBottom: 8 },
-  profileName: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  profileNameDesk: { fontSize: 14, fontWeight: '600' },
-  profileSub: { fontSize: 13, color: colors.muted, marginTop: 2, fontWeight: '600' },
+  profileName: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  profileNameDesk: { fontSize: 14, fontWeight: '400' },
+  profileSub: { fontSize: 13, color: colors.muted, marginTop: 2, fontWeight: '400' },
   profileSubDesk: { fontSize: 12, fontWeight: '400' },
 
   sectionTitle: {
-    fontSize: 13, fontWeight: '800', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginTop: 20, marginBottom: 8, marginLeft: 4,
   },
   sectionTitleDesk: {
-    fontSize: 11, fontWeight: '600', letterSpacing: 0.42, marginTop: 14, marginBottom: 6,
+    fontSize: 11, fontWeight: '400', letterSpacing: 0.42, marginTop: 14, marginBottom: 6,
   },
 
   group: {
@@ -471,13 +471,13 @@ const styles = StyleSheet.create({
   },
   iconDanger: { backgroundColor: '#fee2e2' },
 
-  label: { flex: 1, fontWeight: '700', fontSize: 15, color: colors.ink },
+  label: { flex: 1, fontWeight: '400', fontSize: 15, color: colors.ink },
   labelCompact: { fontSize: 13, fontWeight: '500' },
-  rowHint: { fontSize: 12, fontWeight: '600', color: colors.muted, marginTop: 2 },
+  rowHint: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 2 },
   rowHintDesk: { fontSize: 11, fontWeight: '400' },
-  detail: { fontSize: 13, fontWeight: '600', color: colors.muted, maxWidth: '46%' },
+  detail: { fontSize: 13, fontWeight: '400', color: colors.muted, maxWidth: '46%' },
   hint: {
-    fontSize: 13, fontWeight: '600', color: colors.muted,
+    fontSize: 13, fontWeight: '400', color: colors.muted,
     marginBottom: 8, marginLeft: 4, marginTop: -4,
   },
   nestedBlock: {
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   nestedHint: {
-    fontSize: 12, fontWeight: '600', color: colors.muted,
+    fontSize: 12, fontWeight: '400', color: colors.muted,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4,
     lineHeight: 17,
   },
@@ -499,8 +499,8 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     gap: 8,
   },
-  deleteLead: { fontSize: 13, lineHeight: 18, color: colors.muted, fontWeight: '600' },
-  deleteLabel: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  deleteLead: { fontSize: 13, lineHeight: 18, color: colors.muted, fontWeight: '400' },
+  deleteLabel: { fontSize: 12, fontWeight: '400', color: colors.ink },
   deleteInput: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -508,12 +508,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 1,
     color: colors.ink,
     backgroundColor: colors.card,
   },
-  deleteError: { color: colors.danger, fontSize: 13, fontWeight: '700' },
+  deleteError: { color: colors.danger, fontSize: 13, fontWeight: '400' },
   deleteBtn: {
     alignSelf: 'flex-start',
     backgroundColor: colors.danger,
@@ -524,5 +524,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   deleteBtnOff: { opacity: 0.45 },
-  deleteBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  deleteBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
 });

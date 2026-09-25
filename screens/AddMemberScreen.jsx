@@ -368,7 +368,7 @@ export default function AddMemberScreen({
             checkingUsername ? (
               <Text style={styles.hint}>{t('member.checkingUsername')}</Text>
             ) : (
-              <Text style={{ fontWeight: '700', color: taken ? colors.danger : colors.brand }}>
+              <Text style={{ fontWeight: '400', color: taken ? colors.danger : colors.brand }}>
                 {taken ? t('profile.usernameTaken') : isValidUsername(username) ? t('profile.usernameFree') : t('common.required')}
               </Text>
             )
@@ -483,31 +483,31 @@ export default function AddMemberScreen({
 }
 
 const styles = StyleSheet.create({
-  lbl: { fontWeight: '800', color: colors.ink, marginTop: 6 },
-  hint: { color: colors.muted, fontWeight: '600' },
-  warn: { color: colors.warn, fontWeight: '700' },
+  lbl: { fontWeight: '400', color: colors.ink, marginTop: 6 },
+  hint: { color: colors.muted, fontWeight: '400' },
+  warn: { color: colors.warn, fontWeight: '400' },
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 14, fontSize: 18, fontWeight: '600',
+    padding: 14, fontSize: 18, fontWeight: '400',
   },
   chip: { backgroundColor: colors.brandSoft, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 999 },
-  chipTxt: { fontWeight: '800', color: colors.ink },
-  big: { fontWeight: '800', fontSize: 18, textAlign: 'center' },
-  bigModal: { fontWeight: '600', fontSize: 15 },
-  cred: { fontSize: 28, fontWeight: '900', textAlign: 'center', color: colors.brand },
-  credModal: { fontSize: 20, fontWeight: '700' },
+  chipTxt: { fontWeight: '400', color: colors.ink },
+  big: { fontWeight: '400', fontSize: 18, textAlign: 'center' },
+  bigModal: { fontWeight: '400', fontSize: 15 },
+  cred: { fontSize: 28, fontWeight: '400', textAlign: 'center', color: colors.brand },
+  credModal: { fontSize: 20, fontWeight: '400' },
   missingBox: {
     marginTop: 12, padding: 12, borderRadius: radius.md,
     backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa',
   },
-  missingTitle: { fontWeight: '800', color: colors.ink, marginBottom: 4 },
-  missingItem: { color: colors.warn, fontWeight: '600' },
+  missingTitle: { fontWeight: '400', color: colors.ink, marginBottom: 4 },
+  missingItem: { color: colors.warn, fontWeight: '400' },
   foundBox: {
     marginTop: 8, padding: 12, borderRadius: radius.md,
     backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', gap: 2,
   },
-  foundTitle: { fontWeight: '800', color: colors.ink, marginBottom: 4 },
-  foundName: { fontWeight: '900', color: colors.ink, fontSize: 16 },
-  foundMeta: { fontWeight: '600', color: colors.muted },
-  foundHint: { fontWeight: '700', color: colors.brand, marginTop: 6 },
+  foundTitle: { fontWeight: '400', color: colors.ink, marginBottom: 4 },
+  foundName: { fontWeight: '400', color: colors.ink, fontSize: 16 },
+  foundMeta: { fontWeight: '400', color: colors.muted },
+  foundHint: { fontWeight: '400', color: colors.brand, marginTop: 6 },
 });

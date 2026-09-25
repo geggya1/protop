@@ -1059,22 +1059,22 @@ export function ProfileSettingsScreen() {
         <BigButton label={t('auth.resetSend')} onPress={sendReset} />
       ) : (
         <>
-          <Text style={{ fontWeight: '800' }}>{t('auth.newPassword')}</Text>
+          <Text style={{ fontWeight: '400' }}>{t('auth.newPassword')}</Text>
           <TextInput value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
-          <Text style={{ fontWeight: '800' }}>{t('auth.repeatPassword')}</Text>
+          <Text style={{ fontWeight: '400' }}>{t('auth.repeatPassword')}</Text>
           <TextInput value={password2} onChangeText={setPassword2} secureTextEntry style={styles.input} />
           <BigButton label={pwdBusy ? t('common.loading') : t('member.passwordSet')} onPress={saveLocalPassword} disabled={pwdBusy} />
         </>
       )}
-      <Text style={{ fontWeight: '800' }}>{t('more.language')}</Text>
+      <Text style={{ fontWeight: '400' }}>{t('more.language')}</Text>
       {langs.map((l) => (
         <Choice key={l.id} emoji={l.flag} label={l.name} active={lang === l.id} onPress={() => setLang(l.id)} />
       ))}
 
       {/* Varslinger */}
-      <Text style={{ fontWeight: '900', fontSize: 18, marginTop: 18, marginBottom: 8 }}>🔔 Varslinger</Text>
+      <Text style={{ fontWeight: '400', fontSize: 18, marginTop: 18, marginBottom: 8 }}>🔔 Varslinger</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text style={{ fontWeight: '800' }}>Aktiver</Text>
+        <Text style={{ fontWeight: '400' }}>Aktiver</Text>
         <Switch
           value={notificationPrefs.enabled}
           onValueChange={(v) => {
@@ -1088,7 +1088,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ fontWeight: '800', marginTop: 10 }}>Oppgave mottatt</Text>
+      <Text style={{ fontWeight: '400', marginTop: 10 }}>Oppgave mottatt</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
         <Text>📧 E-post</Text>
         <Switch
@@ -1120,7 +1120,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ fontWeight: '800', marginTop: 10 }}>Melding mottatt</Text>
+      <Text style={{ fontWeight: '400', marginTop: 10 }}>Melding mottatt</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
         <Text>📧 E-post</Text>
         <Switch
@@ -1152,7 +1152,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ fontWeight: '800', marginTop: 10 }}>Til attestering</Text>
+      <Text style={{ fontWeight: '400', marginTop: 10 }}>Til attestering</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
         <Text>📧 E-post</Text>
         <Switch
@@ -1184,7 +1184,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ fontWeight: '800', marginTop: 10 }}>Invitasjoner (familie/lag/klasse)</Text>
+      <Text style={{ fontWeight: '400', marginTop: 10 }}>Invitasjoner (familie/lag/klasse)</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
         <Text>📧 E-post</Text>
         <Switch
@@ -1206,7 +1206,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ fontWeight: '800', marginTop: 10 }}>Spillinvitasjoner</Text>
+      <Text style={{ fontWeight: '400', marginTop: 10 }}>Spillinvitasjoner</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
         <Text>🔔 Push</Text>
         <Switch
@@ -1218,7 +1218,7 @@ export function ProfileSettingsScreen() {
         />
       </View>
 
-      <Text style={{ color: '#94a3b8', fontWeight: '600', marginTop: 10, fontSize: 12 }}>
+      <Text style={{ color: '#94a3b8', fontWeight: '400', marginTop: 10, fontSize: 12 }}>
         Push-varsler vises på enheten når du får en ny melding, også når appen er i bakgrunnen.
         Nettleseren spør om tillatelse første gang. SMS støttes ikke ennå.
       </Text>
@@ -1229,25 +1229,25 @@ export function ProfileSettingsScreen() {
 const styles = StyleSheet.create({
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 14, fontSize: 18, fontWeight: '600',
+    padding: 14, fontSize: 18, fontWeight: '400',
   },
   row: { backgroundColor: colors.card, borderRadius: 16, padding: 14 },
-  name: { fontWeight: '800', fontSize: 16, color: colors.ink },
-  sub: { color: colors.brand, fontWeight: '700' },
-  lbl: { fontWeight: '800', color: colors.ink, marginTop: 6 },
+  name: { fontWeight: '400', fontSize: 16, color: colors.ink },
+  sub: { color: colors.brand, fontWeight: '400' },
+  lbl: { fontWeight: '400', color: colors.ink, marginTop: 6 },
   deactBanner: {
     backgroundColor: '#fef2f2', borderRadius: 14, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: '#fecaca',
   },
   deactBannerTxt: {
-    color: colors.danger, fontWeight: '900', fontSize: 14,
+    color: colors.danger, fontWeight: '400', fontSize: 14,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
   },
 });
 
 const ms = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  mutedPad: { color: colors.muted, fontWeight: '600', padding: 24 },
+  mutedPad: { color: colors.muted, fontWeight: '400', padding: 24 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1268,11 +1268,11 @@ const ms = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  headTitle: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  headSub: { fontSize: 12, fontWeight: '600', color: colors.muted, marginTop: 2 },
-  body: { padding: 16, paddingBottom: 96, gap: 8 },
+  headTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  headSub: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 2 },
+  body: { padding: 16, paddingBottom: 96, gap: 8, maxWidth: 640, width: '100%', alignSelf: 'flex-start' },
   lbl: {
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     fontSize: 13,
     marginTop: 10,
@@ -1286,12 +1286,12 @@ const ms = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
   },
   section: {
     color: colors.muted,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -1305,7 +1305,7 @@ const ms = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
-  cardLbl: { fontWeight: '700', color: colors.ink, fontSize: 13 },
+  cardLbl: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   inputInCard: {
     backgroundColor: colors.bg,
     borderWidth: 1,
@@ -1314,7 +1314,7 @@ const ms = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
   },
   primaryOutline: {
@@ -1329,7 +1329,7 @@ const ms = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: colors.brandSoft,
   },
-  primaryOutlineTxt: { color: colors.brand, fontWeight: '800', fontSize: 14 },
+  primaryOutlineTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1350,15 +1350,16 @@ const ms = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionTxt: { flex: 1, fontWeight: '700', fontSize: 15, color: colors.ink },
+  actionTxt: { flex: 1, fontWeight: '400', fontSize: 15, color: colors.ink },
   saveBtn: {
+    alignSelf: 'flex-start',
     marginTop: 12,
     backgroundColor: colors.brand,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 15 },
+  saveBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   deactBanner: {
     backgroundColor: '#fef2f2',
     borderRadius: 14,
@@ -1369,13 +1370,13 @@ const ms = StyleSheet.create({
   },
   deactBannerTxt: {
     color: colors.danger,
-    fontWeight: '900',
+    fontWeight: '400',
     fontSize: 13,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 4,
   },
-  deactBannerSub: { color: colors.muted, fontWeight: '600', fontSize: 13, lineHeight: 18 },
+  deactBannerSub: { color: colors.muted, fontWeight: '400', fontSize: 13, lineHeight: 18 },
 });
 
 const gs = StyleSheet.create({
@@ -1401,10 +1402,10 @@ const gs = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },
-  headTitle: { fontSize: 17, fontWeight: '600', color: colors.ink },
+  headTitle: { fontSize: 17, fontWeight: '400', color: colors.ink },
   headSub: { fontSize: 12, fontWeight: '500', color: colors.muted, marginTop: 1 },
   body: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 28, gap: 10 },
-  bodyDesk: { maxWidth: 640, width: '100%', alignSelf: 'center', paddingTop: 12, gap: 8 },
+  bodyDesk: { maxWidth: 640, width: '100%', alignSelf: 'flex-start', paddingTop: 12, gap: 8 },
   deskSaveWrap: { alignItems: 'flex-end', marginBottom: 2 },
   saveBtnTop: {
     alignSelf: 'stretch',
@@ -1417,7 +1418,7 @@ const gs = StyleSheet.create({
     backgroundColor: colors.brand,
     marginBottom: 2,
   },
-  saveBtnTopTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  saveBtnTopTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   panel: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -1437,7 +1438,7 @@ const gs = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 2,
   },
-  typePillTxt: { color: colors.brand, fontWeight: '600', fontSize: 12 },
+  typePillTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   typeHint: {
     color: colors.muted,
     fontWeight: '400',
@@ -1445,7 +1446,7 @@ const gs = StyleSheet.create({
     lineHeight: 16,
   },
   lbl: {
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     fontSize: 12,
     marginTop: 10,
@@ -1454,6 +1455,7 @@ const gs = StyleSheet.create({
   lblDesk: { fontWeight: '500', fontSize: 11, marginTop: 8, marginBottom: 4 },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 2 },
   photoBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -1466,7 +1468,7 @@ const gs = StyleSheet.create({
   },
   photoBtnDesk: { borderRadius: 6, paddingVertical: 6 },
   photoBtnDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
-  photoBtnTxt: { color: colors.brand, fontWeight: '600', fontSize: 12 },
+  photoBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   input: {
     backgroundColor: colors.bg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1481,7 +1483,7 @@ const gs = StyleSheet.create({
   inputDesk: { borderRadius: 8, fontSize: 14, paddingVertical: 8 },
   section: {
     color: colors.muted,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

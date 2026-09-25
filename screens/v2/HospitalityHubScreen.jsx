@@ -717,6 +717,7 @@ const styles = StyleSheet.create({
   checkHow: { color: colors.muted, fontSize: 13, marginTop: 2 },
   checkNote: { color: colors.muted, fontSize: 12, marginTop: 2, fontStyle: 'italic' },
   btn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand, borderRadius: radius.md,
     paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center',
   },
@@ -741,7 +742,8 @@ const styles = StyleSheet.create({
   },
   inputMulti: { minHeight: 88, textAlignVertical: 'top' },
   rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  actionBtn: { paddingVertical: 4, paddingHorizontal: 2 },
+  actionBtn: {
+    alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 2 },
   actionTxt: { color: colors.brand, fontWeight: '500', fontSize: 13 },
   actionDanger: { color: '#b91c1c' },
   setupBanner: {

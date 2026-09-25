@@ -53,5 +53,5 @@ const styles = StyleSheet.create({
   },
   on: { backgroundColor: colors.brand, borderColor: colors.brand },
   flag: { fontSize: 32 },
-  name: { fontWeight: '800', color: colors.ink, marginTop: 4 },
+  name: { fontWeight: '400', color: colors.ink, marginTop: 4 },
 });

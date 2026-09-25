@@ -127,17 +127,17 @@ const styles = StyleSheet.create({
   math: {
     fontFamily: handFont,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.3,
   },
   mathInline: {
-    fontWeight: '700',
+    fontWeight: '400',
     letterSpacing: 0.2,
   },
   sup: {
     fontSize: 11,
     lineHeight: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     ...Platform.select({
       web: { verticalAlign: 'super', position: 'relative', top: -4 },
       default: { position: 'relative', top: -5 },
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   eq: {
     fontFamily: handFont,
     fontSize: 26,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.6,
     lineHeight: 34,
   },

@@ -516,9 +516,9 @@ export default function CreateRecipeScreen({ recipe, onBack, onSaved }) {
 
 const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 40 },
-  heading: { fontSize: 24, fontWeight: '900', color: colors.ink, marginBottom: 8 },
+  heading: { fontSize: 24, fontWeight: '400', color: colors.ink, marginBottom: 8 },
   builtinHint: {
-    fontSize: 13, color: colors.muted, fontWeight: '600', marginBottom: 16, lineHeight: 18,
+    fontSize: 13, color: colors.muted, fontWeight: '400', marginBottom: 16, lineHeight: 18,
   },
   importCard: {
     backgroundColor: '#eef6ff',
@@ -528,8 +528,8 @@ const styles = StyleSheet.create({
     borderColor: '#dbeafe',
     marginBottom: 16,
   },
-  importTitle: { fontWeight: '900', color: colors.ink, fontSize: 15, marginBottom: 4 },
-  importHint: { fontSize: 12, color: colors.muted, fontWeight: '600', marginBottom: 10, lineHeight: 17 },
+  importTitle: { fontWeight: '400', color: colors.ink, fontSize: 15, marginBottom: 4 },
+  importHint: { fontSize: 12, color: colors.muted, fontWeight: '400', marginBottom: 10, lineHeight: 17 },
   importActions: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   importBtn: {
     flex: 1,
@@ -543,8 +543,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     paddingVertical: 10,
   },
-  importBtnTxt: { fontWeight: '800', color: colors.brand, fontSize: 13 },
+  importBtnTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   importLinkBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: radius.md,
     paddingVertical: 12,
@@ -553,14 +554,14 @@ const styles = StyleSheet.create({
   importStatus: {
     marginTop: 10,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand,
     lineHeight: 18,
   },
   importError: {
     marginTop: 10,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: '#b91c1c',
     lineHeight: 18,
   },
@@ -569,13 +570,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.lg, padding: 14,
     borderWidth: 1, borderColor: colors.line, marginBottom: 8,
   },
-  photoTitle: { fontWeight: '800', color: colors.ink, fontSize: 15 },
-  photoHint: { fontSize: 12, color: colors.muted, fontWeight: '600', marginTop: 2 },
+  photoTitle: { fontWeight: '400', color: colors.ink, fontSize: 15 },
+  photoHint: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
   photoAlt: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, paddingLeft: 4,
   },
-  photoAltTxt: { color: colors.brand, fontWeight: '700', fontSize: 13 },
-  lbl: { fontSize: 12, fontWeight: '800', color: colors.muted, marginBottom: 8, textTransform: 'uppercase' },
+  photoAltTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  lbl: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 8, textTransform: 'uppercase' },
   input: {
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, backgroundColor: colors.card, marginBottom: 14,
@@ -588,15 +589,16 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, alignItems: 'center',
   },
   tagBtnOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  tagTxt: { fontWeight: '800', color: colors.brand, fontSize: 13 },
+  tagTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   tagTxtOn: { color: '#fff' },
   catRow: { gap: 8, marginBottom: 14, paddingRight: 8 },
   catBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
   },
   catBtnOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  catTxt: { fontWeight: '700', color: colors.ink, fontSize: 12 },
+  catTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
   catTxtOn: { color: '#fff' },
   row: { flexDirection: 'row', gap: 10 },
   ingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -604,9 +606,10 @@ const styles = StyleSheet.create({
   ingName: { flex: 1, marginBottom: 0 },
   ingAmt: { width: 100, marginBottom: 0 },
   saveBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand, borderRadius: radius.md,
     paddingVertical: 14, alignItems: 'center', marginTop: 8,
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  saveBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
 });

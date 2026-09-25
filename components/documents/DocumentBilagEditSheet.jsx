@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  title: { fontSize: 16, fontWeight: '600', color: colors.ink },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink },
   sub: { fontSize: 12, color: colors.muted, marginTop: 2 },
   scroll: { flexGrow: 0 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   previewHintTxt: { color: '#fff', fontSize: 11, fontWeight: '500' },
   field: { gap: 4 },
-  fieldLbl: { fontSize: 11, fontWeight: '600', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  fieldLbl: { fontSize: 11, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     marginTop: 4,
   },
-  linesTitle: { fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6 },
+  linesTitle: { fontSize: 12, fontWeight: '400', color: colors.muted, marginBottom: 6 },
   lineRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
   },
   lineDesc: { flex: 1, fontSize: 13, color: colors.ink },
-  lineAmt: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  lineAmt: { fontSize: 13, fontWeight: '400', color: colors.ink },
   footer: {
     flexDirection: 'row',
     gap: 8,
@@ -420,6 +420,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -440,5 +441,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
-  saveTxt: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  saveTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
 });

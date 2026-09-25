@@ -49,5 +49,5 @@ const styles = StyleSheet.create({
   swatchMine: { backgroundColor: 'rgba(37, 99, 235, 0.35)', borderColor: '#2563eb' },
   swatchOther: { backgroundColor: 'rgba(234, 88, 12, 0.28)', borderColor: '#ea580c' },
   swatchMixed: { backgroundColor: 'rgba(245, 158, 11, 0.35)', borderColor: '#f59e0b' },
-  txt: { fontSize: 11, fontWeight: '700', color: colors.muted },
+  txt: { fontSize: 11, fontWeight: '400', color: colors.muted },
 });

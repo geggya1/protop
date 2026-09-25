@@ -7,7 +7,7 @@ function Btn({ label, onPress, colors, tone = 'brand' }) {
   const fg = tone === 'quiet' ? colors.ink : '#fff';
   return (
     <TouchableOpacity onPress={onPress} style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: bg }} accessibilityRole="button">
-      <Text style={{ color: fg, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: fg, fontWeight: '400', fontSize: 13 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -36,7 +36,7 @@ function DossierBlock({ dossier, colors }) {
       ) : null}
       {dossier.documents?.map((doc) => (
         <TouchableOpacity key={doc.url} onPress={() => Linking.openURL(doc.url)} accessibilityRole="link">
-          <Text style={{ color: colors.brand, fontWeight: '700' }}>{doc.title}</Text>
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>{doc.title}</Text>
         </TouchableOpacity>
       ))}
       <Text style={{ color: colors.muted }}>
@@ -61,8 +61,8 @@ export default function NoticeBoard({
     if (!bids.length) return <Text style={{ color: colors.muted }}>Ingen tilbudsarbeid er opprettet ennå.</Text>;
     return bids.map((bid) => (
       <View key={bid.id} style={{ borderWidth: 1, borderColor: colors.brand, backgroundColor: colors.card, borderRadius: 16, padding: 12, gap: 6 }}>
-        <Text style={{ color: colors.brand, fontWeight: '800' }}>Trinn 2 · Tilbudsarbeid</Text>
-        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{bid.title}</Text>
+        <Text style={{ color: colors.brand, fontWeight: '400' }}>Trinn 2 · Tilbudsarbeid</Text>
+        <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 16 }}>{bid.title}</Text>
         <Text style={{ color: colors.ink }}>{bid.buyer}</Text>
         <Text style={{ color: colors.muted }}>Opprettet {formatWhen(bid.createdAt)}</Text>
         <DossierBlock dossier={bid.dossier} colors={colors} />
@@ -81,11 +81,11 @@ export default function NoticeBoard({
   return rows.map((row) => (
     <View key={row.id} style={{ borderWidth: 1, borderColor: row.isNew ? colors.brand : colors.line, backgroundColor: colors.card, borderRadius: 16, padding: 12, gap: 6 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {row.isNew ? <Text style={{ color: colors.brand, fontWeight: '800' }}>Ny</Text> : null}
+        {row.isNew ? <Text style={{ color: colors.brand, fontWeight: '400' }}>Ny</Text> : null}
         <Text style={{ color: colors.muted }}>{row.id}</Text>
-        {row.interestAt ? <Text style={{ color: colors.brand, fontWeight: '700' }}>Interesse meldt</Text> : null}
+        {row.interestAt ? <Text style={{ color: colors.brand, fontWeight: '400' }}>Interesse meldt</Text> : null}
       </View>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{row.title}</Text>
+      <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 16 }}>{row.title}</Text>
       <Text style={{ color: colors.ink }}>{row.buyer || 'Ukjent oppdragsgiver'}</Text>
       <Text style={{ color: colors.muted }}>
         {[
@@ -105,7 +105,7 @@ export default function NoticeBoard({
         )}
         <Btn label="Forkast" tone="danger" colors={colors} onPress={() => onReject(row.id)} />
         <TouchableOpacity onPress={() => Linking.openURL(row.url)} accessibilityRole="link">
-          <Text style={{ color: colors.brand, fontWeight: '700', paddingVertical: 8 }}>Åpne på Doffin</Text>
+          <Text style={{ color: colors.brand, fontWeight: '400', paddingVertical: 8 }}>Åpne på Doffin</Text>
         </TouchableOpacity>
       </View>
     </View>

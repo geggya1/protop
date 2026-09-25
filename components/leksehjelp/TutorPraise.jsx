@@ -88,6 +88,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontWeight: '800', fontSize: 14, marginBottom: 2 },
-  body: { fontWeight: '600', fontSize: 13, color: '#1a2744', lineHeight: 18 },
+  title: { fontWeight: '400', fontSize: 14, marginBottom: 2 },
+  body: { fontWeight: '400', fontSize: 13, color: '#1a2744', lineHeight: 18 },
 });

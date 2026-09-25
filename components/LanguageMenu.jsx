@@ -54,6 +54,7 @@ export default function LanguageMenu({ compact }) {
 
 const styles = StyleSheet.create({
   btn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -67,8 +68,8 @@ const styles = StyleSheet.create({
   },
   btnCompact: { paddingHorizontal: 10 },
   globe: { fontSize: 16 },
-  btnTxt: { fontWeight: '800', color: colors.ink, fontSize: 14 },
-  chev: { color: colors.muted, fontWeight: '800', fontSize: 12 },
+  btnTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
+  chev: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.45)',
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 16px 40px rgba(15,23,42,0.18)' }
       : { elevation: 8 }),
   },
-  sheetTitle: { fontWeight: '900', fontSize: 18, color: colors.ink, marginBottom: 12 },
+  sheetTitle: { fontWeight: '400', fontSize: 18, color: colors.ink, marginBottom: 12 },
   list: { maxHeight: 360 },
   row: {
     flexDirection: 'row',
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
   },
   rowOn: { backgroundColor: colors.brandSoft },
   flag: { fontSize: 24 },
-  name: { flex: 1, fontWeight: '700', fontSize: 16, color: colors.ink },
-  nameOn: { color: colors.brand, fontWeight: '900' },
-  check: { color: colors.brand, fontWeight: '900', fontSize: 18 },
+  name: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
+  nameOn: { color: colors.brand, fontWeight: '400' },
+  check: { color: colors.brand, fontWeight: '400', fontSize: 18 },
 });

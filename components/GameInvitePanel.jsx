@@ -205,12 +205,12 @@ export default function GameInvitePanel({
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
-  title: { fontSize: 20, fontWeight: '700', color: colors.ink },
-  titleSimple: { fontSize: 26, fontWeight: '800' },
+  title: { fontSize: 20, fontWeight: '400', color: colors.ink },
+  titleSimple: { fontSize: 26, fontWeight: '400' },
   desc: { color: colors.muted, fontWeight: '500', fontSize: 14, lineHeight: 20, marginBottom: 8 },
   descSimple: { fontSize: 16, lineHeight: 24 },
   section: {
-    marginTop: 14, marginBottom: 6, color: colors.muted, fontWeight: '600',
+    marginTop: 14, marginBottom: 6, color: colors.muted, fontWeight: '400',
     fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4,
   },
   memberList: { gap: 8 },
@@ -221,16 +221,16 @@ const styles = StyleSheet.create({
   },
   memberRowSimple: { borderRadius: 16, borderWidth: 2, paddingVertical: 14 },
   memberRowOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  memberName: { flex: 1, fontWeight: '600', color: colors.ink, fontSize: 14 },
-  memberNameSimple: { fontSize: 17, fontWeight: '700' },
+  memberName: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 14 },
+  memberNameSimple: { fontSize: 17, fontWeight: '400' },
   emptyMembers: { color: colors.muted, fontWeight: '500', paddingVertical: 8 },
   hint: { color: colors.muted, fontSize: 12, fontWeight: '500', marginTop: 4, marginBottom: 4 },
   primary: {
     backgroundColor: colors.brand, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 8,
   },
   primarySimple: { borderRadius: 16, paddingVertical: 18 },
-  primaryTxt: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  primaryTxtSimple: { fontSize: 18, fontWeight: '800' },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
+  primaryTxtSimple: { fontSize: 18, fontWeight: '400' },
   inviteCard: {
     backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 8,
     borderWidth: 1, borderColor: colors.brand, gap: 10,
@@ -242,17 +242,17 @@ const styles = StyleSheet.create({
   },
   inviteCardSimple: { borderRadius: 16, borderWidth: 2 },
   inviteTextCol: { gap: 2 },
-  inviteTitle: { fontWeight: '700', color: colors.ink, fontSize: 15 },
+  inviteTitle: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   inviteTitleSimple: { fontSize: 17 },
   inviteSub: { color: colors.muted, fontWeight: '500', fontSize: 13 },
   inviteActions: { flexDirection: 'row', gap: 8 },
   acceptBtn: {
     flex: 1, backgroundColor: colors.brand, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
   },
-  acceptTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  acceptTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
   declineBtn: {
     flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: colors.card,
   },
-  declineTxt: { color: colors.muted, fontWeight: '600', fontSize: 14 },
+  declineTxt: { color: colors.muted, fontWeight: '400', fontSize: 14 },
 });

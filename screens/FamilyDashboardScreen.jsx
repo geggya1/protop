@@ -964,7 +964,7 @@ const styles = StyleSheet.create({
   heroImage: { width: '100%', height: '100%' },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.45)' },
 
-  section: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
+  section: { fontSize: 16, fontWeight: '400', color: '#0f172a', marginBottom: 8 },
 
   parentChip: {
     backgroundColor: CARD_BG,
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
     margin: 6,
   },
   parentAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e2e8f0' },
-  parentName: { marginTop: 6, fontSize: 12, textAlign: 'center', color: '#0f172a', fontWeight: '700' },
+  parentName: { marginTop: 6, fontSize: 12, textAlign: 'center', color: '#0f172a', fontWeight: '400' },
 
   childCard: {
     backgroundColor: CARD_BG,
@@ -992,13 +992,14 @@ const styles = StyleSheet.create({
   },
   childHeader: { flexDirection: 'row', alignItems: 'center' },
   childAvatarSm: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0' },
-  childName: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '800', color: '#0f172a' },
-  dotBtn: { paddingHorizontal: 4, paddingVertical: 2 },
+  childName: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '400', color: '#0f172a' },
+  dotBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 4, paddingVertical: 2 },
 
   donutWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
   donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  donutValue: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
-  donutSub: { fontSize: 12, fontWeight: '700', color: '#64748b', marginTop: 2 },
+  donutValue: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
+  donutSub: { fontSize: 12, fontWeight: '400', color: '#64748b', marginTop: 2 },
   donutFallback: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1026,7 +1027,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#b91c1c',
     marginBottom: 10,
-    fontWeight: '700',
+    fontWeight: '400',
   },
 
   moduleChip: {
@@ -1040,7 +1041,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignSelf: 'flex-start',
   },
-  moduleChipTxt: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  moduleChipTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
 
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
   menuCard: {
@@ -1056,7 +1057,7 @@ const styles = StyleSheet.create({
     width: 260,
     zIndex: 10,
   },
-  menuTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
+  menuTitle: { fontSize: 14, fontWeight: '400', color: '#0f172a', marginBottom: 6 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   menuItemTxt: { fontSize: 14, color: '#0b1f33' },
 
@@ -1095,10 +1096,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0f172a',
   },
-  smallBtn: { backgroundColor: '#0b74d1', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
-  smallBtnTxt: { color: '#fff', fontWeight: '700' },
+  smallBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#0b74d1', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  smallBtnTxt: { color: '#fff', fontWeight: '400' },
 
   primaryBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',
     paddingVertical: 14,
     borderRadius: 14,
@@ -1107,7 +1110,7 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 6px 16px rgba(11,116,209,0.2)' }
       : { elevation: 2 }),
   },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryBtnText: { color: '#fff', fontWeight: '400', fontSize: 16 },
 
   modalRoot: {
     ...StyleSheet.absoluteFillObject,
@@ -1137,8 +1140,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     marginBottom: 8,
   },
-  sheetTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
+  sheetTitle: { fontSize: 16, fontWeight: '400', color: '#0f172a', marginBottom: 8 },
   sheetBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',
     borderRadius: 14,
     paddingVertical: 14,
@@ -1157,5 +1161,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 10,
   },
-  sheetBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15, flex: 1, marginLeft: 10 },
+  sheetBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15, flex: 1, marginLeft: 10 },
 });

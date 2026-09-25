@@ -475,15 +475,15 @@ export default function ShoppingListSettingsScreen({
 
 const styles = StyleSheet.create({
   shellFrame: { flex: 1, minHeight: 0 },
-  label: { fontWeight: '800', color: colors.ink, marginTop: 16, marginBottom: 8 },
+  label: { fontWeight: '400', color: colors.ink, marginTop: 16, marginBottom: 8 },
   subLabel: {
-    fontWeight: '700', color: colors.muted, fontSize: 12,
+    fontWeight: '400', color: colors.muted, fontSize: 12,
     textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8, marginTop: 4,
   },
-  hint: { color: colors.muted, fontWeight: '600', fontSize: 13, marginBottom: 10 },
+  hint: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 10 },
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontWeight: '600', color: colors.ink,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontWeight: '400', color: colors.ink,
   },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   modeChip: {
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
   modeChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  modeTxt: { fontWeight: '700', color: colors.ink, fontSize: 13 },
+  modeTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   modeTxtOn: { color: '#fff' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -502,24 +502,24 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipOwner: { opacity: 0.9 },
   chipDisabled: { opacity: 0.5 },
-  chipTxt: { fontWeight: '700', color: colors.ink, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   chipTxtOn: { color: '#fff' },
   emptyFriends: {
-    color: colors.muted, fontWeight: '600', fontSize: 13, lineHeight: 18,
+    color: colors.muted, fontWeight: '400', fontSize: 13, lineHeight: 18,
     marginBottom: 4, paddingVertical: 10, paddingHorizontal: 12,
     borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
   },
-  statusTxt: { marginTop: 10, fontWeight: '700', color: colors.brand, fontSize: 13 },
-  section: { fontWeight: '900', color: colors.ink, fontSize: 16, marginTop: 24, marginBottom: 8 },
+  statusTxt: { marginTop: 10, fontWeight: '400', color: colors.brand, fontSize: 13 },
+  section: { fontWeight: '400', color: colors.ink, fontSize: 16, marginTop: 24, marginBottom: 8 },
   actionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 14, marginBottom: 8,
   },
   actionDanger: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
-  actionTxt: { fontWeight: '800', color: colors.ink, fontSize: 15 },
+  actionTxt: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   infoBox: {
     backgroundColor: '#fff7ed', borderRadius: radius.md, padding: 12, marginTop: 12,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  infoTxt: { color: '#9a3412', fontWeight: '700', fontSize: 13 },
+  infoTxt: { color: '#9a3412', fontWeight: '400', fontSize: 13 },
 });

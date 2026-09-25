@@ -252,7 +252,7 @@ function makeStyles(colors) {
     emoji: { fontSize: 52 },
     kicker: {
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '400',
       color: colors.brand,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
@@ -260,7 +260,7 @@ function makeStyles(colors) {
     },
     title: {
       fontSize: 24,
-      fontWeight: '800',
+      fontWeight: '400',
       color: colors.ink,
       textAlign: 'center',
       letterSpacing: -0.4,
@@ -291,9 +291,9 @@ function makeStyles(colors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.line,
     },
-    quietPillTxt: { fontWeight: '700', fontSize: 14, color: colors.ink },
+    quietPillTxt: { fontWeight: '400', fontSize: 14, color: colors.ink },
     rewardEmoji: { fontSize: 18 },
-    rewardTxt: { fontWeight: '800', fontSize: 15, color: '#92400e' },
+    rewardTxt: { fontWeight: '400', fontSize: 15, color: '#92400e' },
     donePill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -304,7 +304,7 @@ function makeStyles(colors) {
       paddingVertical: 10,
       marginBottom: 12,
     },
-    donePillTxt: { fontWeight: '800', fontSize: 14, color: colors.success },
+    donePillTxt: { fontWeight: '400', fontSize: 14, color: colors.success },
     bodyScroll: { maxHeight: 160, alignSelf: 'stretch' },
     bodyScrollInner: { paddingHorizontal: 4, paddingBottom: 4 },
     body: {
@@ -334,7 +334,7 @@ function makeStyles(colors) {
       paddingVertical: 16,
       marginTop: 4,
     },
-    ctaTxt: { color: '#fff', fontWeight: '800', fontSize: 17 },
+    ctaTxt: { color: '#fff', fontWeight: '400', fontSize: 17 },
     ctaStack: { alignSelf: 'stretch', gap: 8, marginTop: 4 },
     ctaSecondary: {
       flexDirection: 'row',
@@ -348,13 +348,13 @@ function makeStyles(colors) {
       borderWidth: 1,
       borderColor: colors.line,
     },
-    ctaSecondaryTxt: { color: colors.brand, fontWeight: '800', fontSize: 15 },
+    ctaSecondaryTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
     ctaGhost: {
       alignSelf: 'stretch',
       alignItems: 'center',
       paddingVertical: 14,
       marginTop: 4,
     },
-    ctaGhostTxt: { color: colors.brand, fontWeight: '700', fontSize: 16 },
+    ctaGhostTxt: { color: colors.brand, fontWeight: '400', fontSize: 16 },
   });
 }

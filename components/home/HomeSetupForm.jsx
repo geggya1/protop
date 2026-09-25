@@ -465,11 +465,11 @@ export function toggleBottomId(ids, id, max = MAX_PARENT_BOTTOM_SHORTCUTS) {
 
 const styles = StyleSheet.create({
   kicker: {
-    fontSize: 12, fontWeight: '600', letterSpacing: 0.4, marginTop: 4,
+    fontSize: 12, fontWeight: '400', letterSpacing: 0.4, marginTop: 4,
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 22, fontWeight: '700', marginTop: 4,
+    fontSize: 22, fontWeight: '400', marginTop: 4,
   },
   lead: {
     fontSize: 15, lineHeight: 22, marginTop: 8, marginBottom: 12,
@@ -482,22 +482,22 @@ const styles = StyleSheet.create({
     width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  stepNumTxt: { fontSize: 12, fontWeight: '700' },
-  stepLabel: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  stepNumTxt: { fontSize: 12, fontWeight: '400' },
+  stepLabel: { fontSize: 11, fontWeight: '400', textAlign: 'center' },
   stepLine: {
     width: 10, height: 2, marginBottom: 16, flexShrink: 0,
   },
   stepEyebrow: {
-    fontSize: 13, fontWeight: '600', marginBottom: 4,
+    fontSize: 13, fontWeight: '400', marginBottom: 4,
   },
   stepTitle: {
-    fontSize: 20, fontWeight: '700', marginBottom: 6,
+    fontSize: 20, fontWeight: '400', marginBottom: 6,
   },
   stepLead: {
     fontSize: 15, lineHeight: 22, marginBottom: 14,
   },
   section: {
-    fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5,
+    fontSize: 11, fontWeight: '400', textTransform: 'uppercase', letterSpacing: 0.5,
     marginTop: 8, marginBottom: 6,
   },
   hint: { fontSize: 13, marginBottom: 10, lineHeight: 18 },
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  chipTxt: { fontSize: 13, fontWeight: '600' },
+  chipTxt: { fontSize: 13, fontWeight: '400' },
   groupHint: { fontSize: 12, marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   bannerCard: {
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   },
   bannerImgContain: Platform.OS === 'web' ? { objectFit: 'contain' } : {},
   bannerLabel: {
-    fontSize: 12, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 8,
+    fontSize: 12, fontWeight: '400', paddingHorizontal: 8, paddingVertical: 8,
   },
   check: { position: 'absolute', right: 8, top: 8 },
   upload: {
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  uploadTxt: { fontSize: 14, fontWeight: '600' },
+  uploadTxt: { fontSize: 14, fontWeight: '400' },
   emptyGroup: {
     alignItems: 'center', gap: 8, paddingVertical: 24,
     borderRadius: 16,
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  bottomChipTxt: { fontSize: 13, fontWeight: '600' },
+  bottomChipTxt: { fontSize: 13, fontWeight: '400' },
   countHint: { fontSize: 12, marginTop: 8 },
   dockToggleRow: {
     flexDirection: 'row',
@@ -561,21 +561,23 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dockToggleTitle: {
-    fontSize: 15, fontWeight: '700', marginBottom: 4,
+    fontSize: 15, fontWeight: '400', marginBottom: 4,
   },
   navRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20 },
   primaryBtn: {
+    alignSelf: 'flex-start',
     borderRadius: 14,
     paddingVertical: 15, paddingHorizontal: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnFlex: { flex: 1 },
-  primaryBtnTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  primaryBtnTxt: { color: '#fff', fontSize: 16, fontWeight: '400' },
   secondaryBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 15, paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  secondaryBtnTxt: { fontSize: 16, fontWeight: '600' },
+  secondaryBtnTxt: { fontSize: 16, fontWeight: '400' },
 });

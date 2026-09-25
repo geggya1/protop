@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   chipSimple: { paddingVertical: 10, paddingHorizontal: 14 },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { color: colors.muted, fontWeight: '700', fontSize: 13 },
+  chipTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   chipTxtSimple: { fontSize: 15 },
   chipTxtOn: { color: colors.brand },
   statusBanner: {
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   statusTxt: {
     textAlign: 'center',
     color: colors.ink,
-    fontWeight: '700',
+    fontWeight: '400',
     fontSize: 16,
   },
   statusTxtWin: { color: colors.success, fontSize: 18 },
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 2,
   },
-  coord: { position: 'absolute', fontWeight: '700', fontSize: 10, zIndex: 2 },
+  coord: { position: 'absolute', fontWeight: '400', fontSize: 10, zIndex: 2 },
   coordFile: { right: 3, bottom: 1 },
   coordRank: { left: 3, top: 1 },
   coordOnDark: { color: '#eeeed2' },
@@ -401,8 +401,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  promoTitle: { fontWeight: '800', color: colors.ink, fontSize: 16 },
+  promoTitle: { fontWeight: '400', color: colors.ink, fontSize: 16 },
   promoBtn: {
+    alignSelf: 'flex-start',
     alignItems: 'center',
     backgroundColor: colors.brandSoft,
     borderRadius: 12,
@@ -411,6 +412,6 @@ const styles = StyleSheet.create({
     minWidth: 72,
   },
   promoGlyph: { fontSize: 28, color: colors.ink },
-  promoLbl: { fontWeight: '700', color: colors.ink, fontSize: 12, marginTop: 2 },
-  promoCancel: { color: colors.brand, fontWeight: '700', padding: 6 },
+  promoLbl: { fontWeight: '400', color: colors.ink, fontSize: 12, marginTop: 2 },
+  promoCancel: { color: colors.brand, fontWeight: '400', padding: 6 },
 });

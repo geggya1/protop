@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },
   btn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  btnTxt: { fontWeight: '800', color: colors.brand, fontSize: 13 },
+  btnTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   danger: { color: '#b91c1c' },
   pick: {
     minHeight: 88,
@@ -93,5 +94,5 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 12,
   },
-  pickTxt: { fontWeight: '800', color: colors.brand, fontSize: 14 },
+  pickTxt: { fontWeight: '400', color: colors.brand, fontSize: 14 },
 });

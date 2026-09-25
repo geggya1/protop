@@ -61,11 +61,12 @@ export default function LegalWizardScreen({ navigation, onDone, existing, nextLa
 
 const styles = StyleSheet.create({
   linkBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.card, borderRadius: radius.md, padding: 16,
     borderWidth: 2, borderColor: colors.brandSoft,
   },
-  linkTxt: { fontWeight: '900', fontSize: 17, color: colors.brand },
-  linkHint: { marginTop: 6, color: colors.muted, fontWeight: '600', fontSize: 14 },
-  openedOk: { color: colors.success, fontWeight: '800' },
-  hint: { color: colors.warn, fontWeight: '700' },
+  linkTxt: { fontWeight: '400', fontSize: 17, color: colors.brand },
+  linkHint: { marginTop: 6, color: colors.muted, fontWeight: '400', fontSize: 14 },
+  openedOk: { color: colors.success, fontWeight: '400' },
+  hint: { color: colors.warn, fontWeight: '400' },
 });

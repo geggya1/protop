@@ -509,14 +509,14 @@ const tp = StyleSheet.create({
     alignSelf: 'center',
   },
   backBtn: { alignSelf: 'flex-start', paddingVertical: 8, marginBottom: 4 },
-  backTxt: { fontFamily: bodyFont, fontWeight: '800', color: colors.brand, fontSize: 16 },
+  backTxt: { fontFamily: bodyFont, fontWeight: '400', color: colors.brand, fontSize: 16 },
   brandLogo: {
     marginBottom: 10,
   },
   title: {
     fontFamily: displayFont,
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 34,
     letterSpacing: -0.35,
@@ -526,7 +526,7 @@ const tp = StyleSheet.create({
     fontFamily: bodyFont,
     fontSize: 15,
     lineHeight: 23,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 20,
   },
@@ -555,14 +555,14 @@ const tp = StyleSheet.create({
   },
   optionTitle: {
     fontFamily: bodyFont,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 16,
     color: colors.ink,
   },
   optionTitleOn: { color: '#fff' },
   optionHint: {
     fontFamily: bodyFont,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
     lineHeight: 18,
     color: colors.muted,
@@ -596,7 +596,7 @@ const tp = StyleSheet.create({
   ctaTxt: {
     fontFamily: bodyFont,
     color: '#fff',
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 17,
   },
 });
@@ -640,7 +640,7 @@ const gs = StyleSheet.create({
   headline: {
     fontFamily: displayFont,
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     lineHeight: 34,
     letterSpacing: -0.35,
@@ -651,7 +651,7 @@ const gs = StyleSheet.create({
     fontFamily: bodyFont,
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginBottom: 18,
     maxWidth: 420,
@@ -670,7 +670,7 @@ const gs = StyleSheet.create({
   ctaTxt: {
     fontFamily: bodyFont,
     color: '#fff',
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 17,
   },
   section: {
@@ -685,7 +685,7 @@ const gs = StyleSheet.create({
   sectionTitle: {
     fontFamily: displayFont,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.ink,
     letterSpacing: -0.3,
   },
@@ -693,7 +693,7 @@ const gs = StyleSheet.create({
     fontFamily: bodyFont,
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.muted,
     marginTop: -6,
     marginBottom: 4,
@@ -709,21 +709,21 @@ const gs = StyleSheet.create({
   },
   benefitTitle: {
     fontFamily: bodyFont,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 16,
     color: colors.ink,
     marginBottom: 2,
   },
   benefitBody: {
     fontFamily: bodyFont,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 14,
     lineHeight: 21,
     color: colors.muted,
   },
   empty: {
     fontFamily: bodyFont,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 15,
     color: colors.muted,
     lineHeight: 22,
@@ -738,14 +738,14 @@ const gs = StyleSheet.create({
   },
   name: {
     fontFamily: bodyFont,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 17,
     color: colors.ink,
   },
   sub: {
     fontFamily: bodyFont,
     color: colors.muted,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
     marginTop: 2,
   },
@@ -757,7 +757,7 @@ const gs = StyleSheet.create({
   },
   secondaryCtaTxt: {
     fontFamily: bodyFont,
-    fontWeight: '800',
+    fontWeight: '400',
     fontSize: 15,
     color: colors.brand,
   },
@@ -766,10 +766,10 @@ const gs = StyleSheet.create({
 const styles = StyleSheet.create({
   input: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    padding: 16, fontSize: 16, fontWeight: '700',
+    padding: 16, fontSize: 16, fontWeight: '400',
   },
-  picLabel: { fontWeight: '700', color: colors.muted, fontSize: 13, marginTop: 4 },
+  picLabel: { fontWeight: '400', color: colors.muted, fontSize: 13, marginTop: 4 },
   picRow: { flexDirection: 'row', gap: 8 },
   chip: { flex: 1, backgroundColor: colors.brandSoft, padding: 12, borderRadius: 14, alignItems: 'center' },
-  chipTxt: { fontWeight: '800', color: colors.ink, fontSize: 14 },
+  chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 14 },
 });

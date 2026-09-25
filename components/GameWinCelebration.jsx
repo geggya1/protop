@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   heroEmoji: { fontSize: 64, marginBottom: 8 },
   title: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.ink,
     textAlign: 'center',
   },
@@ -333,11 +333,11 @@ const styles = StyleSheet.create({
     minWidth: 160,
     alignItems: 'center',
   },
-  actionTxt: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  actionTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
   secondary: {
     marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 20,
   },
-  secondaryTxt: { color: colors.brand, fontWeight: '700', fontSize: 15 },
+  secondaryTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
 });

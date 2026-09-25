@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingRight: 44,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.ink,
   },
   inputWithClear: {
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   hitIcon: { marginTop: 2 },
-  hitTxt: { flex: 1, color: colors.ink, fontWeight: '600', fontSize: 14, lineHeight: 20 },
+  hitTxt: { flex: 1, color: colors.ink, fontWeight: '400', fontSize: 14, lineHeight: 20 },
   hitLoading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
-  hitLoadingTxt: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+  hitLoadingTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {
     backgroundColor: colors.card,
@@ -395,10 +395,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft,
     borderColor: colors.brand,
   },
-  chipTxt: { fontWeight: '700', color: colors.brand, fontSize: 13 },
+  chipTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   chipPrimaryTxt: { color: colors.ink },
-  ok: { color: colors.brand, fontWeight: '700', fontSize: 13 },
-  err: { color: colors.danger, fontWeight: '600', fontSize: 13 },
+  ok: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  err: { color: colors.danger, fontWeight: '400', fontSize: 13 },
   map: {
     overflow: 'hidden',
     borderRadius: 16,
@@ -418,5 +418,5 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.card,
   },
-  mapLinkTxt: { fontWeight: '700', color: colors.brand, fontSize: 13 },
+  mapLinkTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
 });

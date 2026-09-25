@@ -70,12 +70,12 @@ const styles = StyleSheet.create({
     padding: 24, alignItems: 'center', gap: 10,
   },
   starRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
-  title: { fontSize: 22, fontWeight: '800', color: '#152c4b', textAlign: 'center' },
-  meta: { fontSize: 15, fontWeight: '600', color: '#53667f' },
+  title: { fontSize: 22, fontWeight: '400', color: '#152c4b', textAlign: 'center' },
+  meta: { fontSize: 15, fontWeight: '400', color: '#53667f' },
   hint: { fontSize: 13, color: '#53667f', textAlign: 'center', lineHeight: 18, marginTop: 4 },
   btn: {
     marginTop: 12, backgroundColor: '#245fef', borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 28, width: '100%', alignItems: 'center',
   },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
 });

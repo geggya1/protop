@@ -1189,8 +1189,8 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   headText: { flex: 1, minWidth: 0 },
-  headTitle: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  headSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600', marginTop: 1 },
+  headTitle: { color: '#fff', fontWeight: '400', fontSize: 14 },
+  headSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '400', marginTop: 1 },
   list: { flex: 1, minHeight: 0, backgroundColor: colors.card },
   listInner: { paddingHorizontal: 10, paddingVertical: 10, gap: 6 },
   row: { alignItems: 'flex-start', marginBottom: 6 },
@@ -1204,11 +1204,11 @@ const styles = StyleSheet.create({
   mine: { backgroundColor: colors.brand, borderBottomRightRadius: 4 },
   theirs: { backgroundColor: '#eef1f4', borderBottomLeftRadius: 4 },
   deletedBubble: { opacity: 0.7 },
-  who: { fontSize: 11, fontWeight: '700', color: colors.muted, marginBottom: 2 },
+  who: { fontSize: 11, fontWeight: '400', color: colors.muted, marginBottom: 2 },
   body: { fontSize: 14, fontWeight: '500', color: colors.ink, lineHeight: 19 },
   bodyMine: { color: '#fff' },
   deletedTxt: { fontSize: 13, fontStyle: 'italic', color: colors.muted },
-  stamp: { fontSize: 10, color: colors.muted, marginTop: 4, fontWeight: '600' },
+  stamp: { fontSize: 10, color: colors.muted, marginTop: 4, fontWeight: '400' },
   stampMine: { color: 'rgba(255,255,255,0.8)' },
   chatImage: { width: 180, height: 140, borderRadius: 10, marginBottom: 4 },
   composer: {
@@ -1226,7 +1226,8 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  iconBtn: { padding: 4 },
+  iconBtn: {
+    alignSelf: 'flex-start', padding: 4 },
   input: {
     flex: 1,
     minHeight: 36,
@@ -1263,7 +1264,7 @@ const styles = StyleSheet.create({
       default: { elevation: 6 },
     }),
   },
-  pillTxt: { color: '#fff', fontWeight: '700', fontSize: 13, flex: 1 },
+  pillTxt: { color: '#fff', fontWeight: '400', fontSize: 13, flex: 1 },
   fab: {
     position: 'absolute',
     right: DOCK_RIGHT,
@@ -1327,7 +1328,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eff3f4',
   },
-  composeTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  composeTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
   composeHint: {
     fontSize: 13,
     fontWeight: '500',
@@ -1357,7 +1358,7 @@ const styles = StyleSheet.create({
   },
   composeSection: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -1380,7 +1381,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  composeName: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  composeName: { fontSize: 14, fontWeight: '400', color: colors.ink },
   composeSub: { fontSize: 12, fontWeight: '500', color: colors.muted, marginTop: 1 },
   composeUnread: {
     minWidth: 22,
@@ -1391,7 +1392,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  composeUnreadTxt: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  composeUnreadTxt: { color: '#fff', fontSize: 11, fontWeight: '400' },
   groupAv: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',

@@ -77,14 +77,14 @@ const styles = StyleSheet.create({
   block: { marginBottom: 4 },
   cat: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 8,
     marginTop: 8,
   },
-  catDesk: { fontSize: 11, fontWeight: '600' },
+  catDesk: { fontSize: 11, fontWeight: '400' },
   group: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -103,8 +103,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   rowCompact: { paddingVertical: 8, paddingHorizontal: 10 },
-  label: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  labelCompact: { fontSize: 13, fontWeight: '600' },
+  label: { fontSize: 15, fontWeight: '400', color: colors.ink },
+  labelCompact: { fontSize: 13, fontWeight: '400' },
   rowHint: { fontSize: 12, color: colors.muted, marginTop: 2, fontWeight: '400' },
   hint: { fontSize: 13, color: colors.muted, marginBottom: 12 },
 });

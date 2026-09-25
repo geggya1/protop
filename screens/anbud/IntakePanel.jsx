@@ -9,7 +9,7 @@ import { pickImages } from '../../src/utils/media';
 function Field({ label, value, onChangeText, placeholder, colors }) {
   return (
     <View style={{ gap: 4 }}>
-      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '400' }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -141,7 +141,7 @@ export default function IntakePanel({ mode, colors, company }) {
 
   return (
     <View style={{ gap: 10 }}>
-      {error ? <Text style={{ color: colors.danger, fontWeight: '700' }}>{error}</Text> : null}
+      {error ? <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
       {mode === 'protop' ? (
         <>
@@ -154,12 +154,12 @@ export default function IntakePanel({ mode, colors, company }) {
           <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
           <Field label="E-post" value={email} onChangeText={setEmail} placeholder="navn@firma.no" colors={colors} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
-          <TouchableOpacity onPress={sendDirect} disabled={busy} style={{ backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: '800' }}>{busy ? 'Sender …' : 'Send forespørsel'}</Text>
+          <TouchableOpacity onPress={sendDirect} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Sender …' : 'Send forespørsel'}</Text>
           </TouchableOpacity>
           {inbox.length ? inbox.slice(0, 8).map((row) => (
             <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
-              <Text style={{ color: colors.ink, fontWeight: '800' }}>{row.title}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
               <Text style={{ color: colors.muted }}>{row.fromName || 'En ProTop-bedrift'} · {row.status || 'mottatt'}</Text>
             </View>
           )) : <Text style={{ color: colors.muted }}>Ingen forespørsler fra andre bedrifter ennå.</Text>}
@@ -172,12 +172,12 @@ export default function IntakePanel({ mode, colors, company }) {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {INTAKE_CHANNELS.map((row) => (
               <TouchableOpacity key={row.id} onPress={() => setChannel(row.id)} style={{ backgroundColor: channel === row.id ? colors.brand : colors.sunken, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={{ color: channel === row.id ? '#fff' : colors.ink, fontWeight: '700' }}>{row.label}</Text>
+                <Text style={{ color: channel === row.id ? '#fff' : colors.ink, fontWeight: '400' }}>{row.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
           <TouchableOpacity onPress={onDrop} disabled={busy} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.brand, borderRadius: 16, padding: 18, backgroundColor: colors.card }}>
-            <Text style={{ color: colors.brand, fontWeight: '800' }}>{busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}</Text>
+            <Text style={{ color: colors.brand, fontWeight: '400' }}>{busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}</Text>
             <Text style={{ color: colors.muted, marginTop: 4 }}>{files.length ? files.map((file) => file.name).join(', ') : 'Brev, e-post, foto'}</Text>
           </TouchableOpacity>
           <Field label="Tittel" value={title} onChangeText={setTitle} placeholder="Fylles ut fra dokumentet" colors={colors} />
@@ -185,12 +185,12 @@ export default function IntakePanel({ mode, colors, company }) {
           <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
           <Field label="Henvendelse" value={message} onChangeText={setMessage} placeholder="Det som ble lest, eller det du skriver selv" colors={colors} />
-          <TouchableOpacity onPress={saveManual} disabled={busy} style={{ backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: '800' }}>{busy ? 'Lagrer …' : 'Registrer forespørsel'}</Text>
+          <TouchableOpacity onPress={saveManual} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Lagrer …' : 'Registrer forespørsel'}</Text>
           </TouchableOpacity>
           {saved.slice(0, 8).map((row) => (
             <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
-              <Text style={{ color: colors.ink, fontWeight: '800' }}>{row.title}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
               <Text style={{ color: colors.muted }}>
                 {[INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
               </Text>

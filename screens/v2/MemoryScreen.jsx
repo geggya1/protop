@@ -145,7 +145,7 @@ function LocalMemory({ simpleUi, initialMode = 'hotseat', onBack }) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
         <CompactBackLink onPress={onBack || (() => nav.goBack())} label="Tilbake til spill" />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.ink, flex: 1 }}>Memory</Text>
+          <Text style={{ fontSize: 22, fontWeight: '400', color: colors.ink, flex: 1 }}>Memory</Text>
           <TouchableOpacity onPress={reset} style={styles.resetBtn}>
             <Text style={styles.resetTxt}>Ny runde</Text>
           </TouchableOpacity>
@@ -462,30 +462,31 @@ export default function MemoryScreen() {
 const styles = StyleSheet.create({
   pad: { padding: 16, paddingBottom: 48, width: '100%', alignSelf: 'center' },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
-  backTxt: { color: colors.brand, fontWeight: '700' },
+  backTxt: { color: colors.brand, fontWeight: '400' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14,
     borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.card,
   },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { color: colors.muted, fontWeight: '700', fontSize: 13 },
+  chipTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   chipTxtOn: { color: colors.brand },
   statusBanner: {
     backgroundColor: colors.brandSoft, borderRadius: 14, padding: 12, marginBottom: 12,
     borderWidth: 1, borderColor: colors.line,
   },
   statusWin: { backgroundColor: colors.successSoft, borderColor: colors.success },
-  statusTxt: { textAlign: 'center', fontWeight: '700', color: colors.ink, fontSize: 16 },
+  statusTxt: { textAlign: 'center', fontWeight: '400', color: colors.ink, fontSize: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'center', justifyContent: 'center' },
   card: {
     backgroundColor: colors.brand, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
   },
   cardOpen: { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.brandSoft },
-  resetBtn: { backgroundColor: colors.brandSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  resetTxt: { color: colors.brand, fontWeight: '700' },
+  resetBtn: {
+    alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  resetTxt: { color: colors.brand, fontWeight: '400' },
   primary: {
     marginTop: 16, backgroundColor: colors.brand, borderRadius: 14, paddingVertical: 14, alignItems: 'center',
   },
-  primaryTxt: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
 });

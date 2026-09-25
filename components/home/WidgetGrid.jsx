@@ -300,6 +300,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sizeBtn: {
+    alignSelf: 'flex-start',
     position: 'absolute',
     bottom: 6,
     right: 6,

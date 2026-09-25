@@ -542,6 +542,7 @@ const styles = StyleSheet.create({
   metaTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   ghostBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6,
     borderWidth: 1, borderColor: colors.line,

@@ -45,7 +45,7 @@ export function AvatarBubble({ avatarId, photoURL, name, size = 64, color, group
       {a ? (
         <Text style={{ fontSize: size * 0.48 }}>{a.emoji}</Text>
       ) : (
-        <Text style={{ fontSize: size * 0.4, fontWeight: '700', color: '#fff' }}>{initial}</Text>
+        <Text style={{ fontSize: size * 0.4, fontWeight: '400', color: '#fff' }}>{initial}</Text>
       )}
     </View>
   );

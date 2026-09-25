@@ -838,10 +838,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 12, padding: 12, marginTop: 12,
     borderWidth: 1, borderColor: colors.line,
   },
-  shareLabel: { fontSize: 12, fontWeight: '600', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  shareLabel: { fontSize: 12, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
   shareValue: { fontSize: 14, fontWeight: '500', color: colors.ink, marginTop: 2 },
-  shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
-  shareBtnTxt: { color: colors.brand, fontWeight: '600', fontSize: 13 },
+  shareBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
+  shareBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
 
   scroll: { flex: 1, zIndex: 1, backgroundColor: 'transparent' },
   body: { padding: 16, paddingBottom: 120 },
@@ -865,7 +866,7 @@ const styles = StyleSheet.create({
   sharedHeading: {
     marginTop: 28,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -941,6 +942,7 @@ const styles = StyleSheet.create({
   selectCount: { color: colors.ink, fontWeight: '500', fontSize: 13, flexShrink: 1 },
   selectActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   selectActionBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

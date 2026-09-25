@@ -149,20 +149,20 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 8 },
   logo: { marginBottom: 10, alignSelf: 'flex-start' },
   title: {
-    fontSize: 22, fontWeight: '700', color: colors.ink, marginBottom: 6,
+    fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6,
   },
   lead: {
     fontSize: 15, color: colors.muted, lineHeight: 22, marginBottom: 8,
   },
   skipTop: { alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
-  skipTopTxt: { color: colors.brand, fontWeight: '700', fontSize: 14 },
+  skipTopTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
   boot: {
     flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg, padding: 24,
   },
-  bootTxt: { marginTop: 12, color: colors.muted, fontWeight: '600' },
-  error: { color: '#b91c1c', fontWeight: '700', textAlign: 'center', marginBottom: 16 },
+  bootTxt: { marginTop: 12, color: colors.muted, fontWeight: '400' },
+  error: { color: '#b91c1c', fontWeight: '400', textAlign: 'center', marginBottom: 16 },
   primary: {
     backgroundColor: colors.brand, borderRadius: radius.pill, paddingVertical: 14, paddingHorizontal: 22,
   },
-  primaryTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
 });

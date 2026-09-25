@@ -594,6 +594,7 @@ function makeStyles(colors, isDesktop) {
     segTxt: { fontWeight: '400', fontSize: 13, color: colors.muted },
     segTxtOn: { color: colors.brand, fontWeight: '500' },
     primaryBtn: {
+      alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       backgroundColor: colors.brand, borderRadius: 10,
       paddingVertical: 10, paddingHorizontal: 14, marginTop: 8,

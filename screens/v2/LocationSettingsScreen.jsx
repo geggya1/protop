@@ -129,7 +129,7 @@ export default function LocationSettingsScreen() {
 const styles = StyleSheet.create({
   body: { paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: 40 },
   title: {
-    fontSize: 22, fontWeight: '800', color: colors.ink, marginBottom: 6, letterSpacing: -0.3,
+    fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6, letterSpacing: -0.3,
   },
   sub: {
     color: colors.muted, fontWeight: '500', fontSize: 14, lineHeight: 20, marginBottom: 18,
@@ -143,11 +143,11 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontWeight: '700', fontSize: 16, color: colors.ink },
+  rowTitle: { fontWeight: '400', fontSize: 16, color: colors.ink },
   rowHint: {
     color: colors.muted, fontSize: 13, marginTop: 4, fontWeight: '500', lineHeight: 18,
   },
-  error: { color: colors.danger, marginTop: 12, fontWeight: '700' },
+  error: { color: colors.danger, marginTop: 12, fontWeight: '400' },
   infoBox: {
     flexDirection: 'row', gap: 10, marginTop: 16, padding: 14,
     backgroundColor: '#ecfdf5', borderRadius: radius.sm,

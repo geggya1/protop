@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingBottom: 40, gap: 12 },
   meta: {
     color: colors.muted,
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 13,
     marginBottom: 4,
   },
@@ -462,10 +462,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', backgroundColor: colors.brandSoft,
     borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
-  pillTxt: { color: colors.brand, fontWeight: '800', fontSize: 12 },
-  summary: { color: colors.muted, fontWeight: '600', lineHeight: 20, fontSize: 14 },
+  pillTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
+  summary: { color: colors.muted, fontWeight: '400', lineHeight: 20, fontSize: 14 },
   addHint: {
-    color: colors.ink, fontWeight: '600', fontSize: 13, lineHeight: 18,
+    color: colors.ink, fontWeight: '400', fontSize: 13, lineHeight: 18,
     backgroundColor: colors.brandSoft, borderRadius: 10, padding: 10,
   },
   listOpener: {
@@ -487,8 +487,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  listOpenerTitle: { fontWeight: '800', fontSize: 15, color: colors.ink },
-  listOpenerSub: { color: colors.muted, fontWeight: '600', fontSize: 12, marginTop: 2 },
-  deleteBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 8 },
-  deleteTxt: { color: '#b91c1c', fontWeight: '800' },
+  listOpenerTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
+  listOpenerSub: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
+  deleteBtn: {
+    alignSelf: 'flex-start', alignItems: 'center', paddingVertical: 12, marginTop: 8 },
+  deleteTxt: { color: '#b91c1c', fontWeight: '400' },
 });

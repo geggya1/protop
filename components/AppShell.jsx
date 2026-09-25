@@ -903,16 +903,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f8fb',
   },
   brandLogo: { marginBottom: 6, marginHorizontal: 2, alignSelf: 'center' },
-  fam: { marginBottom: 14, fontWeight: '600', fontSize: 13, paddingHorizontal: 4 },
+  fam: { marginBottom: 14, fontWeight: '400', fontSize: 13, paddingHorizontal: 4 },
   railSection: {
-    fontSize: 11, fontWeight: '800', letterSpacing: 0.4,
+    fontSize: 11, fontWeight: '400', letterSpacing: 0.4,
     textTransform: 'uppercase', marginBottom: 6, marginTop: 4, paddingHorizontal: 8,
   },
   tabItemBig: {
     alignItems: 'center', justifyContent: 'center',
     paddingVertical: 10, borderRadius: radius.sm, minHeight: 56, gap: 2,
   },
-  tabLabel: { fontWeight: '700', fontSize: 12, marginTop: 2 },
+  tabLabel: { fontWeight: '400', fontSize: 12, marginTop: 2 },
   railRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8,
@@ -921,8 +921,9 @@ const styles = StyleSheet.create({
   railRowActive: {
     borderRadius: 8,
   },
-  railRowLabel: { fontWeight: '700', fontSize: 14, flex: 1 },
+  railRowLabel: { fontWeight: '400', fontSize: 14, flex: 1 },
   railToolsBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 12, borderRadius: 12, borderWidth: 1, backgroundColor: '#f8fafc',
     marginTop: 8,
@@ -934,7 +935,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 4,
   },
-  railToolsTxt: { fontWeight: '800', fontSize: 13 },
+  railToolsTxt: { fontWeight: '400', fontSize: 13 },
   main: { flex: 1, minWidth: 0, overflow: 'visible', zIndex: 1, backgroundColor: 'transparent' },
   contentArea: { flex: 1, minHeight: 0, zIndex: 1, position: 'relative', backgroundColor: 'transparent' },
   contentAreaCentered: {
@@ -1005,7 +1006,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  kitchenNavBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  kitchenNavTxt: { fontWeight: '700', fontSize: 14 },
-  kitchenNavExit: { fontWeight: '600', fontSize: 13 },
+  kitchenNavBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  kitchenNavTxt: { fontWeight: '400', fontSize: 14 },
+  kitchenNavExit: { fontWeight: '400', fontSize: 13 },
 });

@@ -45,6 +45,7 @@ export async function persistSignInConsent(lang) {
 const styles = StyleSheet.create({
   wrap: { marginBottom: 16, gap: 10 },
   linkBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.sunken,
     borderRadius: radius.md,
     paddingVertical: 12,
@@ -52,8 +53,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.brandSoft,
   },
-  linkTxt: { fontWeight: '800', fontSize: 15, color: colors.brand },
-  linkHint: { marginTop: 2, color: colors.muted, fontWeight: '600', fontSize: 13 },
+  linkTxt: { fontWeight: '400', fontSize: 15, color: colors.brand },
+  linkHint: { marginTop: 2, color: colors.muted, fontWeight: '400', fontSize: 13 },
   check: { minHeight: 40, alignItems: 'flex-start' },
-  hint: { color: colors.warn, fontWeight: '700', fontSize: 13 },
+  hint: { color: colors.warn, fontWeight: '400', fontSize: 13 },
 });

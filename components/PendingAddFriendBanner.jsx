@@ -49,12 +49,12 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     marginBottom: 2,
   },
-  title: { fontSize: 15, fontWeight: '800', color: colors.ink },
-  body: { marginTop: 4, fontSize: 13, fontWeight: '600', color: colors.muted, lineHeight: 18 },
+  title: { fontSize: 15, fontWeight: '400', color: colors.ink },
+  body: { marginTop: 4, fontSize: 13, fontWeight: '400', color: colors.muted, lineHeight: 18 },
 });

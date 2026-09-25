@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   sceneLbl: {
     fontSize: 12,
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '400',
   },
   thumb: {
     width: 88,
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 4,
     color: '#3a3228',
-    fontWeight: '600',
+    fontWeight: '400',
   },
   thumbLblOn: {
     color: '#5C4033',

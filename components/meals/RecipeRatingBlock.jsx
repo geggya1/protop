@@ -117,17 +117,17 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     marginBottom: 12,
   },
-  title: { fontWeight: '900', fontSize: 16, color: colors.ink, marginBottom: 10 },
+  title: { fontWeight: '400', fontSize: 16, color: colors.ink, marginBottom: 10 },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  empty: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+  empty: { color: colors.muted, fontWeight: '400', fontSize: 13 },
   lbl: {
-    fontSize: 12, fontWeight: '800', color: colors.muted,
+    fontSize: 12, fontWeight: '400', color: colors.muted,
     marginBottom: 8, textTransform: 'uppercase',
   },
   row: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   displayRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  avgTxt: { fontWeight: '800', color: colors.ink, fontSize: 13 },
-  countTxt: { color: colors.muted, fontWeight: '600', fontSize: 12 },
+  avgTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
+  countTxt: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   saveBtn: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.brand,
     borderRadius: radius.md,
     paddingVertical: 12,
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saveDisabled: { opacity: 0.55 },
-  saveTxt: { color: '#fff', fontWeight: '800' },
+  saveTxt: { color: '#fff', fontWeight: '400' },
   comments: { marginTop: 8, gap: 10 },
   commentRow: {
     borderTopWidth: 1,
@@ -161,6 +162,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  commentName: { fontWeight: '800', color: colors.ink, fontSize: 13 },
+  commentName: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   commentBody: { color: colors.ink, fontSize: 14, lineHeight: 20 },
 });

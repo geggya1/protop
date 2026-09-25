@@ -179,6 +179,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6, borderRadius: 14, marginHorizontal: 2,
   },
   tabItemOn: { backgroundColor: c.brandSoft },
-  tabLabel: { marginTop: 2, fontSize: 10, fontWeight: '700', color: c.muted },
+  tabLabel: { marginTop: 2, fontSize: 10, fontWeight: '400', color: c.muted },
   tabLabelOn: { color: c.brand },
 });

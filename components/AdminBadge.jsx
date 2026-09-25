@@ -22,5 +22,5 @@ const styles = StyleSheet.create({
   },
   super: { backgroundColor: '#e2a325' },
   admin: { backgroundColor: colors.brand },
-  txt: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  txt: { color: '#fff', fontWeight: '400', fontSize: 11 },
 });

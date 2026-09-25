@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
     minWidth: 0,
   },
-  pageTitle: { fontSize: 20, fontWeight: '600', flex: 1, minWidth: 0 },
+  pageTitle: { fontSize: 20, fontWeight: '400', flex: 1, minWidth: 0 },
   titleRightCol: {
     flexShrink: 0,
     alignItems: 'center',
@@ -433,5 +433,6 @@ const styles = StyleSheet.create({
   iconBtnCompact: {
     width: 32, height: 32, borderRadius: 6,
   },
-  avatarBtn: { padding: 2 },
+  avatarBtn: {
+    alignSelf: 'flex-start', padding: 2 },
 });

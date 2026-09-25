@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#eff3f4' },
   safe: { flex: 1, paddingHorizontal: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '800', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -173,9 +173,9 @@ const styles = StyleSheet.create({
   cardWide: { marginTop: 40 },
   logoImg: { marginBottom: 14, alignSelf: 'flex-start' },
   heading: {
-    fontSize: 28, fontWeight: '900', color: '#0f1419', marginBottom: 8, letterSpacing: -0.4,
+    fontSize: 28, fontWeight: '400', color: '#0f1419', marginBottom: 8, letterSpacing: -0.4,
   },
-  sub: { color: '#536471', fontWeight: '600', marginBottom: 20, lineHeight: 20 },
+  sub: { color: '#536471', fontWeight: '400', marginBottom: 20, lineHeight: 20 },
   primary: {
     minHeight: 50,
     borderRadius: radius.pill,
@@ -184,11 +184,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  primaryTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  errorText: { color: '#b91c1c', marginTop: 12, fontSize: 13, fontWeight: '600' },
+  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
+  errorText: { color: '#b91c1c', marginTop: 12, fontSize: 13, fontWeight: '400' },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },
   signupMuted: { color: '#536471', fontWeight: '500', fontSize: 14 },
-  linkInline: { color: colors.brand, fontWeight: '700', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
 });

@@ -289,9 +289,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f6fbff' },
   container: { padding: 20 },
   infoRow: { flexDirection: 'row', marginBottom: 8, gap: 8 },
-  infoKey: { color: '#64748b', fontWeight: '700' },
-  infoVal: { color: '#0f172a', fontWeight: '800' },
-  label: { fontSize: 16, fontWeight: '600', marginTop: 14, marginBottom: 6, color: '#0f172a' },
+  infoKey: { color: '#64748b', fontWeight: '400' },
+  infoVal: { color: '#0f172a', fontWeight: '400' },
+  label: { fontSize: 16, fontWeight: '400', marginTop: 14, marginBottom: 6, color: '#0f172a' },
   input: {
     borderWidth: 1,
     borderColor: '#cbd5e1',
@@ -301,6 +301,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   saveBtn: {
+    alignSelf: 'flex-start',
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -309,9 +310,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', marginLeft: 8 },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '400', marginLeft: 8 },
 
   deleteBtn: {
+    alignSelf: 'flex-start',
     marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -322,7 +324,7 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
     backgroundColor: '#fee2e2',
   },
-  deleteBtnText: { color: '#b91c1c', fontWeight: '800', marginLeft: 6 },
+  deleteBtnText: { color: '#b91c1c', fontWeight: '400', marginLeft: 6 },
 
   // web-picker styles
   overlay: {
@@ -333,19 +335,19 @@ const styles = StyleSheet.create({
     width: 320, backgroundColor: '#fff', borderRadius: 14,
     padding: 16, borderWidth: 1, borderColor: '#e2e8f0'
   },
-  pickerTitle: { fontWeight: '800', color: '#0f172a', fontSize: 16, marginBottom: 8 },
+  pickerTitle: { fontWeight: '400', color: '#0f172a', fontSize: 16, marginBottom: 8 },
   pickerRows: { flexDirection: 'row', gap: 12 },
-  pickerColTitle: { fontWeight: '700', color: '#0b1f33', marginBottom: 6 },
+  pickerColTitle: { fontWeight: '400', color: '#0b1f33', marginBottom: 6 },
   pill: {
     paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8,
     borderWidth: 1, borderColor: '#cbd5e1', marginBottom: 6
   },
   pillActive: { backgroundColor: '#0b74d1', borderColor: '#0b74d1' },
-  pillTxt: { color: '#0f172a', fontWeight: '700' },
+  pillTxt: { color: '#0f172a', fontWeight: '400' },
   pillTxtActive: { color: '#fff' },
   modalBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 10 },
   modalBtnSecondary: { borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#fff' },
-  modalBtnSecondaryTxt: { color: '#1f2937', fontWeight: '700' },
+  modalBtnSecondaryTxt: { color: '#1f2937', fontWeight: '400' },
   modalBtnPrimary: { backgroundColor: '#0b74d1' },
-  modalBtnPrimaryTxt: { color: '#fff', fontWeight: '800' },
+  modalBtnPrimaryTxt: { color: '#fff', fontWeight: '400' },
 });

@@ -14,8 +14,8 @@ function ok(state) {
 
 export function normalizeCpvCode(value) {
   const digits = String(value || '').replace(/\D/g, '');
-  if (digits.length < 2 || digits.length > 8) return '';
-  return digits.padEnd(8, '0');
+  if (digits.length < 2) return '';
+  return digits.slice(0, 8).padEnd(8, '0');
 }
 
 export function normalizeCpvList(input) {

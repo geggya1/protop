@@ -72,7 +72,7 @@ export default function TenderAlert({ company, colors, onBids }) {
       if (!live) return;
       const watch = loaded.watch || {};
       const codes = [...(company?.cpvCodes || []), ...(watch.cpvCodes || [])];
-      setSelectedCpv(new Set(codes.map((row) => row.code).filter(Boolean)));
+      setSelectedCpv(new Set(codes.map((row) => normalizeCpvCode(typeof row === 'string' ? row : row?.code)).filter(Boolean)));
       setTrades([...(company?.naeringskoder || []), ...(watch.naeringskoder || [])].filter((row, index, list) => list.indexOf(row) === index));
       setNationwide(watch.savedAt ? !!watch.nationwide : true);
       setAreas(new Set((watch.areas || []).map((row) => row.id)));
@@ -102,13 +102,16 @@ export default function TenderAlert({ company, colors, onBids }) {
   }, [company?.orgnr]);
 
   useEffect(() => {
-    if (!ready || !state.watch.savedAt) return undefined;
+    if (!ready) return undefined;
+    const hasCodes = selectedCpv.size > 0 || (state.watch.cpvCodes || []).length > 0;
+    if (!hasCodes) return undefined;
     const now = new Date();
     const mark = new Date(now);
     mark.setHours(23, 55, 0, 0);
     if (now < mark) mark.setDate(mark.getDate() - 1);
     const synced = state.syncedAt ? new Date(state.syncedAt).getTime() : 0;
-    if (synced >= mark.getTime()) return undefined;
+    const hasHits = (state.notices || []).length > 0;
+    if (hasHits && synced >= mark.getTime()) return undefined;
     refresh(stateRef.current);
     return undefined;
   }, [ready]);
@@ -138,13 +141,18 @@ export default function TenderAlert({ company, colors, onBids }) {
   }
 
   async function refresh(nextState) {
-    const active = watchQuery(nextState.watch);
-    if (!active) return;
+    const draft = saveTenderWatch(nextState, inputFromForm());
+    const active = watchQuery(draft.ok ? draft.state.watch : nextState.watch);
+    if (!active) {
+      setError(draft.error || 'Registrer minst én CPV-kode og trykk Lagre og søk.');
+      return;
+    }
     setSyncing(true);
     setError('');
     try {
-      const data = await fetchTenderHits({ ...active, channels: nextState.watch.channels });
-      const merged = mergeTenderNotices(nextState, data.hits, data.fetchedAt).state;
+      const data = await fetchTenderHits({ ...active, channels: draft.ok ? draft.state.watch.channels : nextState.watch.channels });
+      const base = draft.ok ? { ...nextState, watch: draft.state.watch } : nextState;
+      const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
       setState(merged);
       if (!data.hits?.length && data.errors?.length) setError(data.errors[0]);
       else if (data.errors?.length) setError(data.errors.join(' '));

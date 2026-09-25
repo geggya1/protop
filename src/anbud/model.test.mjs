@@ -14,6 +14,7 @@ import {
 
 assert.equal(normalizeCpvCode('45'), '45000000');
 assert.equal(normalizeCpvCode('45233120'), '45233120');
+assert.equal(normalizeCpvCode('45000000-7'), '45000000');
 assert.equal(normalizeCpvCode('abc'), '');
 
 let state = emptyAnbudState();
@@ -56,6 +57,7 @@ assert.ok(retained.notices.some((row) => row.id === '2026-3'), 'tidligere treff 
 
 const body = buildDoffinBody({ cpvCodes: ['45000000'], locationIds: ['NO071'] });
 assert.deepEqual(body.facets.cpvCodesId.checkedItems, ['45000000']);
+assert.deepEqual(buildDoffinBody({ cpvCodes: ['45', '45000000-7'] }).facets.cpvCodesId.checkedItems, ['45000000']);
 assert.deepEqual(body.facets.status.checkedItems, ['ACTIVE']);
 assert.deepEqual(body.facets.location.checkedItems, ['NO071']);
 assert.equal(buildDoffinBody({ cpvCodes: ['45'], locationIds: ['drop table'] }).facets.location.checkedItems.length, 0);

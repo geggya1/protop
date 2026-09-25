@@ -1077,5 +1077,6 @@ export {
 
 export { lookupVehicleByReg } from './vegvesenLookup.js';
 export { fetchOpenFeed } from './openFeed.js';
-export { searchDoffin, lookupCompany, fetchDossier } from './doffinSearch.js';
+export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
+export { sendTenderAlert } from './anbudAlert.js';
 export { sendAnbudRequest, scanAnbudDocument } from './anbudIntake.js';

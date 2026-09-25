@@ -9,6 +9,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import { searchDoffinNotices as searchPublished } from './doffinQuery.js';
+import { searchTedNotices as searchTedPublished } from '../src/anbud/tedQuery.js';
 import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
 import { fetchNoticeDossier } from '../src/anbud/dossier.js';
 
@@ -28,6 +29,42 @@ export async function searchDoffinNotices(input) {
     throw err;
   }
 }
+
+export async function searchTedNotices(input) {
+  const codes = input?.cpvCodes || [];
+  if (codes.length > 20) reject('invalid-argument', 'Maks 20 CPV-koder.');
+  try {
+    return await searchTedPublished(input);
+  } catch (err) {
+    if (err?.code === 'invalid-argument') reject('invalid-argument', err.message);
+    throw err;
+  }
+}
+
+export const searchTed = onCall(
+  {
+    region: 'europe-west1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 25,
+    memory: '256MiB',
+  },
+  async (request) => {
+    try {
+      const uid = requireAuth(request.auth);
+      await assertRateLimit(getFirestore(), {
+        key: hashRateKey(['ted', uid]),
+        limit: 60,
+        windowMs: 60 * 60 * 1000,
+      });
+      return await searchTedNotices(request.data || {});
+    } catch (err) {
+      if (err instanceof HttpsError || err?.httpErrorCode) throw err;
+      logger.warn('searchTed failed', { message: err?.message });
+      reject('unavailable', 'Kunne ikke hente kunngjøringer fra TED.');
+    }
+  },
+);
 
 export const searchDoffin = onCall(
   {

@@ -76,6 +76,10 @@ export function normalizeAnbudState(raw) {
       ...watch,
       cpvCodes: Array.isArray(watch.cpvCodes) ? watch.cpvCodes : [],
       areas: Array.isArray(watch.areas) ? watch.areas : [],
+      channels: normalizeChannels(watch.channels),
+      notify: normalizeNotify(watch.notify),
+      emails: normalizeEmails(watch.emails),
+      naeringskoder: normalizeTrades(watch.naeringskoder),
     },
     notices: Array.isArray(src.notices) ? src.notices : [],
     bids: Array.isArray(src.bids) ? src.bids : [],
@@ -102,8 +106,57 @@ export function saveTenderWatch(state, input) {
       savedAt: new Date().toISOString(),
       orgnr: text(input?.orgnr).replace(/\D/g, '').slice(0, 9),
       cpvSource: text(input?.cpvSource),
+      channels: normalizeChannels(input?.channels),
+      notify: normalizeNotify(input?.notify),
+      emails: normalizeEmails(input?.emails),
+      naeringskoder: normalizeTrades(input?.naeringskoder),
     },
   });
+}
+
+function normalizeChannels(input) {
+  const allowed = new Set(['doffin', 'ted']);
+  const rows = (Array.isArray(input) ? input : ['doffin', 'ted'])
+    .map((row) => text(row).toLowerCase())
+    .filter((row) => allowed.has(row));
+  return rows.length ? [...new Set(rows)] : ['doffin'];
+}
+
+function normalizeNotify(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  return {
+    push: src.push !== false,
+    varsel: src.varsel !== false,
+    email: src.email === true,
+  };
+}
+
+function normalizeEmails(input) {
+  const rows = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const email = text(row).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || seen.has(email)) continue;
+    seen.add(email);
+    out.push(email);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+function normalizeTrades(input) {
+  const rows = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const value = text(row);
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
 }
 
 export function watchQuery(watch) {
@@ -138,7 +191,10 @@ export function normalizeDoffinHit(hit) {
     status: text(hit?.status) || 'ACTIVE',
     publishedAt: text(hit?.publicationDate) || text(hit?.issueDate),
     deadline: text(hit?.deadline),
-    url: `https://www.doffin.no/notices/${id}`,
+    url: text(hit?.url) || `https://www.doffin.no/notices/${id}`,
+    source: text(hit?.source) || 'doffin',
+    noticeType: text(hit?.noticeType) || 'Kunngjøring av konkurranse',
+    cpvCodes: asList(hit?.cpvCodes),
   };
 }
 
@@ -176,7 +232,7 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
   });
 }
 
-const DECISIONS = new Set(['ubestemt', 'aktuell', 'forkastet', 'tilbud']);
+const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'tilbud']);
 
 function noticeById(state, id) {
   return (state.notices || []).find((row) => row.id === id) || null;

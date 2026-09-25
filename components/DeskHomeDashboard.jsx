@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Image,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform,
   useWindowDimensions, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,9 +12,7 @@ import { useUnread } from '../src/context/NotificationContext';
 import { useWeather } from '../src/hooks/useWeather';
 import { useGreetingDayStatus } from '../src/hooks/useGreetingDayStatus';
 import { useDeskHomeExternalEvents } from '../src/hooks/useDeskHomeExternalEvents';
-import { AvatarBubble } from './AvatarPicker';
 import HelpTarget from './HelpTarget';
-import { profileAge } from '../src/utils/age';
 import { firstNameFromProfile, formatGreetingDate } from '../src/utils/timeGreeting';
 import { roundTemp } from '../src/utils/weather';
 import WeatherPeriodsView from './WeatherPeriodsView';
@@ -25,14 +23,10 @@ import {
   deskGreetingEmoji,
   deskGreetingTitle,
   eventSourceHint,
-  memberDayStatus,
-  memberNextLine,
   mergeDeskDayEvents,
   taskFocusMeta,
 } from '../src/utils/deskHome';
 
-const DINNER_FALLBACK = '/icons/catalog/cook-dinner.png';
-const SHOP_FALLBACK = '/icons/catalog/shopping.png';
 const R = 16;
 
 function Card({ children, style, onPress, fill }) {
@@ -54,10 +48,6 @@ function Card({ children, style, onPress, fill }) {
 
 function eventDotColor(ev, members) {
   return colorForFamilyEvent(ev, members);
-}
-
-function firstName(value, fallback = '') {
-  return String(value || fallback).trim().split(' ')[0] || fallback;
 }
 
 function weatherDetailBits(day, current) {
@@ -119,14 +109,13 @@ export default function DeskHomeDashboard({
 }) {
   const { height } = useWindowDimensions();
   const short = height < 860;
-  const { activeProfile, family, kids, parents, uid, members, isParent, familyId } = useApp();
+  const { activeProfile, kids, parents, uid, members, isParent, familyId } = useApp();
   const { unreadTotal } = useUnread();
   const { place, forecast } = useWeather();
   const day = useGreetingDayStatus({ enabled: true });
   const now = useMemo(() => new Date(), []);
   const todayKey = dateKey(now);
   const tomorrow = useMemo(() => addDays(now, 1), [now]);
-  const [familyExpanded, setFamilyExpanded] = useState(true);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [weatherFocus, setWeatherFocus] = useState('today');
   const [externalRefresh, setExternalRefresh] = useState(0);
@@ -154,8 +143,6 @@ export default function DeskHomeDashboard({
     ? `${roundTemp(temp)}° ${placeName || ''}`.trim()
     : placeName;
   const weatherIcon = forecast?.current?.icon || forecast?.today?.icon || 'partly-sunny';
-  const dinner = widgetData?.meals?.items?.[0];
-  const shop = widgetData?.shopping;
   const note = widgetData?.notes?.items?.[0];
   const openTasks = day.tasks?.openItems || [];
   const doneTasks = (day.tasks?.items || [])
@@ -164,15 +151,9 @@ export default function DeskHomeDashboard({
   const overdueTasks = openTasks.filter((t) => t._overdue);
   const activeKids = (kids || []).filter((k) => k.active !== false);
   const activeParents = (parents || []).filter((p) => p.active !== false);
-  const byKid = day.chores?.byKid || [];
   const allMembers = members?.length
     ? members
     : [...activeParents.map((p) => ({ ...p, id: p.uid || p.id, role: 'parent' })), ...activeKids];
-  const familyPeople = [
-    ...activeKids.map((k) => ({ ...k, _role: 'child' })),
-    ...activeParents.map((p) => ({ ...p, _role: 'parent' })),
-  ];
-  const familyCount = familyPeople.length;
 
   const openEvent = (ev) => {
     if (!ev) {
@@ -308,93 +289,6 @@ export default function DeskHomeDashboard({
           nestedScrollEnabled
         >
           <LiveHomeWidgets newsLimit={4} flushTop />
-          <View style={styles.card}>
-            <View style={styles.cardHeadRow}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.cardTitle}>Familieoversikt</Text>
-                <Text style={styles.cardHint} numberOfLines={1}>
-                  {family?.name || 'Familien'}
-                  {familyCount ? `  ·  ${familyCount} ${familyCount === 1 ? 'person' : 'personer'}` : ''}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setFamilyExpanded((v) => !v)} accessibilityRole="button">
-                <Text style={styles.link}>{familyExpanded ? 'Kompakt' : 'Utvid'}</Text>
-              </TouchableOpacity>
-            </View>
-            {familyPeople.length === 0 ? (
-              <TouchableOpacity onPress={() => onTab?.('more', 'members')}>
-                <Text style={styles.empty}>Legg til familiemedlemmer for å følge dagen sammen.</Text>
-              </TouchableOpacity>
-            ) : (
-              <ScrollView
-                style={{ maxHeight: familyExpanded ? (short ? 180 : 240) : 148 }}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator
-              >
-                {familyPeople.map((person) => {
-                  const isKid = person._role === 'child';
-                  const isMe = person.uid === uid || person.id === uid;
-                  const st = isKid ? byKid.find((k) => k.id === person.id) : null;
-                  const total = isKid ? (st?.todayTotal || 0) : (isMe ? (day.tasks?.total || 0) : 0);
-                  const done = isKid ? (st?.todayDone || 0) : (isMe ? (day.tasks?.done || 0) : 0);
-                  const pct = total ? Math.round((done / total) * 100) : 0;
-                  const behind = isKid && total > 0 && done < total;
-                  const next = memberNextLine(eventsToday, person, { uid, now });
-                  const age = isKid ? profileAge(person) : null;
-                  const name = firstName(person.name || person.displayName, isKid ? 'Barn' : 'Foresatt');
-                  return (
-                    <TouchableOpacity
-                      key={person.id || person.uid}
-                      style={[styles.familyRow, behind && styles.familyRowBehind]}
-                      onPress={() => onTab?.('stars')}
-                    >
-                      <AvatarBubble
-                        avatarId={person.avatarId}
-                        photoURL={person.photoURL || person.photoUrl}
-                        name={person.name || person.displayName}
-                        size={familyExpanded ? 40 : 32}
-                      />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.memberName} numberOfLines={1}>
-                          {name}
-                          {isMe ? '  ·  deg' : ''}
-                          {isKid && age != null ? `  ·  ${age} år` : ''}
-                        </Text>
-                        {familyExpanded ? (
-                          <>
-                            <View style={styles.barTrack}>
-                              <View style={[
-                                styles.barFill,
-                                { width: `${pct}%` },
-                                !isKid && { backgroundColor: '#94a3b8' },
-                                behind && { backgroundColor: colors.warn },
-                              ]}
-                              />
-                            </View>
-                            <Text style={styles.memberNext} numberOfLines={1}>
-                              {next ? `Neste  ·  ${next}` : memberDayStatus({
-                                todayDone: done,
-                                todayTotal: total,
-                                isParent: !isKid,
-                              })}
-                            </Text>
-                          </>
-                        ) : (
-                          <Text style={styles.statSub} numberOfLines={1}>
-                            {memberDayStatus({
-                              todayDone: done,
-                              todayTotal: total,
-                              isParent: !isKid,
-                            })}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
 
           <View style={[styles.card, styles.tasksCard]}>
             <View style={styles.cardHeadRow}>
@@ -453,56 +347,13 @@ export default function DeskHomeDashboard({
             </ScrollView>
           </View>
 
-          <HelpTarget id="shortcuts">
-            <Card onPress={() => onTab?.('more', 'shop')}>
-              <View style={styles.cardHeadRow}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.cardTitle}>Handleliste</Text>
-                  <Text style={styles.cardHint}>{shop?.headline || 'Ingen åpne handlevarer'}</Text>
-                </View>
-                <Image source={{ uri: SHOP_FALLBACK }} style={styles.shopIcon} />
-              </View>
-              {shop?.items?.length ? (
-                shop.items.map((item) => (
-                  <View key={item.id} style={styles.shopItem}>
-                    <View style={styles.shopBox} />
-                    <Text style={styles.shopTxt} numberOfLines={1}>
-                      {item.title}{item.meta ? `  ·  ${item.meta}` : ''}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.empty}>Ingen åpne handlevarer. Trykk for å åpne handlelister.</Text>
-              )}
-            </Card>
-          </HelpTarget>
-
-          <View style={styles.pairRow}>
-            <Card style={styles.noteCard} onPress={() => onTab?.('notes')}>
-              <Text style={styles.noteKicker}>Notat</Text>
-              <Text style={styles.noteTitle} numberOfLines={2}>{note?.title || 'Ingen notater ennå'}</Text>
-              <Text style={styles.noteBody} numberOfLines={3}>
-                {note?.meta || 'Skriv et felles notat alle i familien ser.'}
-              </Text>
-            </Card>
-            <Card onPress={() => onTab?.('more', 'meals')}>
-              <Text style={styles.cardTitle}>Middag</Text>
-              <View style={styles.dinnerRow}>
-                <Image
-                  source={{ uri: dinner?.imageUrl || DINNER_FALLBACK }}
-                  style={styles.dinnerImg}
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.dinnerTitle} numberOfLines={2}>
-                    {dinner?.title || 'Ikke planlagt ennå'}
-                  </Text>
-                  <Text style={styles.statSub} numberOfLines={1}>
-                    {dinner ? (dinner.meta || 'Ingredienser klar') : 'Planlegg kvelden'}
-                  </Text>
-                </View>
-              </View>
-            </Card>
-          </View>
+          <Card style={styles.noteCard} onPress={() => onTab?.('notes')}>
+            <Text style={styles.noteKicker}>Notat</Text>
+            <Text style={styles.noteTitle} numberOfLines={2}>{note?.title || 'Ingen notater ennå'}</Text>
+            <Text style={styles.noteBody} numberOfLines={3}>
+              {note?.meta || 'Skriv et notat du finner igjen.'}
+            </Text>
+          </Card>
 
           <View style={styles.card}>
             <TouchableOpacity
@@ -703,27 +554,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', marginBottom: 6,
   },
   tmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  familyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
-  },
-  familyRowBehind: { backgroundColor: '#fffbeb' },
-  memberName: { fontSize: 13, fontWeight: '700', color: colors.ink },
-  memberNext: { fontSize: 11, color: colors.muted, fontWeight: '600', marginTop: 4 },
-  barTrack: { height: 5, backgroundColor: '#eef2f7', borderRadius: 99, marginTop: 6, overflow: 'hidden' },
-  barFill: { height: 5, backgroundColor: colors.brand, borderRadius: 99 },
-  pairRow: Platform.OS === 'web'
-    ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }
-    : { flexDirection: 'row', gap: 10 },
-  dinnerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  dinnerImg: { width: 52, height: 52, borderRadius: 10 },
-  dinnerTitle: { fontSize: 13, fontWeight: '700', color: colors.ink, letterSpacing: -0.2 },
-  shopItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
-  shopBox: {
-    width: 14, height: 14, borderRadius: 4, borderWidth: 1.5, borderColor: '#cbd5e1',
-  },
-  shopTxt: { flex: 1, fontSize: 12, fontWeight: '600', color: colors.ink },
-  shopIcon: { width: 28, height: 28 },
   noteCard: { backgroundColor: '#fff8dc', borderColor: '#f3e4a8' },
   noteKicker: { fontSize: 11, fontWeight: '800', color: '#b45309', letterSpacing: 0.3, textTransform: 'uppercase' },
   noteTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginTop: 6, letterSpacing: -0.2 },

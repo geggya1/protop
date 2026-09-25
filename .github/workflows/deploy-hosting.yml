@@ -52,6 +52,13 @@ jobs:
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
       - name: Deploy tender proxy function
-        run: npx firebase deploy --only functions:tenderProxy --project protop-c189c --non-interactive
+        run: |
+          node --input-type=module -e "
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
+          writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
+          "
+          npx firebase deploy --only functions:tenderProxy --config firebase.functions.json --project protop-c189c --non-interactive
+          rm -f firebase.functions.json
 
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

@@ -40,10 +40,20 @@ function addressBlock(addr) {
 }
 
 function industryCodes(raw) {
-  return ['naeringskode1', 'naeringskode2', 'naeringskode3']
+  const listed = Array.isArray(raw?.naeringskoder) ? raw.naeringskoder : [];
+  const rows = ['naeringskode1', 'naeringskode2', 'naeringskode3']
     .map((key) => raw?.[key])
+    .concat(listed);
+  const seen = new Set();
+  return rows
     .filter((row) => row && (row.kode || row.beskrivelse))
-    .map((row) => ({ kode: text(row.kode), beskrivelse: text(row.beskrivelse) }));
+    .map((row) => ({ kode: text(row.kode), beskrivelse: text(row.beskrivelse) }))
+    .filter((row) => {
+      const key = `${row.kode}|${row.beskrivelse}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export function shapePublicCompany(raw) {

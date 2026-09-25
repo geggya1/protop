@@ -130,7 +130,11 @@ export default function ProjectPlatformScreen() {
   );
 
   return (
-    <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.body}
+      keyboardShouldPersistTaps="handled"
+      dataSet={{ companyPage: '1' }}
+    >
       {page === 'innstillinger' ? (
         <>
           <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>

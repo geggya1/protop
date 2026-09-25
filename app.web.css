@@ -70,6 +70,12 @@ body {
   overscroll-behavior: none;
 }
 button, input, select, textarea { font-family: var(--app-font); }
+
+/* Bedriftssiden skal ikke ha fet skrift, uansett hva et kort setter. */
+[data-company-page="1"],
+[data-company-page="1"] * {
+  font-weight: 400 !important;
+}
 button, [role="button"] { cursor: pointer; }
 
 /*

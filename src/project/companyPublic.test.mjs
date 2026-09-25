@@ -49,6 +49,14 @@ assert.equal(company.navn, 'CONSULT1 AS');
 assert.equal(company.organisasjonsform, 'Aksjeselskap');
 assert.equal(company.ansatte, 19);
 assert.equal(company.naeringer[0].kode, '71.121');
+const several = shapePublicCompany({
+  organisasjonsnummer: '123456789',
+  navn: 'Flere AS',
+  naeringskode1: { kode: '71.121', beskrivelse: 'Bygg' },
+  naeringskode2: { kode: '41.200', beskrivelse: 'Oppføring av bygninger' },
+  naeringskoder: [{ kode: '71.121', beskrivelse: 'Bygg' }, { kode: '43.210', beskrivelse: 'Elektrisk installasjon' }],
+});
+assert.deepEqual(several.naeringer.map((row) => row.kode), ['71.121', '41.200', '43.210']);
 assert.equal(company.forretning.poststed, 'SANDNES');
 assert.equal(company.kapital.aksjer, 3000);
 assert.equal(company.formaal[0], 'Eiendom og investering.');

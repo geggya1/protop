@@ -182,10 +182,6 @@ export default function CompanyLanding({
   const units = live?.units || [];
   const accounts = live?.accounts || null;
   const signature = live?.signature || null;
-  const industry = (profile?.naeringer || [])
-    .map((row) => [row.kode, row.beskrivelse].filter(Boolean).join(' · '))
-    .filter(Boolean)
-    .join('\n');
   const activeProjects = projects.filter((row) => row?.status !== 'arkivert');
   const phaseCounts = activeProjects.reduce((map, row) => {
     const key = row.phase || 'ukjent';
@@ -310,7 +306,16 @@ export default function CompanyLanding({
               <Fact label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
               <Fact label="Vedtekter" value={nbDate(profile?.vedtektsdato)} colors={colors} />
             </View>
-            {industry ? <Fact label="Næring" value={industry} colors={colors} /> : null}
+            {(profile?.naeringer || []).length ? (
+              <View style={styles.fact}>
+                <Text style={[styles.factLabel, { color: colors.muted }]}>Næringskoder</Text>
+                {profile.naeringer.map((row) => (
+                  <Text key={`${row.kode}-${row.beskrivelse}`} style={[styles.factValue, { color: colors.ink }]}>
+                    {[row.kode, row.beskrivelse].filter(Boolean).join(' · ')}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             {profile?.historiskeNavn?.length ? (
               <Fact label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
             ) : null}

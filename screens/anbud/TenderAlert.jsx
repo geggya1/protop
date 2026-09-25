@@ -214,30 +214,34 @@ export default function TenderAlert({ company, colors, onBids }) {
   }
 
   async function expressInterest(id) {
-    if (!stateRef.current.supplierProfile?.username) {
-      setError('Registrer bedriftens innloggingsprofil i trinn 2 før interesse meldes.');
+    const stored = await loadAnbudState();
+    const base = {
+      ...stateRef.current,
+      supplierProfile: stored.supplierProfile || stateRef.current.supplierProfile,
+    };
+    if (!base.supplierProfile?.username || !base.supplierProfile?.portalUrl) {
+      setError('Registrer innloggingsportalen i trinn 2 før interesse meldes.');
       return;
     }
     setSyncing(true);
     setError('');
+    let dossier = null;
     try {
-      let dossier = null;
       if (/^\d{4}-\d+$/.test(String(id))) {
         const file = await fetchCompetitionFile(id);
         dossier = file?.dossier || null;
       }
-      const result = registerInterest(stateRef.current, id, dossier);
-      if (!result.ok) setError(result.error);
-      else {
-        const who = result.state.supplierProfile.username;
-        setSavedNote(`Interesse er meldt som ${who}. Grunnlag, frister og filer ligger i trinn 2.`);
-        setState(result.state);
-      }
     } catch (err) {
-      setError(err?.message || 'Kunne ikke hente konkurransegrunnlaget.');
-    } finally {
-      setSyncing(false);
+      setError(err?.message || 'Kunne ikke hente konkurransegrunnlaget. Interessen meldes likevel.');
     }
+    const result = registerInterest(base, id, dossier);
+    if (!result.ok) setError(result.error);
+    else {
+      const who = result.state.supplierProfile.username;
+      setSavedNote(`Interesse er meldt som ${who} på ${result.state.supplierProfile.portal}. Grunnlag, frister og filer ligger i trinn 2.`);
+      setState(result.state);
+    }
+    setSyncing(false);
   }
 
   const rows = useMemo(() => {

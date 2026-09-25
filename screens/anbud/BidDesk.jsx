@@ -28,6 +28,7 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
   const [portalUrl, setPortalUrl] = useState(LOGIN_PORTALS[0].url);
   const [portalName, setPortalName] = useState(LOGIN_PORTALS[0].name);
   const [profile, setProfile] = useState(null);
+  const [storedBids, setStoredBids] = useState(bids || []);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
 
@@ -42,8 +43,9 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
       setUsername(saved.username || '');
       setPortalUrl(saved.portalUrl || LOGIN_PORTALS[0].url);
       setPortalName(saved.portal || LOGIN_PORTALS[0].name);
+      setStoredBids(state.bids || []);
     });
-  }, [company?.id]);
+  }, [company?.id, bids]);
 
   async function save() {
     const loaded = await loadAnbudState();
@@ -112,8 +114,8 @@ export default function BidDesk({ company, colors, bids, onProfile }) {
 
       <Text style={[styles.h, { color: colors.ink }]}>Tilbudsarbeid</Text>
       <Text style={{ color: colors.muted }}>Konkurranser det er meldt interesse for. Selve tilbudet kommer i et senere trinn.</Text>
-      {bids.map((bid) => <BidCard key={bid.id} bid={bid} colors={colors} />)}
-      {!bids.length ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Registrer profilen, merk et treff som aktuelt og meld interesse.</Text> : null}
+      {(storedBids.length ? storedBids : bids).map((bid) => <BidCard key={bid.id} bid={bid} colors={colors} />)}
+      {!(storedBids.length || bids.length) ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Registrer profilen, merk et treff som aktuelt og meld interesse.</Text> : null}
     </View>
   );
 }

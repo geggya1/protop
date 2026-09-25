@@ -104,7 +104,9 @@ export function portalFromUrl(value) {
   } catch {
     return { name: '', url: '' };
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return { name: '', url: '' };
+  if (url.protocol !== 'https:') return { name: '', url: '' };
+  url.username = '';
+  url.password = '';
   const host = url.hostname.replace(/^www\./, '');
   const known = /mercell/i.test(host)
     ? 'Mercell'

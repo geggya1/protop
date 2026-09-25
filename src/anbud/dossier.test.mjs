@@ -11,9 +11,11 @@ const sample = summarizeNotice({
   eform: [
     { label: 'Type prosedyre', value: 'Åpen', sections: null },
     { label: 'Frist for å be om tilleggsopplysninger', value: '12.10.2026 12:00', sections: null },
+    { label: 'Internett-adresse', value: 'https://kommune.example/', sections: null },
     { label: 'Sources of grounds for exclusion', value: 'document-used-in-public-procurement.epo-acc-espd-request', sections: null },
   ],
 });
+assert.equal(sample.documents.some((doc) => /kommune\.example/.test(doc.url)), false);
 assert.equal(sample.procedure, 'Åpen');
 assert.equal(sample.questionDeadline, '12.10.2026 12:00');
 assert.match(sample.espd, /espd/i);

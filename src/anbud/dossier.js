@@ -21,6 +21,12 @@ export function flattenNoticeFields(eform) {
   return rows;
 }
 
+function isProcurementLink(label, url) {
+  if (/internett-adresse|nettside|hjemmeside/i.test(label)) return false;
+  if (/dokument|innlevering|portal|konkurransegrunnlag|espd|mercell/i.test(label)) return true;
+  return /mercell|eu-supply|tendsign|doffin|kgv|achilles/i.test(url);
+}
+
 function first(rows, pattern) {
   return rows.find((row) => pattern.test(row.label))?.value || '';
 }
@@ -33,7 +39,7 @@ export function summarizeNotice(notice) {
   const rows = flattenNoticeFields(notice?.eform);
   const documentsUrl = notice?.competitionDocsUrl || first(rows, /anskaffelsesdokumentene/i);
   const submissionUrl = first(rows, /adresse for innlevering/i) || documentsUrl;
-  const linkRows = rows.filter((row) => /^https?:\/\//i.test(row.value));
+  const linkRows = rows.filter((row) => /^https?:\/\//i.test(row.value) && isProcurementLink(row.label, row.value));
   const documents = [];
   const seenDocs = new Set();
   for (const row of [{ title: 'Anskaffelsesdokumenter', value: documentsUrl }, ...linkRows.map((row) => ({ title: row.label, value: row.value }))]) {
@@ -42,7 +48,7 @@ export function summarizeNotice(notice) {
     documents.push({ title: row.title || 'Dokument', url: row.value });
   }
   const qa = rows
-    .filter((row) => /spørsmål|tilleggsopplys|svar fra oppdragsgiver/i.test(row.label))
+    .filter((row) => /spørsmål og svar|svar fra oppdragsgiver/i.test(row.label) && !/frist/i.test(row.label))
     .map((row) => ({ question: row.label, answer: row.value }));
   const cpv = [...new Set([...(notice?.directCpvCodes || []), ...(notice?.allCpvCodes || [])])];
   const espd = all(rows, /espd|uteluk|exclusion/i);

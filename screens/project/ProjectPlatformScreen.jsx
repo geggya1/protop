@@ -151,7 +151,6 @@ export default function ProjectPlatformScreen() {
           members={members || []}
           cpvCodes={family?.cpvCodes || []}
           onProjects={() => requestShellTab?.('projects')}
-          onMembers={() => nav.navigate('GroupSettings')}
         />
       ) : null}
 
@@ -177,7 +176,6 @@ const styles = StyleSheet.create({
   head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
   column: { alignSelf: 'flex-start', width: 360, maxWidth: '100%', gap: 10 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
   title: { fontSize: 22, fontWeight: '400' },
   lead: { fontSize: 15, lineHeight: 21, fontWeight: '400' },

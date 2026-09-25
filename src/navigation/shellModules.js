@@ -78,7 +78,6 @@ export function buildShellModules({
   const onCompany = isOrganizationType(family?.type);
   if (onCompany) {
     mainItems.push(
-      { id: 'members', icon: 'people', label: 'Medlemmer', action: { type: 'nav', screen: 'GroupSettings' } },
       { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
       { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     );

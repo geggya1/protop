@@ -70,7 +70,6 @@ export default function CompanyLanding({
   members = [],
   cpvCodes: storedCpv = [],
   onProjects,
-  onMembers,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -254,10 +253,6 @@ export default function CompanyLanding({
           </View>
         </TouchableOpacity>
       ))}
-      <TouchableOpacity onPress={onMembers} style={styles.memberLink} accessibilityRole="button">
-        <Ionicons name="people-outline" size={16} color={colors.brand} />
-        <Text style={[styles.link, { color: colors.brand }]}>Medlemmer</Text>
-      </TouchableOpacity>
     </Card>
   );
 
@@ -281,10 +276,6 @@ export default function CompanyLanding({
           <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.brand }]} onPress={onProjects}>
             <Ionicons name="construct-outline" size={15} color="#fff" />
             <Text style={styles.primaryTxt}>Prosjekt</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.ghostBtn, { backgroundColor: colors.card, borderColor: colors.line }]} onPress={onMembers}>
-            <Ionicons name="people-outline" size={15} color={colors.ink} />
-            <Text style={[styles.ghostTxt, { color: colors.ink }]}>Medlemmer</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -487,10 +478,6 @@ const styles = StyleSheet.create({
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10 },
   primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
-  ghostBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1,
-  },
-  ghostTxt: { fontWeight: '400', fontSize: 13 },
   columns: { gap: 12 },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainCol: { flex: 1.4, gap: 12, minWidth: 0 },
@@ -518,5 +505,4 @@ const styles = StyleSheet.create({
   forecastCol: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
   forecastVal: { fontSize: 12, fontWeight: '400' },
   source: { fontSize: 12, fontWeight: '400' },
-  memberLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
 });

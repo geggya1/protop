@@ -11,6 +11,7 @@ export function moreSubviewTitleMap(t) {
     lekser: t('tabs.lekser'),
     chat: t('tabs.chat'),
     settings: t('tabs.settings'),
+    notifications: t('tabs.notifications'),
     dashboardSetup: t('settings.dashboardSetup'),
     plan: t('tabs.plan'),
     activities: t('tabs.activities'),

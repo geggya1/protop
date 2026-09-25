@@ -10,6 +10,7 @@ import { useAppearance } from '../../src/appearance/AppearanceContext';
 import { useI18n } from '../../src/i18n';
 import { colors, useLayout } from '../../src/theme';
 import { goPlatformOverview } from '../../src/utils/platformNav';
+import { openNotifications } from '../../src/navigation/openNotifications';
 import { shouldOfferAddToHome } from '../../src/utils/addToHome';
 import {
   defaultGreetingEnabled,
@@ -188,7 +189,7 @@ export default function SettingsScreen({ setSubView } = {}) {
           <Row icon="qr-code-outline" label={t('friend.qrTitle')} onPress={() => setQrOpen(true)} />
           <Row icon="globe" label={t('more.language')} onPress={() => nav.navigate('PickLanguage')} />
           <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
-          <Row icon="notifications-outline" label={t('tabs.notifications')} onPress={() => nav.navigate('Notifications')} muted />
+          <Row icon="notifications-outline" label={t('tabs.notifications')} onPress={() => openNotifications(nav)} muted />
           {showInstallGuide ? (
             <Row
               icon="phone-portrait-outline"

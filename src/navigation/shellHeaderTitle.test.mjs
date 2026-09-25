@@ -19,6 +19,7 @@ const LABELS = {
   'tabs.books': 'Bokhylla',
   'tabs.lekser': 'Lekser',
   'tabs.settings': 'Innstillinger',
+  'tabs.notifications': 'Varslinger',
   'settings.dashboardSetup': 'Tilpass hjem',
   'tabs.activities': 'Aktiviteter',
   'tabs.ai': 'Chat med AI',

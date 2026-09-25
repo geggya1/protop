@@ -11,6 +11,7 @@ export const FLEX_GROUP_TYPES = ['group'];
 export const COMPANY_TYPES = ['company'];
 export const TEAM_TYPES = ['team', 'club'];
 export const CLASSROOM_TYPES = ['class', 'classroom'];
+export const ORGANIZATION_TYPES = ['organization', 'company'];
 
 export const ALL_PLATFORM_TYPES = [
   ...FAMILY_TYPES,
@@ -21,6 +22,7 @@ export const ALL_PLATFORM_TYPES = [
   ...COMPANY_TYPES,
   ...TEAM_TYPES,
   ...CLASSROOM_TYPES,
+  ...ORGANIZATION_TYPES,
 ];
 
 function norm(type) {
@@ -59,6 +61,10 @@ export function isClassroomType(type) {
   return CLASSROOM_TYPES.includes(norm(type));
 }
 
+export function isOrganizationType(type) {
+  return ORGANIZATION_TYPES.includes(norm(type));
+}
+
 export function isSocialPlatformType(type) {
   const t = norm(type);
   return isFriendsType(t) || isCongregationType(t) || isDaycareType(t) || isFlexGroupType(t);
@@ -73,7 +79,8 @@ export function platformTypeLabel(type) {
   if (isCompanyType(t)) return 'Bedrift';
   if (isTeamType(t)) return 'Idrettslag';
   if (isClassroomType(t)) return 'Klasserom';
-  return 'Familie';
+  if (isOrganizationType(t)) return 'Organisasjon';
+  return 'Arbeidsområde';
 }
 
 export function platformHomeRoute(type) {
@@ -84,7 +91,7 @@ export function platformHomeRoute(type) {
   if (isCongregationType(t)) return 'CongregationHome';
   if (isDaycareType(t)) return 'DaycareHome';
   if (isFlexGroupType(t)) return 'GroupHome';
-  if (isCompanyType(t)) return 'CompanyHome';
+  if (isOrganizationType(t)) return 'Home';
   return 'Home';
 }
 
@@ -97,5 +104,6 @@ export function platformTypesForFilter(type) {
   if (isCompanyType(t)) return COMPANY_TYPES;
   if (isTeamType(t)) return TEAM_TYPES;
   if (isClassroomType(t)) return CLASSROOM_TYPES;
+  if (isOrganizationType(t)) return ORGANIZATION_TYPES;
   return FAMILY_TYPES;
 }

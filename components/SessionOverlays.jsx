@@ -10,6 +10,7 @@ import ChatDockHost from './ChatDock';
 import InviteRespondOverlay from './InviteRespondOverlay';
 import PendingAddFriendPrompt from './PendingAddFriendPrompt';
 import FamilySetupNudgeModal from './FamilySetupNudgeModal';
+import CompanyOfferModal from './CompanyOfferModal';
 import MajorUpdateModal from './MajorUpdateModal';
 import {
   loadKitchenDisplaySettings,
@@ -86,12 +87,9 @@ export default function SessionOverlays() {
         uid={uid}
         enabled={!loading && invitesEnabled && greetingEnabled && !hasPendingInvites}
       />
-      <BirthdayPrepReminderModal
-        enabled={!loading && invitesEnabled && !hasPendingInvites}
-      />
-      <FamilySetupNudgeModal
-        enabled={!loading && invitesEnabled && !hasPendingInvites && !isChild}
-      />
+      <BirthdayPrepReminderModal enabled={false} />
+      <FamilySetupNudgeModal enabled={false} />
+      <CompanyOfferModal />
       <MajorUpdateModal
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />

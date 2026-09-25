@@ -13,6 +13,7 @@ import WishlistsHubScreen from './WishlistsHubScreen';
 import LekserHubScreen from './LekserHubScreen';
 import ChatListScreen from './ChatListScreen';
 import SettingsScreen from './SettingsScreen';
+import NotificationsScreen from './NotificationsScreen';
 import DashboardThemeSettingsScreen from './DashboardThemeSettingsScreen';
 import ChildAppsScreen from './ChildAppsScreen';
 import PlanScreen from './PlanScreen';
@@ -138,6 +139,7 @@ const SUB_SCREENS = {
   subscription: SubscriptionScreen,
   moduleAccess: ModuleAccessSettingsScreen,
   help: HelpSupportScreen,
+  notifications: NotificationsScreen,
 };
 
 export default function MoreHubScreen({ subView, setSubView }) {

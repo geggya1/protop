@@ -1,20 +1,15 @@
 /**
- * Built-in home heading banners.
- * Grouped so families can pick a look that fits age — not a locked gender.
+ * Built-in home heading banners for the professional shell.
+ * Nature stays. Age, family and people packs are not offered.
  *
- * Drop source art in assets/home-banners/{gutt,jente,noytralt,voksen,natur}/
+ * Drop source art in assets/home-banners/natur/
  * then run `node scripts/generate-responsive-images.mjs --roots assets/home-banners`
  * and add a row with `.medium.jpg` (display) + `.thumb.jpg` (picker).
  */
 
-export const HOME_BANNER_PACKS = ['gutt', 'jente', 'noytralt', 'voksen', 'natur'];
+export const HOME_BANNER_PACKS = ['natur'];
 
 export const HOME_BANNER_GROUPS = [
-  { id: 'smaabarn', label: 'Småbarn', hint: 'Lek og rolige rom' },
-  { id: 'barn', label: 'Barn', hint: 'Ute, tur og hverdag' },
-  { id: 'ungdom', label: 'Ungdom', hint: 'Skole, kveld og egne ting' },
-  { id: 'voksen', label: 'Voksen', hint: 'Rolig oversikt' },
-  { id: 'noytralt', label: 'Nøytralt', hint: 'Scener uten personpreg' },
   { id: 'natur', label: 'Natur', hint: 'Fjell, fjord og lys' },
   { id: 'eget', label: 'Eget', hint: 'Last opp selv' },
 ];
@@ -688,29 +683,31 @@ export const DEFAULT_HOME_BANNER_ID = 'natur-innsjo-hytte-morgen';
 export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom';
 export const CUSTOM_BANNER_ID = 'custom';
 
+function isOfferedBanner(banner) {
+  return banner?.group === 'natur' && banner?.pack === 'natur';
+}
+
 export function bannersInGroup(groupId) {
-  if (groupId === 'eget') return [];
-  if (groupId === 'noytralt') return HOME_BANNERS.filter((b) => b.pack === 'noytralt');
-  return HOME_BANNERS.filter((b) => b.group === groupId);
+  if (groupId !== 'natur') return [];
+  return HOME_BANNERS.filter(isOfferedBanner);
 }
 
 export function getHomeBanner(id) {
   if (!id || id === CUSTOM_BANNER_ID) return null;
-  return HOME_BANNERS.find((b) => b.id === id) || HOME_BANNERS.find((b) => b.id === DEFAULT_HOME_BANNER_ID) || HOME_BANNERS[0];
+  const hit = HOME_BANNERS.find((b) => b.id === id);
+  if (isOfferedBanner(hit)) return hit;
+  return HOME_BANNERS.find((b) => b.id === DEFAULT_HOME_BANNER_ID)
+    || HOME_BANNERS.find(isOfferedBanner)
+    || null;
 }
 
 export function isValidHomeBannerId(id) {
   if (id === CUSTOM_BANNER_ID) return true;
-  return HOME_BANNERS.some((b) => b.id === id);
+  return isOfferedBanner(HOME_BANNERS.find((b) => b.id === id));
 }
 
-export function recommendedBannerGroupForAge(age) {
-  const n = Number(age);
-  if (!Number.isFinite(n)) return 'voksen';
-  if (n <= 4) return 'smaabarn';
-  if (n <= 9) return 'barn';
-  if (n <= 17) return 'ungdom';
-  return 'voksen';
+export function recommendedBannerGroupForAge() {
+  return 'natur';
 }
 
 export function homeSceneTitle(dayPart) {
@@ -719,7 +716,7 @@ export function homeSceneTitle(dayPart) {
   return 'En fin dag!';
 }
 
-export const HOME_SCENE_SUBTITLE = 'Små steg. Store øyeblikk.';
+export const HOME_SCENE_SUBTITLE = 'Oversikt for jobb og næringsliv.';
 
 export function homeSceneTagline(dayPart) {
   if (dayPart === 'evening') return 'Roligere dager skaper sterkere dager';
@@ -727,4 +724,4 @@ export function homeSceneTagline(dayPart) {
   return 'En roligere morgen gir en bedre dag';
 }
 
-export const HOME_FOOTER_LINE = 'Små øyeblikk skaper store minner';
+export const HOME_FOOTER_LINE = 'Jobb, nettverk og oversikt';

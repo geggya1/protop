@@ -3,7 +3,7 @@ import { platformHomeRoute } from './groupTypes';
 import { canUsePlatformType } from './platformAccess';
 import { auth } from '../../firebase';
 
-/** Reset stack to platform overview (family + idrettslag + klasserom). */
+/** Reset stack to the organisation switcher. */
 export function goPlatformOverview(navigation) {
   if (!navigation) return;
   navigation.dispatch(

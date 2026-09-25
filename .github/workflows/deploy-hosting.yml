@@ -53,6 +53,7 @@ jobs:
 
       - name: Deploy tender proxy function
         continue-on-error: true
+        # Krever Service Account User på protop-c189c@appspot.gserviceaccount.com.
         run: |
           node --input-type=module -e "
           import { readFileSync, writeFileSync } from 'node:fs';

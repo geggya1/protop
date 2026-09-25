@@ -3,9 +3,9 @@
  */
 import { onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
-import { searchDoffinNotices } from './doffinQuery.js';
-import { searchTedNotices } from '../src/anbud/tedQuery.js';
-import { lookupCompanyCpv } from '../src/anbud/companyLookup.js';
+import { searchDoffinNotices } from './anbud/doffinQuery.js';
+import { searchTedNotices } from './anbud/tedQuery.js';
+import { lookupCompanyCpv } from './anbud/companyLookup.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';

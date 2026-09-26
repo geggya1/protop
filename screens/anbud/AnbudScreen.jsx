@@ -37,8 +37,10 @@ export default function AnbudScreen({ company }) {
       {step === 'varsling' ? (
         <TenderAlert company={company} colors={colors} onBids={setBids} onOpenSettings={() => setStep('innstillinger')} />
       ) : null}
-      {step === 'tilbud' ? <BidDesk company={company} colors={colors} bids={bids} onOpenSettings={() => setStep('innstillinger')} /> : null}
-      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} /> : null}
+      {step === 'tilbud' ? (
+        <BidDesk company={company} colors={colors} bids={bids} onOpenSettings={() => setStep('innstillinger')} onOpenAlerts={() => setStep('varsling')} />
+      ) : null}
+      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} onOpenWork={() => setStep('tilbud')} /> : null}
     </ScrollView>
   );
 }

@@ -1,4 +1,5 @@
 import { areaById, cpvByCode } from './catalog.js';
+import { normalizeAudit, normalizeBidRecord, normalizeContracts } from './lifecycle.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -63,6 +64,8 @@ export function emptyAnbudState() {
     },
     notices: [],
     bids: [],
+    contracts: [],
+    audit: [],
     supplierProfile: null,
     syncedAt: null,
     queryKey: '',
@@ -86,7 +89,9 @@ export function normalizeAnbudState(raw) {
       keywords: normalizeKeywords(watch.keywords),
     },
     notices: Array.isArray(src.notices) ? src.notices : [],
-    bids: Array.isArray(src.bids) ? src.bids : [],
+    bids: (Array.isArray(src.bids) ? src.bids : []).map(normalizeBidRecord),
+    contracts: normalizeContracts(src.contracts),
+    audit: normalizeAudit(src.audit),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     syncedAt: src.syncedAt || null,
     queryKey: text(src.queryKey),
@@ -486,6 +491,15 @@ export function createBidWork(state, id) {
     title: notice.title,
     buyer: notice.buyer,
     phase: 'trinn2',
+    stage: 'planlegging',
+    strategy: {
+      fag: false,
+      kapasitet: false,
+      referanser: false,
+      okonomi: false,
+      hms: false,
+      grunnlag: false,
+    },
     createdAt: new Date().toISOString(),
     dossier: notice.dossier || null,
   };

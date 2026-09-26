@@ -23,7 +23,7 @@ import { grandparentModulesFor } from '../src/utils/grandparentAccess';
 import HelpTarget from './HelpTarget';
 
 /** Hoved åpen; app-mapper lukket til de åpnes eller inneholder aktiv side. */
-const DEFAULT_OPEN = { main: true, skole: true, account: false };
+const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
 function itemIcon(item, active) {
   const base = item.icon || 'ellipse';
@@ -200,11 +200,23 @@ export default function DesktopRail({
 
   if (collapsed) {
     const mainItems = sections.find((s) => s.id === 'main')?.items || [];
+    const companyItems = sections.find((s) => s.id === 'company')?.items || [];
     return (
       <HelpTarget id="rail" style={styles.collapsedWrap}>
         <BrandLogo variant="mark" height={36} style={styles.brandMarkImg} />
         <ScrollView contentContainerStyle={styles.collapsedList} showsVerticalScrollIndicator={false}>
           {mainItems.map((item) => (
+            <NavRow
+              key={item.id}
+              item={item}
+              collapsed
+              active={isItemActive(item)}
+              badgeCount={countForItem(unreadByModule, item)}
+              onPress={() => runAction(item.action)}
+            />
+          ))}
+          {companyItems.length ? <View style={styles.collapsedDivider} /> : null}
+          {companyItems.map((item) => (
             <NavRow
               key={item.id}
               item={item}
@@ -264,7 +276,7 @@ export default function DesktopRail({
           const expanded = isSectionExpanded(section);
           const appFolder = isParentAppSection(section.id) || isChildAppSection(section.id);
           return (
-            <View key={section.id} style={[styles.section, appFolder && styles.appSection]}>
+            <View key={section.id} style={[styles.section, appFolder && styles.appSection, section.id === 'company' && styles.companySection]}>
               <TouchableOpacity
                 style={[styles.sectionHead, appFolder && styles.appSectionHead]}
                 onPress={() => setOpen((prev) => ({ ...prev, [section.id]: !expanded }))}
@@ -343,6 +355,18 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 8 },
   collapsedList: { alignItems: 'center', gap: 1, paddingBottom: 8 },
   section: { marginBottom: 6 },
+  companySection: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
+  collapsedDivider: {
+    width: 18,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.line,
+    marginVertical: 6,
+  },
   appSection: {
     marginBottom: 8,
     backgroundColor: colors.card,

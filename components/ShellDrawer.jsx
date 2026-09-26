@@ -23,7 +23,7 @@ import { grandparentModulesFor } from '../src/utils/grandparentAccess';
 import BrandLogo from './BrandLogo';
 
 const DRAWER_WIDTH = 268;
-const DEFAULT_OPEN = { main: true, skole: true, account: false };
+const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
 function DrawerRow({ item, active, onPress, badgeCount = 0 }) {
   const colors = useColors();
@@ -360,7 +360,7 @@ export default function ShellDrawer({
                 return (
                   <View
                     key={section.id}
-                    style={[styles.section, appFolder && styles.appSection]}
+                    style={[styles.section, appFolder && styles.appSection, section.id === 'company' && styles.companySection]}
                   >
                     {foldable ? (
                       <TouchableOpacity
@@ -474,6 +474,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollBody: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 20, gap: 6 },
   section: { marginTop: 4 },
+  companySection: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
   appSection: {
     backgroundColor: colors.card,
     borderRadius: 10,

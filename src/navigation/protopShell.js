@@ -4,6 +4,7 @@
  *
  * Kept: hjem, venner, kalender, e-post, oppgaver, notat,
  * plus innstillinger, varslinger, hjelp and the rest of the account section.
+ * Anbud, prosjekt and later company modules sit in their own section.
  * Family product modules are not shown.
  */
 

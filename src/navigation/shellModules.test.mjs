@@ -37,6 +37,7 @@ function idsIn(sections) {
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
   assert.deepEqual(main, ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes']);
+  assert.equal(sections.some((s) => s.id === 'company'), false);
   assert.ok(main.indexOf('friends') < main.indexOf('plan'));
   assert.ok(main.includes('mail'));
   assert.ok(main.includes('notes'));
@@ -63,6 +64,17 @@ function idsIn(sections) {
   assert.ok(ids.includes('projects'));
   assert.equal(ids.includes('members'), false);
   assert.ok(ids.includes('mail'));
+  const mainIds = company.find((s) => s.id === 'main').items.map((i) => i.id);
+  assert.equal(mainIds.includes('anbud'), false);
+  assert.equal(mainIds.includes('projects'), false);
+  assert.deepEqual(
+    company.find((s) => s.id === 'company').items.map((i) => i.id),
+    ['anbud', 'projects'],
+  );
+  const order = company.map((s) => s.id);
+  assert.ok(order.indexOf('main') < order.indexOf('company'));
+  assert.ok(order.indexOf('company') < order.indexOf('account'));
+  assert.equal(company.find((s) => s.id === 'company').title, 'shell.company');
 }
 
 {

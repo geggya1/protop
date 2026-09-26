@@ -12,6 +12,8 @@ import {
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
+import { BREAKPOINTS } from '../../src/theme';
+import TenderHitCards from './TenderHitCards';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -63,6 +65,17 @@ function Chip({ label, on, onPress, colors, hint }) {
 export default function TenderAlert({ company, colors, onBids, onOpenSettings }) {
   const { width } = useWindowDimensions();
   const wide = width >= 860;
+  const [cssPhone, setCssPhone] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const query = window.matchMedia(`(max-width: ${BREAKPOINTS.tablet - 1}px)`);
+    const sync = () => setCssPhone(query.matches);
+    sync();
+    query.addEventListener?.('change', sync);
+    return () => query.removeEventListener?.('change', sync);
+  }, []);
+  // Telefon: smalt vindu. Nettbrett og web (fra 768 px) beholder tabellen.
+  const phone = cssPhone || width < BREAKPOINTS.tablet;
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -404,8 +417,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
   return (
     <View style={[styles.layout, wide && styles.layoutWide]}>
       <View style={styles.main}>
-        <View style={styles.titleRow}>
-          <View style={{ gap: 2, flexShrink: 1 }}>
+        <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
+          <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
             <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}. ` : ''}Nye treff legges til. Vurderinger beholdes.
@@ -445,6 +458,24 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
+        {phone ? (
+          <TenderHitCards
+            rows={rows}
+            columns={COLUMNS}
+            colors={colors}
+            sort={sort}
+            onSort={setSort}
+            colFilter={colFilter}
+            onColFilter={setColFilter}
+            openId={openId}
+            onToggle={(id) => setOpenId(openId === id ? '' : id)}
+            onMark={mark}
+            onInterest={expressInterest}
+            matchWatch={matchWatch}
+            archiveOn={archiveOn}
+            syncing={syncing}
+          />
+        ) : (
         <ScrollView
           horizontal
           nestedScrollEnabled
@@ -538,6 +569,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}</Text> : null}
         </View>
         </ScrollView>
+        )}
       </View>
       <View style={[styles.side, wide && styles.sideWide]}>
         {summary}
@@ -676,6 +708,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  titleRowPhone: { flexWrap: 'wrap', alignItems: 'flex-start' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },

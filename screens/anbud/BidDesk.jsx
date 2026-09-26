@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { attachPortalCatalog, fetchCompetitionFile } from '../../src/anbud/doffinClient';
+import {
+  awardContract,
+  executionBlockers,
+  markOutcome,
+  openExecution,
+  regulatoryChecks,
+  STAGE_LABELS,
+  STRATEGY_ITEMS,
+  toggleStrategy,
+} from '../../src/anbud/lifecycle';
 import { formatWhen, portalFromUrl, registerInterest, setNoticeDecision, workCandidates } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
-export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenAlerts }) {
+export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot }) {
   const [profile, setProfile] = useState(null);
   const [storedBids, setStoredBids] = useState(bids || []);
   const [candidates, setCandidates] = useState([]);
@@ -16,8 +26,21 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
       setProfile(state.supplierProfile);
       setStoredBids(state.bids?.length ? state.bids : (bids || []));
       setCandidates(workCandidates(state));
+      onSnapshot?.(state);
     });
   }, [company?.id, bids]);
+
+  async function commit(result) {
+    if (!result.ok) {
+      setNote(result.error);
+      return;
+    }
+    await saveAnbudState(result.state);
+    setStoredBids(result.state.bids);
+    setCandidates(workCandidates(result.state));
+    onSnapshot?.(result.state);
+    setNote('');
+  }
 
   async function bringIn(id) {
     setBusyId(id);
@@ -126,7 +149,15 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
         </View>
       ) : null}
       {rows.map((bid) => (
-        <BidCard key={bid.id} bid={bid} colors={colors} busy={busyId === bid.id} onRefresh={() => refreshFiles(bid)} />
+        <BidCard
+          key={bid.id}
+          bid={bid}
+          colors={colors}
+          busy={busyId === bid.id}
+          onRefresh={() => refreshFiles(bid)}
+          onCommit={commit}
+          onOpenContracts={onOpenContracts}
+        />
       ))}
       {!rows.length && !candidates.length ? (
         <View style={{ gap: 8 }}>
@@ -140,13 +171,27 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
   );
 }
 
-function BidCard({ bid, colors, busy, onRefresh }) {
+function BidCard({ bid, colors, busy, onRefresh, onCommit, onOpenContracts }) {
   const dossier = bid.dossier;
   const interest = bid.interest;
   const portalName = portalFromUrl(dossier?.interestUrl || dossier?.documentsUrl).name || 'portalen';
   const interestUrl = dossier?.interestUrl || dossier?.documentsUrl || '';
+  const stage = bid.stage || 'planlegging';
+  const locked = stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
+  const checks = regulatoryChecks(bid);
+  const blockers = stage === 'planlegging' ? executionBlockers(bid) : [];
+  const [value, setValue] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+
+  async function apply(change) {
+    const loaded = await loadAnbudState();
+    await onCommit(change(loaded));
+  }
+
   return (
     <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
+      <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       {interest ? (
@@ -167,6 +212,61 @@ function BidCard({ bid, colors, busy, onRefresh }) {
       {dossier?.documentsUrl || dossier?.submissionDeadline || dossier?.portalFiles?.length ? <DossierLines dossier={dossier} colors={colors} /> : (
         <Text style={{ color: colors.muted }}>Grunnlaget er ikke lest inn ennå. Bruk Hent filliste.</Text>
       )}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Kravsjekk</Text>
+      {checks.map((check) => (
+        <Text key={check.id} style={{ color: check.ok ? colors.ink : (check.blocking ? colors.danger : colors.warn) }}>
+          {check.ok ? '✓' : '·'} {check.label}: {check.detail}
+        </Text>
+      ))}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Tilbudsstrategi</Text>
+      {STRATEGY_ITEMS.map((item) => {
+        const on = !!bid.strategy?.[item.id];
+        return (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => apply((loaded) => toggleStrategy(loaded, bid.id, item.id))}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on, disabled: locked }}
+            disabled={locked}
+          >
+            <Text style={{ color: on ? colors.ink : colors.muted }}>{on ? '✓' : '○'} {item.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+      {stage === 'planlegging' ? (
+        <View style={{ gap: 6 }}>
+          {blockers.length ? <Text style={{ color: colors.muted }}>Gjenstår: {blockers.join(' · ')}</Text> : null}
+          <TouchableOpacity onPress={() => apply((loaded) => openExecution(loaded, bid.id))} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff' }}>Start gjennomføring</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {stage === 'gjennomforing' ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Kontrakt ved tildeling</Text>
+          <TextInput value={value} onChangeText={setValue} placeholder="Kontraktssum" placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
+          <TextInput value={start} onChangeText={setStart} placeholder="Oppstart ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
+          <TextInput value={end} onChangeText={setEnd} placeholder="Overlevering ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
+          <TouchableOpacity onPress={() => apply((loaded) => awardContract(loaded, bid.id, { value, start, end }))} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff' }}>Registrer kontrakt</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {stage === 'kontrakt' ? (
+        <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Kontrakten ligger i kontraktsoppfølgingen.</Text>
+        </TouchableOpacity>
+      ) : null}
+      {stage === 'planlegging' || stage === 'gjennomforing' ? (
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity onPress={() => apply((loaded) => markOutcome(loaded, bid.id, 'tapt'))} accessibilityRole="button">
+            <Text style={{ color: colors.danger }}>Tapt</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => apply((loaded) => markOutcome(loaded, bid.id, 'trukket'))} accessibilityRole="button">
+            <Text style={{ color: colors.muted }}>Trukket</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -206,4 +306,5 @@ const styles = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '600' },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
 });

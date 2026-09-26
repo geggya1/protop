@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildDoffinBody, searchDoffinNotices } from './doffinQuery.js';
+import { buildTedQuery } from './tedQuery.js';
 import {
   emptyAnbudState,
   mergeTenderNotices,
@@ -12,6 +13,9 @@ import {
   registerInterest,
   saveSupplierProfile,
   watchQuery,
+  watchFingerprint,
+  formatMatchLabel,
+  noticeInArea,
 } from './model.js';
 
 assert.equal(normalizeCpvCode('45'), '45000000');
@@ -56,6 +60,50 @@ const retained = mergeTenderNotices(second, [
   { id: '2026-1', heading: 'Skole', status: 'ACTIVE', publicationDate: '2026-09-20' },
 ], '2026-09-25T08:00:00Z').state;
 assert.ok(retained.notices.some((row) => row.id === '2026-3'), 'tidligere treff blir stående');
+assert.equal(retained.notices.find((row) => row.id === '2026-3').isNew, true, 'nytt treff som ikke kom med i neste søk, forblir nytt');
+const stillNew = mergeTenderNotices(second, [
+  { id: '2026-3', heading: 'Veilys', status: 'ACTIVE', publicationDate: '2026-09-24' },
+], '2026-09-24T18:00:00Z').state;
+assert.equal(stillNew.notices.find((row) => row.id === '2026-3').isNew, true);
+const decidedKeep = setNoticeDecision(second, '2026-3', 'aktuell').state;
+const afterRefresh = mergeTenderNotices(decidedKeep, [
+  { id: '2026-4', heading: 'Ny bro', description: 'Adgangskontroll', status: 'ACTIVE', publicationDate: '2026-09-26', matchedKeywords: ['bro'] },
+], '2026-09-26T08:00:00Z').state;
+assert.equal(afterRefresh.notices.find((row) => row.id === '2026-3').decision, 'aktuell');
+assert.equal(afterRefresh.notices.find((row) => row.id === '2026-3').isNew, false);
+assert.equal(afterRefresh.notices.find((row) => row.id === '2026-4').isNew, true);
+assert.equal(afterRefresh.notices[0].id, '2026-4');
+
+const withWords = saveTenderWatch(emptyAnbudState(), {
+  companyName: 'Nord Bygg',
+  cpvCodes: ['45000000'],
+  nationwide: true,
+  keywords: ['Sykehus', 'sykehus', 'a', 'adgangskontroll'],
+}).state;
+assert.deepEqual(withWords.watch.keywords, ['Sykehus', 'adgangskontroll']);
+assert.notEqual(watchFingerprint(withWords.watch), watchFingerprint(state.watch));
+assert.match(formatMatchLabel({
+  title: 'Scanning av gamle Narvik sykehus',
+  description: 'ombygging',
+  buyer: 'Nordland fylkeskommune',
+  places: ['Nordland/Nordlánnda'],
+  cpvCodes: ['71000000'],
+}, withWords.watch), /Sykehus/);
+assert.match(formatMatchLabel({
+  title: 'Veilys',
+  matchedKeywords: ['bro'],
+  cpvCodes: [],
+}, { ...withWords.watch, keywords: ['bro', 'Sykehus'] }), /^bro$/);
+assert.equal(noticeInArea({ places: ['Nordland/Nordlánnda'], locationIds: ['NO071'] }, { id: 'NO081', name: 'Oslo' }), false);
+assert.equal(noticeInArea({ places: ['Nordland/Nordlánnda'], locationIds: [] }, { id: 'NO071', name: 'Nordland' }), true);
+assert.equal(noticeInArea({ places: ['Møre og Romsdal'], locationIds: [] }, { id: 'NO0A3', name: 'Møre og Romsdal' }), true);
+
+const wordBody = buildDoffinBody({ searchString: 'sykehus', publishedFrom: '2026-09-20' });
+assert.equal(wordBody.searchString, 'sykehus');
+assert.equal(wordBody.facets.cpvCodesId.checkedItems.length, 0);
+assert.equal(wordBody.facets.publicationDate.from, '2026-09-20');
+assert.match(buildTedQuery({ keywords: ['sykehus'], locationIds: ['NO071'] }), /FT~"sykehus"/);
+assert.match(buildTedQuery({ keywords: ['sykehus'], publishedFrom: '2026-09-20' }), /publication-date>=20260920/);
 
 const body = buildDoffinBody({ cpvCodes: ['45000000'], locationIds: ['NO071'] });
 assert.deepEqual(body.facets.cpvCodesId.checkedItems, ['45000000']);

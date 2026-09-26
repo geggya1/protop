@@ -1,144 +1,90 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { formatWhen, LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { attachPortalCatalog } from '../../src/anbud/doffinClient';
+import { formatWhen, portalFromUrl } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
-function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={{ color: colors.muted }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.placeholder}
-        autoCapitalize="none"
-        keyboardType={keyboardType || 'default'}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
-    </View>
-  );
-}
-
-export default function BidDesk({ company, colors, bids, onProfile }) {
-  const [contactName, setContactName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [username, setUsername] = useState('');
-  const [portalUrl, setPortalUrl] = useState(LOGIN_PORTALS[0].url);
-  const [portalName, setPortalName] = useState(LOGIN_PORTALS[0].name);
+export default function BidDesk({ company, colors, bids, onOpenSettings }) {
   const [profile, setProfile] = useState(null);
   const [storedBids, setStoredBids] = useState(bids || []);
-  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
 
   useEffect(() => {
     loadAnbudState().then((state) => {
-      const saved = state.supplierProfile;
-      setProfile(saved);
-      if (!saved) return;
-      setContactName(saved.contactName || '');
-      setEmail(saved.email || '');
-      setPhone(saved.phone || '');
-      setUsername(saved.username || '');
-      setPortalUrl(saved.portalUrl || LOGIN_PORTALS[0].url);
-      setPortalName(saved.portal || LOGIN_PORTALS[0].name);
-      setStoredBids(state.bids || []);
+      setProfile(state.supplierProfile);
+      setStoredBids(state.bids?.length ? state.bids : (bids || []));
     });
   }, [company?.id, bids]);
 
-  async function save() {
+  async function refreshFiles(bid) {
+    setBusyId(bid.id);
+    setNote('');
+    const dossier = await attachPortalCatalog(bid.dossier || {});
     const loaded = await loadAnbudState();
-    const result = saveSupplierProfile(loaded, {
-      companyName: company?.name || '',
-      orgnr: company?.orgnr || '',
-      contactName,
-      email,
-      phone,
-      username,
-      portal: portalName,
-      portalUrl,
-    });
-    if (!result.ok) {
-      setError(result.error);
-      setNote('');
-      return;
-    }
-    await saveAnbudState(result.state);
-    setProfile(result.state.supplierProfile);
-    setError('');
-    setNote('Profilen er registrert. Interesse meldes med dette brukernavnet, og grunnlaget hentes inn i konkurransen.');
-    onProfile?.(result.state.supplierProfile);
+    const next = {
+      ...loaded,
+      bids: (loaded.bids || []).map((row) => (row.id === bid.id ? { ...row, dossier: { ...(row.dossier || {}), ...dossier } } : row)),
+      notices: (loaded.notices || []).map((row) => (row.id === bid.noticeId ? { ...row, dossier: { ...(row.dossier || {}), ...dossier } } : row)),
+    };
+    await saveAnbudState(next);
+    setStoredBids(next.bids);
+    setNote(dossier.portalFiles?.length
+      ? `${dossier.portalFiles.length} dokumenter er lagt i konkurransen. Filene åpnes på portalen.`
+      : (dossier.portalNote || 'Fillisten er oppdatert.'));
+    setBusyId('');
   }
+
+  const rows = storedBids.length ? storedBids : (bids || []);
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[styles.h, { color: colors.ink }]}>Innloggingsportal</Text>
+      <Text style={[styles.h, { color: colors.ink }]}>Tilbudsarbeid</Text>
       <Text style={{ color: colors.muted }}>
-        Velg portalen bedriften logger inn på for å melde interesse og hente dokumenter. Adressen kan endres hvis oppdragsgiver bruker en annen innlogging.
+        Kunngjøring, frister og dokumentliste ligger her. Interesse og filnedlasting fullføres på portalen konkurransen bruker.
       </Text>
-      <Field label="Kontaktperson" value={contactName} onChangeText={setContactName} colors={colors} placeholder="Navn" />
-      <Field label="E-post" value={email} onChangeText={setEmail} colors={colors} placeholder="anbud@firma.no" keyboardType="email-address" />
-      <Field label="Telefon" value={phone} onChangeText={setPhone} colors={colors} placeholder="Telefon" keyboardType="phone-pad" />
-      <Text style={{ color: colors.muted }}>Innloggingsportal</Text>
-      <View style={styles.row}>
-        {LOGIN_PORTALS.map((item) => {
-          const on = portalFromUrl(portalUrl).name === item.name;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => { setPortalUrl(item.url); setPortalName(item.name); }}
-              accessibilityRole="button"
-              style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-            >
-              <Text style={{ color: on ? '#fff' : colors.ink }}>{item.name}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Field label="Adresse til innloggingen" value={portalUrl} onChangeText={(value) => { setPortalUrl(value); setPortalName(portalFromUrl(value).name); }} colors={colors} placeholder="https://app.mercell.com/auth/login?bidding" keyboardType="url" />
-      {portalFromUrl(portalUrl).url ? (
-        <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(portalFromUrl(portalUrl).url)}>Åpne {portalName || 'portalen'}</Text>
-      ) : null}
-      <Field label="Brukernavn" value={username} onChangeText={setUsername} colors={colors} placeholder="Bruker hos portalen" />
-      <TouchableOpacity onPress={save} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-        <Text style={{ color: '#fff' }}>{profile ? 'Oppdater profil' : 'Registrer profil'}</Text>
-      </TouchableOpacity>
-      {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
-      {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {profile ? (
         <Text style={{ color: colors.muted }}>
-          Registrert som {profile.username} · {profile.email} · {profile.portal} · {profile.portalUrl}
+          Innlogging: {profile.username} · {profile.portal}. Endres under Innstillinger.
         </Text>
-      ) : null}
-
-      <Text style={[styles.h, { color: colors.ink }]}>Tilbudsarbeid</Text>
-      <Text style={{ color: colors.muted }}>Konkurranser det er meldt interesse for. Selve tilbudet kommer i et senere trinn.</Text>
-      {(storedBids.length ? storedBids : bids).map((bid) => <BidCard key={bid.id} bid={bid} colors={colors} />)}
-      {!(storedBids.length || bids.length) ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Registrer profilen, merk et treff som aktuelt og meld interesse.</Text> : null}
+      ) : (
+        <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Registrer innloggingsportalen under Innstillinger.</Text>
+        </TouchableOpacity>
+      )}
+      {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
+      {rows.map((bid) => (
+        <BidCard key={bid.id} bid={bid} colors={colors} busy={busyId === bid.id} onRefresh={() => refreshFiles(bid)} />
+      ))}
+      {!rows.length ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Merk et treff som aktuelt og meld interesse.</Text> : null}
     </View>
   );
 }
 
-function BidCard({ bid, colors }) {
+function BidCard({ bid, colors, busy, onRefresh }) {
   const dossier = bid.dossier;
   const interest = bid.interest;
+  const portalName = portalFromUrl(dossier?.interestUrl || dossier?.documentsUrl).name || 'portalen';
+  const interestUrl = dossier?.interestUrl || dossier?.documentsUrl || '';
   return (
     <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       {interest ? (
         <Text style={{ color: colors.ink }}>
-          Interesse meldt som {interest.username} {interest.registeredAt ? formatWhen(interest.registeredAt) : ''}
+          Interesse meldt i ProTop som {interest.username} {interest.registeredAt ? formatWhen(interest.registeredAt) : ''}
         </Text>
       ) : (
-        <Text style={{ color: colors.muted }}>Interesse er ikke registrert på profilen ennå.</Text>
+        <Text style={{ color: colors.muted }}>Interesse er ikke registrert i ProTop ennå.</Text>
       )}
-      {dossier?.documentsUrl ? (
-        <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(dossier.documentsUrl)}>
-          Konkurransens portal: {portalFromUrl(dossier.documentsUrl).name}
+      {interestUrl ? (
+        <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(interestUrl)}>
+          Meld interesse og åpne filene på {portalName}
         </Text>
       ) : null}
+      <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
+        <Text style={{ color: colors.brand }}>{busy ? 'Henter filliste …' : 'Hent filliste'}</Text>
+      </TouchableOpacity>
       {dossier ? <DossierLines dossier={dossier} colors={colors} /> : (
         <Text style={{ color: colors.muted }}>Konkurransegrunnlaget hentes når interessen meldes.</Text>
       )}
@@ -152,16 +98,23 @@ function Line({ label, value, colors }) {
 }
 
 function DossierLines({ dossier, colors }) {
+  const files = dossier.portalFiles || [];
   return (
     <View style={{ gap: 4 }}>
       <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
       <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
       <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
       <Line label="ESPD" value={dossier.espd ? 'Egenerklæring brukes' : ''} colors={colors} />
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Filer</Text>
+      {dossier.description ? <Text style={{ color: colors.ink }}>{dossier.description}</Text> : null}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Dokumenter</Text>
+      {files.length ? files.map((file) => (
+        <Text key={file.name} style={{ color: colors.ink }}>{file.name}{file.size ? ` · ${file.size}` : ''} · åpnes på portalen</Text>
+      )) : null}
       {dossier.documents?.length ? dossier.documents.map((doc) => (
         <Text key={doc.url} style={{ color: colors.brand }} onPress={() => Linking.openURL(doc.url)}>{doc.title}</Text>
-      )) : <Text style={{ color: colors.muted }}>Ingen filer i kunngjøringen.</Text>}
+      )) : null}
+      {!files.length && !dossier.documents?.length ? <Text style={{ color: colors.muted }}>Ingen dokumenter er lest inn ennå.</Text> : null}
+      {!!dossier.portalNote && !files.length ? <Text style={{ color: colors.muted }}>{dossier.portalNote}</Text> : null}
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Spørsmål og svar</Text>
       {dossier.qa?.length ? dossier.qa.map((row) => (
         <Text key={`${row.question}-${row.answer}`} style={{ color: colors.ink }}>{row.question}: {row.answer}</Text>
@@ -172,9 +125,5 @@ function DossierLines({ dossier, colors }) {
 
 const styles = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '600' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
-  save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
 });

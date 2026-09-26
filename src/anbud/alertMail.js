@@ -1,5 +1,7 @@
 /** Varslingspost i samme oppsett som Mercell Tender Discovery. */
 
+import { noticeMatch } from './model.js';
+
 function text(value) {
   return String(value || '').trim();
 }
@@ -23,19 +25,27 @@ function sourceName(source) {
   return 'Doffin';
 }
 
-function matchLine(row, watched) {
-  const codes = Array.isArray(row?.cpvCodes) ? row.cpvCodes : [];
-  const hit = codes.filter((code) => watched.some((item) => code.startsWith(String(item).slice(0, 4)) || String(item).startsWith(code.slice(0, 4))));
-  const shown = (hit.length ? hit : codes).slice(0, 1);
-  if (!shown.length) return 'CPV-søk';
-  const extra = (hit.length || codes.length) - shown.length;
-  return `CPV: ${shown[0]}${extra > 0 ? ` (+${extra} mer)` : ''}`;
+function matchLine(row, watched, keywords) {
+  const found = noticeMatch(row, { cpvCodes: watched, keywords });
+  const parts = [];
+  if (found.cpv.length) {
+    const shown = found.cpv.slice(0, 1);
+    const extra = found.cpv.length - shown.length;
+    parts.push(`CPV: ${shown[0]}${extra > 0 ? ` (+${extra} mer)` : ''}`);
+  } else if ((row?.cpvCodes || []).length) {
+    parts.push(`CPV: ${row.cpvCodes[0]}`);
+  } else if (!found.keywords.length) {
+    parts.push('CPV-søk');
+  }
+  if (found.keywords.length) parts.push(found.keywords.join(', '));
+  return parts.join(' · ') || 'CPV-søk';
 }
 
-export function buildTenderAlert({ companyName, cpvCodes, notices } = {}) {
+export function buildTenderAlert({ companyName, cpvCodes, keywords, notices } = {}) {
   const name = text(companyName) || 'Bedriften';
   const rows = (Array.isArray(notices) ? notices : []).slice(0, 40);
   const watched = (Array.isArray(cpvCodes) ? cpvCodes : []).map((row) => text(row?.code || row)).filter(Boolean);
+  const words = Array.isArray(keywords) ? keywords : [];
   const fresh = rows.filter((row) => row.isNew).length || rows.length;
   const subject = `Oppdatering fra anbudsvarsling — ${name}`;
   const lines = [
@@ -54,7 +64,7 @@ export function buildTenderAlert({ companyName, cpvCodes, notices } = {}) {
     if (row.places?.length) lines.push(row.places.join(', '));
     if (row.description) lines.push(clip(row.description));
     if (row.url) lines.push(row.url);
-    lines.push(`Matcher: ${matchLine(row, watched)}`);
+    lines.push(`Matcher: ${matchLine(row, watched, words)}`);
     lines.push('');
   }
   if (!rows.length) lines.push('Ingen nye treff denne gangen.');
@@ -68,7 +78,7 @@ export function buildTenderAlert({ companyName, cpvCodes, notices } = {}) {
         <a href="${row.url || '#'}" style="color:#0b57d0;text-decoration:none;">${row.title || 'Kunngjøring'}</a>
         <div style="color:#333;margin-top:4px;">${row.buyer || ''}</div>
         <div style="color:#667;margin-top:4px;">${clip(row.description, 140)}</div>
-        <div style="margin-top:6px;">Matcher: ${matchLine(row, watched)}</div>
+        <div style="margin-top:6px;">Matcher: ${matchLine(row, watched, words)}</div>
       </td>
     </tr>`).join('');
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1a1a1a;">
@@ -82,7 +92,7 @@ export function buildTenderAlert({ companyName, cpvCodes, notices } = {}) {
       </tr></thead>
       <tbody>${items || '<tr><td colspan="4">Ingen nye treff.</td></tr>'}</tbody>
     </table>
-    <p style="color:#667;">Varselet er laget i ProTop ut fra CPV-kodene og området som er satt på anbudsvarslingen.</p>
+    <p style="color:#667;">Varselet er laget i ProTop ut fra CPV-kodene, søkeordene og området som er satt på anbudsvarslingen.</p>
   </body></html>`;
   return { subject, text: textBody, html, count: rows.length };
 }

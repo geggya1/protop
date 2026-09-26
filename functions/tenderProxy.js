@@ -6,6 +6,7 @@ import * as logger from 'firebase-functions/logger';
 import { searchDoffinNotices } from './anbud/doffinQuery.js';
 import { searchTedNotices } from './anbud/tedQuery.js';
 import { lookupCompanyCpv } from './anbud/companyLookup.js';
+import { readPortalCatalog } from '../src/anbud/portalCatalog.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
@@ -55,6 +56,16 @@ export const tenderProxy = onRequest(
       if (action === 'lookup') {
         const data = await lookupCompanyCpv(body.orgnr);
         res.json(data);
+        return;
+      }
+      if (action === 'catalog') {
+        try {
+          const data = await readPortalCatalog(body.url);
+          res.json(data);
+        } catch (err) {
+          const status = err?.code === 'invalid-argument' ? 400 : 502;
+          res.status(status).json({ ok: false, error: err?.message || 'Kunne ikke lese fillisten.' });
+        }
         return;
       }
       if (action === 'dossier') {

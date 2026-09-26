@@ -54,6 +54,7 @@ export function emptyAnbudState() {
     watch: {
       companyName: '',
       cpvCodes: [],
+      keywords: [],
       areas: [],
       nationwide: false,
       savedAt: null,
@@ -64,6 +65,7 @@ export function emptyAnbudState() {
     bids: [],
     supplierProfile: null,
     syncedAt: null,
+    queryKey: '',
   };
 }
 
@@ -81,11 +83,13 @@ export function normalizeAnbudState(raw) {
       notify: normalizeNotify(watch.notify),
       emails: normalizeEmails(watch.emails),
       naeringskoder: normalizeTrades(watch.naeringskoder),
+      keywords: normalizeKeywords(watch.keywords),
     },
     notices: Array.isArray(src.notices) ? src.notices : [],
     bids: Array.isArray(src.bids) ? src.bids : [],
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     syncedAt: src.syncedAt || null,
+    queryKey: text(src.queryKey),
   };
 }
 
@@ -182,6 +186,7 @@ export function saveTenderWatch(state, input) {
       notify: normalizeNotify(input?.notify),
       emails: normalizeEmails(input?.emails),
       naeringskoder: normalizeTrades(input?.naeringskoder),
+      keywords: normalizeKeywords(input?.keywords),
     },
   });
 }
@@ -231,13 +236,106 @@ function normalizeTrades(input) {
   return out;
 }
 
+export function normalizeKeywords(input) {
+  const rows = Array.isArray(input) ? input : String(input || '').split(/[,;\n]/);
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const value = text(row).replace(/\s+/g, ' ');
+    const key = fold(value);
+    if (key.length < 2 || value.length > 60 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+function fold(value) {
+  return String(value || '')
+    .toLocaleLowerCase('nb-NO')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export function watchQuery(watch) {
   if (!watch?.companyName || !watch.cpvCodes?.length) return null;
   if (!watch.nationwide && !watch.areas?.length) return null;
   return {
     cpvCodes: watch.cpvCodes.map((row) => row.code),
     locationIds: watch.nationwide ? [] : watch.areas.map((row) => row.id),
+    keywords: normalizeKeywords(watch.keywords),
   };
+}
+
+export function watchFingerprint(watch) {
+  const cpv = (watch?.cpvCodes || []).map((row) => text(row?.code || row)).filter(Boolean).sort();
+  const areas = watch?.nationwide ? ['*'] : (watch?.areas || []).map((row) => text(row?.id || row)).filter(Boolean).sort();
+  const channels = (Array.isArray(watch?.channels) ? watch.channels : []).map((row) => text(row)).filter(Boolean).sort();
+  const keywords = normalizeKeywords(watch?.keywords).map((row) => fold(row)).sort();
+  return JSON.stringify({ cpv, areas, channels, keywords });
+}
+
+export function latestPublished(notices) {
+  const dates = (Array.isArray(notices) ? notices : [])
+    .map((row) => String(row?.publishedAt || '').slice(0, 10))
+    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row))
+    .sort();
+  return dates.length ? dates[dates.length - 1] : '';
+}
+
+export function noticeMatch(notice, watch) {
+  const watched = (watch?.cpvCodes || []).map((row) => text(row?.code || row)).filter(Boolean);
+  const codes = Array.isArray(notice?.cpvCodes) ? notice.cpvCodes : [];
+  const cpv = codes.filter((code) => watched.some((item) => {
+    const left = String(code).replace(/\D/g, '');
+    const right = String(item).replace(/\D/g, '');
+    if (left.length < 2 || right.length < 2) return false;
+    return left.startsWith(right.slice(0, 4)) || right.startsWith(left.slice(0, 4));
+  }));
+  const hay = fold([
+    notice?.title,
+    notice?.description,
+    notice?.buyer,
+    notice?.noticeType,
+    ...(notice?.places || []),
+  ].join(' '));
+  const keywords = normalizeKeywords(watch?.keywords).filter((word) => hay.includes(fold(word)));
+  const tagged = normalizeKeywords(notice?.matchedKeywords).filter((word) => (
+    normalizeKeywords(watch?.keywords).some((item) => fold(item) === fold(word))
+  ));
+  const seen = new Set();
+  const words = [];
+  for (const word of [...keywords, ...tagged]) {
+    const key = fold(word);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    words.push(word);
+  }
+  return { cpv, keywords: words };
+}
+
+export function formatMatchLabel(notice, watch) {
+  const found = noticeMatch(notice, watch);
+  const parts = [];
+  if (found.cpv.length) parts.push(found.cpv.slice(0, 2).join(', '));
+  if (found.keywords.length) parts.push(found.keywords.join(', '));
+  if (parts.length) return parts.join(' · ');
+  const fallback = (notice?.cpvCodes || []).slice(0, 2);
+  return fallback.length ? fallback.join(', ') : 'CPV-søk';
+}
+
+export function noticeInArea(notice, area) {
+  if (!area?.id && !area?.name) return true;
+  const ids = Array.isArray(notice?.locationIds) ? notice.locationIds : [];
+  if (area.id && ids.includes(area.id)) return true;
+  const name = fold(area.name);
+  if (!name) return false;
+  const segments = String((notice?.places || []).join(','))
+    .split(/[,/;|]/)
+    .map((part) => fold(part).trim())
+    .filter(Boolean);
+  return segments.some((part) => part === name || part.startsWith(`${name} `));
 }
 
 function asList(value) {
@@ -267,6 +365,7 @@ export function normalizeDoffinHit(hit) {
     source: text(hit?.source) || 'doffin',
     noticeType: text(hit?.noticeType) || 'Kunngjøring av konkurranse',
     cpvCodes: asList(hit?.cpvCodes),
+    matchedKeywords: normalizeKeywords(hit?.matchedKeywords),
   };
 }
 
@@ -279,22 +378,24 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
   }
   const previous = new Map((state.notices || []).map((row) => [row.id, row]));
   const firstSync = !state.syncedAt;
-  const notices = [...byId.values()]
-    .map((row) => {
-      const kept = previous.get(row.id);
-      return {
-        ...row,
-        decision: kept?.decision || 'ubestemt',
-        interestAt: kept?.interestAt || null,
-        dossier: kept?.dossier || null,
-        isNew: !firstSync && !previous.has(row.id),
-      };
-    })
-    .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
+  const notices = [...byId.values()].map((row) => {
+    const kept = previous.get(row.id);
+    const decided = kept?.decision && kept.decision !== 'ubestemt';
+    return {
+      ...row,
+      decision: kept?.decision || 'ubestemt',
+      interestAt: kept?.interestAt || null,
+      interest: kept?.interest || null,
+      dossier: kept?.dossier || null,
+      isNew: kept ? (decided ? false : !!kept.isNew) : !firstSync,
+      matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
+    };
+  });
   for (const [id, kept] of previous) {
     if (byId.has(id)) continue;
-    notices.push({ ...kept, isNew: false });
+    notices.push(kept);
   }
+  notices.sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
   return ok({
     ...state,
     notices,
@@ -322,6 +423,7 @@ export function setNoticeDecision(state, id, decision) {
         ? {
           ...row,
           decision,
+          isNew: decision === 'ubestemt' ? !!row.isNew : false,
           interestAt: decision === 'aktuell' ? (row.interestAt || new Date().toISOString()) : row.interestAt,
         }
         : row

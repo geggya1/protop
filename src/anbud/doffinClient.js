@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { searchTedNotices } from './tedQuery';
 import { summarizeNotice } from './dossier';
+import { interestUrlFromDocs } from './portalCatalog';
 
 const LOCAL_SEARCH = 'http://127.0.0.1:8787/search';
 const LOCAL_COMPANY = 'http://127.0.0.1:8787/company';
@@ -44,6 +45,58 @@ export async function fetchTenderHits(query) {
   return data;
 }
 
+function rememberHit(map, hit, words) {
+  const id = String(hit?.id || '').trim();
+  if (!id) return;
+  const prev = map.get(id);
+  const matchedKeywords = [...new Set([
+    ...(prev?.matchedKeywords || []),
+    ...(hit?.matchedKeywords || []),
+    ...words,
+  ].map((word) => String(word || '').trim()).filter(Boolean))];
+  map.set(id, { ...(prev || {}), ...hit, ...(matchedKeywords.length ? { matchedKeywords } : {}) });
+}
+
+/** Henter CPV-treff og, i tillegg, treff på registrerte søkeord. Tidligere rader slås sammen av kaller. */
+export async function fetchWatchHits({ cpvCodes, locationIds, channels, keywords, publishedFrom } = {}) {
+  const data = await fetchTenderHits({ cpvCodes, locationIds, channels, publishedFrom });
+  const byId = new Map();
+  for (const hit of data.hits || []) rememberHit(byId, hit, []);
+  const words = (Array.isArray(keywords) ? keywords : []).map((word) => String(word || '').trim()).filter((word) => word.length >= 2).slice(0, 8);
+  const channelList = Array.isArray(channels) && channels.length ? channels : ['doffin', 'ted'];
+  await Promise.all(words.map(async (word) => {
+    const jobs = [
+      fetchTenderHits({
+        cpvCodes: [],
+        locationIds,
+        channels: channelList,
+        publishedFrom,
+        searchString: word,
+        keywords: [word],
+      }).then((extra) => {
+        for (const hit of extra.hits || []) rememberHit(byId, hit, [word]);
+      }).catch(() => {}),
+    ];
+    if (channelList.includes('ted')) {
+      jobs.push(searchTedNotices({
+        keywords: [word],
+        locationIds,
+        publishedFrom,
+        numHitsPerPage: 15,
+      }).then((extra) => {
+        for (const hit of extra.hits || []) rememberHit(byId, hit, [word]);
+      }).catch(() => {}));
+    }
+    await Promise.all(jobs);
+  }));
+  return {
+    ok: true,
+    hits: [...byId.values()],
+    errors: data.errors || [],
+    fetchedAt: data.fetchedAt || new Date().toISOString(),
+  };
+}
+
 export async function fetchRegisterExtras(orgnr) {
   const res = await fetch('/api/tender-proxy', {
     method: 'POST',
@@ -80,6 +133,46 @@ export async function fetchCompanyCpv(orgnr) {
   const call = httpsCallable(functions, 'lookupCompany', { timeout: 60000 });
   const res = await call({ orgnr });
   return res.data;
+}
+
+/** Henter den offentlige fillisten hos Mercell. Filinnholdet åpnes på portalen. */
+export async function fetchPortalCatalog(url) {
+  const interestUrl = interestUrlFromDocs(url);
+  try {
+    const res = await fetch('/api/tender-proxy', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'catalog', url }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.ok && Array.isArray(data.files)) {
+      return { ...data, interestUrl: data.interestUrl || interestUrl };
+    }
+  } catch {
+    // Katalogen ligger bak proxyen. Interessen kan likevel åpnes på portalen.
+  }
+  return {
+    ok: false,
+    files: [],
+    interestUrl,
+    gated: true,
+    note: interestUrl
+      ? 'Fillisten er ikke hentet ennå. Interessen og filene åpnes på portalen.'
+      : 'Dokumentene åpnes på innloggingsportalen som er satt under Innstillinger.',
+  };
+}
+
+export async function attachPortalCatalog(dossier) {
+  if (!dossier || typeof dossier !== 'object') return dossier;
+  const url = dossier.documentsUrl || dossier.documents?.[0]?.url || '';
+  if (!url) return dossier;
+  const catalog = await fetchPortalCatalog(url);
+  return {
+    ...dossier,
+    interestUrl: catalog.interestUrl || dossier.interestUrl || '',
+    portalFiles: catalog.files?.length ? catalog.files : (dossier.portalFiles || []),
+    portalNote: catalog.note || '',
+  };
 }
 
 /** Henter kunngjøring, dokumentlenker, ESPD-grunnlag og spørsmålsfrist. */

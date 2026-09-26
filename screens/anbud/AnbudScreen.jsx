@@ -3,10 +3,12 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useColors } from '../../src/context/ThemeContext';
 import TenderAlert from './TenderAlert';
 import BidDesk from './BidDesk';
+import PortalSettings from './PortalSettings';
 
 const STEPS = [
   ['varsling', 'Trinn 1 · Anbudsvarsling'],
   ['tilbud', 'Trinn 2 · Tilbudsarbeid'],
+  ['innstillinger', 'Innstillinger'],
 ];
 
 export default function AnbudScreen({ company }) {
@@ -32,9 +34,11 @@ export default function AnbudScreen({ company }) {
           );
         })}
       </View>
-      {step === 'varsling' ? <TenderAlert company={company} colors={colors} onBids={setBids} /> : (
-        <BidDesk company={company} colors={colors} bids={bids} />
-      )}
+      {step === 'varsling' ? (
+        <TenderAlert company={company} colors={colors} onBids={setBids} onOpenSettings={() => setStep('innstillinger')} />
+      ) : null}
+      {step === 'tilbud' ? <BidDesk company={company} colors={colors} bids={bids} onOpenSettings={() => setStep('innstillinger')} /> : null}
+      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} /> : null}
     </ScrollView>
   );
 }

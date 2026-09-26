@@ -16,17 +16,25 @@ function placesOf(values) {
     .filter((id) => /^(NO[0-9A-Z]{1,6}|anyw)$/.test(id)))];
 }
 
-export function buildDoffinBody({ cpvCodes, locationIds, page = 1, numHitsPerPage = 50 } = {}) {
+function publishedFromOf(value) {
+  const raw = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
+export function buildDoffinBody({
+  cpvCodes, locationIds, page = 1, numHitsPerPage = 50, searchString = '', publishedFrom = '',
+} = {}) {
   const codes = codesOf(cpvCodes);
-  if (!codes.length) {
-    const error = new Error('Minst én CPV-kode må følge med.');
+  const query = String(searchString || '').trim().slice(0, 80);
+  if (!codes.length && !query) {
+    const error = new Error('Minst én CPV-kode eller et søkeord må følge med.');
     error.code = 'invalid-argument';
     throw error;
   }
   return {
     numHitsPerPage: Math.min(50, Math.max(1, Number(numHitsPerPage) || 50)),
     page: Math.max(1, Number(page) || 1),
-    searchString: '',
+    searchString: query,
     sortBy: 'PUBLICATION_DATE_DESC',
     facets: {
       cpvCodesLabel: { checkedItems: [] },
@@ -35,7 +43,7 @@ export function buildDoffinBody({ cpvCodes, locationIds, page = 1, numHitsPerPag
       status: { checkedItems: ['ACTIVE'] },
       contractNature: { checkedItems: [] },
       procurementStrategicLabels: { checkedItems: [] },
-      publicationDate: { from: null, to: null },
+      publicationDate: { from: publishedFromOf(publishedFrom), to: null },
       location: { checkedItems: placesOf(locationIds) },
       buyer: { checkedItems: [] },
       winner: { checkedItems: [] },

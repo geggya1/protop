@@ -39,6 +39,7 @@ export const APPS_TABLE = {
 
   shell: {
     main: L('Hoved', 'Main', 'Hoved', 'Huvud', 'Pää', 'Główne', 'Principal', 'Principal', 'Haupt'),
+    company: L('Bedrift', 'Company', 'Virksomhed', 'Företag', 'Yritys', 'Firma', 'Empresa', 'Entreprise', 'Unternehmen'),
     apps: L('Apper', 'Apps', 'Apps', 'Appar', 'Sovellukset', 'Aplikacje', 'Apps', 'Applis', 'Apps'),
     account: L('Konto', 'Account', 'Konto', 'Konto', 'Tili', 'Konto', 'Cuenta', 'Compte', 'Konto'),
     school: L('Skole', 'School', 'Skole', 'Skola', 'Koulu', 'Szkoła', 'Escuela', 'École', 'Schule'),

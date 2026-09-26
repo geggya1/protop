@@ -9,6 +9,17 @@ import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js
 import { isOrganizationType } from '../utils/groupTypes.js';
 
 /**
+ * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
+ * ikke blant de personlige punktene i Hoved.
+ */
+export function companyNavItems() {
+  return [
+    { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
+    { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+  ];
+}
+
+/**
  * Parent "Gjøremål" opens chore management for a child. Chores are child-only
  * in the shell (the chores tab redirects parents to Home), and ChoreSettings is
  * per-child, so we target the family's first active child — the same path the
@@ -75,13 +86,6 @@ export function buildShellModules({
   mainItems.push(
     { id: 'notes', icon: 'document-text', label: t('tabs.notes'), action: { type: 'tab', tab: 'notes' } },
   );
-  const onCompany = isOrganizationType(family?.type);
-  if (onCompany) {
-    mainItems.push(
-      { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
-      { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
-    );
-  }
 
   sections.push({
     id: 'main',
@@ -279,12 +283,24 @@ export function buildShellModules({
 
   sections.push({ id: 'account', title: t('shell.account'), items: accountItems });
 
+  const onCompany = isOrganizationType(family?.type);
+  if (onCompany) {
+    const accountAt = sections.findIndex((section) => section.id === 'account');
+    const companySection = {
+      id: 'company',
+      title: t('shell.company'),
+      items: companyNavItems(),
+    };
+    if (accountAt >= 0) sections.splice(accountAt, 0, companySection);
+    else sections.push(companySection);
+  }
+
   const visible = asChild
     ? applyChildAppRestrictions(sections, allowedApps)
     : isGrandparent
       ? applyGrandparentAppRestrictions(sections, grandparentModules)
       : sections;
-  return applyProtopShellSections(visible, onCompany ? ['anbud', 'projects'] : []);
+  return applyProtopShellSections(visible, onCompany ? companyNavItems().map((item) => item.id) : []);
 }
 
 /**

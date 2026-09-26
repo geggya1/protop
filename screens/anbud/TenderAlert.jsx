@@ -5,7 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { fetchCompetitionFile, fetchWatchHits, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
   emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, registerInterest, saveTenderWatch, setNoticeDecision, watchFingerprint, watchQuery,
@@ -60,7 +60,7 @@ function Chip({ label, on, onPress, colors, hint }) {
   );
 }
 
-export default function TenderAlert({ company, colors, onBids }) {
+export default function TenderAlert({ company, colors, onBids, onOpenSettings }) {
   const { width } = useWindowDimensions();
   const wide = width >= 860;
   const [state, setState] = useState(emptyAnbudState());
@@ -271,7 +271,8 @@ export default function TenderAlert({ company, colors, onBids }) {
       supplierProfile: stored.supplierProfile || stateRef.current.supplierProfile,
     };
     if (!base.supplierProfile?.username || !base.supplierProfile?.portalUrl) {
-      setError('Registrer innloggingsportalen i trinn 2 før interesse meldes.');
+      setError('Registrer innloggingsportalen under Innstillinger før interesse meldes.');
+      onOpenSettings?.();
       return;
     }
     setSyncing(true);
@@ -281,6 +282,7 @@ export default function TenderAlert({ company, colors, onBids }) {
       if (/^\d{4}-\d+$/.test(String(id))) {
         const file = await fetchCompetitionFile(id);
         dossier = file?.dossier || null;
+        if (dossier) dossier = await attachPortalCatalog(dossier);
       }
     } catch (err) {
       setError(err?.message || 'Kunne ikke hente konkurransegrunnlaget. Interessen meldes likevel.');
@@ -289,7 +291,8 @@ export default function TenderAlert({ company, colors, onBids }) {
     if (!result.ok) setError(result.error);
     else {
       const who = result.state.supplierProfile.username;
-      setSavedNote(`Interesse er meldt som ${who} på ${result.state.supplierProfile.portal}. Grunnlag, frister og filer ligger i trinn 2.`);
+      const files = dossier?.portalFiles?.length ? ` ${dossier.portalFiles.length} dokumenter er listet.` : '';
+      setSavedNote(`Interesse er meldt som ${who}. Grunnlag og filliste ligger i tilbudsarbeidet.${files} Filene åpnes på ${result.state.supplierProfile.portal}.`);
       setState(result.state);
     }
     setSyncing(false);

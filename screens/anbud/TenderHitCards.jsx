@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Linking, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { formatMatchLabel, formatWhen } from '../../src/anbud/model';
 
@@ -72,10 +72,16 @@ export default function TenderHitCards({
             Kolonnefilter{activeFilters ? ` (${activeFilters})` : ''}
           </Text>
         </TouchableOpacity>
-        <Text style={{ color: colors.muted, fontSize: 13, alignSelf: 'center' }}>{rows.length} treff</Text>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{rows.length} treff</Text>
       </View>
       {sortOpen ? (
-        <View style={styles.tools}>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          style={styles.toolScroll}
+          contentContainerStyle={styles.toolScrollContent}
+        >
           {columns.map((col) => {
             const on = sort.key === col.key;
             return (
@@ -92,31 +98,38 @@ export default function TenderHitCards({
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       ) : null}
       {filtersOpen ? (
-        <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          style={styles.toolScroll}
+          contentContainerStyle={styles.toolScrollContent}
+        >
           {columns.map((col) => (
             <View key={col.key} style={styles.filterField}>
-              <Text style={[styles.metaLabel, { color: colors.muted }]}>{col.label}</Text>
+              <Text style={[styles.filterLabel, { color: colors.muted }]}>{col.label}</Text>
               <TextInput
                 value={colFilter[col.key] || ''}
                 onChangeText={(value) => onColFilter((current) => ({ ...current, [col.key]: value }))}
                 placeholder="Filtrer"
                 placeholderTextColor={colors.placeholder}
                 accessibilityLabel={`Filtrer ${col.label}`}
-                style={[styles.filterInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                style={[styles.filterInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
               />
             </View>
           ))}
-        </View>
+        </ScrollView>
       ) : null}
       {rows.map((row) => {
         const open = openId === row.id;
         const aktuell = row.decision === 'aktuell';
         const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv';
         const soon = soonDeadline(row);
-        const place = (row.places || []).join(', ');
+        const place = Array.isArray(row.places) ? row.places.filter(Boolean).join(', ') : String(row.places || '');
+        const match = formatMatchLabel(row, matchWatch);
         return (
           <View
             key={row.id}
@@ -125,52 +138,50 @@ export default function TenderHitCards({
               backgroundColor: aktuell ? colors.brandSoft : colors.card,
             }]}
           >
-            <TouchableOpacity
-              onPress={() => onToggle(row.id)}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: open }}
-              accessibilityLabel={`${row.title}. ${sourceName(row)}. Publisert ${day(row.publishedAt)}. Frist ${day(row.deadline)}`}
-              style={styles.cardBody}
-            >
-              <View style={styles.cardHead}>
-                <Text style={[styles.title, { color: colors.ink }]}>{row.title}</Text>
-                <Text style={[styles.chevron, { color: colors.muted }]}>{open ? '▴' : '▾'}</Text>
-              </View>
-              <Text style={[styles.buyer, { color: colors.ink }]}>{row.buyer || '—'}</Text>
-              <Text style={[styles.place, { color: colors.muted }]}>{place || '—'}</Text>
-              <View style={styles.facts}>
-                <Text style={[styles.fact, { color: colors.brand, fontWeight: '600' }]}>{sourceName(row)}</Text>
-                <Text style={[styles.fact, { color: colors.muted }]}>·</Text>
-                <Text style={[styles.fact, { color: colors.muted }]}>
-                  Publisert <Text style={{ color: colors.ink }}>{day(row.publishedAt)}</Text>
-                </Text>
-                <Text style={[styles.fact, { color: colors.muted }]}>·</Text>
-                <Text style={[styles.fact, { color: colors.muted }]}>
-                  Frist <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '600' : '400' }}>{day(row.deadline)}</Text>
-                </Text>
-              </View>
-              <Text style={[styles.match, { color: colors.ink }]}>
-                <Text style={{ color: colors.muted }}>Matcher </Text>
-                {formatMatchLabel(row, matchWatch)}
-              </Text>
-            </TouchableOpacity>
-            <View style={styles.actions}>
+            <View style={styles.cardRow}>
               <TouchableOpacity
-                onPress={() => onMark(row.id, 'aktuell')}
+                onPress={() => onToggle(row.id)}
                 accessibilityRole="button"
-                accessibilityLabel={`Merk ${row.title} som aktuell`}
-                style={[styles.action, { backgroundColor: aktuell ? colors.brand : colors.sunken, borderColor: aktuell ? colors.brand : colors.line }]}
+                accessibilityState={{ expanded: open }}
+                accessibilityLabel={`${row.title}. ${sourceName(row)}. Publisert ${day(row.publishedAt)}. Frist ${day(row.deadline)}`}
+                style={styles.cardBody}
               >
-                <Text style={{ color: aktuell ? '#fff' : colors.ink, fontSize: 14 }}>Aktuell</Text>
+                <Text style={[styles.title, { color: colors.ink }]} numberOfLines={open ? undefined : 2}>{row.title}</Text>
+                <Text style={[styles.buyer, { color: colors.ink }]} numberOfLines={1}>
+                  {row.buyer || '—'}
+                  <Text style={{ color: colors.muted }}>{` · ${place || '—'}`}</Text>
+                </Text>
+                <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={1}>
+                  <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '600' : '400' }}>
+                    {`Frist ${day(row.deadline)}`}
+                  </Text>
+                  {` · `}
+                  <Text style={{ color: colors.brand, fontWeight: '600' }}>{sourceName(row)}</Text>
+                  {` · ${day(row.publishedAt)}`}
+                </Text>
+                <Text style={[styles.meta, { color: colors.ink }]} numberOfLines={1}>
+                  <Text style={{ color: colors.muted }}>Matcher </Text>
+                  {match}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => onMark(row.id, 'forkastet')}
-                accessibilityRole="button"
-                accessibilityLabel={`Merk ${row.title} som uaktuell`}
-                style={[styles.action, { backgroundColor: uaktuell ? colors.danger : colors.sunken, borderColor: uaktuell ? colors.danger : colors.line }]}
-              >
-                <Text style={{ color: uaktuell ? '#fff' : colors.ink, fontSize: 14 }}>Uaktuell</Text>
-              </TouchableOpacity>
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  onPress={() => onMark(row.id, 'aktuell')}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Merk ${row.title} som aktuell`}
+                  style={[styles.action, { backgroundColor: aktuell ? colors.brand : colors.sunken, borderColor: aktuell ? colors.brand : colors.line }]}
+                >
+                  <Text style={{ color: aktuell ? '#fff' : colors.ink, fontSize: 13 }}>Aktuell</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onMark(row.id, 'forkastet')}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Merk ${row.title} som uaktuell`}
+                  style={[styles.action, { backgroundColor: uaktuell ? colors.danger : colors.sunken, borderColor: uaktuell ? colors.danger : colors.line }]}
+                >
+                  <Text style={{ color: uaktuell ? '#fff' : colors.ink, fontSize: 13 }}>Uaktuell</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             {open ? (
               <View style={[styles.detail, { borderTopColor: colors.line }]}>
@@ -198,33 +209,29 @@ export default function TenderHitCards({
 }
 
 const styles = StyleSheet.create({
-  list: { gap: 10, width: '100%' },
+  list: { gap: 6, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   tools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   tool: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  filters: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
-  filterField: { gap: 4 },
-  filterInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
-  card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 10 },
-  cardBody: { gap: 4 },
-  cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  title: { flex: 1, fontSize: 16, fontWeight: '600', lineHeight: 21 },
-  chevron: { fontSize: 14, lineHeight: 20, marginTop: 2 },
-  buyer: { fontSize: 14, fontWeight: '400' },
-  place: { fontSize: 13, fontWeight: '400' },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  fact: { fontSize: 13, fontWeight: '400' },
-  match: { fontSize: 13, fontWeight: '400' },
-  metaLabel: { fontSize: 12, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 8 },
+  toolScroll: { width: '100%', maxWidth: '100%', flexGrow: 0 },
+  toolScrollContent: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingVertical: 2 },
+  filterField: { width: 148, gap: 4 },
+  filterLabel: { fontSize: 12, fontWeight: '600' },
+  filterInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 16 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 8, gap: 8, width: '100%', maxWidth: '100%' },
+  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardBody: { flex: 1, minWidth: 0, gap: 2 },
+  title: { fontSize: 15, fontWeight: '600', lineHeight: 19 },
+  buyer: { fontSize: 13, fontWeight: '400' },
+  meta: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
+  actions: { width: 92, gap: 6 },
   action: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 10,
+    minHeight: 36,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
-  detail: { borderTopWidth: 1, paddingTop: 10, gap: 8 },
+  detail: { borderTopWidth: 1, paddingTop: 8, gap: 8 },
   interest: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

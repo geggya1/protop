@@ -12,6 +12,8 @@ import {
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
+import { BREAKPOINTS } from '../../src/theme';
+import TenderHitCards from './TenderHitCards';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -63,6 +65,8 @@ function Chip({ label, on, onPress, colors, hint }) {
 export default function TenderAlert({ company, colors, onBids, onOpenSettings }) {
   const { width } = useWindowDimensions();
   const wide = width >= 860;
+  // Telefon under 768 px. Nettbrett og web beholder tabellen.
+  const phone = width < BREAKPOINTS.tablet;
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -445,6 +449,24 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
+        {phone ? (
+          <TenderHitCards
+            rows={rows}
+            columns={COLUMNS}
+            colors={colors}
+            sort={sort}
+            onSort={setSort}
+            colFilter={colFilter}
+            onColFilter={setColFilter}
+            openId={openId}
+            onToggle={(id) => setOpenId(openId === id ? '' : id)}
+            onMark={mark}
+            onInterest={expressInterest}
+            matchWatch={matchWatch}
+            archiveOn={archiveOn}
+            syncing={syncing}
+          />
+        ) : (
         <ScrollView
           horizontal
           nestedScrollEnabled
@@ -538,6 +560,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}</Text> : null}
         </View>
         </ScrollView>
+        )}
       </View>
       <View style={[styles.side, wide && styles.sideWide]}>
         {summary}

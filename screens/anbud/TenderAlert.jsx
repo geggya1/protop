@@ -5,10 +5,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { fetchCompetitionFile, fetchTenderHits, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { fetchCompetitionFile, fetchWatchHits, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  emptyAnbudState, formatWhen, mergeTenderNotices, normalizeCpvCode, registerInterest, saveTenderWatch, setNoticeDecision, watchQuery,
+  emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, registerInterest, saveTenderWatch, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
@@ -19,6 +19,32 @@ const FILTERS = [
   ['aktuelle', 'Aktuelle'],
 ];
 
+const COLUMNS = [
+  { key: 'publishedAt', label: 'Publisert', width: 120, kind: 'date' },
+  { key: 'source', label: 'Type', width: 90, kind: 'text' },
+  { key: 'deadline', label: 'Frist', width: 110, kind: 'date' },
+  { key: 'title', label: 'Konkurranse', width: 340, kind: 'text' },
+  { key: 'buyer', label: 'Oppdragsgiver', width: 170, kind: 'text' },
+  { key: 'place', label: 'Sted', width: 150, kind: 'text' },
+  { key: 'match', label: 'Matcher', width: 160, kind: 'text' },
+];
+
+function fold(value) {
+  return String(value || '')
+    .toLocaleLowerCase('nb-NO')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function columnValue(row, key, watch) {
+  if (key === 'source') return row.source === 'ted' ? 'TED' : 'Doffin';
+  if (key === 'place') return (row.places || []).join(', ');
+  if (key === 'match') return formatMatchLabel(row, watch);
+  if (key === 'buyer') return row.buyer || '';
+  if (key === 'title') return row.title || '';
+  return row[key] || '';
+}
+
 function day(value) {
   const raw = String(value || '');
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -26,9 +52,9 @@ function day(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-function Chip({ label, on, onPress, colors }) {
+function Chip({ label, on, onPress, colors, hint }) {
   return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}>
+    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={hint || label} style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}>
       <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>{label}</Text>
     </TouchableOpacity>
   );
@@ -47,6 +73,8 @@ export default function TenderAlert({ company, colors, onBids }) {
   const [cpvQuery, setCpvQuery] = useState('');
   const [customCpv, setCustomCpv] = useState('');
   const [tradeDraft, setTradeDraft] = useState('');
+  const [keywordDraft, setKeywordDraft] = useState('');
+  const [keywords, setKeywords] = useState([]);
   const [emailDraft, setEmailDraft] = useState('');
   const [selectedCpv, setSelectedCpv] = useState(() => new Set());
   const [trades, setTrades] = useState([]);
@@ -60,6 +88,10 @@ export default function TenderAlert({ company, colors, onBids }) {
   const [showCriteria, setShowCriteria] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(true);
   const [archiveOn, setArchiveOn] = useState(false);
+  const [areaId, setAreaId] = useState('');
+  const [areaOpen, setAreaOpen] = useState(false);
+  const [sort, setSort] = useState({ key: 'publishedAt', dir: 'desc' });
+  const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
@@ -79,6 +111,7 @@ export default function TenderAlert({ company, colors, onBids }) {
       setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
       setNotify(watch.notify || { push: true, varsel: true, email: false });
       setEmails(watch.emails || []);
+      setKeywords(watch.keywords || []);
       setState(loaded);
       setReady(true);
     });
@@ -137,10 +170,11 @@ export default function TenderAlert({ company, colors, onBids }) {
       notify,
       emails,
       naeringskoder: trades,
+      keywords,
     };
   }
 
-  async function refresh(nextState) {
+  async function refresh(nextState, manual = false) {
     const draft = saveTenderWatch(nextState, inputFromForm());
     const active = watchQuery(draft.ok ? draft.state.watch : nextState.watch);
     if (!active) {
@@ -150,11 +184,27 @@ export default function TenderAlert({ company, colors, onBids }) {
     setSyncing(true);
     setError('');
     try {
-      const data = await fetchTenderHits({ ...active, channels: draft.ok ? draft.state.watch.channels : nextState.watch.channels });
-      const base = draft.ok ? { ...nextState, watch: draft.state.watch } : nextState;
+      const watch = draft.ok ? draft.state.watch : nextState.watch;
+      const fingerprint = watchFingerprint(watch);
+      const sameSearch = nextState.queryKey === fingerprint && (nextState.notices || []).length > 0;
+      const publishedFrom = sameSearch ? latestPublished(nextState.notices) : '';
+      const known = new Set((nextState.notices || []).map((row) => row.id));
+      const data = await fetchWatchHits({
+        ...active,
+        channels: watch.channels,
+        keywords: watch.keywords,
+        publishedFrom,
+      });
+      const base = draft.ok ? { ...nextState, watch } : nextState;
       const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
-      setState(merged);
-      if (!data.hits?.length && data.errors?.length) setError(data.errors[0]);
+      const added = merged.notices.filter((row) => !known.has(row.id)).length;
+      setState({ ...merged, queryKey: fingerprint });
+      if (manual || added) {
+        setSavedNote(added
+          ? `${added} nye treff lagt til. Tidligere treff og vurderinger er beholdt.`
+          : 'Ingen nye treff. Tidligere treff og vurderinger er beholdt.');
+      }
+      if (!data.hits?.length && data.errors?.length && !known.size) setError(data.errors[0]);
       else if (data.errors?.length) setError(data.errors.join(' '));
     } catch (err) {
       const raw = String(err?.message || '');
@@ -186,6 +236,7 @@ export default function TenderAlert({ company, colors, onBids }) {
           notify,
           emails,
           naeringskoder: trades,
+          keywords,
         },
       }).catch(() => {});
     }
@@ -244,23 +295,49 @@ export default function TenderAlert({ company, colors, onBids }) {
     setSyncing(false);
   }
 
+  const matchWatch = useMemo(() => ({
+    cpvCodes: [...selectedCpv].map((code) => ({ code })),
+    keywords,
+  }), [selectedCpv, keywords]);
+
   const rows = useMemo(() => {
-    const q = queryText.trim().toLowerCase();
-    return notices.filter((row) => {
+    const q = fold(queryText.trim());
+    const area = TENDER_AREAS.find((row) => row.id === areaId) || null;
+    const filtered = notices.filter((row) => {
       if (row.decision === 'tilbud') return false;
       const archived = row.decision === 'arkiv' || row.decision === 'forkastet';
       if (archiveOn !== archived) return false;
       if (!archiveOn && filter === 'nye' && !row.isNew) return false;
       if (!archiveOn && filter === 'aktuelle' && row.decision !== 'aktuell') return false;
       if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
-      if (!q) return true;
-      return `${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')}`.toLowerCase().includes(q);
+      if (area && !noticeInArea(row, area)) return false;
+      if (q) {
+        const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')} ${formatMatchLabel(row, matchWatch)}`);
+        if (!hay.includes(q)) return false;
+      }
+      return COLUMNS.every((col) => {
+        const needle = fold(colFilter[col.key] || '');
+        if (!needle) return true;
+        const raw = columnValue(row, col.key, matchWatch);
+        const shown = col.kind === 'date' ? `${raw} ${day(raw)}` : raw;
+        return fold(shown).includes(needle);
+      });
     });
-  }, [notices, filter, sourceFilter, queryText, archiveOn]);
+    const { key, dir } = sort;
+    const factor = dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const left = String(columnValue(a, key, matchWatch) || '');
+      const right = String(columnValue(b, key, matchWatch) || '');
+      if (!left && right) return 1;
+      if (left && !right) return -1;
+      return left.localeCompare(right, 'nb', { numeric: true }) * factor;
+    });
+  }, [notices, filter, sourceFilter, queryText, archiveOn, areaId, colFilter, sort, matchWatch]);
 
   const preview = buildTenderAlert({
     companyName: company?.name || state.watch.companyName,
     cpvCodes: state.watch.cpvCodes,
+    keywords,
     notices: notices.filter((row) => row.isNew || row.decision === 'ubestemt').slice(0, 12),
   });
 
@@ -275,6 +352,7 @@ export default function TenderAlert({ company, colors, onBids }) {
         emails,
         companyName: company?.name || state.watch.companyName,
         cpvCodes: state.watch.cpvCodes,
+        keywords,
         notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet').slice(0, 20),
       });
       setMailNote(data?.ok ? `Sendt til ${data.sent} mottaker${data.sent === 1 ? '' : 'e'}.` : (data?.error || 'Kunne ikke sende.'));
@@ -300,7 +378,7 @@ export default function TenderAlert({ company, colors, onBids }) {
         </TouchableOpacity>
       </View>
       <Text style={{ color: colors.ink, fontWeight: '400' }}>{company?.name || 'Bedriften'}</Text>
-      <Text style={{ color: colors.muted }}>{cpvLabels.length} CPV · {companyTrades.length} næringskoder · {areaLabel}</Text>
+      <Text style={{ color: colors.muted }}>{cpvLabels.length} CPV · {keywords.length} søkeord · {companyTrades.length} næringskoder · {areaLabel}</Text>
       <Text style={{ color: colors.muted }}>Listen oppdateres automatisk én gang i døgnet, kl. 23:55. Ekstra søk gjøres med Oppdater nå.</Text>
       <TouchableOpacity onPress={() => setSummaryOpen((value) => !value)} accessibilityRole="button">
         <Text style={{ color: colors.brand, fontWeight: '400' }}>{summaryOpen ? 'Vis mindre' : 'Vis søket'}</Text>
@@ -309,6 +387,8 @@ export default function TenderAlert({ company, colors, onBids }) {
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>CPV som søkes</Text>
           {cpvLabels.length ? cpvLabels.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>) : <Text style={{ color: colors.muted }}>Ingen CPV valgt.</Text>}
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Søkeord</Text>
+          {keywords.length ? keywords.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>) : <Text style={{ color: colors.muted }}>Ingen søkeord. CPV-treff brukes alene.</Text>}
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Område</Text>
           <Text style={{ color: colors.ink }}>{areaLabel}</Text>
           <Text style={{ color: colors.muted }}>{[...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal'}</Text>
@@ -321,7 +401,17 @@ export default function TenderAlert({ company, colors, onBids }) {
   return (
     <View style={[styles.layout, wide && styles.layoutWide]}>
       <View style={styles.main}>
-        <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
+        <View style={styles.titleRow}>
+          <View style={{ gap: 2, flexShrink: 1 }}>
+            <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}. ` : ''}Nye treff legges til. Vurderinger beholdes.
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           value={queryText}
           onChangeText={setQueryText}
@@ -330,16 +420,27 @@ export default function TenderAlert({ company, colors, onBids }) {
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
         <View style={styles.row}>
-          <TouchableOpacity onPress={() => refresh(stateRef.current)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
-          </TouchableOpacity>
           {FILTERS.map(([id, label]) => (
             <Chip key={id} label={label} colors={colors} on={!archiveOn && filter === id} onPress={() => { setArchiveOn(false); setFilter(id); }} />
           ))}
           <Chip label="Arkiv" colors={colors} on={archiveOn} onPress={() => setArchiveOn((value) => !value)} />
           <Chip label="Doffin" colors={colors} on={sourceFilter === 'doffin'} onPress={() => setSourceFilter(sourceFilter === 'doffin' ? 'alle' : 'doffin')} />
           <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
+          <Chip
+            label={areaId ? (TENDER_AREAS.find((row) => row.id === areaId)?.name || 'Område') : 'Område'}
+            colors={colors}
+            on={!!areaId || areaOpen}
+            onPress={() => setAreaOpen((value) => !value)}
+          />
         </View>
+        {areaOpen ? (
+          <View style={styles.row}>
+            <Chip label="Alle områder" colors={colors} on={!areaId} onPress={() => setAreaId('')} />
+            {TENDER_AREAS.map((area) => (
+              <Chip key={area.id} label={area.name} colors={colors} on={areaId === area.id} onPress={() => setAreaId(area.id)} />
+            ))}
+          </View>
+        ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
         <ScrollView
           horizontal
@@ -349,41 +450,83 @@ export default function TenderAlert({ company, colors, onBids }) {
           contentContainerStyle={styles.tableContent}
         >
         <View style={styles.table}>
-          <View style={[styles.tr, { borderColor: colors.line }]}>
-            {['Publisert', 'Type', 'Frist', 'Konkurranse', 'Oppdragsgiver', 'Sted', 'Matcher'].map((label) => (
-              <Text key={label} style={[label === 'Konkurranse' ? styles.thWide : styles.th, { color: colors.ink }]}>{label}</Text>
-            ))}
+          <View style={[styles.tr, { borderColor: colors.line, alignItems: 'stretch' }]}>
+            {COLUMNS.map((col) => {
+              const active = sort.key === col.key;
+              const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+              return (
+                <View key={col.key} style={{ width: col.width, flexGrow: 0, flexShrink: 0 }}>
+                  <TouchableOpacity
+                    onPress={() => setSort((current) => (
+                      current.key === col.key
+                        ? { key: col.key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+                        : { key: col.key, dir: col.kind === 'date' ? 'desc' : 'asc' }
+                    ))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sorter på ${col.label}`}
+                  >
+                    <Text style={[styles.th, { width: col.width, color: colors.ink }]}>{col.label}{arrow}</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    value={colFilter[col.key] || ''}
+                    onChangeText={(value) => setColFilter((current) => ({ ...current, [col.key]: value }))}
+                    placeholder="Filtrer"
+                    placeholderTextColor={colors.placeholder}
+                    accessibilityLabel={`Filtrer ${col.label}`}
+                    style={[styles.filterInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card, width: col.width - 8 }]}
+                  />
+                </View>
+              );
+            })}
+            <Text style={[styles.th, { width: 176, color: colors.ink }]}>Vurdering</Text>
           </View>
           {rows.map((row) => {
             const soon = row.deadline && new Date(row.deadline).getTime() - Date.now() < 14 * 86400000;
             const open = openId === row.id;
             const aktuell = row.decision === 'aktuell';
+            const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv';
             return (
               <View key={row.id} style={{ borderColor: colors.line, borderBottomWidth: 1, backgroundColor: aktuell ? colors.brandSoft : 'transparent' }}>
-                <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.tr}>
-                  <Text style={[styles.td, { color: colors.ink }]}>{day(row.publishedAt)}</Text>
-                  <Text style={[styles.td, { color: colors.ink }]}>{row.source === 'ted' ? 'TED' : 'Doffin'}</Text>
-                  <Text style={[styles.td, { color: soon ? colors.danger : colors.ink }]}>{day(row.deadline)}</Text>
-                  <Text style={[styles.tdWide, { color: colors.ink }]}>{row.title}</Text>
-                  <Text style={[styles.td, { color: colors.ink }]}>{row.buyer || '—'}</Text>
-                  <Text style={[styles.td, { color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
-                  <Text style={[styles.td, { color: colors.ink }]}>{(row.cpvCodes || []).slice(0, 2).join(', ') || 'CPV-søk'}</Text>
-                </TouchableOpacity>
+                <View style={styles.line}>
+                  <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
+                    <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
+                    <Text style={[styles.td, { width: 90, color: colors.ink }]}>{row.source === 'ted' ? 'TED' : 'Doffin'}</Text>
+                    <Text style={[styles.td, { width: 110, color: soon ? colors.danger : colors.ink }]}>{day(row.deadline)}</Text>
+                    <Text style={[styles.td, { width: 340, color: colors.ink }]}>{row.title}</Text>
+                    <Text style={[styles.td, { width: 170, color: colors.ink }]}>{row.buyer || '—'}</Text>
+                    <Text style={[styles.td, { width: 150, color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
+                    <Text style={[styles.td, { width: 160, color: colors.ink }]}>{formatMatchLabel(row, matchWatch)}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.decision}>
+                    <TouchableOpacity
+                      onPress={() => mark(row.id, 'aktuell')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Merk ${row.title} som aktuell`}
+                      style={[styles.mini, { backgroundColor: aktuell ? colors.brand : colors.sunken, borderColor: aktuell ? colors.brand : colors.line }]}
+                    >
+                      <Text style={{ color: aktuell ? '#fff' : colors.ink, fontSize: 12 }}>Aktuell</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => mark(row.id, 'forkastet')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Merk ${row.title} som uaktuell`}
+                      style={[styles.mini, { backgroundColor: uaktuell ? colors.danger : colors.sunken, borderColor: uaktuell ? colors.danger : colors.line }]}
+                    >
+                      <Text style={{ color: uaktuell ? '#fff' : colors.ink, fontSize: 12 }}>Uaktuell</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
                 {open ? (
                   <View style={{ padding: 8, gap: 8 }}>
                     <Text style={{ color: colors.ink }}>{row.description || row.noticeType || 'Ingen utdrag.'}</Text>
                     <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
                       <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
                     </TouchableOpacity>
-                    <View style={styles.row}>
-                      <Chip label="Aktuell" colors={colors} on={aktuell} onPress={() => mark(row.id, 'aktuell')} />
-                      <Chip label="Uaktuell" colors={colors} on={row.decision === 'forkastet'} onPress={() => mark(row.id, 'forkastet')} />
-                      {aktuell ? (
-                        <TouchableOpacity onPress={() => expressInterest(row.id)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-                          <Text style={{ color: '#fff' }}>Meld interesse</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
+                    {aktuell ? (
+                      <TouchableOpacity onPress={() => expressInterest(row.id)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+                        <Text style={{ color: '#fff' }}>Meld interesse</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -436,6 +579,31 @@ export default function TenderAlert({ company, colors, onBids }) {
             if (!code) return;
             setSelectedCpv((current) => new Set(current).add(code));
             setCustomCpv('');
+          }} />
+          <Text style={[styles.h, { color: colors.ink }]}>Søkeord</Text>
+          <Text style={{ color: colors.muted }}>Ord som skal treffe i tittel, beskrivelse eller oppdragsgiver, i tillegg til CPV-treff.</Text>
+          <View style={styles.row}>
+            {keywords.map((row) => (
+              <Chip key={row} label={`${row} ×`} hint={`Fjern søkeord ${row}`} colors={colors} on onPress={() => setKeywords((current) => current.filter((item) => item !== row))} />
+            ))}
+          </View>
+          <TextInput
+            value={keywordDraft}
+            onChangeText={setKeywordDraft}
+            placeholder="F.eks. sykehus, adgangskontroll"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            onSubmitEditing={() => {
+              const next = normalizeKeywords([...keywords, ...keywordDraft.split(/[,;\n]/)]);
+              setKeywords(next);
+              setKeywordDraft('');
+            }}
+          />
+          <Chip label="Legg til søkeord" colors={colors} on={false} onPress={() => {
+            const next = normalizeKeywords([...keywords, ...keywordDraft.split(/[,;\n]/)]);
+            if (next.length === keywords.length) return;
+            setKeywords(next);
+            setKeywordDraft('');
           }} />
           <Text style={{ color: colors.muted }}>Næringskoder</Text>
           {trades.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>)}
@@ -501,16 +669,19 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1 },
-  table: { width: 1120, minWidth: 1120 },
+  table: { width: 1320, minWidth: 1320 },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   tr: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'flex-start' },
-  th: { width: 120, flexGrow: 0, flexShrink: 0, fontSize: 12, fontWeight: '600', padding: 8 },
-  thWide: { width: 400, flexGrow: 0, flexShrink: 0, fontSize: 12, fontWeight: '600', padding: 8 },
-  td: { width: 120, flexGrow: 0, flexShrink: 0, fontSize: 13, fontWeight: '400', padding: 8 },
-  tdWide: { width: 400, flexGrow: 0, flexShrink: 0, fontSize: 13, fontWeight: '400', padding: 8 },
+  line: { flexDirection: 'row', alignItems: 'flex-start' },
+  th: { fontSize: 12, fontWeight: '600', padding: 8 },
+  td: { flexGrow: 0, flexShrink: 0, fontSize: 13, fontWeight: '400', padding: 8 },
+  filterInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, marginHorizontal: 4, marginBottom: 6 },
+  decision: { width: 176, flexGrow: 0, flexShrink: 0, flexDirection: 'row', gap: 4, padding: 6, alignItems: 'center' },
+  mini: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6 },
 });

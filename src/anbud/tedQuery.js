@@ -43,19 +43,42 @@ function sinceDays(days) {
   return `${y}${m}${d}`;
 }
 
-export function buildTedQuery({ cpvCodes, locationIds } = {}) {
+function keywordTerms(values) {
+  const rows = Array.isArray(values) ? values : String(values || '').split(/[,;\n]/);
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const value = String(row || '').trim().replace(/\s+/g, ' ').replace(/["\\]/g, '');
+    const key = value.toLocaleLowerCase('nb-NO');
+    if (key.length < 2 || value.length > 60 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function publishedFromTed(value) {
+  const raw = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.replace(/-/g, '') : sinceDays(120);
+}
+
+export function buildTedQuery({ cpvCodes, locationIds, keywords, publishedFrom } = {}) {
   const codes = codesOf(cpvCodes);
-  if (!codes.length) {
-    const error = new Error('Minst én CPV-kode må følge med.');
+  const words = keywordTerms(keywords);
+  if (!codes.length && !words.length) {
+    const error = new Error('Minst én CPV-kode eller et søkeord må følge med.');
     error.code = 'invalid-argument';
     throw error;
   }
-  const cpv = codes.map((code) => `classification-cpv=${code}`).join(' OR ');
+  const cpv = codes.length ? `(${codes.map((code) => `classification-cpv=${code}`).join(' OR ')})` : '';
+  const text = words.length ? `(${words.map((word) => `FT~"${word}"`).join(' OR ')})` : '';
+  const subject = [cpv, text].filter(Boolean).join(' OR ');
   const places = (locationIds || []).map((id) => String(id || '').trim()).filter((id) => /^NO[0-9A-Z]{1,6}$/.test(id));
   const where = places.length
     ? `(${places.map((id) => `place-of-performance=${id}`).join(' OR ')})`
     : 'buyer-country=NOR';
-  return `(${cpv}) AND ${where} AND publication-date>=${sinceDays(120)}`;
+  return `(${subject}) AND ${where} AND publication-date>=${publishedFromTed(publishedFrom)}`;
 }
 
 export function tedHitToNotice(row) {
@@ -98,7 +121,10 @@ export async function searchTedNotices(input) {
   if (!res.ok) throw new Error(`TED svarte ${res.status}`);
   const data = await res.json();
   const notices = Array.isArray(data?.notices) ? data.notices : [];
-  const hits = notices.map(tedHitToNotice).filter(Boolean);
+  const words = keywordTerms(input?.keywords);
+  const hits = notices.map(tedHitToNotice).filter(Boolean).map((hit) => (
+    words.length ? { ...hit, matchedKeywords: words } : hit
+  ));
   return {
     ok: true,
     numHitsTotal: Number(data?.totalNoticeCount) || hits.length,

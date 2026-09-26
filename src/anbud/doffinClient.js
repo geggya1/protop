@@ -44,6 +44,58 @@ export async function fetchTenderHits(query) {
   return data;
 }
 
+function rememberHit(map, hit, words) {
+  const id = String(hit?.id || '').trim();
+  if (!id) return;
+  const prev = map.get(id);
+  const matchedKeywords = [...new Set([
+    ...(prev?.matchedKeywords || []),
+    ...(hit?.matchedKeywords || []),
+    ...words,
+  ].map((word) => String(word || '').trim()).filter(Boolean))];
+  map.set(id, { ...(prev || {}), ...hit, ...(matchedKeywords.length ? { matchedKeywords } : {}) });
+}
+
+/** Henter CPV-treff og, i tillegg, treff på registrerte søkeord. Tidligere rader slås sammen av kaller. */
+export async function fetchWatchHits({ cpvCodes, locationIds, channels, keywords, publishedFrom } = {}) {
+  const data = await fetchTenderHits({ cpvCodes, locationIds, channels, publishedFrom });
+  const byId = new Map();
+  for (const hit of data.hits || []) rememberHit(byId, hit, []);
+  const words = (Array.isArray(keywords) ? keywords : []).map((word) => String(word || '').trim()).filter((word) => word.length >= 2).slice(0, 8);
+  const channelList = Array.isArray(channels) && channels.length ? channels : ['doffin', 'ted'];
+  await Promise.all(words.map(async (word) => {
+    const jobs = [
+      fetchTenderHits({
+        cpvCodes: [],
+        locationIds,
+        channels: channelList,
+        publishedFrom,
+        searchString: word,
+        keywords: [word],
+      }).then((extra) => {
+        for (const hit of extra.hits || []) rememberHit(byId, hit, [word]);
+      }).catch(() => {}),
+    ];
+    if (channelList.includes('ted')) {
+      jobs.push(searchTedNotices({
+        keywords: [word],
+        locationIds,
+        publishedFrom,
+        numHitsPerPage: 15,
+      }).then((extra) => {
+        for (const hit of extra.hits || []) rememberHit(byId, hit, [word]);
+      }).catch(() => {}));
+    }
+    await Promise.all(jobs);
+  }));
+  return {
+    ok: true,
+    hits: [...byId.values()],
+    errors: data.errors || [],
+    fetchedAt: data.fetchedAt || new Date().toISOString(),
+  };
+}
+
 export async function fetchRegisterExtras(orgnr) {
   const res = await fetch('/api/tender-proxy', {
     method: 'POST',

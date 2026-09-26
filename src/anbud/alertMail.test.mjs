@@ -24,6 +24,20 @@ assert.match(mail.subject, /Consult1 AS/);
 assert.match(mail.text, /Her er de siste treffene/);
 assert.match(mail.text, /Frist: 18\.09\.2026/);
 assert.match(mail.text, /Matcher: CPV: 71240000/);
+const withKeyword = buildTenderAlert({
+  companyName: 'Consult1 AS',
+  cpvCodes: ['71240000'],
+  keywords: ['adgangskontroll'],
+  notices: [{
+    title: 'Utbedring Adgangskontroll',
+    buyer: 'Kristiansund kommune',
+    description: 'Etablering av adgangskontroll.',
+    cpvCodes: ['71240000'],
+    source: 'doffin',
+    isNew: true,
+  }],
+});
+assert.match(withKeyword.text, /Matcher: CPV: 71240000 · adgangskontroll/);
 assert.match(mail.html, /Utbedring Adgangskontroll/);
 
 const query = buildTedQuery({ cpvCodes: ['71000000'], locationIds: [] });

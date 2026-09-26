@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildAccountChart,
   formatThousands,
@@ -137,5 +138,12 @@ assert.ok(revenueDots[0].y > revenueDots[4].y);
 assert.equal(chart.bars.length, 10);
 assert.equal(chart.yTicks[0].label, '0');
 assert.equal(chart.yTicks[chart.yTicks.length - 1].value, 60000);
+
+const deployedSeries = readFileSync(new URL('../../functions/accountSeries.js', import.meta.url), 'utf8');
+const sourceSeries = readFileSync(new URL('./accountSeries.js', import.meta.url), 'utf8');
+assert.equal(deployedSeries, sourceSeries);
+const historySource = readFileSync(new URL('../../functions/accountHistory.js', import.meta.url), 'utf8');
+assert.equal(historySource.includes('../src/'), false);
+assert.match(historySource, /from '\.\/accountSeries\.js'/);
 
 console.log('accountSeries.test.mjs ok');

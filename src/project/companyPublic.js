@@ -3,6 +3,8 @@
  * Enhetsregisteret, roller, underenheter og siste innsendte årsregnskap.
  */
 
+import { shapeAccountPayload } from './accountSeries.js';
+
 const BRREG = 'https://data.brreg.no/enhetsregisteret/api';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
@@ -136,34 +138,8 @@ export function shapePublicRoles(payload) {
   return rows;
 }
 
-function amount(node, key) {
-  const value = Number(node?.[key]);
-  return Number.isFinite(value) ? value : null;
-}
-
 export function shapePublicAccounts(payload) {
-  const rows = Array.isArray(payload) ? payload : (payload ? [payload] : []);
-  const latest = rows.find((row) => row?.regnskapsperiode || row?.resultatregnskapResultat);
-  if (!latest) return null;
-  const resultat = latest.resultatregnskapResultat || {};
-  const drift = resultat.driftsresultat || {};
-  const egenkapital = latest.egenkapitalGjeld?.egenkapital || {};
-  const gjeld = latest.egenkapitalGjeld?.gjeldOversikt || {};
-  const eiendeler = latest.eiendeler || {};
-  return {
-    fra: text(latest.regnskapsperiode?.fraDato),
-    til: text(latest.regnskapsperiode?.tilDato),
-    valuta: text(latest.valuta) || 'NOK',
-    morselskap: latest.virksomhet?.morselskap === true,
-    revidert: latest.revisjon?.ikkeRevidertAarsregnskap !== true && latest.revisjon?.fravalgRevisjon !== true,
-    smaafortak: latest.regnkapsprinsipper?.smaaForetak === true,
-    driftsinntekter: amount(drift.driftsinntekter, 'sumDriftsinntekter'),
-    driftsresultat: amount(drift, 'driftsresultat'),
-    aarsresultat: amount(resultat, 'aarsresultat'),
-    egenkapital: amount(egenkapital, 'sumEgenkapital'),
-    gjeld: amount(gjeld, 'sumGjeld'),
-    eiendeler: amount(eiendeler, 'sumEiendeler'),
-  };
+  return shapeAccountPayload(payload);
 }
 
 export function shapePublicSignature(payload) {

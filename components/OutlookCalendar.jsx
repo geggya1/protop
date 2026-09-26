@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Pressable, Platform,
 } from 'react-native';
@@ -172,6 +172,33 @@ function NowLine({ startHour, endHour, now }) {
   );
 }
 
+function scrollableElement(node) {
+  if (!node) return null;
+  if (typeof node.getScrollableNode === 'function') {
+    const inner = node.getScrollableNode();
+    if (inner) return inner;
+  }
+  return node;
+}
+
+function scrollbarInsetOf(node) {
+  const el = scrollableElement(node);
+  if (!el || typeof el.offsetWidth !== 'number' || typeof el.clientWidth !== 'number') return 0;
+  return Math.max(0, el.offsetWidth - el.clientWidth);
+}
+
+/** Gutter + equal day tracks. `inset` reserves the vertical scrollbar so the row matches the grid. */
+function DayTrack({ inset = 0, gutter, children, style, lanesStyle }) {
+  return (
+    <View style={[styles.dayTrack, style, inset > 0 ? { paddingRight: inset } : null]}>
+      {gutter}
+      <View style={[styles.dayLanes, lanesStyle]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
 function TimeGrid({
   days, itemsForDay, startHour, endHour, now,
   canOpenEvent, openEventForm, onCreateAt, canCreateCalendarEvent, getCustodyOverlay,
@@ -181,73 +208,80 @@ function TimeGrid({
   const bodyH = (endHour - startHour) * HOUR_H;
 
   return (
-    <View style={styles.gridBody}>
-      <View style={[styles.timeGutter, { height: bodyH }]}>
-        {hours.map((h) => (
-          <Text
-            key={h}
-            style={[styles.timeLbl, { top: (h - startHour) * HOUR_H - 7 }]}
+    <DayTrack
+      style={styles.gridBody}
+      lanesStyle={{ height: bodyH }}
+      gutter={(
+        <View style={[styles.timeGutter, { height: bodyH }]}>
+          {hours.map((h) => (
+            <Text
+              key={h}
+              style={[styles.timeLbl, { top: (h - startHour) * HOUR_H - 7 }]}
+            >
+              {`${String(h).padStart(2, '0')}:00`}
+            </Text>
+          ))}
+        </View>
+      )}
+    >
+      {days.map((d) => {
+        const k = dateKey(d);
+        const { ev } = itemsForDay(d);
+        const timed = layoutTimedEvents(ev.filter((e) => !isAllDayEvent(e)));
+        const today = isToday(d);
+        const custodyTint = getCustodyOverlay
+          ? custodyCellTint(getCustodyOverlay(d), { today })
+          : null;
+        return (
+          <View
+            key={k}
+            style={[styles.lane, today && styles.laneToday, custodyTint]}
+            {...webDataSet({ wpCalCol: 'lane' })}
           >
-            {`${String(h).padStart(2, '0')}:00`}
-          </Text>
-        ))}
-      </View>
-      <View style={[styles.lanes, { height: bodyH }]}>
-        {days.map((d) => {
-          const k = dateKey(d);
-          const { ev } = itemsForDay(d);
-          const timed = layoutTimedEvents(ev.filter((e) => !isAllDayEvent(e)));
-          const today = isToday(d);
-          const custodyTint = getCustodyOverlay
-            ? custodyCellTint(getCustodyOverlay(d), { today })
-            : null;
-          return (
-            <View key={k} style={[styles.lane, today && styles.laneToday, custodyTint]}>
-              {hours.map((h) => (
-                <View
-                  key={`line-${h}`}
-                  pointerEvents="none"
-                  style={[styles.hourLine, { top: (h - startHour) * HOUR_H }]}
-                />
-              ))}
-              {hours.slice(0, -1).map((h) => (
-                <View
-                  key={`half-${h}`}
-                  pointerEvents="none"
-                  style={[styles.halfLine, { top: (h - startHour) * HOUR_H + HOUR_H / 2 }]}
-                />
-              ))}
-              {hours.slice(0, -1).map((h) => (
-                <TouchableOpacity
-                  key={`${k}-${h}`}
-                  style={[styles.slot, { top: (h - startHour) * HOUR_H, height: HOUR_H }]}
-                  onPress={() => onCreateAt?.(k, h * 60)}
-                  disabled={!canCreateCalendarEvent}
-                  {...webDataSet({ wpCalSlot: '1' })}
-                  accessibilityLabel={`Legg til ${k} ${String(h).padStart(2, '0')}:00`}
-                >
-                  {canCreateCalendarEvent ? (
-                    <View style={styles.slotPlus} {...webDataSet({ wpCalPlus: '1' })}>
-                      <Text style={styles.slotPlusTxt}>+</Text>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              ))}
-              {timed.map((layout) => (
-                <EventBlock
-                  key={eventKey(layout.event)}
-                  layout={layout}
-                  hourStart={startHour}
-                  canOpen={!!canOpenEvent?.(layout.event)}
-                  onPress={() => openEventForm(layout.event)}
-                />
-              ))}
-              {today ? <NowLine startHour={startHour} endHour={endHour} now={now} /> : null}
-            </View>
-          );
-        })}
-      </View>
-    </View>
+            {hours.map((h) => (
+              <View
+                key={`line-${h}`}
+                pointerEvents="none"
+                style={[styles.hourLine, { top: (h - startHour) * HOUR_H }]}
+              />
+            ))}
+            {hours.slice(0, -1).map((h) => (
+              <View
+                key={`half-${h}`}
+                pointerEvents="none"
+                style={[styles.halfLine, { top: (h - startHour) * HOUR_H + HOUR_H / 2 }]}
+              />
+            ))}
+            {hours.slice(0, -1).map((h) => (
+              <TouchableOpacity
+                key={`${k}-${h}`}
+                style={[styles.slot, { top: (h - startHour) * HOUR_H, height: HOUR_H }]}
+                onPress={() => onCreateAt?.(k, h * 60)}
+                disabled={!canCreateCalendarEvent}
+                {...webDataSet({ wpCalSlot: '1' })}
+                accessibilityLabel={`Legg til ${k} ${String(h).padStart(2, '0')}:00`}
+              >
+                {canCreateCalendarEvent ? (
+                  <View style={styles.slotPlus} {...webDataSet({ wpCalPlus: '1' })}>
+                    <Text style={styles.slotPlusTxt}>+</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            ))}
+            {timed.map((layout) => (
+              <EventBlock
+                key={eventKey(layout.event)}
+                layout={layout}
+                hourStart={startHour}
+                canOpen={!!canOpenEvent?.(layout.event)}
+                onPress={() => openEventForm(layout.event)}
+              />
+            ))}
+            {today ? <NowLine startHour={startHour} endHour={endHour} now={now} /> : null}
+          </View>
+        );
+      })}
+    </DayTrack>
   );
 }
 
@@ -297,6 +331,7 @@ export default function OutlookCalendar({
   const [now, setNow] = useState(() => new Date());
   const scrollRef = useRef(null);
   const didScroll = useRef(false);
+  const [scrollInset, setScrollInset] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30000);
@@ -340,6 +375,32 @@ export default function OutlookCalendar({
     });
     return () => caf(id);
   }, [mode, startHour, now]);
+
+  const measureScrollInset = useCallback(() => {
+    const next = scrollbarInsetOf(scrollRef.current);
+    setScrollInset((prev) => (prev === next ? prev : next));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (mode === 'month' || mode === 'meals') {
+      setScrollInset((prev) => (prev === 0 ? prev : 0));
+      return undefined;
+    }
+    measureScrollInset();
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+    const caf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout;
+    const id = raf(() => measureScrollInset());
+    const el = scrollableElement(scrollRef.current);
+    let observer;
+    if (el && typeof ResizeObserver !== 'undefined' && typeof el.offsetWidth === 'number') {
+      observer = new ResizeObserver(() => measureScrollInset());
+      observer.observe(el);
+    }
+    return () => {
+      caf(id);
+      observer?.disconnect();
+    };
+  }, [measureScrollInset, mode, startHour, endHour, viewDays.length]);
 
   const daysWithEvents = useMemo(() => {
     const set = new Set();
@@ -589,8 +650,11 @@ export default function OutlookCalendar({
           </View>
         ) : (
           <View style={styles.weekWrap}>
-            <View style={styles.colHeadRow}>
-              <View style={styles.gutterHead} />
+            <DayTrack
+              inset={scrollInset}
+              style={styles.colHeadRow}
+              gutter={<View style={styles.gutterHead} />}
+            >
               {viewDays.map((d) => {
                 const today = isToday(d);
                 const selected = sameDay(d, anchor);
@@ -603,21 +667,29 @@ export default function OutlookCalendar({
                     key={dateKey(d)}
                     onPress={() => { setAnchor(d); if (mode === 'week') setMode('day'); }}
                     style={[styles.colHead, today && styles.colHeadToday, selected && !today && styles.colHeadOn, custodyTint]}
+                    {...webDataSet({ wpCalCol: 'head' })}
                   >
-                    <Text style={[styles.colDow, today && styles.colTodayTxt]}>
+                    <Text style={[styles.colDow, today && styles.colTodayTxt]} numberOfLines={1}>
                       {WEEKDAYS_LONG[i]} {d.getDate()}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-            </View>
-            <View style={styles.allDayRow}>
-              <Text style={styles.allDayLbl}>Heldag</Text>
+            </DayTrack>
+            <DayTrack
+              inset={scrollInset}
+              style={styles.allDayRow}
+              gutter={(
+                <View style={styles.allDayGutter}>
+                  <Text style={styles.allDayLbl}>Heldag</Text>
+                </View>
+              )}
+            >
               {viewDays.map((d) => {
                 const k = dateKey(d);
                 const allDay = itemsForDay(d).ev.filter(isAllDayEvent);
                 return (
-                  <View key={k} style={styles.allDayCell}>
+                  <View key={k} style={styles.allDayCell} {...webDataSet({ wpCalCol: 'allday' })}>
                     {allDay.map((e) => {
                       const surface = calendarEventSurface(e.color || FAMILY_CALENDAR_COLOR);
                       return (
@@ -643,12 +715,14 @@ export default function OutlookCalendar({
                   </View>
                 );
               })}
-            </View>
+            </DayTrack>
             <ScrollView
               ref={scrollRef}
               style={styles.scroll}
               contentContainerStyle={{ minHeight: (endHour - startHour) * HOUR_H + 8 }}
               showsVerticalScrollIndicator
+              onLayout={measureScrollInset}
+              onContentSizeChange={measureScrollInset}
             >
               <TimeGrid
                 days={viewDays}
@@ -665,6 +739,7 @@ export default function OutlookCalendar({
             </ScrollView>
             <CalendarTaskPane
               days={viewDays}
+              columnInset={scrollInset}
               itemsForDay={paneItemsForDay}
               onOpenItem={onOpenPaneItem}
               onToggleItem={onTogglePaneItem}
@@ -766,32 +841,39 @@ const styles = StyleSheet.create({
   custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   mealsWrap: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
   weekWrap: { flex: 1, minHeight: 0 },
-  colHeadRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line },
+  dayTrack: { flexDirection: 'row', minWidth: 0, alignItems: 'stretch' },
+  dayLanes: { flex: 1, minWidth: 0, flexDirection: 'row' },
+  colHeadRow: {
+    borderBottomWidth: 1, borderBottomColor: colors.line, backgroundColor: colors.card,
+  },
   gutterHead: { width: GUTTER },
-  colHead: { flex: 1, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  colHead: { flex: 1, minWidth: 0, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   colHeadToday: { borderBottomWidth: 2, borderBottomColor: colors.brand },
   colHeadOn: { backgroundColor: '#f8fafc' },
   colDow: { fontSize: 13, fontWeight: '400', color: colors.ink, textTransform: 'lowercase' },
   colTodayTxt: { color: colors.brand, fontWeight: '400' },
   allDayRow: {
-    flexDirection: 'row', minHeight: 28, borderBottomWidth: 1, borderBottomColor: colors.line, alignItems: 'stretch',
+    minHeight: 28, borderBottomWidth: 1, borderBottomColor: colors.line,
+    alignItems: 'stretch', backgroundColor: colors.card,
   },
-  allDayLbl: {
-    width: GUTTER, fontSize: 9, fontWeight: '400', color: colors.muted,
-    textAlign: 'right', paddingRight: 6, paddingTop: 8,
+  allDayGutter: {
+    width: GUTTER, paddingTop: 8, paddingRight: 6, alignItems: 'flex-end',
   },
-  allDayCell: { flex: 1, padding: 2, gap: 2, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.line },
+  allDayLbl: { fontSize: 9, fontWeight: '400', color: colors.muted },
+  allDayCell: {
+    flex: 1, minWidth: 0, padding: 2, gap: 2,
+    borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.line,
+  },
   allDayChip: { borderRadius: 4, borderWidth: 1, borderLeftWidth: 3, paddingHorizontal: 5, paddingVertical: 2 },
   allDayChipTxt: { fontSize: 11, fontWeight: '400' },
   allDayAdd: { alignSelf: 'flex-end', paddingHorizontal: 4 },
   scroll: { flex: 1, minHeight: 0 },
-  gridBody: { flexDirection: 'row' },
+  gridBody: { minWidth: 0 },
   timeGutter: { width: GUTTER, position: 'relative' },
   timeLbl: {
     position: 'absolute', right: 6, fontSize: 10, fontWeight: '400', color: colors.muted, width: GUTTER - 10,
     textAlign: 'right',
   },
-  lanes: { flex: 1, flexDirection: 'row', position: 'relative' },
   hourLine: {
     position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth,
     backgroundColor: colors.line, zIndex: 0,

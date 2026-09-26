@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../src/theme';
+import { webDataSet } from '../src/desktop';
 import { dateKey, isToday } from '../src/utils/dates';
 
 const GUTTER = 56;
@@ -58,6 +59,7 @@ export default function CalendarTaskPane({
   canCreate = false,
   label = 'Oppgaver',
   createLabel,
+  columnInset = 0,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [height, setHeight] = useState(DEFAULT_H);
@@ -127,7 +129,7 @@ export default function CalendarTaskPane({
         </TouchableOpacity>
       </View>
       {collapsed ? null : (
-        <View style={styles.body}>
+        <View style={[styles.body, columnInset > 0 ? { paddingRight: columnInset } : null]}>
           <View style={styles.gutter}>
             <Text style={styles.gutterLbl}>{label}</Text>
           </View>
@@ -139,7 +141,11 @@ export default function CalendarTaskPane({
                 const items = itemsForDay?.(d) || [];
                 const today = isToday(d);
                 return (
-                  <View key={k} style={[styles.col, today && styles.colToday]}>
+                  <View
+                    key={k}
+                    style={[styles.col, today && styles.colToday]}
+                    {...webDataSet({ wpCalCol: 'task' })}
+                  >
                     <ScrollView style={styles.colScroll} nestedScrollEnabled>
                       {items.map((item) => (
                         <PaneRow

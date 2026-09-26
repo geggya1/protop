@@ -16,6 +16,7 @@ import {
   watchFingerprint,
   formatMatchLabel,
   noticeInArea,
+  workCandidates,
 } from './model.js';
 
 assert.equal(normalizeCpvCode('45'), '45000000');
@@ -131,6 +132,9 @@ const same = kept.notices.find((row) => row.id === marked.notices[0].id);
 assert.equal(same.decision, 'aktuell');
 assert.equal(same.dossier.procedure, 'Åpen');
 assert.equal(createBidWork(merged, merged.notices[0].id).ok, false);
+const queued = setNoticeDecision(merged, merged.notices[0].id, 'aktuell').state;
+assert.equal(workCandidates(queued).length >= 1, true);
+assert.equal(workCandidates({ ...queued, bids: [{ noticeId: queued.notices[0].id }] }).some((row) => row.id === queued.notices[0].id), false);
 const blocked = registerInterest(withFile, withFile.notices[0].id, withFile.notices[0].dossier);
 assert.equal(blocked.ok, false);
 const withProfile = saveSupplierProfile(withFile, {

@@ -441,9 +441,20 @@ export function attachDossier(state, id, dossier) {
   });
 }
 
+export function workCandidates(state) {
+  const taken = new Set((state?.bids || []).map((bid) => bid.noticeId));
+  return (state?.notices || []).filter((row) => (
+    row?.id
+    && !taken.has(row.id)
+    && row.decision !== 'forkastet'
+    && row.decision !== 'arkiv'
+    && row.decision !== 'tilbud'
+  ));
+}
+
 export function registerInterest(state, id, dossier) {
   if (!state?.supplierProfile?.username) {
-    return fail(state, 'Registrer bedriftens innloggingsprofil i trinn 2 før interesse meldes.');
+    return fail(state, 'Registrer innloggingsportalen under Innstillinger før interesse meldes.');
   }
   const prepared = dossier ? attachDossier(state, id, dossier) : ok(state);
   if (!prepared.ok) return prepared;

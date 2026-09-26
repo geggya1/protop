@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { attachPortalCatalog } from '../../src/anbud/doffinClient';
-import { formatWhen, portalFromUrl } from '../../src/anbud/model';
+import { attachPortalCatalog, fetchCompetitionFile } from '../../src/anbud/doffinClient';
+import { formatWhen, portalFromUrl, registerInterest, setNoticeDecision, workCandidates } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
-export default function BidDesk({ company, colors, bids, onOpenSettings }) {
+export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenAlerts }) {
   const [profile, setProfile] = useState(null);
   const [storedBids, setStoredBids] = useState(bids || []);
+  const [candidates, setCandidates] = useState([]);
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
 
@@ -14,13 +15,69 @@ export default function BidDesk({ company, colors, bids, onOpenSettings }) {
     loadAnbudState().then((state) => {
       setProfile(state.supplierProfile);
       setStoredBids(state.bids?.length ? state.bids : (bids || []));
+      setCandidates(workCandidates(state));
     });
   }, [company?.id, bids]);
+
+  async function bringIn(id) {
+    setBusyId(id);
+    setNote('');
+    let state = await loadAnbudState();
+    if (!state.supplierProfile?.username) {
+      setNote('Registrer innloggingsportalen under Innstillinger først.');
+      setBusyId('');
+      onOpenSettings?.();
+      return;
+    }
+    const notice = (state.notices || []).find((row) => row.id === id);
+    if (notice && notice.decision !== 'aktuell' && notice.decision !== 'tilbud') {
+      const marked = setNoticeDecision(state, id, 'aktuell');
+      if (!marked.ok) {
+        setNote(marked.error);
+        setBusyId('');
+        return;
+      }
+      state = marked.state;
+    }
+    let dossier = notice?.dossier || null;
+    try {
+      if (/^\d{4}-\d+$/.test(String(id))) {
+        const file = await fetchCompetitionFile(id);
+        dossier = file?.dossier ? await attachPortalCatalog(file.dossier) : dossier;
+      }
+    } catch (err) {
+      setNote(err?.message || 'Kunngjøringen svarte ikke. Konkurransen legges inn likevel.');
+    }
+    const result = registerInterest(state, id, dossier);
+    if (!result.ok) setNote(result.error);
+    else {
+      await saveAnbudState(result.state);
+      setProfile(result.state.supplierProfile);
+      setStoredBids(result.state.bids);
+      setCandidates(workCandidates(result.state));
+      const files = dossier?.portalFiles?.length;
+      setNote(files
+        ? `${notice?.title || 'Konkurransen'} er hentet inn med ${files} dokumenter.`
+        : `${notice?.title || 'Konkurransen'} er hentet inn i tilbudsarbeidet.`);
+    }
+    setBusyId('');
+  }
 
   async function refreshFiles(bid) {
     setBusyId(bid.id);
     setNote('');
-    const dossier = await attachPortalCatalog(bid.dossier || {});
+    let dossier = bid.dossier || {};
+    try {
+      if (!dossier.documentsUrl && /^\d{4}-\d+$/.test(String(bid.noticeId || ''))) {
+        const file = await fetchCompetitionFile(bid.noticeId);
+        dossier = file?.dossier || dossier;
+      }
+      dossier = await attachPortalCatalog(dossier);
+    } catch (err) {
+      setNote(err?.message || 'Kunne ikke hente grunnlaget.');
+      setBusyId('');
+      return;
+    }
     const loaded = await loadAnbudState();
     const next = {
       ...loaded,
@@ -53,10 +110,32 @@ export default function BidDesk({ company, colors, bids, onOpenSettings }) {
         </TouchableOpacity>
       )}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
+      {candidates.length ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Treff som kan hentes inn</Text>
+          {candidates.slice(0, 12).map((notice) => (
+            <View key={notice.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{notice.title}</Text>
+              <Text style={{ color: colors.muted }}>{notice.buyer || 'Oppdragsgiver ikke oppgitt'}{notice.decision === 'aktuell' ? ' · markert aktuell' : ''}</Text>
+              <TouchableOpacity onPress={() => bringIn(notice.id)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+                <Text style={{ color: '#fff' }}>{busyId === notice.id ? 'Henter grunnlag …' : 'Hent inn'}</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+          {candidates.length > 12 ? <Text style={{ color: colors.muted }}>{candidates.length - 12} treff til ligger i anbudsvarslingen.</Text> : null}
+        </View>
+      ) : null}
       {rows.map((bid) => (
         <BidCard key={bid.id} bid={bid} colors={colors} busy={busyId === bid.id} onRefresh={() => refreshFiles(bid)} />
       ))}
-      {!rows.length ? <Text style={{ color: colors.muted }}>Ingen konkurranser er flyttet hit ennå. Merk et treff som aktuelt og meld interesse.</Text> : null}
+      {!rows.length && !candidates.length ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.muted }}>Ingen treff er søkt opp ennå. Oppdater listen i anbudsvarslingen, så kan de hentes inn her.</Text>
+          <TouchableOpacity onPress={onOpenAlerts} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff' }}>Gå til treffene</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -85,8 +164,8 @@ function BidCard({ bid, colors, busy, onRefresh }) {
       <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>{busy ? 'Henter filliste …' : 'Hent filliste'}</Text>
       </TouchableOpacity>
-      {dossier ? <DossierLines dossier={dossier} colors={colors} /> : (
-        <Text style={{ color: colors.muted }}>Konkurransegrunnlaget hentes når interessen meldes.</Text>
+      {dossier?.documentsUrl || dossier?.submissionDeadline || dossier?.portalFiles?.length ? <DossierLines dossier={dossier} colors={colors} /> : (
+        <Text style={{ color: colors.muted }}>Grunnlaget er ikke lest inn ennå. Bruk Hent filliste.</Text>
       )}
     </View>
   );
@@ -126,4 +205,5 @@ function DossierLines({ dossier, colors }) {
 const styles = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '600' },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
+  save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

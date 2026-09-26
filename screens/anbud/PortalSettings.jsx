@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
+import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile, workCandidates } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
@@ -20,7 +20,7 @@ function Field({ label, value, onChangeText, colors, placeholder, keyboardType }
   );
 }
 
-export default function PortalSettings({ company, colors }) {
+export default function PortalSettings({ company, colors, onOpenWork }) {
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -30,11 +30,13 @@ export default function PortalSettings({ company, colors }) {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [waiting, setWaiting] = useState(0);
 
   useEffect(() => {
     loadAnbudState().then((state) => {
       const saved = state.supplierProfile;
       setProfile(saved);
+      setWaiting(workCandidates(state).length);
       if (!saved) return;
       setContactName(saved.contactName || '');
       setEmail(saved.email || '');
@@ -65,7 +67,12 @@ export default function PortalSettings({ company, colors }) {
     await saveAnbudState(result.state);
     setProfile(result.state.supplierProfile);
     setError('');
-    setNote('Profilen er lagret. Interesse meldes med dette brukernavnet, og grunnlaget legges i tilbudsarbeidet.');
+    const ready = workCandidates(result.state).length;
+    setWaiting(ready);
+    setNote(ready
+      ? `Profilen er lagret. ${ready} treff ligger klare og kan hentes inn nå.`
+      : 'Profilen er lagret. Hent treff i anbudsvarslingen, og ta dem inn i tilbudsarbeidet.');
+    if (ready) onOpenWork?.();
   }
 
   return (
@@ -106,6 +113,16 @@ export default function PortalSettings({ company, colors }) {
       </TouchableOpacity>
       {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
+      {profile && waiting ? (
+        <TouchableOpacity onPress={onOpenWork} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+          <Text style={{ color: '#fff' }}>Hent {waiting} treff inn i tilbudsarbeidet</Text>
+        </TouchableOpacity>
+      ) : null}
+      {profile && !waiting ? (
+        <TouchableOpacity onPress={onOpenWork} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Åpne tilbudsarbeid</Text>
+        </TouchableOpacity>
+      ) : null}
       {profile ? (
         <Text style={{ color: colors.muted }}>
           Registrert som {profile.username} · {profile.email} · {profile.portal}

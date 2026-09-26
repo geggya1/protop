@@ -7,6 +7,8 @@ import { useColors } from '../../src/context/ThemeContext';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { fetchWeatherForecast, roundTemp, searchWeatherPlaces } from '../../src/utils/weather';
 import { formatGreetingDate } from '../../src/utils/timeGreeting';
+import AccountHistoryCard from '../../components/project/AccountHistoryCard';
+import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
   fetchPublicCompany,
   nbDate,
@@ -81,6 +83,8 @@ export default function CompanyLanding({
   const [placeName, setPlaceName] = useState('');
   const [publicCpv, setPublicCpv] = useState([]);
   const [cpvSource, setCpvSource] = useState('');
+  const [history, setHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const profile = live?.company || storedCompanyProfile(stored);
   const orgnr = stored?.organisasjonsnummer || '';
 
@@ -177,7 +181,37 @@ export default function CompanyLanding({
   const roles = live?.roles || [];
   const units = live?.units || [];
   const accounts = live?.accounts || null;
+  const accountView = useMemo(
+    () => mergeAccountYears(accounts, history || []),
+    [accounts, history],
+  );
   const signature = live?.signature || null;
+
+  useEffect(() => {
+    const id = String(orgnr || '').replace(/\D/g, '');
+    if (id.length !== 9) return undefined;
+    let alive = true;
+    setHistory(null);
+    setHistoryLoading(true);
+    const endpoint = typeof window !== 'undefined' ? '/api/tender-proxy' : 'https://protop.no/api/tender-proxy';
+    fetch(endpoint, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'account-history', orgnr: id }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!alive) return;
+        setHistory(Array.isArray(data?.years) ? data.years : []);
+      })
+      .catch(() => {
+        if (alive) setHistory([]);
+      })
+      .finally(() => {
+        if (alive) setHistoryLoading(false);
+      });
+    return () => { alive = false; };
+  }, [orgnr]);
   const activeProjects = projects.filter((row) => row?.status !== 'arkivert');
   const phaseCounts = activeProjects.reduce((map, row) => {
     const key = row.phase || 'ukjent';
@@ -367,29 +401,14 @@ export default function CompanyLanding({
             </Card>
           ) : null}
 
-          {accounts ? (
+          {accountView ? (
             <Card colors={colors}>
-              <SectionTitle colors={colors}>
-                {`Årsregnskap ${accounts.fra ? accounts.fra.slice(0, 4) : profile?.sisteRegnskap || ''}`.trim()}
-              </SectionTitle>
-              <Text style={[styles.mutedLine, { color: colors.muted }]}>
-                {[
-                  accounts.revidert ? 'Revidert' : 'Ikke revidert',
-                  accounts.smaafortak ? 'Små foretak' : '',
-                  accounts.morselskap ? 'Morselskap' : '',
-                  nbDate(accounts.fra) && nbDate(accounts.til) ? `${nbDate(accounts.fra)} – ${nbDate(accounts.til)}` : '',
-                ].filter(Boolean).join(' · ')}
-              </Text>
-              <View style={styles.statRow}>
-                <Stat label="Driftsinntekter" value={nok(accounts.driftsinntekter) || '—'} colors={colors} />
-                <Stat label="Driftsresultat" value={nok(accounts.driftsresultat) || '—'} colors={colors} />
-                <Stat label="Årsresultat" value={nok(accounts.aarsresultat) || '—'} colors={colors} />
-              </View>
-              <View style={styles.statRow}>
-                <Stat label="Eiendeler" value={nok(accounts.eiendeler) || '—'} colors={colors} />
-                <Stat label="Egenkapital" value={nok(accounts.egenkapital) || '—'} colors={colors} />
-                <Stat label="Gjeld" value={nok(accounts.gjeld) || '—'} colors={colors} />
-              </View>
+              <AccountHistoryCard
+                accounts={accountView}
+                founded={profile?.stiftelsesdato}
+                loading={historyLoading}
+                colors={colors}
+              />
             </Card>
           ) : null}
 

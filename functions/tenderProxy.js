@@ -26,7 +26,7 @@ async function readJson(url) {
 }
 
 export const tenderProxy = onRequest(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 60, memory: '256MiB' },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '1GiB' },
   async (req, res) => {
     cors(res);
     if (req.method === 'OPTIONS') {
@@ -51,6 +51,17 @@ export const tenderProxy = onRequest(
           readJson(`${FULLMAKT}/${id}/signatur`).catch(() => null),
         ]);
         res.json({ ok: true, accounts, signature });
+        return;
+      }
+      if (action === 'account-history') {
+        const id = String(body.orgnr || '').replace(/\D/g, '');
+        if (id.length !== 9) {
+          res.status(400).json({ ok: false, error: 'Organisasjonsnummer må ha 9 siffer.' });
+          return;
+        }
+        const { buildAccountHistory } = await import('./accountHistory.js');
+        const series = await buildAccountHistory(id, { useCache: true, budgetMs: 90000 });
+        res.json({ ok: true, years: series?.years || [] });
         return;
       }
       if (action === 'lookup') {

@@ -9,6 +9,9 @@ import {
   saveTenderWatch,
   setNoticeDecision,
   attachDossier,
+  ensureCurrentBid,
+  releaseUntouchedBid,
+  seedDossier,
   createBidWork,
   registerInterest,
   saveSupplierProfile,
@@ -23,6 +26,33 @@ assert.equal(normalizeCpvCode('45'), '45000000');
 assert.equal(normalizeCpvCode('45233120'), '45233120');
 assert.equal(normalizeCpvCode('45000000-7'), '45000000');
 assert.equal(normalizeCpvCode('abc'), '');
+
+const localNotice = {
+  ...emptyAnbudState(),
+  notices: [{ id: '2026-1', title: 'Skole', buyer: 'Kommune', decision: 'ubestemt', description: 'Ny skole', url: 'https://www.doffin.no/notices/2026-1' }],
+};
+const adopted = ensureCurrentBid(localNotice, '2026-1', {
+  description: 'Ny skole med grunnlag',
+  procedureOutline: 'Åpen konkurranse',
+  portalFiles: [{ name: 'Krav.pdf', size: '12 KB' }],
+  documents: [{ title: 'Anskaffelsesdokumenter', url: 'https://permalink.mercell.com/1.aspx' }],
+  qa: [{ question: 'Kan vi dele opp?', answer: 'Nei.' }],
+});
+assert.equal(adopted.ok, true);
+assert.equal(adopted.state.notices[0].decision, 'aktuell');
+assert.equal(adopted.state.bids[0].phase, 'trinn2');
+assert.equal(adopted.state.bids[0].dossier.portalFiles[0].name, 'Krav.pdf');
+assert.equal(adopted.state.bids[0].dossier.qa[0].answer, 'Nei.');
+assert.equal(ensureCurrentBid(adopted.state, '2026-1', { description: 'Oppdatert' }).state.bids.length, 1);
+const cleared = releaseUntouchedBid(setNoticeDecision(adopted.state, '2026-1', 'ubestemt').state, '2026-1');
+assert.equal(cleared.state.bids.length, 0);
+const keptBid = releaseUntouchedBid({
+  ...adopted.state,
+  bids: [{ ...adopted.state.bids[0], strategy: { ...adopted.state.bids[0].strategy, fag: true } }],
+}, '2026-1');
+assert.equal(keptBid.state.bids.length, 1);
+assert.equal(seedDossier(localNotice.notices[0]).documents[0].url, 'https://www.doffin.no/notices/2026-1');
+assert.equal(ensureCurrentBid(localNotice, 'mangler', {}).ok, false);
 
 let state = emptyAnbudState();
 assert.equal(saveTenderWatch(state, { companyName: '', cpvCodes: ['45000000'], nationwide: true }).ok, false);

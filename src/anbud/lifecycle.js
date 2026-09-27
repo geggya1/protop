@@ -240,7 +240,7 @@ export function regulatoryChecks(bid, now = new Date()) {
       label: 'Konkurransedokumenter',
       ok: hasDocuments,
       blocking: true,
-      detail: hasDocuments ? 'Grunnlaget er hentet inn' : 'Hent fillisten før gjennomføring starter',
+      detail: hasDocuments ? 'Tekst og vedlegg er hentet' : 'Merk konkurransen som aktuell for å hente grunnlaget',
     },
     {
       id: 'sporsmal',

@@ -47,9 +47,24 @@ export function summarizeNotice(notice) {
     seenDocs.add(row.value);
     documents.push({ title: row.title || 'Dokument', url: row.value });
   }
-  const qa = rows
-    .filter((row) => /spørsmål og svar|svar fra oppdragsgiver/i.test(row.label) && !/frist/i.test(row.label))
-    .map((row) => ({ question: row.label, answer: row.value }));
+  const qa = [];
+  let pendingQuestion = '';
+  for (const row of rows) {
+    if (/frist/i.test(row.label)) continue;
+    if (/^spørsmål$/i.test(row.label)) {
+      pendingQuestion = row.value;
+      continue;
+    }
+    if (/^svar$/i.test(row.label) && pendingQuestion) {
+      qa.push({ question: pendingQuestion, answer: row.value });
+      pendingQuestion = '';
+      continue;
+    }
+    if (/spørsmål og svar|svar fra oppdragsgiver/i.test(row.label)) {
+      qa.push({ question: row.label, answer: row.value });
+    }
+  }
+  if (pendingQuestion) qa.push({ question: pendingQuestion, answer: '' });
   const cpv = [...new Set([...(notice?.directCpvCodes || []), ...(notice?.allCpvCodes || [])])];
   const espd = all(rows, /espd|uteluk|exclusion/i);
   const lots = [];
@@ -65,7 +80,9 @@ export function summarizeNotice(notice) {
   return {
     id: notice?.id || '',
     title: text(notice?.heading),
-    description: text(notice?.description),
+    description: text(notice?.description) || first(rows, /^beskrivelse$/i),
+    procedureOutline: first(rows, /hovedtrekkene i prosedyren/i),
+    additionalInfo: first(rows, /^tilleggsinformasjon$/i),
     buyer: (notice?.buyer || []).map((row) => text(row?.name)).filter(Boolean).join(', '),
     places: notice?.placeOfPerformance || [],
     procedure: first(rows, /type prosedyre/i),

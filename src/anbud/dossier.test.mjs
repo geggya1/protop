@@ -13,6 +13,9 @@ const sample = summarizeNotice({
     { label: 'Frist for å be om tilleggsopplysninger', value: '12.10.2026 12:00', sections: null },
     { label: 'Internett-adresse', value: 'https://kommune.example/', sections: null },
     { label: 'Sources of grounds for exclusion', value: 'document-used-in-public-procurement.epo-acc-espd-request', sections: null },
+    { label: 'Hovedtrekkene i prosedyren', value: 'Løpende tjenester', sections: null },
+    { label: 'Spørsmål', value: 'Kan vi dele opp?', sections: null },
+    { label: 'Svar', value: 'Nei.', sections: null },
   ],
 });
 assert.equal(sample.documents.some((doc) => /kommune\.example/.test(doc.url)), false);
@@ -20,6 +23,9 @@ assert.equal(sample.procedure, 'Åpen');
 assert.equal(sample.questionDeadline, '12.10.2026 12:00');
 assert.match(sample.espd, /espd/i);
 assert.equal(sample.documents[0].url, 'https://permalink.mercell.com/1.aspx');
+assert.equal(sample.procedureOutline, 'Løpende tjenester');
+assert.equal(sample.qa[0].question, 'Kan vi dele opp?');
+assert.equal(sample.qa[0].answer, 'Nei.');
 
 const live = await fetchNoticeDossier('2026-114937');
 assert.equal(live.ok, true);

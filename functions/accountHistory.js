@@ -10,8 +10,8 @@ import { PNG } from 'pngjs';
 import { createWorker } from 'tesseract.js';
 import {
   linesFromWords,
+  acceptCopyYears,
   mergeAccountYears,
-  ocrAgrees,
   parseAccountStatement,
   parsePositionedStatement,
   pickCopyYears,
@@ -34,10 +34,14 @@ export async function closeAccountOcr() {
   await worker?.terminate?.();
 }
 
+function workerOptions() {
+  const langPath = path.join(path.dirname(require.resolve('@tesseract.js-data/nor/package.json')), '4.0.0');
+  return { cachePath, langPath, gzip: true };
+}
+
 function getWorker() {
   if (!workerPromise) {
-    const langPath = path.join(path.dirname(require.resolve('@tesseract.js-data/nor/package.json')), '4.0.0');
-    workerPromise = createWorker('nor', 1, { cachePath, langPath, gzip: true }).catch((err) => {
+    workerPromise = createWorker('nor', 1, workerOptions()).catch((err) => {
       workerPromise = null;
       throw err;
     });
@@ -71,7 +75,7 @@ async function readPdf(url, fetchImpl) {
 function bitmapToPng(img) {
   const bytes = img?.data;
   if (!bytes) return null;
-  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) return Buffer.from(bytes);
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) return { buffer: Buffer.from(bytes), scaleX: 1 };
   const width = img.width || 0;
   const height = img.height || 0;
   if (!width || !height) return null;
@@ -99,7 +103,26 @@ function bitmapToPng(img) {
       set(i, value);
     }
   }
-  return PNG.sync.write(png);
+  const edge = Math.max(png.width, png.height);
+  const maxEdge = 1300;
+  if (!edge || edge <= maxEdge) return { buffer: PNG.sync.write(png), scaleX: 1 };
+  const factor = edge / maxEdge;
+  const outWidth = Math.max(1, Math.round(png.width / factor));
+  const outHeight = Math.max(1, Math.round(png.height / factor));
+  const out = new PNG({ width: outWidth, height: outHeight });
+  for (let y = 0; y < outHeight; y += 1) {
+    const sy = Math.min(png.height - 1, Math.floor((y + 0.5) * factor));
+    for (let x = 0; x < outWidth; x += 1) {
+      const sx = Math.min(png.width - 1, Math.floor((x + 0.5) * factor));
+      const src = (sy * png.width + sx) * 4;
+      const dst = (y * outWidth + x) * 4;
+      out.data[dst] = png.data[src];
+      out.data[dst + 1] = png.data[src + 1];
+      out.data[dst + 2] = png.data[src + 2];
+      out.data[dst + 3] = 255;
+    }
+  }
+  return { buffer: PNG.sync.write(out), scaleX: png.width / outWidth };
 }
 
 function waitForImage(page, name) {
@@ -138,32 +161,33 @@ function statementComplete(text) {
     && /^sum gjeld\b/im.test(text);
 }
 
-export async function ocrAccountPdf(buffer) {
+export async function ocrAccountPdf(buffer, worker) {
   const { getDocument, OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await getDocument({
     data: new Uint8Array(buffer),
     isEvalSupported: false,
     disableFontFace: true,
   }).promise;
-  const worker = await getWorker();
+  const active = worker || await getWorker();
   const parts = [];
   const words = [];
   let yShift = 0;
   try {
-    const maxPages = Math.min(doc.numPages || 0, 6);
+    const maxPages = Math.min(doc.numPages || 0, 4);
     for (let pageNo = 1; pageNo <= maxPages; pageNo += 1) {
       const page = await doc.getPage(pageNo);
       const image = await largestImage(page, OPS);
       const png = image ? bitmapToPng(image) : null;
-      if (!png) continue;
-      const recognized = await worker.recognize(png);
+      if (!png?.buffer) continue;
+      const recognized = await active.recognize(png.buffer);
       parts.push(recognized?.data?.text || '');
+      const scaleX = png.scaleX || 1;
       for (const word of recognized?.data?.words || []) {
         const text = String(word?.text || '').trim();
         if (!text) continue;
         words.push({
           text,
-          x: ((word.bbox?.x0 || 0) + (word.bbox?.x1 || 0)) / 2,
+          x: (((word.bbox?.x0 || 0) + (word.bbox?.x1 || 0)) / 2) * scaleX,
           y: (word.bbox?.y0 || 0) + yShift,
         });
       }
@@ -221,7 +245,27 @@ async function writeCache(orgnr, years) {
   }
 }
 
-export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache = false, budgetMs = 70000 } = {}) {
+async function readCopy(id, year, latest, fetchImpl) {
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker('nor', 1, workerOptions());
+  try {
+    const pdf = await readPdf(
+      `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/${year}`,
+      fetchImpl,
+    );
+    if (!pdf) return { year, rows: [], missing: true };
+    const read = await ocrAccountPdf(pdf, worker);
+    const positioned = parsePositionedStatement(read.lines);
+    const rows = positioned.some((row) => row.driftsinntekter != null)
+      ? positioned
+      : parseAccountStatement(read.text);
+    return { year, rows: acceptCopyYears(latest, rows), missing: !rows.some((row) => row.aar === year) };
+  } finally {
+    await worker.terminate().catch(() => {});
+  }
+}
+
+export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache = false, budgetMs = 45000 } = {}) {
   const id = String(orgnr || '').replace(/\D/g, '');
   if (id.length !== 9) return null;
   const latest = shapeAccountPayload(await readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null));
@@ -234,39 +278,26 @@ export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache =
     fetchImpl,
   ).catch(() => null);
   const targets = pickCopyYears(Array.isArray(listed) ? listed : [], latest?.aar);
-  const parsed = [];
-  const deadline = Date.now() + budgetMs;
-  let complete = true;
-  for (const year of targets) {
-    if (Date.now() > deadline) {
-      complete = false;
-      break;
-    }
-    try {
-      const pdf = await readPdf(
-        `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/${year}`,
-        fetchImpl,
-      );
-      if (!pdf) {
-        complete = false;
-        continue;
-      }
-      const read = await ocrAccountPdf(pdf);
-      const positioned = parsePositionedStatement(read.lines);
-      const rows = positioned.some((row) => row.driftsinntekter != null)
-        ? positioned
-        : parseAccountStatement(read.text);
-      if (!rows.some((row) => row.aar === year)) complete = false;
-      parsed.push(...rows);
-    } catch (err) {
-      complete = false;
+  await getWorker().catch(() => null);
+  await closeAccountOcr();
+  const found = [];
+  const jobs = targets.map((year) => readCopy(id, year, latest, fetchImpl)
+    .then((result) => {
+      found.push(result);
+      return result;
+    })
+    .catch((err) => {
       console.error('accountHistory', year, err?.message || err);
-      if (err?.rateLimited) break;
-    }
-  }
-  if (latest?.driftsinntekter != null && parsed.length && !ocrAgrees(latest, parsed)) {
-    return latest;
-  }
+      found.push({ year, rows: [], missing: true, rateLimited: !!err?.rateLimited });
+      return null;
+    }));
+  const limit = Math.min(Math.max(5000, budgetMs), 45000);
+  await Promise.race([
+    Promise.all(jobs),
+    new Promise((resolve) => setTimeout(resolve, limit)),
+  ]);
+  const parsed = found.flatMap((result) => result?.rows || []);
+  const complete = targets.length > 0 && targets.every((year) => found.some((result) => result?.year === year && !result.missing && !result.rateLimited));
   const merged = mergeAccountYears(latest, parsed);
   if (useCache && complete && merged?.years?.length > (latest?.years?.length || 0)) {
     await writeCache(id, merged.years);

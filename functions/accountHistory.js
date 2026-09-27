@@ -245,61 +245,60 @@ async function writeCache(orgnr, years) {
   }
 }
 
-async function readCopy(id, year, latest, fetchImpl) {
-  const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('nor', 1, workerOptions());
-  try {
-    const pdf = await readPdf(
-      `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/${year}`,
-      fetchImpl,
-    );
-    if (!pdf) return { year, rows: [], missing: true };
-    const read = await ocrAccountPdf(pdf, worker);
-    const positioned = parsePositionedStatement(read.lines);
-    const rows = positioned.some((row) => row.driftsinntekter != null)
-      ? positioned
-      : parseAccountStatement(read.text);
-    return { year, rows: acceptCopyYears(latest, rows), missing: !rows.some((row) => row.aar === year) };
-  } finally {
-    await worker.terminate().catch(() => {});
-  }
+async function readCopy(id, year, latest, fetchImpl, worker) {
+  const pdf = await readPdf(
+    `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/${year}`,
+    fetchImpl,
+  );
+  if (!pdf) return { year, rows: [], missing: true };
+  const read = await ocrAccountPdf(pdf, worker);
+  const positioned = parsePositionedStatement(read.lines);
+  const rows = positioned.some((row) => row.driftsinntekter != null)
+    ? positioned
+    : parseAccountStatement(read.text);
+  return { year, rows: acceptCopyYears(latest, rows), missing: !rows.some((row) => row.aar === year) };
 }
 
-export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache = false, budgetMs = 45000 } = {}) {
+export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache = false, budgetMs = 40000 } = {}) {
   const id = String(orgnr || '').replace(/\D/g, '');
   if (id.length !== 9) return null;
+  const started = Date.now();
   const latest = shapeAccountPayload(await readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null));
   if (useCache) {
     const cached = await readCache(id, latest);
-    if (cached) return mergeAccountYears(latest, cached);
+    if (cached && cached.length > 1) return mergeAccountYears(latest, cached);
   }
   const listed = await readJson(
     `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/aar`,
     fetchImpl,
   ).catch(() => null);
   const targets = pickCopyYears(Array.isArray(listed) ? listed : [], latest?.aar);
-  await getWorker().catch(() => null);
-  await closeAccountOcr();
+  const worker = await getWorker();
   const found = [];
-  const jobs = targets.map((year) => readCopy(id, year, latest, fetchImpl)
-    .then((result) => {
+  const limit = Math.min(Math.max(8000, budgetMs), 40000);
+  for (const year of targets) {
+    const remaining = limit - (Date.now() - started);
+    if (remaining < 8000) break;
+    try {
+      const result = await Promise.race([
+        readCopy(id, year, latest, fetchImpl, worker),
+        new Promise((resolve) => setTimeout(() => resolve(null), remaining)),
+      ]);
+      if (!result) {
+        await closeAccountOcr();
+        break;
+      }
       found.push(result);
-      return result;
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error('accountHistory', year, err?.message || err);
       found.push({ year, rows: [], missing: true, rateLimited: !!err?.rateLimited });
-      return null;
-    }));
-  const limit = Math.min(Math.max(5000, budgetMs), 45000);
-  await Promise.race([
-    Promise.all(jobs),
-    new Promise((resolve) => setTimeout(resolve, limit)),
-  ]);
+      if (err?.rateLimited) break;
+    }
+  }
   const parsed = found.flatMap((result) => result?.rows || []);
   const complete = targets.length > 0 && targets.every((year) => found.some((result) => result?.year === year && !result.missing && !result.rateLimited));
   const merged = mergeAccountYears(latest, parsed);
-  if (useCache && complete && merged?.years?.length > (latest?.years?.length || 0)) {
+  if (useCache && merged?.years?.length > 1 && (complete || Date.now() - started > limit)) {
     await writeCache(id, merged.years);
   }
   return merged;

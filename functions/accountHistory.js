@@ -3,6 +3,7 @@
  * Kopiene er skannede PDF-er. Vi leser resultat og balanse og krever at
  * siste år stemmer med nøkkeltall-APIet før serien brukes.
  */
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { PNG } from 'pngjs';
@@ -15,7 +16,9 @@ import {
   parsePositionedStatement,
   pickCopyYears,
   shapeAccountPayload,
-} from '../src/project/accountSeries.js';
+} from './accountSeries.js';
+
+const require = createRequire(import.meta.url);
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -33,7 +36,8 @@ export async function closeAccountOcr() {
 
 function getWorker() {
   if (!workerPromise) {
-    workerPromise = createWorker('nor', 1, { cachePath }).catch((err) => {
+    const langPath = path.join(path.dirname(require.resolve('@tesseract.js-data/nor/package.json')), '4.0.0');
+    workerPromise = createWorker('nor', 1, { cachePath, langPath, gzip: true }).catch((err) => {
       workerPromise = null;
       throw err;
     });

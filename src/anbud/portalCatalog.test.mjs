@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   allowedCatalogUrl,
   interestUrlFromDocs,
@@ -29,6 +30,13 @@ assert.equal(interestUrlFromDocs('https://example.test/1'), '');
 assert.equal(allowedCatalogUrl('https://permalink.mercell.com/289669037.aspx'), true);
 assert.equal(allowedCatalogUrl('https://evil.example/mercell.com/1'), false);
 assert.equal(allowedCatalogUrl('http://permalink.mercell.com/1.aspx'), false);
+
+const deployedCatalog = readFileSync(new URL('../../functions/anbud/portalCatalog.js', import.meta.url), 'utf8');
+const sourceCatalog = readFileSync(new URL('./portalCatalog.js', import.meta.url), 'utf8');
+assert.equal(deployedCatalog, sourceCatalog);
+const proxySource = readFileSync(new URL('../../functions/tenderProxy.js', import.meta.url), 'utf8');
+assert.equal(proxySource.includes('../src/'), false);
+assert.match(proxySource, /from '\.\/anbud\/portalCatalog\.js'/);
 
 const live = await readPortalCatalog('https://permalink.mercell.com/289669037.aspx');
 assert.equal(live.ok, true);

@@ -10,6 +10,7 @@ import { formatGreetingDate } from '../../src/utils/timeGreeting';
 import AccountHistoryCard from '../../components/project/AccountHistoryCard';
 import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
+  accountHistoryEndpoint,
   fetchPublicCompany,
   nbDate,
   nok,
@@ -193,7 +194,7 @@ export default function CompanyLanding({
     let alive = true;
     setHistory(null);
     setHistoryLoading(true);
-    const endpoint = typeof window !== 'undefined' ? '/api/tender-proxy' : 'https://protop.no/api/tender-proxy';
+    const endpoint = accountHistoryEndpoint();
     fetch(endpoint, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },

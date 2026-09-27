@@ -6,7 +6,7 @@ import * as logger from 'firebase-functions/logger';
 import { searchDoffinNotices } from './anbud/doffinQuery.js';
 import { searchTedNotices } from './anbud/tedQuery.js';
 import { lookupCompanyCpv } from './anbud/companyLookup.js';
-import { readPortalCatalog } from '../src/anbud/portalCatalog.js';
+import { readPortalCatalog } from './anbud/portalCatalog.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
@@ -26,7 +26,7 @@ async function readJson(url) {
 }
 
 export const tenderProxy = onRequest(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '1GiB' },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '1GiB', cpu: 1 },
   async (req, res) => {
     cors(res);
     if (req.method === 'OPTIONS') {

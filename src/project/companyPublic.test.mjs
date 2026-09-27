@@ -9,6 +9,7 @@ import {
   shapePublicRoles,
   shapePublicSignature,
   shapePublicUnits,
+  accountHistoryEndpoint,
   weatherQuery,
 } from './companyPublic.js';
 
@@ -156,5 +157,10 @@ assert.match(fetched.brregUrl, /916538804/);
 
 const missing = await fetchPublicCompany('123', { fetchImpl: async () => { throw new Error('skal ikke kalles'); } });
 assert.equal(missing.ok, false);
+
+assert.equal(
+  accountHistoryEndpoint(),
+  'https://europe-west1-protop-c189c.cloudfunctions.net/tenderProxy',
+);
 
 console.log('companyPublic.test.mjs ok');

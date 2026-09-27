@@ -6,6 +6,11 @@
 import { shapeAccountPayload } from './accountSeries.js';
 
 const BRREG = 'https://data.brreg.no/enhetsregisteret/api';
+const ACCOUNT_HISTORY = 'https://europe-west1-protop-c189c.cloudfunctions.net/tenderProxy';
+
+export function accountHistoryEndpoint() {
+  return ACCOUNT_HISTORY;
+}
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 

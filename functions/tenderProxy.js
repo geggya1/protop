@@ -60,7 +60,7 @@ export const tenderProxy = onRequest(
           return;
         }
         const { buildAccountHistory } = await import('./accountHistory.js');
-        const series = await buildAccountHistory(id, { useCache: true, budgetMs: 45000 });
+        const series = await buildAccountHistory(id, { useCache: true, budgetMs: 40000 });
         res.json({ ok: true, years: series?.years || [] });
         return;
       }

@@ -11,21 +11,23 @@ import {
   STRATEGY_ITEMS,
   toggleStrategy,
 } from '../../src/anbud/lifecycle';
-import { formatWhen, portalFromUrl, registerInterest, setNoticeDecision, workCandidates } from '../../src/anbud/model';
+import { formatWhen, portalFromUrl } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
 export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot }) {
   const [profile, setProfile] = useState(null);
   const [storedBids, setStoredBids] = useState(bids || []);
-  const [candidates, setCandidates] = useState([]);
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
 
   useEffect(() => {
     loadAnbudState().then((state) => {
       setProfile(state.supplierProfile);
-      setStoredBids(state.bids?.length ? state.bids : (bids || []));
-      setCandidates(workCandidates(state));
+      const storedList = state.bids || [];
+      const incoming = bids || [];
+      const ids = new Set(storedList.map((row) => row.id));
+      const extra = incoming.filter((row) => row?.id && !ids.has(row.id));
+      setStoredBids(storedList.length || extra.length ? [...extra, ...storedList] : incoming);
       onSnapshot?.(state);
     });
   }, [company?.id, bids]);
@@ -37,53 +39,8 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
     }
     await saveAnbudState(result.state);
     setStoredBids(result.state.bids);
-    setCandidates(workCandidates(result.state));
     onSnapshot?.(result.state);
     setNote('');
-  }
-
-  async function bringIn(id) {
-    setBusyId(id);
-    setNote('');
-    let state = await loadAnbudState();
-    if (!state.supplierProfile?.username) {
-      setNote('Registrer innloggingsportalen under Innstillinger først.');
-      setBusyId('');
-      onOpenSettings?.();
-      return;
-    }
-    const notice = (state.notices || []).find((row) => row.id === id);
-    if (notice && notice.decision !== 'aktuell' && notice.decision !== 'tilbud') {
-      const marked = setNoticeDecision(state, id, 'aktuell');
-      if (!marked.ok) {
-        setNote(marked.error);
-        setBusyId('');
-        return;
-      }
-      state = marked.state;
-    }
-    let dossier = notice?.dossier || null;
-    try {
-      if (/^\d{4}-\d+$/.test(String(id))) {
-        const file = await fetchCompetitionFile(id);
-        dossier = file?.dossier ? await attachPortalCatalog(file.dossier) : dossier;
-      }
-    } catch (err) {
-      setNote(err?.message || 'Kunngjøringen svarte ikke. Konkurransen legges inn likevel.');
-    }
-    const result = registerInterest(state, id, dossier);
-    if (!result.ok) setNote(result.error);
-    else {
-      await saveAnbudState(result.state);
-      setProfile(result.state.supplierProfile);
-      setStoredBids(result.state.bids);
-      setCandidates(workCandidates(result.state));
-      const files = dossier?.portalFiles?.length;
-      setNote(files
-        ? `${notice?.title || 'Konkurransen'} er hentet inn med ${files} dokumenter.`
-        : `${notice?.title || 'Konkurransen'} er hentet inn i tilbudsarbeidet.`);
-    }
-    setBusyId('');
   }
 
   async function refreshFiles(bid) {
@@ -91,9 +48,9 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
     setNote('');
     let dossier = bid.dossier || {};
     try {
-      if (!dossier.documentsUrl && /^\d{4}-\d+$/.test(String(bid.noticeId || ''))) {
+      if (/^\d{4}-\d+$/.test(String(bid.noticeId || ''))) {
         const file = await fetchCompetitionFile(bid.noticeId);
-        dossier = file?.dossier || dossier;
+        dossier = file?.dossier ? { ...dossier, ...file.dossier } : dossier;
       }
       dossier = await attachPortalCatalog(dossier);
     } catch (err) {
@@ -121,7 +78,7 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
     <View style={{ gap: 12 }}>
       <Text style={[styles.h, { color: colors.ink }]}>Tilbudsarbeid</Text>
       <Text style={{ color: colors.muted }}>
-        Kunngjøring, frister og dokumentliste ligger her. Interesse og filnedlasting fullføres på portalen konkurransen bruker.
+        Konkurranser som merkes aktuelle i anbudsvarslingen kommer hit med tekst, frister, vedlegg og publiserte spørsmål og svar.
       </Text>
       {profile ? (
         <Text style={{ color: colors.muted }}>
@@ -133,21 +90,6 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
         </TouchableOpacity>
       )}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {candidates.length ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Treff som kan hentes inn</Text>
-          {candidates.slice(0, 12).map((notice) => (
-            <View key={notice.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{notice.title}</Text>
-              <Text style={{ color: colors.muted }}>{notice.buyer || 'Oppdragsgiver ikke oppgitt'}{notice.decision === 'aktuell' ? ' · markert aktuell' : ''}</Text>
-              <TouchableOpacity onPress={() => bringIn(notice.id)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-                <Text style={{ color: '#fff' }}>{busyId === notice.id ? 'Henter grunnlag …' : 'Hent inn'}</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          {candidates.length > 12 ? <Text style={{ color: colors.muted }}>{candidates.length - 12} treff til ligger i anbudsvarslingen.</Text> : null}
-        </View>
-      ) : null}
       {rows.map((bid) => (
         <BidCard
           key={bid.id}
@@ -159,9 +101,9 @@ export default function BidDesk({ company, colors, bids, onOpenSettings, onOpenA
           onOpenContracts={onOpenContracts}
         />
       ))}
-      {!rows.length && !candidates.length ? (
+      {!rows.length ? (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.muted }}>Ingen treff er søkt opp ennå. Oppdater listen i anbudsvarslingen, så kan de hentes inn her.</Text>
+          <Text style={{ color: colors.muted }}>Ingen konkurranser er merket aktuelle ennå. Merk dem i anbudsvarslingen, så hentes tekst, vedlegg og spørsmål hit.</Text>
           <TouchableOpacity onPress={onOpenAlerts} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff' }}>Gå til treffene</Text>
           </TouchableOpacity>
@@ -207,10 +149,10 @@ function BidCard({ bid, colors, busy, onRefresh, onCommit, onOpenContracts }) {
         </Text>
       ) : null}
       <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>{busy ? 'Henter filliste …' : 'Hent filliste'}</Text>
+        <Text style={{ color: colors.brand }}>{busy ? 'Henter grunnlag …' : 'Oppdater grunnlag'}</Text>
       </TouchableOpacity>
       {dossier?.documentsUrl || dossier?.submissionDeadline || dossier?.portalFiles?.length ? <DossierLines dossier={dossier} colors={colors} /> : (
-        <Text style={{ color: colors.muted }}>Grunnlaget er ikke lest inn ennå. Bruk Hent filliste.</Text>
+        <Text style={{ color: colors.muted }}>Grunnlaget er ikke lest inn ennå.</Text>
       )}
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Kravsjekk</Text>
       {checks.map((check) => (
@@ -285,7 +227,9 @@ function DossierLines({ dossier, colors }) {
       <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
       <Line label="ESPD" value={dossier.espd ? 'Egenerklæring brukes' : ''} colors={colors} />
       {dossier.description ? <Text style={{ color: colors.ink }}>{dossier.description}</Text> : null}
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Dokumenter</Text>
+      {dossier.procedureOutline ? <Text style={{ color: colors.ink }}>{dossier.procedureOutline}</Text> : null}
+      {dossier.additionalInfo ? <Text style={{ color: colors.ink }}>{dossier.additionalInfo}</Text> : null}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Vedlegg</Text>
       {files.length ? files.map((file) => (
         <Text key={file.name} style={{ color: colors.ink }}>{file.name}{file.size ? ` · ${file.size}` : ''} · åpnes på portalen</Text>
       )) : null}

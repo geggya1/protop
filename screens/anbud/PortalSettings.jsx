@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile, workCandidates } from '../../src/anbud/model';
+import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
@@ -30,13 +30,11 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
-  const [waiting, setWaiting] = useState(0);
 
   useEffect(() => {
     loadAnbudState().then((state) => {
       const saved = state.supplierProfile;
       setProfile(saved);
-      setWaiting(workCandidates(state).length);
       if (!saved) return;
       setContactName(saved.contactName || '');
       setEmail(saved.email || '');
@@ -67,22 +65,17 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
     await saveAnbudState(result.state);
     setProfile(result.state.supplierProfile);
     setError('');
-    const ready = workCandidates(result.state).length;
-    setWaiting(ready);
-    setNote(ready
-      ? `Profilen er lagret. ${ready} treff ligger klare og kan hentes inn nå.`
-      : 'Profilen er lagret. Hent treff i anbudsvarslingen, og ta dem inn i tilbudsarbeidet.');
-    if (ready) onOpenWork?.();
+    setNote('Profilen er lagret. Merk konkurranser som aktuelle i anbudsvarslingen, så hentes grunnlaget inn i tilbudsarbeidet.');
   }
 
   return (
     <View style={{ gap: 12 }}>
       <Text style={[styles.h, { color: colors.ink }]}>Innloggingsportal</Text>
       <Text style={{ color: colors.ink }}>
-        Doffin-kunngjøringen, fristene og fillisten leses inn i ProTop. Selve filene ligger hos innleveringsportalen og åpnes når bedriften har meldt interesse der.
+        Når en konkurranse merkes som aktuell, hentes kunngjøringstekst, frister, vedleggsliste og publiserte spørsmål og svar inn i tilbudsarbeidet.
       </Text>
       <Text style={{ color: colors.muted }}>
-        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Knappen i tilbudsarbeidet åpner innloggingen på akkurat den konkurransen, slik at interesse og filer gjøres der portalen krever det.
+        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Selve filene åpnes på portalen konkurransen bruker.
       </Text>
       <Field label="Kontaktperson" value={contactName} onChangeText={setContactName} colors={colors} placeholder="Navn" />
       <Field label="E-post" value={email} onChangeText={setEmail} colors={colors} placeholder="anbud@firma.no" keyboardType="email-address" />
@@ -113,12 +106,7 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
       </TouchableOpacity>
       {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {profile && waiting ? (
-        <TouchableOpacity onPress={onOpenWork} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-          <Text style={{ color: '#fff' }}>Hent {waiting} treff inn i tilbudsarbeidet</Text>
-        </TouchableOpacity>
-      ) : null}
-      {profile && !waiting ? (
+      {profile ? (
         <TouchableOpacity onPress={onOpenWork} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Åpne tilbudsarbeid</Text>
         </TouchableOpacity>

@@ -8,7 +8,7 @@ import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, registerInterest, saveTenderWatch, setNoticeDecision, watchFingerprint, watchQuery,
+  emptyAnbudState, ensureCurrentBid, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, registerInterest, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
@@ -106,6 +106,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
   const [sort, setSort] = useState({ key: 'publishedAt', dir: 'desc' });
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
+  const [pullingId, setPullingId] = useState('');
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
   const stateRef = useRef(state);
@@ -265,16 +266,56 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
     });
   }
 
+  function commitState(next) {
+    stateRef.current = next;
+    setState(next);
+  }
+
   function mark(id, decision) {
     const current = (stateRef.current.notices || []).find((row) => row.id === id);
     const nextDecision = current?.decision === decision ? 'ubestemt' : decision;
-    const result = setNoticeDecision(stateRef.current, id, nextDecision);
-    if (!result.ok) setError(result.error);
-    else {
-      setError('');
-      setState(result.state);
-      if (nextDecision === 'forkastet' || nextDecision === 'arkiv') setArchiveOn(false);
+    const decided = setNoticeDecision(stateRef.current, id, nextDecision);
+    if (!decided.ok) {
+      setError(decided.error);
+      return;
     }
+    const released = nextDecision === 'aktuell'
+      ? decided
+      : releaseUntouchedBid(decided.state, id);
+    setError('');
+    commitState(released.state);
+    if (nextDecision === 'forkastet' || nextDecision === 'arkiv') setArchiveOn(false);
+    if (nextDecision === 'aktuell') pullCurrent(id, current);
+  }
+
+  async function pullCurrent(id, notice) {
+    setPullingId(id);
+    setSavedNote('');
+    let dossier = notice?.dossier || null;
+    try {
+      if (/^\d{4}-\d+$/.test(String(id))) {
+        const file = await fetchCompetitionFile(id);
+        dossier = file?.dossier || dossier;
+        if (dossier) dossier = await attachPortalCatalog(dossier);
+      }
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke hente hele grunnlaget. Teksten i treffet er tatt med.');
+    }
+    const still = (stateRef.current.notices || []).find((row) => row.id === id);
+    if (!still || (still.decision !== 'aktuell' && still.decision !== 'tilbud')) {
+      setPullingId('');
+      return;
+    }
+    const adopted = ensureCurrentBid(stateRef.current, id, dossier || seedDossier(still));
+    if (!adopted.ok) setError(adopted.error);
+    else {
+      commitState(adopted.state);
+      const stored = adopted.state.bids.find((row) => row.noticeId === id)?.dossier || dossier;
+      const files = (stored?.portalFiles?.length || 0) + (stored?.documents?.length || 0);
+      const answers = stored?.qa?.length || 0;
+      setSavedNote(`${still.title || 'Konkurransen'} er merket aktuell. Teksten er lest inn. ${files ? `${files} vedlegg` : 'Ingen vedlegg er publisert ennå'}. ${answers ? `${answers} spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}. Den ligger i tilbudsarbeidet.`);
+    }
+    setPullingId('');
   }
 
   async function expressInterest(id) {
@@ -306,7 +347,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
       const who = result.state.supplierProfile.username;
       const files = dossier?.portalFiles?.length ? ` ${dossier.portalFiles.length} dokumenter er listet.` : '';
       setSavedNote(`Interesse er meldt som ${who}. Grunnlag og filliste ligger i tilbudsarbeidet.${files} Filene åpnes på ${result.state.supplierProfile.portal}.`);
-      setState(result.state);
+      commitState(result.state);
     }
     setSyncing(false);
   }
@@ -538,7 +579,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
                       accessibilityLabel={`Merk ${row.title} som aktuell`}
                       style={[styles.mini, { backgroundColor: aktuell ? colors.brand : colors.sunken, borderColor: aktuell ? colors.brand : colors.line }]}
                     >
-                      <Text style={{ color: aktuell ? '#fff' : colors.ink, fontSize: 12 }}>Aktuell</Text>
+                      <Text style={{ color: aktuell ? '#fff' : colors.ink, fontSize: 12 }}>{pullingId === row.id ? 'Henter …' : 'Aktuell'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => mark(row.id, 'forkastet')}
@@ -552,7 +593,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
                 </View>
                 {open ? (
                   <View style={{ padding: 8, gap: 8 }}>
-                    <Text style={{ color: colors.ink }}>{row.description || row.noticeType || 'Ingen utdrag.'}</Text>
+                    <Text style={{ color: colors.ink }}>{row.dossier?.description || row.description || row.noticeType || 'Ingen utdrag.'}</Text>
+                    {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
+                    {aktuell && row.dossier ? <FetchedLines dossier={row.dossier} colors={colors} /> : null}
                     <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
                       <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
                     </TouchableOpacity>
@@ -687,6 +730,27 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           {!!mailNote && <Text style={{ color: colors.muted }}>{mailNote}</Text>}
         </View> : null}
       </View>
+    </View>
+  );
+}
+
+function FetchedLines({ dossier, colors }) {
+  const files = [
+    ...(dossier.portalFiles || []).map((file) => file.name),
+    ...(dossier.documents || []).map((doc) => doc.title),
+  ].filter(Boolean);
+  return (
+    <View style={{ gap: 4 }}>
+      {dossier.procedureOutline ? <Text style={{ color: colors.ink }}>{dossier.procedureOutline}</Text> : null}
+      {dossier.additionalInfo ? <Text style={{ color: colors.ink }}>{dossier.additionalInfo}</Text> : null}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Vedlegg</Text>
+      {files.length ? files.map((name, index) => <Text key={`${name}-${index}`} style={{ color: colors.ink }}>{name}</Text>) : (
+        <Text style={{ color: colors.muted }}>Ingen vedlegg er publisert ennå.</Text>
+      )}
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Spørsmål og svar</Text>
+      {dossier.qa?.length ? dossier.qa.map((row) => (
+        <Text key={`${row.question}-${row.answer}`} style={{ color: colors.ink }}>{row.question}{row.answer ? `: ${row.answer}` : ''}</Text>
+      )) : <Text style={{ color: colors.muted }}>Ingen spørsmål og svar er publisert ennå.</Text>}
     </View>
   );
 }

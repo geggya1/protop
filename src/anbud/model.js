@@ -446,6 +446,87 @@ export function attachDossier(state, id, dossier) {
   });
 }
 
+export function seedDossier(notice) {
+  if (!notice) return null;
+  const url = text(notice.url);
+  return {
+    id: notice.id || '',
+    title: notice.title || '',
+    description: notice.description || '',
+    buyer: notice.buyer || '',
+    places: notice.places || [],
+    submissionDeadline: notice.deadline || '',
+    documentsUrl: url,
+    documents: url ? [{ title: 'Kunngjøring', url }] : [],
+    qa: [],
+    portalFiles: [],
+    cpvCodes: notice.cpvCodes || [],
+    noticeUrl: url,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+function freshBid(notice, dossier) {
+  return {
+    id: `bid_${notice.id}`,
+    noticeId: notice.id,
+    title: notice.title,
+    buyer: notice.buyer,
+    phase: 'trinn2',
+    stage: 'planlegging',
+    strategy: {
+      fag: false,
+      kapasitet: false,
+      referanser: false,
+      okonomi: false,
+      hms: false,
+      grunnlag: false,
+    },
+    createdAt: new Date().toISOString(),
+    dossier: dossier || notice.dossier || null,
+  };
+}
+
+/** Aktuell konkurranse ligger i tilbudsarbeidet med teksten, vedleggene og spørsmålene som er publisert. */
+export function ensureCurrentBid(state, id, dossier) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  let next = state;
+  if (notice.decision !== 'aktuell' && notice.decision !== 'tilbud') {
+    const marked = setNoticeDecision(next, id, 'aktuell');
+    if (!marked.ok) return marked;
+    next = marked.state;
+  }
+  if (dossier && typeof dossier === 'object') {
+    const attached = attachDossier(next, id, dossier);
+    if (!attached.ok) return attached;
+    next = attached.state;
+  }
+  const row = noticeById(next, id);
+  const stored = dossier || row.dossier || null;
+  const existing = (next.bids || []).find((bid) => bid.noticeId === id);
+  if (existing) {
+    return ok({
+      ...next,
+      bids: next.bids.map((bid) => (
+        bid.noticeId === id
+          ? { ...bid, title: row.title, buyer: row.buyer, dossier: stored || bid.dossier }
+          : bid
+      )),
+    });
+  }
+  return ok({ ...next, bids: [freshBid(row, stored), ...(next.bids || [])] });
+}
+
+export function releaseUntouchedBid(state, id) {
+  const bid = (state?.bids || []).find((row) => row.noticeId === id);
+  if (!bid) return ok(state);
+  if (bid.stage && bid.stage !== 'planlegging') return ok(state);
+  if (bid.interest) return ok(state);
+  if (Object.values(bid.strategy || {}).some(Boolean)) return ok(state);
+  return ok({ ...state, bids: state.bids.filter((row) => row.noticeId !== id) });
+}
+
 export function workCandidates(state) {
   const taken = new Set((state?.bids || []).map((bid) => bid.noticeId));
   return (state?.notices || []).filter((row) => (
@@ -485,25 +566,7 @@ export function createBidWork(state, id) {
   if (!decided.ok) return decided;
   const notice = noticeById(decided.state, id);
   if ((decided.state.bids || []).some((bid) => bid.noticeId === id)) return decided;
-  const bid = {
-    id: `bid_${id}`,
-    noticeId: id,
-    title: notice.title,
-    buyer: notice.buyer,
-    phase: 'trinn2',
-    stage: 'planlegging',
-    strategy: {
-      fag: false,
-      kapasitet: false,
-      referanser: false,
-      okonomi: false,
-      hms: false,
-      grunnlag: false,
-    },
-    createdAt: new Date().toISOString(),
-    dossier: notice.dossier || null,
-  };
-  return ok({ ...decided.state, bids: [bid, ...(decided.state.bids || [])] });
+  return ok({ ...decided.state, bids: [freshBid(notice, notice.dossier), ...(decided.state.bids || [])] });
 }
 
 export function formatNok(amount) {

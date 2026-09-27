@@ -4,6 +4,7 @@ import {
   buildAccountChart,
   formatThousands,
   mergeAccountYears,
+  acceptCopyYears,
   ocrAgrees,
   parseAccountStatement,
   parsePositionedStatement,
@@ -107,6 +108,9 @@ assert.equal(wrappedTax.find((row) => row.aar === 2022).resultatFoerSkatt, 52482
 
 assert.ok(ocrAgrees(api, parsed));
 assert.equal(ocrAgrees(api, [{ aar: 2025, driftsinntekter: 100 }]), false);
+assert.equal(acceptCopyYears(api, parsed).length, 2);
+assert.equal(acceptCopyYears(api, [{ aar: 2025, driftsinntekter: 100 }, { aar: 2024, driftsinntekter: 10 }]).length, 0);
+assert.equal(acceptCopyYears(api, [{ aar: 2023, driftsinntekter: 38000000 }, { aar: 2022, driftsinntekter: 29000000 }]).length, 2);
 
 const merged = mergeAccountYears(api, parsed);
 assert.equal(merged.years.length, 2);

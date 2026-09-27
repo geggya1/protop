@@ -26,7 +26,7 @@ async function readJson(url) {
 }
 
 export const tenderProxy = onRequest(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '1GiB', cpu: 1 },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '2GiB', cpu: 2 },
   async (req, res) => {
     cors(res);
     if (req.method === 'OPTIONS') {
@@ -60,7 +60,7 @@ export const tenderProxy = onRequest(
           return;
         }
         const { buildAccountHistory } = await import('./accountHistory.js');
-        const series = await buildAccountHistory(id, { useCache: true, budgetMs: 90000 });
+        const series = await buildAccountHistory(id, { useCache: true, budgetMs: 45000 });
         res.json({ ok: true, years: series?.years || [] });
         return;
       }

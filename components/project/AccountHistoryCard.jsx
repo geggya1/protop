@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { nbDate } from '../../src/project/companyPublic';
@@ -65,13 +65,13 @@ export default function AccountHistoryCard({
     nbDate(selected.fra) && nbDate(selected.til) ? `${nbDate(selected.fra)} – ${nbDate(selected.til)}` : '',
   ].filter(Boolean).join(' · ');
   const rows = [
-    ['Sum driftsinntekter', selected.driftsinntekter, true],
-    ['Driftsresultat (EBIT)', selected.driftsresultat, true],
-    ['Resultat før skatt', selected.resultatFoerSkatt, false],
-    ['Årsresultat', selected.aarsresultat, false],
-    ['Eiendeler', selected.eiendeler, false],
-    ['Egenkapital', selected.egenkapital, false],
-    ['Gjeld', selected.gjeld, false],
+    ['Sum driftsinntekter', 'driftsinntekter', true],
+    ['Driftsresultat (EBIT)', 'driftsresultat', true],
+    ['Resultat før skatt', 'resultatFoerSkatt', false],
+    ['Årsresultat', 'aarsresultat', false],
+    ['Eiendeler', 'eiendeler', false],
+    ['Egenkapital', 'egenkapital', false],
+    ['Gjeld', 'gjeld', false],
   ];
   const revenueColor = colors.ink;
   const ebitColor = colors.brand;
@@ -233,27 +233,48 @@ export default function AccountHistoryCard({
       </View>
 
       <View style={styles.table}>
-        <View style={styles.tableHead}>
-          <Text style={[styles.tableTitle, { color: colors.ink }]}>Regnskap</Text>
-          <Text style={[styles.tablePeriod, { color: colors.ink }]}>{periodLabel(selected)}</Text>
-        </View>
-        {rows.map(([label, value, highlight]) => (
-          <View
-            key={label}
-            style={[
-              styles.tableRow,
-              {
-                borderColor: highlight ? colors.brand : 'transparent',
-                backgroundColor: highlight ? colors.brandSoft : 'transparent',
-              },
-            ]}
-          >
-            <Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text>
-            <Text style={[styles.rowValue, { color: Number(value) < 0 ? colors.danger : colors.ink }]}>
-              {formatThousands(value) || '—'}
-            </Text>
+        <Text style={[styles.tableTitle, { color: colors.ink }]}>Regnskap</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          <View>
+            <View style={styles.tableHead}>
+              <Text style={[styles.rowLabel, { color: colors.muted }]}>Beløp i 1000</Text>
+              {visible.map((year) => (
+                <Text
+                  key={year.aar}
+                  style={[styles.yearCol, { color: year.aar === selected?.aar ? colors.brand : colors.ink }]}
+                  onPress={() => setSelectedYear(year.aar)}
+                >
+                  {periodLabel(year)}
+                </Text>
+              ))}
+            </View>
+            {rows.map(([label, key, highlight]) => (
+              <View
+                key={label}
+                style={[
+                  styles.tableRow,
+                  {
+                    borderColor: highlight ? colors.brand : 'transparent',
+                    backgroundColor: highlight ? colors.brandSoft : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text>
+                {visible.map((year) => {
+                  const value = year[key];
+                  return (
+                    <Text
+                      key={year.aar}
+                      style={[styles.yearCol, { color: Number(value) < 0 ? colors.danger : colors.ink, fontWeight: year.aar === selected?.aar ? '600' : '400' }]}
+                    >
+                      {formatThousands(value) || '—'}
+                    </Text>
+                  );
+                })}
+              </View>
+            ))}
           </View>
-        ))}
+        </ScrollView>
       </View>
     </View>
   );
@@ -280,13 +301,12 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 12 },
   table: { gap: 4, marginTop: 2 },
-  tableHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 2 },
-  tableTitle: { fontSize: 15, fontWeight: '600' },
-  tablePeriod: { fontSize: 14, fontWeight: '600' },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 4 },
+  tableTitle: { fontSize: 15, fontWeight: '600', paddingHorizontal: 10 },
   tableRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7,
   },
-  rowLabel: { fontSize: 14, flex: 1 },
-  rowValue: { fontSize: 14, fontVariant: ['tabular-nums'] },
+  rowLabel: { fontSize: 14, width: 168 },
+  yearCol: { fontSize: 13, width: 72, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });

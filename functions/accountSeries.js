@@ -337,6 +337,19 @@ export function ocrAgrees(apiYear, ocrYears) {
   return diff <= Math.max(2, Math.abs(apiYear.driftsinntekter) * 0.005);
 }
 
+/**
+ * En regnskapskopi som ikke inneholder siste offisielle år beholdes.
+ * Stemmer ikke avlesingen av det året, forkastes hele kopien.
+ * Eldre kopier skal ikke falle bort bare fordi siste år mangler i den bunken.
+ */
+export function acceptCopyYears(apiYear, rows) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!list.length || apiYear?.driftsinntekter == null) return list;
+  const coversLatest = list.some((row) => Number(row?.aar) === Number(apiYear.aar) && row?.driftsinntekter != null);
+  if (!coversLatest) return list;
+  return ocrAgrees(apiYear, list) ? list : [];
+}
+
 export function roundThousands(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;

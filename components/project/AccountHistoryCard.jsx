@@ -16,6 +16,12 @@ function foundedYear(value) {
   return match ? match[1] : '';
 }
 
+function selectionBandWidth(labels) {
+  if (!labels || labels.length < 2) return 36;
+  const gap = Math.abs(labels[1].x - labels[0].x);
+  return Math.max(26, Math.min(40, gap * 0.32));
+}
+
 function RoundButton({ label, disabled, filled, onPress, colors, children }) {
   return (
     <TouchableOpacity
@@ -129,23 +135,30 @@ export default function AccountHistoryCard({
           }}
         >
           <Svg width="100%" height={CHART_HEIGHT} viewBox={`0 0 ${width} ${CHART_HEIGHT}`}>
-            {chart.labels.filter((label) => label.aar === selected.aar).map((label) => (
-              <Rect
-                key={`band-${label.aar}`}
-                x={label.x - 22}
-                y={12}
-                width={44}
-                height={CHART_HEIGHT - 40}
-                rx={8}
-                fill={colors.brandSoft}
-              />
-            ))}
-            {chart.yTicks.map((tick) => (
-              <React.Fragment key={tick.label}>
-                <Line x1={48} y1={tick.y} x2={width - 8} y2={tick.y} stroke={colors.line} strokeWidth={1} />
-                <SvgText x={42} y={tick.y + 3} fill={colors.muted} fontSize={10} textAnchor="end">{tick.label}</SvgText>
-              </React.Fragment>
-            ))}
+            {chart.labels.filter((label) => label.aar === selected.aar).map((label) => {
+              const bandW = selectionBandWidth(chart.labels);
+              return (
+                <Rect
+                  key={`band-${label.aar}`}
+                  x={label.x - bandW / 2}
+                  y={14}
+                  width={bandW}
+                  height={CHART_HEIGHT - 44}
+                  rx={10}
+                  fill={colors.brand}
+                  opacity={0.14}
+                />
+              );
+            })}
+            {chart.yTicks.map((tick) => {
+              const y = Math.round(tick.y) + 0.5;
+              return (
+                <React.Fragment key={tick.label}>
+                  <Line x1={48} y1={y} x2={width - 8} y2={y} stroke={colors.line} strokeWidth={1} />
+                  <SvgText x={42} y={Math.round(tick.y) + 4} fill={colors.muted} fontSize={11} textAnchor="end">{tick.label}</SvgText>
+                </React.Fragment>
+              );
+            })}
             {chart.hits.map((hit) => (
               <Rect
                 key={`hit-${hit.aar}`}
@@ -157,26 +170,49 @@ export default function AccountHistoryCard({
                 onPress={() => setSelectedYear(hit.aar)}
               />
             ))}
+            {selected ? (
+              <Line
+                x1={chart.labels.find((label) => label.aar === selected.aar)?.x || 0}
+                y1={16}
+                x2={chart.labels.find((label) => label.aar === selected.aar)?.x || 0}
+                y2={CHART_HEIGHT - 30}
+                stroke={colors.brand}
+                strokeWidth={1}
+                strokeDasharray="3 4"
+                opacity={0.55}
+              />
+            ) : null}
             {mode === 'line' ? (
               <>
                 {chart.revenueSegments.map((points) => (
-                  <Polyline key={`rev-${points}`} points={points} fill="none" stroke={revenueColor} strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
+                  <Polyline key={`rev-${points}`} points={points} fill="none" stroke={revenueColor} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
                 ))}
                 {chart.ebitSegments.map((points) => (
-                  <Polyline key={`ebit-${points}`} points={points} fill="none" stroke={ebitColor} strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
+                  <Polyline key={`ebit-${points}`} points={points} fill="none" stroke={ebitColor} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
                 ))}
-                {chart.dots.map((dot) => (
-                  <Circle
-                    key={`${dot.series}-${dot.aar}`}
-                    cx={dot.x}
-                    cy={dot.y}
-                    r={dot.aar === selected.aar ? 6 : 3.5}
-                    fill={dot.series === 'revenue' ? revenueColor : ebitColor}
-                    stroke={colors.card}
-                    strokeWidth={dot.aar === selected.aar ? 2 : 0}
-                    onPress={() => setSelectedYear(dot.aar)}
-                  />
-                ))}
+                {/* Fylte markører over linjene, så markøren ikke skjærer hull i punktet. */}
+                {chart.dots.map((dot) => {
+                  const active = dot.aar === selected.aar;
+                  const color = dot.series === 'revenue' ? revenueColor : ebitColor;
+                  return (
+                    <React.Fragment key={`${dot.series}-${dot.aar}`}>
+                      <Circle
+                        cx={dot.x}
+                        cy={dot.y}
+                        r={active ? 7 : 4.5}
+                        fill={colors.card}
+                        onPress={() => setSelectedYear(dot.aar)}
+                      />
+                      <Circle
+                        cx={dot.x}
+                        cy={dot.y}
+                        r={active ? 4 : 2.75}
+                        fill={color}
+                        onPress={() => setSelectedYear(dot.aar)}
+                      />
+                    </React.Fragment>
+                  );
+                })}
               </>
             ) : chart.bars.map((bar) => (
               <Rect
@@ -185,24 +221,12 @@ export default function AccountHistoryCard({
                 y={bar.y}
                 width={bar.width}
                 height={bar.height}
-                rx={2}
+                rx={3}
                 fill={bar.series === 'revenue' ? revenueColor : ebitColor}
                 opacity={bar.aar === selected.aar ? 1 : 0.45}
                 onPress={() => setSelectedYear(bar.aar)}
               />
             ))}
-            {selected ? (
-              <Line
-                x1={chart.labels.find((label) => label.aar === selected.aar)?.x || 0}
-                y1={14}
-                x2={chart.labels.find((label) => label.aar === selected.aar)?.x || 0}
-                y2={CHART_HEIGHT - 28}
-                stroke={colors.brand}
-                strokeWidth={1}
-                strokeDasharray="3 4"
-                opacity={0.7}
-              />
-            ) : null}
             {chart.labels.map((label) => (
               <SvgText
                 key={label.aar}

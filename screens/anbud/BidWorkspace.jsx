@@ -193,7 +193,7 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
           <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
           <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
           <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
-          {dossier.description ? <Text style={{ color: colors.ink }}>{dossier.description}</Text> : null}
+          {dossier.description ? <FoldedText text={dossier.description} colors={colors} /> : null}
           <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
             <Text style={{ color: colors.brand }}>{busy ? 'Henter dokumenter …' : 'Hent dokumenter på nytt'}</Text>
           </TouchableOpacity>
@@ -434,7 +434,7 @@ function FileList({ files, colors, openFileId, onOpen, onDelete }) {
               <Text style={{ color: colors.ink, fontWeight: '600' }}>{file.name}</Text>
               <Text style={{ color: colors.muted }}>{statusLabel(file)}{file.sizeLabel ? ` · ${file.sizeLabel}` : ''}</Text>
             </TouchableOpacity>
-            {open && file.text ? <Text style={{ color: colors.ink }}>{file.text}</Text> : null}
+            {open && file.text ? <FoldedText text={file.text} colors={colors} limit={700} /> : null}
             <View style={styles.row}>
               {file.status === 'lastet' || file.url ? (
                 <TouchableOpacity onPress={() => openStoredFile(file)} accessibilityRole="button">
@@ -450,6 +450,23 @@ function FileList({ files, colors, openFileId, onOpen, onDelete }) {
           </View>
         );
       })}
+    </View>
+  );
+}
+
+function FoldedText({ text, colors, limit = 280 }) {
+  const [open, setOpen] = useState(false);
+  const value = String(text || '');
+  const long = value.length > limit;
+  const shown = open || !long ? value : `${value.slice(0, limit).trim()} …`;
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: colors.ink }}>{shown}</Text>
+      {long ? (
+        <TouchableOpacity onPress={() => setOpen((current) => !current)} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>{open ? 'Vis mindre' : 'Vis hele teksten'}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

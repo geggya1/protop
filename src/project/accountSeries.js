@@ -132,6 +132,62 @@ export function pickCopyYears(available, newestYear) {
   return picked;
 }
 
+/**
+ * Kopier som fortsatt må leses.
+ * Uten eksplisitt liste regnes et målår som ferdig når det allerede ligger i serien.
+ */
+export function pendingCopyYears(targets, cachedYears, cachedCopies) {
+  const wanted = [...new Set((targets || []).map((value) => Number(value)).filter((year) => Number.isFinite(year)))];
+  const have = new Set((cachedYears || []).map((row) => Number(row?.aar)).filter((year) => Number.isFinite(year)));
+  const known = new Set(
+    Array.isArray(cachedCopies)
+      ? cachedCopies.map((value) => Number(value)).filter((year) => Number.isFinite(year))
+      : wanted.filter((year) => have.has(year)),
+  );
+  return wanted.filter((year) => !known.has(year));
+}
+
+const YEAR_WINDOW = 5;
+
+function sortedYears(years) {
+  return [...(years || [])]
+    .filter((row) => Number.isFinite(Number(row?.aar)))
+    .sort((a, b) => a.aar - b.aar);
+}
+
+/** Fem år i grafen om gangen. Valgt år holdes inne i vinduet. */
+export function accountYearWindow(years, { selectedYear = null, anchor = null, size = YEAR_WINDOW } = {}) {
+  const rows = sortedYears(years);
+  const count = rows.length;
+  const span = Math.max(1, Number(size) || YEAR_WINDOW);
+  let start = anchor == null ? Math.max(0, count - span) : Number(anchor);
+  if (!Number.isFinite(start)) start = Math.max(0, count - span);
+  start = Math.max(0, Math.min(start, Math.max(0, count - 1)));
+  if (count > span && start + span > count) start = count - span;
+  const selectedIndex = rows.findIndex((row) => Number(row.aar) === Number(selectedYear));
+  const index = selectedIndex >= 0 ? selectedIndex : Math.max(0, count - 1);
+  if (count && index < start) start = index;
+  if (count && index >= start + span) start = index - span + 1;
+  start = Math.max(0, start);
+  return {
+    start,
+    visible: rows.slice(start, Math.min(count, start + span)),
+    selected: count ? rows[index] : null,
+    canPrev: index > 0,
+    canNext: count > 0 && index < count - 1,
+  };
+}
+
+/** Ett år mot eldre (negativ) eller nyere. Vinduet følger med når året faller utenfor. */
+export function stepAccountYear(years, { selectedYear = null, anchor = null, delta = 0, size = YEAR_WINDOW } = {}) {
+  const current = accountYearWindow(years, { selectedYear, anchor, size });
+  const rows = sortedYears(years);
+  const index = rows.findIndex((row) => Number(row.aar) === Number(current.selected?.aar));
+  const nextIndex = index + delta;
+  if (index < 0 || nextIndex < 0 || nextIndex >= rows.length) return current;
+  return accountYearWindow(rows, { selectedYear: rows[nextIndex].aar, anchor: current.start, size });
+}
+
 function closeness(left, right) {
   const a = Math.max(1, Math.abs(left));
   const b = Math.max(1, Math.abs(right));

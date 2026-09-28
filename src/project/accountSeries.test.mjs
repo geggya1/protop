@@ -8,8 +8,11 @@ import {
   ocrAgrees,
   parseAccountStatement,
   parsePositionedStatement,
+  accountYearWindow,
+  pendingCopyYears,
   pickCopyYears,
   shapeAccountPayload,
+  stepAccountYear,
 } from './accountSeries.js';
 
 const api = shapeAccountPayload([{
@@ -120,6 +123,27 @@ assert.equal(merged.years.find((row) => row.aar === 2025).ebitda, 7417998);
 assert.equal(merged.years[0].aar, 2024);
 
 assert.deepEqual(pickCopyYears(['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025'], 2025), [2025, 2023, 2021]);
+assert.deepEqual(pendingCopyYears([2025, 2023, 2021], [{ aar: 2025 }, { aar: 2024 }], null), [2023, 2021]);
+assert.deepEqual(pendingCopyYears([2025, 2023, 2021], [{ aar: 2025 }, { aar: 2024 }], [2025, 2023]), [2021]);
+assert.deepEqual(pendingCopyYears([2025, 2023, 2021], [], [2025, 2023, 2021]), []);
+
+const browsable = [2020, 2021, 2022, 2023, 2024, 2025].map((aar) => ({ aar }));
+const latestWindow = accountYearWindow(browsable, {});
+assert.deepEqual(latestWindow.visible.map((row) => row.aar), [2021, 2022, 2023, 2024, 2025]);
+assert.equal(latestWindow.selected.aar, 2025);
+assert.equal(latestWindow.canNext, false);
+assert.equal(latestWindow.canPrev, true);
+let cursor = { selectedYear: 2025, anchor: null };
+for (let i = 0; i < 5; i += 1) {
+  const next = stepAccountYear(browsable, { ...cursor, delta: -1 });
+  cursor = { selectedYear: next.selected.aar, anchor: next.start };
+}
+assert.equal(cursor.selectedYear, 2020);
+assert.equal(cursor.anchor, 0);
+assert.deepEqual(accountYearWindow(browsable, cursor).visible.map((row) => row.aar), [2020, 2021, 2022, 2023, 2024]);
+const towardNewer = stepAccountYear(browsable, { selectedYear: 2024, anchor: 0, delta: 1 });
+assert.equal(towardNewer.selected.aar, 2025);
+assert.equal(towardNewer.start, 1);
 assert.match(formatThousands(50613141), /50[\s\u00a0\u202f]?613/);
 assert.match(formatThousands(7417998), /7[\s\u00a0\u202f]?418/);
 

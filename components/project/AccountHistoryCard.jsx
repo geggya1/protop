@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { nbDate } from '../../src/project/companyPublic';
 import {
+  accountYearWindow,
   buildAccountChart,
   formatThousands,
   periodLabel,
+  stepAccountYear,
 } from '../../src/project/accountSeries';
 
 const CHART_HEIGHT = 196;
@@ -50,14 +52,24 @@ export default function AccountHistoryCard({
   loading = false,
   colors,
 }) {
-  const visible = (accounts?.years || []).slice(-5);
+  const allYears = accounts?.years || [];
   const [mode, setMode] = useState('line');
   const [selectedYear, setSelectedYear] = useState(null);
+  const [windowStart, setWindowStart] = useState(null);
   const [width, setWidth] = useState(320);
-  const selected = visible.find((row) => row.aar === selectedYear) || visible[visible.length - 1] || null;
-  const selectedIndex = Math.max(0, visible.findIndex((row) => row.aar === selected?.aar));
-  const newest = visible[visible.length - 1] || null;
+  const yearWindow = accountYearWindow(allYears, { selectedYear, anchor: windowStart });
+  const visible = yearWindow.visible;
+  const selected = yearWindow.selected;
+  const newest = allYears[allYears.length - 1] || selected;
   const chart = buildAccountChart(visible, { width, height: CHART_HEIGHT });
+  const stepRef = useRef(() => {});
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dx <= -48) stepRef.current(1);
+      else if (gesture.dx >= 48) stepRef.current(-1);
+    },
+  })).current;
   if (!selected || !newest) return null;
 
   const summaryValue = newest.ebitda != null ? newest.ebitda : newest.driftsresultat;
@@ -83,8 +95,15 @@ export default function AccountHistoryCard({
   const ebitColor = colors.brand;
 
   function step(delta) {
-    const next = visible[selectedIndex + delta];
-    if (next) setSelectedYear(next.aar);
+    const next = stepAccountYear(allYears, { selectedYear: selected?.aar, anchor: windowStart, delta });
+    const latestStart = Math.max(0, allYears.length - 5);
+    setWindowStart(next.start === latestStart ? null : next.start);
+    if (next.selected) setSelectedYear(next.selected.aar);
+  }
+  stepRef.current = step;
+
+  function choose(year) {
+    setSelectedYear(year);
   }
 
   return (
@@ -111,11 +130,11 @@ export default function AccountHistoryCard({
         <View style={styles.chartHead}>
           <Text style={[styles.chartTitle, { color: colors.ink }]}>Regnskap</Text>
           <View style={styles.controls}>
-            <RoundButton label="Forrige år" disabled={selectedIndex <= 0} onPress={() => step(-1)} colors={colors}>
-              <Ionicons name="chevron-back" size={16} color={colors.ink} />
+            <RoundButton label="Forrige år" disabled={!yearWindow.canPrev} onPress={() => step(-1)} colors={colors}>
+              <Ionicons name="chevron-back" size={16} color={yearWindow.canPrev ? colors.ink : colors.muted} />
             </RoundButton>
-            <RoundButton label="Neste år" disabled={selectedIndex >= visible.length - 1} filled={selectedIndex < visible.length - 1} onPress={() => step(1)} colors={colors}>
-              <Ionicons name="chevron-forward" size={16} color={selectedIndex < visible.length - 1 ? '#fff' : colors.muted} />
+            <RoundButton label="Neste år" disabled={!yearWindow.canNext} filled={yearWindow.canNext} onPress={() => step(1)} colors={colors}>
+              <Ionicons name="chevron-forward" size={16} color={yearWindow.canNext ? '#fff' : colors.muted} />
             </RoundButton>
             <RoundButton label="Linjediagram" filled={mode === 'line'} onPress={() => setMode('line')} colors={colors}>
               <Ionicons name="analytics-outline" size={16} color={mode === 'line' ? '#fff' : colors.ink} />
@@ -127,12 +146,13 @@ export default function AccountHistoryCard({
         </View>
 
         <View
-          accessibilityLabel={`Utvikling ${visible[0]?.aar} til ${newest.aar}`}
+          accessibilityLabel={`Utvikling ${visible[0]?.aar} til ${visible[visible.length - 1]?.aar}. Valgt ${periodLabel(selected)}. Sveip for å bytte år.`}
           style={styles.chartSlot}
           onLayout={(event) => {
             const next = Math.round(event.nativeEvent.layout.width);
             if (next > 40 && Math.abs(next - width) > 1) setWidth(next);
           }}
+          {...pan.panHandlers}
         >
           <Svg width="100%" height={CHART_HEIGHT} viewBox={`0 0 ${width} ${CHART_HEIGHT}`}>
             {chart.labels.filter((label) => label.aar === selected.aar).map((label) => {
@@ -167,7 +187,7 @@ export default function AccountHistoryCard({
                 width={hit.width}
                 height={hit.height}
                 fill="transparent"
-                onPress={() => setSelectedYear(hit.aar)}
+                onPress={() => choose(hit.aar)}
               />
             ))}
             {selected ? (
@@ -201,14 +221,14 @@ export default function AccountHistoryCard({
                         cy={dot.y}
                         r={active ? 7 : 4.5}
                         fill={colors.card}
-                        onPress={() => setSelectedYear(dot.aar)}
+                        onPress={() => choose(dot.aar)}
                       />
                       <Circle
                         cx={dot.x}
                         cy={dot.y}
                         r={active ? 4 : 2.75}
                         fill={color}
-                        onPress={() => setSelectedYear(dot.aar)}
+                        onPress={() => choose(dot.aar)}
                       />
                     </React.Fragment>
                   );
@@ -224,7 +244,7 @@ export default function AccountHistoryCard({
                 rx={3}
                 fill={bar.series === 'revenue' ? revenueColor : ebitColor}
                 opacity={bar.aar === selected.aar ? 1 : 0.45}
-                onPress={() => setSelectedYear(bar.aar)}
+                onPress={() => choose(bar.aar)}
               />
             ))}
             {chart.labels.map((label) => (
@@ -233,10 +253,10 @@ export default function AccountHistoryCard({
                 x={label.x}
                 y={label.y}
                 fill={label.aar === selected.aar ? colors.brand : colors.muted}
-                fontSize={11}
+                fontSize={visible.length > 4 ? 10 : 11}
                 fontWeight={label.aar === selected.aar ? '600' : '400'}
                 textAnchor="middle"
-                onPress={() => setSelectedYear(label.aar)}
+                onPress={() => choose(label.aar)}
               >
                 {label.text}
               </SvgText>
@@ -257,48 +277,30 @@ export default function AccountHistoryCard({
       </View>
 
       <View style={styles.table}>
-        <Text style={[styles.tableTitle, { color: colors.ink }]}>Regnskap</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator>
-          <View>
-            <View style={styles.tableHead}>
-              <Text style={[styles.rowLabel, { color: colors.muted }]}>Beløp i 1000</Text>
-              {visible.map((year) => (
-                <Text
-                  key={year.aar}
-                  style={[styles.yearCol, { color: year.aar === selected?.aar ? colors.brand : colors.ink }]}
-                  onPress={() => setSelectedYear(year.aar)}
-                >
-                  {periodLabel(year)}
-                </Text>
-              ))}
+        <View style={styles.tableHead}>
+          <Text style={[styles.tableTitle, { color: colors.ink }]}>Regnskap</Text>
+          <Text style={[styles.tableYear, { color: colors.ink }]}>{periodLabel(selected)}</Text>
+        </View>
+        {rows.map(([label, key, highlight]) => {
+          const value = selected[key];
+          return (
+            <View
+              key={label}
+              style={[
+                styles.tableRow,
+                {
+                  borderColor: highlight ? colors.brand : 'transparent',
+                  backgroundColor: highlight ? colors.brandSoft : 'transparent',
+                },
+              ]}
+            >
+              <Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text>
+              <Text style={[styles.yearValue, { color: Number(value) < 0 ? colors.danger : colors.ink }]}>
+                {formatThousands(value) || '—'}
+              </Text>
             </View>
-            {rows.map(([label, key, highlight]) => (
-              <View
-                key={label}
-                style={[
-                  styles.tableRow,
-                  {
-                    borderColor: highlight ? colors.brand : 'transparent',
-                    backgroundColor: highlight ? colors.brandSoft : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text>
-                {visible.map((year) => {
-                  const value = year[key];
-                  return (
-                    <Text
-                      key={year.aar}
-                      style={[styles.yearCol, { color: Number(value) < 0 ? colors.danger : colors.ink, fontWeight: year.aar === selected?.aar ? '600' : '400' }]}
-                    >
-                      {formatThousands(value) || '—'}
-                    </Text>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+          );
+        })}
       </View>
     </View>
   );
@@ -325,12 +327,13 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 12 },
   table: { gap: 4, marginTop: 2 },
-  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 4 },
-  tableTitle: { fontSize: 15, fontWeight: '600', paddingHorizontal: 10 },
+  tableHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingBottom: 4 },
+  tableTitle: { fontSize: 15, fontWeight: '600' },
+  tableYear: { fontSize: 14, fontVariant: ['tabular-nums'] },
   tableRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7,
   },
-  rowLabel: { fontSize: 14, width: 168 },
-  yearCol: { fontSize: 13, width: 72, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  rowLabel: { fontSize: 14, flex: 1 },
+  yearValue: { fontSize: 14, minWidth: 72, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });

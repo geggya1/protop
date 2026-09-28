@@ -24,11 +24,15 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
   const [showForms, setShowForms] = useState(false);
 
   useEffect(() => {
+    let live = true;
     loadAnbudState().then((loaded) => {
+      if (!live) return;
       setState(loaded);
       onSnapshot?.(loaded);
     });
-  }, [company?.id, bids]);
+    return () => { live = false; };
+    // bids holdes utenfor. onSnapshot gir forelderen et nytt array, og da ville lasting kjørt i ring.
+  }, [company?.id]);
 
   useEffect(() => {
     if (!focusBidId) return;

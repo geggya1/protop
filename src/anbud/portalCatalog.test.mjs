@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   allowedCatalogUrl,
+  allowedDownloadUrl,
   interestUrlFromDocs,
   parseMercellCatalog,
   readPortalCatalog,
@@ -30,6 +31,13 @@ assert.equal(interestUrlFromDocs('https://example.test/1'), '');
 assert.equal(allowedCatalogUrl('https://permalink.mercell.com/289669037.aspx'), true);
 assert.equal(allowedCatalogUrl('https://evil.example/mercell.com/1'), false);
 assert.equal(allowedCatalogUrl('http://permalink.mercell.com/1.aspx'), false);
+assert.equal(parsed.files[0].url, '');
+assert.equal(allowedDownloadUrl('https://permalink.mercell.com/289669037.aspx'), true);
+assert.equal(allowedDownloadUrl('http://permalink.mercell.com/1.aspx'), false);
+assert.equal(allowedDownloadUrl('https://127.0.0.1/file.pdf'), false);
+assert.equal(allowedDownloadUrl('https://evil.example/file.pdf'), false);
+const linked = parseMercellCatalog('<td id="ctl00_main_rpFiles_ctl01_tdWantToDownload"><a href="https://permalink.mercell.com/files/krav.pdf">Krav.pdf</a></td><td class="right">12 KB</td>', 'https://permalink.mercell.com/1.aspx');
+assert.equal(linked.files[0].url, 'https://permalink.mercell.com/files/krav.pdf');
 
 const deployedCatalog = readFileSync(new URL('../../functions/anbud/portalCatalog.js', import.meta.url), 'utf8');
 const sourceCatalog = readFileSync(new URL('./portalCatalog.js', import.meta.url), 'utf8');

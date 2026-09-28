@@ -1,5 +1,6 @@
 import { areaById, cpvByCode } from './catalog.js';
-import { normalizeAudit, normalizeBidRecord, normalizeContracts } from './lifecycle.js';
+import { normalizeFormTemplates, normalizeBidWork } from './bidLibrary.js';
+import { normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -66,6 +67,7 @@ export function emptyAnbudState() {
     bids: [],
     contracts: [],
     audit: [],
+    formTemplates: null,
     supplierProfile: null,
     syncedAt: null,
     queryKey: '',
@@ -88,10 +90,11 @@ export function normalizeAnbudState(raw) {
       naeringskoder: normalizeTrades(watch.naeringskoder),
       keywords: normalizeKeywords(watch.keywords),
     },
-    notices: Array.isArray(src.notices) ? src.notices : [],
-    bids: (Array.isArray(src.bids) ? src.bids : []).map(normalizeBidRecord),
+    notices: Array.isArray(src.notices) ? src.notices.map(normalizeNotice) : [],
+    bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidWork(normalizeBidRecord(row))),
     contracts: normalizeContracts(src.contracts),
     audit: normalizeAudit(src.audit),
+    formTemplates: normalizeFormTemplates(src.formTemplates),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     syncedAt: src.syncedAt || null,
     queryKey: text(src.queryKey),
@@ -392,6 +395,7 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
       interestAt: kept?.interestAt || null,
       interest: kept?.interest || null,
       dossier: kept?.dossier || null,
+      consideration: kept?.consideration || null,
       isNew: kept ? (decided ? false : !!kept.isNew) : !firstSync,
       matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
     };
@@ -408,7 +412,30 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
   });
 }
 
-const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'tilbud']);
+const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'ikke', 'tilbud']);
+
+const STRATEGY_IDS = new Set(STRATEGY_ITEMS.map((item) => item.id));
+
+function normalizeNotice(raw) {
+  const row = raw && typeof raw === 'object' ? raw : {};
+  const strategy = row.consideration ? normalizeStrategy(row.consideration.strategy) : null;
+  return {
+    ...row,
+    consideration: strategy ? { strategy } : null,
+  };
+}
+
+export function toggleConsideration(state, id, itemId) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  if (notice.decision !== 'aktuell') return fail(state, 'Merk konkurransen som aktuell før du tar stilling til tilbud.');
+  if (!STRATEGY_IDS.has(itemId)) return fail(state, 'Ukjent punkt i vurderingen.');
+  const strategy = { ...normalizeStrategy(notice.consideration?.strategy), [itemId]: !normalizeStrategy(notice.consideration?.strategy)[itemId] };
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (row.id === id ? { ...row, consideration: { strategy } } : row)),
+  });
+}
 
 function noticeById(state, id) {
   return (state.notices || []).find((row) => row.id === id) || null;
@@ -467,27 +494,24 @@ export function seedDossier(notice) {
 }
 
 function freshBid(notice, dossier) {
-  return {
+  return normalizeBidWork({
     id: `bid_${notice.id}`,
     noticeId: notice.id,
     title: notice.title,
     buyer: notice.buyer,
     phase: 'trinn2',
     stage: 'planlegging',
-    strategy: {
-      fag: false,
-      kapasitet: false,
-      referanser: false,
-      okonomi: false,
-      hms: false,
-      grunnlag: false,
-    },
+    strategy: normalizeStrategy(notice.consideration?.strategy),
     createdAt: new Date().toISOString(),
     dossier: dossier || notice.dossier || null,
-  };
+    folders: [],
+    files: [],
+    forms: [],
+    questions: [],
+  });
 }
 
-/** Aktuell konkurranse ligger i tilbudsarbeidet med teksten, vedleggene og spørsmålene som er publisert. */
+/** Tar en aktuell konkurranse inn i tilbudsarbeidet med teksten, vedleggene og spørsmålene som er publisert. */
 export function ensureCurrentBid(state, id, dossier) {
   const notice = noticeById(state, id);
   if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
@@ -565,7 +589,23 @@ export function createBidWork(state, id) {
   const decided = setNoticeDecision(state, id, 'tilbud');
   if (!decided.ok) return decided;
   const notice = noticeById(decided.state, id);
-  if ((decided.state.bids || []).some((bid) => bid.noticeId === id)) return decided;
+  const existing = (decided.state.bids || []).find((bid) => bid.noticeId === id);
+  if (existing) {
+    return ok({
+      ...decided.state,
+      bids: decided.state.bids.map((bid) => (
+        bid.noticeId === id
+          ? normalizeBidWork({
+            ...bid,
+            title: notice.title,
+            buyer: notice.buyer,
+            dossier: notice.dossier || bid.dossier,
+            strategy: normalizeStrategy(notice.consideration?.strategy || bid.strategy),
+          })
+          : bid
+      )),
+    });
+  }
   return ok({ ...decided.state, bids: [freshBid(notice, notice.dossier), ...(decided.state.bids || [])] });
 }
 

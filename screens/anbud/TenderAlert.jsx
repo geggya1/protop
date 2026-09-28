@@ -5,15 +5,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert } from '../../src/anbud/doffinClient';
+import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  emptyAnbudState, ensureCurrentBid, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, registerInterest, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
+  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
+import BidDecision from './BidDecision';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -62,7 +63,7 @@ function Chip({ label, on, onPress, colors, hint }) {
   );
 }
 
-export default function TenderAlert({ company, colors, onBids, onOpenSettings }) {
+export default function TenderAlert({ company, colors, onBids, onOpenSettings, onOpenBid }) {
   const { width } = useWindowDimensions();
   const wide = width >= 860;
   const [cssPhone, setCssPhone] = useState(false);
@@ -297,6 +298,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
         const file = await fetchCompetitionFile(id);
         dossier = file?.dossier || dossier;
         if (dossier) dossier = await attachPortalCatalog(dossier);
+        if (dossier) dossier = await storeReachableFiles(dossier);
       }
     } catch (err) {
       setError(err?.message || 'Kunne ikke hente hele grunnlaget. Teksten i treffet er tatt med.');
@@ -306,50 +308,71 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
       setPullingId('');
       return;
     }
-    const adopted = ensureCurrentBid(stateRef.current, id, dossier || seedDossier(still));
+    const adopted = attachDossier(stateRef.current, id, dossier || seedDossier(still));
     if (!adopted.ok) setError(adopted.error);
     else {
       commitState(adopted.state);
-      const stored = adopted.state.bids.find((row) => row.noticeId === id)?.dossier || dossier;
+      const stored = adopted.state.notices.find((row) => row.id === id)?.dossier || dossier;
       const files = (stored?.portalFiles?.length || 0) + (stored?.documents?.length || 0);
       const answers = stored?.qa?.length || 0;
-      setSavedNote(`${still.title || 'Konkurransen'} er merket aktuell. Teksten er lest inn. ${files ? `${files} vedlegg` : 'Ingen vedlegg er publisert ennå'}. ${answers ? `${answers} spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}. Den ligger i tilbudsarbeidet.`);
+      setSavedNote(`${still.title || 'Konkurransen'} er merket aktuell. ${files ? `${files} dokumenter` : 'Ingen vedlegg'} og ${answers ? `${answers} spørsmål og svar` : 'ingen spørsmål og svar'} er hentet inn. Neste steg er å gi tilbud eller la det være.`);
     }
     setPullingId('');
   }
 
-  async function expressInterest(id) {
-    const stored = await loadAnbudState();
-    const base = {
-      ...stateRef.current,
-      supplierProfile: stored.supplierProfile || stateRef.current.supplierProfile,
-    };
-    if (!base.supplierProfile?.username || !base.supplierProfile?.portalUrl) {
-      setError('Registrer innloggingsportalen under Innstillinger før interesse meldes.');
-      onOpenSettings?.();
-      return;
-    }
-    setSyncing(true);
+  async function giveBid(id) {
+    setPullingId(id);
     setError('');
-    let dossier = null;
+    let base = stateRef.current;
+    const notice = (base.notices || []).find((row) => row.id === id);
+    let dossier = notice?.dossier || null;
     try {
       if (/^\d{4}-\d+$/.test(String(id))) {
         const file = await fetchCompetitionFile(id);
-        dossier = file?.dossier || null;
+        dossier = file?.dossier || dossier;
         if (dossier) dossier = await attachPortalCatalog(dossier);
+        if (dossier) dossier = await storeReachableFiles(dossier);
       }
     } catch (err) {
-      setError(err?.message || 'Kunne ikke hente konkurransegrunnlaget. Interessen meldes likevel.');
+      setError(err?.message || 'Kunne ikke hente hele grunnlaget. Teksten som finnes, blir med.');
     }
-    const result = registerInterest(base, id, dossier);
+    if (!dossier && notice) dossier = seedDossier(notice);
+    if (dossier) {
+      const attached = attachDossier(base, id, dossier);
+      if (attached.ok) base = attached.state;
+    }
+    const made = createBidWork(base, id);
+    if (!made.ok) {
+      setError(made.error);
+      setPullingId('');
+      return;
+    }
+    await saveAnbudState(made.state);
+    commitState(made.state);
+    const bid = made.state.bids.find((row) => row.noticeId === id);
+    setPullingId('');
+    if (bid) onOpenBid?.(bid.id);
+  }
+
+  function declineBid(id) {
+    const decided = setNoticeDecision(stateRef.current, id, 'ikke');
+    if (!decided.ok) {
+      setError(decided.error);
+      return;
+    }
+    const released = releaseUntouchedBid(decided.state, id);
+    setError('');
+    commitState(released.state);
+    setSavedNote('Konkurransen er satt til ikke gi tilbud.');
+  }
+
+  function weigh(id, itemId) {
+    const result = toggleConsideration(stateRef.current, id, itemId);
     if (!result.ok) setError(result.error);
     else {
-      const who = result.state.supplierProfile.username;
-      const files = dossier?.portalFiles?.length ? ` ${dossier.portalFiles.length} dokumenter er listet.` : '';
-      setSavedNote(`Interesse er meldt som ${who}. Grunnlag og filliste ligger i tilbudsarbeidet.${files} Filene åpnes på ${result.state.supplierProfile.portal}.`);
+      setError('');
       commitState(result.state);
     }
-    setSyncing(false);
   }
 
   const matchWatch = useMemo(() => ({
@@ -362,7 +385,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
     const area = TENDER_AREAS.find((row) => row.id === areaId) || null;
     const filtered = notices.filter((row) => {
       if (row.decision === 'tilbud') return false;
-      const archived = row.decision === 'arkiv' || row.decision === 'forkastet';
+      const archived = row.decision === 'arkiv' || row.decision === 'forkastet' || row.decision === 'ikke';
       if (archiveOn !== archived) return false;
       if (!archiveOn && filter === 'nye' && !row.isNew) return false;
       if (!archiveOn && filter === 'aktuelle' && row.decision !== 'aktuell') return false;
@@ -410,7 +433,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
         companyName: company?.name || state.watch.companyName,
         cpvCodes: state.watch.cpvCodes,
         keywords,
-        notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet').slice(0, 20),
+        notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet' && row.decision !== 'ikke').slice(0, 20),
       });
       setMailNote(data?.ok ? `Sendt til ${data.sent} mottaker${data.sent === 1 ? '' : 'e'}.` : (data?.error || 'Kunne ikke sende.'));
     } catch (err) {
@@ -511,7 +534,16 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
             openId={openId}
             onToggle={(id) => setOpenId(openId === id ? '' : id)}
             onMark={mark}
-            onInterest={expressInterest}
+            renderDecision={(row) => (
+              <BidDecision
+                notice={row}
+                colors={colors}
+                busy={pullingId === row.id}
+                onToggle={(itemId) => weigh(row.id, itemId)}
+                onGive={() => giveBid(row.id)}
+                onDecline={() => declineBid(row.id)}
+              />
+            )}
             matchWatch={matchWatch}
             archiveOn={archiveOn}
             syncing={syncing}
@@ -559,7 +591,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
             const soon = row.deadline && new Date(row.deadline).getTime() - Date.now() < 14 * 86400000;
             const open = openId === row.id;
             const aktuell = row.decision === 'aktuell';
-            const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv';
+            const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
             return (
               <View key={row.id} style={{ borderColor: colors.line, borderBottomWidth: 1, backgroundColor: aktuell ? colors.brandSoft : 'transparent' }}>
                 <View style={styles.line}>
@@ -595,14 +627,18 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
                   <View style={{ padding: 8, gap: 8 }}>
                     <Text style={{ color: colors.ink }}>{row.dossier?.description || row.description || row.noticeType || 'Ingen utdrag.'}</Text>
                     {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
-                    {aktuell && row.dossier ? <FetchedLines dossier={row.dossier} colors={colors} /> : null}
                     <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
                       <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
                     </TouchableOpacity>
                     {aktuell ? (
-                      <TouchableOpacity onPress={() => expressInterest(row.id)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-                        <Text style={{ color: '#fff' }}>Meld interesse</Text>
-                      </TouchableOpacity>
+                      <BidDecision
+                        notice={row}
+                        colors={colors}
+                        busy={pullingId === row.id}
+                        onToggle={(itemId) => weigh(row.id, itemId)}
+                        onGive={() => giveBid(row.id)}
+                        onDecline={() => declineBid(row.id)}
+                      />
                     ) : null}
                   </View>
                 ) : null}
@@ -730,27 +766,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings })
           {!!mailNote && <Text style={{ color: colors.muted }}>{mailNote}</Text>}
         </View> : null}
       </View>
-    </View>
-  );
-}
-
-function FetchedLines({ dossier, colors }) {
-  const files = [
-    ...(dossier.portalFiles || []).map((file) => file.name),
-    ...(dossier.documents || []).map((doc) => doc.title),
-  ].filter(Boolean);
-  return (
-    <View style={{ gap: 4 }}>
-      {dossier.procedureOutline ? <Text style={{ color: colors.ink }}>{dossier.procedureOutline}</Text> : null}
-      {dossier.additionalInfo ? <Text style={{ color: colors.ink }}>{dossier.additionalInfo}</Text> : null}
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Vedlegg</Text>
-      {files.length ? files.map((name, index) => <Text key={`${name}-${index}`} style={{ color: colors.ink }}>{name}</Text>) : (
-        <Text style={{ color: colors.muted }}>Ingen vedlegg er publisert ennå.</Text>
-      )}
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Spørsmål og svar</Text>
-      {dossier.qa?.length ? dossier.qa.map((row) => (
-        <Text key={`${row.question}-${row.answer}`} style={{ color: colors.ink }}>{row.question}{row.answer ? `: ${row.answer}` : ''}</Text>
-      )) : <Text style={{ color: colors.muted }}>Ingen spørsmål og svar er publisert ennå.</Text>}
     </View>
   );
 }

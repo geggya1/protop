@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import CompanyForms from './CompanyForms';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
   return (
@@ -28,11 +29,13 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
   const [portalUrl, setPortalUrl] = useState(LOGIN_PORTALS[0].url);
   const [portalName, setPortalName] = useState(LOGIN_PORTALS[0].name);
   const [profile, setProfile] = useState(null);
+  const [anbudState, setAnbudState] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
 
   useEffect(() => {
     loadAnbudState().then((state) => {
+      setAnbudState(state);
       const saved = state.supplierProfile;
       setProfile(saved);
       if (!saved) return;
@@ -65,17 +68,18 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
     await saveAnbudState(result.state);
     setProfile(result.state.supplierProfile);
     setError('');
-    setNote('Profilen er lagret. Merk konkurranser som aktuelle i anbudsvarslingen, så hentes grunnlaget inn i tilbudsarbeidet.');
+    setAnbudState(result.state);
+    setNote('Profilen er lagret. Merk konkurransen som aktuell, og velg deretter om det skal gis tilbud.');
   }
 
   return (
     <View style={{ gap: 12 }}>
       <Text style={[styles.h, { color: colors.ink }]}>Innloggingsportal</Text>
       <Text style={{ color: colors.ink }}>
-        Når en konkurranse merkes som aktuell, hentes kunngjøringstekst, frister, vedleggsliste og publiserte spørsmål og svar inn i tilbudsarbeidet.
+        Når en konkurranse merkes som aktuell, hentes kunngjøringstekst, frister, vedlegg og publiserte spørsmål og svar. Gi tilbud åpner tilbudsarbeidet for den jobben.
       </Text>
       <Text style={{ color: colors.muted }}>
-        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Selve filene åpnes på portalen konkurransen bruker.
+        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Filer som portalen holder stengt, åpnes der.
       </Text>
       <Field label="Kontaktperson" value={contactName} onChangeText={setContactName} colors={colors} placeholder="Navn" />
       <Field label="E-post" value={email} onChangeText={setEmail} colors={colors} placeholder="anbud@firma.no" keyboardType="email-address" />
@@ -115,6 +119,17 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
         <Text style={{ color: colors.muted }}>
           Registrert som {profile.username} · {profile.email} · {profile.portal}
         </Text>
+      ) : null}
+      {anbudState ? (
+        <CompanyForms
+          state={anbudState}
+          colors={colors}
+          commit={async (result) => {
+            if (!result.ok) return;
+            await saveAnbudState(result.state);
+            setAnbudState(result.state);
+          }}
+        />
       ) : null}
     </View>
   );

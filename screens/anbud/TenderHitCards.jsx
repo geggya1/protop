@@ -30,7 +30,7 @@ export default function TenderHitCards({
   openId,
   onToggle,
   onMark,
-  onInterest,
+  renderDecision,
   matchWatch,
   archiveOn,
   syncing,
@@ -189,11 +189,7 @@ export default function TenderHitCards({
                 <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
                   <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
                 </TouchableOpacity>
-                {aktuell ? (
-                  <TouchableOpacity onPress={() => onInterest(row.id)} accessibilityRole="button" style={[styles.interest, { backgroundColor: colors.brand }]}>
-                    <Text style={{ color: '#fff' }}>Meld interesse</Text>
-                  </TouchableOpacity>
-                ) : null}
+                {aktuell && renderDecision ? renderDecision(row) : null}
               </View>
             ) : null}
           </View>

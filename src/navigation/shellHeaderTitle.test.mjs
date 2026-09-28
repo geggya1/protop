@@ -119,6 +119,7 @@ const t = (k) => LABELS[k] || k;
 {
   assert.equal(resolveShellHeaderTitle({ tab: 'home', t }), 'Hjem');
   assert.equal(resolveShellHeaderTitle({ tab: 'plan', t }), 'Kalender');
+  assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjema');
 }
 
 console.log('shellHeaderTitle.test.mjs: ok');

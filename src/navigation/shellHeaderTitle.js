@@ -70,6 +70,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'home') return t('tabs.home');
   if (tab === 'chat') return t('tabs.chat');
   if (tab === 'anbud') return 'Anbud';
+  if (tab === 'skjema') return 'Skjema';
   if (tab === 'projects') return 'Prosjekt';
   if (tab === 'plan') return t('tabs.plan');
   if (tab === 'mail') return t('tabs.mail');

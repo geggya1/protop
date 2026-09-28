@@ -1081,3 +1081,4 @@ export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSe
 export { tenderProxy } from './tenderProxy.js';
 export { sendTenderAlert } from './anbudAlert.js';
 export { sendAnbudRequest, scanAnbudDocument } from './anbudIntake.js';
+export { generateCompanyForm } from './anbudForm.js';

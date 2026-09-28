@@ -65,17 +65,17 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
     await saveAnbudState(result.state);
     setProfile(result.state.supplierProfile);
     setError('');
-    setNote('Profilen er lagret. Merk konkurranser som aktuelle i anbudsvarslingen, så hentes grunnlaget inn i tilbudsarbeidet.');
+    setNote('Profilen er lagret. Merk konkurransen som aktuell, og velg deretter om det skal gis tilbud.');
   }
 
   return (
     <View style={{ gap: 12 }}>
       <Text style={[styles.h, { color: colors.ink }]}>Innloggingsportal</Text>
       <Text style={{ color: colors.ink }}>
-        Når en konkurranse merkes som aktuell, hentes kunngjøringstekst, frister, vedleggsliste og publiserte spørsmål og svar inn i tilbudsarbeidet.
+        Når en konkurranse merkes som aktuell, hentes kunngjøringstekst, frister, vedlegg og publiserte spørsmål og svar. Gi tilbud åpner tilbudsarbeidet for den jobben.
       </Text>
       <Text style={{ color: colors.muted }}>
-        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Selve filene åpnes på portalen konkurransen bruker.
+        ProTop lagrer ikke passord og logger ikke inn på Doffin, Mercell, EU Supply eller TendSign. Filer som portalen holder stengt, åpnes der.
       </Text>
       <Field label="Kontaktperson" value={contactName} onChangeText={setContactName} colors={colors} placeholder="Navn" />
       <Field label="E-post" value={email} onChangeText={setEmail} colors={colors} placeholder="anbud@firma.no" keyboardType="email-address" />
@@ -116,6 +116,9 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
           Registrert som {profile.username} · {profile.email} · {profile.portal}
         </Text>
       ) : null}
+      <Text style={{ color: colors.muted }}>
+        Skjemaene for bedriften lages under Skjema. Der kan felt dras inn, og et bilde eller dokument kan leses inn med AI.
+      </Text>
     </View>
   );
 }

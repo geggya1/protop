@@ -175,6 +175,49 @@ export async function attachPortalCatalog(dossier) {
   };
 }
 
+/** Laster ned et offentlig konkurransedokument. Innloggede portalfiler blir stående som lenke. */
+export async function downloadPublicFile(url) {
+  const res = await fetch('/api/tender-proxy', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'download', url }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) return { ok: false, note: data.note || data.error || '' };
+  return data;
+}
+
+/** Legger nedlastet innhold på fillisten når portalen gir ut filen uten innlogging. */
+export async function storeReachableFiles(dossier) {
+  if (!dossier || typeof dossier !== 'object') return dossier;
+  const portalFiles = [];
+  for (const file of (dossier.portalFiles || []).slice(0, 8)) {
+    const url = String(file?.url || '');
+    if (!/^https:\/\//i.test(url)) {
+      portalFiles.push({ ...file, status: 'portal' });
+      continue;
+    }
+    try {
+      const got = await downloadPublicFile(url);
+      if (got?.ok && got.base64 && got.size <= 480000) {
+        const mimeType = got.mimeType || 'application/octet-stream';
+        portalFiles.push({
+          ...file,
+          status: 'lastet',
+          mimeType,
+          size: got.size,
+          dataUrl: `data:${mimeType};base64,${got.base64}`,
+        });
+        continue;
+      }
+    } catch {
+      // Filen blir liggende med adressen, slik at den kan åpnes på portalen.
+    }
+    portalFiles.push({ ...file, status: 'portal' });
+  }
+  return { ...dossier, portalFiles };
+}
+
 /** Henter kunngjøring, dokumentlenker, ESPD-grunnlag og spørsmålsfrist. */
 export async function fetchCompetitionFile(id) {
   try {

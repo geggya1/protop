@@ -26,6 +26,25 @@ export function interestUrlFromDocs(url) {
   return `https://my.mercell.com/nb-no/m/logon/?ReturnUrl=${encodeURIComponent(returnUrl)}`;
 }
 
+function blockedHost(host) {
+  return host === 'localhost'
+    || host.endsWith('.localhost')
+    || /^(127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+}
+
+export function allowedDownloadUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    if (blockedHost(host)) return false;
+    return /(^|\.)doffin\.no$|(^|\.)mercell\.com$|(^|\.)eu-supply\.com$|(^|\.)tendsign\.(no|com)$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
 export function allowedCatalogUrl(url) {
   try {
     const parsed = new URL(url);
@@ -48,7 +67,9 @@ export function parseMercellCatalog(html, pageUrl = '') {
     const key = name.toLocaleLowerCase('nb-NO');
     if (name && !seen.has(key)) {
       seen.add(key);
-      files.push({ name, size, access: 'portal' });
+      const href = decode((match[0].match(/href="([^"]+)"/i) || [])[1] || '');
+      const url = /^https:\/\//i.test(href) ? href : '';
+      files.push({ name, size, access: 'portal', url });
     }
     match = row.exec(source);
   }

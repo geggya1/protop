@@ -6,7 +6,7 @@ import * as logger from 'firebase-functions/logger';
 import { searchDoffinNotices } from './anbud/doffinQuery.js';
 import { searchTedNotices } from './anbud/tedQuery.js';
 import { lookupCompanyCpv } from './anbud/companyLookup.js';
-import { readPortalCatalog } from './anbud/portalCatalog.js';
+import { allowedDownloadUrl, readPortalCatalog } from './anbud/portalCatalog.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
@@ -77,6 +77,41 @@ export const tenderProxy = onRequest(
           const status = err?.code === 'invalid-argument' ? 400 : 502;
           res.status(status).json({ ok: false, error: err?.message || 'Kunne ikke lese fillisten.' });
         }
+        return;
+      }
+      if (action === 'download') {
+        const fileUrl = String(body.url || '');
+        if (!allowedDownloadUrl(fileUrl)) {
+          res.status(400).json({ ok: false, error: 'Dokumentadressen kan ikke lastes ned her.' });
+          return;
+        }
+        const fileRes = await fetch(fileUrl, {
+          redirect: 'follow',
+          headers: { Accept: '*/*', 'User-Agent': 'ProTop' },
+          signal: AbortSignal.timeout(20000),
+        });
+        const mimeType = String(fileRes.headers.get('content-type') || '');
+        if (!fileRes.ok) {
+          res.status(502).json({ ok: false, error: `Dokumentet svarte ${fileRes.status}` });
+          return;
+        }
+        if (/text\/html|text\/xml/i.test(mimeType)) {
+          res.json({ ok: false, gated: true, note: 'Filen krever innlogging på portalen.' });
+          return;
+        }
+        const buf = Buffer.from(await fileRes.arrayBuffer());
+        if (buf.length > 480000) {
+          res.json({ ok: false, tooLarge: true, size: buf.length, mimeType });
+          return;
+        }
+        const name = decodeURIComponent(new URL(fileRes.url || fileUrl).pathname.split('/').pop() || 'dokument');
+        res.json({
+          ok: true,
+          name,
+          mimeType: mimeType || 'application/octet-stream',
+          size: buf.length,
+          base64: buf.toString('base64'),
+        });
         return;
       }
       if (action === 'dossier') {

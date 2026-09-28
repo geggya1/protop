@@ -10,9 +10,9 @@ import ContractFollowUp from './ContractFollowUp';
 import PortalSettings from './PortalSettings';
 
 const STEPS = [
-  ['varsling', 'Trinn 1 · Anbudsvarsling'],
-  ['tilbud', 'Trinn 2 · Tilbudsarbeid'],
-  ['kontrakt', 'Trinn 3 · Kontrakt'],
+  ['varsling', 'Varsling'],
+  ['tilbud', 'Tilbud'],
+  ['kontrakt', 'Kontrakt'],
   ['innstillinger', 'Innstillinger'],
 ];
 
@@ -22,6 +22,7 @@ export default function AnbudScreen({ company }) {
   const [step, setStep] = useState('varsling');
   const [bids, setBids] = useState([]);
   const [snapshot, setSnapshot] = useState(null);
+  const [focusBidId, setFocusBidId] = useState('');
   useEffect(() => {
     loadAnbudState().then((loaded) => {
       setSnapshot(loaded);
@@ -45,7 +46,7 @@ export default function AnbudScreen({ company }) {
     >
       <Text style={[styles.h, { color: colors.ink }]}>Anbud</Text>
       <Text style={{ color: colors.muted }}>
-        Planlegg tilbudet, gjennomfør konkurransen og følg kontrakten til sluttfaktura.
+        Merk jobben som aktuell, ta stilling til tilbud, og følg hvert tilbud for seg.
       </Text>
       <View style={styles.row}>
         {STEPS.map(([id, label]) => {
@@ -73,17 +74,25 @@ export default function AnbudScreen({ company }) {
         </TouchableOpacity>
       ) : null}
       {step === 'varsling' ? (
-        <TenderAlert company={company} colors={colors} onBids={setBids} onOpenSettings={() => setStep('innstillinger')} />
+        <TenderAlert
+          company={company}
+          colors={colors}
+          onBids={setBids}
+          onOpenSettings={() => setStep('innstillinger')}
+          onOpenBid={(bidId) => { setStep('tilbud'); setFocusBidId(bidId); }}
+        />
       ) : null}
       {step === 'tilbud' ? (
         <BidDesk
           company={company}
           colors={colors}
           bids={bids}
+          focusBidId={focusBidId}
+          onFocusHandled={() => setFocusBidId('')}
           onOpenSettings={() => setStep('innstillinger')}
           onOpenAlerts={() => setStep('varsling')}
           onOpenContracts={() => setStep('kontrakt')}
-          onSnapshot={setSnapshot}
+          onSnapshot={(next) => { setSnapshot(next); setBids(next?.bids || []); }}
         />
       ) : null}
       {step === 'kontrakt' ? (

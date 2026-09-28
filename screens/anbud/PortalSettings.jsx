@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import CompanyForms from './CompanyForms';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
   return (
@@ -29,13 +28,11 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
   const [portalUrl, setPortalUrl] = useState(LOGIN_PORTALS[0].url);
   const [portalName, setPortalName] = useState(LOGIN_PORTALS[0].name);
   const [profile, setProfile] = useState(null);
-  const [anbudState, setAnbudState] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
 
   useEffect(() => {
     loadAnbudState().then((state) => {
-      setAnbudState(state);
       const saved = state.supplierProfile;
       setProfile(saved);
       if (!saved) return;
@@ -68,7 +65,6 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
     await saveAnbudState(result.state);
     setProfile(result.state.supplierProfile);
     setError('');
-    setAnbudState(result.state);
     setNote('Profilen er lagret. Merk konkurransen som aktuell, og velg deretter om det skal gis tilbud.');
   }
 
@@ -120,17 +116,9 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
           Registrert som {profile.username} · {profile.email} · {profile.portal}
         </Text>
       ) : null}
-      {anbudState ? (
-        <CompanyForms
-          state={anbudState}
-          colors={colors}
-          commit={async (result) => {
-            if (!result.ok) return;
-            await saveAnbudState(result.state);
-            setAnbudState(result.state);
-          }}
-        />
-      ) : null}
+      <Text style={{ color: colors.muted }}>
+        Skjemaene for bedriften lages under Skjema. Der kan felt dras inn, og et bilde eller dokument kan leses inn med AI.
+      </Text>
     </View>
   );
 }

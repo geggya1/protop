@@ -26,6 +26,7 @@ import {
   toggleStrategy,
 } from '../../src/anbud/lifecycle';
 import { pickDocument } from '../../src/utils/media';
+import FormAnswer from './FormAnswer';
 
 function readAsDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -135,6 +136,31 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
       return;
     }
     await commit(addBidFile(state, bid.id, folder.id, payload));
+  }
+
+  async function attachToField(form, field) {
+    setLocalNote('');
+    const picked = await pickDocument({
+      accept: field.kind === 'image' ? 'image/*' : '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,application/pdf,image/*',
+    });
+    const file = Array.isArray(picked) ? picked[0] : picked;
+    if (!file) return;
+    let payload;
+    try {
+      payload = await payloadFromPicked(file);
+    } catch (err) {
+      setLocalNote(err?.message || 'Kunne ikke lese filen.');
+      return;
+    }
+    if (payload.status === 'for-stor') {
+      setLocalNote('Filen er over 500 KB og blir ikke lagret i skjemaet. Bruk en mindre fil.');
+      return;
+    }
+    await commit(setFormValue(state, bid.id, form.id, field.id, {
+      name: payload.name,
+      mimeType: payload.mimeType,
+      dataUrl: payload.dataUrl,
+    }));
   }
 
   return (
@@ -303,26 +329,13 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
               <Text style={{ color: colors.ink, fontWeight: '600' }}>{form.title}</Text>
               <Text style={{ color: colors.muted }}>{form.status === 'ferdig' ? 'Ferdig' : 'Under arbeid'}</Text>
               {form.fields.map((field) => (
-                <View key={field.id} style={{ gap: 4 }}>
-                  {field.kind === 'check' ? (
-                    <TouchableOpacity
-                      onPress={() => commit(setFormValue(state, bid.id, form.id, field.id, !field.value))}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: !!field.value }}
-                    >
-                      <Text style={{ color: colors.ink }}>{field.value ? '✓' : '○'} {field.label}</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TextInput
-                      value={String(field.value || '')}
-                      onChangeText={(next) => commit(setFormValue(state, bid.id, form.id, field.id, next))}
-                      placeholder={field.label}
-                      placeholderTextColor={colors.placeholder}
-                      multiline={field.kind === 'long'}
-                      style={[styles.input, field.kind === 'long' && styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-                    />
-                  )}
-                </View>
+                <FormAnswer
+                  key={field.id}
+                  field={field}
+                  colors={colors}
+                  onChange={(next) => commit(setFormValue(state, bid.id, form.id, field.id, next))}
+                  onPickFile={() => attachToField(form, field)}
+                />
               ))}
               <TouchableOpacity
                 onPress={() => commit(setFormStatus(state, bid.id, form.id, form.status === 'ferdig' ? 'apent' : 'ferdig'))}

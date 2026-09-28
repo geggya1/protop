@@ -8,6 +8,12 @@ export async function sendDirectAnbud(input) {
   return res?.data || { ok: false };
 }
 
+export async function generateCompanyForm(imageBase64, fileName) {
+  const call = httpsCallable(functions, 'generateCompanyForm', { timeout: 90000 });
+  const res = await call({ imageBase64, fileName: fileName || '' });
+  return res?.data || { ok: false };
+}
+
 export async function scanAnbudFile(imageBase64) {
   const call = httpsCallable(functions, 'scanAnbudDocument', { timeout: 60000 });
   const res = await call({ imageBase64 });

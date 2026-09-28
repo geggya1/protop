@@ -5,7 +5,7 @@ import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BidWorkspace from './BidWorkspace';
-import CompanyForms from './CompanyForms';
+import FormBuilderScreen from './FormBuilderScreen';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -164,9 +164,9 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
         </View>
       ) : null}
       <TouchableOpacity onPress={() => setShowForms((value) => !value)} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>{showForms ? 'Skjul skjema for bedriften' : 'Skjema for bedriften'}</Text>
+        <Text style={{ color: colors.brand }}>{showForms ? 'Skjul skjemabygger' : 'Bygg skjema for bedriften'}</Text>
       </TouchableOpacity>
-      {showForms && state ? <CompanyForms state={state} colors={colors} commit={commit} /> : null}
+      {showForms && state ? <FormBuilderScreen state={state} colors={colors} commit={commit} /> : null}
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
         <Text style={{ color: colors.muted }}>Kontrakter som er tildelt, ligger i kontraktsoppfølgingen.</Text>
       </TouchableOpacity>

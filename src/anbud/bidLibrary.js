@@ -1,5 +1,7 @@
 /** Dokumentmapper, opplastede filer og bedriftsskjema i ett tilbudsarbeid. */
 
+import { coerceAnswer, emptyAnswer, normalizeBuilderField } from './formBuilder.js';
+
 export const GROUND_FOLDER_ID = 'grunnlag';
 
 export const BID_STEPS = [
@@ -15,8 +17,8 @@ export const DEFAULT_FORM_TEMPLATES = [
     intro: 'Følgebrev som sendes med tilbudet.',
     fields: [
       { id: 'mottaker', label: 'Oppdragsgiver', kind: 'text' },
-      { id: 'sum', label: 'Tilbudssum ekskl. mva', kind: 'text' },
-      { id: 'gyldig', label: 'Tilbudet er gyldig til', kind: 'text' },
+      { id: 'sum', label: 'Tilbudssum ekskl. mva', kind: 'number' },
+      { id: 'gyldig', label: 'Tilbudet er gyldig til', kind: 'date' },
       { id: 'merknad', label: 'Merknader', kind: 'long' },
     ],
   },
@@ -50,6 +52,7 @@ export const DEFAULT_FORM_TEMPLATES = [
       { id: 'system', label: 'HMS- og kvalitetssystem', kind: 'long' },
       { id: 'organisasjon', label: 'Organisering på oppdraget', kind: 'long' },
       { id: 'avvik', label: 'Avvik og forbedring siste år', kind: 'long' },
+      { id: 'vedlegg', label: 'Vedlegg av HMS-dokumentasjon', kind: 'file' },
     ],
   },
   {
@@ -59,12 +62,11 @@ export const DEFAULT_FORM_TEMPLATES = [
     fields: [
       { id: 'kalkyle', label: 'Kalkylegrunnlag', kind: 'long' },
       { id: 'risiko', label: 'Risiko og forbehold', kind: 'long' },
-      { id: 'sum', label: 'Sum som legges i tilbudet', kind: 'text' },
+      { id: 'sum', label: 'Sum som legges i tilbudet', kind: 'number' },
     ],
   },
 ];
 
-const FIELD_KINDS = new Set(['text', 'long', 'check']);
 const FILE_STATUSES = new Set(['lastet', 'portal', 'lenke', 'for-stor']);
 
 function text(value) {
@@ -230,12 +232,7 @@ function normalizeFolder(raw) {
 }
 
 function normalizeField(raw) {
-  const label = text(raw?.label).slice(0, 120);
-  const id = text(raw?.id) || createId('felt');
-  if (!label) return null;
-  const kind = FIELD_KINDS.has(raw?.kind) ? raw.kind : 'text';
-  const value = kind === 'check' ? !!raw?.value : text(raw?.value).slice(0, 8000);
-  return { id, label, kind, value };
+  return normalizeBuilderField(raw);
 }
 
 export function normalizeFormTemplates(input) {
@@ -244,17 +241,17 @@ export function normalizeFormTemplates(input) {
     const title = text(row?.title).slice(0, 80);
     const id = text(row?.id);
     if (!title || !id) return null;
-    const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, 20);
+    const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
     if (!fields.length) return null;
     return { id, title, intro: text(row?.intro).slice(0, 280), fields };
-  }).filter(Boolean).slice(0, 40);
+  }).filter(Boolean).slice(0, 80);
 }
 
 function normalizeForm(raw) {
   const id = text(raw?.id);
   const title = text(raw?.title).slice(0, 80);
   if (!id || !title) return null;
-  const fields = (Array.isArray(raw.fields) ? raw.fields : []).map(normalizeField).filter(Boolean).slice(0, 20);
+  const fields = (Array.isArray(raw.fields) ? raw.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
   return {
     id,
     templateId: text(raw?.templateId),
@@ -497,7 +494,7 @@ export function pullFormTemplate(state, bidId, templateId) {
     title: template.title,
     intro: template.intro,
     status: 'apent',
-    fields: template.fields.map((field) => ({ ...field, value: field.kind === 'check' ? false : '' })),
+    fields: template.fields.map((field) => ({ ...field, value: emptyAnswer(field.kind) })),
     updatedAt: new Date().toISOString(),
   };
   return ok(replaceBid(state, bidId, { ...bid, forms: [...bid.forms, form] }));
@@ -511,7 +508,7 @@ export function setFormValue(state, bidId, formId, fieldId, value) {
   if (form.status === 'ferdig') return fail(state, 'Skjemaet er markert ferdig. Åpne det før du endrer.');
   const field = form.fields.find((row) => row.id === fieldId);
   if (!field) return fail(state, 'Feltet finnes ikke.');
-  const nextValue = field.kind === 'check' ? !!value : text(value).slice(0, 8000);
+  const nextValue = coerceAnswer(field.kind, value);
   return ok(replaceBid(state, bidId, {
     ...bid,
     forms: bid.forms.map((row) => (row.id === formId ? {

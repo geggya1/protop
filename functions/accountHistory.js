@@ -14,6 +14,7 @@ import {
   mergeAccountYears,
   parseAccountStatement,
   parsePositionedStatement,
+  pendingCopyYears,
   pickCopyYears,
   shapeAccountPayload,
 } from './accountSeries.js';
@@ -227,16 +228,20 @@ async function readCache(orgnr, latest) {
     if (!Number.isFinite(age) || age < 0 || age > CACHE_MS) return null;
     if (!Array.isArray(data.years) || !data.years.length) return null;
     if (latest?.aar && !data.years.some((row) => Number(row.aar) === Number(latest.aar))) return null;
-    return data.years;
+    return {
+      years: data.years,
+      copies: Array.isArray(data.copies) ? data.copies : null,
+    };
   } catch {
     return null;
   }
 }
 
-async function writeCache(orgnr, years) {
+async function writeCache(orgnr, years, copies) {
   try {
     await (await db()).collection('publicAccountSeries').doc(orgnr).set({
       years: packYears(years),
+      copies: [...new Set((copies || []).map((year) => Number(year)).filter((year) => Number.isFinite(year)))],
       updatedAt: new Date().toISOString(),
       source: 'regnskapsregisteret',
     });
@@ -264,19 +269,18 @@ export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache =
   if (id.length !== 9) return null;
   const started = Date.now();
   const latest = shapeAccountPayload(await readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null));
-  if (useCache) {
-    const cached = await readCache(id, latest);
-    if (cached && cached.length > 1) return mergeAccountYears(latest, cached);
-  }
+  const cached = useCache ? await readCache(id, latest) : null;
   const listed = await readJson(
     `https://data.brreg.no/regnskapsregisteret/regnskap/aarsregnskap/kopi/${id}/aar`,
     fetchImpl,
   ).catch(() => null);
   const targets = pickCopyYears(Array.isArray(listed) ? listed : [], latest?.aar);
+  const pending = pendingCopyYears(targets, cached?.years, cached?.copies);
+  if (!pending.length) return mergeAccountYears(latest, cached?.years || []);
   const worker = await getWorker();
   const found = [];
   const limit = Math.min(Math.max(8000, budgetMs), 40000);
-  for (const year of targets) {
+  for (const year of pending) {
     const remaining = limit - (Date.now() - started);
     if (remaining < 8000) break;
     try {
@@ -296,10 +300,17 @@ export async function buildAccountHistory(orgnr, { fetchImpl = fetch, useCache =
     }
   }
   const parsed = found.flatMap((result) => result?.rows || []);
-  const complete = targets.length > 0 && targets.every((year) => found.some((result) => result?.year === year && !result.missing && !result.rateLimited));
-  const merged = mergeAccountYears(latest, parsed);
-  if (useCache && merged?.years?.length > 1 && (complete || Date.now() - started > limit)) {
-    await writeCache(id, merged.years);
+  const knownCopies = Array.isArray(cached?.copies)
+    ? cached.copies
+    : targets.filter((year) => (cached?.years || []).some((row) => Number(row.aar) === Number(year)));
+  const doneCopies = [
+    ...knownCopies,
+    ...found.filter((result) => result && !result.rateLimited).map((result) => result.year),
+  ];
+  const complete = targets.length > 0 && targets.every((year) => doneCopies.some((copy) => Number(copy) === Number(year)));
+  const merged = mergeAccountYears(latest, [...(cached?.years || []), ...parsed]);
+  if (useCache && merged?.years?.length > 1 && (complete || found.length > 0 || Date.now() - started > limit)) {
+    await writeCache(id, merged.years, doneCopies);
   }
   return merged;
 }

@@ -18,6 +18,7 @@ import {
   watchQuery,
   watchFingerprint,
   formatMatchLabel,
+  noticeDeadlineExpired,
   noticeInArea,
   workCandidates,
 } from './model.js';
@@ -142,6 +143,15 @@ assert.deepEqual(buildDoffinBody({ cpvCodes: ['45', '45000000-7'] }).facets.cpvC
 assert.deepEqual(body.facets.status.checkedItems, ['ACTIVE']);
 assert.deepEqual(body.facets.location.checkedItems, ['NO071']);
 assert.equal(buildDoffinBody({ cpvCodes: ['45'], locationIds: ['drop table'] }).facets.location.checkedItems.length, 0);
+
+const today = new Date(2026, 9, 3);
+assert.equal(noticeDeadlineExpired({ decision: 'ubestemt', deadline: '2026-10-02' }, today), true);
+assert.equal(noticeDeadlineExpired({ decision: 'ubestemt', deadline: '02.10.2026 12:00' }, today), true);
+assert.equal(noticeDeadlineExpired({ decision: 'ubestemt', deadline: '2026-10-03T09:00:00' }, today), false);
+assert.equal(noticeDeadlineExpired({ decision: 'ubestemt', deadline: '' }, today), false);
+assert.equal(noticeDeadlineExpired({ decision: 'aktuell', deadline: '2026-09-01' }, today), false);
+assert.equal(noticeDeadlineExpired({ decision: 'forkastet', deadline: '2026-09-01' }, today), false);
+assert.equal(noticeDeadlineExpired({ decision: 'ubestemt', deadline: '2026-09-30', dossier: { submissionDeadline: '29.10.2026 09:00' } }, today), false);
 
 const live = await searchDoffinNotices({ cpvCodes: ['45000000'], locationIds: ['NO071'], numHitsPerPage: 5 });
 assert.equal(live.ok, true);

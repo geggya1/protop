@@ -34,6 +34,7 @@ export default function TenderHitCards({
   matchWatch,
   archiveOn,
   syncing,
+  emptyText = '',
 }) {
   const [sortOpen, setSortOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -197,7 +198,7 @@ export default function TenderHitCards({
       })}
       {!rows.length ? (
         <Text style={{ color: colors.muted, padding: 8 }}>
-          {archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}
+          {emptyText || (archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.'))}
         </Text>
       ) : null}
     </View>

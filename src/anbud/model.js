@@ -1,6 +1,6 @@
 import { areaById, cpvByCode } from './catalog.js';
 import { normalizeFormTemplates, normalizeBidWork } from './bidLibrary.js';
-import { normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
+import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -350,6 +350,13 @@ function asList(value) {
   if (Array.isArray(value)) return value.filter(Boolean).map((item) => text(item)).filter(Boolean);
   if (value == null || value === '') return [];
   return [text(value)].filter(Boolean);
+}
+
+/** Ubehandlet treff der tilbudsfristen er passert. Aktuell og uaktuell blir stående. */
+export function noticeDeadlineExpired(notice, now = new Date()) {
+  const decision = notice?.decision || 'ubestemt';
+  if (decision !== 'ubestemt') return false;
+  return deadlineHasPassed(notice?.dossier?.submissionDeadline || notice?.deadline, now);
 }
 
 export function normalizeDoffinHit(hit) {

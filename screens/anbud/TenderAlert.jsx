@@ -8,7 +8,7 @@ import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
@@ -20,6 +20,7 @@ const FILTERS = [
   ['alle', 'Alle'],
   ['nye', 'Nye'],
   ['aktuelle', 'Aktuelle'],
+  ['utlopt', 'Frist utløpt'],
 ];
 
 const COLUMNS = [
@@ -387,6 +388,10 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       if (row.decision === 'tilbud') return false;
       const archived = row.decision === 'arkiv' || row.decision === 'forkastet' || row.decision === 'ikke';
       if (archiveOn !== archived) return false;
+      const expired = noticeDeadlineExpired(row);
+      if (!archiveOn && filter === 'utlopt') {
+        if (!expired) return false;
+      } else if (!archiveOn && expired) return false;
       if (!archiveOn && filter === 'nye' && !row.isNew) return false;
       if (!archiveOn && filter === 'aktuelle' && row.decision !== 'aktuell') return false;
       if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
@@ -414,11 +419,17 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     });
   }, [notices, filter, sourceFilter, queryText, archiveOn, areaId, colFilter, sort, matchWatch]);
 
+  const listEmpty = archiveOn
+    ? 'Arkivet er tomt.'
+    : filter === 'utlopt'
+      ? 'Ingen konkurranser med utløpt frist.'
+      : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
+
   const preview = buildTenderAlert({
     companyName: company?.name || state.watch.companyName,
     cpvCodes: state.watch.cpvCodes,
     keywords,
-    notices: notices.filter((row) => row.isNew || row.decision === 'ubestemt').slice(0, 12),
+    notices: notices.filter((row) => (row.isNew || row.decision === 'ubestemt') && !noticeDeadlineExpired(row)).slice(0, 12),
   });
 
   async function sendMail() {
@@ -433,7 +444,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         companyName: company?.name || state.watch.companyName,
         cpvCodes: state.watch.cpvCodes,
         keywords,
-        notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet' && row.decision !== 'ikke').slice(0, 20),
+        notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet' && row.decision !== 'ikke' && !noticeDeadlineExpired(row)).slice(0, 20),
       });
       setMailNote(data?.ok ? `Sendt til ${data.sent} mottaker${data.sent === 1 ? '' : 'e'}.` : (data?.error || 'Kunne ikke sende.'));
     } catch (err) {
@@ -547,6 +558,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             matchWatch={matchWatch}
             archiveOn={archiveOn}
             syncing={syncing}
+            emptyText={listEmpty}
           />
         ) : (
         <ScrollView
@@ -645,7 +657,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               </View>
             );
           })}
-          {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}</Text> : null}
+          {!rows.length ? <Text style={{ color: colors.muted, padding: 8 }}>{listEmpty}</Text> : null}
         </View>
         </ScrollView>
         )}

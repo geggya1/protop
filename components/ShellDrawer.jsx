@@ -21,6 +21,7 @@ import { countForItem } from '../src/utils/notifications';
 import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor } from '../src/utils/grandparentAccess';
 import BrandLogo from './BrandLogo';
+import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 
 const DRAWER_WIDTH = 268;
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
@@ -90,6 +91,7 @@ export default function ShellDrawer({
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
+  const logoTone = brandLogoToneForBackground(colors.card);
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
   const drawerW = Math.min(DRAWER_WIDTH, Math.round(winW * 0.78));
@@ -328,7 +330,7 @@ export default function ShellDrawer({
           >
             <View style={styles.drawerHead}>
               <View style={styles.logoRow}>
-                <BrandLogo variant="full" height={40} maxWidth={180} style={styles.logo} />
+                <BrandLogo variant="full" tone={logoTone} height={40} maxWidth={180} style={styles.logo} />
                 <TouchableOpacity
                   onPress={handleClose}
                   style={styles.closeBtn}

@@ -67,6 +67,13 @@ export function parseDeadline(value) {
   return isoDate(`${norwegian[3]}-${month}-${day}`);
 }
 
+/** Kalenderdagen er passert. Selve fristdagen regnes fortsatt som åpen. */
+export function deadlineHasPassed(value, now = new Date()) {
+  const deadline = parseDeadline(value);
+  if (!deadline) return false;
+  return dayNumber(deadline) < dayNumber(todayIso(now));
+}
+
 function dayNumber(iso) {
   const [year, month, day] = iso.split('-').map(Number);
   return Math.round(new Date(year, month - 1, day).getTime() / 86400000);

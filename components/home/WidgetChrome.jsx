@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     width: 30, height: 30, alignItems: 'center', justifyContent: 'center',
   },
   title: {
-    fontSize: 15, color: soft.ink, fontWeight: '400',
+    fontSize: 15, color: soft.ink, fontWeight: '500',
     fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined,
     lineHeight: 19,
   },

@@ -50,9 +50,9 @@ export const DARK = {
 export const SOFT_LIGHT = {
   bg: '#F5F2EC',
   card: '#FFFFFF',
-  ink: '#1F2630',
-  muted: '#5C6573',
-  quiet: '#7A8494',
+  ink: '#12171E',
+  muted: '#2C3644',
+  quiet: '#455062',
   line: '#E8E4DC',
   mint: '#E8F3EC',
   peach: '#F8EDE6',
@@ -60,7 +60,7 @@ export const SOFT_LIGHT = {
   sky: '#E8F0F6',
   cream: '#FAF7F2',
   family: '#F7F3EA',
-  sage: '#5A7A60',
+  sage: '#345743',
   brandSoft: '#DCE8E0',
 };
 

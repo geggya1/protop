@@ -13,6 +13,7 @@ import { useApp } from '../src/context/AppContext';
 import { useUnread } from '../src/context/NotificationContext';
 import IconBadge from './IconBadge';
 import BrandLogo from './BrandLogo';
+import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 import { isPersonalShell } from '../src/utils/personalShell';
 import { companyContextLabel } from '../src/project/companyOffer';
 import { openNotifications } from '../src/navigation/openNotifications';
@@ -60,6 +61,7 @@ export default function ShellHeader({
   const floatHelp = isPhone && !compact && !dense;
 
   const pageTitle = title;
+  const logoTone = brandLogoToneForBackground(chromeOnly ? colors.card : colors.bg);
   const companyLabel = companyContextLabel(family);
   const familyName = companyLabel
     || (isPersonalShell(family)
@@ -218,7 +220,7 @@ export default function ShellHeader({
               hitSlop={8}
               style={styles.logoHit}
             >
-              <BrandLogo variant="full" height={40} maxWidth={220} accessible={false} />
+              <BrandLogo variant="full" tone={logoTone} height={40} maxWidth={220} accessible={false} />
             </TouchableOpacity>
           </View>
 

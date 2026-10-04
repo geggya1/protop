@@ -11,11 +11,12 @@ import {
   calculate, emptyDraft, emptyLine, periodLabel, todayIso,
 } from '../../src/indeksregulering/engine';
 import { extractContractText } from '../../src/indeksregulering/extractText';
-import { interpretContract, mergeInterpretation } from '../../src/indeksregulering/interpret';
+import { interpretDocuments, mergeInterpretation } from '../../src/indeksregulering/interpret';
 import { buildLetter, formatIndex, formatMoney, formatPercent } from '../../src/indeksregulering/letter';
 import { downloadBytes, exportFiles } from '../../src/indeksregulering/office';
 import { fetchAllIndices } from '../../src/indeksregulering/ssb';
 import { loadCases, loadIndexCache, saveCases, saveIndexCache } from '../../src/indeksregulering/storage';
+import { dueRegulations, indexNews, latestMap, osloDate, shouldCheckToday } from '../../src/indeksregulering/watch';
 import { pickDocument } from '../../src/utils/media';
 
 const STANDARDS = [
@@ -140,6 +141,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
+  const [alerts, setAlerts] = useState([]);
   const [bookCode, setBookCode] = useState('19');
   const [pickingWeight, setPickingWeight] = useState(-1);
 
@@ -163,13 +165,14 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       const [cache, stored] = await Promise.all([loadIndexCache(), loadCases()]);
       if (!live) return;
       setCases(stored);
-      if (cache?.series && Object.keys(cache.series).length) {
+      if (cache?.series && Object.keys(cache.series).length && !shouldCheckToday(cache.checkedOn)) {
         bundleRef.current = cache;
         setBundle(cache);
+        setAlerts([...(cache.news || []), ...dueRegulations(stored, cache.series)]);
         return;
       }
       setWorking(true);
-      setStatus('Henter indeksene fra SSB…');
+      setStatus(cache?.series ? 'Sjekker SSB for nye indekser…' : 'Henter indeksene fra SSB…');
       try {
         const fetched = await fetchAllIndices({
           onProgress: ({ index, total, table }) => {
@@ -177,14 +180,23 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           },
         });
         if (!live) return;
-        bundleRef.current = fetched;
-        setBundle(fetched);
-        await saveIndexCache(fetched);
+        const news = indexNews(latestMap(cache?.series), latestMap(fetched.series));
+        const watched = news.filter((item) => stored.some((row) => row.draft?.indexId === item.id) || item.id === 'bki-boligblokk');
+        const due = dueRegulations(stored, fetched.series);
+        const payload = { ...fetched, checkedOn: osloDate(), news: watched };
+        bundleRef.current = payload;
+        setBundle(payload);
+        setAlerts([...watched, ...due]);
+        await saveIndexCache(payload);
         const count = Object.keys(fetched.series).length;
-        setStatus(fetched.errors?.[0]
-          ? `Hentet ${count} serier. ${fetched.errors[0]}`
-          : `Hentet ${count} serier fra SSB.`);
+        setStatus(watched.length
+          ? `${watched.length} serier har ny indeks siden forrige sjekk.`
+          : `SSB er sjekket. ${count} serier er lagret.`);
       } catch (cause) {
+        if (cache?.series && live) {
+          bundleRef.current = cache;
+          setBundle(cache);
+        }
         if (live) setError(cause?.message || 'Kunne ikke hente indeksene.');
       } finally {
         if (live) setWorking(false);
@@ -260,7 +272,15 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       noticeDate: draft.noticeDate || todayIso(),
       overrideExclusion: next.regulationExcluded ? draft.overrideExclusion : false,
       periods: draft.periods,
-      weights: draft.weights,
+      weights: next.model === 'vektet' && next.weights?.length >= 2 ? next.weights : draft.weights,
+      documents: next.documents?.length ? next.documents : draft.documents,
+      terms: next.terms || draft.terms,
+      orgnr: next.orgnr || draft.orgnr,
+      contactName: next.contactName || draft.contactName,
+      phone: next.phone || draft.phone,
+      email: next.email || draft.email,
+      website: next.website || draft.website,
+      place: next.place || draft.place,
       sourceName: next.sourceName || draft.sourceName,
     };
   }
@@ -275,14 +295,21 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         const fetched = await fetchAllIndices({
           onProgress: ({ index, total, table }) => setStatus(`Henter SSB-tabell ${table} (${index} av ${total})…`),
         });
-        bundleRef.current = fetched;
-        setBundle(fetched);
-        await saveIndexCache(fetched);
+        const news = indexNews(latestMap(bundleRef.current?.series), latestMap(fetched.series))
+          .filter((item) => item.id === draft.indexId || cases.some((row) => row.draft?.indexId === item.id));
+        const due = dueRegulations(cases, fetched.series);
+        const payload = { ...fetched, checkedOn: osloDate(), news };
+        bundleRef.current = payload;
+        setBundle(payload);
+        setAlerts([...news, ...due]);
+        await saveIndexCache(payload);
         const count = Object.keys(fetched.series).length;
-        setStatus(fetched.errors?.length
-          ? `Hentet ${count} serier. ${fetched.errors[0]}`
-          : `Hentet ${count} serier fra SSB.`);
-        return fetched;
+        setStatus(news.length
+          ? `${news.length} av avtalenes indekser er publisert på nytt.`
+          : fetched.errors?.length
+            ? `Hentet ${count} serier. ${fetched.errors[0]}`
+            : `Hentet ${count} serier fra SSB.`);
+        return payload;
       } catch (cause) {
         setError(cause?.message || 'Kunne ikke hente indeksene.');
         throw cause;
@@ -310,28 +337,50 @@ export default function IndeksreguleringPanel({ project, onBook }) {
     }
   }
 
-  async function readAgreement() {
-    setError('');
-    const text = sourceText.trim();
-    if (text.length < 20) {
-      setError('Lim inn avtaleteksten, eller last opp filen først.');
-      return;
+  function documentsForReading(text) {
+    const docs = [...(draft.documents || [])].filter((doc) => String(doc.text || '').trim().length >= 20);
+    const pasted = text.trim();
+    const combined = docs.map((doc) => doc.text).join('\n\n').trim();
+    if (pasted.length >= 20 && pasted !== combined) {
+      const existing = docs.findIndex((doc) => doc.name === 'Innlimt tekst');
+      const row = { id: existing >= 0 ? docs[existing].id : `dok-${Date.now()}`, name: 'Innlimt tekst', text: pasted };
+      if (existing >= 0) docs[existing] = row;
+      else docs.push(row);
     }
-    const local = interpretContract(text);
-    await regulatePrepared(preparedDraft(local), 'Avtalen er lest. Kravet oppdateres når indeksene er inne.');
+    return docs;
+  }
+
+  async function applyReading(docs, note) {
+    const local = interpretDocuments(docs);
+    const prepared = preparedDraft({ ...local, documents: docs, sourceName: docs.map((doc) => doc.name).join(', ') });
+    await regulatePrepared(prepared, note);
     try {
-      const remote = await interpretAvtale({ text, fileName: draft.sourceName });
+      const remote = await interpretAvtale({ documents: docs });
       if (remote?.extracted) {
         await regulatePrepared(
-          preparedDraft(mergeInterpretation(local, remote.extracted)),
+          preparedDraft({
+            ...mergeInterpretation(local, remote.extracted, docs.map((doc) => doc.text).join('\n')),
+            documents: docs,
+            sourceName: docs.map((doc) => doc.name).join(', '),
+          }),
           remote.engine === 'gemini'
-            ? 'AI leste avtalen. Kontroller feltene før brevet sendes.'
-            : 'Avtalen er lest lokalt. AI-tjenesten var ikke tilgjengelig.',
+            ? `AI leste ${docs.length} dokument${docs.length === 1 ? '' : 'er'} og fylte ut vilkårene. Kontroller før brevet sendes.`
+            : 'Dokumentene er lest lokalt. AI-tjenesten var ikke tilgjengelig.',
         );
       }
     } catch {
-      setStatus('Avtalen er lest lokalt. AI-tjenesten svarte ikke.');
+      setStatus('Dokumentene er lest lokalt. AI-tjenesten svarte ikke.');
     }
+  }
+
+  async function readAgreement() {
+    setError('');
+    const docs = documentsForReading(sourceText);
+    if (!docs.length) {
+      setError('Lim inn avtaleteksten, eller last opp filen først.');
+      return;
+    }
+    await applyReading(docs, 'Avtaledokumentene er lest. Kravet oppdateres når indeksene er inne.');
   }
 
   async function uploadAgreement() {
@@ -345,17 +394,12 @@ export default function IndeksreguleringPanel({ project, onBook }) {
     try {
       const bytes = await bytesFromFile(file);
       const text = await extractContractText(bytes, file.name, file.mimeType);
-      setSourceText(text);
-      const local = interpretContract(text);
-      const named = { ...preparedDraft(local), sourceName: file.name || '' };
-      await regulatePrepared(named, `${file.name || 'Filen'} er lest.`);
-      const remote = await interpretAvtale({ text, fileName: file.name, mimeType: file.mimeType }).catch(() => null);
-      if (remote?.extracted) {
-        await regulatePrepared(
-          { ...preparedDraft(mergeInterpretation(local, remote.extracted)), sourceName: file.name || '' },
-          remote.engine === 'gemini' ? 'AI tolket avtalen.' : 'Lokal tolkning er brukt.',
-        );
-      }
+      const docs = [
+        ...(draft.documents || []),
+        { id: `dok-${Date.now()}`, name: file.name || 'Avtale', text },
+      ];
+      setSourceText(docs.map((doc) => doc.text).join('\n\n'));
+      await applyReading(docs, `${file.name || 'Filen'} er lagt til avtalen.`);
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese avtalen.');
     } finally {
@@ -376,6 +420,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       title: draft.title || 'Indeksregulering',
       reference: draft.reference || '',
       addition: live.addition,
+      regulatedPeriod: live.regulationPoint?.period || '',
       draft: { ...draft, sourceText },
     };
     const next = [row, ...cases.filter((item) => item.id !== id)].slice(0, 40);
@@ -467,6 +512,15 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       </Text>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {status ? <Text style={{ color: colors.ink }}>{status}</Text> : null}
+      {alerts.map((item) => (
+        <View key={`${item.id || item.caseId}-${item.period}`} style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink }}>
+            {item.caseId
+              ? `${item.title} kan reguleres. ${item.name} er publisert for ${item.period} (${formatIndex(item.value)}). Forrige regulering brukte ${item.previousPeriod}.`
+              : `Ny indeks fra SSB: ${item.name} ${item.period} = ${formatIndex(item.value)}. Forrige publiserte var ${item.previousPeriod}.`}
+          </Text>
+        </View>
+      ))}
 
       {live?.ok ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
@@ -537,6 +591,22 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         colors={colors}
         multiline
       />
+      {(draft.documents || []).length ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink }}>Avtaledokumenter</Text>
+          {draft.documents.map((doc) => (
+            <View key={doc.id} style={styles.rowWrap}>
+              <Text style={{ color: colors.ink }}>{doc.name}</Text>
+              <Btn
+                label="Fjern"
+                tone="quiet"
+                colors={colors}
+                onPress={() => patch({ documents: draft.documents.filter((item) => item.id !== doc.id) })}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {draft.findings?.length ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           {draft.findings.map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
@@ -581,6 +651,98 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         </View>
         <View style={styles.splitItem}>
           <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch({ sharePercent: value })} keyboardType="decimal-pad" colors={colors} />
+      <Text style={[styles.label, { color: colors.muted }]}>Basismåned etter NS 3405</Text>
+      <View style={styles.rowWrap}>
+        {[
+          ['auto', 'Tilbudsfrist, ellers tilbud'],
+          ['tender', 'Tilbudsfrist'],
+          ['offer', 'Tilbudsdato'],
+          ['contract', 'Kontraktsdato'],
+        ].map(([id, label]) => (
+          <Btn
+            key={id}
+            label={label}
+            tone={(draft.terms?.baseRule || 'auto') === id ? 'brand' : 'quiet'}
+            colors={colors}
+            onPress={() => patch({ terms: { ...draft.terms, baseRule: id } })}
+          />
+        ))}
+      </View>
+      <Text style={[styles.label, { color: colors.muted }]}>Hvor ofte avtalen reguleres</Text>
+      <View style={styles.rowWrap}>
+        {[
+          ['month', 'Hver måned'],
+          ['quarter', 'Hvert kvartal'],
+          ['year', 'Årlig'],
+          ['once', 'Én gang'],
+        ].map(([id, label]) => (
+          <Btn
+            key={id}
+            label={label}
+            tone={(draft.terms?.frequency || 'month') === id ? 'brand' : 'quiet'}
+            colors={colors}
+            onPress={() => patch({ terms: { ...draft.terms, frequency: id } })}
+          />
+        ))}
+      </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field
+            label="Terskel %"
+            value={draft.terms?.thresholdPercent || ''}
+            onChangeText={(value) => patch({ terms: { ...draft.terms, thresholdPercent: value } })}
+            placeholder="Tom hvis alt reguleres"
+            keyboardType="decimal-pad"
+            colors={colors}
+          />
+        </View>
+        <View style={styles.splitItem}>
+          <Field
+            label="Tak %"
+            value={draft.terms?.capPercent || ''}
+            onChangeText={(value) => patch({ terms: { ...draft.terms, capPercent: value } })}
+            placeholder="Tom hvis avtalen ikke har tak"
+            keyboardType="decimal-pad"
+            colors={colors}
+          />
+        </View>
+      </View>
+      <Btn
+        label={draft.terms?.roundToKrone ? 'Avrundet til krone' : 'Avrund til nærmeste krone'}
+        tone={draft.terms?.roundToKrone ? 'brand' : 'quiet'}
+        colors={colors}
+        onPress={() => patch({ terms: { ...draft.terms, roundToKrone: !draft.terms?.roundToKrone } })}
+      />
+      {(draft.terms?.variables || []).map((row, index) => (
+        <View key={`${row.name}-${index}`} style={styles.split}>
+          <View style={styles.splitItem}>
+            <Field
+              label="Avtalt størrelse"
+              value={row.name}
+              onChangeText={(value) => patch({
+                terms: {
+                  ...draft.terms,
+                  variables: draft.terms.variables.map((item, itemIndex) => (itemIndex === index ? { ...item, name: value } : item)),
+                },
+              })}
+              colors={colors}
+            />
+          </View>
+          <View style={styles.splitItem}>
+            <Field
+              label="Verdi"
+              value={row.value}
+              onChangeText={(value) => patch({
+                terms: {
+                  ...draft.terms,
+                  variables: draft.terms.variables.map((item, itemIndex) => (itemIndex === index ? { ...item, value } : item)),
+                },
+              })}
+              colors={colors}
+            />
+          </View>
+        </View>
+      ))}
         </View>
       </View>
       <View style={styles.split}>

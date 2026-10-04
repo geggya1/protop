@@ -86,6 +86,8 @@ export function emptyLine(partial = {}) {
     unit: partial.unit || 'RS',
     rate: partial.rate ?? '',
     included: partial.included !== false,
+    indexId: partial.indexId || '',
+    sharePercent: partial.sharePercent ?? '',
   };
 }
 
@@ -114,6 +116,8 @@ export function emptyDraft(partial = {}) {
     ],
     findings: [],
     engine: '',
+    documents: [],
+    terms: emptyTerms(),
     orgnr: '',
     contactName: '',
     phone: '',
@@ -125,6 +129,17 @@ export function emptyDraft(partial = {}) {
     honorar: '',
     effectiveDate: '',
     ...partial,
+  };
+}
+
+export function emptyTerms(partial = {}) {
+  return {
+    baseRule: partial.baseRule || 'auto',
+    frequency: partial.frequency || 'month',
+    thresholdPercent: partial.thresholdPercent ?? '',
+    capPercent: partial.capPercent ?? '',
+    roundToKrone: partial.roundToKrone === true,
+    variables: Array.isArray(partial.variables) ? partial.variables : [],
   };
 }
 
@@ -162,14 +177,58 @@ function combinedPoints(weights, indices) {
   return points;
 }
 
-function regulate(base, share, current, basis) {
-  const change = (current - basis) / basis;
-  const addition = roundMoney(base * share * change);
+function regulate(base, share, current, basis, terms = {}) {
+  let change = (current - basis) / basis;
+  const threshold = parseAmount(terms.thresholdPercent);
+  if (threshold != null && threshold > 0 && Math.abs(change) * 100 < threshold) {
+    return { change, addition: 0, regulated: roundMoney(base), suppressed: 'terskel' };
+  }
+  const cap = parseAmount(terms.capPercent);
+  let capped = false;
+  if (cap != null && cap > 0 && Math.abs(change) * 100 > cap) {
+    change = Math.sign(change) * (cap / 100);
+    capped = true;
+  }
+  let addition = roundMoney(base * share * change);
+  if (terms.roundToKrone) addition = Math.round(addition);
   return {
     change,
     addition,
     regulated: roundMoney(base + addition),
+    suppressed: '',
+    capped,
   };
+}
+
+function resolveBasis(draft) {
+  const rule = draft.terms?.baseRule || 'auto';
+  const tender = parseIsoDate(draft.tenderDeadline);
+  const offer = parseIsoDate(draft.offerDate);
+  const contract = parseIsoDate(draft.contractDate);
+  if (rule === 'tender') return { date: tender, kind: 'tilbudsfrist' };
+  if (rule === 'offer') return { date: offer, kind: 'tilbudsdato' };
+  if (rule === 'contract') return { date: contract, kind: 'kontraktsdato' };
+  if (tender) return { date: tender, kind: 'tilbudsfrist' };
+  if (offer) return { date: offer, kind: 'tilbudsdato' };
+  if (contract) return { date: contract, kind: 'kontraktsdato' };
+  return { date: '', kind: '' };
+}
+
+function lineShare(line, share) {
+  const own = parseAmount(line?.sharePercent);
+  if (own == null) return share;
+  return Math.min(100, Math.max(0, own)) / 100;
+}
+
+function linePoint(indexId, indices, iso) {
+  if (!indexId) return null;
+  const series = indices?.[indexId];
+  const points = series?.points;
+  if (!points?.length) return null;
+  const frequency = series.frequency || seriesById(indexId)?.frequency || 'month';
+  const point = lookupIndex(points, dateToPeriod(iso, frequency));
+  if (!point) return null;
+  return { point, name: series.name || seriesById(indexId)?.name || indexId };
 }
 
 /**
@@ -187,9 +246,11 @@ export function calculate(draft, indices, now = new Date()) {
     return fail('Avtalen ser ut til å holde prisen fast. Kryss av for å beregne likevel hvis det er avtalt.');
   }
 
-  const basisDate = parseIsoDate(draft.tenderDeadline) || parseIsoDate(draft.offerDate);
-  if (!basisDate) return fail('Sett tilbudsdato eller tilbudsfrist. Den måneden er basismåneden.');
-  const basisKind = parseIsoDate(draft.tenderDeadline) ? 'tilbudsfrist' : 'tilbudsdato';
+  const basis = resolveBasis(draft);
+  const basisDate = basis.date;
+  if (!basisDate) return fail('Sett tilbudsfrist, tilbudsdato eller kontraktsdato. Den måneden er basismåneden etter NS 3405.');
+  const basisKind = basis.kind;
+  const terms = emptyTerms(draft.terms);
   const regulationDate = parseIsoDate(draft.regulationDate) || todayIso(now);
   const noticeDate = parseIsoDate(draft.noticeDate) || todayIso(now);
 
@@ -266,7 +327,7 @@ export function calculate(draft, indices, now = new Date()) {
         warnings.push(`Mangler indeks for avregningsperiode ${index + 1}.`);
         return;
       }
-      const math = regulate(amount, share, point.value, basisPoint.value);
+      const math = regulate(amount, share, point.value, basisPoint.value, terms);
       rows.push({
         kind: 'periode',
         text: periodRow.text || `Produksjon ${periodLabel(point.period)}`,
@@ -276,8 +337,10 @@ export function calculate(draft, indices, now = new Date()) {
         base: amount,
         period: point.period,
         index: point.value,
+        basisValue: basisPoint.value,
+        basisPeriod: basisPoint.period,
         ...math,
-        newRate: math.regulated,
+        newRate: terms.roundToKrone ? Math.round(math.regulated) : math.regulated,
       });
     });
   } else {
@@ -285,8 +348,16 @@ export function calculate(draft, indices, now = new Date()) {
       if (line.included === false) return;
       const base = lineAmount(line);
       if (base == null) return;
-      const math = regulate(base, share, regulationPoint.value, basisPoint.value);
+      const ownBasis = linePoint(line.indexId, indices, basisDate);
+      const ownNow = linePoint(line.indexId, indices, regulationDate);
+      const usedBasis = ownBasis?.point || basisPoint;
+      const usedNow = ownNow?.point || regulationPoint;
+      if (line.indexId && (!ownBasis || !ownNow)) {
+        warnings.push(`Serien på «${line.text || 'linjen'}» er ikke lastet. Hovedindeksen er brukt.`);
+      }
+      const math = regulate(base, lineShare(line, share), usedNow.value, usedBasis.value, terms);
       const quantity = parseAmount(line.quantity) || 1;
+      const regulated = terms.roundToKrone ? Math.round(math.regulated) : math.regulated;
       rows.push({
         kind: 'sats',
         text: line.text || 'Grunnlag',
@@ -294,14 +365,26 @@ export function calculate(draft, indices, now = new Date()) {
         unit: line.unit || '',
         rate: parseAmount(line.rate) || 0,
         base,
-        period: regulationPoint.period,
-        index: regulationPoint.value,
+        period: usedNow.period,
+        index: usedNow.value,
+        basisValue: usedBasis.value,
+        basisPeriod: usedBasis.period,
+        indexName: ownNow?.name || '',
         ...math,
-        newRate: quantity ? roundMoney(math.regulated / quantity) : math.regulated,
+        newRate: quantity ? (terms.roundToKrone ? Math.round(regulated / quantity) : roundMoney(regulated / quantity)) : regulated,
       });
     });
   }
   if (!rows.length) return fail('Legg inn minst én sats eller et grunnlag som skal reguleres.');
+  if (rows.some((row) => row.suppressed === 'terskel')) {
+    warnings.push(`Endringen er under terskelen på ${terms.thresholdPercent} %. NS 3405-tillegget blir ikke krevd for de linjene.`);
+  }
+  if (rows.some((row) => row.capped)) {
+    warnings.push(`Endringen er begrenset til taket på ${terms.capPercent} %, slik avtalen sier.`);
+  }
+  if (terms.frequency === 'quarter') warnings.push('Avtalen reguleres kvartalsvis.');
+  else if (terms.frequency === 'year') warnings.push('Avtalen reguleres årlig.');
+  else if (terms.frequency === 'once') warnings.push('Avtalen beskriver en engangsregulering.');
 
   const baseSum = roundMoney(rows.reduce((sum, row) => sum + row.base, 0));
   const addition = roundMoney(rows.reduce((sum, row) => sum + row.addition, 0));

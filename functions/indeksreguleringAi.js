@@ -1,8 +1,12 @@
 /**
- * Leser en avtale for indeksregulering.
+ * Leser alle avtaledokumentene for indeksregulering, og sjekker SSB én gang i døgnet.
  * Lokal tolkning kjører alltid. Gemini fyller ut når nøkkelen er satt.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { logger } from 'firebase-functions';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from './security.js';
 import {
   classifyPlanMime,
@@ -15,29 +19,56 @@ import {
   friendlyGeminiError,
   getGeminiKey,
 } from './aiShared.js';
-import { interpretContract, mergeInterpretation } from '../src/indeksregulering/interpret.js';
+import { INDEX_SERIES } from '../src/indeksregulering/catalog.js';
+import { interpretDocuments, mergeInterpretation } from '../src/indeksregulering/interpret.js';
+import { fetchAllIndices } from '../src/indeksregulering/ssb.js';
+import { indexNews, latestMap } from '../src/indeksregulering/watch.js';
 
-const PROMPT = `Du leser en norsk avtale om entreprise, underentreprise eller husleie.
-Trekk ut bare det som står i teksten. Ikke finn opp beløp, dato, parter eller indeks.
-Returner KUN JSON med denne formen:
+const INDEX_GUIDE = INDEX_SERIES.map((row) => `${row.id} = ${row.name}, tabell ${row.table}`).join('\n');
+
+const PROMPT = `Du leser ett eller flere norske avtaledokumenter som sammen utgjør én avtale om entreprise, rådgivning eller leie.
+Metoden er NS 3405 når avtalen er en NS-entreprise eller viser til lønns- og prisstigning: e = A × s × (t − t0) / t0.
+A er ytelsen i kontraktens priser eks. mva. s er regulert andel. t0 er indeksen i basismåneden. t er indeksen i avregningsmåneden.
+Basismåneden er måneden tilbudsfristen løp ut. Uten tilbudsfrist brukes tilbudsdatoen. Bruk kontraktsdato bare når avtalen sier det.
+Fast andel trekkes fra 100 og blir sharePercent. Terskel og tak skal bare fylles ut når avtalen nevner dem.
+Når dokumentene sier forskjellig, gjelder det siste dokumentet.
+Trekk ut bare det som står i teksten. Ikke finn opp beløp, dato, parter, andel eller indeks.
+Returner KUN JSON:
 {
   "title": "",
   "reference": "",
   "buyer": "",
   "supplier": "",
-  "standard": "NS 8405 | NS 8406 | NS 8407 | NS 8415 | NS 8416 | NS 8417 | husleieloven | bustadoppføringslova | håndverkertjenesteloven | avtalt",
+  "standard": "NS 8403 | NS 8405 | NS 8406 | NS 8407 | NS 8415 | NS 8416 | NS 8417 | husleieloven | bustadoppføringslova | håndverkertjenesteloven | avtalt",
   "model": "ns3405 | engang | husleie | vektet",
-  "indexId": "bki-boligblokk | bki-enebolig | bki-bustader | bki-bustader-arbeid | bki-bustader-materialer | bki-veg | bki-ror | kpi",
+  "indexId": "",
   "sharePercent": 100,
   "vatPercent": 25,
   "offerDate": "",
   "tenderDeadline": "",
+  "contractDate": "",
   "regulationExcluded": false,
-  "lines": [{ "text": "", "quantity": 1, "unit": "RS", "rate": 0 }]
+  "honorar": "",
+  "place": "",
+  "poNumber": "",
+  "terms": {
+    "baseRule": "auto | tender | offer | contract",
+    "frequency": "month | quarter | year | once",
+    "thresholdPercent": "",
+    "capPercent": "",
+    "roundToKrone": false,
+    "variables": [{ "name": "", "value": "" }]
+  },
+  "lines": [{ "text": "", "quantity": 1, "unit": "RS", "rate": 0, "indexId": "", "sharePercent": "", "included": true }],
+  "weights": [{ "indexId": "", "weight": 0 }]
 }
+Gyldige indexId:
+${INDEX_GUIDE}
 NS 8407 og NS 8417 uten annen navngitt indeks skal ha indexId bki-boligblokk og model ns3405.
+NS 8403 og timepris for konsulent skal ha indexId ppi-byggeteknisk og model engang når tabell 14335 eller byggeteknisk konsulentvirksomhet er nevnt.
 Husleie skal ha model husleie, indexId kpi og vatPercent 0.
-Datoer skrives YYYY-MM-DD. Tom streng når feltet ikke finnes. Ikke sett rate til et tall som ikke står i teksten.`;
+Datoer skrives YYYY-MM-DD. Tom streng når feltet ikke finnes. rate skal være et tall som står i teksten.
+variables er andre størrelser avtalen navngir, for eksempel sosiale utgifter eller materialandel, skrevet slik de står.`;
 
 function reject(code, message) {
   throw new HttpsError(code, message);
@@ -54,33 +85,101 @@ async function textFromFile(data) {
   return '';
 }
 
+function documentsFrom(data, fallbackText) {
+  const incoming = Array.isArray(data?.documents) ? data.documents : [];
+  const documents = incoming.map((doc, index) => ({
+    id: `dok-${index + 1}`,
+    name: String(doc?.name || `Dokument ${index + 1}`).slice(0, 180),
+    text: String(doc?.text || '').trim().slice(0, 20000),
+  })).filter((doc) => doc.text.length >= 20);
+  if (!documents.length && fallbackText.length >= 20) {
+    documents.push({ id: 'dok-1', name: String(data?.fileName || 'Avtale').slice(0, 180), text: fallbackText.slice(0, 40000) });
+  }
+  return documents;
+}
+
+function agreementText(documents) {
+  return documents.map((doc, index) => `DOKUMENT ${index + 1}: ${doc.name}\n${doc.text}`).join('\n\n');
+}
+
 export async function handleInterpretIndeks(data) {
   let text = String(data?.text || '').trim();
-  if (text.length < 20) {
+  if (text.length < 20 && !Array.isArray(data?.documents)) {
     try {
       text = String(await textFromFile(data) || '').trim();
     } catch (error) {
       reject('invalid-argument', error?.message || 'Kunne ikke lese filen.');
     }
   }
-  if (text.length < 20) reject('invalid-argument', 'Lim inn avtaleteksten, eller last opp PDF, Word eller tekst.');
-  const local = interpretContract(text.slice(0, 40000));
+  const documents = documentsFrom(data, text);
+  if (!documents.length) reject('invalid-argument', 'Lim inn avtaleteksten, eller last opp PDF, Word eller tekst.');
+  const source = agreementText(documents);
+  const local = interpretDocuments(documents);
   const apiKey = getGeminiKey();
-  if (!apiKey) return { ok: true, extracted: local, engine: 'lokal' };
+  if (!apiKey) return { ok: true, extracted: local, engine: 'lokal', documents: documents.length };
   try {
     const parsed = await callGeminiJson(apiKey, PROMPT, [
-      { text: text.slice(0, 30000) },
-    ], { maxOutputTokens: 4096, perModelTimeoutMs: 40000 });
-    return { ok: true, extracted: mergeInterpretation(local, parsed), engine: 'gemini' };
+      { text: source.slice(0, 45000) },
+    ], { maxOutputTokens: 8192, perModelTimeoutMs: 45000 });
+    if (Array.isArray(parsed?.weights) && parsed.weights.length >= 2) {
+      local.weights = parsed.weights.slice(0, 8).map((row) => ({
+        indexId: String(row?.indexId || ''),
+        weight: String(row?.weight ?? ''),
+      })).filter((row) => INDEX_SERIES.some((item) => item.id === row.indexId));
+      if (local.weights.length >= 2) local.model = local.model === 'husleie' ? local.model : 'vektet';
+    }
+    return {
+      ok: true,
+      extracted: mergeInterpretation(local, parsed, source),
+      engine: 'gemini',
+      documents: documents.length,
+    };
   } catch (error) {
     return {
       ok: true,
       extracted: local,
       engine: 'lokal',
+      documents: documents.length,
       warning: friendlyGeminiError(error),
     };
   }
 }
+
+export async function recordSsbCheck(fetchImpl = fetch) {
+  if (!getApps().length) initializeApp();
+  const bundle = await fetchAllIndices({ fetchImpl });
+  const db = getFirestore();
+  const ref = db.doc('system/indeksSsb');
+  const prev = await ref.get();
+  const next = latestMap(bundle.series);
+  const news = indexNews(prev.data()?.series, next);
+  const row = {
+    checkedAt: new Date().toISOString(),
+    errors: bundle.errors || [],
+    series: next,
+    news,
+  };
+  await ref.set(row);
+  logger.info('SSB-indeks sjekket', { series: Object.keys(next).length, news: news.length });
+  return row;
+}
+
+export const indeksSsbDaily = onSchedule(
+  {
+    schedule: 'every day 07:00',
+    timeZone: 'Europe/Oslo',
+    region: 'europe-west1',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+  },
+  async () => {
+    try {
+      await recordSsbCheck();
+    } catch (error) {
+      logger.error('SSB-sjekken feilet', { message: error?.message });
+    }
+  },
+);
 
 export const interpretIndeksAvtale = onCall(
   {

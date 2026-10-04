@@ -86,6 +86,23 @@ function seriesCode(series) {
   return (series?.codes || []).find((code) => String(code).includes('.')) || '';
 }
 
+function termNotes(draft) {
+  const terms = draft.terms || {};
+  const notes = [];
+  if (terms.baseRule === 'contract') notes.push('Basismåneden er kontraktsdatoen.');
+  if (terms.baseRule === 'offer') notes.push('Basismåneden er tilbudsdatoen.');
+  if (terms.thresholdPercent) notes.push(`Terskel: endring under ${terms.thresholdPercent} % reguleres ikke.`);
+  if (terms.capPercent) notes.push(`Tak: endringen kan ikke overstige ${terms.capPercent} %.`);
+  if (terms.frequency === 'quarter') notes.push('Avtalt intervall: kvartalsvis.');
+  if (terms.frequency === 'year') notes.push('Avtalt intervall: årlig.');
+  if (terms.frequency === 'once') notes.push('Avtalt intervall: engangsregulering.');
+  if (terms.roundToKrone) notes.push('Beløpet er avrundet til nærmeste krone.');
+  (terms.variables || []).forEach((row) => {
+    if (row?.name && row?.value) notes.push(`${row.name}: ${row.value}`);
+  });
+  return notes;
+}
+
 export function buildLetter(draft, result, options = {}) {
   const todayIso = options.today || new Date().toISOString().slice(0, 10);
   const today = formatDate(todayIso);
@@ -148,9 +165,9 @@ export function buildLetter(draft, result, options = {}) {
       rows: [
         [cell('Regulering av pris', 1, true), cell(rule, 5)],
         [cell('Tabell', 1, true), cell(tableNo), cell(seriesTitle, 2), cell('Pris justert', 1, true), cell(formatPlain(row.addition))],
-        [cell('Start indeks', 1, true), cell(result.basisPoint.period), cell('Reguleringsdato', 1, true), cell(row.period || result.regulationPoint.period), cell(ny, 1, true), cell(formatPlain(row.newRate))],
-        [cell('Indeks 1', 1, true), cell(formatIndex(result.basisPoint.value)), cell('Indeks 2', 1, true), cell(formatIndex(row.index)), cell('', 2)],
-        [cell('Sats', 1, true), cell(formatRate(row.rate)), cell('Indeksendring', 1, true), cell(formatIndex(row.index - result.basisPoint.value)), cell('Endring i %', 1, true), cell(formatPercent1(row.change * 100))],
+        [cell('Start indeks', 1, true), cell(row.basisPeriod || result.basisPoint.period), cell('Reguleringsdato', 1, true), cell(row.period || result.regulationPoint.period), cell(ny, 1, true), cell(formatPlain(row.newRate))],
+        [cell('Indeks 1', 1, true), cell(formatIndex(row.basisValue ?? result.basisPoint.value)), cell('Indeks 2', 1, true), cell(formatIndex(row.index)), cell('', 2)],
+        [cell('Sats', 1, true), cell(formatRate(row.rate)), cell('Indeksendring', 1, true), cell(formatIndex(row.index - (row.basisValue ?? result.basisPoint.value))), cell('Endring i %', 1, true), cell(formatPercent1(row.change * 100))],
         [cell(ny, 1, true), cell(rounded, 5)],
         [cell('Gjeldende fra', 1, true), cell(`${ny} er gjeldende fra ${effective}`, 5)],
       ],
@@ -163,6 +180,7 @@ export function buildLetter(draft, result, options = {}) {
     intro: `Vi varsler herved om indeksregulering av priser i tråd med foreliggende avtale. Indeksreguleringen er basert på siste kjente prisindeks fra når tilbudet ble gitt iht. Statistisk sentralbyrå (SSB) tabell ${tableNo}, som er regulert frem til den siste kjente indeksen pr. dags dato.`,
     sections: [party, agreement, ...regulationRows],
     notes: [
+      ...termNotes(draft),
       ...(model.id === 'engang' ? [] : [`${model.label}. ${model.formula}.`]),
       ...(result.warnings || []),
       draft.model === 'husleie'

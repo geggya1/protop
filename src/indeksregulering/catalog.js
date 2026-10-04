@@ -213,7 +213,7 @@ export function standardById(id) {
 }
 
 export const METHOD_NOTES = [
-  'Basismåneden er måneden tilbudsfristen løp ut. Finnes det ingen tilbudsfrist, brukes tilbudsdatoen.',
+  'NS 3405 er metoden: e = A × s × (t − t0) / t0. Basismåneden er tilbudsfristen, deretter tilbudsdatoen, med mindre avtalen navngir en annen dato.',
   'Grunnlaget er ytelsen i kontraktens priser, eksklusive merverdiavgift. Forskudd og innestående beløp trekkes ikke fra.',
   'Er det avtalt at bare en andel skal reguleres, ganges grunnlaget med den andelen først. Resten ligger fast.',
   'SSB publiserer byggekostnadsindeksen for boliger om lag den 12. i måneden etter. Et krav kan ikke bruke en måned som ennå ikke er publisert.',

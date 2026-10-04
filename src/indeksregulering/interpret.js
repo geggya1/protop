@@ -1,5 +1,5 @@
 import { INDEX_SERIES, STANDARDS } from './catalog.js';
-import { emptyDraft, emptyLine, parseAmount, parseIsoDate } from './engine.js';
+import { emptyDraft, emptyLine, emptyTerms, parseAmount, parseIsoDate } from './engine.js';
 
 const STANDARD_ORDER = [
   ['NS 8403', /NS\s*8403/i],
@@ -125,18 +125,72 @@ export function interpretContract(text) {
     findings.push('Fant ikke et beløp eller en sats. Legg det inn før beregningen.');
   }
 
+  readTerms(source, draft, findings);
+  draft.documents = [];
+  draft.extracted = {
+    share: share != null,
+    index: Boolean(hinted),
+    terms: draft.terms.baseRule !== 'auto' || draft.terms.frequency !== 'month' || draft.terms.thresholdPercent !== '' || draft.terms.capPercent !== '' || draft.terms.roundToKrone || draft.terms.variables.length > 0,
+  };
   draft.findings = findings;
   return draft;
 }
 
-export function mergeInterpretation(local, ai) {
+/** Leser alle avtaledokumentene i rekkefølge. Et senere dokument kan endre vilkårene. */
+export function interpretDocuments(docs) {
+  const list = (docs || []).filter((doc) => String(doc?.text || '').trim().length >= 20);
+  if (!list.length) return interpretContract('');
+  let draft = interpretContract(list[0].text);
+  for (let index = 1; index < list.length; index += 1) {
+    draft = applyLaterDocument(draft, interpretContract(list[index].text), list[index].name || `Dokument ${index + 1}`);
+  }
+  draft.documents = list.map((doc, index) => ({
+    id: doc.id || `dok-${index + 1}`,
+    name: doc.name || `Dokument ${index + 1}`,
+  }));
+  draft.findings = [`Leste ${list.length} avtaledokument${list.length === 1 ? '' : 'er'}.`, ...draft.findings];
+  return draft;
+}
+
+function applyLaterDocument(base, next, name) {
+  const draft = { ...base, findings: [...(base.findings || [])], terms: emptyTerms(base.terms) };
+  if (next.extracted?.share) draft.sharePercent = next.sharePercent;
+  if (next.extracted?.index) draft.indexId = next.indexId;
+  if (next.standard && next.standard !== 'avtalt') draft.standard = next.standard;
+  if (next.model) draft.model = next.model;
+  ['offerDate', 'tenderDeadline', 'contractDate', 'buyer', 'supplier', 'title', 'reference'].forEach((key) => {
+    if (next[key]) draft[key] = next[key];
+  });
+  if (next.extracted?.terms) draft.terms = emptyTerms(next.terms);
+  if (next.regulationExcluded) draft.regulationExcluded = true;
+  const extraLines = (next.lines || []).filter((line) => parseAmount(line.rate) != null);
+  if (extraLines.length) {
+    const seen = new Set((draft.lines || []).map((line) => `${line.text}|${line.rate}`));
+    extraLines.forEach((line) => {
+      const key = `${line.text}|${line.rate}`;
+      if (!seen.has(key)) draft.lines = [...(draft.lines || []), line];
+    });
+  }
+  draft.findings.push(`${name} er lest inn etter de andre dokumentene.`);
+  draft.extracted = {
+    share: base.extracted?.share || next.extracted?.share,
+    index: base.extracted?.index || next.extracted?.index,
+    terms: base.extracted?.terms || next.extracted?.terms,
+  };
+  return draft;
+}
+
+export function mergeInterpretation(local, ai, sourceText = '') {
   const base = local || interpretContract('');
-  const extra = ai && typeof ai === 'object' ? ai : {};
+  const extra = {
+    ...(ai && typeof ai === 'object' ? ai : {}),
+    sourceText: sourceText || ai?.sourceText || '',
+  };
   const next = {
     ...base,
     findings: [...(base.findings || [])],
   };
-  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline'];
+  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline', 'contractDate', 'honorar', 'place', 'poNumber'];
   textFields.forEach((key) => {
     const value = clean(extra[key]);
     if (!value) return;
@@ -160,13 +214,47 @@ export function mergeInterpretation(local, ai) {
   }
   if (extra.regulationExcluded === true) next.regulationExcluded = true;
   if (extra.regulationExcluded === false) next.regulationExcluded = false;
+  if (extra.terms && typeof extra.terms === 'object') {
+    const terms = emptyTerms(next.terms);
+    const rule = clean(extra.terms.baseRule);
+    if (['auto', 'tender', 'offer', 'contract'].includes(rule)) terms.baseRule = rule;
+    const frequency = clean(extra.terms.frequency);
+    if (['month', 'quarter', 'year', 'once'].includes(frequency)) terms.frequency = frequency;
+    const threshold = parseAmount(extra.terms.thresholdPercent);
+    if (threshold != null) terms.thresholdPercent = String(threshold);
+    const cap = parseAmount(extra.terms.capPercent);
+    if (cap != null) terms.capPercent = String(cap);
+    if (extra.terms.roundToKrone === true) terms.roundToKrone = true;
+    if (Array.isArray(extra.terms.variables)) {
+      terms.variables = extra.terms.variables.slice(0, 20).map((row) => ({
+        name: clean(row?.name).slice(0, 80),
+        value: clean(row?.value).slice(0, 40),
+      })).filter((row) => row.name && row.value);
+    }
+    next.terms = terms;
+  }
   if (Array.isArray(extra.lines) && extra.lines.some((line) => parseAmount(line?.rate) != null)) {
-    next.lines = extra.lines.slice(0, 40).map((line) => emptyLine({
-      text: clean(line.text).slice(0, 120),
-      quantity: line.quantity == null || line.quantity === '' ? '1' : String(line.quantity),
-      unit: clean(line.unit) || 'RS',
-      rate: line.rate == null ? '' : String(line.rate),
-    }));
+    const source = String(extra.sourceText || '');
+    const candidates = extra.lines.slice(0, 40).filter((line) => (
+      !source || numberAppears(source, line?.rate)
+    ));
+    if (!candidates.length && source) {
+      next.findings.push('AI oppga satser som ikke står i avtaleteksten. De lokale satsene er beholdt.');
+    } else if (candidates.length) {
+      next.lines = candidates.map((line) => emptyLine({
+        text: clean(line.text).slice(0, 120),
+        quantity: line.quantity == null || line.quantity === '' ? '1' : String(line.quantity),
+        unit: clean(line.unit) || 'RS',
+        rate: line.rate == null ? '' : String(line.rate),
+        indexId: INDEX_SERIES.some((row) => row.id === line.indexId) ? line.indexId : '',
+        sharePercent: line.sharePercent == null ? '' : String(line.sharePercent),
+        included: line.included !== false,
+      }));
+    }
+  }
+  if (sourceHasShare(extra) && extra.sourceText && !numberAppears(extra.sourceText, next.sharePercent)) {
+    next.sharePercent = base.sharePercent;
+    next.findings.push('Andelen fra AI står ikke i teksten. Den lokale andelen er beholdt.');
   }
   next.engine = extra.engine || 'gemini';
   next.findings.push('AI leste avtalen og fylte ut feltene som var tydelige. Kontroller før brevet sendes.');
@@ -225,6 +313,81 @@ function readLump(text, rent) {
   const number = parseAmount(match[1]);
   if (number == null || number <= 0) return null;
   return number;
+}
+
+function readTerms(source, draft, findings) {
+  const terms = emptyTerms();
+  if (/basismåned[^.\n]{0,60}kontraktsdato|fra kontraktsdato/i.test(source)) {
+    terms.baseRule = 'contract';
+    findings.push('Basismåneden er kontraktsdatoen, slik avtalen sier.');
+  } else if (/basismåned[^.\n]{0,60}tilbudsdato/i.test(source)) {
+    terms.baseRule = 'offer';
+    findings.push('Basismåneden er tilbudsdatoen, slik avtalen sier.');
+  } else if (/NS\s*3405/i.test(source)) {
+    findings.push('Metoden er NS 3405: basismåned ved tilbudsfrist, deretter tilbudsdato, og e = A × s × (t − t0) / t0.');
+  }
+  if (/kvartalsvis|hvert kvartal|per kvartal/i.test(source)) {
+    terms.frequency = 'quarter';
+    findings.push('Reguleringen skjer kvartalsvis.');
+  } else if (/årlig regulering|en gang i året|reguleres årlig/i.test(source)) {
+    terms.frequency = 'year';
+    findings.push('Reguleringen skjer årlig.');
+  } else if (/engangsregulering|reguleres én gang|reguleres en gang/i.test(source)) {
+    terms.frequency = 'once';
+    findings.push('Reguleringen er en engangsjustering.');
+  }
+  const threshold = source.match(/(?:terskel(?:verdi)?|reguleres bare når[^%\n]{0,50}|endringen overstiger)\s*(\d{1,2}(?:[.,]\d+)?)\s*%/i);
+  if (threshold) {
+    const number = parseAmount(threshold[1]);
+    if (number != null) {
+      terms.thresholdPercent = String(number);
+      findings.push(`Terskel for regulering er ${number} %.`);
+    }
+  }
+  const cap = source.match(/(?:maks(?:imal(?:t|e)?)?(?:\s+regulering)?|tak(?:et)?(?:\s+(?:på|for regulering))?)\s*(?:på|er|:)?\s*(\d{1,2}(?:[.,]\d+)?)\s*%/i);
+  if (cap) {
+    const number = parseAmount(cap[1]);
+    if (number != null) {
+      terms.capPercent = String(number);
+      findings.push(`Tak på reguleringen er ${number} %.`);
+    }
+  }
+  if (/nærmeste krone|avrund(?:es|et) til (?:hele )?kroner?/i.test(source)) {
+    terms.roundToKrone = true;
+    findings.push('Beløpet avrundes til nærmeste krone.');
+  }
+  terms.variables = readVariables(source);
+  if (terms.variables.length) {
+    findings.push(`Andre avtalte størrelser: ${terms.variables.map((row) => `${row.name} ${row.value}`).join(', ')}.`);
+  }
+  draft.terms = terms;
+}
+
+function readVariables(source) {
+  const skip = /kontraktssum|tilbudsfrist|tilbudsdato|kontraktsdato|regulert andel|fast andel|merverdi|mva|timepris|enhetspris|organisasjon|telefon|epost|e-post/i;
+  const found = [];
+  const pattern = /^\s*([A-Za-zÆØÅæøå][^:\n]{2,40}):\s*(\d[\d\s.]*(?:,\d+)?\s*%?)/gm;
+  let match = pattern.exec(source);
+  while (match && found.length < 12) {
+    const name = match[1].replace(/\s+/g, ' ').trim();
+    const value = match[2].replace(/\s+/g, ' ').trim();
+    if (!skip.test(name)) found.push({ name, value });
+    match = pattern.exec(source);
+  }
+  return found;
+}
+
+export function numberAppears(source, value) {
+  const number = parseAmount(value);
+  if (number == null) return false;
+  const digits = String(Math.round(Math.abs(number)));
+  if (!digits || digits === '0') return false;
+  const folded = String(source || '').replace(/\s/g, '').replace(/(\d)\.(?=\d{3}(?:\D|$))/g, '$1');
+  return folded.includes(digits);
+}
+
+function sourceHasShare(extra) {
+  return extra?.sharePercent != null && extra.sharePercent !== '';
 }
 
 function readLines(text) {

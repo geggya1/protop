@@ -3,10 +3,11 @@ import test from 'node:test';
 import { extractContractText } from './extractText.js';
 import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
-import { interpretContract } from './interpret.js';
+import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
 import { buildLetter, formatMoney } from './letter.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
 import { fetchAllIndices, parseSsbCsv } from './ssb.js';
+import { dueRegulations, indexNews, shouldCheckToday } from './watch.js';
 
 const AVTALE = `
 NS 8407 Totalentreprise
@@ -261,6 +262,96 @@ test('tillegget kan føres som endringsinntekt', () => {
   assert.equal(booked.ok, true, booked.error);
   assert.equal(booked.state.entries[0].amount, 221582.73);
   assert.equal(booked.state.entries[0].account, '3100');
+});
+
+test('NS 3405 bruker terskel, tak og kontraktsdato når avtalen sier det', () => {
+  const draft = interpretContract(`
+    NS 8405. Tilbudsdato 01.03.2024. Kontraktsdato 15.01.2024.
+    Basismåned er kontraktsdato. Kontraktssum 100 000.
+    Terskel 3 %. Maksimalt regulering 10 %.
+    Materialandel: 40 %
+    Skal indeksreguleres etter NS 3405.
+  `);
+  assert.equal(draft.terms.baseRule, 'contract');
+  assert.equal(draft.terms.thresholdPercent, '3');
+  assert.equal(draft.terms.capPercent, '10');
+  assert.equal(draft.terms.variables[0].name, 'Materialandel');
+  const small = calculate({ ...draft, regulationDate: '2026-08-01' }, {
+    'bki-bustader': monthSeries({ '2024M01': 100, '2026M08': 102 }),
+  });
+  assert.equal(small.addition, 0);
+  assert.match(small.warnings.join(' '), /terskel/i);
+  const capped = calculate({ ...draft, regulationDate: '2026-08-01' }, {
+    'bki-bustader': monthSeries({ '2024M01': 100, '2026M08': 130 }),
+  });
+  assert.equal(capped.addition, 10000);
+  assert.match(capped.warnings.join(' '), /tak/i);
+});
+
+test('senere avtaledokument endrer andelen', () => {
+  const draft = interpretDocuments([
+    { name: 'Kontrakt', text: 'NS 8407. Tilbudsfrist 15.03.2024. Kontraktssum 2 000 000. Regulert andel 100 %. Boligblokk. Skal indeksreguleres etter NS 3405.' },
+    { name: 'Tillegg', text: 'Tilleggsavtale. Regulert andel 60 %. Timepris rådgiver 1200 kr.' },
+  ]);
+  assert.equal(draft.sharePercent, '60');
+  assert.equal(draft.documents.length, 2);
+  assert.ok(draft.lines.some((line) => line.rate === '1200'));
+});
+
+test('AI-sats som ikke står i teksten blir forkastet', () => {
+  const source = 'NS 8407. Tilbudsfrist 15.03.2024. Kontraktssum 2 000 000. Regulert andel 80 %.';
+  const local = interpretContract(source);
+  const merged = mergeInterpretation(local, {
+    lines: [{ text: 'Oppfunnet', quantity: 1, unit: 'RS', rate: 999999 }],
+    sharePercent: 55,
+  }, source);
+  assert.equal(merged.lines[0].rate, '2000000');
+  assert.equal(merged.sharePercent, '80');
+});
+
+test('egen indeks på en linje', () => {
+  const result = calculate({
+    standard: 'avtalt',
+    model: 'ns3405',
+    indexId: 'bki-boligblokk',
+    sharePercent: '100',
+    vatPercent: '0',
+    offerDate: '2024-03-01',
+    regulationDate: '2026-08-01',
+    lines: [
+      { text: 'Materialer', quantity: '1', unit: 'RS', rate: '1000', indexId: 'bki-bustader-materialer', included: true },
+    ],
+  }, {
+    'bki-boligblokk': monthSeries({ '2024M03': 100, '2026M08': 110 }),
+    'bki-bustader-materialer': {
+      ...monthSeries({ '2024M03': 100, '2026M08': 150 }),
+      id: 'bki-bustader-materialer',
+      name: 'Materialer',
+    },
+  });
+  assert.equal(result.rows[0].index, 150);
+  assert.equal(result.addition, 500);
+});
+
+test('varsler når SSB publiserer ny indeks', () => {
+  assert.equal(shouldCheckToday('2026-10-03', new Date('2026-10-04T10:00:00Z')), true);
+  assert.equal(shouldCheckToday('2026-10-04', new Date('2026-10-04T08:00:00Z')), false);
+  const news = indexNews(
+    { 'bki-boligblokk': { name: 'Boligblokk', period: '2026M07', value: 150 } },
+    { 'bki-boligblokk': { name: 'Boligblokk', period: '2026M08', value: 154.4 } },
+  );
+  assert.equal(news.length, 1);
+  assert.equal(news[0].period, '2026M08');
+  const due = dueRegulations([{
+    id: 'ir-1',
+    title: 'Skole',
+    regulatedPeriod: '2026M07',
+    draft: { indexId: 'bki-boligblokk', title: 'Skole', terms: { frequency: 'month' } },
+  }], {
+    'bki-boligblokk': { name: 'Boligblokk', latest: { period: '2026M08', value: 154.4 } },
+  });
+  assert.equal(due[0].title, 'Skole');
+  assert.equal(due[0].period, '2026M08');
 });
 
 test('parser bred SSB-csv', () => {

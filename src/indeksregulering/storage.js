@@ -32,6 +32,8 @@ export async function loadIndexCache() {
 export async function saveIndexCache(bundle) {
   const slim = {
     fetchedAt: bundle.fetchedAt,
+    checkedOn: bundle.checkedOn || '',
+    news: bundle.news || [],
     errors: bundle.errors || [],
     series: {},
   };
@@ -40,6 +42,7 @@ export async function saveIndexCache(bundle) {
       id,
       name: series.name,
       table: series.table,
+      codes: series.codes || [],
       basis: series.basis,
       frequency: series.frequency,
       source: series.source,

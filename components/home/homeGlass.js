@@ -11,9 +11,9 @@ const webFrost = Platform.OS === 'web' ? {
   WebkitBackdropFilter: 'blur(22px) saturate(1.18)',
 } : null;
 
-/** Primary widget card frost — denser fill for text contrast (mockup). */
+/** Primary widget card frost — milky fill so dark ink stays readable. */
 export const immersiveCardSurface = {
-  backgroundColor: 'rgba(255,255,255,0.52)',
+  backgroundColor: 'rgba(255,255,255,0.82)',
   borderWidth: StyleSheet.hairlineWidth,
   borderColor: 'rgba(255,255,255,0.82)',
   borderRadius: 18,
@@ -25,7 +25,7 @@ export const immersiveCardSurface = {
 
 /** Nested chips / inner tiles on a glass card. */
 export const immersiveChipSurface = {
-  backgroundColor: 'rgba(255,255,255,0.42)',
+  backgroundColor: 'rgba(255,255,255,0.74)',
   borderWidth: StyleSheet.hairlineWidth,
   borderColor: 'rgba(255,255,255,0.7)',
   ...webFrost,

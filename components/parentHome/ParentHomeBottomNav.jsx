@@ -115,14 +115,14 @@ export default function ParentHomeBottomNav({
                 <Ionicons
                   name={item.icon}
                   size={20}
-                  color={active ? (glass ? '#E8F8EC' : palette.accent) : (glass ? 'rgba(255,255,255,0.78)' : palette.muted)}
+                  color={active ? (glass ? '#E8F8EC' : palette.accent) : (glass ? '#F4F7FB' : palette.muted)}
                 />
               </IconBadge>
             </View>
             <Text
               style={[
                 styles.label,
-                { color: active ? (glass ? '#fff' : palette.accent) : (glass ? 'rgba(255,255,255,0.82)' : palette.muted) },
+                { color: active ? (glass ? '#fff' : palette.accent) : (glass ? '#F4F7FB' : palette.muted) },
                 active && styles.labelOn,
               ]}
               numberOfLines={1}
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: soft.wReg,
     fontFamily: soft.body,
   },

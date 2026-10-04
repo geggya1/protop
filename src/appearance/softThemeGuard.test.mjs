@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 const soft = readFileSync(new URL('../../components/parentHome/softTheme.js', import.meta.url), 'utf8');
 assert.equal(soft.includes('adaptiveColor'), false, 'soft dashboard must not follow dark appearance');
 assert.equal(soft.includes('SOFT_DARK'), false);
-assert.match(soft, /ink:\s*'#1F2630'/);
+assert.match(soft, /ink:\s*'#12171E'/);
+assert.match(soft, /muted:\s*'#2C3644'/);
 assert.match(soft, /card:\s*'#FFFFFF'/);
 
 const eventForm = readFileSync(new URL('../../screens/v2/EventFormScreen.jsx', import.meta.url), 'utf8');

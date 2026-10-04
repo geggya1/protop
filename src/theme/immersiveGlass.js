@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
  * Shared frosted chrome for immersive home bottom dock (photo backdrop).
  * Top shell logo bar stays white like other modules — see ShellHeader chromeOnly.
  */
-export const IMMERSIVE_GLASS_BG = 'rgba(28, 34, 44, 0.72)';
+export const IMMERSIVE_GLASS_BG = 'rgba(16, 20, 28, 0.9)';
 
 export const immersiveGlassBlur = Platform.OS === 'web'
   ? {

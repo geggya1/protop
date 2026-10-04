@@ -128,6 +128,7 @@ export function emptyDraft(partial = {}) {
     contractDate: '',
     honorar: '',
     effectiveDate: '',
+    firstRegulationDate: '',
     ...partial,
   };
 }
@@ -198,6 +199,10 @@ function regulate(base, share, current, basis, terms = {}) {
     suppressed: '',
     capped,
   };
+}
+
+export function contractBasis(draft) {
+  return resolveBasis(draft || {});
 }
 
 function resolveBasis(draft) {

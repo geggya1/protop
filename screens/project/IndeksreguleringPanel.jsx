@@ -19,6 +19,7 @@ import { loadCases, loadIndexCache, saveCases, saveIndexCache } from '../../src/
 import { pickDocument } from '../../src/utils/media';
 
 const STANDARDS = [
+  ['NS 8403', 'NS 8403'],
   ['NS 8407', 'NS 8407'],
   ['NS 8405', 'NS 8405'],
   ['NS 8406', 'NS 8406'],
@@ -63,6 +64,44 @@ function Btn({ label, onPress, colors, tone = 'brand', disabled }) {
   );
 }
 
+function NoticeView({ notice, colors }) {
+  return (
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <Text style={[styles.brand, { color: colors.ink }]}>{notice.brand}</Text>
+      <Text style={[styles.h2, { color: colors.ink, marginTop: 0 }]}>{notice.title}</Text>
+      <Text selectable style={{ color: colors.ink, lineHeight: 20 }}>{notice.intro}</Text>
+      {notice.sections.map((section, sectionIndex) => (
+        <View key={`${section.heading}-${sectionIndex}`} style={styles.stack}>
+          <Text style={[styles.h2, { color: colors.ink }]}>{section.heading}</Text>
+          {section.lead ? <Text style={{ color: colors.ink }}>{section.lead}</Text> : null}
+          <View style={[styles.grid, { borderColor: colors.line }]}>
+            {section.rows.map((row, index) => (
+              <View key={`${section.heading}-${index}`} style={[styles.gridRow, { borderColor: colors.line }]}>
+                {row.map((item, cellIndex) => (
+                  <Text
+                    key={`${section.heading}-${index}-${cellIndex}`}
+                    style={{ color: colors.ink, flex: item.span || 1, fontWeight: item.label ? '500' : '400', padding: 6 }}
+                  >
+                    {item.text}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
+      ))}
+      {notice.notes.map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
+      <Text style={[styles.h2, { color: colors.ink }]}>Med vennlig hilsen</Text>
+      {notice.signoff.place ? <Text style={{ color: colors.ink }}>Sted: {notice.signoff.place}</Text> : null}
+      <Text style={{ color: colors.ink }}>Dato: {notice.signoff.date}</Text>
+      <Text style={{ color: colors.muted }}>Underskrift</Text>
+      {notice.signoff.name ? <Text style={{ color: colors.ink }}>{notice.signoff.name}</Text> : null}
+      <Text style={{ color: colors.ink }}>{notice.signoff.company}</Text>
+      <Text style={{ color: colors.muted }}>{notice.footer.join('  |  ')}</Text>
+    </View>
+  );
+}
+
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
   if (!blob && file?.uri && typeof fetch === 'function') {
@@ -89,7 +128,7 @@ function freshDraft(project, supplier) {
 
 export default function IndeksreguleringPanel({ project, onBook }) {
   const colors = useColors();
-  const { family } = useApp();
+  const { family, activeProfile } = useApp();
   const [draft, setDraft] = useState(() => freshDraft(project, ''));
   const [sourceText, setSourceText] = useState('');
   const [bundle, setBundle] = useState(null);
@@ -105,10 +144,18 @@ export default function IndeksreguleringPanel({ project, onBook }) {
   const [pickingWeight, setPickingWeight] = useState(-1);
 
   useEffect(() => {
-    const supplier = family?.company?.navn || '';
-    if (!supplier) return;
-    setDraft((current) => (current.supplier ? current : { ...current, supplier }));
-  }, [family?.company?.navn]);
+    const company = family?.company || {};
+    const contact = activeProfile?.kind === 'parent' ? activeProfile.name : '';
+    setDraft((current) => ({
+      ...current,
+      supplier: current.supplier || company.navn || '',
+      orgnr: current.orgnr || company.organisasjonsnummer || '',
+      phone: current.phone || company.telefon || '',
+      email: current.email || company.epostadresse || '',
+      website: current.website || company.hjemmeside || '',
+      contactName: current.contactName || (contact && contact !== 'Meg' ? contact : ''),
+    }));
+  }, [family?.company, activeProfile?.name, activeProfile?.kind]);
 
   useEffect(() => {
     let live = true;
@@ -536,6 +583,46 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch({ sharePercent: value })} keyboardType="decimal-pad" colors={colors} />
         </View>
       </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field label="Organisasjonsnummer" value={draft.orgnr} onChangeText={(value) => patch({ orgnr: value })} colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
+          <Field label="Kontaktperson" value={draft.contactName} onChangeText={(value) => patch({ contactName: value })} colors={colors} />
+        </View>
+      </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field label="Telefon" value={draft.phone} onChangeText={(value) => patch({ phone: value })} colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
+          <Field label="E-post" value={draft.email} onChangeText={(value) => patch({ email: value })} colors={colors} />
+        </View>
+      </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field label="Sted" value={draft.place} onChangeText={(value) => patch({ place: value })} placeholder="Sandnes" colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
+          <Field label="Nettside" value={draft.website} onChangeText={(value) => patch({ website: value })} placeholder="www.firma.no" colors={colors} />
+        </View>
+      </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field label="Kontraktsdato" value={draft.contractDate} onChangeText={(value) => patch({ contractDate: value })} placeholder="25.08.2023" colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
+          <Field label="Eksternt PO-nr." value={draft.poNumber} onChangeText={(value) => patch({ poNumber: value })} colors={colors} />
+        </View>
+      </View>
+      <View style={styles.split}>
+        <View style={styles.splitItem}>
+          <Field label="Gjeldende fra" value={draft.effectiveDate} onChangeText={(value) => patch({ effectiveDate: value })} placeholder="01.08.2025" colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
+          <Field label="Avtalt honorar" value={draft.honorar} onChangeText={(value) => patch({ honorar: value })} placeholder="Oppdraget honoreres etter medgått tid" colors={colors} />
+        </View>
+      </View>
       {draft.model !== 'husleie' ? (
         <Field label="Merverdiavgift %" value={draft.vatPercent} onChangeText={(value) => patch({ vatPercent: value })} keyboardType="decimal-pad" colors={colors} />
       ) : (
@@ -735,17 +822,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         );
       })}
 
-      {letter ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.h2, { color: colors.ink }]}>Brev</Text>
-          {live.rows.map((row) => (
-            <Text key={`${row.text}-${row.period}-${row.base}`} style={{ color: colors.ink }}>
-              {row.text}: {formatMoney(row.base)} → {formatMoney(row.addition)} → ny sats {formatMoney(row.newRate)}
-            </Text>
-          ))}
-          <Text selectable style={{ color: colors.ink, lineHeight: 21 }}>{letter.plain}</Text>
-        </View>
-      ) : null}
+      {letter?.notice ? <NoticeView notice={letter.notice} colors={colors} /> : null}
 
       {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).length ? (
         <Text style={[styles.h2, { color: colors.ink }]}>Lagrede krav</Text>
@@ -777,6 +854,9 @@ const styles = StyleSheet.create({
   btnText: { fontWeight: '400', fontSize: 13 },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
+  brand: { fontSize: 18, textAlign: 'right' },
+  grid: { borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  gridRow: { flexDirection: 'row', borderBottomWidth: 1 },
   split: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   splitItem: { flexGrow: 1, flexBasis: 180, minWidth: 160 },
 });

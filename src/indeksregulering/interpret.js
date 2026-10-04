@@ -2,6 +2,7 @@ import { INDEX_SERIES, STANDARDS } from './catalog.js';
 import { emptyDraft, emptyLine, parseAmount, parseIsoDate } from './engine.js';
 
 const STANDARD_ORDER = [
+  ['NS 8403', /NS\s*8403/i],
   ['NS 8417', /NS\s*8417/i],
   ['NS 8416', /NS\s*8416/i],
   ['NS 8415', /NS\s*8415/i],
@@ -22,6 +23,7 @@ const INDEX_HINTS = [
   ['bki-boligblokk', /boligblokk|bustadblokk/i],
   ['bki-bustader-arbeid', /arbeidskraftindeks|indeks for arbeidskraft/i],
   ['bki-bustader-materialer', /materialindeks|indeks for materialer/i],
+  ['ppi-byggeteknisk', /byggeteknisk konsulent|tabell\s*14335|71\.121|konsulentvirksomhet/i],
   ['kpi', /konsumprisindeks|\bKPI\b/i],
   ['bki-bustader', /byggekostnadsindeks for boliger|bustader i alt|boliger i alt/i],
 ];
@@ -74,6 +76,7 @@ export function interpretContract(text) {
   draft.tenderDeadline = labeledDate(source, ['tilbudsfrist', 'frist for tilbud', 'tilbudsfristens utløp']);
   draft.offerDate = labeledDate(source, ['tilbudsdato', 'dato for tilbud', 'tilbudet er datert', 'tilbud av']);
   const contractDate = labeledDate(source, ['kontraktsdato', 'avtale dato', 'signert', 'leien er fastsatt', 'leiefastsetting']);
+  if (contractDate) draft.contractDate = contractDate;
   if (!draft.offerDate && contractDate) draft.offerDate = contractDate;
   if (draft.tenderDeadline) findings.push(`Tilbudsfrist ${showDate(draft.tenderDeadline)}.`);
   if (draft.offerDate) findings.push(`Tilbudsdato eller siste prisfastsetting ${showDate(draft.offerDate)}.`);

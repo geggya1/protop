@@ -32,6 +32,12 @@ export const MODELS = [
 ];
 
 export const STANDARDS = {
+  'NS 8403': {
+    label: 'NS 8403 Byggelederoppdrag',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    summary: 'NS 8403 er alminnelige kontraktsbestemmelser for byggelederoppdrag. Når timeprisen skal reguleres, brukes vanligvis produsentprisindeksen for byggeteknisk konsulentvirksomhet, SSB tabell 14335, næring 71.121.',
+  },
   'NS 8405': {
     label: 'NS 8405 Utførelsesentreprise',
     model: 'ns3405',
@@ -132,6 +138,12 @@ export const SSB_FETCHES = [
     contents: 'KpiIndMnd',
     dims: [],
   },
+  {
+    table: '14335',
+    contentsDim: 'ContentsCode',
+    contents: 'Prisindeks',
+    dims: ['NACE'],
+  },
 ];
 
 export const INDEX_SERIES = [
@@ -169,6 +181,8 @@ export const INDEX_SERIES = [
   series('bki-ror-varme', '04534', ['3', '00'], 'Varmeinstallasjoner, i alt', 'month', '2000 = 100', 'Installasjon'),
 
   series('kpi', '14710', [], 'Konsumprisindeksen', 'month', '2025 = 100', 'Pris', 'Husleieloven § 4-2 bruker endringen i KPI. SSB publiserer nå serien med 2025 = 100.'),
+
+  series('ppi-byggeteknisk', '14335', ['71.121'], 'Byggeteknisk konsulentvirksomhet', 'quarter', '2021 = 100', 'Konsulent', 'Produsentprisindeks for næring 71.121. Brukes når timepris i rådgivning eller byggelederoppdrag skal følge SSB tabell 14335.'),
 ];
 
 function series(id, table, codes, name, frequency, basis, group, note = '') {

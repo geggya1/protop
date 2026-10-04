@@ -270,6 +270,68 @@ test('parser bred SSB-csv', () => {
   assert.equal(rows[0].values['2026M08'], 154.4);
 });
 
+test('varsel om timepris følger eksempelet', () => {
+  const draft = {
+    supplier: 'Consult1 AS',
+    orgnr: '916538804',
+    contactName: 'Anders Rolandsen',
+    phone: '99376973',
+    email: 'pr@consult1.no',
+    website: 'www.consult1.no',
+    place: 'Sandnes',
+    title: 'Rammeavtale Prosjektaadministrasjon bygg',
+    reference: '12',
+    standard: 'NS 8403',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    offerDate: '2023-06-15',
+    contractDate: '2023-08-25',
+    regulationDate: '2025-06-15',
+    effectiveDate: '2025-08-01',
+    honorar: 'Oppdraget honoreres etter medgått tid',
+    sharePercent: '100',
+    vatPercent: '0',
+    lines: [{ text: 'Timepris', quantity: '1', unit: 'time', rate: '1050', included: true }],
+  };
+  const result = calculate(draft, {
+    'ppi-byggeteknisk': {
+      id: 'ppi-byggeteknisk',
+      name: 'Byggeteknisk konsulentvirksomhet',
+      table: '14335',
+      codes: ['71.121'],
+      frequency: 'quarter',
+      basis: '2021 = 100',
+      source: 'SSB Statistikkbanken, tabell 14335',
+      points: [
+        { period: '2023K2', value: 107.6 },
+        { period: '2025K2', value: 117.7 },
+      ],
+    },
+  });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.rows[0].newRate, 1148.56);
+  assert.equal(result.rows[0].addition, 98.56);
+  assert.equal(result.basisPoint.period, '2023K2');
+  assert.equal(result.regulationPoint.period, '2025K2');
+  const letter = buildLetter(draft, result, { today: '2025-08-01' });
+  assert.equal(letter.title, 'Varsel om indeksregulering av timepriser');
+  assert.match(letter.plain, /tabell 14335/);
+  assert.match(letter.plain, /71\.121 Byggeteknisk konsulentvirksomhet/);
+  assert.match(letter.plain, /107,6/);
+  assert.match(letter.plain, /117,7/);
+  assert.match(letter.plain, /98,56/);
+  assert.match(letter.plain, /1148,56/);
+  assert.match(letter.plain, /kr 1 149,- eks mva/);
+  assert.match(letter.plain, /kr 1 050,- eks mva/);
+  assert.match(letter.plain, /01\.08\.25/);
+  assert.match(letter.plain, /916 538 804/);
+  assert.match(letter.plain, /NS 8403/);
+  const pdf = new TextDecoder().decode(buildPdf(letter));
+  assert.match(pdf, /Varsel om indeksregulering av timepriser/);
+  assert.match(pdf, /1148,56/);
+  assert.match(pdf, /Consult1 AS/);
+});
+
 test('pdf, word og excel inneholder kravet', () => {
   const draft = {
     ...interpretContract('NS 8407. Tilbudsfrist 15.03.2024. Kontraktssum 2 000 000. Boligblokk. Skal indeksreguleres.'),
@@ -321,6 +383,11 @@ test('henter boligblokk og KPI fra SSB', { timeout: 60000 }, async () => {
   assert.ok(kpi?.latest?.value > 90 && kpi.latest.value < 140, JSON.stringify(kpi?.latest));
   assert.ok(bundle.series['bki-veg']?.latest?.value > 90);
   assert.ok(bundle.series['bki-ror']?.latest?.value > 100);
+  const konsulent = bundle.series['ppi-byggeteknisk'];
+  assert.equal(konsulent?.table, '14335');
+  assert.ok(konsulent?.latest?.value > 100, JSON.stringify(konsulent?.latest));
+  assert.ok(konsulent.points.some((point) => point.period === '2023K2' && point.value === 107.6));
+  assert.ok(konsulent.points.some((point) => point.period === '2025K2' && point.value === 117.7));
   const draft = interpretContract(AVTALE);
   draft.lines = [{ text: 'Kontraktssum', quantity: '1', unit: 'RS', rate: '2000000' }];
   draft.sharePercent = '100';

@@ -75,6 +75,7 @@ export function interpretContract(text) {
 
   draft.tenderDeadline = labeledDate(source, ['tilbudsfrist', 'frist for tilbud', 'tilbudsfristens utløp']);
   draft.offerDate = labeledDate(source, ['tilbudsdato', 'dato for tilbud', 'tilbudet er datert', 'tilbud av']);
+  draft.firstRegulationDate = labeledDate(source, ['første reguleringsdato', 'forste reguleringsdato', 'første regulering', 'reguleres første gang', 'reguleres forste gang']);
   const contractDate = labeledDate(source, ['kontraktsdato', 'avtale dato', 'signert', 'leien er fastsatt', 'leiefastsetting']);
   if (contractDate) draft.contractDate = contractDate;
   if (!draft.offerDate && contractDate) draft.offerDate = contractDate;
@@ -364,7 +365,7 @@ function readTerms(source, draft, findings) {
 }
 
 function readVariables(source) {
-  const skip = /kontraktssum|tilbudsfrist|tilbudsdato|kontraktsdato|regulert andel|fast andel|merverdi|mva|timepris|enhetspris|organisasjon|telefon|epost|e-post/i;
+  const skip = /kontraktssum|tilbudsfrist|tilbudsdato|kontraktsdato|første regulering|forste regulering|reguleringsdato|gjeldende fra|regulert andel|fast andel|merverdi|mva|timepris|enhetspris|organisasjon|telefon|epost|e-post/i;
   const found = [];
   const pattern = /^\s*([A-Za-zÆØÅæøå][^:\n]{2,40}):\s*(\d[\d\s.]*(?:,\d+)?\s*%?)/gm;
   let match = pattern.exec(source);

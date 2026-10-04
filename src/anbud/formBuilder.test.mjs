@@ -3,12 +3,17 @@ import {
   applyDrag,
   blankField,
   coerceAnswer,
+  dragTargetIndex,
   duplicateField,
   formFromPlainText,
   formFromScan,
   insertField,
+  insertionIndex,
   moveField,
   normalizeBuilderField,
+  normalizeSettings,
+  responsesToCsv,
+  summarizeQuestion,
 } from './formBuilder.js';
 import { emptyAnbudState, normalizeAnbudState } from './model.js';
 import { saveFormTemplate } from './bidLibrary.js';
@@ -23,6 +28,10 @@ const moved = moveField(start, 0, 2);
 assert.equal(moved.map((row) => row.id).join(','), 'felt_1,felt_2,felt_0');
 assert.equal(moveField(start, 0, 0)[0].id, 'felt_0');
 assert.equal(moveField(start, -1, 1).length, 3);
+
+assert.equal(blankField('text').label, 'Kort svar');
+assert.equal(blankField('image').label, 'Bilde');
+assert.equal(blankField('title').label, 'Ny seksjon');
 
 const inserted = insertField(start, 1, 'image');
 assert.equal(inserted.length, 4);
@@ -40,6 +49,32 @@ assert.equal(dragged[0].options.length, 2);
 const reordered = applyDrag(start, 'move:2', start.length);
 assert.equal(reordered[reordered.length - 1].id, 'felt_2');
 assert.equal(applyDrag(start, 'annet', 0).length, 3);
+
+const canvas = { top: 80, bottom: 400, left: 0, right: 320 };
+const rects = [
+  { top: 100, height: 40 },
+  { top: 160, height: 40 },
+  { top: 220, height: 40 },
+];
+assert.equal(insertionIndex(40, 90, rects, canvas), 0);
+assert.equal(insertionIndex(40, 119, rects, canvas), 0);
+assert.equal(insertionIndex(40, 120, rects, canvas), 1);
+assert.equal(insertionIndex(40, 300, rects, canvas), 3);
+assert.equal(insertionIndex(400, 200, rects, canvas), null);
+assert.equal(insertionIndex(40, 10, rects, canvas), null);
+assert.equal(insertionIndex(40, 200, [], canvas), 0);
+assert.equal(insertionIndex(40, 200, [], null), null);
+
+assert.equal(dragTargetIndex('kind:text', 0, 3), 0);
+assert.equal(dragTargetIndex('kind:text', 3, 3), 3);
+assert.equal(dragTargetIndex('move:0', 3, 3), 2);
+assert.equal(dragTargetIndex('move:0', 2, 3), 1);
+assert.equal(dragTargetIndex('move:2', 0, 3), 0);
+assert.equal(dragTargetIndex('move:1', 3, 3), 2);
+const movedDown = applyDrag(start, 'move:0', dragTargetIndex('move:0', 2, start.length));
+assert.equal(movedDown.map((row) => row.id).join(','), 'felt_1,felt_0,felt_2');
+const movedEnd = applyDrag(start, 'move:0', dragTargetIndex('move:0', start.length, start.length));
+assert.equal(movedEnd.map((row) => row.id).join(','), 'felt_1,felt_2,felt_0');
 
 assert.equal(normalizeBuilderField({ label: '' }), null);
 assert.equal(normalizeBuilderField({ label: 'Dato', kind: 'ukjent' }).kind, 'text');
@@ -108,5 +143,26 @@ assert.equal(template.fields.find((row) => row.label === 'Dato').required, true)
 assert.equal(template.fields.find((row) => row.label === 'Type').options.length, 2);
 assert.equal(template.fields.find((row) => row.label === 'Bilde').kind, 'image');
 assert.equal(template.fields.find((row) => row.label === 'Befaring').value, '');
+
+const scale = normalizeBuilderField({ label: 'Vurdering', kind: 'scale', scaleMax: 12, required: true });
+assert.equal(scale.kind, 'scale');
+assert.equal(scale.scaleMax, 10);
+assert.equal(coerceAnswer('time', '08:30'), '08:30');
+assert.equal(normalizeSettings({ confirmation: 'Takk', anotherResponse: false, progress: true }).confirmation, 'Takk');
+assert.equal(normalizeSettings({}).anotherResponse, true);
+
+const summary = summarizeQuestion(
+  { id: 'mat', label: 'Mat', kind: 'choice', other: true, options: [{ id: 'a', label: 'Salat' }, { id: 'b', label: 'Dessert' }] },
+  [{ answers: { mat: 'a' } }, { answers: { mat: 'a' } }, { answers: { mat: 'b' } }, { answers: { mat: 'other:Suppe' } }],
+);
+assert.equal(summary.counts.find((row) => row.id === 'a').count, 2);
+assert.equal(summary.counts.find((row) => row.id === 'other').count, 1);
+const csv = responsesToCsv({
+  settings: { collectEmail: true },
+  fields: [{ id: 'mat', label: 'Mat', kind: 'choice', options: [{ id: 'a', label: 'Salat' }] }],
+  responses: [{ at: '2026-02-01', email: 'a@bedrift.no', answers: { mat: 'a' } }],
+});
+assert.equal(csv.includes('Salat'), true);
+assert.equal(csv.includes('a@bedrift.no'), true);
 
 console.log('form builder ok');

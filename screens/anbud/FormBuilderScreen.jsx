@@ -1,42 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
-  FIELD_TYPES,
-  applyDrag,
   blankForm,
-  duplicateField,
-  fieldType,
+  cloneFields,
   formFromPlainText,
-  insertField,
-  moveField,
+  normalizeSettings,
+  starterForm,
 } from '../../src/anbud/formBuilder';
 import { deleteFormTemplate, saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { fileToDataUrl, generateCompanyForm } from '../../src/anbud/intakeClient';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import { pickDocument } from '../../src/utils/media';
+import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
+import FormStudio from './FormStudio';
 
-function DragWrap({ payload, index, onDrop, source = true, children }) {
-  if (Platform.OS !== 'web') return <View>{children}</View>;
-  return React.createElement('div', {
-    draggable: source,
-    onDragStart: (event) => {
-      if (!source) return;
-      event.dataTransfer.effectAllowed = 'copyMove';
-      event.dataTransfer.setData('text/plain', payload);
-    },
-    onDragOver: (event) => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-    },
-    onDrop: (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onDrop(event.dataTransfer.getData('text/plain'), index);
-    },
-    style: { display: 'block' },
-  }, children);
-}
+const IMPORT_ACCEPT = 'image/*,.pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+const STARTERS = [
+  { id: 'blank', title: 'Tomt skjema', text: 'Ett flervalgsspørsmål, klart til å bygges.', icon: 'document-outline', kind: 'blank' },
+  { id: 'copy', title: 'Kopier skjemaet ditt', text: 'Lag en kopi av et skjema du allerede har.', icon: 'copy-outline', kind: 'copy' },
+  { id: 'kontakt', title: 'Kontakt', text: 'Navn, e-post, telefon og melding.', icon: 'person-outline', kind: 'kontakt' },
+  { id: 'befaring', title: 'Befaring', text: 'Dato, tid, adresse, tilstand og bilde.', icon: 'map-outline', kind: 'befaring' },
+];
 
 function plainTextFromDataUrl(dataUrl, mimeType) {
   if (!/^text\//i.test(mimeType || '') && !/text\/plain/i.test(dataUrl || '')) return '';
@@ -50,14 +36,34 @@ function plainTextFromDataUrl(dataUrl, mimeType) {
   }
 }
 
-export default function FormBuilderScreen({ colors: colorsProp, state: externalState, commit: externalCommit, onPick }) {
+function draftFromTemplate(template, { copy = false } = {}) {
+  return {
+    id: copy ? '' : template.id,
+    title: copy ? `${template.title} kopi`.slice(0, 80) : template.title,
+    intro: template.intro || '',
+    cover: template.cover || '',
+    settings: normalizeSettings(template.settings),
+    responses: copy ? [] : (template.responses || []).map((row) => ({ ...row, answers: { ...(row.answers || {}) } })),
+    fields: copy
+      ? cloneFields(template.fields)
+      : template.fields.map((field) => ({ ...field, options: (field.options || []).map((row) => ({ ...row })) })),
+  };
+}
+
+export default function FormBuilderScreen({
+  colors: colorsProp,
+  state: externalState,
+  commit: externalCommit,
+  onPick,
+  fill = false,
+}) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState(null);
-  const [selected, setSelected] = useState(0);
   const [note, setNote] = useState('');
+  const [noteBad, setNoteBad] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -71,63 +77,86 @@ export default function FormBuilderScreen({ colors: colorsProp, state: externalS
 
   const state = externalState || localState;
   const templates = state?.formTemplates || [];
-  const visible = templates.filter((row) => row.title.toLocaleLowerCase('nb-NO').includes(query.trim().toLocaleLowerCase('nb-NO')));
+  const needle = query.trim().toLocaleLowerCase('nb-NO');
+  const visible = templates.filter((row) => row.title.toLocaleLowerCase('nb-NO').includes(needle));
+
+  function say(text, bad = false) {
+    setNote(text);
+    setNoteBad(bad);
+  }
 
   async function commit(result) {
     if (!result?.ok) {
-      setNote(result?.error || 'Kunne ikke lagre skjemaet.');
-      return;
+      say(result?.error || 'Kunne ikke lagre skjemaet.', true);
+      return null;
     }
     if (externalCommit) await externalCommit(result);
     else {
       await saveAnbudState(result.state);
       setLocalState(result.state);
     }
+    return result;
   }
 
-  function openTemplate(template) {
+  function openFresh(form) {
     setDraft({
-      id: template.id,
-      title: template.title,
-      intro: template.intro || '',
-      fields: template.fields.map((field) => ({ ...field, options: (field.options || []).map((row) => ({ ...row })) })),
+      ...blankForm(),
+      ...form,
+      id: '',
+      cover: form.cover || '',
+      settings: normalizeSettings(form.settings),
+      responses: [],
+      fields: form.fields,
     });
-    setSelected(0);
-    setNote('');
+    say('');
   }
 
-  function patchField(index, patch) {
-    setDraft((current) => ({
-      ...current,
-      fields: current.fields.map((field, i) => (i === index ? { ...field, ...patch } : field)),
-    }));
-  }
-
-  function dropOn(payload, index) {
-    setDraft((current) => ({ ...current, fields: applyDrag(current.fields, payload, index) }));
-    if (String(payload).startsWith('kind:')) setSelected(index);
+  function openStarter(kind) {
+    if (kind === 'copy') {
+      const source = visible[0];
+      if (!source) {
+        say('Ingen skjema å kopiere ennå.', true);
+        return;
+      }
+      setDraft(draftFromTemplate(source, { copy: true }));
+      say(`Kopi av ${source.title}. Lagre når den er klar.`);
+      return;
+    }
+    openFresh(kind === 'blank' ? blankForm() : starterForm(kind));
   }
 
   async function save() {
     const known = new Set((state.formTemplates || []).map((row) => row.id));
-    const result = saveFormTemplate(state, draft);
-    if (!result.ok) {
-      setNote(result.error);
-      return;
-    }
-    await commit(result);
+    const result = await commit(saveFormTemplate(state, draft));
+    if (!result) return;
     const saved = draft.id
       ? result.state.formTemplates.find((row) => row.id === draft.id)
       : result.state.formTemplates.find((row) => row.title === draft.title && !known.has(row.id));
-    setNote('Skjemaet er lagret på bedriften.');
-    if (saved) setDraft({ ...saved, fields: saved.fields.map((field) => ({ ...field, options: (field.options || []).map((row) => ({ ...row })) })) });
+    say('Skjemaet er lagret.');
+    if (saved) setDraft(draftFromTemplate(saved));
   }
 
-  async function readDocument() {
+  function adoptForm(form, text) {
+    setDraft((current) => ({
+      ...blankForm(),
+      id: current?.id && current.title ? '' : (current?.id || ''),
+      title: form.title || current?.title || '',
+      intro: form.intro || '',
+      cover: form.cover || '',
+      settings: normalizeSettings(form.settings),
+      responses: [],
+      fields: form.fields,
+    }));
+    say(text);
+  }
+
+  async function readDocument(mode) {
     setBusy(true);
-    setNote('');
+    say('');
     try {
-      const picked = await pickDocument({ accept: 'image/*,.pdf,.txt,.docx,application/pdf,text/plain' });
+      const picked = mode === 'scan'
+        ? await pickImage({ camera: true, edit: false })
+        : await pickDocument({ accept: IMPORT_ACCEPT });
       const file = Array.isArray(picked) ? picked[0] : picked;
       if (!file) {
         setBusy(false);
@@ -135,254 +164,156 @@ export default function FormBuilderScreen({ colors: colorsProp, state: externalS
       }
       const dataUrl = await fileToDataUrl(file);
       if (!dataUrl) {
-        setNote('Kunne ikke lese filen.');
+        say('Kunne ikke lese filen.', true);
         setBusy(false);
         return;
       }
+      const name = file.name || (mode === 'scan' ? 'skann.jpg' : 'dokument');
       const plain = plainTextFromDataUrl(dataUrl, file.mimeType);
       try {
-        const data = await generateCompanyForm(dataUrl, file.name);
+        const data = await generateCompanyForm(dataUrl, name);
         if (data?.form?.fields?.length) {
-          setDraft(data.form);
-          setSelected(0);
-          setNote('Skjemaet er lest fra dokumentet. Se over feltene og lagre.');
+          adoptForm(data.form, 'Malen er lest med AI. Se over feltene og lagre.');
           setBusy(false);
           return;
         }
-        setNote(data?.error || 'AI fant ikke et skjema.');
+        say(data?.error || 'AI fant ikke et skjema.', true);
       } catch (err) {
-        setNote(err?.message || 'AI svarte ikke.');
+        say(err?.message || 'AI svarte ikke.', true);
       }
       if (plain) {
-        const local = formFromPlainText(plain, file.name?.replace(/\.[^.]+$/, '') || '');
+        const local = formFromPlainText(plain, name.replace(/\.[^.]+$/, ''));
         if (local.ok) {
-          setDraft(local.form);
-          setSelected(0);
-          setNote('AI svarte ikke. Feltene er lest rett fra teksten. Se over dem og lagre.');
+          adoptForm(local.form, 'AI svarte ikke. Feltene er lest rett fra teksten. Se over dem og lagre.');
+          setBusy(false);
+          return;
         }
       }
     } catch (err) {
-      setNote(err?.message || 'Kunne ikke lese dokumentet.');
+      const denied = err?.message === 'camera-denied';
+      say(denied ? 'Gi tilgang til kamera, eller bruk Importer.' : (err?.message || 'Kunne ikke lese dokumentet.'), true);
     }
     setBusy(false);
   }
 
   if (!state) return <Text style={{ color: colors.muted }}>Henter skjemaene …</Text>;
 
-  if (!draft) {
+  if (draft) {
     return (
-      <View style={{ gap: 12 }}>
-        <Text style={[styles.h, { color: colors.ink }]}>Skjema</Text>
-        <Text style={{ color: colors.muted }}>
-          Bygg skjemaene bedriften bruker. Dra felt inn, eller last opp et dokument så leses feltene inn.
-        </Text>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Søk i skjemaene"
-          placeholderTextColor={colors.placeholder}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-        />
-        <View style={styles.row}>
-          <TouchableOpacity onPress={() => { setDraft(blankForm()); setSelected(0); setNote(''); }} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff' }}>Nytt skjema</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={readDocument} disabled={busy} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff' }}>{busy ? 'Leser dokument …' : 'Les fra fil'}</Text>
-          </TouchableOpacity>
-        </View>
-        {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-        {visible.map((template) => (
-          <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <TouchableOpacity onPress={() => openTemplate(template)} accessibilityRole="button">
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
-              <Text style={{ color: colors.muted }}>{template.fields.length} felt{template.intro ? ` · ${template.intro}` : ''}</Text>
-            </TouchableOpacity>
-            <View style={styles.row}>
-              {onPick ? (
-                <TouchableOpacity onPress={() => onPick(template.id)} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>Hent inn</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity onPress={() => openTemplate(template)} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Bygg</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => commit(deleteFormTemplate(state, template.id))} accessibilityRole="button">
-                <Text style={{ color: colors.danger }}>Slett</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-        {!visible.length ? <Text style={{ color: colors.muted }}>Ingen skjema treffer søket.</Text> : null}
-      </View>
+      <FormStudio
+        draft={draft}
+        colors={colors}
+        busy={busy}
+        note={note}
+        noteBad={noteBad}
+        fill={fill}
+        onDraft={setDraft}
+        onBack={() => { setDraft(null); say(''); }}
+        onSave={save}
+        onScan={() => readDocument('scan')}
+        onImport={() => readDocument('import')}
+      />
     );
   }
 
-  const active = draft.fields[selected] || null;
   return (
-    <View style={{ gap: 12 }}>
-      <TouchableOpacity onPress={() => setDraft(null)} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>Alle skjema</Text>
-      </TouchableOpacity>
+    <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
+      <Text style={[styles.h, { color: colors.ink }]}>Mine skjemaer</Text>
+      <Text style={{ color: colors.muted }}>
+        Bygg spørsmålene slik de skal fylles ut. AI-scan og import lager en mal fra bilde, PDF, Word eller tekst.
+      </Text>
+      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>Lag mal fra dokument</Text>
+        <View style={styles.row}>
+          <TouchableOpacity
+            onPress={() => readDocument('scan')}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="AI-scan av skjema"
+            style={[styles.btn, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+          >
+            <Text style={{ color: '#fff' }}>{busy ? 'Leser …' : 'AI-scan'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => readDocument('import')}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Importer dokument som mal"
+            style={[styles.btn, { backgroundColor: colors.ink, opacity: busy ? 0.6 : 1 }]}
+          >
+            <Text style={{ color: colors.bg }}>{busy ? 'Leser …' : 'Importer'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <TextInput
-        value={draft.title}
-        onChangeText={(title) => setDraft({ ...draft, title })}
-        placeholder="Navn på skjemaet"
-        placeholderTextColor={colors.placeholder}
-        style={[styles.titleInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
-      <TextInput
-        value={draft.intro}
-        onChangeText={(intro) => setDraft({ ...draft, intro })}
-        placeholder="Kort forklaring"
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Søk i skjemaer"
         placeholderTextColor={colors.placeholder}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Dra et felt inn i skjemaet</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {FIELD_TYPES.map((type) => (
-          <DragWrap key={type.id} payload={`kind:${type.id}`} index={draft.fields.length} onDrop={dropOn}>
-            <TouchableOpacity
-              onPress={() => {
-                setDraft({ ...draft, fields: insertField(draft.fields, draft.fields.length, type.id) });
-                setSelected(draft.fields.length);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Legg til ${type.label}`}
-              style={[styles.chip, { backgroundColor: colors.sunken, borderColor: colors.line }]}
-            >
-              <Text style={{ color: colors.ink }}>{type.label}</Text>
-            </TouchableOpacity>
-          </DragWrap>
+      <Text style={[styles.kicker, { color: colors.muted }]}>Nytt skjema</Text>
+      <View style={styles.grid}>
+        {STARTERS.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => openStarter(item.kind)}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+            style={[styles.starter, { borderColor: colors.line, backgroundColor: colors.card }]}
+          >
+            <View style={[styles.icon, { backgroundColor: colors.sunken }]}>
+              <Ionicons name={item.icon} size={22} color={colors.brand} />
+            </View>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.title}</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>{item.text}</Text>
+          </TouchableOpacity>
         ))}
-      </ScrollView>
-      {draft.fields.map((field, index) => {
-        const on = index === selected;
-        return (
-          <DragWrap key={field.id} payload={`move:${index}`} index={index} onDrop={dropOn}>
-            <TouchableOpacity
-              onPress={() => setSelected(index)}
-              accessibilityRole="button"
-              style={[styles.card, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-            >
-              <Text style={{ color: colors.muted }}>{fieldType(field.kind).label}{field.required ? ' · påkrevd' : ''}</Text>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{field.label || 'Uten navn'}</Text>
-              {field.help ? <Text style={{ color: colors.muted }}>{field.help}</Text> : null}
-              <View style={styles.row}>
-                <TouchableOpacity onPress={() => { setDraft({ ...draft, fields: moveField(draft.fields, index, index - 1) }); setSelected(Math.max(0, index - 1)); }} accessibilityRole="button" accessibilityLabel="Flytt felt opp">
-                  <Text style={{ color: colors.brand }}>Opp</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setDraft({ ...draft, fields: moveField(draft.fields, index, index + 1) }); setSelected(Math.min(draft.fields.length - 1, index + 1)); }} accessibilityRole="button" accessibilityLabel="Flytt felt ned">
-                  <Text style={{ color: colors.brand }}>Ned</Text>
-                </TouchableOpacity>
-                <Text style={{ color: colors.muted }}>Dra kortet for å flytte</Text>
-              </View>
-            </TouchableOpacity>
-          </DragWrap>
-        );
-      })}
-      <DragWrap payload="" index={draft.fields.length} onDrop={dropOn} source={false}>
-        <View style={[styles.drop, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
-          <Text style={{ color: colors.muted }}>Slipp et felt her</Text>
-        </View>
-      </DragWrap>
-      {active ? (
-        <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Feltet</Text>
-          <TextInput
-            value={active.label}
-            onChangeText={(label) => patchField(selected, { label })}
-            placeholder="Tekst på feltet"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-          <TextInput
-            value={active.help || ''}
-            onChangeText={(help) => patchField(selected, { help })}
-            placeholder="Hjelpetekst"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-          <View style={styles.row}>
-            {FIELD_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type.id}
-                onPress={() => patchField(selected, {
-                  kind: type.id,
-                  options: ['choice', 'checks', 'dropdown'].includes(type.id) && !(active.options || []).length
-                    ? [{ id: `${active.id}_a`, label: 'Alternativ 1' }, { id: `${active.id}_b`, label: 'Alternativ 2' }]
-                    : active.options,
-                })}
-                accessibilityRole="button"
-                style={[styles.chip, { backgroundColor: active.kind === type.id ? colors.brand : colors.sunken }]}
-              >
-                <Text style={{ color: active.kind === type.id ? '#fff' : colors.ink }}>{type.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {active.kind !== 'title' ? (
-            <TouchableOpacity onPress={() => patchField(selected, { required: !active.required })} accessibilityRole="checkbox" accessibilityState={{ checked: !!active.required }}>
-              <Text style={{ color: colors.ink }}>{active.required ? '✓' : '○'} Påkrevd</Text>
-            </TouchableOpacity>
-          ) : null}
-          {['choice', 'checks', 'dropdown'].includes(active.kind) ? (active.options || []).map((option, optionIndex) => (
-            <TextInput
-              key={option.id}
-              value={option.label}
-              onChangeText={(label) => {
-                const options = active.options.map((row, i) => (i === optionIndex ? { ...row, label } : row));
-                patchField(selected, { options });
-              }}
-              placeholder={`Alternativ ${optionIndex + 1}`}
-              placeholderTextColor={colors.placeholder}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-            />
-          )) : null}
-          {['choice', 'checks', 'dropdown'].includes(active.kind) ? (
-            <TouchableOpacity
-              onPress={() => patchField(selected, { options: [...(active.options || []), { id: `${active.id}_${active.options.length}`, label: '' }] })}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: colors.brand }}>Legg til alternativ</Text>
-            </TouchableOpacity>
-          ) : null}
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => { setDraft({ ...draft, fields: duplicateField(draft.fields, selected) }); setSelected(selected + 1); }} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Dupliser</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                const fields = draft.fields.filter((_, i) => i !== selected);
-                setDraft({ ...draft, fields });
-                setSelected(Math.max(0, selected - 1));
-              }}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: colors.danger }}>Slett felt</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : null}
-      <View style={styles.row}>
-        <TouchableOpacity onPress={save} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-          <Text style={{ color: '#fff' }}>Lagre skjema</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={readDocument} disabled={busy} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>{busy ? 'Leser dokument …' : 'Les fra fil'}</Text>
-        </TouchableOpacity>
       </View>
-      {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-    </View>
+      {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
+      <Text style={[styles.kicker, { color: colors.muted }]}>Nylige skjemaer</Text>
+      {visible.map((template) => (
+        <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
+            <Text style={{ color: colors.muted }}>
+              {template.fields.length} spørsmål
+              {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
+              {template.intro ? ` · ${template.intro}` : ''}
+            </Text>
+          </TouchableOpacity>
+          <View style={styles.row}>
+            {onPick ? (
+              <TouchableOpacity onPress={() => onPick(template.id)} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Hent inn</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>Åpne</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template, { copy: true })); say(`Kopi av ${template.title}.`); }} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>Kopier</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => commit(deleteFormTemplate(state, template.id))} accessibilityRole="button">
+              <Text style={{ color: colors.danger }}>Slett</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+      {!visible.length ? <Text style={{ color: colors.muted }}>Ingen skjema treffer søket.</Text> : null}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  list: { gap: 12, padding: 12, paddingBottom: 32 },
   h: { fontSize: 22, fontWeight: '600' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
-  drop: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, padding: 14, alignItems: 'center' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  kicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
+  card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  starter: { width: 168, flexGrow: 1, borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
+  icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
-  titleInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 22, fontWeight: '600' },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

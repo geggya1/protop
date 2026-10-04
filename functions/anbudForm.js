@@ -19,7 +19,7 @@ Returner KUN gyldig JSON:
   "fields": [
     {
       "label": "teksten som står ved feltet",
-      "kind": "title|text|long|date|number|check|choice|checks|dropdown|image|file",
+      "kind": "title|text|long|date|time|number|scale|check|choice|checks|dropdown|image|file",
       "required": false,
       "help": "kort hjelpetekst eller tom streng",
       "options": ["bare for choice, checks og dropdown"]
@@ -27,7 +27,7 @@ Returner KUN gyldig JSON:
   ]
 }
 Bruk title på overskrifter som ikke skal fylles ut.
-Bruk date på datoer, number på beløp og antall, check på ja/nei, choice når ett alternativ skal velges, checks når flere kan krysses av, dropdown på lister, image når et bilde skal legges inn, file når et dokument skal lastes opp, long på fritekst over flere linjer.
+Bruk date på datoer, time på klokkeslett, number på beløp og antall, scale på en tallskala, check på ja/nei, choice når ett alternativ skal velges, checks når flere kan krysses av, dropdown på lister, image når et bilde skal legges inn, file når et dokument skal lastes opp, long på fritekst over flere linjer.
 Ikke finn opp felter som ikke står i dokumentet. Maks 40 felt.`;
 
 function reject(code, message) {

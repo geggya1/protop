@@ -1,6 +1,6 @@
 /** Dokumentmapper, opplastede filer og bedriftsskjema i ett tilbudsarbeid. */
 
-import { coerceAnswer, emptyAnswer, normalizeBuilderField } from './formBuilder.js';
+import { coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
 
 export const GROUND_FOLDER_ID = 'grunnlag';
 
@@ -235,16 +235,26 @@ function normalizeField(raw) {
   return normalizeBuilderField(raw);
 }
 
+function normalizeTemplate(row) {
+  const title = text(row?.title).slice(0, 80);
+  const id = text(row?.id);
+  if (!title || !id) return null;
+  const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
+  if (!fields.length) return null;
+  return {
+    id,
+    title,
+    intro: text(row?.intro).slice(0, 280),
+    cover: cleanCover(row?.cover),
+    settings: normalizeSettings(row?.settings),
+    responses: normalizeResponses(row?.responses),
+    fields,
+  };
+}
+
 export function normalizeFormTemplates(input) {
-  if (!Array.isArray(input)) return DEFAULT_FORM_TEMPLATES.map((row) => ({ ...row, fields: row.fields.map((field) => ({ ...field })) }));
-  return input.map((row) => {
-    const title = text(row?.title).slice(0, 80);
-    const id = text(row?.id);
-    if (!title || !id) return null;
-    const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
-    if (!fields.length) return null;
-    return { id, title, intro: text(row?.intro).slice(0, 280), fields };
-  }).filter(Boolean).slice(0, 80);
+  const source = Array.isArray(input) ? input : DEFAULT_FORM_TEMPLATES;
+  return source.map(normalizeTemplate).filter(Boolean).slice(0, 80);
 }
 
 function normalizeForm(raw) {
@@ -468,7 +478,16 @@ export function saveFormTemplate(state, input) {
   const fields = (Array.isArray(input?.fields) ? input.fields : []).map((row) => normalizeField({ ...row, value: '' })).filter(Boolean);
   if (!fields.length) return fail(state, 'Malen trenger minst ett felt.');
   const id = text(input?.id) || createId('mal');
-  const next = { id, title, intro: text(input?.intro).slice(0, 280), fields };
+  const next = normalizeTemplate({
+    id,
+    title,
+    intro: text(input?.intro).slice(0, 280),
+    cover: input?.cover,
+    settings: input?.settings,
+    responses: input?.responses,
+    fields,
+  });
+  if (!next) return fail(state, 'Malen trenger minst ett felt.');
   const exists = templates.some((row) => row.id === id);
   return ok({
     ...state,

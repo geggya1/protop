@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { fieldType } from '../../src/anbud/formBuilder';
 
 export default function FormAnswer({ field, colors, onChange, onPickFile }) {
@@ -34,10 +34,56 @@ export default function FormAnswer({ field, colors, onChange, onPickFile }) {
               accessibilityRole={many ? 'checkbox' : 'radio'}
               accessibilityState={{ checked: on }}
             >
-              <Text style={{ color: colors.ink }}>{on ? '✓' : '○'} {option.label}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ color: colors.ink }}>{on ? '✓' : '○'} {option.label}</Text>
+                {option.image ? <Image source={{ uri: option.image }} style={styles.optionImage} /> : null}
+              </View>
             </TouchableOpacity>
           );
         })}
+        {field.other ? (
+          <TextInput
+            value={many
+              ? String((selected || []).find((id) => String(id).startsWith('other:')) || '').slice(6)
+              : (String(selected || '').startsWith('other:') ? String(selected).slice(6) : '')}
+            onChangeText={(next) => {
+              if (!many) onChange(next ? `other:${next}` : '');
+              else {
+                const kept = (selected || []).filter((id) => !String(id).startsWith('other:'));
+                onChange(next ? [...kept, `other:${next}`] : kept);
+              }
+            }}
+            placeholder="Annet"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+          />
+        ) : null}
+      </View>
+    );
+  }
+  if (field.kind === 'scale') {
+    const max = field.scaleMax || 5;
+    const current = String(field.value || '');
+    return (
+      <View style={{ gap: 6 }}>
+        <Text style={{ color: colors.ink }}>{label}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {Array.from({ length: max }, (_, i) => String(i + 1)).map((n) => (
+            <TouchableOpacity
+              key={n}
+              onPress={() => onChange(n)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: current === n }}
+              style={[styles.scale, { borderColor: current === n ? colors.brand : colors.line, backgroundColor: current === n ? colors.brand : colors.card }]}
+            >
+              <Text style={{ color: current === n ? '#fff' : colors.ink }}>{n}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={{ color: colors.muted }}>{field.lowLabel || 'Lav'}</Text>
+          <Text style={{ color: colors.muted }}>{field.highLabel || 'Høy'}</Text>
+        </View>
       </View>
     );
   }
@@ -61,7 +107,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile }) {
       <TextInput
         value={String(field.value || '')}
         onChangeText={onChange}
-        placeholder={field.kind === 'date' ? 'ÅÅÅÅ-MM-DD' : fieldType(field.kind).label}
+        placeholder={field.kind === 'date' ? 'ÅÅÅÅ-MM-DD' : field.kind === 'time' ? 'TT:MM' : fieldType(field.kind).label}
         placeholderTextColor={colors.placeholder}
         multiline={field.kind === 'long'}
         keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
@@ -75,4 +121,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   long: { minHeight: 80, textAlignVertical: 'top' },
+  scale: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  optionImage: { width: 36, height: 36, borderRadius: 6 },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -133,9 +133,9 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'anbud') return <AnbudScreen company={group} />;
     if (tab === 'skjema') {
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
-          <FormBuilderScreen />
-        </ScrollView>
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <FormBuilderScreen fill />
+        </View>
       );
     }
     if (tab === 'projects') return <ProjectPlatformScreen />;

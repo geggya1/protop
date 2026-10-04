@@ -3,10 +3,12 @@ import {
   applyDrag,
   blankField,
   coerceAnswer,
+  dragTargetIndex,
   duplicateField,
   formFromPlainText,
   formFromScan,
   insertField,
+  insertionIndex,
   moveField,
   normalizeBuilderField,
 } from './formBuilder.js';
@@ -24,6 +26,10 @@ assert.equal(moved.map((row) => row.id).join(','), 'felt_1,felt_2,felt_0');
 assert.equal(moveField(start, 0, 0)[0].id, 'felt_0');
 assert.equal(moveField(start, -1, 1).length, 3);
 
+assert.equal(blankField('text').label, 'Kort tekst');
+assert.equal(blankField('image').label, 'Bildefelt');
+assert.equal(blankField('title').label, 'Ny overskrift');
+
 const inserted = insertField(start, 1, 'image');
 assert.equal(inserted.length, 4);
 assert.equal(inserted[1].kind, 'image');
@@ -40,6 +46,32 @@ assert.equal(dragged[0].options.length, 2);
 const reordered = applyDrag(start, 'move:2', start.length);
 assert.equal(reordered[reordered.length - 1].id, 'felt_2');
 assert.equal(applyDrag(start, 'annet', 0).length, 3);
+
+const canvas = { top: 80, bottom: 400, left: 0, right: 320 };
+const rects = [
+  { top: 100, height: 40 },
+  { top: 160, height: 40 },
+  { top: 220, height: 40 },
+];
+assert.equal(insertionIndex(40, 90, rects, canvas), 0);
+assert.equal(insertionIndex(40, 119, rects, canvas), 0);
+assert.equal(insertionIndex(40, 120, rects, canvas), 1);
+assert.equal(insertionIndex(40, 300, rects, canvas), 3);
+assert.equal(insertionIndex(400, 200, rects, canvas), null);
+assert.equal(insertionIndex(40, 10, rects, canvas), null);
+assert.equal(insertionIndex(40, 200, [], canvas), 0);
+assert.equal(insertionIndex(40, 200, [], null), null);
+
+assert.equal(dragTargetIndex('kind:text', 0, 3), 0);
+assert.equal(dragTargetIndex('kind:text', 3, 3), 3);
+assert.equal(dragTargetIndex('move:0', 3, 3), 2);
+assert.equal(dragTargetIndex('move:0', 2, 3), 1);
+assert.equal(dragTargetIndex('move:2', 0, 3), 0);
+assert.equal(dragTargetIndex('move:1', 3, 3), 2);
+const movedDown = applyDrag(start, 'move:0', dragTargetIndex('move:0', 2, start.length));
+assert.equal(movedDown.map((row) => row.id).join(','), 'felt_1,felt_0,felt_2');
+const movedEnd = applyDrag(start, 'move:0', dragTargetIndex('move:0', start.length, start.length));
+assert.equal(movedEnd.map((row) => row.id).join(','), 'felt_1,felt_2,felt_0');
 
 assert.equal(normalizeBuilderField({ label: '' }), null);
 assert.equal(normalizeBuilderField({ label: 'Dato', kind: 'ukjent' }).kind, 'text');

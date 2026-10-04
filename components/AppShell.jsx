@@ -501,9 +501,9 @@ function AppShellInner() {
     }
     if (tab === 'skjema') {
       return (
-        <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 48, gap: 12 }}>
-          <FormBuilderScreen colors={colors} />
-        </ScrollView>
+        <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.bg }}>
+          <FormBuilderScreen colors={colors} fill />
+        </View>
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;

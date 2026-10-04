@@ -36,7 +36,7 @@ export function blankField(kind = 'text') {
   const type = FIELD_TYPE_IDS.has(kind) ? kind : 'text';
   return {
     id,
-    label: type === 'title' ? 'Ny overskrift' : '',
+    label: type === 'title' ? 'Ny overskrift' : fieldType(type).label,
     kind: type,
     required: false,
     help: '',
@@ -151,6 +151,45 @@ export function applyDrag(fields, payload, index) {
     return moveField(rows, Number(raw.slice(5)), target);
   }
   return rows;
+}
+
+/**
+ * Peker over skjemaet → gap-indeks (0 = før første felt).
+ * Utenfor lerretet blir det null, så slipp ikke havner i et tekstfelt.
+ */
+export function insertionIndex(clientX, clientY, fieldRects, canvasRect) {
+  const x = Number(clientX);
+  const y = Number(clientY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (canvasRect) {
+    const left = Number.isFinite(canvasRect.left) ? canvasRect.left : -Infinity;
+    const right = Number.isFinite(canvasRect.right) ? canvasRect.right : Infinity;
+    if (y < canvasRect.top || y > canvasRect.bottom || x < left || x > right) return null;
+  }
+  const rects = (Array.isArray(fieldRects) ? fieldRects : []).filter(
+    (row) => row && Number.isFinite(row.top) && Number.isFinite(row.height),
+  );
+  if (!rects.length) return canvasRect ? 0 : null;
+  for (let i = 0; i < rects.length; i += 1) {
+    const mid = rects[i].top + rects[i].height / 2;
+    if (y < mid) return i;
+  }
+  return rects.length;
+}
+
+/**
+ * Gap-indeks til indeks applyDrag forventer.
+ * Flytt nedover må ett hakk tilbake, fordi feltet tas ut før det settes inn.
+ */
+export function dragTargetIndex(payload, gapIndex, length) {
+  const raw = String(payload || '');
+  const gap = Math.max(0, Number(gapIndex) || 0);
+  const count = Math.max(0, Number(length) || 0);
+  if (!raw.startsWith('move:')) return Math.max(0, Math.min(gap, count));
+  const from = Number(raw.slice(5));
+  const adjusted = from < gap ? gap - 1 : gap;
+  if (!count) return 0;
+  return Math.max(0, Math.min(adjusted, count - 1));
 }
 
 function kindFromLabel(label) {

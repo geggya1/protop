@@ -46,6 +46,7 @@ import {
 } from '../../src/project/engine';
 import { draftMinutes, projectAdvice, projectReport, suggestIso, suggestMeasures } from '../../src/project/assistant';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import IndeksreguleringPanel from './IndeksreguleringPanel';
 
 const SECTIONS = [
   ['portefolje', 'Portefølje'],
@@ -55,6 +56,7 @@ const SECTIONS = [
   ['dokumenter', 'Dokumenter'],
   ['moter', 'Møter'],
   ['okonomi', 'Økonomi'],
+  ['indeks', 'Indeksregulering'],
   ['iso', 'ISO'],
   ['assistent', 'Assistent'],
 ];
@@ -430,6 +432,10 @@ export default function ProjectWorkScreen() {
         </View>
       )}
 
+      {section === 'indeks' && (
+        <IndeksreguleringPanel project={project} />
+      )}
+
       {section === 'iso' && (
         <View style={styles.stack}>
           {state.procedures.map((row) => (
@@ -476,7 +482,7 @@ export default function ProjectWorkScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+      <ScrollView style={styles.content} contentContainerStyle={[styles.contentInner, section === 'indeks' && styles.contentWide]} keyboardShouldPersistTaps="handled">
         {body}
       </ScrollView>
     </View>
@@ -492,6 +498,7 @@ const styles = StyleSheet.create({
   navItem: { fontWeight: '400', fontSize: 15 },
   content: { flex: 1 },
   contentInner: { padding: 16, paddingBottom: 48, maxWidth: 720, width: '100%', alignSelf: 'flex-start' },
+  contentWide: { maxWidth: 980 },
   stack: { gap: 10 },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },

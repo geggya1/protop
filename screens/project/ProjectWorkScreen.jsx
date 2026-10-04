@@ -433,7 +433,14 @@ export default function ProjectWorkScreen() {
       )}
 
       {section === 'indeks' && (
-        <IndeksreguleringPanel project={project} />
+        <IndeksreguleringPanel
+          project={project}
+          onBook={project ? (entry) => {
+          const booked = postEntry(state, entry);
+          if (booked.ok) run(booked);
+          return booked;
+        } : null}
+        />
       )}
 
       {section === 'iso' && (

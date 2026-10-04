@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractContractText } from './extractText.js';
 import { calculate } from './engine.js';
+import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract } from './interpret.js';
 import { buildLetter, formatMoney } from './letter.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
@@ -51,7 +52,8 @@ test('leser NS 8407-avtale', () => {
   assert.equal(draft.title, 'Skoleveien 4');
   assert.equal(draft.reference, 'K-2024-18');
   assert.equal(draft.regulationExcluded, false);
-  assert.equal(draft.lines[0].rate, '850');
+  assert.equal(draft.lines.find((line) => line.unit === 'time').rate, '850');
+  assert.equal(draft.lines.find((line) => line.text === 'Kontraktssum').included, false);
 });
 
 test('fast andel snus til regulert andel', () => {
@@ -92,6 +94,27 @@ test('NS 3405 med én måned og 80 prosent', () => {
   assert.match(letter.plain, /boligblokk/i);
   assert.match(letter.plain, /NS 3405/);
   assert.match(letter.plain, /t0/);
+});
+
+test('avkrysset linje holdes utenfor kravet', () => {
+  const result = calculate({
+    standard: 'NS 8407',
+    model: 'engang',
+    indexId: 'bki-boligblokk',
+    sharePercent: '100',
+    vatPercent: '0',
+    offerDate: '2024-03-01',
+    regulationDate: '2026-08-01',
+    lines: [
+      { text: 'Kontraktssum', quantity: '1', unit: 'RS', rate: '2000000', included: false },
+      { text: 'Tømrer', quantity: '10', unit: 'time', rate: '850', included: true },
+    ],
+  }, {
+    'bki-boligblokk': monthSeries({ '2024M03': 100, '2026M08': 110 }),
+  });
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.baseSum, 8500);
+  assert.equal(result.addition, 850);
 });
 
 test('full regulering av sats og mengde', () => {
@@ -204,6 +227,40 @@ test('vektet delindeks', () => {
   assert.equal(result.basisPoint.value, 100);
   assert.equal(result.regulationPoint.value, 120);
   assert.equal(result.addition, 200);
+});
+
+test('tillegget kan føres som endringsinntekt', () => {
+  const created = createProject(emptyProjectState(), {
+    name: 'Skoleveien 4',
+    number: 'P-1',
+    client: 'Nordvik kommune',
+    phase: 'produksjon',
+  });
+  assert.equal(created.ok, true);
+  const result = calculate({
+    standard: 'NS 8407',
+    model: 'ns3405',
+    indexId: 'bki-boligblokk',
+    sharePercent: '100',
+    vatPercent: '25',
+    tenderDeadline: '2024-03-15',
+    regulationDate: '2026-08-15',
+    lines: [{ text: 'Kontraktssum', quantity: '1', unit: 'RS', rate: '2000000', included: true }],
+  }, {
+    'bki-boligblokk': monthSeries({ '2024M03': 139, '2026M08': 154.4 }),
+  });
+  assert.equal(result.addition, 221582.73);
+  const booked = postEntry(created.state, {
+    kind: 'income',
+    account: '3100',
+    costCode: '19',
+    text: `Indeksregulering ${result.regulationPoint.period}`,
+    amount: result.addition,
+    date: result.regulationDate,
+  });
+  assert.equal(booked.ok, true, booked.error);
+  assert.equal(booked.state.entries[0].amount, 221582.73);
+  assert.equal(booked.state.entries[0].account, '3100');
 });
 
 test('parser bred SSB-csv', () => {

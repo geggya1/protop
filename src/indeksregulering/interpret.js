@@ -93,10 +93,19 @@ export function interpretContract(text) {
   const lines = readLines(source);
   const lump = readLump(source, draft.model === 'husleie');
   if (lines.length) {
-    draft.lines = lines;
+    draft.lines = lump == null ? lines : [
+      emptyLine({
+        text: draft.model === 'husleie' ? 'Gjeldende husleie' : 'Kontraktssum',
+        quantity: '1',
+        unit: draft.model === 'husleie' ? 'mnd' : 'RS',
+        rate: String(lump),
+        included: false,
+      }),
+      ...lines,
+    ];
     findings.push(`Leste ${lines.length} sats${lines.length === 1 ? '' : 'er'} fra avtalen.`);
     if (lump != null) {
-      findings.push(`Kontraktssummen ${lump} kroner står også i teksten. Den er ikke lagt oppå satsene, så kravet ikke blir dobbelt.`);
+      findings.push(`Kontraktssummen ${lump} kroner er tatt med som egen linje, men er ikke med i kravet samtidig med satsene. Kryss på den linjen som skal reguleres.`);
     }
   } else if (lump != null) {
     draft.lines = [emptyLine({

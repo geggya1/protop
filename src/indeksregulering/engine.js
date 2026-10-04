@@ -85,6 +85,7 @@ export function emptyLine(partial = {}) {
     quantity: partial.quantity ?? '1',
     unit: partial.unit || 'RS',
     rate: partial.rate ?? '',
+    included: partial.included !== false,
   };
 }
 
@@ -271,6 +272,7 @@ export function calculate(draft, indices, now = new Date()) {
     });
   } else {
     (draft.lines || []).forEach((line) => {
+      if (line.included === false) return;
       const base = lineAmount(line);
       if (base == null) return;
       const math = regulate(base, share, regulationPoint.value, basisPoint.value);

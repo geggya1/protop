@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
+import { COST_CODES } from '../../src/project/catalog';
 import { INDEX_SERIES, MODELS, standardById } from '../../src/indeksregulering/catalog';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
-import { calculate, emptyLine, periodLabel, todayIso } from '../../src/indeksregulering/engine';
+import {
+  calculate, emptyDraft, emptyLine, periodLabel, todayIso,
+} from '../../src/indeksregulering/engine';
 import { extractContractText } from '../../src/indeksregulering/extractText';
 import { interpretContract, mergeInterpretation } from '../../src/indeksregulering/interpret';
 import { buildLetter, formatIndex, formatMoney, formatPercent } from '../../src/indeksregulering/letter';
@@ -72,43 +75,34 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export default function IndeksreguleringPanel({ project }) {
-  const colors = useColors();
-  const { family } = useApp();
-  const [draft, setDraft] = useState(() => ({
+function freshDraft(project, supplier) {
+  return emptyDraft({
     title: project?.name || '',
     reference: project?.number || '',
     buyer: project?.client || '',
-    supplier: '',
-    standard: 'NS 8407',
-    model: 'ns3405',
-    indexId: 'bki-boligblokk',
-    sharePercent: '100',
-    vatPercent: '25',
-    offerDate: '',
-    tenderDeadline: '',
+    supplier: supplier || '',
     regulationDate: todayIso(),
     noticeDate: todayIso(),
-    regulationExcluded: false,
-    overrideExclusion: false,
     lines: [emptyLine({ text: 'Kontraktssum', quantity: '1', unit: 'RS' })],
-    periods: [],
-    weights: [
-      { indexId: 'bki-bustader-arbeid', weight: '50' },
-      { indexId: 'bki-bustader-materialer', weight: '50' },
-    ],
-    findings: [],
-    engine: '',
-    sourceName: '',
-  }));
+  });
+}
+
+export default function IndeksreguleringPanel({ project, onBook }) {
+  const colors = useColors();
+  const { family } = useApp();
+  const [draft, setDraft] = useState(() => freshDraft(project, ''));
   const [sourceText, setSourceText] = useState('');
   const [bundle, setBundle] = useState(null);
   const bundleRef = useRef(null);
-  const [result, setResult] = useState(null);
+  const fetchLock = useRef(null);
   const [cases, setCases] = useState([]);
+  const [caseId, setCaseId] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [working, setWorking] = useState(false);
+  const [bookCode, setBookCode] = useState('19');
+  const [pickingWeight, setPickingWeight] = useState(-1);
 
   useEffect(() => {
     const supplier = family?.company?.navn || '';
@@ -118,20 +112,47 @@ export default function IndeksreguleringPanel({ project }) {
 
   useEffect(() => {
     let live = true;
-    Promise.all([loadIndexCache(), loadCases()]).then(([cache, stored]) => {
+    (async () => {
+      const [cache, stored] = await Promise.all([loadIndexCache(), loadCases()]);
       if (!live) return;
-      if (cache?.series) {
+      setCases(stored);
+      if (cache?.series && Object.keys(cache.series).length) {
         bundleRef.current = cache;
         setBundle(cache);
+        return;
       }
-      setCases(stored);
-    });
+      setWorking(true);
+      setStatus('Henter indeksene fra SSB…');
+      try {
+        const fetched = await fetchAllIndices({
+          onProgress: ({ index, total, table }) => {
+            if (live) setStatus(`Henter SSB-tabell ${table} (${index} av ${total})…`);
+          },
+        });
+        if (!live) return;
+        bundleRef.current = fetched;
+        setBundle(fetched);
+        await saveIndexCache(fetched);
+        const count = Object.keys(fetched.series).length;
+        setStatus(fetched.errors?.[0]
+          ? `Hentet ${count} serier. ${fetched.errors[0]}`
+          : `Hentet ${count} serier fra SSB.`);
+      } catch (cause) {
+        if (live) setError(cause?.message || 'Kunne ikke hente indeksene.');
+      } finally {
+        if (live) setWorking(false);
+      }
+    })();
     return () => { live = false; };
   }, []);
 
+  const live = useMemo(() => {
+    if (!bundle?.series || !Object.keys(bundle.series).length) return null;
+    return calculate(draft, bundle.series);
+  }, [draft, bundle]);
   const letter = useMemo(
-    () => (result?.ok ? buildLetter(draft, result) : null),
-    [draft, result],
+    () => (live?.ok ? buildLetter(draft, live) : null),
+    [draft, live],
   );
   const seriesList = useMemo(() => (
     INDEX_SERIES.map((row) => ({ ...row, ...(bundle?.series?.[row.id] || {}) }))
@@ -143,10 +164,15 @@ export default function IndeksreguleringPanel({ project }) {
     return row.group === group;
   });
   const selected = seriesList.find((row) => row.id === draft.indexId) || null;
+  const span = useMemo(() => {
+    if (!live?.ok || !selected?.points?.length) return [];
+    return selected.points.filter((point) => (
+      point.period >= live.basisPoint.period && point.period <= live.regulationPoint.period
+    ));
+  }, [live, selected]);
 
-  function patch(key, value) {
-    setDraft((current) => ({ ...current, [key]: value }));
-    setResult(null);
+  function patch(partial) {
+    setDraft((current) => ({ ...current, ...partial }));
   }
 
   function chooseStandard(id) {
@@ -158,7 +184,6 @@ export default function IndeksreguleringPanel({ project }) {
       indexId: rule.indexId,
       vatPercent: rule.model === 'husleie' ? '0' : (current.vatPercent === '0' ? '25' : current.vatPercent),
     }));
-    setResult(null);
   }
 
   function chooseModel(id) {
@@ -168,7 +193,6 @@ export default function IndeksreguleringPanel({ project }) {
       indexId: id === 'husleie' ? 'kpi' : current.indexId,
       vatPercent: id === 'husleie' ? '0' : current.vatPercent,
     }));
-    setResult(null);
   }
 
   function patchLine(id, key, value) {
@@ -176,56 +200,87 @@ export default function IndeksreguleringPanel({ project }) {
       ...current,
       lines: current.lines.map((line) => (line.id === id ? { ...line, [key]: value } : line)),
     }));
-    setResult(null);
   }
 
   function preparedDraft(next) {
     return {
       ...next,
       supplier: next.supplier || draft.supplier,
+      buyer: next.buyer || draft.buyer,
+      title: next.title || draft.title,
+      reference: next.reference || draft.reference,
       regulationDate: next.regulationDate || draft.regulationDate || todayIso(),
       noticeDate: draft.noticeDate || todayIso(),
-      overrideExclusion: false,
+      overrideExclusion: next.regulationExcluded ? draft.overrideExclusion : false,
       periods: draft.periods,
       weights: draft.weights,
-      sourceName: draft.sourceName,
+      sourceName: next.sourceName || draft.sourceName,
     };
+  }
+
+  async function refreshIndices() {
+    if (fetchLock.current) return fetchLock.current;
+    const job = (async () => {
+      setWorking(true);
+      setError('');
+      setStatus('Henter indeksene fra SSB…');
+      try {
+        const fetched = await fetchAllIndices({
+          onProgress: ({ index, total, table }) => setStatus(`Henter SSB-tabell ${table} (${index} av ${total})…`),
+        });
+        bundleRef.current = fetched;
+        setBundle(fetched);
+        await saveIndexCache(fetched);
+        const count = Object.keys(fetched.series).length;
+        setStatus(fetched.errors?.length
+          ? `Hentet ${count} serier. ${fetched.errors[0]}`
+          : `Hentet ${count} serier fra SSB.`);
+        return fetched;
+      } catch (cause) {
+        setError(cause?.message || 'Kunne ikke hente indeksene.');
+        throw cause;
+      } finally {
+        setWorking(false);
+      }
+    })();
+    fetchLock.current = job;
+    try {
+      return await job;
+    } finally {
+      fetchLock.current = null;
+    }
   }
 
   async function regulatePrepared(prepared, note) {
     setDraft(prepared);
-    setResult(null);
     if (note) setStatus(note);
-    try {
-      const cached = bundleRef.current;
-      const data = cached?.series && Object.keys(cached.series).length
-        ? cached
-        : await refreshIndices();
-      const calculated = calculate(prepared, data.series);
-      setResult(calculated);
-      if (!calculated.ok) setError(calculated.error);
-      else setStatus('Avtalen er lest, indeksene er hentet og brevet er klart.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke hente indeksene.');
+    if (!bundleRef.current?.series || !Object.keys(bundleRef.current.series).length) {
+      try {
+        await refreshIndices();
+      } catch {
+        // Feilen vises av refreshIndices.
+      }
     }
   }
 
   async function readAgreement() {
     setError('');
-    let text = sourceText.trim();
+    const text = sourceText.trim();
     if (text.length < 20) {
       setError('Lim inn avtaleteksten, eller last opp filen først.');
       return;
     }
     const local = interpretContract(text);
-    await regulatePrepared(preparedDraft(local), 'Avtalen er lest. Kontroller feltene.');
+    await regulatePrepared(preparedDraft(local), 'Avtalen er lest. Kravet oppdateres når indeksene er inne.');
     try {
       const remote = await interpretAvtale({ text, fileName: draft.sourceName });
       if (remote?.extracted) {
-        const merged = preparedDraft(mergeInterpretation(local, remote.extracted));
-        await regulatePrepared(merged, remote.engine === 'gemini'
-          ? 'AI leste avtalen. Kontroller feltene før brevet sendes.'
-          : 'Avtalen er lest. AI var ikke tilgjengelig, så den lokale lesingen ble brukt.');
+        await regulatePrepared(
+          preparedDraft(mergeInterpretation(local, remote.extracted)),
+          remote.engine === 'gemini'
+            ? 'AI leste avtalen. Kontroller feltene før brevet sendes.'
+            : 'Avtalen er lest lokalt. AI-tjenesten var ikke tilgjengelig.',
+        );
       }
     } catch {
       setStatus('Avtalen er lest lokalt. AI-tjenesten svarte ikke.');
@@ -238,15 +293,15 @@ export default function IndeksreguleringPanel({ project }) {
       accept: '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain',
     });
     if (!file) return;
+    setWorking(true);
     setStatus('Leser avtalen…');
     try {
       const bytes = await bytesFromFile(file);
       const text = await extractContractText(bytes, file.name, file.mimeType);
       setSourceText(text);
-      setDraft((current) => ({ ...current, sourceName: file.name || '' }));
       const local = interpretContract(text);
-      const withName = { ...preparedDraft(local), sourceName: file.name || '' };
-      await regulatePrepared(withName, `${file.name || 'Filen'} er lest.`);
+      const named = { ...preparedDraft(local), sourceName: file.name || '' };
+      await regulatePrepared(named, `${file.name || 'Filen'} er lest.`);
       const remote = await interpretAvtale({ text, fileName: file.name, mimeType: file.mimeType }).catch(() => null);
       if (remote?.extracted) {
         await regulatePrepared(
@@ -256,71 +311,62 @@ export default function IndeksreguleringPanel({ project }) {
       }
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese avtalen.');
-      setStatus('');
-    }
-  }
-
-  async function ensureIndices() {
-    const cached = bundleRef.current;
-    if (cached?.series && Object.keys(cached.series).length) return cached;
-    return refreshIndices();
-  }
-
-  async function refreshIndices() {
-    setError('');
-    setStatus('Henter indeksene fra SSB…');
-    const fetched = await fetchAllIndices({
-      onProgress: ({ index, total, table }) => setStatus(`Henter SSB-tabell ${table} (${index} av ${total})…`),
-    });
-    bundleRef.current = fetched;
-    setBundle(fetched);
-    await saveIndexCache(fetched);
-    const count = Object.keys(fetched.series).length;
-    setStatus(fetched.errors?.length
-      ? `Hentet ${count} serier. ${fetched.errors[0]}`
-      : `Hentet ${count} serier fra SSB.`);
-    return fetched;
-  }
-
-  async function runRegulation(forceFetch = false) {
-    setError('');
-    try {
-      const data = forceFetch ? await refreshIndices() : (bundleRef.current?.series ? bundleRef.current : await ensureIndices());
-      const calculated = calculate(draft, data.series);
-      setResult(calculated);
-      if (!calculated.ok) setError(calculated.error);
-      else setStatus('Beregningen er klar. Brevet kan lastes ned.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke hente indeksene.');
+    } finally {
+      setWorking(false);
     }
   }
 
   async function saveCase() {
-    if (!result?.ok || !letter) {
-      setError('Kjør beregningen før den lagres.');
+    if (!live?.ok) {
+      setError(live?.error || 'Kravet er ikke klart til å lagres.');
       return;
     }
+    const id = caseId || `ir-${Date.now()}`;
     const row = {
-      id: `ir-${Date.now()}`,
+      id,
       projectId: project?.id || '',
       savedAt: new Date().toISOString(),
       title: draft.title || 'Indeksregulering',
       reference: draft.reference || '',
-      addition: result.addition,
-      draft,
+      addition: live.addition,
+      draft: { ...draft, sourceText },
     };
-    const next = [row, ...cases].slice(0, 40);
+    const next = [row, ...cases.filter((item) => item.id !== id)].slice(0, 40);
+    setCaseId(id);
     setCases(next);
     await saveCases(next);
     setStatus('Beregningen er lagret på denne enheten.');
   }
 
+  async function removeCase(id) {
+    const next = cases.filter((item) => item.id !== id);
+    setCases(next);
+    if (caseId === id) setCaseId('');
+    await saveCases(next);
+  }
+
+  function openCase(row) {
+    setCaseId(row.id);
+    setDraft(row.draft);
+    setSourceText(row.draft?.sourceText || '');
+    setStatus('Lagret beregning er åpnet. Kravet regnes på nytt mot indeksene som er hentet.');
+    setError('');
+  }
+
+  function startNew() {
+    setCaseId('');
+    setSourceText('');
+    setDraft(freshDraft(project, draft.supplier || family?.company?.navn || ''));
+    setStatus('Ny beregning.');
+    setError('');
+  }
+
   function exportKind(kind) {
-    if (!letter || !result?.ok) {
-      setError('Kjør beregningen før du eksporterer.');
+    if (!letter || !live?.ok) {
+      setError(live?.error || 'Kravet er ikke klart til eksport.');
       return;
     }
-    const file = exportFiles(draft, result, letter, seriesList).find((item) => item.kind === kind);
+    const file = exportFiles(draft, live, letter, seriesList).find((item) => item.kind === kind);
     try {
       downloadBytes(file.filename, file.bytes, file.mime);
       setStatus(`${file.filename} er lastet ned.`);
@@ -329,19 +375,112 @@ export default function IndeksreguleringPanel({ project }) {
     }
   }
 
+  async function shareLetter() {
+    if (!letter) return;
+    try {
+      await Share.share({ message: letter.plain, title: letter.title });
+    } catch (cause) {
+      if (cause?.message && !/cancel/i.test(cause.message)) setError(cause.message);
+    }
+  }
+
+  function book() {
+    if (!onBook || !live?.ok) return;
+    const amount = Math.abs(live.addition);
+    if (!(amount > 0)) {
+      setError('Tillegget er null, så det er ikke noe å føre.');
+      return;
+    }
+    const reduction = live.addition < 0;
+    const booked = onBook({
+      kind: reduction ? 'cost' : 'income',
+      account: reduction ? '7790' : '3100',
+      costCode: bookCode || '19',
+      text: `Indeksregulering ${live.regulationPoint.period} ${draft.reference || draft.title || ''}`.trim(),
+      amount: String(amount),
+      date: live.regulationDate,
+    });
+    if (booked && booked.ok === false) {
+      setError(booked.error || 'Kunne ikke føre bilaget.');
+      return;
+    }
+    setStatus(reduction
+      ? 'Reduksjonen er ført som kostnad i prosjektregnskapet.'
+      : 'Tillegget er ført som endringsinntekt på konto 3100.');
+  }
+
+  const shownSpan = span.length > 18 ? [...span.slice(0, 3), null, ...span.slice(-6)] : span;
+
   return (
     <View style={styles.stack}>
       <Text style={[styles.h2, { color: colors.ink }]}>Indeksregulering</Text>
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Last opp avtalen. ProTop leser standard, sats, tilbudsdato og indeks, henter seriene hos SSB og skriver kravbrevet.
-        Modellen følger NS 3405 for NS 8405, NS 8406, NS 8407 og underentreprise, og husleieloven § 4-2 for leie.
+        Last opp avtalen. ProTop leser standard, sats, tilbudsdato og indeks, henter seriene hos SSB og holder kravbrevet oppdatert.
+        NS-kontrakter reguleres etter NS 3405. Husleie følger husleieloven § 4-2.
       </Text>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {status ? <Text style={{ color: colors.ink }}>{status}</Text> : null}
 
+      {live?.ok ? (
+        <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+          <Text style={[styles.h2, { color: colors.ink, marginTop: 0 }]}>
+            {live.addition < 0 ? 'Reduksjon' : 'Tillegg'} {formatMoney(live.addition)} kr
+          </Text>
+          <Text style={{ color: colors.ink }}>{live.model.formula}</Text>
+          <Text style={{ color: colors.muted }}>
+            t0 {periodLabel(live.basisPoint.period)} = {formatIndex(live.basisPoint.value)}
+            {' · '}
+            t {periodLabel(live.regulationPoint.period)} = {formatIndex(live.regulationPoint.value)}
+            {' · '}
+            endring {formatPercent(live.changePercent)}
+            {selected?.latest ? ` · gjeldende ${periodLabel(selected.latest.period)} = ${formatIndex(selected.latest.value)}` : ''}
+          </Text>
+          <Text style={{ color: colors.ink }}>
+            Grunnlag {formatMoney(live.baseSum)} kr
+            {live.vat ? ` · mva ${formatMoney(live.vat)} kr · å betale ${formatMoney(live.payable)} kr` : ''}
+            {` · regulert ${formatMoney(live.regulated)} kr`}
+          </Text>
+          {live.warnings.map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
+          <View style={styles.rowWrap}>
+            <Btn label="PDF" colors={colors} onPress={() => exportKind('pdf')} />
+            <Btn label="Word" colors={colors} onPress={() => exportKind('docx')} />
+            <Btn label="Excel" colors={colors} onPress={() => exportKind('xlsx')} />
+            <Btn label="Del brev" tone="quiet" colors={colors} onPress={shareLetter} />
+            <Btn label={caseId ? 'Oppdater lagret' : 'Lagre'} tone="quiet" colors={colors} onPress={saveCase} />
+          </View>
+          {project && onBook ? (
+            <>
+              <Text style={[styles.label, { color: colors.muted }]}>Før i prosjektregnskapet</Text>
+              <View style={styles.rowWrap}>
+                {COST_CODES.map((row) => (
+                  <Btn
+                    key={row.code}
+                    label={`${row.code} ${row.name}`}
+                    tone={bookCode === row.code ? 'brand' : 'quiet'}
+                    colors={colors}
+                    onPress={() => setBookCode(row.code)}
+                  />
+                ))}
+              </View>
+              <Btn
+                label={live.addition < 0 ? 'Før reduksjonen' : 'Før tillegget på 3100'}
+                colors={colors}
+                onPress={book}
+              />
+            </>
+          ) : (
+            <Text style={{ color: colors.muted }}>Åpne et prosjekt for å føre tillegget i prosjektregnskapet.</Text>
+          )}
+        </View>
+      ) : (
+        <Text style={{ color: colors.muted }}>{live?.error || (working ? 'Henter indekser…' : 'Legg inn tilbudsdato og minst én sats. Kravet regnes når SSB-tallene er inne.')}</Text>
+      )}
+
       <View style={styles.rowWrap}>
-        <Btn label="Last opp avtale" colors={colors} onPress={uploadAgreement} />
-        <Btn label="Les teksten" tone="quiet" colors={colors} onPress={readAgreement} />
+        <Btn label="Last opp avtale" colors={colors} disabled={working} onPress={uploadAgreement} />
+        <Btn label="Les teksten" tone="quiet" colors={colors} disabled={working} onPress={readAgreement} />
+        <Btn label="Ny beregning" tone="quiet" colors={colors} onPress={startNew} />
+        <Btn label="Hent indekser på nytt" tone="quiet" colors={colors} disabled={working} onPress={refreshIndices} />
       </View>
       <Field
         label="Avtaletekst"
@@ -358,14 +497,14 @@ export default function IndeksreguleringPanel({ project }) {
       ) : null}
 
       <Text style={[styles.h2, { color: colors.ink }]}>Avtalen</Text>
-      <Field label="Prosjekt eller avtale" value={draft.title} onChangeText={(value) => patch('title', value)} colors={colors} />
-      <Field label="Referanse" value={draft.reference} onChangeText={(value) => patch('reference', value)} colors={colors} />
+      <Field label="Prosjekt eller avtale" value={draft.title} onChangeText={(value) => patch({ title: value })} colors={colors} />
+      <Field label="Referanse" value={draft.reference} onChangeText={(value) => patch({ reference: value })} colors={colors} />
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Til" value={draft.buyer} onChangeText={(value) => patch('buyer', value)} placeholder="Byggherre eller utleier" colors={colors} />
+          <Field label="Til" value={draft.buyer} onChangeText={(value) => patch({ buyer: value })} placeholder="Byggherre eller utleier" colors={colors} />
         </View>
         <View style={styles.splitItem}>
-          <Field label="Fra" value={draft.supplier} onChangeText={(value) => patch('supplier', value)} placeholder="Entreprenør" colors={colors} />
+          <Field label="Fra" value={draft.supplier} onChangeText={(value) => patch({ supplier: value })} placeholder="Entreprenør" colors={colors} />
         </View>
       </View>
       <Text style={[styles.label, { color: colors.muted }]}>Standard</Text>
@@ -380,26 +519,27 @@ export default function IndeksreguleringPanel({ project }) {
           <Btn key={model.id} label={model.short} tone={draft.model === model.id ? 'brand' : 'quiet'} colors={colors} onPress={() => chooseModel(model.id)} />
         ))}
       </View>
+      <Text style={{ color: colors.muted }}>{MODELS.find((model) => model.id === draft.model)?.formula}</Text>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Tilbudsdato" value={draft.offerDate} onChangeText={(value) => patch('offerDate', value)} placeholder="01.03.2024" colors={colors} />
+          <Field label="Tilbudsdato" value={draft.offerDate} onChangeText={(value) => patch({ offerDate: value })} placeholder="01.03.2024" colors={colors} />
         </View>
         <View style={styles.splitItem}>
-          <Field label="Tilbudsfrist" value={draft.tenderDeadline} onChangeText={(value) => patch('tenderDeadline', value)} placeholder="15.03.2024" colors={colors} />
+          <Field label="Tilbudsfrist" value={draft.tenderDeadline} onChangeText={(value) => patch({ tenderDeadline: value })} placeholder="15.03.2024" colors={colors} />
         </View>
       </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Reguleringsdato" value={draft.regulationDate} onChangeText={(value) => patch('regulationDate', value)} placeholder="04.10.2026" colors={colors} />
+          <Field label="Reguleringsdato" value={draft.regulationDate} onChangeText={(value) => patch({ regulationDate: value })} placeholder="04.10.2026" colors={colors} />
         </View>
         <View style={styles.splitItem}>
-          <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch('sharePercent', value)} keyboardType="decimal-pad" colors={colors} />
+          <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch({ sharePercent: value })} keyboardType="decimal-pad" colors={colors} />
         </View>
       </View>
       {draft.model !== 'husleie' ? (
-        <Field label="Merverdiavgift %" value={draft.vatPercent} onChangeText={(value) => patch('vatPercent', value)} keyboardType="decimal-pad" colors={colors} />
+        <Field label="Merverdiavgift %" value={draft.vatPercent} onChangeText={(value) => patch({ vatPercent: value })} keyboardType="decimal-pad" colors={colors} />
       ) : (
-        <Text style={{ color: colors.muted }}>Husleie reguleres med KPI. Merverdiavgift legges ikke på.</Text>
+        <Text style={{ color: colors.muted }}>Husleie reguleres med KPI. Merverdiavgift legges ikke på. Varselet er brevet du deler eller laster ned.</Text>
       )}
       {draft.regulationExcluded ? (
         <View style={styles.rowWrap}>
@@ -408,75 +548,83 @@ export default function IndeksreguleringPanel({ project }) {
             label={draft.overrideExclusion ? 'Fastpris er overstyrt' : 'Beregn likevel'}
             tone="quiet"
             colors={colors}
-            onPress={() => patch('overrideExclusion', !draft.overrideExclusion)}
+            onPress={() => patch({ overrideExclusion: !draft.overrideExclusion })}
           />
         </View>
       ) : null}
 
       <Text style={[styles.h2, { color: colors.ink }]}>Satser</Text>
-      {draft.lines.map((line) => (
-        <View key={line.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Field label="Post" value={line.text} onChangeText={(value) => patchLine(line.id, 'text', value)} colors={colors} />
-          <View style={styles.split}>
-            <View style={styles.splitItem}>
-              <Field label="Mengde" value={line.quantity} onChangeText={(value) => patchLine(line.id, 'quantity', value)} keyboardType="decimal-pad" colors={colors} />
+      <Text style={{ color: colors.muted }}>Kryss av linjene som skal inngå i kravet. En avslått linje blir stående, men reguleres ikke.</Text>
+      {draft.lines.map((line) => {
+        const on = line.included !== false;
+        return (
+          <View key={line.id} style={[styles.card, { borderColor: on ? colors.brand : colors.line, backgroundColor: colors.card }]}>
+            <View style={styles.rowWrap}>
+              <Btn label={on ? 'Med i kravet' : 'Utenfor kravet'} tone={on ? 'brand' : 'quiet'} colors={colors} onPress={() => patchLine(line.id, 'included', !on)} />
+              <Btn label="Fjern" tone="quiet" colors={colors} onPress={() => patch({ lines: draft.lines.filter((item) => item.id !== line.id) })} />
             </View>
-            <View style={styles.splitItem}>
-              <Field label="Enhet" value={line.unit} onChangeText={(value) => patchLine(line.id, 'unit', value)} colors={colors} />
-            </View>
-            <View style={styles.splitItem}>
-              <Field label="Sats" value={line.rate} onChangeText={(value) => patchLine(line.id, 'rate', value)} keyboardType="decimal-pad" colors={colors} />
+            <Field label="Post" value={line.text} onChangeText={(value) => patchLine(line.id, 'text', value)} colors={colors} />
+            <View style={styles.split}>
+              <View style={styles.splitItem}>
+                <Field label="Mengde" value={line.quantity} onChangeText={(value) => patchLine(line.id, 'quantity', value)} keyboardType="decimal-pad" colors={colors} />
+              </View>
+              <View style={styles.splitItem}>
+                <Field label="Enhet" value={line.unit} onChangeText={(value) => patchLine(line.id, 'unit', value)} colors={colors} />
+              </View>
+              <View style={styles.splitItem}>
+                <Field label="Sats" value={line.rate} onChangeText={(value) => patchLine(line.id, 'rate', value)} keyboardType="decimal-pad" colors={colors} />
+              </View>
             </View>
           </View>
-          <Btn
-            label="Fjern"
-            tone="quiet"
-            colors={colors}
-            onPress={() => patch('lines', draft.lines.filter((item) => item.id !== line.id))}
-          />
-        </View>
-      ))}
-      <Btn label="Ny sats" tone="quiet" colors={colors} onPress={() => patch('lines', [...draft.lines, emptyLine()])} />
+        );
+      })}
+      <Btn label="Ny sats" tone="quiet" colors={colors} onPress={() => patch({ lines: [...draft.lines, emptyLine()] })} />
 
       {draft.model === 'ns3405' ? (
         <>
           <Text style={[styles.h2, { color: colors.ink }]}>Månedlig produksjon</Text>
           <Text style={{ color: colors.muted }}>
-            La listen stå tom for å regulere satsene over til valgt måned. Fyll den ut når kravet gjelder produksjon i flere avregningsmåneder.
+            La listen stå tom for å regulere de avkryssede satsene til valgt måned. Fyll den ut når kravet gjelder produksjon i flere avregningsmåneder. Da er det produksjonen, ikke satsene, som utgjør kravet.
           </Text>
           {draft.periods.map((row, index) => (
-            <View key={`${row.month}-${index}`} style={styles.split}>
-              <View style={styles.splitItem}>
-                <Field
-                  label="Måned"
-                  value={row.month}
-                  onChangeText={(value) => {
-                    const periods = draft.periods.map((item, itemIndex) => (itemIndex === index ? { ...item, month: value } : item));
-                    patch('periods', periods);
-                  }}
-                  placeholder="2026-08"
-                  colors={colors}
-                />
+            <View key={`periode-${index}`} style={styles.stack}>
+              <View style={styles.split}>
+                <View style={styles.splitItem}>
+                  <Field
+                    label="Måned"
+                    value={row.month}
+                    onChangeText={(value) => patch({
+                      periods: draft.periods.map((item, itemIndex) => (itemIndex === index ? { ...item, month: value } : item)),
+                    })}
+                    placeholder="2026-08"
+                    colors={colors}
+                  />
+                </View>
+                <View style={styles.splitItem}>
+                  <Field
+                    label="Produksjon, kr"
+                    value={row.amount}
+                    onChangeText={(value) => patch({
+                      periods: draft.periods.map((item, itemIndex) => (itemIndex === index ? { ...item, amount: value } : item)),
+                    })}
+                    keyboardType="decimal-pad"
+                    colors={colors}
+                  />
+                </View>
               </View>
-              <View style={styles.splitItem}>
-                <Field
-                  label="Produksjon, kr"
-                  value={row.amount}
-                  onChangeText={(value) => {
-                    const periods = draft.periods.map((item, itemIndex) => (itemIndex === index ? { ...item, amount: value } : item));
-                    patch('periods', periods);
-                  }}
-                  keyboardType="decimal-pad"
-                  colors={colors}
-                />
-              </View>
+              <Btn
+                label="Fjern måneden"
+                tone="quiet"
+                colors={colors}
+                onPress={() => patch({ periods: draft.periods.filter((_, itemIndex) => itemIndex !== index) })}
+              />
             </View>
           ))}
           <Btn
             label="Ny avregningsmåned"
             tone="quiet"
             colors={colors}
-            onPress={() => patch('periods', [...draft.periods, { month: '', amount: '', text: '' }])}
+            onPress={() => patch({ periods: [...draft.periods, { month: '', amount: '', text: '' }] })}
           />
         </>
       ) : null}
@@ -484,116 +632,135 @@ export default function IndeksreguleringPanel({ project }) {
       {draft.model === 'vektet' ? (
         <>
           <Text style={[styles.h2, { color: colors.ink }]}>Vekter</Text>
+          <Text style={{ color: colors.muted }}>Vektene fordeles slik at de utgjør 100 %. Hver delindeks må være hentet fra SSB.</Text>
           {draft.weights.map((row, index) => (
-            <View key={row.indexId} style={styles.split}>
-              <View style={styles.splitItem}>
-                <Text style={{ color: colors.ink }}>{INDEX_SERIES.find((item) => item.id === row.indexId)?.name}</Text>
-              </View>
-              <View style={styles.splitItem}>
-                <Field
-                  label="Vekt %"
-                  value={row.weight}
-                  onChangeText={(value) => {
-                    const weights = draft.weights.map((item, itemIndex) => (itemIndex === index ? { ...item, weight: value } : item));
-                    patch('weights', weights);
-                  }}
-                  keyboardType="decimal-pad"
+            <View key={`${row.indexId}-${index}`} style={styles.stack}>
+              <View style={styles.rowWrap}>
+                <Btn
+                  label={INDEX_SERIES.find((item) => item.id === row.indexId)?.name || row.indexId}
+                  tone="quiet"
                   colors={colors}
+                  onPress={() => setPickingWeight(pickingWeight === index ? -1 : index)}
+                />
+                <Btn
+                  label="Fjern"
+                  tone="quiet"
+                  colors={colors}
+                  onPress={() => patch({ weights: draft.weights.filter((_, itemIndex) => itemIndex !== index) })}
                 />
               </View>
+              {pickingWeight === index ? (
+                <View style={styles.rowWrap}>
+                  {INDEX_SERIES.map((item) => (
+                    <Btn
+                      key={item.id}
+                      label={item.name}
+                      tone={row.indexId === item.id ? 'brand' : 'quiet'}
+                      colors={colors}
+                      onPress={() => {
+                        patch({
+                          weights: draft.weights.map((weight, itemIndex) => (
+                            itemIndex === index ? { ...weight, indexId: item.id } : weight
+                          )),
+                        });
+                        setPickingWeight(-1);
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              <Field
+                label="Vekt %"
+                value={row.weight}
+                onChangeText={(value) => patch({
+                  weights: draft.weights.map((weight, itemIndex) => (itemIndex === index ? { ...weight, weight: value } : weight)),
+                })}
+                keyboardType="decimal-pad"
+                colors={colors}
+              />
             </View>
           ))}
+          <Btn
+            label="Ny delindeks"
+            tone="quiet"
+            colors={colors}
+            onPress={() => patch({ weights: [...draft.weights, { indexId: 'bki-bustader', weight: '0' }] })}
+          />
         </>
       ) : null}
 
       <Text style={[styles.h2, { color: colors.ink }]}>SSB-indeks</Text>
-      <View style={styles.rowWrap}>
-        <Btn label="Hent alle indekser fra SSB" colors={colors} onPress={refreshIndices} />
-        <Btn label="Beregn og lag brev" tone="quiet" colors={colors} onPress={() => runRegulation(false)} />
-      </View>
       {selected?.latest ? (
-        <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>
             Gjeldende {selected.name}: {periodLabel(selected.latest.period)} = {formatIndex(selected.latest.value)}
           </Text>
           <Text style={{ color: colors.muted }}>
             {selected.source}. Basis {selected.basis}.
-            {bundle?.fetchedAt ? ` Hentet ${bundle.fetchedAt.slice(0, 16).replace('T', ' ')}.` : ''}
+            {bundle?.fetchedAt ? ` Hentet ${String(bundle.fetchedAt).slice(0, 16).replace('T', ' ')}.` : ''}
           </Text>
         </View>
       ) : (
-        <Text style={{ color: colors.muted }}>Indeksene er ikke hentet ennå.</Text>
+        <Text style={{ color: colors.muted }}>{working ? 'Henter indekser fra SSB…' : 'Indeksene er ikke hentet ennå.'}</Text>
       )}
+      {shownSpan.length ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink }}>Indeks fra basismåned til avregning</Text>
+          {shownSpan.map((point, index) => (
+            point ? (
+              <Text key={point.period} style={{ color: colors.ink }}>
+                {periodLabel(point.period)} · {formatIndex(point.value)}
+              </Text>
+            ) : (
+              <Text key={`gap-${index}`} style={{ color: colors.muted }}>… mellomliggende måneder ligger i Excel-filen</Text>
+            )
+          ))}
+        </View>
+      ) : null}
       <Field label="Søk i seriene" value={query} onChangeText={setQuery} placeholder="Søk for KPI, veganlegg, rør eller materialer" colors={colors} />
       {visibleSeries.map((row) => {
         const on = row.id === draft.indexId;
         return (
           <TouchableOpacity
             key={row.id}
-            onPress={() => patch('indexId', row.id)}
+            onPress={() => patch({ indexId: row.id })}
             style={[styles.card, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
           >
             <Text style={{ color: colors.ink }}>{row.group} · {row.name}</Text>
             <Text style={{ color: colors.muted }}>
               Tabell {row.table} · {row.basis}
-              {row.latest ? ` · ${periodLabel(row.latest.period)} = ${formatIndex(row.latest.value)}` : ''}
+              {row.latest ? ` · ${periodLabel(row.latest.period)} = ${formatIndex(row.latest.value)}` : ' · ikke hentet'}
             </Text>
           </TouchableOpacity>
         );
       })}
 
-      {result?.ok ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.h2, { color: colors.ink }]}>Beregning</Text>
-          <Text style={{ color: colors.ink }}>{result.model.formula}</Text>
-          <Text style={{ color: colors.muted }}>
-            t0 {periodLabel(result.basisPoint.period)} = {formatIndex(result.basisPoint.value)}
-            {' · '}
-            t {periodLabel(result.regulationPoint.period)} = {formatIndex(result.regulationPoint.value)}
-            {' · '}
-            endring {formatPercent(result.changePercent)}
-          </Text>
-          {result.rows.map((row) => (
-            <Text key={`${row.text}-${row.period}`} style={{ color: colors.ink }}>
-              {row.text}: grunnlag {formatMoney(row.base)} → tillegg {formatMoney(row.addition)} → ny sats {formatMoney(row.newRate)}
-            </Text>
-          ))}
-          <Text style={{ color: colors.ink }}>
-            Tillegg {formatMoney(result.addition)} kr
-            {result.vat ? ` · mva ${formatMoney(result.vat)} kr · å betale ${formatMoney(result.payable)} kr` : ''}
-          </Text>
-          {result.warnings.map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
-        </View>
-      ) : null}
-
       {letter ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={[styles.h2, { color: colors.ink }]}>Brev</Text>
+          {live.rows.map((row) => (
+            <Text key={`${row.text}-${row.period}-${row.base}`} style={{ color: colors.ink }}>
+              {row.text}: {formatMoney(row.base)} → {formatMoney(row.addition)} → ny sats {formatMoney(row.newRate)}
+            </Text>
+          ))}
           <Text selectable style={{ color: colors.ink, lineHeight: 21 }}>{letter.plain}</Text>
-          <View style={styles.rowWrap}>
-            <Btn label="PDF" colors={colors} onPress={() => exportKind('pdf')} />
-            <Btn label="Word" colors={colors} onPress={() => exportKind('docx')} />
-            <Btn label="Excel" colors={colors} onPress={() => exportKind('xlsx')} />
-            <Btn label="Lagre" tone="quiet" colors={colors} onPress={saveCase} />
-          </View>
         </View>
       ) : null}
 
-      {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).slice(0, 8).map((row) => (
-        <TouchableOpacity
-          key={row.id}
-          onPress={() => {
-            setDraft(row.draft);
-            setResult(null);
-            setStatus('Lagret beregning er hentet. Kjør den på nytt mot ferske indekser.');
-          }}
-          style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
-        >
-          <Text style={{ color: colors.ink }}>{row.title}</Text>
+      {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).length ? (
+        <Text style={[styles.h2, { color: colors.ink }]}>Lagrede krav</Text>
+      ) : null}
+      {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).map((row) => (
+        <View key={row.id} style={[styles.card, { borderColor: row.id === caseId ? colors.brand : colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink }}>{row.title || 'Indeksregulering'}</Text>
           <Text style={{ color: colors.muted }}>
-            {row.savedAt.slice(0, 10)} · tillegg {formatMoney(row.addition)} kr
+            {String(row.savedAt || '').slice(0, 10)} · tillegg {formatMoney(row.addition)} kr
           </Text>
-        </TouchableOpacity>
+          <View style={styles.rowWrap}>
+            <Btn label="Åpne" tone="quiet" colors={colors} onPress={() => openCase(row)} />
+            <Btn label="Slett" tone="quiet" colors={colors} onPress={() => removeCase(row.id)} />
+          </View>
+        </View>
       ))}
     </View>
   );

@@ -8,6 +8,7 @@ import { buildLetter, formatMoney } from './letter.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
 import { fetchAllIndices, parseSsbCsv } from './ssb.js';
 import { dueRegulations, indexNews, shouldCheckToday } from './watch.js';
+import { agreementSheet, firstRegulationDate } from './summary.js';
 
 const AVTALE = `
 NS 8407 Totalentreprise
@@ -352,6 +353,43 @@ test('varsler når SSB publiserer ny indeks', () => {
   });
   assert.equal(due[0].title, 'Skole');
   assert.equal(due[0].period, '2026M08');
+});
+
+test('fremsiden samler avtalefeltene', () => {
+  const draft = interpretContract(`
+NS 8407
+Byggherre: Nordvik kommune
+Entreprenør: ProTop Bygg AS
+Prosjekt: Skoleveien 4
+Tilbudsdato: 01.03.2024
+Tilbudsfrist: 15.03.2024
+Første reguleringsdato: 01.05.2024
+Kontraktssum: 2 000 000
+Regulert andel: 80 %
+Indeks: boligblokk
+Skal indeksreguleres etter NS 3405.
+  `);
+  assert.equal(draft.firstRegulationDate, '2024-05-01');
+  assert.deepEqual(draft.terms.variables, []);
+  assert.equal(firstRegulationDate(draft), '2024-05-01');
+  assert.equal(firstRegulationDate({ ...draft, firstRegulationDate: '' }), '2024-04-01');
+  const result = calculate({ ...draft, regulationDate: '2026-08-15', vatPercent: '0' }, {
+    'bki-boligblokk': monthSeries({ '2024M03': 139, '2026M08': 154.4 }),
+  });
+  const sheet = agreementSheet(draft, result, monthSeries({ '2024M03': 139, '2026M08': 154.4 }));
+  const values = Object.fromEntries(sheet.groups.flatMap((group) => group.rows.map((row) => [row.label, row.value])));
+  assert.equal(values['Første reguleringsdato'], '01.05.2024');
+  assert.equal(values['SSB-indeks'], 'Boligblokk, i alt');
+  assert.equal(values.Tilbudsdato, '01.03.2024');
+  assert.equal(values.Indeksdato, 'mars 2024');
+  assert.match(values['Gjeldende indeks da'], /139,0/);
+  assert.equal(values['Regulert andel'], '80,00 %');
+  assert.equal(values.Modell, 'Totalindeks, måned');
+  assert.equal(values['SSB-kode'], '20');
+  assert.match(values['Beregnet tillegg'], /177/);
+  assert.equal(values.Motpart, 'Nordvik kommune');
+  assert.equal(values.Prisregulering, 'Avtalt indeksregulering');
+  assert.equal(sheet.title, 'Skoleveien 4');
 });
 
 test('parser bred SSB-csv', () => {

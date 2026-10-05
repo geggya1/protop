@@ -17,9 +17,20 @@ import { downloadBytes, exportFiles } from '../../src/indeksregulering/office';
 import { fetchAllIndices } from '../../src/indeksregulering/ssb';
 import { loadCases, loadIndexCache, saveCases, saveIndexCache } from '../../src/indeksregulering/storage';
 import { dueRegulations, indexNews, latestMap, osloDate, shouldCheckToday } from '../../src/indeksregulering/watch';
+import { agreementSheet } from '../../src/indeksregulering/summary';
+import AvtaleForside from './AvtaleForside';
 import { pickDocument } from '../../src/utils/media';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+
+const PAGES = [
+  ['forside', 'Fremside'],
+  ['dokumenter', 'Dokumenter'],
+  ['vilkar', 'Vilkår'],
+  ['satser', 'Satser'],
+  ['indeks', 'Indeks'],
+  ['brev', 'Regulering'],
+];
 
 const STANDARDS = [
   ['NS 8403', 'NS 8403'],
@@ -152,6 +163,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const [alerts, setAlerts] = useState([]);
+  const [page, setPage] = useState('forside');
   const [bookCode, setBookCode] = useState('19');
   const [pickingWeight, setPickingWeight] = useState(-1);
 
@@ -455,7 +467,8 @@ export default function IndeksreguleringPanel({ project, onBook }) {
     setCaseId(row.id);
     setDraft(row.draft);
     setSourceText(row.draft?.sourceText || '');
-    setStatus('Lagret beregning er åpnet. Kravet regnes på nytt mot indeksene som er hentet.');
+    setStatus('Lagret avtale er åpnet.');
+    setPage('forside');
     setError('');
   }
 
@@ -516,14 +529,19 @@ export default function IndeksreguleringPanel({ project, onBook }) {
   }
 
   const shownSpan = span.length > 18 ? [...span.slice(0, 3), null, ...span.slice(-6)] : span;
+  const sheet = useMemo(() => agreementSheet(draft, live, selected), [draft, live, selected]);
 
   return (
     <View style={styles.stack}>
-      <Text style={[styles.h2, { color: colors.ink }]}>Indeksregulering</Text>
+      <Text style={[styles.h2, { color: colors.ink }]}>Avtaler</Text>
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Last opp avtalen. ProTop leser standard, sats, tilbudsdato og indeks, henter seriene hos SSB og holder kravbrevet oppdatert.
-        NS-kontrakter reguleres etter NS 3405. Husleie følger husleieloven § 4-2.
+        Fremsiden samler det avtalen sier. Dokumenter, vilkår, satser, indeks og regulering ligger på hver sin side.
       </Text>
+      <View style={styles.rowWrap}>
+        {PAGES.map(([id, label]) => (
+          <Btn key={id} label={label} tone={page === id ? 'brand' : 'quiet'} colors={colors} onPress={() => setPage(id)} />
+        ))}
+      </View>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {status ? <Text style={{ color: colors.ink }}>{status}</Text> : null}
       {alerts.map((item) => (
@@ -536,7 +554,9 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         </View>
       ))}
 
-      {live?.ok ? (
+      {page === 'forside' ? <AvtaleForside sheet={sheet} colors={colors} /> : null}
+
+      {page === 'brev' && live?.ok ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
           <Text style={[styles.h2, { color: colors.ink, marginTop: 0 }]}>
             {live.addition < 0 ? 'Reduksjon' : 'Tillegg'} {formatMoney(live.addition)} kr
@@ -587,10 +607,12 @@ export default function IndeksreguleringPanel({ project, onBook }) {
             <Text style={{ color: colors.muted }}>Åpne et prosjekt for å føre tillegget i prosjektregnskapet.</Text>
           )}
         </View>
-      ) : (
+      ) : page === 'brev' ? (
         <Text style={{ color: colors.muted }}>{live?.error || (working ? 'Henter indekser…' : 'Legg inn tilbudsdato og minst én sats. Kravet regnes når SSB-tallene er inne.')}</Text>
-      )}
+      ) : null}
 
+      {page === 'dokumenter' ? (
+      <View style={styles.stack}>
       <View style={styles.rowWrap}>
         <Btn label="Last opp avtale" colors={colors} disabled={working} onPress={uploadAgreement} />
         <Btn label="Les teksten" tone="quiet" colors={colors} disabled={working} onPress={readAgreement} />
@@ -626,7 +648,11 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           {draft.findings.map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
         </View>
       ) : null}
+      </View>
+      ) : null}
 
+      {page === 'vilkar' ? (
+      <View style={styles.stack}>
       <CompanyLogoChoice
         value={!!draft.useCompanyLogo}
         onChange={(useCompanyLogo) => patch({ useCompanyLogo })}
@@ -672,6 +698,8 @@ export default function IndeksreguleringPanel({ project, onBook }) {
         </View>
         <View style={styles.splitItem}>
           <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch({ sharePercent: value })} keyboardType="decimal-pad" colors={colors} />
+        </View>
+      </View>
       <Text style={[styles.label, { color: colors.muted }]}>Basismåned etter NS 3405</Text>
       <View style={styles.rowWrap}>
         {[
@@ -764,8 +792,6 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           </View>
         </View>
       ))}
-        </View>
-      </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
           <Field label="Organisasjonsnummer" value={draft.orgnr} onChangeText={(value) => patch({ orgnr: value })} colors={colors} />
@@ -800,6 +826,9 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
+          <Field label="Første reguleringsdato" value={draft.firstRegulationDate} onChangeText={(value) => patch({ firstRegulationDate: value })} placeholder="01.04.2024" colors={colors} />
+        </View>
+        <View style={styles.splitItem}>
           <Field label="Gjeldende fra" value={draft.effectiveDate} onChangeText={(value) => patch({ effectiveDate: value })} placeholder="01.08.2025" colors={colors} />
         </View>
         <View style={styles.splitItem}>
@@ -822,7 +851,11 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           />
         </View>
       ) : null}
+      </View>
+      ) : null}
 
+      {page === 'satser' ? (
+      <View style={styles.stack}>
       <Text style={[styles.h2, { color: colors.ink }]}>Satser</Text>
       <Text style={{ color: colors.muted }}>Kryss av linjene som skal inngå i kravet. En avslått linje blir stående, men reguleres ikke.</Text>
       {draft.lines.map((line) => {
@@ -958,7 +991,11 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           />
         </>
       ) : null}
+      </View>
+      ) : null}
 
+      {page === 'indeks' ? (
+      <View style={styles.stack}>
       <Text style={[styles.h2, { color: colors.ink }]}>SSB-indeks</Text>
       {selected?.latest ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -1004,13 +1041,15 @@ export default function IndeksreguleringPanel({ project, onBook }) {
           </TouchableOpacity>
         );
       })}
-
-      {letter?.notice ? <NoticeView notice={letter.notice} colors={colors} /> : null}
-
-      {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).length ? (
-        <Text style={[styles.h2, { color: colors.ink }]}>Lagrede krav</Text>
+      </View>
       ) : null}
-      {cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).map((row) => (
+
+      {page === 'brev' && letter?.notice ? <NoticeView notice={letter.notice} colors={colors} /> : null}
+
+      {page === 'forside' && cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).length ? (
+        <Text style={[styles.h2, { color: colors.ink }]}>Lagrede avtaler</Text>
+      ) : null}
+      {page === 'forside' ? cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).map((row) => (
         <View key={row.id} style={[styles.card, { borderColor: row.id === caseId ? colors.brand : colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>{row.title || 'Indeksregulering'}</Text>
           <Text style={{ color: colors.muted }}>
@@ -1021,7 +1060,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
             <Btn label="Slett" tone="quiet" colors={colors} onPress={() => removeCase(row.id)} />
           </View>
         </View>
-      ))}
+      )) : null}
     </View>
   );
 }

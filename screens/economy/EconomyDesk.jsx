@@ -1,10 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatOrgnr, maskPersonnummer } from '../../src/anbud/customers';
 import { formatNok } from '../../src/anbud/model';
-import { economyTableRows, matchCustomer, relatedContracts } from '../../src/economy/desk';
+import {
+  contractsForProject,
+  economyTableRows,
+  matchCustomer,
+  relatedContracts,
+} from '../../src/economy/desk';
 
 function Fact({ label, value, colors }) {
   if (!value) return null;
@@ -16,17 +22,32 @@ function Fact({ label, value, colors }) {
   );
 }
 
+function DueMark({ due, reason, colors }) {
+  if (!due) return null;
+  return (
+    <View style={styles.due} accessibilityLabel={reason || 'Klar for indeksregulering'}>
+      <Ionicons name="alert-circle" size={16} color={colors.danger || '#b45309'} />
+      <Text style={{ color: colors.danger || '#b45309', fontSize: 12 }}>Ny regulering</Text>
+    </View>
+  );
+}
+
 export default function EconomyDesk({
   customers = [],
   contracts = [],
+  projects = [],
+  dueById = {},
   chosenContractId = '',
   hint = '',
+  title = 'Kunder og avtaler',
+  lead = 'Velg en kunde, et prosjekt eller en avtale. Indeksregulering åpnes når avtalen er valgt.',
   onChooseContract,
   onOpenIndex,
 }) {
   const colors = useColors();
   const [query, setQuery] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [focusedId, setFocusedId] = useState('');
   const [chosenId, setChosenId] = useState(chosenContractId);
 
@@ -35,17 +56,31 @@ export default function EconomyDesk({
   }, [chosenContractId]);
 
   const rows = useMemo(
-    () => economyTableRows(customers, contracts, query),
-    [customers, contracts, query],
+    () => economyTableRows(customers, contracts, query, { projects, dueById }),
+    [customers, contracts, query, projects, dueById],
   );
   const customer = customers.find((row) => row.id === customerId) || null;
+  const project = projects.find((row) => row.id === projectId) || null;
   const focused = contracts.find((row) => row.id === focusedId) || null;
   const chosen = contracts.find((row) => row.id === chosenId) || null;
-  const related = customer ? relatedContracts(contracts, customer) : [];
+  const related = customer
+    ? relatedContracts(contracts, customer)
+    : project
+      ? contractsForProject(contracts, project.id)
+      : [];
+  const dueCount = Object.values(dueById || {}).filter((row) => row?.due).length;
 
   function pickRow(row) {
     if (row.kind === 'kunde') {
       setCustomerId(row.customerId);
+      setProjectId('');
+      setFocusedId('');
+      setChosenId('');
+      return;
+    }
+    if (row.kind === 'prosjekt') {
+      setProjectId(row.projectId);
+      setCustomerId('');
       setFocusedId('');
       setChosenId('');
       return;
@@ -53,6 +88,7 @@ export default function EconomyDesk({
     const contract = contracts.find((item) => item.id === row.contractId);
     const matched = matchCustomer(customers, contract);
     setCustomerId(matched?.id || '');
+    setProjectId(contract?.projectId || '');
     setFocusedId(row.contractId);
     setChosenId('');
   }
@@ -65,33 +101,40 @@ export default function EconomyDesk({
 
   return (
     <View nativeID="economy-desk" id="economy-desk" style={styles.stack}>
-      <Text style={[styles.h, { color: colors.ink }]}>Kunder og avtaler</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Velg en kunde eller en avtale i tabellen. Først vises kunden, deretter velger du avtalen. Indeksregulering vises når avtalen er valgt.
-      </Text>
+      <Text style={[styles.h, { color: colors.ink }]}>{title}</Text>
+      <Text style={{ color: colors.muted, lineHeight: 20 }}>{lead}</Text>
+      {dueCount ? (
+        <Text style={{ color: colors.danger || '#b45309' }}>
+          {dueCount} avtale{dueCount === 1 ? '' : 'r'} er klar for ny indeksregulering.
+        </Text>
+      ) : null}
       {hint ? <Text style={{ color: colors.brand }}>{hint}</Text> : null}
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Søk i kunder og avtaler"
+        placeholder="Søk i kunder, prosjekt og avtaler"
         placeholderTextColor={colors.placeholder}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />
-      {!customers.length && !contracts.length ? (
+      {!customers.length && !contracts.length && !projects.length ? (
         <Text style={{ color: colors.muted }}>
-          Ingen kunder eller avtaler er registrert ennå. Legg dem inn under Kunder og Avtaler i Økonomi.
+          Ingen kunder, prosjekt eller avtaler er registrert ennå. Legg dem inn under Kunder og Avtaler i Økonomi.
         </Text>
       ) : null}
       {rows.length ? (
         <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View>
             <View style={[styles.tr, styles.head, { borderBottomColor: colors.line }]}>
-              {['Type', 'Navn', 'Tilknytning', 'Detalj'].map((label) => (
-                <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
+              {['Type', 'Navn', 'Tilknytning', 'Detalj', ''].map((label) => (
+                <Text key={label || 'due'} style={[styles.th, { color: colors.muted }]}>{label}</Text>
               ))}
             </View>
             {rows.map((row) => {
-              const on = row.kind === 'kunde' ? row.customerId === customerId && !focusedId : row.contractId === focusedId;
+              const on = row.kind === 'kunde'
+                ? row.customerId === customerId && !focusedId
+                : row.kind === 'prosjekt'
+                  ? row.projectId === projectId && !focusedId
+                  : row.contractId === focusedId;
               return (
                 <TouchableOpacity
                   key={row.key}
@@ -99,10 +142,15 @@ export default function EconomyDesk({
                   accessibilityRole="button"
                   style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: on ? colors.brandSoft : 'transparent' }]}
                 >
-                  <Text style={[styles.td, { color: colors.ink }]}>{row.kind === 'kunde' ? 'Kunde' : 'Avtale'}</Text>
+                  <Text style={[styles.td, { color: colors.ink }]}>
+                    {row.kind === 'kunde' ? 'Kunde' : row.kind === 'prosjekt' ? 'Prosjekt' : 'Avtale'}
+                  </Text>
                   <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]} numberOfLines={2}>{row.title}</Text>
                   <Text style={[styles.td, { color: colors.ink }]} numberOfLines={2}>{row.party}</Text>
                   <Text style={[styles.td, { color: colors.muted }]} numberOfLines={2}>{row.extra}</Text>
+                  <View style={[styles.td, styles.dueCell]}>
+                    <DueMark due={row.due} reason={row.dueReason} colors={colors} />
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -124,20 +172,29 @@ export default function EconomyDesk({
             <Fact label="Telefon" value={customer.phone} colors={colors} />
           </View>
         </View>
+      ) : project ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.label, { color: colors.muted }]}>Prosjekt</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>{project.name || project.title}</Text>
+          <Text style={{ color: colors.muted }}>
+            {related.length ? 'Velg avtalen som skal indeksreguleres.' : 'Ingen avtaler er knyttet til prosjektet ennå.'}
+          </Text>
+        </View>
       ) : focused ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.muted }}>Avtalen har ingen kunde i registeret ennå. Du kan likevel velge den.</Text>
         </View>
       ) : null}
 
-      {customer || focused ? (
+      {customer || project || focused ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={[styles.h, { color: colors.ink }]}>Velg avtale</Text>
           {!related.length && !focused ? (
-            <Text style={{ color: colors.muted }}>Ingen avtaler er knyttet til kunden ennå.</Text>
+            <Text style={{ color: colors.muted }}>Ingen avtaler er knyttet til valget ennå.</Text>
           ) : null}
           {(related.length ? related : focused ? [focused] : []).map((row) => {
             const on = row.id === focusedId;
+            const due = !!dueById?.[row.id]?.due;
             return (
               <TouchableOpacity
                 key={row.id}
@@ -145,7 +202,10 @@ export default function EconomyDesk({
                 accessibilityRole="button"
                 style={[styles.pick, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.bg }]}
               >
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.title || 'Avtale uten navn'}</Text>
+                <View style={styles.pickHead}>
+                  <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>{row.title || 'Avtale uten navn'}</Text>
+                  <DueMark due={due} reason={dueById?.[row.id]?.reason} colors={colors} />
+                </View>
                 <Text style={{ color: colors.muted }}>
                   {[kindLabel(row.kind), [row.start, row.end].filter(Boolean).join(' – '), row.value ? formatNok(row.value) : '']
                     .filter(Boolean)
@@ -176,6 +236,9 @@ export default function EconomyDesk({
           <Text style={{ color: colors.muted }}>
             {[chosen.buyer, kindLabel(chosen.kind)].filter(Boolean).join(' · ')}
           </Text>
+          {dueById?.[chosen.id]?.due ? (
+            <DueMark due reason={dueById[chosen.id].reason} colors={colors} />
+          ) : null}
           <TouchableOpacity
             nativeID="economy-open-index"
             onPress={() => onOpenIndex?.(chosen)}
@@ -196,15 +259,18 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   tableWrap: { borderWidth: 1, borderRadius: 12 },
-  tr: { flexDirection: 'row', minWidth: 720, borderBottomWidth: 1, paddingVertical: 10, paddingHorizontal: 8 },
+  tr: { flexDirection: 'row', minWidth: 820, borderBottomWidth: 1, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
   head: { paddingVertical: 8 },
-  th: { width: 180, fontSize: 12 },
-  td: { width: 180, fontSize: 14, paddingRight: 8 },
+  th: { width: 160, fontSize: 12 },
+  td: { width: 160, fontSize: 14, paddingRight: 8 },
+  dueCell: { width: 120 },
+  due: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   fact: { minWidth: 160, flexGrow: 1, gap: 2 },
   label: { fontSize: 12 },
   value: { fontSize: 15 },
   pick: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
+  pickHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

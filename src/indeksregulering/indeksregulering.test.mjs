@@ -7,7 +7,7 @@ import { interpretContract, interpretDocuments, mergeInterpretation } from './in
 import { buildLetter, formatMoney } from './letter.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
 import { fetchAllIndices, parseSsbCsv } from './ssb.js';
-import { dueRegulations, indexNews, shouldCheckToday } from './watch.js';
+import { dueRegulations, dueByContractId, indexNews, regulationStatus, shouldCheckToday } from './watch.js';
 import { agreementSheet, firstRegulationDate } from './summary.js';
 
 const AVTALE = `
@@ -353,6 +353,38 @@ test('varsler når SSB publiserer ny indeks', () => {
   });
   assert.equal(due[0].title, 'Skole');
   assert.equal(due[0].period, '2026M08');
+
+  const never = regulationStatus({
+    draft: { indexId: 'bki-boligblokk', title: 'Kai', terms: { frequency: 'month' } },
+    regulatedPeriod: '',
+    series: { 'bki-boligblokk': { latest: { period: '2026M08', value: 154.4 } } },
+    today: '2026-09-01',
+  });
+  assert.equal(never.due, true);
+  assert.match(never.reason, /ikke indeksregulert/);
+
+  const locked = regulationStatus({
+    draft: {
+      indexId: 'bki-boligblokk',
+      firstRegulationDate: '2027-01-01',
+      terms: { frequency: 'year' },
+    },
+    regulatedPeriod: '',
+    series: { 'bki-boligblokk': { latest: { period: '2026M08', value: 154.4 } } },
+    today: '2026-09-01',
+  });
+  assert.equal(locked.due, false);
+  assert.equal(locked.allowed, false);
+  assert.match(locked.reason, /bundet/);
+
+  const byContract = dueByContractId([{
+    id: 'c1',
+    title: 'Kai',
+    indexDraft: { indexId: 'bki-boligblokk', terms: { frequency: 'month' } },
+  }], [], {
+    'bki-boligblokk': { latest: { period: '2026M08', value: 154.4 } },
+  }, '2026-09-01');
+  assert.equal(byContract.c1.due, true);
 });
 
 test('fremsiden samler avtalefeltene', () => {
@@ -373,6 +405,16 @@ Skal indeksreguleres etter NS 3405.
   assert.deepEqual(draft.terms.variables, []);
   assert.equal(firstRegulationDate(draft), '2024-05-01');
   assert.equal(firstRegulationDate({ ...draft, firstRegulationDate: '' }), '2024-04-01');
+  const lockedDraft = interpretContract(`
+NS 8407
+Oppstart: 01.03.2024
+Kontraktssum: 1 000 000
+Indeks: boligblokk
+Skal indeksreguleres.
+Bindingstid første året uten indeksregulering.
+  `);
+  assert.equal(lockedDraft.firstRegulationDate, '2025-03-01');
+  assert.ok(lockedDraft.findings.some((line) => /bundet første året/i.test(line)));
   const result = calculate({ ...draft, regulationDate: '2026-08-15', vatPercent: '0' }, {
     'bki-boligblokk': monthSeries({ '2024M03': 139, '2026M08': 154.4 }),
   });

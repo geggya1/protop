@@ -148,7 +148,14 @@ function freshDraft(project, supplier) {
   });
 }
 
-export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
+export default function IndeksreguleringPanel({
+  project,
+  onBook,
+  seedDraft,
+  seedCaseId = '',
+  contractId = '',
+  onSaved,
+}) {
   const colors = useColors();
   const { family, activeProfile, shellIntent, clearShellIntent } = useApp();
   const [draft, setDraft] = useState(() => (
@@ -159,7 +166,8 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
   const bundleRef = useRef(null);
   const fetchLock = useRef(null);
   const [cases, setCases] = useState([]);
-  const [caseId, setCaseId] = useState('');
+  const [caseId, setCaseId] = useState(seedCaseId || '');
+  const [linkedContractId, setLinkedContractId] = useState(contractId || '');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -197,6 +205,7 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
         || (incoming.documents || []).map((doc) => doc.text).filter(Boolean).join('\n\n'),
       );
       setCaseId(shellIntent.caseId || '');
+      setLinkedContractId(shellIntent.contractId || contractId || '');
       setStatus('Avtalen er hentet fra kontraktsoppfølgingen. Kontroller feltene før reguleringen.');
       setPage('forside');
       setError('');
@@ -464,22 +473,28 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
       setError(live?.error || 'Kravet er ikke klart til å lagres.');
       return;
     }
-    const id = caseId || `ir-${Date.now()}`;
+    const id = caseId || (linkedContractId ? `ir-${linkedContractId}` : `ir-${Date.now()}`);
+    const letterPlain = letter?.plain || '';
     const row = {
       id,
       projectId: project?.id || '',
+      contractId: linkedContractId || '',
       savedAt: new Date().toISOString(),
       title: draft.title || 'Indeksregulering',
       reference: draft.reference || '',
       addition: live.addition,
       regulatedPeriod: live.regulationPoint?.period || '',
+      letterPlain,
       draft: { ...draft, sourceText },
     };
     const next = [row, ...cases.filter((item) => item.id !== id)].slice(0, 40);
     setCaseId(id);
     setCases(next);
     await saveCases(next);
-    setStatus('Beregningen er lagret på denne enheten.');
+    onSaved?.(row);
+    setStatus(project?.id
+      ? 'Beregningen og brevet er lagret under prosjektet.'
+      : 'Beregningen er lagret. Knytt avtalen til et prosjekt for arkiv under prosjektet.');
   }
 
   async function removeCase(id) {
@@ -491,10 +506,11 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
 
   function openCase(row) {
     setCaseId(row.id);
+    setLinkedContractId(row.contractId || linkedContractId);
     setDraft(row.draft);
     setSourceText(row.draft?.sourceText || '');
-    setStatus('Lagret avtale er åpnet.');
-    setPage('forside');
+    setStatus(row.letterPlain ? 'Lagret regulering med brev er åpnet.' : 'Lagret avtale er åpnet.');
+    setPage(row.letterPlain ? 'brev' : 'forside');
     setError('');
   }
 
@@ -1072,14 +1088,23 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
 
       {page === 'brev' && letter?.notice ? <NoticeView notice={letter.notice} colors={colors} /> : null}
 
-      {page === 'forside' && cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).length ? (
-        <Text style={[styles.h2, { color: colors.ink }]}>Lagrede avtaler</Text>
+      {page === 'forside' && cases.filter((row) => (
+        (!project?.id || row.projectId === project.id || !row.projectId)
+        || (linkedContractId && row.contractId === linkedContractId)
+      )).length ? (
+        <Text style={[styles.h2, { color: colors.ink }]}>Lagrede reguleringer</Text>
       ) : null}
-      {page === 'forside' ? cases.filter((row) => !project?.id || row.projectId === project.id || !row.projectId).map((row) => (
+      {page === 'forside' ? cases.filter((row) => (
+        (!project?.id || row.projectId === project.id || !row.projectId)
+        || (linkedContractId && row.contractId === linkedContractId)
+      )).map((row) => (
         <View key={row.id} style={[styles.card, { borderColor: row.id === caseId ? colors.brand : colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>{row.title || 'Indeksregulering'}</Text>
           <Text style={{ color: colors.muted }}>
-            {String(row.savedAt || '').slice(0, 10)} · tillegg {formatMoney(row.addition)} kr
+            {String(row.savedAt || '').slice(0, 10)}
+            {row.regulatedPeriod ? ` · ${row.regulatedPeriod}` : ''}
+            {' · '}tillegg {formatMoney(row.addition)} kr
+            {row.letterPlain ? ' · brev lagret' : ''}
           </Text>
           <View style={styles.rowWrap}>
             <Btn label="Åpne" tone="quiet" colors={colors} onPress={() => openCase(row)} />

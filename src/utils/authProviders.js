@@ -8,7 +8,8 @@ import {
   signInWithCredential,
 } from 'firebase/auth';
 import { auth, firebaseConfig } from '../../firebase';
-import { isCalendarOauthReturn } from './calendarOAuthCapture';
+import { isLocalWebHost } from './webBuildRefresh';
+import { shouldUseFirebasePopupForGoogle } from './googleLocalAuth';
 
 /**
  * ProTop web client (protop-c189c). Google only accepts JavaScript origins and
@@ -165,7 +166,12 @@ export function mapAuthError(err) {
 export function socialErrorMessage(t, err, provider) {
   const key = mapAuthError(err);
   if (key === 'cancelled') return null;
-  if (key === 'origin-mismatch') return t('auth.originMismatch');
+  if (key === 'origin-mismatch') {
+    if (typeof window !== 'undefined' && isLocalWebHost(window.location.hostname)) {
+      return t('auth.originMismatchLocal');
+    }
+    return t('auth.originMismatch');
+  }
   if (key === 'apple-unavailable') return t('auth.appleUnavailable');
   if (key === 'popup-blocked') return t('auth.popupBlocked');
   if (key === 'redirect-failed') {
@@ -390,6 +396,11 @@ export async function signInWithGoogle() {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   if (Platform.OS === 'web') {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    // Local Metro: skip GIS (origin_mismatch on localhost:8081). Live Google is unchanged.
+    if (shouldUseFirebasePopupForGoogle({ isWeb: true, hostname })) {
+      return signInWithProviderFirebase(provider, { allowRedirect: false });
+    }
     // Mobile Safari: GIS popup often completes without a token — use Firebase redirect.
     if (prefersRedirectAuth()) {
       return signInWithProviderFirebase(provider);

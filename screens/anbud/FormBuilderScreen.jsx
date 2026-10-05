@@ -220,7 +220,7 @@ export default function FormBuilderScreen({
     <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
       <Text style={[styles.h, { color: colors.ink }]}>Mine skjemaer</Text>
       <Text style={{ color: colors.muted }}>
-        Bygg spørsmålene slik de skal fylles ut. AI-scan og import lager en mal fra bilde, PDF, Word eller tekst.
+        Siden er en A4-mal. Ferdige moduler ligger i menyen til høyre, og AI-scan og import lager en mal fra bilde, PDF, Word eller tekst.
       </Text>
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={{ color: colors.ink, fontWeight: '600' }}>Lag mal fra dokument</Text>

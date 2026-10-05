@@ -346,6 +346,131 @@ export function insertField(fields, index, kind) {
   return rows.slice(0, MAX_FIELDS);
 }
 
+const MODULE_BLOCKS = [
+  {
+    id: 'brevhode',
+    group: 'Ferdige moduler',
+    label: 'Brevhode',
+    hint: 'Logo, firmanavn og dato',
+    fields: [
+      { kind: 'image', label: 'Logo' },
+      { kind: 'text', label: 'Firmanavn' },
+      { kind: 'date', label: 'Dato' },
+    ],
+  },
+  {
+    id: 'mottaker',
+    group: 'Ferdige moduler',
+    label: 'Mottaker',
+    hint: 'Navn og adresse',
+    fields: [
+      { kind: 'text', label: 'Mottaker' },
+      { kind: 'long', label: 'Adresse' },
+    ],
+  },
+  {
+    id: 'oppdragsgiver',
+    group: 'Ferdige moduler',
+    label: 'Oppdragsgiver',
+    hint: 'Firma, org.nr og adresse',
+    fields: [
+      { kind: 'text', label: 'Oppdragsgiver' },
+      { kind: 'text', label: 'Organisasjonsnummer' },
+      { kind: 'text', label: 'Adresse' },
+    ],
+  },
+  {
+    id: 'kontakt',
+    group: 'Ferdige moduler',
+    label: 'Kontakt',
+    hint: 'Navn, e-post og telefon',
+    fields: [
+      { kind: 'text', label: 'Navn' },
+      { kind: 'text', label: 'E-post' },
+      { kind: 'text', label: 'Telefon' },
+    ],
+  },
+  {
+    id: 'befaring',
+    group: 'Ferdige moduler',
+    label: 'Befaring',
+    hint: 'Tid, sted, tilstand og bilde',
+    fields: [
+      { kind: 'date', label: 'Dato' },
+      { kind: 'time', label: 'Tidspunkt' },
+      { kind: 'text', label: 'Adresse' },
+      { kind: 'choice', label: 'Tilstand', options: ['God', 'Merknad'] },
+      { kind: 'image', label: 'Bilde' },
+    ],
+  },
+  {
+    id: 'pris',
+    group: 'Ferdige moduler',
+    label: 'Pris',
+    hint: 'Beløp, gyldighet og merknad',
+    fields: [
+      { kind: 'number', label: 'Beløp ekskl. mva' },
+      { kind: 'date', label: 'Gyldig til' },
+      { kind: 'long', label: 'Merknad' },
+    ],
+  },
+  {
+    id: 'sjekkliste',
+    group: 'Ferdige moduler',
+    label: 'Sjekkliste',
+    hint: 'Flere punkter som kan krysses av',
+    fields: [
+      { kind: 'checks', label: 'Sjekkliste', options: ['Punkt 1', 'Punkt 2', 'Punkt 3'] },
+    ],
+  },
+  {
+    id: 'signatur',
+    group: 'Ferdige moduler',
+    label: 'Signatur',
+    hint: 'Sted, dato og navn',
+    fields: [
+      { kind: 'text', label: 'Sted' },
+      { kind: 'date', label: 'Dato' },
+      { kind: 'text', label: 'Navn' },
+    ],
+  },
+];
+
+export const FORM_MODULES = [
+  ...MODULE_BLOCKS,
+  ...FIELD_TYPES.map((type) => ({
+    id: type.id,
+    group: 'Enkeltfelt',
+    label: type.label,
+    hint: type.hint,
+    fields: [{
+      kind: type.id,
+      label: type.id === 'title' ? 'Ny seksjon' : (type.id === 'choice' ? 'Spørsmål' : type.label),
+    }],
+  })),
+];
+
+export function fieldsForModule(moduleId) {
+  const block = FORM_MODULES.find((row) => row.id === moduleId);
+  if (!block) return [];
+  return block.fields.map((spec) => {
+    const field = blankField(spec.kind);
+    const options = Array.isArray(spec.options)
+      ? spec.options.map((label, index) => ({ id: `${field.id}_${index}`, label }))
+      : field.options;
+    return { ...field, label: spec.label, options };
+  });
+}
+
+export function insertModule(fields, index, moduleId) {
+  const rows = Array.isArray(fields) ? fields.slice() : [];
+  const block = fieldsForModule(moduleId);
+  if (!block.length) return rows;
+  const at = Math.max(0, Math.min(Number(index) || 0, rows.length));
+  rows.splice(at, 0, ...block);
+  return rows.slice(0, MAX_FIELDS);
+}
+
 export function duplicateField(fields, index) {
   const rows = Array.isArray(fields) ? fields.slice() : [];
   const source = rows[index];
@@ -365,6 +490,7 @@ export function applyDrag(fields, payload, index) {
   const raw = String(payload || '');
   const rows = Array.isArray(fields) ? fields : [];
   if (raw.startsWith('kind:')) return insertField(rows, index, raw.slice(5));
+  if (raw.startsWith('module:')) return insertModule(rows, index, raw.slice(7));
   if (raw.startsWith('move:')) {
     const target = index >= rows.length ? rows.length - 1 : index;
     return moveField(rows, Number(raw.slice(5)), target);

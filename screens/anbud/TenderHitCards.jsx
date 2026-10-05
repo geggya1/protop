@@ -3,6 +3,12 @@ import {
   Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { formatMatchLabel, formatWhen } from '../../src/anbud/model';
+import {
+  deadlineInfo,
+  formatNoticeText,
+  officialNoticeUrl,
+  sourceLabel,
+} from '../../src/anbud/noticeText';
 
 function day(value) {
   const raw = String(value || '');
@@ -12,11 +18,7 @@ function day(value) {
 }
 
 function sourceName(row) {
-  return row.source === 'ted' ? 'TED' : 'Doffin';
-}
-
-function soonDeadline(row) {
-  return !!(row.deadline && new Date(row.deadline).getTime() - Date.now() < 14 * 86400000);
+  return sourceLabel(row);
 }
 
 export default function TenderHitCards({
@@ -32,7 +34,6 @@ export default function TenderHitCards({
   onMark,
   renderDecision,
   matchWatch,
-  archiveOn,
   syncing,
   emptyText = '',
 }) {
@@ -127,10 +128,13 @@ export default function TenderHitCards({
       {rows.map((row) => {
         const open = openId === row.id;
         const aktuell = row.decision === 'aktuell';
-        const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv';
-        const soon = soonDeadline(row);
+        const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
+        const deadline = deadlineInfo(row.deadline);
+        const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
         const place = Array.isArray(row.places) ? row.places.filter(Boolean).join(', ') : String(row.places || '');
         const match = formatMatchLabel(row, matchWatch);
+        const body = formatNoticeText(row.dossier?.description || row.description || row.noticeType || '');
+        const url = officialNoticeUrl(row);
         return (
           <View
             key={row.id}
@@ -152,9 +156,10 @@ export default function TenderHitCards({
                   {row.buyer || '—'}
                   <Text style={{ color: colors.muted }}>{` · ${place || '—'}`}</Text>
                 </Text>
-                <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={1}>
-                  <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '600' : '400' }}>
-                    {`Frist ${day(row.deadline)}`}
+                <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
+                  <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '700' : '400' }}>
+                    {deadline.headline}
+                    {deadline.label ? ` · ${deadline.label}` : ''}
                   </Text>
                   {` · `}
                   <Text style={{ color: colors.brand, fontWeight: '600' }}>{sourceName(row)}</Text>
@@ -186,10 +191,22 @@ export default function TenderHitCards({
             </View>
             {open ? (
               <View style={[styles.detail, { borderTopColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>{row.description || row.noticeType || 'Ingen utdrag.'}</Text>
-                <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
-                  <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
-                </TouchableOpacity>
+                <View style={[styles.deadlineBox, {
+                  borderColor: soon ? colors.danger : colors.line,
+                  backgroundColor: soon ? colors.brandSoft : colors.sunken,
+                }]}
+                >
+                  <Text style={{ color: soon ? colors.danger : colors.ink, fontSize: 16, fontWeight: '700' }}>{deadline.headline}</Text>
+                  <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
+                </View>
+                <Text style={{ color: colors.ink, lineHeight: 22 }}>{body || 'Ingen utdrag.'}</Text>
+                {url ? (
+                  <TouchableOpacity onPress={() => Linking.openURL(url)} accessibilityRole="link">
+                    <Text style={{ color: colors.brand }}>Åpne på {sourceName(row)}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={{ color: colors.muted }}>Offisiell kunngjøring mangler lenke.</Text>
+                )}
                 {aktuell && renderDecision ? renderDecision(row) : null}
               </View>
             ) : null}
@@ -198,7 +215,7 @@ export default function TenderHitCards({
       })}
       {!rows.length ? (
         <Text style={{ color: colors.muted, padding: 8 }}>
-          {emptyText || (archiveOn ? 'Arkivet er tomt.' : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.'))}
+          {emptyText || (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}
         </Text>
       ) : null}
     </View>
@@ -230,5 +247,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   detail: { borderTopWidth: 1, paddingTop: 8, gap: 8 },
-  interest: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  deadlineBox: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 2 },
 });

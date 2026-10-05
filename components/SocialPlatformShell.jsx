@@ -90,7 +90,7 @@ export default function SocialPlatformShell({ platformType }) {
   const c = config.theme;
   const nav = useNavigation();
   const route = useRoute();
-  const { familyId, family, uid, selectFamily } = useApp();
+  const { familyId, family, families, uid, selectFamily, members } = useApp();
   const [tab, setTab] = useState(route.params?.module || 'home');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [groupDoc, setGroupDoc] = useState(family);
@@ -140,7 +140,23 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'invite') return <PlatformInviteScreen {...props} />;
     if (tab === 'approvals') return <PlatformApprovalsScreen {...props} />;
     if (tab === 'more' || tab === 'apps') return <PlatformMoreScreen {...props} />;
-    if (tab === 'anbud') return <AnbudScreen company={group} />;
+    if (tab === 'anbud') {
+      const companyUnits = Array.isArray(group?.subUnits) ? group.subUnits : (Array.isArray(family?.company?.subUnits) ? family.company.subUnits : []);
+      const relatedCompanies = (families || [])
+        .filter((row) => row?.id && row.id !== familyId)
+        .map((row) => ({
+          id: row.id,
+          name: row.company?.navn || row.name || 'Selskap',
+        }));
+      return (
+        <AnbudScreen
+          company={group}
+          members={members}
+          units={companyUnits}
+          companies={relatedCompanies}
+        />
+      );
+    }
     if (tab === 'kunder') return <CustomersScreen />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
@@ -163,7 +179,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'announcements') return <PlatformAnnouncementsScreen {...props} />;
     if (tab === 'tasks') return <PlatformTasksScreen {...props} />;
     return <PlatformHomeScreen {...props} />;
-  }, [tab, familyId, group?.id, group?.name, group?.joinCode, config, platformType]);
+  }, [tab, familyId, group?.id, group?.name, group?.joinCode, group?.subUnits, family?.company?.subUnits, families, members, config, platformType]);
 
   const addPress = () => {
     if (!familyId || !isAdmin) return undefined;

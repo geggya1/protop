@@ -37,9 +37,9 @@ assert.match(script, /functions:listMyFriends/);
 assert.match(script, /indeksIndex\.js/);
 assert.match(script, /functions:interpretIndeksAvtale/);
 assert.match(script, /return 0/);
-assert.match(script, /WEEKPLAN_GEMINI_KEY/);
+assert.match(script, /PROTOP_GEMINI_KEY/);
 assert.match(workflow, /scripts\/deploy-slim-functions\.sh/);
-assert.match(workflow, /secrets\.WEEKPLAN_GEMINI_KEY/);
+assert.match(workflow, /secrets\.PROTOP_GEMINI_KEY/);
 
 const deployed = readFileSync(join(__dirname, 'anbud/formBuilder.js'), 'utf8');
 const source = readFileSync(join(__dirname, '../src/anbud/formBuilder.js'), 'utf8');

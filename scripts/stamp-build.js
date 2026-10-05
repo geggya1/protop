@@ -65,6 +65,7 @@ const iconTags = [
   `  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png?v=${v}" />`,
   `  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${v}" />`,
   `  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=${v}" />`,
+  `  <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png?v=${v}" />`,
   `  <link rel="manifest" href="/manifest.webmanifest" />`,
 ];
 

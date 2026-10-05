@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { bidOverview, bidStatusCounts, normalizeBidWork } from '../../src/anbud/bidLibrary';
 import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
+import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
@@ -15,7 +16,10 @@ const FILTERS = [
   ['avsluttet', 'Avsluttet'],
 ];
 
-export default function BidDesk({ company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot }) {
+export default function BidDesk({
+  company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot,
+  members = [], units = [], companies = [],
+}) {
   const [state, setState] = useState(null);
   const [openId, setOpenId] = useState('');
   const [filter, setFilter] = useState('alle');
@@ -105,6 +109,9 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
         colors={colors}
         busy={busyId === openBid.id}
         note={note}
+        members={members}
+        units={units}
+        companies={companies}
         onBack={() => { setOpenId(''); setNote(''); }}
         onCommit={commit}
         onRefresh={() => refreshFiles(openBid)}
@@ -139,20 +146,26 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {visible.map((bid) => {
         const overview = bidOverview(bid);
+        const deadline = deadlineInfo(overview.deadline);
+        const urgent = deadline.tone === 'danger' || deadline.tone === 'warn';
         return (
           <TouchableOpacity
             key={bid.id}
             onPress={() => setOpenId(bid.id)}
             accessibilityRole="button"
             accessibilityLabel={`Åpne tilbud ${bid.title}`}
-            style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
+            style={[styles.card, { borderColor: urgent ? colors.danger : colors.line, backgroundColor: colors.card }]}
           >
+            <Text style={{ color: urgent ? colors.danger : colors.brand, fontWeight: '700', fontSize: urgent ? 18 : 14 }}>
+              {deadline.headline}
+            </Text>
+            <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
             <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[overview.stage] || 'Planlegging'}</Text>
             <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
             <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
             <Text style={{ color: colors.muted }}>
-              {overview.deadline ? `Frist ${overview.deadline}` : 'Frist ikke oppgitt'}
-              {` · ${overview.downloaded} dokumenter lastet`}
+              {overview.assignee ? `Tildelt ${overview.assignee} · ` : ''}
+              {`${overview.downloaded} dokumenter lastet`}
               {` · ${overview.qa} spørsmål`}
               {overview.forms ? ` · ${overview.doneForms}/${overview.forms} skjema ferdig` : ''}
             </Text>

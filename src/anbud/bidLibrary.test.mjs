@@ -15,6 +15,7 @@ import {
   saveFormTemplate,
   setFormStatus,
   setFormValue,
+  updateBidAssignment,
 } from './bidLibrary.js';
 import {
   createBidWork,
@@ -113,6 +114,18 @@ const overview = bidOverview(worked.bids[0]);
 assert.equal(overview.doneForms, 1);
 assert.ok(overview.documents >= 1);
 assert.equal(bidStatusCounts(worked.bids).planlegging, 1);
+
+const assigned = updateBidAssignment(worked, bidId, {
+  personId: 'u1',
+  personName: 'Kari Nord',
+  unitId: 'd1',
+  unitName: 'Anbud',
+  unitKind: 'avdeling',
+});
+assert.equal(assigned.ok, true);
+assert.equal(assigned.state.bids[0].assignment.personName, 'Kari Nord');
+assert.equal(bidOverview(assigned.state.bids[0]).assignee, 'Kari Nord');
+assert.equal(normalizeBidWork(assigned.state.bids[0]).assignment.unitName, 'Anbud');
 
 const restored = normalizeAnbudState({
   notices: [{ id: '2026-1', decision: 'aktuell', consideration: { strategy: { fag: true } } }],

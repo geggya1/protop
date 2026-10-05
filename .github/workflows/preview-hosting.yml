@@ -42,8 +42,13 @@ jobs:
           import { readFileSync } from 'node:fs';
           const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
           const keys = Object.keys(cfg);
-          if (keys.length !== 1 || keys[0] !== 'hosting') {
-            console.error('firebase.json may only contain hosting');
+          const extra = keys.filter((k) => k !== 'hosting' && k !== 'emulators');
+          if (extra.length) {
+            console.error('firebase.json may only contain hosting and emulators, found:', extra.join(','));
+            process.exit(1);
+          }
+          if (!cfg.hosting) {
+            console.error('firebase.json must contain hosting');
             process.exit(1);
           }
           if (cfg.hosting.site !== 'protop-c189c') {

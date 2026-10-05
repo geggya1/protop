@@ -65,6 +65,7 @@ assert.match(preview, /branches-ignore:/);
 assert.match(preview, /- main/);
 assert.match(preview, /- offentlig/);
 assert.match(preview, /ci-deploy-slim-functions\.sh/);
+assert.match(preview, /hosting and emulators/);
 assert.doesNotMatch(preview, /npx firebase deploy --only hosting/);
 assert.match(slimFn, /functions:interpretAvtaleHttp/);
 assert.match(slimFn, /functions:friendListHttp/);

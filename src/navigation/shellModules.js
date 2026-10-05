@@ -36,6 +36,7 @@ export function anbudMenuTitle(subView) {
  */
 export function companyNavItems() {
   return [
+    { id: 'selskap', icon: 'briefcase', label: 'Selskap', action: { type: 'tab', tab: 'selskap' } },
     {
       id: 'anbud',
       icon: 'megaphone',

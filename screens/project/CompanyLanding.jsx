@@ -19,6 +19,7 @@ import {
   weatherQuery,
 } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
+import { departmentsOf, normalizeSubUnits, underenheterOf } from '../../src/project/companyUnits';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -183,6 +184,9 @@ export default function CompanyLanding({
   const registers = registerRows(profile);
   const roles = live?.roles || [];
   const units = live?.units || [];
+  const registered = normalizeSubUnits(stored?.subUnits);
+  const registeredUnits = underenheterOf(registered);
+  const departments = departmentsOf(registered);
   const accounts = live?.accounts || null;
   const accountView = useMemo(
     () => mergeAccountYears(accounts, history || []),
@@ -288,18 +292,8 @@ export default function CompanyLanding({
   return (
     <View style={styles.page}>
       <View style={styles.hero}>
-        {logo?.dataUrl ? (
-          <View style={[styles.logoPlate, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Image
-              source={{ uri: logo.dataUrl }}
-              style={styles.companyLogo}
-              resizeMode="contain"
-              accessibilityLabel={`Logo for ${profile?.navn || 'bedriften'}`}
-            />
-          </View>
-        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
+          <Text style={[styles.kicker, { color: colors.muted }]}>Selskap</Text>
           <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
           <View style={styles.heroSub}>
             <Text style={[styles.heroMeta, { color: colors.muted }]}>{dateLabel}</Text>
@@ -310,20 +304,34 @@ export default function CompanyLanding({
               </View>
             ) : null}
           </View>
+          <View style={styles.heroActions}>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.brand }]} onPress={onProjects}>
+              <Ionicons name="construct-outline" size={15} color="#fff" />
+              <Text style={styles.primaryTxt}>Prosjekt</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onSettings}
+              accessibilityLabel="Innstillinger for bedriften"
+              style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+            >
+              <Ionicons name="pencil" size={16} color={colors.ink} />
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.heroActions}>
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.brand }]} onPress={onProjects}>
-            <Ionicons name="construct-outline" size={15} color="#fff" />
-            <Text style={styles.primaryTxt}>Prosjekt</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onSettings}
-            accessibilityLabel="Innstillinger for bedriften"
-            style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+        {logo?.dataUrl ? (
+          <View
+            style={[styles.logoPlate, { backgroundColor: colors.card, borderColor: colors.line }]}
+            nativeID="company-landing-logo"
+            id="company-landing-logo"
           >
-            <Ionicons name="pencil" size={16} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
+            <Image
+              source={{ uri: logo.dataUrl }}
+              style={styles.companyLogo}
+              resizeMode="contain"
+              accessibilityLabel={`Logo for ${profile?.navn || 'bedriften'}`}
+            />
+          </View>
+        ) : null}
       </View>
 
       {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
@@ -485,9 +493,41 @@ export default function CompanyLanding({
             </Card>
           ) : null}
 
+          <Card colors={colors}>
+            <SectionTitle colors={colors} action="Innstillinger" onAction={onSettings}>Underenheter og avdelinger</SectionTitle>
+            <Text style={[styles.mutedLine, { color: colors.muted }]}>
+              Underenheter har eget abonnement. Avdelinger uten org.nr. ligger på dette selskapet.
+            </Text>
+            {registeredUnits.map((row) => (
+              <View key={row.id} style={styles.listRow}>
+                <Ionicons name="git-network-outline" size={16} color={colors.brand} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {[row.organisasjonsnummer, 'Eget abonnement'].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            {departments.map((row) => (
+              <View key={row.id} style={styles.listRow}>
+                <Ionicons name="people-outline" size={16} color={colors.brand} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {['Avdeling', row.note].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            {!registered.length ? (
+              <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen underenheter eller avdelinger er registrert ennå.</Text>
+            ) : null}
+          </Card>
+
           {units.length ? (
             <Card colors={colors}>
-              <SectionTitle colors={colors}>Underenheter</SectionTitle>
+              <SectionTitle colors={colors}>Underenheter i Enhetsregisteret</SectionTitle>
               {units.map((row) => (
                 <View key={row.organisasjonsnummer} style={styles.listRow}>
                   <View style={{ flex: 1 }}>
@@ -523,8 +563,11 @@ const webShadow = Platform.OS === 'web'
 
 const styles = StyleSheet.create({
   page: { paddingBottom: 28, gap: 14 },
-  hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  logoPlate: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  logoPlate: {
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
+    alignSelf: 'flex-start', marginLeft: 'auto',
+  },
   companyLogo: { width: 148, height: 56 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
   hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4 },
@@ -535,7 +578,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
   },
   pillTxt: { fontSize: 12, fontWeight: '400' },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10 },
   primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   penBtn: {

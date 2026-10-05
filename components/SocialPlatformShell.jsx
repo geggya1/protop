@@ -64,6 +64,7 @@ const TITLES = {
   anbud: 'Anbud',
   kontrakt: 'Kontrakt / avtale',
   skjema: 'Skjema',
+  selskap: 'Selskap',
   projects: 'Prosjekt',
 };
 
@@ -141,7 +142,7 @@ export default function SocialPlatformShell({ platformType }) {
         </View>
       );
     }
-    if (tab === 'projects') return <ProjectPlatformScreen />;
+    if (tab === 'projects' || tab === 'selskap') return <ProjectPlatformScreen />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;
     if (tab === 'ministry') return <PlatformMinistryScreen {...props} />;

@@ -34,6 +34,7 @@ export function mergeCompanyProfile(next, previous) {
     telefon: text(next.telefon) || text(previous?.telefon),
     epostadresse: text(next.epostadresse) || text(previous?.epostadresse),
     egneNaeringskoder: Array.isArray(previous?.egneNaeringskoder) ? previous.egneNaeringskoder : [],
+    subUnits: Array.isArray(previous?.subUnits) ? previous.subUnits : [],
     ...(logo ? { logo } : {}),
   };
 }

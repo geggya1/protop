@@ -516,7 +516,9 @@ function AppShellInner() {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
-    if (isOrganizationType(family?.type) && tab === 'home') return <ProjectPlatformScreen />;
+    if (tab === 'selskap' || (isOrganizationType(family?.type) && tab === 'home')) {
+      return <ProjectPlatformScreen />;
+    }
     if (tab === 'more') {
       return (
         <MoreHubScreen

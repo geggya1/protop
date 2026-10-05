@@ -144,6 +144,31 @@ export async function fetchAllIndices({ fetchImpl = fetch, onProgress } = {}) {
   };
 }
 
+/** Henter bare tabellen som hører til én serie. */
+export async function fetchSeriesById(id, fetchImpl = fetch) {
+  const meta = seriesById(id);
+  if (!meta) throw new Error('Ukjent indeksserie.');
+  const spec = SSB_FETCHES.find((row) => row.table === meta.table);
+  if (!spec) throw new Error(`Ingen SSB-henting for tabell ${meta.table}.`);
+  const rows = await fetchTable(spec, fetchImpl);
+  const row = meta.codes.length
+    ? rows.find((candidate) => sameCodes(candidate.codes, meta.codes))
+    : rows[0];
+  if (!row) throw new Error(`SSB-tabell ${meta.table} har ikke serien ${meta.name}.`);
+  const points = pointsFromValues(row.values);
+  return {
+    fetchedAt: new Date().toISOString(),
+    series: {
+      [id]: {
+        ...meta,
+        points,
+        latest: latestPoint(points),
+      },
+    },
+    errors: [],
+  };
+}
+
 export function seriesReady(bundle, id) {
   const row = bundle?.series?.[id];
   return !!(row && row.points?.length);

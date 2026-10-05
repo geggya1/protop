@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
-import { kindLabel } from '../../src/anbud/agreementTemplate';
+import { coverFromRecord, coverGroups, kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatOrgnr, maskPersonnummer } from '../../src/anbud/customers';
 import { formatNok } from '../../src/anbud/model';
 import {
@@ -231,11 +231,30 @@ export default function EconomyDesk({
 
       {chosen ? (
         <View nativeID="economy-index-choice" id="economy-index-choice" style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
-          <Text style={[styles.h, { color: colors.ink }]}>Indeksregulering</Text>
-          <Text style={{ color: colors.ink }}>{chosen.title}</Text>
+          <Text style={[styles.h, { color: colors.ink }]}>Valgt avtale</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>{chosen.title || 'Avtale'}</Text>
           <Text style={{ color: colors.muted }}>
             {[chosen.buyer, kindLabel(chosen.kind)].filter(Boolean).join(' · ')}
           </Text>
+          {coverGroups(coverFromRecord(chosen)).map((group) => {
+            const rows = group.rows.filter((row) => row.value);
+            if (!rows.length) return null;
+            return (
+              <View key={group.id} style={{ gap: 8 }}>
+                <Text style={[styles.label, { color: colors.muted }]}>{group.title}</Text>
+                <View style={styles.grid}>
+                  {rows.map((row) => (
+                    <Fact
+                      key={row.key}
+                      label={row.label}
+                      value={row.key === 'value' ? formatNok(row.value) : row.value}
+                      colors={colors}
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })}
           {dueById?.[chosen.id]?.due ? (
             <DueMark due reason={dueById[chosen.id].reason} colors={colors} />
           ) : null}
@@ -245,7 +264,7 @@ export default function EconomyDesk({
             accessibilityRole="button"
             style={[styles.btn, { backgroundColor: colors.brand }]}
           >
-            <Text style={{ color: '#fff' }}>Åpne indeksregulering av denne avtalen</Text>
+            <Text style={{ color: '#fff' }}>Indeksregulering av denne avtalen</Text>
           </TouchableOpacity>
         </View>
       ) : null}

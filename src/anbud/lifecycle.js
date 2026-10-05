@@ -280,8 +280,9 @@ function normalizeDocuments(input) {
       mimeType: text(row?.mimeType).slice(0, 120),
       interpreted: row?.interpreted === true || !!body,
       dataUrl: stored,
-      url: text(row?.url).slice(0, 500),
-      uri: text(row?.uri).slice(0, 500),
+      url: text(row?.url).slice(0, 2000),
+      uri: text(row?.uri).slice(0, 2000),
+      storagePath: text(row?.storagePath).slice(0, 500),
       size: Number(row?.size) || 0,
     };
   }).filter((row) => row.name).slice(0, 40);
@@ -837,6 +838,40 @@ export function setContractOptions(state, contractId, options) {
   if (!contract) return fail(state, 'Kontrakten finnes ikke.');
   if (contract.status === 'avsluttet') return fail(state, 'Kontrakten er avsluttet.');
   return ok(replaceContract(state, contractId, { ...contract, options: normalizeOptions(options) }));
+}
+
+/** Knytter originalfil (PDF-URL) til et eksisterende avtaledokument, uten å slette OCR-tekst. */
+export function attachContractDocumentFile(state, contractId, documentId, file) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  const docs = Array.isArray(contract.documents) ? contract.documents : [];
+  const current = docs.find((row) => row.id === documentId);
+  if (!current) return fail(state, 'Dokumentet finnes ikke.');
+  const url = text(file?.url);
+  if (!url) return fail(state, 'Mangler fil-URL.');
+  const nextDocs = docs.map((row) => (
+    row.id === documentId
+      ? {
+        ...row,
+        name: text(file?.name) || row.name,
+        mimeType: text(file?.mimeType) || row.mimeType || 'application/pdf',
+        url,
+        storagePath: text(file?.storagePath) || row.storagePath || '',
+        size: Number(file?.size) || row.size || 0,
+        dataUrl: '',
+        uri: '',
+      }
+      : row
+  ));
+  return ok(record(replaceContract(state, contractId, {
+    ...contract,
+    documents: normalizeDocuments(nextDocs),
+  }), {
+    bidId: contract.bidId,
+    contractId,
+    action: 'avtale-dokument-fil',
+    detail: text(file?.name) || current.name,
+  }));
 }
 
 export function exerciseOption(state, contractId, optionId, exercised = true) {

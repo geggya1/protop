@@ -1,11 +1,20 @@
 import { Linking, Platform } from 'react-native';
+import {
+  documentFileHref,
+  documentHasOriginalFile,
+  documentIsOpenable,
+  documentLooksBinary,
+} from './documentAccess.js';
 
-export function documentIsOpenable(doc) {
-  return !!(doc?.dataUrl || doc?.url || doc?.uri || String(doc?.text || '').trim());
-}
+export {
+  documentFileHref,
+  documentHasOriginalFile,
+  documentIsOpenable,
+  documentLooksBinary,
+};
 
 export function openAgreementDocument(doc) {
-  const href = doc?.dataUrl || doc?.url || doc?.uri || '';
+  const href = documentFileHref(doc);
   if (href) {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.open(href, '_blank', 'noopener,noreferrer');
@@ -14,6 +23,8 @@ export function openAgreementDocument(doc) {
     Linking.openURL(href).catch(() => {});
     return true;
   }
+  // Binære avtalefiler uten original: ikke åpne ekstrahert tekst som «PDF».
+  if (documentLooksBinary(doc)) return false;
   if (doc?.text && Platform.OS === 'web' && typeof window !== 'undefined') {
     const blob = new Blob([doc.text], { type: 'text/plain;charset=utf-8' });
     window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer');

@@ -17,7 +17,8 @@ import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
 import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople } from '../../src/anbud/customers';
 import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
 import { agreementSummary, emailLooksLikeSupplier, indexLabel, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
-import { documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
+import { uploadAgreementFile } from '../../src/anbud/contractFiles';
+import { documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from './OwnerPicker';
@@ -191,6 +192,7 @@ function Drawer({ colors, title, open, onToggle, badge, children }) {
 
 export default function DirectAgreementForm({
   colors,
+  companyId = '',
   projects = [],
   contracts = [],
   customers = [],
@@ -317,7 +319,37 @@ export default function DirectAgreementForm({
     setError('');
   }
 
-  async function applyRemote(file, bytes, existing, note, attached = {}) {
+  async function storeOriginal(file, attached = {}) {
+    if (!companyId) return { url: '', storagePath: '', size: attached.size || file.size || 0 };
+    setStatus('Lagrer originalfil…');
+    await yieldUi();
+    const uploaded = await uploadAgreementFile(companyId, {
+      blob: file.blob || attached.blob || null,
+      uri: attached.uri || file.uri || '',
+      name: attached.name || file.name || 'Avtale.pdf',
+      mimeType: attached.mimeType || file.mimeType || 'application/pdf',
+      size: attached.size || file.size || 0,
+    });
+    return uploaded;
+  }
+
+  function documentRow(existing, attached, file, text, original = {}) {
+    return {
+      id: `dok-${Date.now()}-${existing.length}`,
+      name: attached.name || file.name || 'Avtale',
+      text,
+      role: existing.length ? 'vedlegg' : 'hoved',
+      mimeType: attached.mimeType || file.mimeType || 'application/pdf',
+      interpreted: String(text || '').trim().length >= 20,
+      dataUrl: original.url ? '' : (attached.dataUrl || ''),
+      url: original.url || '',
+      storagePath: original.storagePath || '',
+      uri: original.url ? '' : (attached.uri || file.uri || ''),
+      size: original.size || attached.size || file.size || 0,
+    };
+  }
+
+  async function applyRemote(file, bytes, existing, note, attached = {}, original = {}) {
     const remote = await interpretAvtale({
       fileName: file.name || attached.name || 'Avtale.pdf',
       mimeType: file.mimeType || attached.mimeType || 'application/pdf',
@@ -325,20 +357,7 @@ export default function DirectAgreementForm({
     });
     if (!remote?.extracted) throw new Error('Kunne ikke lese PDF-en. Lim inn teksten under.');
     const text = String(remote.text || '').trim();
-    const docs = [
-      ...existing,
-      {
-        id: `dok-${Date.now()}`,
-        name: attached.name || file.name || 'Avtale',
-        text,
-        role: existing.length ? 'vedlegg' : 'hoved',
-        mimeType: attached.mimeType || file.mimeType || 'application/pdf',
-        interpreted: text.length >= 20,
-        dataUrl: attached.dataUrl || '',
-        uri: attached.uri || file.uri || '',
-        size: attached.size || 0,
-      },
-    ];
+    const docs = [...existing, documentRow(existing, attached, file, text, original)];
     const merged = mergeInterpretation(null, remote.extracted, text);
     const next = inputFromInterpretation(merged, { documents: docs });
     setPayload(next);
@@ -363,6 +382,15 @@ export default function DirectAgreementForm({
         dataUrl: '',
         uri: file.uri || '',
       }));
+      let original = { url: '', storagePath: '', size: attached.size || file.size || 0 };
+      try {
+        original = await storeOriginal(file, attached);
+      } catch (cause) {
+        if (!attached.dataUrl) {
+          setError(cause?.message || 'Kunne ikke lagre originalfilen. Prøv på nytt.');
+          return;
+        }
+      }
       let bytes = await bytesFromFile(file);
       const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
       const sendRemote = async (note) => {
@@ -371,7 +399,7 @@ export default function DirectAgreementForm({
           await yieldUi();
           bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
         }
-        await applyRemote(file, bytes, files, note, attached);
+        await applyRemote(file, bytes, files, note, attached, original);
       };
       if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
         await sendRemote('Dokumentet er lest. Kontroller feltene merket med ! før du registrerer.');
@@ -379,20 +407,7 @@ export default function DirectAgreementForm({
       }
       try {
         const text = await extractContractText(bytes, file.name, file.mimeType);
-        const docs = [
-          ...files,
-          {
-            id: `dok-${Date.now()}`,
-            name: attached.name || file.name || 'Avtale',
-            text,
-            role: files.length ? 'vedlegg' : 'hoved',
-            mimeType: attached.mimeType || file.mimeType || '',
-            interpreted: true,
-            dataUrl: attached.dataUrl || '',
-            uri: attached.uri || file.uri || '',
-            size: attached.size || 0,
-          },
-        ];
+        const docs = [...files, documentRow(files, attached, file, text, original)];
         await applyDocs(docs, 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
       } catch {
         setStatus('Leser skannet dokument…');
@@ -588,7 +603,7 @@ export default function DirectAgreementForm({
               style={{ flex: 1 }}
             >
               <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.ink, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
-                {doc.name}{doc.interpreted ? ' · lest' : ''}{doc.dataUrl ? '' : doc.size > 700000 ? ' · for stor til lagring' : ''}
+                {doc.name}{doc.interpreted ? ' · lest' : ''}{documentHasOriginalFile(doc) ? '' : ' · mangler originalfil'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => removeFile(doc.id)} accessibilityRole="button">

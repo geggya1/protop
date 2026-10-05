@@ -244,6 +244,9 @@ assert.match(tenderAlert, /\['uaktuelle', 'Uaktuelle', 'plain'\]/);
 const tenderMap = readFileSync(new URL('../../screens/anbud/TenderMap.jsx', import.meta.url), 'utf8');
 assert.match(tenderMap, /OpenStreetMap/);
 assert.match(tenderMap, /Kartverket/);
+assert.match(tenderMap, /Åpne i listen/);
+assert.match(tenderMap, /Forrige/);
+assert.match(tenderMap, /Neste/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

@@ -333,6 +333,12 @@ export function mapCandidateNotices(notices, expired) {
   });
 }
 
+function dayLabel(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  return `${match[3]}.${match[2]}.${match[1]}`;
+}
+
 export function mapPinsForNotices(notices, { expired } = {}) {
   const rows = mapCandidateNotices(notices, expired);
   const counts = new Map();
@@ -347,6 +353,9 @@ export function mapPinsForNotices(notices, { expired } = {}) {
     pins.push({
       id: row.id,
       title: String(row.title || 'Kunngjøring').slice(0, 120),
+      buyer: String(row.buyer || '').slice(0, 80),
+      deadline: dayLabel(row.deadline),
+      source: row.source === 'ted' ? 'TED' : 'Doffin',
       label: hit.label,
       lat: point.lat,
       lng: point.lng,
@@ -354,6 +363,7 @@ export function mapPinsForNotices(notices, { expired } = {}) {
       kind: (row.decision || 'ubestemt') === 'aktuell' ? 'aktuell' : 'ny',
     });
   }
+  pins.sort((a, b) => b.lat - a.lat || a.lng - b.lng);
   return pins;
 }
 

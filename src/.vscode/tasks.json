@@ -2,6 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Local web (Expo Metro)",
+      "type": "npm",
+      "script": "web",
+      "problemMatcher": []
+    },
+    {
+      "label": "Local hosting preview",
+      "type": "npm",
+      "script": "preview:web",
+      "problemMatcher": []
+    },
+    {
       "label": "Publish to Web (Firebase)",
       "type": "npm",
       "script": "publish:web",

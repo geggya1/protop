@@ -4,7 +4,6 @@ import { Platform } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { Text, View, Pressable } from 'react-native';
 import App from './App';
-import DevHostBanner from './components/DevHostBanner';
 import { bootstrapAppearance } from './src/appearance/applyAppearance';
 
 bootstrapAppearance();
@@ -107,10 +106,7 @@ class RootErrorBoundary extends React.Component {
 function Root() {
   return (
     <RootErrorBoundary>
-      <View style={{ flex: 1 }}>
-        <DevHostBanner />
-        <App />
-      </View>
+      <App />
     </RootErrorBoundary>
   );
 }

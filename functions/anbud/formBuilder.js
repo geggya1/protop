@@ -74,6 +74,7 @@ export function blankSettings() {
     progress: false,
     shuffleQuestions: false,
     anotherResponse: true,
+    useCompanyLogo: false,
     confirmation: 'Svaret er sendt.',
   };
 }
@@ -180,6 +181,7 @@ export function normalizeSettings(raw) {
     progress: !!src.progress,
     shuffleQuestions: !!src.shuffleQuestions,
     anotherResponse: src.anotherResponse !== false,
+    useCompanyLogo: !!src.useCompanyLogo,
     confirmation: text(src.confirmation).slice(0, 280) || base.confirmation,
   };
 }

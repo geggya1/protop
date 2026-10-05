@@ -13,6 +13,7 @@ import { useApp } from '../src/context/AppContext';
 import { useUnread } from '../src/context/NotificationContext';
 import IconBadge from './IconBadge';
 import BrandLogo from './BrandLogo';
+import PlatformSwitch from './PlatformSwitch';
 import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 import { isPersonalShell } from '../src/utils/personalShell';
 import { companyContextLabel } from '../src/project/companyOffer';
@@ -144,6 +145,9 @@ export default function ShellHeader({
               {familyName}
             </Text>
           </View>
+          <View style={styles.switchSlot}>
+            <PlatformSwitch compact />
+          </View>
           <View style={styles.actions}>
             {titleRight ? (
               <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
@@ -253,6 +257,10 @@ export default function ShellHeader({
               />
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.switchRow}>
+          <PlatformSwitch compact />
         </View>
 
         {!chromeOnly ? (
@@ -407,6 +415,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textCol: { minWidth: 0, flexGrow: 0, flexShrink: 1 },
+  switchSlot: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  switchRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
   pageTitleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

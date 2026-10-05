@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Additive Cloud Functions only. Never deploys hosting / live protop.no.
-set -euo pipefail
+# Slim Cloud Function deploys used by Hosting CI.
+# Each target is independent: one missing param must not skip friends/feed.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';
 const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
 writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
+const key = process.env.WEEKPLAN_GEMINI_KEY || '';
+writeFileSync('functions/.env', 'WEEKPLAN_GEMINI_KEY=' + JSON.stringify(key) + '\n');
 "
+
 npm ci --prefix functions
 
 deploy_entry() {
@@ -19,7 +26,12 @@ deploy_entry() {
   pkg.main = process.argv[1];
   writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
   " "$entry"
-  npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive
+  if npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive; then
+    echo "OK $only"
+    return 0
+  fi
+  echo "::warning::Failed to deploy $only"
+  return 0
 }
 
 deploy_entry tenderIndex.js functions:tenderProxy
@@ -28,6 +40,7 @@ deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
 deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 deploy_entry friendListIndex.js functions:friendListHttp
 deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
+deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

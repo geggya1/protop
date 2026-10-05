@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { resolveBuildId } = require('./resolve-build-id');
 
-const ICON_VERSION = '6';
+const ICON_VERSION = '7';
 const PLACEHOLDER_BUILD_ID = '20261005-local-preview';
 
 function upsertHeadTags(html, tags) {
@@ -60,6 +60,7 @@ const iconTags = [
   `  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png?v=${v}" />`,
   `  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${v}" />`,
   `  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=${v}" />`,
+  `  <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png?v=${v}" />`,
   `  <link rel="manifest" href="/manifest.webmanifest" />`,
 ];
 

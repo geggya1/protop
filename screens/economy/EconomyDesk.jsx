@@ -79,7 +79,7 @@ export default function EconomyDesk({
       />
       {!customers.length && !contracts.length ? (
         <Text style={{ color: colors.muted }}>
-          Ingen kunder eller avtaler er registrert ennå. Legg dem inn under Kunder og Kontrakt / avtale.
+          Ingen kunder eller avtaler er registrert ennå. Legg dem inn under Kunder og Avtaler i Økonomi.
         </Text>
       ) : null}
       {rows.length ? (

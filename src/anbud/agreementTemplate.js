@@ -118,13 +118,25 @@ export function coverFromRecord(record = {}) {
   return form;
 }
 
+function hiddenIdentityKey(form) {
+  const org = String(form?.orgnr || '').replace(/\D/g, '').length === 9;
+  const person = String(form?.personnummer || '').replace(/\D/g, '').length === 11;
+  if (person && !org) return 'orgnr';
+  if (org && !person) return 'personnummer';
+  if (!org && !person) return 'personnummer';
+  return '';
+}
+
 export function coverGroups(form) {
+  const hide = hiddenIdentityKey(form);
   return COVER_FIELD_GROUPS.map((group) => ({
     ...group,
-    rows: group.fields.map((field) => ({
-      ...field,
-      value: form?.[field.key] ?? '',
-    })),
+    rows: group.fields
+      .filter((field) => field.key !== hide)
+      .map((field) => ({
+        ...field,
+        value: form?.[field.key] ?? '',
+      })),
   }));
 }
 

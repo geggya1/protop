@@ -10,6 +10,7 @@ import {
 import { auth, firebaseConfig } from '../../firebase';
 import { isLocalWebHost } from './webBuildRefresh';
 import { shouldUseFirebaseGoogleOnLocal } from './googleLocalAuth';
+import { isCalendarOauthReturn } from './calendarOAuthCapture';
 
 /**
  * ProTop web client (protop-c189c). Google only accepts JavaScript origins and

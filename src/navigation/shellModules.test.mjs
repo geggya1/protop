@@ -231,6 +231,10 @@ assert.match(shellSrc, /CompanyUnitsScreen/);
 assert.match(shellSrc, /tab === 'okonomi'/);
 assert.match(shellSrc, /EconomyScreen/);
 assert.match(shellSrc, /ContractScreen/);
+const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
+assert.match(customerScreen, /searchBrregCompanies/);
+assert.match(customerScreen, /parseCustomerFile/);
+assert.match(customerScreen, /identityFieldsForKind/);
 const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
 assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);
 

@@ -14,7 +14,7 @@ export function companyFromBrreg(hit) {
     addressLabel: hit.addressLabel || '',
     hjemmeside: hit.hjemmeside || '',
     epostadresse: hit.epostadresse || '',
-    telefon: '',
+    telefon: hit.telefon || '',
   };
 }
 

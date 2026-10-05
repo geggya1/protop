@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
+  customerDraftFromBrreg,
   filterCustomers,
   formatOrgnr,
+  importCustomers,
   maskPersonnummer,
   matchCustomer,
   normalizeCustomer,
@@ -45,5 +48,54 @@ assert.equal(listed.length, 1);
 
 assert.equal(normalizeCustomer({ id: 'x', name: '' }), null);
 assert.equal(upsertCustomer(emptyAnbudState(), { name: '' }).ok, false);
+
+const personSaved = upsertCustomer(emptyAnbudState(), {
+  name: 'Kari Nordmann',
+  kind: 'person',
+  personnummer: '01017012345',
+  orgnr: '922987106',
+});
+assert.equal(personSaved.ok, true, personSaved.error);
+assert.equal(personSaved.customer.orgnr, '');
+assert.equal(personSaved.customer.personnummer, '01017012345');
+
+const orgSaved = upsertCustomer(emptyAnbudState(), {
+  name: 'Firma AS',
+  kind: 'org',
+  orgnr: '922987106',
+  personnummer: '01017012345',
+});
+assert.equal(orgSaved.customer.personnummer, '');
+assert.equal(orgSaved.customer.orgnr, '922987106');
+
+const fromBrreg = customerDraftFromBrreg({
+  navn: 'BOLIGMAPPA AS',
+  organisasjonsnummer: '998131650',
+  street: 'Dronning Mauds gate 10',
+  postnummer: '0250',
+  poststed: 'OSLO',
+  epostadresse: 'post@boligmappa.no',
+  telefon: '21 00 00 00',
+  organisasjonsform: 'Aksjeselskap',
+});
+assert.equal(fromBrreg.kind, 'org');
+assert.equal(fromBrreg.orgnr, '998131650');
+assert.equal(fromBrreg.personnummer, '');
+assert.equal(fromBrreg.address, 'Dronning Mauds gate 10');
+assert.equal(fromBrreg.place, 'OSLO');
+assert.equal(fromBrreg.postalCode, '0250');
+
+const imported = importCustomers(emptyAnbudState(), [
+  { name: 'Sola kommune', orgnr: '964967668', address: 'Rådhuset' },
+  { name: 'Sola kommune', orgnr: '964967668' },
+  { name: 'Kari', kind: 'person', personnummer: '01017012345' },
+]);
+assert.equal(imported.created.length, 2);
+assert.equal(imported.skipped.length, 1);
+
+assert.match(
+  readFileSync(new URL('../utils/authProviders.js', import.meta.url), 'utf8'),
+  /import \{ isCalendarOauthReturn \} from '\.\/calendarOAuthCapture'/,
+);
 
 console.log('customers.test.mjs: ok');

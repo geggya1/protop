@@ -52,6 +52,19 @@ assert.equal(draft.firstRegulationDate, '2025-04-01');
 assert.equal(draft.terms.frequency, 'quarter');
 assert.equal(String(contractValueFromDraft(draft)), '1080');
 
+const letterhead = interpretContract(`
+Consult1 AS
+post@consult1.no
+${NS8403}
+`);
+assert.equal(letterhead.email, 'oyvind@igang.no');
+assert.equal(letterhead.description, 'Anleggsleder');
+
+const flattened = interpretContract(NS8403.replace(/\n/g, ' '));
+assert.equal(flattened.description, 'Anleggsleder');
+assert.equal(flattened.buyer, 'Igang Totalentreprenør As');
+assert.doesNotMatch(flattened.description, /Oppdragsgiver/);
+
 const input = inputFromInterpretation(draft, {
   documents: [{ id: 'dok-1', name: 'C1-H-03-001.pdf', text: NS8403 }],
 });

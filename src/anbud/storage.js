@@ -83,9 +83,8 @@ export async function loadAnbudState(companyId) {
 }
 
 export async function saveAnbudState(state, companyId) {
-  const compact = compactAnbudState(state);
-  const next = mergeAnbudStates(await readLocal(companyId), compact);
+  const next = mergeAnbudStates(await readLocal(companyId), state);
   await writeLocal(companyId, next);
-  queueRemote(companyId, next);
+  queueRemote(companyId, compactAnbudState(next));
   return next;
 }

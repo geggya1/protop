@@ -214,6 +214,29 @@ function pickWatch(left, right) {
   };
 }
 
+function mergeContractFiles(left, right) {
+  const merged = mergeById(left, right);
+  const kept = new Map();
+  for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
+    for (const doc of row?.documents || []) {
+      if (doc?.id && (doc.dataUrl || doc.uri || doc.url)) kept.set(`${row.id}:${doc.id}`, doc);
+    }
+  }
+  return merged.map((row) => ({
+    ...row,
+    documents: (row.documents || []).map((doc) => {
+      const extra = kept.get(`${row.id}:${doc.id}`);
+      if (!extra) return doc;
+      return {
+        ...doc,
+        dataUrl: doc.dataUrl || extra.dataUrl || '',
+        uri: doc.uri || extra.uri || '',
+        url: doc.url || extra.url || '',
+      };
+    }),
+  }));
+}
+
 /** Slår sammen to lagrede tilstander uten å nullstille vurderinger. */
 export function mergeAnbudStates(left, right) {
   const a = normalizeAnbudState(left);
@@ -224,7 +247,7 @@ export function mergeAnbudStates(left, right) {
     watch: pickWatch(a.watch, b.watch),
     notices: mergeNoticeLists(a.notices, b.notices),
     bids: mergeById(a.bids, b.bids),
-    contracts: mergeById(a.contracts, b.contracts),
+    contracts: mergeContractFiles(a.contracts, b.contracts),
     customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
     formTemplates: a.formTemplates || b.formTemplates,

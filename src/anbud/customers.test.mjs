@@ -7,6 +7,7 @@ import {
   importCustomers,
   maskPersonnummer,
   matchCustomer,
+  namesLikelyMatch,
   normalizeCustomer,
   upsertCustomer,
 } from './customers.js';
@@ -97,5 +98,8 @@ assert.match(
   readFileSync(new URL('../utils/authProviders.js', import.meta.url), 'utf8'),
   /import \{ isCalendarOauthReturn \} from '\.\/calendarOAuthCapture'/,
 );
+
+assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'IGANG TOTALENTREPRENØR AS'), true);
+assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'Consult1 AS'), false);
 
 console.log('customers.test.mjs: ok');

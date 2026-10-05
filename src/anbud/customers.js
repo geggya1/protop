@@ -12,6 +12,18 @@ function fold(value) {
   return text(value).toLowerCase();
 }
 
+export function namesLikelyMatch(left, right) {
+  const tidy = (value) => fold(value)
+    .replace(/\b(as|asa|ans|da|sa|nuf|ba|kf|iks|sf|avd|asf)\b/g, '')
+    .replace(/[^a-z0-9æøå]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const a = tidy(left);
+  const b = tidy(right);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
 function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }

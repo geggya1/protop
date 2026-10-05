@@ -75,11 +75,11 @@ assert.equal(state.contracts[0].milestones.find((row) => row.key === 'delfaktura
 assert.equal(awardContract(state, 'bid_1', { value: '10' }).ok, false);
 assert.match(state.audit[0].action, /kontrakt-registrert/);
 
-const alerts = contractAlerts(state.contracts, new Date(2026, 9, 1));
-assert.equal(alerts[0].level, 'snart');
-assert.equal(alerts[0].title, 'Kontrakt signert');
-const overdue = contractAlerts(state.contracts, new Date(2026, 10, 1));
+const alertsSoon = contractAlerts(state.contracts, new Date(2026, 11, 20));
+assert.ok(alertsSoon.some((row) => row.level === 'snart' && /Delfaktura/.test(row.title)));
+const overdue = contractAlerts(state.contracts, new Date(2027, 0, 15));
 assert.equal(overdue[0].level, 'forfalt');
+assert.match(overdue[0].title, /Delfaktura/);
 
 const toggled = toggleStrategy(readyBid(), 'bid_1', 'fag');
 assert.equal(toggled.state.bids[0].strategy.fag, false);
@@ -131,11 +131,16 @@ const direct = registerDirectContract(emptyAnbudState(), {
   end: '2028-12-31',
   fields: { standard: 'NS 8403', indexId: 'ppi-byggeteknisk', contactName: 'Øyvind Lerbrekk' },
   indexDraft: { title: 'Madlalia · Anleggsleder', standard: 'NS 8403' },
+  documents: [{ id: 'dok-1', name: 'C1-H-03-001.pdf', mimeType: 'application/pdf', dataUrl: 'data:application/pdf;base64,Zg==', text: 'NS 8403' }],
 });
 assert.equal(direct.ok, true, direct.error);
 assert.equal(direct.state.contracts[0].source, 'direkte');
 assert.equal(direct.state.contracts[0].bidId, '');
 assert.equal(direct.state.contracts[0].fields.standard, 'NS 8403');
+assert.equal(direct.state.contracts[0].documents[0].name, 'C1-H-03-001.pdf');
+assert.match(direct.state.contracts[0].documents[0].dataUrl, /^data:application\/pdf/);
+assert.equal(direct.state.contracts[0].milestones.find((row) => row.key === 'signert').status, 'utfort');
+assert.equal(contractAlerts(direct.state.contracts, new Date(2026, 9, 5)).filter((row) => /signert|Oppstart/.test(row.title)).length, 0);
 
 const frame = registerDirectContract(emptyAnbudState(), {
   title: 'Rammeavtale byggherre',

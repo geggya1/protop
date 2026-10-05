@@ -24,7 +24,7 @@ export const STRATEGY_ITEMS = [
 
 export const DEFAULT_MILESTONES = [
   { key: 'signert', title: 'Kontrakt signert' },
-  { key: 'oppstart', title: 'Oppstart på byggeplass' },
+  { key: 'oppstart', title: 'Oppstart' },
   { key: 'delfaktura', title: 'Delfaktura' },
   { key: 'overlevering', title: 'Overlevering' },
   { key: 'sluttfaktura', title: 'Sluttfaktura' },
@@ -269,6 +269,8 @@ function normalizeDocuments(input) {
   return input.map((row, index) => {
     const name = text(row?.name).slice(0, 180) || `Dokument ${index + 1}`;
     const body = text(row?.text).slice(0, 20000);
+    const dataUrl = text(row?.dataUrl);
+    const stored = dataUrl.startsWith('data:') && dataUrl.length <= 700000 ? dataUrl : '';
     return {
       id: text(row?.id) || `dok_${index + 1}`,
       name,
@@ -276,6 +278,10 @@ function normalizeDocuments(input) {
       role: row?.role === 'hoved' ? 'hoved' : 'vedlegg',
       mimeType: text(row?.mimeType).slice(0, 120),
       interpreted: row?.interpreted === true || !!body,
+      dataUrl: stored,
+      url: text(row?.url).slice(0, 500),
+      uri: text(row?.uri).slice(0, 500),
+      size: Number(row?.size) || 0,
     };
   }).filter((row) => row.name).slice(0, 40);
 }
@@ -475,8 +481,9 @@ export function openExecution(state, bidId, now = new Date()) {
   }));
 }
 
-function buildMilestones(start, end) {
+function buildMilestones(start, end, now = new Date()) {
   const span = start && end ? daysBetween(start, end) : null;
+  const today = todayIso(now);
   const due = {
     signert: start || '',
     oppstart: start || '',
@@ -484,14 +491,18 @@ function buildMilestones(start, end) {
     overlevering: end || '',
     sluttfaktura: end || '',
   };
-  return DEFAULT_MILESTONES.map((item) => ({
-    id: `ms_${item.key}`,
-    key: item.key,
-    title: item.title,
-    due: due[item.key] || '',
-    status: 'planlagt',
-    owner: '',
-  }));
+  return DEFAULT_MILESTONES.map((item) => {
+    const when = due[item.key] || '';
+    const historical = item.key === 'signert' || (item.key === 'oppstart' && when && when <= today);
+    return {
+      id: `ms_${item.key}`,
+      key: item.key,
+      title: item.title,
+      due: when,
+      status: historical && when && when <= today ? 'utfort' : 'planlagt',
+      owner: '',
+    };
+  });
 }
 
 function parseAmount(value) {
@@ -835,6 +846,7 @@ export function contractAlerts(contracts, now = new Date()) {
     for (const item of items) {
       const done = item.status === 'utfort' || item.status === 'levert';
       if (done || !item.due) continue;
+      if (item.key === 'signert') continue;
       const due = dayNumber(item.due);
       const distance = due - today;
       if (distance < 0) {

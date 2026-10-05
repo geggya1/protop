@@ -22,9 +22,9 @@ Daglig utvikling går mot Metro, ikke Firebase Hosting. Endringer vises med hot 
 npm run web
 ```
 
-Kjør kommandoen **på maskinen din**. `http://localhost:8081` er tom (ERR_CONNECTION_REFUSED) hvis Metro ikke kjører lokalt.
+Kjør kommandoen **på maskinen din** og **la terminalen stå åpen**. F5 i Chrome starter ikke serveren. `ERR_CONNECTION_REFUSED` på `http://localhost:8081` eller `http://127.0.0.1:8081` betyr at Metro er stoppet — kjør `npm run web` på nytt, deretter åpne adressen igjen (innloggingen huskes).
 
-Google på localhost bruker Firebase-redirect via `protop-c189c.firebaseapp.com` (GIS-klienten godtar bare protop.no og gir `origin_mismatch`). Live Google er uendret. Restart Metro med `npx expo start --web --clear` etter oppdateringen.
+Google på localhost bruker Firebase (popup, deretter redirect via `protop-c189c.firebaseapp.com`). GIS-klienten godtar bare protop.no og gir `origin_mismatch`. Live Google er uendret. Etter en oppdatering: stopp Metro, kjør `npx expo start --web --clear`, og la den kjøre.
 
 Produksjonslik lokal Hosting (SPA-rewrites, headers, `dist/`) uten å røre live-siten:
 

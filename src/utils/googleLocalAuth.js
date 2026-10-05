@@ -1,7 +1,7 @@
 /**
- * GIS + Firebase popup send JavaScript origin = localhost:8081.
- * That OAuth client only allows protop.no → Error 400 origin_mismatch.
- * Local Google must use Firebase redirect via protop-c189c.firebaseapp.com.
+ * GIS cannot run on localhost (OAuth JS origins are only protop.no).
+ * Local Google uses Firebase: popup first so the Metro tab stays open,
+ * then redirect via protop-c189c.firebaseapp.com if the popup is blocked.
  */
 export function isLocalGoogleHost(hostname) {
   const host = String(hostname || '');
@@ -15,6 +15,12 @@ export function isLocalGoogleHost(hostname) {
 
 export function shouldUseFirebaseGoogleOnLocal({ isWeb = false, hostname = '' } = {}) {
   return !!isWeb && isLocalGoogleHost(hostname);
+}
+
+/** Popup keeps Metro's tab alive; redirect is the fallback after origin_mismatch. */
+export function localGoogleAuthStrategy({ isWeb = false, hostname = '' } = {}) {
+  if (!shouldUseFirebaseGoogleOnLocal({ isWeb, hostname })) return 'gis-or-firebase';
+  return 'firebase-popup-then-redirect';
 }
 
 /** @deprecated use shouldUseFirebaseGoogleOnLocal */

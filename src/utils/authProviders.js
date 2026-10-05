@@ -412,9 +412,15 @@ export async function signInWithGoogle() {
 
   if (Platform.OS === 'web') {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    // Local Metro: never GIS (origin_mismatch). Redirect via firebaseapp.com
-    // so Google sees an already-authorized origin, not localhost:8081.
+    // Local Metro: never GIS (origin_mismatch). Firebase popup first so the
+    // Metro tab stays open; redirect via firebaseapp.com if the popup fails.
     if (shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname })) {
+      try {
+        const user = await signInWithProviderFirebase(provider, { allowRedirect: false });
+        if (user) return user;
+      } catch (popupErr) {
+        if (mapAuthError(popupErr) === 'cancelled') throw popupErr;
+      }
       return signInWithProviderFirebase(provider, { allowRedirect: true });
     }
     // Mobile Safari: GIS popup often completes without a token — use Firebase redirect.

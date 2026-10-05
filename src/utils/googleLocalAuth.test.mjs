@@ -1,6 +1,7 @@
 import assert from 'assert';
 import {
   isLocalGoogleHost,
+  localGoogleAuthStrategy,
   shouldUseFirebaseGoogleOnLocal,
 } from './googleLocalAuth.js';
 
@@ -20,6 +21,15 @@ assert.strictEqual(
 assert.strictEqual(
   shouldUseFirebaseGoogleOnLocal({ isWeb: false, hostname: 'localhost' }),
   false,
+);
+
+assert.strictEqual(
+  localGoogleAuthStrategy({ isWeb: true, hostname: '127.0.0.1' }),
+  'firebase-popup-then-redirect',
+);
+assert.strictEqual(
+  localGoogleAuthStrategy({ isWeb: true, hostname: 'protop.no' }),
+  'gis-or-firebase',
 );
 
 console.log('googleLocalAuth: ok');

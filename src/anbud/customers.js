@@ -44,6 +44,45 @@ export function customerKindFromIds(orgnr, personnummer) {
   return '';
 }
 
+/** Virksomhet viser org.nr, privatkunde viser personnummer — aldri begge. */
+export function identityFieldsForKind(kind) {
+  if (kind === 'person') return { orgnr: false, personnummer: true };
+  return { orgnr: true, personnummer: false };
+}
+
+export function applyCustomerKind(input, kind) {
+  const nextKind = kind === 'person' ? 'person' : 'org';
+  const fields = identityFieldsForKind(nextKind);
+  return {
+    ...input,
+    kind: nextKind,
+    orgnr: fields.orgnr ? input?.orgnr || '' : '',
+    personnummer: fields.personnummer ? input?.personnummer || '' : '',
+  };
+}
+
+export function customerDraftFromBrreg(hit) {
+  if (!hit?.navn && !hit?.organisasjonsnummer) return null;
+  const street = text(hit.street)
+    || text(Array.isArray(hit.raw?.forretningsadresse?.adresse)
+      ? hit.raw.forretningsadresse.adresse.filter(Boolean).join(', ')
+      : hit.raw?.forretningsadresse?.adresse);
+  const postalCode = digits(hit.postnummer || hit.raw?.forretningsadresse?.postnummer || hit.raw?.beliggenhetsadresse?.postnummer, 4);
+  const place = text(hit.poststed || hit.raw?.forretningsadresse?.poststed || hit.raw?.beliggenhetsadresse?.poststed);
+  return emptyCustomer({
+    kind: 'org',
+    name: text(hit.navn).slice(0, 160),
+    orgnr: normalizeOrgnr(hit.organisasjonsnummer),
+    personnummer: '',
+    address: street.slice(0, 160),
+    postalCode,
+    place: place.slice(0, 80),
+    email: text(hit.epostadresse).slice(0, 80),
+    phone: text(hit.telefon || hit.raw?.telefon).slice(0, 40),
+    notes: [text(hit.organisasjonsform), text(hit.naeringsbeskrivelse)].filter(Boolean).join(' · ').slice(0, 400),
+  });
+}
+
 export function emptyCustomer(partial = {}) {
   return {
     id: '',
@@ -69,11 +108,11 @@ export function normalizeCustomer(raw) {
   const name = text(raw.name).slice(0, 160);
   const id = text(raw.id);
   if (!id || !name) return null;
-  const orgnr = normalizeOrgnr(raw.orgnr);
-  const personnummer = normalizePersonnummer(raw.personnummer);
   const kind = raw.kind === 'person' || raw.kind === 'org'
     ? raw.kind
-    : (customerKindFromIds(orgnr, personnummer) || 'org');
+    : (customerKindFromIds(raw.orgnr, raw.personnummer) || 'org');
+  const orgnr = kind === 'person' ? '' : normalizeOrgnr(raw.orgnr);
+  const personnummer = kind === 'org' ? '' : normalizePersonnummer(raw.personnummer);
   return {
     id,
     name,
@@ -160,10 +199,13 @@ export function matchCustomer(customers, hint = {}) {
 export function upsertCustomer(state, input) {
   const name = text(input?.name);
   if (!name) return { ok: false, state, error: 'Kunden trenger et navn.' };
-  const orgnr = normalizeOrgnr(input?.orgnr);
-  const personnummer = normalizePersonnummer(input?.personnummer);
-  if (text(input?.orgnr) && !orgnr) return { ok: false, state, error: 'Organisasjonsnummer må være ni siffer.' };
-  if (text(input?.personnummer) && !personnummer) return { ok: false, state, error: 'Personnummer må være elleve siffer.' };
+  const kind = input?.kind === 'person' || input?.kind === 'org'
+    ? input.kind
+    : (customerKindFromIds(input?.orgnr, input?.personnummer) || 'org');
+  const orgnr = kind === 'person' ? '' : normalizeOrgnr(input?.orgnr);
+  const personnummer = kind === 'org' ? '' : normalizePersonnummer(input?.personnummer);
+  if (kind === 'org' && text(input?.orgnr) && !orgnr) return { ok: false, state, error: 'Organisasjonsnummer må være ni siffer.' };
+  if (kind === 'person' && text(input?.personnummer) && !personnummer) return { ok: false, state, error: 'Personnummer må være elleve siffer.' };
   const now = new Date().toISOString();
   const existingId = text(input?.id);
   const customers = normalizeCustomers(state?.customers);
@@ -175,6 +217,7 @@ export function upsertCustomer(state, input) {
       ...input,
       id: existingId,
       name,
+      kind,
       orgnr,
       personnummer,
       updatedAt: now,
@@ -194,6 +237,7 @@ export function upsertCustomer(state, input) {
     ...emptyCustomer(input),
     id: createId('kunde'),
     name,
+    kind,
     orgnr,
     personnummer,
     createdAt: now,
@@ -210,4 +254,32 @@ export function upsertCustomer(state, input) {
 export function customerSearchHay(customer) {
   const row = customer || {};
   return [row.name, formatOrgnr(row.orgnr), row.place, row.contactName].filter(Boolean).join(' · ');
+}
+
+export function importCustomers(state, rows) {
+  let next = state;
+  const created = [];
+  const skipped = [];
+  const errors = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const result = upsertCustomer(next, row);
+    if (result.ok) {
+      next = result.state;
+      created.push(result.customer);
+    } else if (result.customer) {
+      skipped.push({ name: text(row?.name) || result.customer.name, reason: result.error, customer: result.customer });
+    } else {
+      errors.push({ name: text(row?.name), reason: result.error });
+    }
+  }
+  return {
+    ok: created.length > 0 || (!errors.length && !skipped.length),
+    state: next,
+    created,
+    skipped,
+    errors,
+    error: created.length || skipped.length
+      ? null
+      : (errors[0]?.reason || 'Fant ingen kunder i filen.'),
+  };
 }

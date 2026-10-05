@@ -109,6 +109,9 @@ const enhet = normalizeBrregEnhet({
   konkurs: false,
 });
 assert.equal(enhet.organisasjonsnummer, '998131650');
+assert.equal(enhet.street, 'Dronning Mauds gate 10');
+assert.equal(enhet.postnummer, '0250');
+assert.equal(enhet.poststed, 'OSLO');
 assert.match(enhet.addressLabel, /Dronning Mauds gate 10/);
 assert.equal(enhet.organisasjonsform, 'Aksjeselskap');
 

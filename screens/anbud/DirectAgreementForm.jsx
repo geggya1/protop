@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
@@ -13,7 +13,8 @@ import {
   emptyOption,
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
-import { formatOrgnr, matchCustomer } from '../../src/anbud/customers';
+import { formatOrgnr, matchCustomer, customerDraftFromBrreg, normalizeOrgnr } from '../../src/anbud/customers';
+import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 
 const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
@@ -135,6 +136,7 @@ export default function DirectAgreementForm({
   const [engine, setEngine] = useState('');
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState([]);
+  const brregRef = useRef('');
 
   useEffect(() => {
     if (!customerId) return;
@@ -153,6 +155,31 @@ export default function DirectAgreementForm({
       phone: current.phone || hit.phone,
     }));
   }, [customerId, customers]);
+
+  const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
+  useEffect(() => {
+    if (orgnrDigits.length !== 9 || brregRef.current === orgnrDigits) return undefined;
+    let live = true;
+    searchBrregCompanies(orgnrDigits, { size: 1 }).then((res) => {
+      if (!live) return;
+      brregRef.current = orgnrDigits;
+      const draft = customerDraftFromBrreg(res.results?.[0]);
+      if (!draft) return;
+      setForm((current) => ({
+        ...current,
+        buyer: current.buyer || draft.name,
+        orgnr: draft.orgnr || current.orgnr,
+        personnummer: '',
+        address: current.address || draft.address,
+        place: current.place || draft.place,
+        email: current.email || draft.email,
+        phone: current.phone || draft.phone,
+      }));
+    }).catch(() => {
+      if (live) brregRef.current = orgnrDigits;
+    });
+    return () => { live = false; };
+  }, [orgnrDigits]);
 
   const findings = payload?.fields?.findings || [];
   const customerHint = matchCustomer(customers, {
@@ -392,7 +419,15 @@ export default function DirectAgreementForm({
     }
   }
 
-  const kindFields = useMemo(() => COVER_FIELD_GROUPS, []);
+  const kindFields = useMemo(() => {
+    const hide = String(form.personnummer || '').replace(/\D/g, '').length === 11 && !normalizeOrgnr(form.orgnr)
+      ? 'orgnr'
+      : 'personnummer';
+    return COVER_FIELD_GROUPS.map((group) => ({
+      ...group,
+      fields: group.fields.filter((field) => field.key !== hide),
+    }));
+  }, [form.orgnr, form.personnummer]);
 
   return (
     <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>

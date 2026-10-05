@@ -8,32 +8,48 @@ import { execSync } from 'node:child_process';
 import { planOffentligPush } from './push-offentlig-plan.js';
 
 function run(cmd) {
-  return execSync(cmd, { encoding: 'utf8' }).trim();
+  return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
 }
 
 function git(cmd) {
   return run(`git ${cmd}`);
 }
 
+function resolveOffentligSha() {
+  try {
+    git('fetch origin offentlig --prune');
+  } catch { /* first offentlig push */ }
+  try {
+    return git('rev-parse origin/offentlig');
+  } catch {
+    return '';
+  }
+}
+
+function resolveMainSha() {
+  try {
+    git('fetch origin main --prune');
+  } catch { /* offline */ }
+  try {
+    return git('rev-parse origin/main');
+  } catch {
+    return '';
+  }
+}
+
 const dryRun = process.argv.includes('--dry-run');
 
 const dirty = git('status --porcelain') !== '';
 const headSha = git('rev-parse HEAD');
-let remoteOffentligSha = '';
-try {
-  git('fetch origin offentlig --prune');
-} catch { /* first offentlig push — branch may not exist */ }
-try {
-  remoteOffentligSha = git('rev-parse origin/offentlig');
-} catch {
-  remoteOffentligSha = '';
-}
+const remoteOffentligSha = resolveOffentligSha();
+const liveSha = remoteOffentligSha || resolveMainSha();
 
 let commitsNotLive = [];
 try {
-  const range = remoteOffentligSha ? 'origin/offentlig..HEAD' : 'HEAD';
-  const log = git(`log --oneline --no-decorate ${range}`);
-  commitsNotLive = log ? log.split('\n').filter(Boolean) : [];
+  if (liveSha) {
+    const log = git(`log --oneline --no-decorate ${liveSha}..${headSha}`);
+    commitsNotLive = log ? log.split('\n').filter(Boolean) : [];
+  }
 } catch {
   commitsNotLive = [];
 }
@@ -57,8 +73,10 @@ if (plan.commitsNotLive.length) {
   if (plan.commitsNotLive.length > 40) {
     console.log(`  … og ${plan.commitsNotLive.length - 40} til`);
   }
+} else if (!remoteOffentligSha) {
+  console.log('Første offentlige snapshot. Alt som ligger i HEAD går live.');
 } else {
-  console.log('Første offentlige snapshot (ingen origin/offentlig å sammenligne med).');
+  console.log('Ingen nye commits å liste, men snapshotet sendes likevel.');
 }
 
 if (dryRun) {

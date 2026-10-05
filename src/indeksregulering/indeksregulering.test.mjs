@@ -488,6 +488,32 @@ test('pdf, word og excel inneholder kravet', () => {
   assert.equal(formatMoney(result.addition), '205 714,29');
 });
 
+test('indeksbrevet kan bruke bedriftens logo', () => {
+  const logo = 'data:image/jpeg;base64,/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAGAAwDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIEAbEv/2Q==';
+  const draft = {
+    ...interpretContract('NS 8407. Tilbudsfrist 15.03.2024. Kontraktssum 2 000 000. Boligblokk. Skal indeksreguleres.'),
+    supplier: 'ProTop Bygg AS',
+    buyer: 'Nordvik kommune',
+    regulationDate: '2026-08-15',
+    useCompanyLogo: true,
+  };
+  const result = calculate(draft, {
+    'bki-boligblokk': monthSeries({ '2024M03': 140, '2026M08': 154.4 }),
+  });
+  const without = buildLetter({ ...draft, useCompanyLogo: false }, result, { today: '2026-10-04', logo: { dataUrl: logo, width: 12, height: 6 } });
+  assert.equal(without.notice.logo, null);
+  const letter = buildLetter(draft, result, { today: '2026-10-04', logo: { dataUrl: logo, width: 12, height: 6 } });
+  assert.equal(letter.notice.logo.dataUrl, logo);
+  const pdf = new TextDecoder().decode(buildPdf(letter));
+  assert.match(pdf, /\/Im1 Do/);
+  assert.match(pdf, /DCTDecode/);
+  const files = exportFiles(draft, result, letter, []);
+  const docx = readZip(files[1].bytes);
+  assert.ok(docx['word/media/logo.jpg']?.length > 20);
+  assert.match(new TextDecoder().decode(docx['word/document.xml']), /rIdLogo/);
+  assert.match(new TextDecoder().decode(docx['word/document.xml']), /ProTop Bygg AS/);
+});
+
 test('leser tekst ut av pdf og word', async () => {
   const pdf = buildPdf({
     paragraphs: [{ heading: 'Avtale', lines: ['NS 8407 Kontraktssum 2000000 Tilbudsdato 15.03.2024'] }],

@@ -1,4 +1,5 @@
 import { METHOD_NOTES, modelById } from './catalog.js';
+import { presentCompanyLogo } from '../project/companyLogo.js';
 
 export function formatMoney(value) {
   const number = Number(value) || 0;
@@ -176,6 +177,7 @@ export function buildLetter(draft, result, options = {}) {
 
   const notice = {
     brand: supplier,
+    logo: draft.useCompanyLogo ? presentCompanyLogo(options.logo) : null,
     title,
     intro: `Vi varsler herved om indeksregulering av priser i tråd med foreliggende avtale. Indeksreguleringen er basert på siste kjente prisindeks fra når tilbudet ble gitt iht. Statistisk sentralbyrå (SSB) tabell ${tableNo}, som er regulert frem til den siste kjente indeksen pr. dags dato.`,
     sections: [party, agreement, ...regulationRows],

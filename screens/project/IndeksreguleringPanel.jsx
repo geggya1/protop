@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Image, Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
@@ -20,6 +20,8 @@ import { dueRegulations, indexNews, latestMap, osloDate, shouldCheckToday } from
 import { agreementSheet } from '../../src/indeksregulering/summary';
 import AvtaleForside from './AvtaleForside';
 import { pickDocument } from '../../src/utils/media';
+import { companyLogoOf } from '../../src/project/companyLogo';
+import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 
 const PAGES = [
   ['forside', 'Fremside'],
@@ -79,6 +81,14 @@ function Btn({ label, onPress, colors, tone = 'brand', disabled }) {
 function NoticeView({ notice, colors }) {
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      {notice.logo?.dataUrl ? (
+        <Image
+          source={{ uri: notice.logo.dataUrl }}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Bedriftens logo"
+        />
+      ) : null}
       <Text style={[styles.brand, { color: colors.ink }]}>{notice.brand}</Text>
       <Text style={[styles.h2, { color: colors.ink, marginTop: 0 }]}>{notice.title}</Text>
       <Text selectable style={{ color: colors.ink, lineHeight: 20 }}>{notice.intro}</Text>
@@ -221,9 +231,13 @@ export default function IndeksreguleringPanel({ project, onBook }) {
     if (!bundle?.series || !Object.keys(bundle.series).length) return null;
     return calculate(draft, bundle.series);
   }, [draft, bundle]);
+  const companyLogo = useMemo(
+    () => companyLogoOf(family?.company),
+    [family?.company],
+  );
   const letter = useMemo(
-    () => (live?.ok ? buildLetter(draft, live) : null),
-    [draft, live],
+    () => (live?.ok ? buildLetter(draft, live, { logo: companyLogo }) : null),
+    [draft, live, companyLogo],
   );
   const seriesList = useMemo(() => (
     INDEX_SERIES.map((row) => ({ ...row, ...(bundle?.series?.[row.id] || {}) }))
@@ -639,6 +653,13 @@ export default function IndeksreguleringPanel({ project, onBook }) {
 
       {page === 'vilkar' ? (
       <View style={styles.stack}>
+      <CompanyLogoChoice
+        value={!!draft.useCompanyLogo}
+        onChange={(useCompanyLogo) => patch({ useCompanyLogo })}
+        logo={companyLogo}
+        colors={colors}
+        subject="indeksbrevet"
+      />
       <Text style={[styles.h2, { color: colors.ink }]}>Avtalen</Text>
       <Field label="Prosjekt eller avtale" value={draft.title} onChangeText={(value) => patch({ title: value })} colors={colors} />
       <Field label="Referanse" value={draft.reference} onChangeText={(value) => patch({ reference: value })} colors={colors} />
@@ -1056,6 +1077,7 @@ const styles = StyleSheet.create({
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   brand: { fontSize: 18, textAlign: 'right' },
+  logo: { width: 180, height: 56, alignSelf: 'flex-start' },
   grid: { borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   gridRow: { flexDirection: 'row', borderBottomWidth: 1 },
   split: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

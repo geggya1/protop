@@ -17,6 +17,7 @@ import {
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickImage } from '../../src/utils/media';
 import FormAnswer from './FormAnswer';
+import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 
 const PIE = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#AB47BC', '#00ACC1', '#FF7043', '#8D6E63'];
 const ICONS = {
@@ -50,6 +51,7 @@ const SETTINGS = [
     ['progress', 'Vis fremdriftslinje', 'Vis hvor langt respondenten er kommet.'],
     ['shuffleQuestions', 'Bland spørsmålsrekkefølgen', 'Spørsmålene bytter plass for hvert svar.'],
     ['anotherResponse', 'Send inn et annet svar', 'Vis en lenke for å svare en gang til.'],
+    ['useCompanyLogo', 'Bruk bedriftens logo', 'Viser logoen fra bedriftsinnstillingene. ProTop-logoen beholdes.'],
   ]],
 ];
 
@@ -152,6 +154,7 @@ export default function FormStudio({
   onSave,
   onScan,
   onImport,
+  companyLogo = null,
 }) {
   const [tab, setTab] = useState('questions');
   const [selected, setSelected] = useState(0);
@@ -403,6 +406,13 @@ export default function FormStudio({
             </View>
             {tab === 'questions' ? (
               <>
+                <CompanyLogoChoice
+                  value={!!settings.useCompanyLogo}
+                  onChange={(useCompanyLogo) => onDraft({ ...draft, settings: { ...settings, useCompanyLogo } })}
+                  logo={companyLogo}
+                  colors={colors}
+                  subject="skjemaet"
+                />
                 <TouchableOpacity onPress={setCover} accessibilityRole="button" style={[styles.cover, { backgroundColor: colors.card, borderColor: colors.line }]}>
                   {draft.cover ? <Image source={{ uri: draft.cover }} style={styles.coverImage} /> : (
                     <Text style={{ color: colors.muted }}>Legg til forsidebilde</Text>
@@ -575,6 +585,12 @@ export default function FormStudio({
             ) : null}
             {tab === 'preview' ? (
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 12 }]}>
+                {settings.useCompanyLogo && companyLogo?.dataUrl ? (
+                  <Image source={{ uri: companyLogo.dataUrl }} style={styles.logo} resizeMode="contain" accessibilityLabel="Bedriftens logo" />
+                ) : null}
+                {settings.useCompanyLogo && !companyLogo?.dataUrl ? (
+                  <Text style={{ color: colors.muted }}>Bedriftens logo er valgt, men ikke lastet opp ennå.</Text>
+                ) : null}
                 {draft.cover ? <Image source={{ uri: draft.cover }} style={styles.coverImage} /> : null}
                 <Text style={[styles.title, { color: colors.ink }]}>{draft.title || 'Uten navn'}</Text>
                 {draft.intro ? <Text style={{ color: colors.muted }}>{draft.intro}</Text> : null}
@@ -789,6 +805,7 @@ const styles = StyleSheet.create({
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   cover: { minHeight: 92, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   coverImage: { width: '100%', height: 160 },
+  logo: { width: 180, height: 56, alignSelf: 'flex-start' },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   headerCard: { borderTopWidth: 4 },
   title: { fontSize: 26, fontWeight: '600' },

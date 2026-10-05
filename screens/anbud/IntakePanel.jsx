@@ -3,7 +3,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { updateGroup } from '../../src/utils/groups';
 import { INTAKE_CHANNELS, createManualInquiry } from '../../src/anbud/intake';
-import { fileToDataUrl, mergeScan, scanAnbudFile, sendDirectAnbud } from '../../src/anbud/intakeClient';
+import { fileToDataUrl, mergeScan, scanAnbudFile } from '../../src/anbud/intakeClient';
 import { pickImages } from '../../src/utils/media';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
@@ -31,10 +31,9 @@ function filesOf(picked) {
   }));
 }
 
-export default function IntakePanel({ mode, colors, company }) {
+export default function IntakePanel({ colors, company }) {
   const { applyFamilyPatch, family } = useApp();
   const [title, setTitle] = useState('');
-  const [toOrgnr, setToOrgnr] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -114,91 +113,52 @@ export default function IntakePanel({ mode, colors, company }) {
     }
   }
 
-  async function sendDirect() {
-    setBusy(true);
-    setError('');
-    setNote('');
-    try {
-      const data = await sendDirectAnbud({
-        title,
-        toOrgnr,
-        fromCompanyId: company?.id || '',
-        fromName: company?.name || '',
-        contactName,
-        email,
-        phone,
-        message,
-      });
-      setNote(`Forespørselen er sendt til ${data.companyName || 'bedriften'}.`);
-      setTitle('');
-      setMessage('');
-    } catch (err) {
-      setError(err?.message || 'Kunne ikke sende forespørselen.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <View style={{ gap: 10 }}>
       {error ? <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
-      {mode === 'protop' ? (
-        <>
-          <Text style={{ color: colors.muted }}>
-            Send en anbudsforespørsel direkte til en annen bedrift i ProTop. De får den i innboksen sin.
-          </Text>
-          <Field label="Mottakers organisasjonsnummer" value={toOrgnr} onChangeText={setToOrgnr} placeholder="9 siffer" colors={colors} />
-          <Field label="Forespørsel" value={title} onChangeText={setTitle} placeholder="Hva skal prises" colors={colors} />
-          <Field label="Melding" value={message} onChangeText={setMessage} placeholder="Kort beskrivelse" colors={colors} />
-          <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
-          <Field label="E-post" value={email} onChangeText={setEmail} placeholder="navn@firma.no" colors={colors} />
-          <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
-          <TouchableOpacity onPress={sendDirect} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Sender …' : 'Send forespørsel'}</Text>
+      <Text style={{ color: colors.muted }}>
+        Registrer henvendelsen. Slipp brev, e-post eller bilder her, så leser AI og OCR feltene og legger ved filene.
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {INTAKE_CHANNELS.map((row) => (
+          <TouchableOpacity key={row.id} onPress={() => setChannel(row.id)} style={{ backgroundColor: channel === row.id ? colors.brand : colors.sunken, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ color: channel === row.id ? '#fff' : colors.ink, fontWeight: '400' }}>{row.label}</Text>
           </TouchableOpacity>
-          {inbox.length ? inbox.slice(0, 8).map((row) => (
+        ))}
+      </View>
+      <TouchableOpacity onPress={onDrop} disabled={busy} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.brand, borderRadius: 16, padding: 18, backgroundColor: colors.card }}>
+        <Text style={{ color: colors.brand, fontWeight: '400' }}>{busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}</Text>
+        <Text style={{ color: colors.muted, marginTop: 4 }}>{files.length ? files.map((file) => file.name).join(', ') : 'Brev, e-post, foto'}</Text>
+      </TouchableOpacity>
+      <Field label="Tittel" value={title} onChangeText={setTitle} placeholder="Fylles ut fra dokumentet" colors={colors} />
+      <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
+      <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} />
+      <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
+      <Field label="Henvendelse" value={message} onChangeText={setMessage} placeholder="Det som ble lest, eller det du skriver selv" colors={colors} />
+      <TouchableOpacity onPress={saveManual} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Lagrer …' : 'Registrer forespørsel'}</Text>
+      </TouchableOpacity>
+      {inbox.length ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.ink, fontWeight: '400' }}>Mottatt i ProTop</Text>
+          {inbox.slice(0, 8).map((row) => (
             <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
               <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
               <Text style={{ color: colors.muted }}>{row.fromName || 'En ProTop-bedrift'} · {row.status || 'mottatt'}</Text>
             </View>
-          )) : <Text style={{ color: colors.muted }}>Ingen forespørsler fra andre bedrifter ennå.</Text>}
-        </>
-      ) : (
-        <>
-          <Text style={{ color: colors.muted }}>
-            Registrer henvendelsen manuelt. Slipp brev, e-post eller bilder her, så leser AI og OCR feltene og legger ved filene.
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {INTAKE_CHANNELS.map((row) => (
-              <TouchableOpacity key={row.id} onPress={() => setChannel(row.id)} style={{ backgroundColor: channel === row.id ? colors.brand : colors.sunken, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={{ color: channel === row.id ? '#fff' : colors.ink, fontWeight: '400' }}>{row.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity onPress={onDrop} disabled={busy} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.brand, borderRadius: 16, padding: 18, backgroundColor: colors.card }}>
-            <Text style={{ color: colors.brand, fontWeight: '400' }}>{busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>{files.length ? files.map((file) => file.name).join(', ') : 'Brev, e-post, foto'}</Text>
-          </TouchableOpacity>
-          <Field label="Tittel" value={title} onChangeText={setTitle} placeholder="Fylles ut fra dokumentet" colors={colors} />
-          <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
-          <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} />
-          <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
-          <Field label="Henvendelse" value={message} onChangeText={setMessage} placeholder="Det som ble lest, eller det du skriver selv" colors={colors} />
-          <TouchableOpacity onPress={saveManual} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Lagrer …' : 'Registrer forespørsel'}</Text>
-          </TouchableOpacity>
-          {saved.slice(0, 8).map((row) => (
-            <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
-              <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
-              <Text style={{ color: colors.muted }}>
-                {[INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
-              </Text>
-              {row.attachments?.length ? <Text style={{ color: colors.muted }}>{row.attachments.length} vedlegg</Text> : null}
-            </View>
           ))}
-        </>
-      )}
+        </View>
+      ) : null}
+      {saved.slice(0, 8).map((row) => (
+        <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
+          <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
+          <Text style={{ color: colors.muted }}>
+            {[INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
+          </Text>
+          {row.attachments?.length ? <Text style={{ color: colors.muted }}>{row.attachments.length} vedlegg</Text> : null}
+        </View>
+      ))}
     </View>
   );
 }

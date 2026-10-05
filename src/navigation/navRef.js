@@ -55,6 +55,7 @@ function shellForEvent(eventType) {
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'birthdayReminder') return { tab: 'home' };
   if (eventType === 'boligReminder') return { tab: 'more', subView: 'boligmappa' };
+  if (eventType === 'companyNews') return { tab: 'nyheter' };
   return null;
 }
 

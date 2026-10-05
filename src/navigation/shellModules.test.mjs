@@ -32,7 +32,7 @@ function idsIn(sections) {
   assert.ok(account.items.some((i) => i.id === 'settings'));
   assert.ok(account.items.some((i) => i.id === 'help'));
   assert.ok(account.items.some((i) => i.id === 'legal'));
-  for (const hidden of ['projects', 'anbud', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
+  for (const hidden of ['nyheter', 'projects', 'anbud', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
@@ -69,7 +69,7 @@ function idsIn(sections) {
   assert.equal(mainIds.includes('projects'), false);
   assert.deepEqual(
     company.find((s) => s.id === 'company').items.map((i) => i.id),
-    ['anbud', 'skjema', 'projects'],
+    ['nyheter', 'anbud', 'skjema', 'projects'],
   );
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));

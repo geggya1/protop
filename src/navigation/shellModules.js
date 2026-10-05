@@ -14,6 +14,7 @@ import { isOrganizationType } from '../utils/groupTypes.js';
  */
 export function companyNavItems() {
   return [
+    { id: 'nyheter', icon: 'newspaper', label: 'Nyheter', action: { type: 'tab', tab: 'nyheter' } },
     { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },

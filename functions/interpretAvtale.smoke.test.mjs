@@ -56,7 +56,7 @@ assert.match(hosting, /fetchOpenFeedHttp/);
 assert.match(workflow, /branches:\s*\n\s*- main/);
 assert.match(workflow, /npx firebase deploy --only hosting/);
 assert.match(workflow, /deploy-slim-functions\.sh/);
-assert.match(workflow, /WEEKPLAN_GEMINI_KEY/);
+assert.match(workflow, /PROTOP_GEMINI_KEY/);
 assert.doesNotMatch(workflow, /hosting:channel:deploy/);
 assert.doesNotMatch(workflow, /offentlig/);
 

@@ -5,7 +5,7 @@ import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { fetchCompanyCpv, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { emptyAnbudState, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, saveTenderWatch } from '../../src/anbud/model';
 import { interpretCompanyProfile } from '../../src/anbud/watchAi';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import PortalSettings from './PortalSettings';
 
@@ -127,7 +127,16 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
     notices: (state.notices || []).filter((row) => (row.isNew || row.decision === 'ubestemt') && !noticeDeadlineExpired(row)).slice(0, 12),
   });
 
-  function inputFromForm() {
+  function inputFromForm(overrides = {}) {
+    const nextKeywords = overrides.keywords ?? keywords;
+    const nextProfile = {
+      description,
+      website,
+      summary,
+      keywords: profileKeywords,
+      updatedAt: description || website || summary ? new Date().toISOString() : '',
+      ...(overrides.profile || {}),
+    };
     return {
       companyName: company?.name || state.watch.companyName || 'Bedriften',
       orgnr: company?.orgnr || '',
@@ -142,46 +151,53 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       notify,
       emails,
       naeringskoder: trades,
-      keywords,
-      profile: {
-        description,
-        website,
-        summary,
-        keywords: profileKeywords,
-        updatedAt: description || website || summary ? new Date().toISOString() : '',
-      },
+      keywords: nextKeywords,
+      profile: nextProfile,
     };
+  }
+
+  async function persistWatch(overrides = {}) {
+    const saved = saveTenderWatch(state, inputFromForm(overrides));
+    if (!saved.ok) return saved;
+    const next = await persistAnbudState(saved.state, company?.id);
+    setState(next);
+    if (company?.id) {
+      try {
+        await updateGroup(company.id, {
+          cpvCodes: next.watch.cpvCodes.map((row) => ({ ...row, source: 'bedrift' })),
+          cpvSource: 'bedrift',
+          tenderWatch: {
+            nationwide,
+            areas: next.watch.areas,
+            channels: next.watch.channels,
+            notify,
+            emails,
+            naeringskoder: trades,
+            keywords: next.watch.keywords,
+            profile: next.watch.profile,
+          },
+        });
+      } catch (err) {
+        return { ok: true, state: next, warning: err?.message || 'Bedriftskortet ble ikke oppdatert.' };
+      }
+    }
+    return { ok: true, state: next };
   }
 
   async function saveCriteria() {
     if (!ready) return;
-    const saved = saveTenderWatch(state, inputFromForm());
-    if (!saved.ok) {
-      setError(saved.error);
-      return;
-    }
     setSaving(true);
     setError('');
+    setNote('');
     try {
-      await saveAnbudState(saved.state, company?.id);
-      setState(saved.state);
-      if (company?.id) {
-        await updateGroup(company.id, {
-          cpvCodes: saved.state.watch.cpvCodes.map((row) => ({ ...row, source: 'bedrift' })),
-          cpvSource: 'bedrift',
-          tenderWatch: {
-            nationwide,
-            areas: saved.state.watch.areas,
-            channels: saved.state.watch.channels,
-            notify,
-            emails,
-            naeringskoder: trades,
-            keywords,
-            profile: saved.state.watch.profile,
-          },
-        }).catch(() => {});
+      const saved = await persistWatch();
+      if (!saved.ok) {
+        setError(saved.error);
+        return;
       }
-      setNote('Lagret. Søket bruker kodene fra bedriften. Gå til Anbudsvarsling og trykk Oppdater nå.');
+      setNote(saved.warning
+        ? `Lagret. ${saved.warning}`
+        : 'Lagret. Gå til Anbudsvarsling og trykk Oppdater nå.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke lagre innstillingene.');
     } finally {
@@ -205,11 +221,36 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
         website,
       });
       const nextKeywords = normalizeKeywords([...(data.keywords || []), ...profileKeywords]);
+      const nextSearch = normalizeKeywords([...keywords, ...nextKeywords]);
       setSummary(data.summary || '');
       setProfileKeywords(nextKeywords);
-      setAiNote(data.summary
-        ? 'AI har tolket bedriften. Sjekk søkeordene og lagre kriteriene. Treff som passer godt blir merket i listen.'
-        : 'AI svarte, men fant lite å bruke. Prøv en tydeligere beskrivelse.');
+      setKeywords(nextSearch);
+      try {
+        const saved = await persistWatch({
+          keywords: nextSearch,
+          profile: {
+            description,
+            website,
+            summary: data.summary || '',
+            keywords: nextKeywords,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+        if (!saved.ok) {
+          setAiNote(data.summary
+            ? `${data.summary ? 'Tolkingen er klar. ' : ''}${saved.error}`
+            : saved.error);
+          return;
+        }
+        setAiNote(data.summary
+          ? 'AI har tolket bedriften og lagret profilen. Treff som passer godt blir merket i listen.'
+          : 'AI svarte, men fant lite å bruke. Prøv en tydeligere beskrivelse.');
+        if (saved.warning) setNote(saved.warning);
+      } catch (err) {
+        setAiNote(data.summary
+          ? `Tolkingen er klar, men lagring feilet: ${err?.message || 'ukjent feil'}`
+          : (err?.message || 'Kunne ikke lagre profilen.'));
+      }
     } catch (err) {
       setAiNote(err?.message || 'Kunne ikke tolke bedriften.');
     } finally {
@@ -364,8 +405,21 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
           </View>
         ) : null}
         <View style={styles.row}>
-          <TouchableOpacity onPress={interpretProfile} style={[styles.save, { backgroundColor: colors.brand }]} accessibilityRole="button">
+          <TouchableOpacity
+            onPress={interpretProfile}
+            disabled={aiBusy || saving}
+            style={[styles.save, { backgroundColor: colors.brand, opacity: aiBusy || saving ? 0.7 : 1 }]}
+            accessibilityRole="button"
+          >
             <Text style={{ color: '#fff' }}>{aiBusy ? 'Tolker …' : 'La AI tolke bedriften'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={saveCriteria}
+            disabled={aiBusy || saving || !ready}
+            style={[styles.save, { backgroundColor: colors.brand, opacity: aiBusy || saving || !ready ? 0.7 : 1 }]}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff' }}>{saving ? 'Lagrer …' : 'Lagre profil'}</Text>
           </TouchableOpacity>
           {profileKeywords.length ? (
             <Chip
@@ -376,7 +430,11 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
             />
           ) : null}
         </View>
-        {!!aiNote && <Text style={{ color: colors.muted }}>{aiNote}</Text>}
+        {!!aiNote && (
+          <Text style={{ color: /feilet|ikke|Kunne ikke|Fant ikke/i.test(aiNote) ? colors.danger : colors.muted }}>
+            {aiNote}
+          </Text>
+        )}
       </View>
 
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>

@@ -294,7 +294,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     const draft = saveTenderWatch(nextState, inputFromForm());
     const active = watchQuery(draft.ok ? draft.state.watch : nextState.watch);
     if (!active) {
-      setError(draft.error || 'Registrer minst én CPV-kode og trykk Lagre og søk.');
+      setError(draft.error || 'Legg inn CPV, søkeord eller en bedriftsbeskrivelse under Innstillinger, og trykk Oppdater nå.');
       return;
     }
     setSyncing(true);

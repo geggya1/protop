@@ -139,12 +139,13 @@ export const tenderProxy = onRequest(
       }
       if (action === 'interpret-profile') {
         try {
-          const { interpretProfile, friendlyGeminiError } = await import('./anbudWatchAi.js');
+          const { interpretProfile } = await import('./anbudWatchAi.js');
           const data = await interpretProfile(body);
           res.json(data);
         } catch (err) {
+          logger.warn('interpret-profile failed', { message: err?.message });
           const mod = await import('./anbudWatchAi.js').catch(() => null);
-          const message = mod?.friendlyGeminiError?.(err) || err?.message || 'Kunne ikke tolke bedriften.';
+          const message = mod?.friendlyProfileError?.(err) || err?.message || 'Kunne ikke tolke bedriften.';
           res.status(err?.status || 502).json({ ok: false, error: message });
         }
         return;

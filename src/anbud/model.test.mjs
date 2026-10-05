@@ -60,6 +60,17 @@ assert.equal(ensureCurrentBid(localNotice, 'mangler', {}).ok, false);
 let state = emptyAnbudState();
 assert.equal(saveTenderWatch(state, { companyName: '', cpvCodes: ['45000000'], nationwide: true }).ok, false);
 assert.equal(saveTenderWatch(state, { companyName: 'Nord Bygg', cpvCodes: [], nationwide: true }).ok, false);
+assert.equal(saveTenderWatch(state, {
+  companyName: 'Nord Bygg',
+  cpvCodes: [],
+  nationwide: true,
+  profile: { description: 'Rådgivende ingeniører', website: 'https://consult1.no/tjenester' },
+}).ok, true);
+assert.ok(watchQuery(saveTenderWatch(state, {
+  companyName: 'Nord Bygg',
+  nationwide: true,
+  keywords: ['prosjektledelse'],
+}).state.watch));
 assert.equal(saveTenderWatch(state, { companyName: 'Nord Bygg', cpvCodes: ['45000000'], areas: [] }).ok, false);
 
 state = saveTenderWatch(state, {
@@ -253,5 +264,10 @@ assert.deepEqual(watchProfile.watch.profile.keywords, ['bro']);
 const mergedWatch = mergeAnbudStates(emptyAnbudState(), watchProfile);
 assert.equal(mergedWatch.watch.profile.keywords[0], 'bro');
 assert.equal(emptyAnbudState().watch.profile.description, '');
+assert.match(formatMatchLabel({
+  title: 'Ny bro i samferdsel',
+  description: 'Prosjektering',
+  cpvCodes: [],
+}, { ...watchProfile.watch, keywords: [] }), /bro/);
 
 console.log('model.test.mjs ok');

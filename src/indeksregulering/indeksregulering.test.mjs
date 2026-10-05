@@ -399,6 +399,29 @@ test('parser bred SSB-csv', () => {
   assert.equal(rows[0].values['2026M08'], 154.4);
 });
 
+test('leser NS 8403 oppdragsbekreftelse til indeksfeltene', () => {
+  const draft = interpretContract(`
+Oppdrag Madlalia Eksternt PO. nr:
+Oppstart: 17.11.2025 Sluttdato: 31.12.2028
+Beskrivelse av oppdraget Anleggsleder
+Oppdragsgiver Igang Totalentreprenør As Organisasjons nr: 922 98 7106
+Oppdragstaker Consult1 AS
+NS 8403
+Tabell: 14335 Start indeks: K2 2025
+Avtalt honorar pris 1080,- eks mva.
+Timepriser reguleres kvartalsvis.
+Sted: Klepp Dato: 09.10.2025
+`);
+  assert.equal(draft.standard, 'NS 8403');
+  assert.equal(draft.indexId, 'ppi-byggeteknisk');
+  assert.equal(draft.buyer, 'Igang Totalentreprenør As');
+  assert.equal(draft.startDate, '2025-11-17');
+  assert.equal(draft.endDate, '2028-12-31');
+  assert.equal(draft.firstRegulationDate, '2025-04-01');
+  assert.equal(draft.terms.frequency, 'quarter');
+  assert.ok(draft.lines.some((line) => String(line.rate) === '1080'));
+});
+
 test('varsel om timepris følger eksempelet', () => {
   const draft = {
     supplier: 'Consult1 AS',

@@ -47,10 +47,16 @@ Returner KUN JSON:
   "offerDate": "",
   "tenderDeadline": "",
   "contractDate": "",
+  "startDate": "",
+  "endDate": "",
   "regulationExcluded": false,
   "honorar": "",
   "place": "",
   "poNumber": "",
+  "orgnr": "",
+  "contactName": "",
+  "phone": "",
+  "email": "",
   "terms": {
     "baseRule": "auto | tender | offer | contract",
     "frequency": "month | quarter | year | once",
@@ -104,11 +110,13 @@ function agreementText(documents) {
 
 export async function handleInterpretIndeks(data) {
   let text = String(data?.text || '').trim();
-  if (text.length < 20 && !Array.isArray(data?.documents)) {
+  if (text.length < 20) {
     try {
-      text = String(await textFromFile(data) || '').trim();
+      text = String(await textFromFile(data) || text).trim();
     } catch (error) {
-      reject('invalid-argument', error?.message || 'Kunne ikke lese filen.');
+      if (!Array.isArray(data?.documents) || !(data.documents || []).some((doc) => String(doc?.text || '').trim().length >= 20)) {
+        reject('invalid-argument', error?.message || 'Kunne ikke lese filen.');
+      }
     }
   }
   const documents = documentsFrom(data, text);

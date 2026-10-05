@@ -76,16 +76,31 @@ export function interpretContract(text) {
   draft.tenderDeadline = labeledDate(source, ['tilbudsfrist', 'frist for tilbud', 'tilbudsfristens utløp']);
   draft.offerDate = labeledDate(source, ['tilbudsdato', 'dato for tilbud', 'tilbudet er datert', 'tilbud av']);
   draft.firstRegulationDate = labeledDate(source, ['første reguleringsdato', 'forste reguleringsdato', 'første regulering', 'reguleres første gang', 'reguleres forste gang']);
-  const contractDate = labeledDate(source, ['kontraktsdato', 'avtale dato', 'signert', 'leien er fastsatt', 'leiefastsetting']);
+  const contractDate = labeledDate(source, ['kontraktsdato', 'avtale dato', 'signert', 'leien er fastsatt', 'leiefastsetting', 'oppdrag gitt pr dato'])
+    || trailingDate(source);
   if (contractDate) draft.contractDate = contractDate;
   if (!draft.offerDate && contractDate) draft.offerDate = contractDate;
+  draft.startDate = labeledDate(source, ['oppstart', 'engasjementsperioden', 'start dato']);
+  draft.endDate = labeledDate(source, ['sluttdato', 'avsluttes', 'slutt dato']);
   if (draft.tenderDeadline) findings.push(`Tilbudsfrist ${showDate(draft.tenderDeadline)}.`);
   if (draft.offerDate) findings.push(`Tilbudsdato eller siste prisfastsetting ${showDate(draft.offerDate)}.`);
+  if (draft.startDate) findings.push(`Oppstart ${showDate(draft.startDate)}.`);
+  if (draft.endDate) findings.push(`Sluttdato ${showDate(draft.endDate)}.`);
 
   draft.buyer = labeledParty(source, ['byggherre', 'oppdragsgiver', 'bestiller', 'utleier']);
-  draft.supplier = labeledParty(source, ['entreprenør', 'entreprenor', 'leverandør', 'leverandor', 'leietaker']);
-  draft.title = labeledParty(source, ['prosjekt', 'arbeid', 'eiendom', 'leieobjekt']) || firstLine(source);
+  draft.supplier = labeledParty(source, ['entreprenør', 'entreprenor', 'leverandør', 'leverandor', 'leietaker', 'oppdragstaker']);
+  draft.title = assignmentTitle(source) || labeledParty(source, ['prosjekt', 'arbeid', 'eiendom', 'leieobjekt']) || firstLine(source);
   draft.reference = labeledParty(source, ['kontraktsnummer', 'kontraktsnr', 'kontrakt nr', 'referanse', 'deres ref']);
+  draft.contactName = labeledParty(source, ['kontakt person', 'kontaktperson']);
+  draft.orgnr = partyOrgnr(source, 'oppdragsgiver') || partyOrgnr(source, 'byggherre');
+  draft.place = assignmentPlace(source);
+  draft.honorar = honorarText(source);
+  const startIndex = source.match(/start\s*indeks\s*[:\-]?\s*K([1-4])\s*(\d{4})/i);
+  if (startIndex && !draft.firstRegulationDate) {
+    const month = ['01', '04', '07', '10'][Number(startIndex[1]) - 1];
+    draft.firstRegulationDate = `${startIndex[2]}-${month}-01`;
+    findings.push(`Startindeks K${startIndex[1]} ${startIndex[2]}.`);
+  }
 
   if (/inkl(?:usive|\.)?\s*mva|inkludert merverdiavgift/i.test(source) && !/eks(?:kl|\.)/i.test(source)) {
     draft.vatPercent = '0';
@@ -159,7 +174,7 @@ function applyLaterDocument(base, next, name) {
   if (next.extracted?.index) draft.indexId = next.indexId;
   if (next.standard && next.standard !== 'avtalt') draft.standard = next.standard;
   if (next.model) draft.model = next.model;
-  ['offerDate', 'tenderDeadline', 'contractDate', 'buyer', 'supplier', 'title', 'reference'].forEach((key) => {
+  ['offerDate', 'tenderDeadline', 'contractDate', 'buyer', 'supplier', 'title', 'reference', 'startDate', 'endDate', 'contactName', 'orgnr', 'place', 'honorar'].forEach((key) => {
     if (next[key]) draft[key] = next[key];
   });
   if (next.extracted?.terms) draft.terms = emptyTerms(next.terms);
@@ -191,11 +206,11 @@ export function mergeInterpretation(local, ai, sourceText = '') {
     ...base,
     findings: [...(base.findings || [])],
   };
-  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline', 'contractDate', 'honorar', 'place', 'poNumber'];
+  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline', 'contractDate', 'startDate', 'endDate', 'honorar', 'place', 'poNumber', 'orgnr', 'contactName', 'phone', 'email'];
   textFields.forEach((key) => {
     const value = clean(extra[key]);
     if (!value) return;
-    if (key === 'offerDate' || key === 'tenderDeadline') {
+    if (['offerDate', 'tenderDeadline', 'contractDate', 'startDate', 'endDate'].includes(key)) {
       const iso = parseIsoDate(value);
       if (iso) next[key] = iso;
       return;
@@ -273,10 +288,57 @@ function labeledDate(text, labels) {
 }
 
 function labeledParty(text, labels) {
-  const pattern = new RegExp(`(?:${labels.join('|')})\\s*[:\\-]\\s*([^\\n]{2,80})`, 'i');
-  const match = text.match(pattern);
+  const colon = new RegExp(`(?:${labels.join('|')})\\s*[:\\-]\\s*([^\\n]{2,80})`, 'i');
+  let match = text.match(colon);
+  if (match) return cleanParty(match[1]);
+  const space = new RegExp(`(?:^|\\n)\\s*(?:${labels.join('|')})\\s+([A-ZÆØÅ][^\\n]{2,80})`, 'i');
+  match = text.match(space);
   if (!match) return '';
-  return match[1].replace(/\s{2,}/g, ' ').replace(/[,;].*$/, '').trim();
+  return cleanParty(match[1]);
+}
+
+function cleanParty(raw) {
+  return String(raw || '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+(Organisasjons\s*nr|Org\.?nr|Kontakt|Epost|Telefon|Adresse|Att|Post nr|Gnr).*$/i, '')
+    .replace(/[,;].*$/, '')
+    .trim();
+}
+
+function assignmentTitle(text) {
+  const oppdrag = text.match(/\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,70}?)(?:\s+Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/i);
+  const beskrivelse = text.match(/Beskrivelse av oppdraget\s+([^\n]{2,80})/i);
+  const name = oppdrag ? cleanParty(oppdrag[1]) : '';
+  const role = beskrivelse ? cleanParty(beskrivelse[1]) : '';
+  if (name && role) return `${name} · ${role}`;
+  return name || role;
+}
+
+function trailingDate(text) {
+  const matches = [...String(text || '').matchAll(/\bDato:\s*(\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2})/gi)];
+  if (!matches.length) return '';
+  return parseIsoDate(matches[matches.length - 1][1]);
+}
+
+function partyOrgnr(text, label) {
+  const pattern = new RegExp(`${label}[^\\n]{0,80}Organisasjons\\s*nr[:\\s]*(\\d[\\d\\s]{6,12})`, 'i');
+  const match = String(text || '').match(pattern);
+  if (!match) return '';
+  return match[1].replace(/\s/g, '').slice(0, 9);
+}
+
+function assignmentPlace(text) {
+  const signature = String(text || '').match(/Sted:\s*([A-ZÆØÅa-zæøå][^\n]{1,40}?)\s+Dato:/i);
+  if (signature) return cleanParty(signature[1]);
+  return labeledParty(text, ['oppdragssted']);
+}
+
+function honorarText(text) {
+  const match = String(text || '').match(/(?:avtalt\s+honorar(?:\s+pris)?|honoreres etter[^\n]{0,40})[^\n]{0,40}?(\d[\d\s.]*(?:,\d{1,2})?\s*-?)/i);
+  if (!match) return '';
+  const amount = parseAmount(match[1]);
+  if (amount == null) return match[0].replace(/\s+/g, ' ').trim().slice(0, 80);
+  return `${amount} kr eks. mva`;
 }
 
 function firstLine(text) {
@@ -307,7 +369,7 @@ function readShare(text) {
 function readLump(text, rent) {
   const labels = rent
     ? ['månedsleie', 'husleie', 'leie per måned', 'leien er', 'gjeldende leie']
-    : ['kontraktssum', 'entreprisesum', 'vederlag', 'kontraktssummen er', 'sum eks'];
+    : ['kontraktssum', 'entreprisesum', 'vederlag', 'kontraktssummen er', 'sum eks', 'avtalt honorar pris'];
   const pattern = new RegExp(`(?:${labels.join('|')})[^\\n\\d]{0,24}(\\d[\\d\\s.]*(?:,\\d{1,2})?)`, 'i');
   const match = text.match(pattern);
   if (!match) return null;
@@ -393,15 +455,16 @@ function sourceHasShare(extra) {
 
 function readLines(text) {
   const found = [];
-  const pattern = /(timepris|enhetspris|sats)\s+(.{2,60}?)\s+(\d[\d\s.]*(?:,\d{1,2})?)\s*(?:kr|nok)?/gi;
+  const pattern = /\b(timepris|enhetspris|timesats|honorar(?:\s+pris)?)\s+(.{0,40}?)(\d[\d\s.]*(?:,\d{1,2})?)\s*(?:kr|nok|-)?/gi;
   let match = pattern.exec(text);
   while (match && found.length < 30) {
     const rate = parseAmount(match[3]);
-    if (rate != null && rate > 0) {
+    if (rate != null && rate > 20) {
+      const kind = match[1];
       found.push(emptyLine({
-        text: `${match[1]} ${match[2]}`.replace(/\s+/g, ' ').trim(),
+        text: `${kind} ${match[2]}`.replace(/\s+/g, ' ').trim(),
         quantity: '1',
-        unit: /time/i.test(match[1]) ? 'time' : 'enhet',
+        unit: /time|honorar/i.test(kind) ? 'time' : 'enhet',
         rate: String(rate),
       }));
     }

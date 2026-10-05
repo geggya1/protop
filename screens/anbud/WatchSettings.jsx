@@ -4,6 +4,7 @@ import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { fetchCompanyCpv, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { emptyAnbudState, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, saveTenderWatch } from '../../src/anbud/model';
+import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import PortalSettings from './PortalSettings';
@@ -56,6 +57,12 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
   const [notify, setNotify] = useState({ push: true, varsel: true, email: false });
   const [emails, setEmails] = useState([]);
   const [keywords, setKeywords] = useState([]);
+  const [description, setDescription] = useState('');
+  const [website, setWebsite] = useState('');
+  const [summary, setSummary] = useState('');
+  const [profileKeywords, setProfileKeywords] = useState([]);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNote, setAiNote] = useState('');
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [publicCpv, setPublicCpv] = useState([]);
   const [publicNote, setPublicNote] = useState('');
@@ -74,6 +81,11 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       setNotify(watch.notify || { push: true, varsel: true, email: false });
       setEmails(watch.emails || []);
       setKeywords(watch.keywords || []);
+      const profile = watch.profile || {};
+      setDescription(profile.description || '');
+      setWebsite(profile.website || company?.hjemmeside || company?.website || '');
+      setSummary(profile.summary || '');
+      setProfileKeywords(profile.keywords || []);
       setState(loaded);
       setReady(true);
     });
@@ -131,6 +143,13 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       emails,
       naeringskoder: trades,
       keywords,
+      profile: {
+        description,
+        website,
+        summary,
+        keywords: profileKeywords,
+        updatedAt: description || website || summary ? new Date().toISOString() : '',
+      },
     };
   }
 
@@ -158,6 +177,7 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
             emails,
             naeringskoder: trades,
             keywords,
+            profile: saved.state.watch.profile,
           },
         }).catch(() => {});
       }
@@ -166,6 +186,34 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       setError(err?.message || 'Kunne ikke lagre innstillingene.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function interpretProfile() {
+    if (!description.trim() && !website.trim() && !company?.name) {
+      setAiNote('Skriv en kort beskrivelse eller lim inn hjemmesiden først.');
+      return;
+    }
+    setAiBusy(true);
+    setAiNote('');
+    setError('');
+    try {
+      const data = await interpretCompanyProfile({
+        companyName: company?.name || state.watch.companyName,
+        orgnr: company?.orgnr || state.watch.orgnr,
+        description,
+        website,
+      });
+      const nextKeywords = normalizeKeywords([...(data.keywords || []), ...profileKeywords]);
+      setSummary(data.summary || '');
+      setProfileKeywords(nextKeywords);
+      setAiNote(data.summary
+        ? 'AI har tolket bedriften. Sjekk søkeordene og lagre kriteriene. Treff som passer godt blir merket i listen.'
+        : 'AI svarte, men fant lite å bruke. Prøv en tydeligere beskrivelse.');
+    } catch (err) {
+      setAiNote(err?.message || 'Kunne ikke tolke bedriften.');
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -275,6 +323,60 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
             setCustomCpv('');
           }}
         />
+      </View>
+
+      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={[styles.h, { color: colors.ink }]}>AI-profil</Text>
+        <Text style={{ color: colors.muted }}>
+          Skriv søkeord, beskriv hva bedriften driver med, eller lim inn hjemmesiden. AI bruker det til å merke treff dere bør være observante på.
+        </Text>
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Hva leverer dere? F.eks. rådgivende ingeniører innen VVS og energi"
+          placeholderTextColor={colors.placeholder}
+          multiline
+          numberOfLines={4}
+          style={[styles.input, styles.area, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+        />
+        <TextInput
+          value={website}
+          onChangeText={setWebsite}
+          placeholder="Hjemmeside, f.eks. https://www.firma.no"
+          placeholderTextColor={colors.placeholder}
+          autoCapitalize="none"
+          keyboardType="url"
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+        />
+        {summary ? <Text style={{ color: colors.ink, lineHeight: 22 }}>{summary}</Text> : null}
+        {profileKeywords.length ? (
+          <View style={styles.row}>
+            {profileKeywords.map((row) => (
+              <Chip
+                key={row}
+                label={`${row} ×`}
+                hint={`Fjern AI-søkeord ${row}`}
+                colors={colors}
+                on
+                onPress={() => setProfileKeywords((current) => current.filter((item) => item !== row))}
+              />
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.row}>
+          <TouchableOpacity onPress={interpretProfile} style={[styles.save, { backgroundColor: colors.brand }]} accessibilityRole="button">
+            <Text style={{ color: '#fff' }}>{aiBusy ? 'Tolker …' : 'La AI tolke bedriften'}</Text>
+          </TouchableOpacity>
+          {profileKeywords.length ? (
+            <Chip
+              label="Bruk som søkeord"
+              colors={colors}
+              on={false}
+              onPress={() => setKeywords(normalizeKeywords([...keywords, ...profileKeywords]))}
+            />
+          ) : null}
+        </View>
+        {!!aiNote && <Text style={{ color: colors.muted }}>{aiNote}</Text>}
       </View>
 
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -393,5 +495,6 @@ const styles = StyleSheet.create({
   listRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
+  area: { minHeight: 88, textAlignVertical: 'top' },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

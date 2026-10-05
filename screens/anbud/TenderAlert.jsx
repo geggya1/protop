@@ -7,8 +7,10 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+    attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
+import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
+import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
@@ -24,21 +26,20 @@ import {
 } from '../../src/anbud/noticeText';
 
 const FILTERS = [
-  ['nye', 'Nye'],
-  ['aktuelle', 'Aktuelle'],
-  ['uaktuelle', 'Uaktuelle'],
-  ['alle', 'Alle'],
-  ['utlopt', 'Frist utløpt'],
+  ['nye', 'Nye', 'emphasis'],
+  ['aktuelle', 'Aktuelle', 'emphasis'],
+  ['uaktuelle', 'Uaktuelle', 'plain'],
+  ['alle', 'Alle', 'plain'],
+  ['utlopt', 'Frist utløpt', 'plain'],
 ];
 
 const COLUMNS = [
   { key: 'publishedAt', label: 'Publisert', width: 120, kind: 'date' },
   { key: 'source', label: 'Type', width: 90, kind: 'text' },
   { key: 'deadline', label: 'Frist', width: 110, kind: 'date' },
-  { key: 'title', label: 'Konkurranse', width: 340, kind: 'text' },
-  { key: 'buyer', label: 'Oppdragsgiver', width: 170, kind: 'text' },
+  { key: 'title', label: 'Konkurranse', width: 420, kind: 'text' },
+  { key: 'buyer', label: 'Oppdragsgiver', width: 180, kind: 'text' },
   { key: 'place', label: 'Sted', width: 150, kind: 'text' },
-  { key: 'match', label: 'Matcher', width: 160, kind: 'text' },
 ];
 
 function fold(value) {
@@ -51,7 +52,6 @@ function fold(value) {
 function columnValue(row, key, watch) {
   if (key === 'source') return row.source === 'ted' ? 'TED' : 'Doffin';
   if (key === 'place') return (row.places || []).join(', ');
-  if (key === 'match') return formatMatchLabel(row, watch);
   if (key === 'buyer') return row.buyer || '';
   if (key === 'title') return row.title || '';
   return row[key] || '';
@@ -64,21 +64,35 @@ function day(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-function Chip({ label, on, onPress, colors, hint, count }) {
-  const showCount = count != null && count > 0;
+function Chip({ label, on, onPress, colors, hint, count, emphasis }) {
+  const hasCount = count != null && count !== '';
+  const n = Number(count) || 0;
+  const countText = hasCount ? ` (${String(n).padStart(2, '0')})` : '';
+  if (emphasis) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={hint || `${label}, ${n}`}
+        style={[styles.chip, styles.chipEmphasis, { backgroundColor: on ? colors.brand : colors.sunken }]}
+      >
+        <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+        <View style={[styles.badge, { backgroundColor: on ? 'rgba(255,255,255,0.28)' : '#64748b' }]} accessibilityElementsHidden>
+          <Text style={styles.badgeTxt}>{n > 99 ? '99+' : String(n)}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={hint || (showCount ? `${label}, ${count}` : label)}
+      accessibilityLabel={hint || `${label}${countText}`}
       style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
     >
-      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>{label}</Text>
-      {showCount ? (
-        <View style={styles.badge} accessibilityElementsHidden>
-          <Text style={styles.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
-        </View>
-      ) : null}
+      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>
+        {label}{countText}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -151,6 +165,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
   const [pullingId, setPullingId] = useState('');
+  const [ranking, setRanking] = useState(false);
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -232,7 +247,47 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       emails,
       naeringskoder: trades,
       keywords,
+      profile: state.watch?.profile,
     };
+  }
+
+  async function applyAiRank(watch, notices, { silent } = {}) {
+    const profile = watch?.profile || {};
+    const terms = watchSearchTerms(watch);
+    if (!profile.description && !profile.summary && !profile.website && !terms.length) {
+      if (!silent) setError('Beskriv bedriften, legg inn hjemmeside eller søkeord under Innstillinger, så kan AI merke de beste treffene.');
+      return;
+    }
+    const open = (notices || []).filter((row) => (
+      row.decision !== 'tilbud' && !noticeIsRejected(row) && !noticeDeadlineExpired(row)
+    ));
+    const candidates = (silent ? open.filter((row) => !row.aiFit?.score) : open).slice(0, 20);
+    if (!candidates.length) {
+      if (!silent) setSavedNote('Ingen åpne treff å vurdere med AI.');
+      return;
+    }
+    setRanking(true);
+    try {
+      const data = await rankTenderHits({
+        companyName: watch.companyName || company?.name,
+        description: profile.description,
+        summary: profile.summary,
+        keywords: terms,
+        notices: candidates,
+      });
+      const next = mergeAiFit(stateRef.current.notices, data.hits || []);
+      commitState({ ...stateRef.current, notices: next });
+      const marked = (data.hits || []).filter((row) => Number(row.score) >= 8).length;
+      if (!silent || marked) {
+        setSavedNote(marked
+          ? `AI har fremhevet ${marked} treff dere bør se nærmere på.`
+          : 'AI har vurdert treffene. Ingen ble merket som særskilt gode.');
+      }
+    } catch (err) {
+      if (!silent) setError(err?.message || 'Kunne ikke vurdere treffene med AI.');
+    } finally {
+      setRanking(false);
+    }
   }
 
   async function refresh(nextState, manual = false) {
@@ -262,7 +317,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       const base = draft.ok ? { ...latest, watch } : latest;
       const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
       const added = merged.notices.filter((row) => !known.has(row.id)).length;
-      setState({ ...merged, queryKey: fingerprint });
+      commitState({ ...merged, queryKey: fingerprint });
       if (manual || added) {
         setSavedNote(added
           ? `${added} nye treff lagt til. Tidligere treff og vurderinger er beholdt.`
@@ -270,6 +325,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       }
       if (!data.hits?.length && data.errors?.length && !known.size) setError(data.errors[0]);
       else if (data.errors?.length) setError(data.errors.join(' '));
+      applyAiRank(watch, merged.notices, { silent: true }).catch(() => {});
     } catch (err) {
       const raw = String(err?.message || '');
       setError(/internal|cors|failed to fetch|ikke funnet/i.test(raw)
@@ -390,7 +446,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const matchWatch = useMemo(() => ({
     cpvCodes: [...selectedCpv].map((code) => ({ code })),
     keywords,
-  }), [selectedCpv, keywords]);
+    profile: state.watch?.profile,
+  }), [selectedCpv, keywords, state.watch?.profile]);
 
   const filterCounts = useMemo(() => {
     const counts = { nye: 0, aktuelle: 0, uaktuelle: 0, alle: 0, utlopt: 0 };
@@ -434,7 +491,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
       if (area && !noticeInArea(row, area)) return false;
       if (q) {
-        const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')} ${formatMatchLabel(row, matchWatch)}`);
+        const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')}`);
         if (!hay.includes(q)) return false;
       }
       return COLUMNS.every((col) => {
@@ -448,6 +505,10 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     const { key, dir } = sort;
     const factor = dir === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => {
+      const aFit = scoreNoticeFit(a, matchWatch);
+      const bFit = scoreNoticeFit(b, matchWatch);
+      if (aFit.strong !== bFit.strong) return aFit.strong ? -1 : 1;
+      if (aFit.score !== bFit.score) return bFit.score - aFit.score;
       const left = String(columnValue(a, key, matchWatch) || '');
       const right = String(columnValue(b, key, matchWatch) || '');
       if (!left && right) return 1;
@@ -484,8 +545,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       <Text style={{ color: colors.muted }}>
         {cpvCount} CPV · {keywords.length} søkeord · {companyTrades.length} næringskoder · {areaLabel} · {channelLabel}
       </Text>
+      {state.watch?.profile?.summary ? (
+        <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>
+      ) : null}
       <Text style={{ color: colors.muted }}>
-        {syncing ? 'Søker …' : `${notices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
+        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${notices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
       </Text>
       <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Se og endre kodene under Innstillinger</Text>
@@ -505,9 +569,19 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}. ` : ''}Nye treff legges til. Vurderinger beholdes.
             </Text>
           </View>
-          <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => applyAiRank(stateRef.current.watch, stateRef.current.notices)}
+              accessibilityRole="button"
+              accessibilityLabel="Vurder treff med AI"
+              style={[styles.save, { backgroundColor: colors.sunken }]}
+            >
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{ranking ? 'Vurderer …' : 'Vurder treff med AI'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <TextInput
           value={queryText}
@@ -517,12 +591,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
         <View style={styles.row}>
-          {FILTERS.map(([id, label]) => (
+          {FILTERS.map(([id, label, tone]) => (
             <Chip
               key={id}
               label={label}
               colors={colors}
-              count={filterCounts[id]}
+              count={filterCounts[id] || 0}
+              emphasis={tone === 'emphasis'}
               on={filter === id}
               onPress={() => setFilter(id)}
             />
@@ -623,8 +698,16 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             const open = openId === row.id;
             const aktuell = row.decision === 'aktuell';
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
+            const fit = scoreNoticeFit(row, matchWatch);
             return (
-              <View key={row.id} style={{ borderColor: colors.line, borderBottomWidth: 1, backgroundColor: aktuell ? colors.brandSoft : 'transparent' }}>
+              <View key={row.id} style={{
+                borderColor: colors.line,
+                borderBottomWidth: 1,
+                borderLeftWidth: fit.strong ? 4 : 0,
+                borderLeftColor: fit.strong ? colors.brand : 'transparent',
+                backgroundColor: aktuell || fit.strong ? colors.brandSoft : 'transparent',
+              }}
+              >
                 <View style={styles.line}>
                   <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
                     <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
@@ -637,10 +720,15 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                         </Text>
                       ) : null}
                     </View>
-                    <Text style={[styles.td, { width: 340, color: colors.ink }]}>{row.title}</Text>
-                    <Text style={[styles.td, { width: 170, color: colors.ink }]}>{row.buyer || '—'}</Text>
+                    <View style={[styles.td, { width: 420 }]}>
+                      {fit.strong ? (
+                        <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Godt treff</Text>
+                      ) : null}
+                      <Text style={{ color: colors.ink }}>{row.title}</Text>
+                      {fit.reason ? <Text style={{ color: colors.muted, fontSize: 11 }}>{fit.reason}</Text> : null}
+                    </View>
+                    <Text style={[styles.td, { width: 180, color: colors.ink }]}>{row.buyer || '—'}</Text>
                     <Text style={[styles.td, { width: 150, color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
-                    <Text style={[styles.td, { width: 160, color: colors.ink }]}>{formatMatchLabel(row, matchWatch)}</Text>
                   </TouchableOpacity>
                   <View style={styles.decision}>
                     <TouchableOpacity
@@ -699,7 +787,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1 },
-  table: { width: 1320, minWidth: 1320 },
+  table: { width: 1246, minWidth: 1246 },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -713,6 +801,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  chipEmphasis: { paddingRight: 8 },
   badge: {
     minWidth: 20,
     height: 20,
@@ -720,7 +809,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#D92D20',
+    backgroundColor: '#64748b',
   },
   badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
   sourceBox: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },

@@ -137,6 +137,30 @@ export const tenderProxy = onRequest(
         res.json({ ok: true, notice });
         return;
       }
+      if (action === 'interpret-profile') {
+        try {
+          const { interpretProfile, friendlyGeminiError } = await import('./anbudWatchAi.js');
+          const data = await interpretProfile(body);
+          res.json(data);
+        } catch (err) {
+          const mod = await import('./anbudWatchAi.js').catch(() => null);
+          const message = mod?.friendlyGeminiError?.(err) || err?.message || 'Kunne ikke tolke bedriften.';
+          res.status(err?.status || 502).json({ ok: false, error: message });
+        }
+        return;
+      }
+      if (action === 'rank-hits') {
+        try {
+          const { rankHits } = await import('./anbudWatchAi.js');
+          const data = await rankHits(body);
+          res.json(data);
+        } catch (err) {
+          const mod = await import('./anbudWatchAi.js').catch(() => null);
+          const message = mod?.friendlyGeminiError?.(err) || err?.message || 'Kunne ikke vurdere treffene.';
+          res.status(err?.status || 502).json({ ok: false, error: message });
+        }
+        return;
+      }
       const channels = Array.isArray(body.channels) ? body.channels : ['doffin', 'ted'];
       const hits = [];
       const errors = [];

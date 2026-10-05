@@ -4,6 +4,8 @@ import { buildTedQuery } from './tedQuery.js';
 import {
   emptyAnbudState,
   compactAnbudState,
+  formatMatchExplain,
+  formatSources,
   mergeAnbudStates,
   mergeTenderNotices,
   normalizeAnbudState,
@@ -140,6 +142,45 @@ assert.equal(trimmed.notices[0].decision, 'aktuell');
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].name, 'Krav.pdf');
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].dataUrl, undefined);
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].base64, undefined);
+
+const doffinHit = {
+  id: '2026-88',
+  heading: 'Renseanlegg i Lindesnes',
+  buyer: [{ name: 'Lindesnes kommune' }],
+  status: 'ACTIVE',
+  publicationDate: '2026-09-18',
+  description: 'Nytt renseanlegg',
+  cpvCodes: ['71300000'],
+};
+const tedTwin = {
+  id: 'ted-123-2026',
+  heading: 'Renseanlegg i Lindesnes',
+  buyer: [{ name: 'Lindesnes kommune' }],
+  status: 'ACTIVE',
+  publicationDate: '2026-09-18',
+  source: 'ted',
+  description: 'Nytt renseanlegg hos TED',
+  cpvCodes: ['71310000'],
+};
+const twins = mergeTenderNotices(emptyAnbudState(), [doffinHit, tedTwin], '2026-09-18T12:00:00Z').state;
+assert.equal(twins.notices.length, 1, 'Doffin og TED for samme kunngjøring blir ett treff');
+assert.equal(formatSources(twins.notices[0]), 'Doffin · TED');
+assert.equal(twins.notices[0].id, '2026-88');
+assert.ok(twins.notices[0].altIds.includes('ted-123-2026'));
+assert.equal(setNoticeDecision(twins, 'ted-123-2026', 'aktuell').state.notices[0].decision, 'aktuell');
+
+const why = formatMatchExplain({
+  title: 'Scanning av gamle Narvik sykehus',
+  description: 'ombygging',
+  buyer: 'Nordland fylkeskommune',
+  cpvCodes: ['45000000', '71221000'],
+}, {
+  cpvCodes: [{ code: '45000000', label: 'Bygg' }],
+  keywords: ['Sykehus'],
+});
+assert.deepEqual(why.cpv.map((row) => row.code), ['45000000']);
+assert.deepEqual(why.keywords, ['Sykehus']);
+assert.equal(why.fromCpvSearch, false);
 
 const withWords = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',

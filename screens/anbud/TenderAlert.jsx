@@ -8,13 +8,14 @@ import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatSources, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, noticeInArea, noticeSources, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
 import BidDecision from './BidDecision';
+import MatchInfoBar from './MatchInfoBar';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -25,12 +26,11 @@ const FILTERS = [
 
 const COLUMNS = [
   { key: 'publishedAt', label: 'Publisert', width: 120, kind: 'date' },
-  { key: 'source', label: 'Type', width: 90, kind: 'text' },
+  { key: 'source', label: 'Type', width: 110, kind: 'text' },
   { key: 'deadline', label: 'Frist', width: 110, kind: 'date' },
-  { key: 'title', label: 'Konkurranse', width: 340, kind: 'text' },
+  { key: 'title', label: 'Konkurranse', width: 360, kind: 'text' },
   { key: 'buyer', label: 'Oppdragsgiver', width: 170, kind: 'text' },
   { key: 'place', label: 'Sted', width: 150, kind: 'text' },
-  { key: 'match', label: 'Matcher', width: 160, kind: 'text' },
 ];
 
 function fold(value) {
@@ -41,9 +41,8 @@ function fold(value) {
 }
 
 function columnValue(row, key, watch) {
-  if (key === 'source') return row.source === 'ted' ? 'TED' : 'Doffin';
+  if (key === 'source') return formatSources(row);
   if (key === 'place') return (row.places || []).join(', ');
-  if (key === 'match') return formatMatchLabel(row, watch);
   if (key === 'buyer') return row.buyer || '';
   if (key === 'title') return row.title || '';
   return row[key] || '';
@@ -401,7 +400,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       } else if (!archiveOn && expired) return false;
       if (!archiveOn && filter === 'nye' && !row.isNew) return false;
       if (!archiveOn && filter === 'aktuelle' && row.decision !== 'aktuell') return false;
-      if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
+      if (sourceFilter !== 'alle' && !noticeSources(row).includes(sourceFilter)) return false;
       if (area && !noticeInArea(row, area)) return false;
       if (q) {
         const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')} ${formatMatchLabel(row, matchWatch)}`);
@@ -615,13 +614,19 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               <View key={row.id} style={{ borderColor: colors.line, borderBottomWidth: 1, backgroundColor: aktuell ? colors.brandSoft : 'transparent' }}>
                 <View style={styles.line}>
                   <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
-                    <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
-                    <Text style={[styles.td, { width: 90, color: colors.ink }]}>{row.source === 'ted' ? 'TED' : 'Doffin'}</Text>
-                    <Text style={[styles.td, { width: 110, color: soon ? colors.danger : colors.ink }]}>{day(row.deadline)}</Text>
-                    <Text style={[styles.td, { width: 340, color: colors.ink }]}>{row.title}</Text>
-                    <Text style={[styles.td, { width: 170, color: colors.ink }]}>{row.buyer || '—'}</Text>
-                    <Text style={[styles.td, { width: 150, color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
-                    <Text style={[styles.td, { width: 160, color: colors.ink }]}>{formatMatchLabel(row, matchWatch)}</Text>
+                    {COLUMNS.map((col) => {
+                      const raw = columnValue(row, col.key, matchWatch);
+                      const shown = col.kind === 'date' ? day(raw) : (raw || '—');
+                      const danger = col.key === 'deadline' && soon;
+                      return (
+                        <Text
+                          key={col.key}
+                          style={[styles.td, { width: col.width, color: danger ? colors.danger : col.key === 'place' ? colors.muted : colors.ink }]}
+                        >
+                          {shown}
+                        </Text>
+                      );
+                    })}
                   </TouchableOpacity>
                   <View style={styles.decision}>
                     <TouchableOpacity
@@ -644,11 +649,14 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                 </View>
                 {open ? (
                   <View style={{ padding: 8, gap: 8 }}>
+                    <MatchInfoBar notice={row} watch={matchWatch} colors={colors} />
                     <Text style={{ color: colors.ink }}>{row.dossier?.description || row.description || row.noticeType || 'Ingen utdrag.'}</Text>
                     {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
-                    <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
-                      <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
-                    </TouchableOpacity>
+                    {noticeSources(row).length < 2 ? (
+                      <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
+                        <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
+                      </TouchableOpacity>
+                    ) : null}
                     {aktuell ? (
                       <BidDecision
                         notice={row}

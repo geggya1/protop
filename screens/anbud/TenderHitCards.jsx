@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { formatMatchLabel, formatWhen } from '../../src/anbud/model';
+import { formatSources, formatWhen, noticeSources } from '../../src/anbud/model';
+import MatchInfoBar from './MatchInfoBar';
 
 function day(value) {
   const raw = String(value || '');
@@ -12,7 +13,7 @@ function day(value) {
 }
 
 function sourceName(row) {
-  return row.source === 'ted' ? 'TED' : 'Doffin';
+  return formatSources(row);
 }
 
 function soonDeadline(row) {
@@ -130,7 +131,6 @@ export default function TenderHitCards({
         const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv';
         const soon = soonDeadline(row);
         const place = Array.isArray(row.places) ? row.places.filter(Boolean).join(', ') : String(row.places || '');
-        const match = formatMatchLabel(row, matchWatch);
         return (
           <View
             key={row.id}
@@ -160,10 +160,6 @@ export default function TenderHitCards({
                   <Text style={{ color: colors.brand, fontWeight: '600' }}>{sourceName(row)}</Text>
                   {` · ${day(row.publishedAt)}`}
                 </Text>
-                <Text style={[styles.meta, { color: colors.ink }]} numberOfLines={1}>
-                  <Text style={{ color: colors.muted }}>Matcher </Text>
-                  {match}
-                </Text>
               </TouchableOpacity>
               <View style={styles.actions}>
                 <TouchableOpacity
@@ -186,10 +182,13 @@ export default function TenderHitCards({
             </View>
             {open ? (
               <View style={[styles.detail, { borderTopColor: colors.line }]}>
+                <MatchInfoBar notice={row} watch={matchWatch} colors={colors} />
                 <Text style={{ color: colors.ink }}>{row.description || row.noticeType || 'Ingen utdrag.'}</Text>
-                <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
-                  <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
-                </TouchableOpacity>
+                {noticeSources(row).length < 2 ? (
+                  <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
+                    <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
+                  </TouchableOpacity>
+                ) : null}
                 {aktuell && renderDecision ? renderDecision(row) : null}
               </View>
             ) : null}

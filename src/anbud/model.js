@@ -126,7 +126,101 @@ export function noticeSignature(notice) {
 function noticeKeys(row) {
   const id = text(row?.id);
   const sig = noticeSignature(row);
-  return [id, sig].filter(Boolean);
+  return [id, ...(Array.isArray(row?.altIds) ? row.altIds.map((item) => text(item)) : []), sig].filter(Boolean);
+}
+
+export function noticeSources(notice) {
+  const listed = Array.isArray(notice?.sources) ? notice.sources : [];
+  const one = text(notice?.source).toLowerCase();
+  const rows = [...listed, one]
+    .map((row) => text(row).toLowerCase())
+    .filter((row) => row === 'doffin' || row === 'ted');
+  return [...new Set(rows)];
+}
+
+export function formatSources(notice) {
+  const rows = noticeSources(notice);
+  if (!rows.length) return 'Doffin';
+  return rows.map((row) => (row === 'ted' ? 'TED' : 'Doffin')).join(' · ');
+}
+
+function uniqueTexts(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values || []) {
+    const item = text(value);
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
+}
+
+function similarBuyer(left, right) {
+  const a = fold(left);
+  const b = fold(right);
+  if (!a || !b) return true;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const core = (value) => value.replace(/\b(kommune|fylkeskommune|as|asa|kf|iks|hf|norge|norway)\b/g, '').replace(/\s+/g, ' ').trim();
+  return !!core(a) && core(a) === core(b);
+}
+
+function isCrossSourceDuplicate(left, right) {
+  if (!left || !right) return false;
+  if (left.id && (left.id === right.id || (right.altIds || []).includes(left.id))) return true;
+  if (right.id && (left.altIds || []).includes(right.id)) return true;
+  const sig = noticeSignature(left);
+  if (sig && sig === noticeSignature(right)) return true;
+  const title = fold(left.title);
+  const published = String(left.publishedAt || '').slice(0, 10);
+  if (!title || title !== fold(right.title) || published !== String(right.publishedAt || '').slice(0, 10)) return false;
+  const a = noticeSources(left);
+  const b = noticeSources(right);
+  const sameOnly = a.length === 1 && b.length === 1 && a[0] === b[0];
+  if (sameOnly) return false;
+  return similarBuyer(left.buyer, right.buyer);
+}
+
+function combineNotices(left, right) {
+  const picked = pickReviewedNotice(left, right);
+  const a = normalizeNotice(left);
+  const b = normalizeNotice(right);
+  const sources = uniqueTexts([...noticeSources(a), ...noticeSources(b)]);
+  const doffin = a.source === 'doffin' || noticeSources(a).includes('doffin') ? a : (noticeSources(b).includes('doffin') ? b : null);
+  const ted = a.source === 'ted' || noticeSources(a).includes('ted') ? a : (noticeSources(b).includes('ted') ? b : null);
+  const primary = doffin || picked;
+  const longer = text(a.description).length >= text(b.description).length ? a.description : b.description;
+  return normalizeNotice({
+    ...picked,
+    ...primary,
+    decision: picked.decision,
+    reviewedAt: picked.reviewedAt,
+    interestAt: picked.interestAt,
+    interest: picked.interest,
+    dossier: picked.dossier || primary.dossier,
+    consideration: picked.consideration,
+    isNew: picked.isNew,
+    source: sources.includes('doffin') ? 'doffin' : (sources[0] || primary.source || 'doffin'),
+    sources,
+    altIds: uniqueTexts([a.id, b.id, ...(a.altIds || []), ...(b.altIds || [])]).filter((id) => id !== primary.id),
+    url: primary.url || picked.url,
+    doffinUrl: doffin?.url || a.doffinUrl || b.doffinUrl || '',
+    tedUrl: ted?.url || a.tedUrl || b.tedUrl || '',
+    cpvCodes: uniqueTexts([...(a.cpvCodes || []), ...(b.cpvCodes || [])]),
+    matchedKeywords: normalizeKeywords([...(a.matchedKeywords || []), ...(b.matchedKeywords || [])]),
+    description: longer || primary.description,
+    places: uniqueTexts([...(a.places || []), ...(b.places || [])]),
+  });
+}
+
+function collapseCrossSourceDuplicates(list) {
+  const out = [];
+  for (const row of (Array.isArray(list) ? list : [])) {
+    const idx = out.findIndex((kept) => isCrossSourceDuplicate(kept, row));
+    if (idx >= 0) out[idx] = combineNotices(out[idx], row);
+    else out.push(row);
+  }
+  return out;
 }
 
 function pickReviewedNotice(left, right) {
@@ -164,7 +258,7 @@ function mergeNoticeLists(left, right) {
       const notice = normalizeNotice(row);
       if (!notice.id && !noticeSignature(notice)) continue;
       const existing = noticeKeys(notice).map((key) => byKey.get(key)).find(Boolean);
-      const picked = existing ? pickReviewedNotice(existing, notice) : notice;
+      const picked = existing ? combineNotices(existing, notice) : notice;
       for (const key of noticeKeys(picked)) byKey.set(key, picked);
     }
   };
@@ -179,7 +273,7 @@ function mergeNoticeLists(left, right) {
     notices.push(row);
   }
   notices.sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
-  return notices;
+  return collapseCrossSourceDuplicates(notices);
 }
 
 function mergeById(left, right) {
@@ -470,6 +564,19 @@ export function noticeMatch(notice, watch) {
   return { cpv, keywords: words };
 }
 
+export function formatMatchExplain(notice, watch) {
+  const found = noticeMatch(notice, watch);
+  return {
+    cpv: found.cpv.map((code) => {
+      const known = cpvByCode(code);
+      return { code, label: known?.label || '' };
+    }),
+    keywords: found.keywords,
+    sources: noticeSources(notice),
+    fromCpvSearch: !found.cpv.length && !found.keywords.length,
+  };
+}
+
 export function formatMatchLabel(notice, watch) {
   const found = noticeMatch(notice, watch);
   const parts = [];
@@ -578,13 +685,23 @@ function normalizeNotice(raw) {
   const row = raw && typeof raw === 'object' ? raw : {};
   const strategy = row.consideration ? normalizeStrategy(row.consideration.strategy) : null;
   const decision = DECISIONS.has(row.decision) ? row.decision : 'ubestemt';
+  const sources = noticeSources(row);
   return {
     ...row,
     id: text(row.id),
     decision,
     reviewedAt: row.reviewedAt || null,
+    source: sources.includes('doffin') ? 'doffin' : (sources[0] || text(row.source) || 'doffin'),
+    sources,
+    altIds: uniqueTexts(row.altIds).filter((id) => id !== text(row.id)),
+    doffinUrl: text(row.doffinUrl) || (text(row.source) === 'doffin' ? text(row.url) : ''),
+    tedUrl: text(row.tedUrl) || (text(row.source) === 'ted' ? text(row.url) : ''),
     consideration: strategy ? { strategy } : null,
   };
+}
+
+function sameNoticeRow(row, id) {
+  return row.id === id || (row.altIds || []).includes(id);
 }
 
 export function toggleConsideration(state, id, itemId) {
@@ -595,12 +712,12 @@ export function toggleConsideration(state, id, itemId) {
   const strategy = { ...normalizeStrategy(notice.consideration?.strategy), [itemId]: !normalizeStrategy(notice.consideration?.strategy)[itemId] };
   return ok({
     ...state,
-    notices: state.notices.map((row) => (row.id === id ? { ...row, consideration: { strategy } } : row)),
+    notices: state.notices.map((row) => (sameNoticeRow(row, id) ? { ...row, consideration: { strategy } } : row)),
   });
 }
 
 function noticeById(state, id) {
-  return (state.notices || []).find((row) => row.id === id) || null;
+  return (state.notices || []).find((row) => sameNoticeRow(row, id)) || null;
 }
 
 export function setNoticeDecision(state, id, decision) {
@@ -613,7 +730,7 @@ export function setNoticeDecision(state, id, decision) {
   return ok({
     ...state,
     notices: state.notices.map((row) => (
-      row.id === id
+      sameNoticeRow(row, id)
         ? {
           ...row,
           decision,
@@ -632,7 +749,7 @@ export function attachDossier(state, id, dossier) {
   if (!dossier || typeof dossier !== 'object') return fail(state, 'Mangler konkurransegrunnlag.');
   return ok({
     ...state,
-    notices: state.notices.map((row) => (row.id === id ? { ...row, dossier } : row)),
+    notices: state.notices.map((row) => (sameNoticeRow(row, id) ? { ...row, dossier } : row)),
   });
 }
 
@@ -744,7 +861,7 @@ export function registerInterest(state, id, dossier) {
   return ok({
     ...bid.state,
     bids: bid.state.bids.map((row) => (row.noticeId === id ? { ...row, interest, dossier: dossier || row.dossier } : row)),
-    notices: bid.state.notices.map((row) => (row.id === id ? { ...row, interest } : row)),
+    notices: bid.state.notices.map((row) => (sameNoticeRow(row, id) ? { ...row, interest } : row)),
   });
 }
 

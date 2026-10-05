@@ -30,20 +30,24 @@ export function anbudMenuTitle(subView) {
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Hoved.
- * Anbud har egen undermeny. Kontrakt / avtale ligger utenfor anbud.
+ * Anbud har egen undermeny. Kunder og avtaler ligger under Økonomi.
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   return 'Selskap';
 }
 
-/** Undermeny når Økonomi er valgt. Indeksregulering åpnes etter valgt avtale. */
+/** Undermeny når Økonomi er valgt. Kunde og avtale før indeksregulering. */
 export const OKONOMI_MENU = [
-  { id: 'oversikt', icon: 'home', label: 'Oversikt' },
-  { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
+  { id: 'oversikt', navId: 'okonomi-oversikt', icon: 'home', label: 'Oversikt', tab: 'okonomi', subView: 'oversikt' },
+  { id: 'kunder', navId: 'kunder', icon: 'people', label: 'Kunder', tab: 'kunder' },
+  { id: 'avtaler', navId: 'kontrakt', icon: 'ribbon', label: 'Avtaler', tab: 'kontrakt' },
+  { id: 'indeks', navId: 'okonomi-indeks', icon: 'trending-up', label: 'Indeksregulering', tab: 'okonomi', subView: 'indeks' },
 ];
 
-export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU.map((item) => item.id);
+export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU
+  .filter((item) => item.tab === 'okonomi')
+  .map((item) => item.subView || item.id);
 
 export function defaultOkonomiSubView(subView) {
   return OKONOMI_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
@@ -52,6 +56,17 @@ export function defaultOkonomiSubView(subView) {
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
   return 'Økonomi';
+}
+
+function okonomiNavChildren() {
+  return OKONOMI_MENU.map((item) => ({
+    id: item.navId,
+    icon: item.icon,
+    label: item.label,
+    action: item.tab === 'okonomi'
+      ? { type: 'tab', tab: 'okonomi', subView: item.subView }
+      : { type: 'tab', tab: item.tab },
+  }));
 }
 
 export function companyNavItems() {
@@ -71,7 +86,6 @@ export function companyNavItems() {
         },
       ],
     },
-    { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
       icon: 'megaphone',
@@ -84,7 +98,6 @@ export function companyNavItems() {
         action: { type: 'tab', tab: 'anbud', subView: item.id },
       })),
     },
-    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     {
@@ -93,23 +106,27 @@ export function companyNavItems() {
       label: 'Økonomi',
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
       forceOpen: true,
-      children: OKONOMI_MENU.map((item) => ({
-        id: `okonomi-${item.id}`,
-        icon: item.icon,
-        label: item.label,
-        action: { type: 'tab', tab: 'okonomi', subView: item.id },
-      })),
+      children: okonomiNavChildren(),
     },
   ];
+}
+
+function companyAllowIds() {
+  const ids = [];
+  for (const item of companyNavItems()) {
+    ids.push(item.id);
+    for (const child of item.children || []) ids.push(child.id);
+  }
+  return ids;
 }
 
 export function isNavItemActive(item, activeTab, activeSubView) {
   const action = item?.action;
   if (!action || action.type !== 'tab') return false;
-  if (action.tab !== activeTab) return false;
-  if (item.children?.length) {
-    return item.children.some((child) => isNavItemActive(child, activeTab, activeSubView));
+  if (item.children?.length && item.children.some((child) => isNavItemActive(child, activeTab, activeSubView))) {
+    return true;
   }
+  if (action.tab !== activeTab) return false;
   if (action.tab === 'more' || action.subView) {
     return (action.subView || null) === (activeSubView || null);
   }
@@ -397,7 +414,7 @@ export function buildShellModules({
     : isGrandparent
       ? applyGrandparentAppRestrictions(sections, grandparentModules)
       : sections;
-  return applyProtopShellSections(visible, onCompany ? companyNavItems().map((item) => item.id) : []);
+  return applyProtopShellSections(visible, onCompany ? companyAllowIds() : []);
 }
 
 /**

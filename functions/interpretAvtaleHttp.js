@@ -19,7 +19,7 @@ function statusOf(error) {
 }
 
 export const interpretAvtaleHttp = onRequest(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 90, memory: '1GiB' },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '2GiB' },
   async (req, res) => {
     applyCors(res);
     if (req.method === 'OPTIONS') {

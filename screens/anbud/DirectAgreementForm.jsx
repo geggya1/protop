@@ -54,6 +54,22 @@ function formFromInput(input) {
   };
 }
 
+function bytesToBase64(bytes) {
+  if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function engineLabel(used) {
+  if (used === 'ocr+gemini' || used === 'gemini') return 'OCR + KI';
+  if (used === 'ocr') return 'OCR';
+  return 'lokal lesing';
+}
+
 export default function DirectAgreementForm({
   colors,
   projects = [],
@@ -107,6 +123,26 @@ export default function DirectAgreementForm({
     setError('');
   }
 
+  async function applyRemote(file, bytes, note) {
+    const remote = await interpretAvtale({
+      fileName: file.name || 'Avtale.pdf',
+      mimeType: file.mimeType || 'application/pdf',
+      fileBase64: bytesToBase64(bytes),
+    });
+    if (!remote?.extracted) throw new Error('Kunne ikke lese PDF-en. Lim inn teksten under.');
+    const text = String(remote.text || '').trim();
+    const docs = text.length >= 20
+      ? [...((payload?.documents || []).filter((doc) => doc.text)), { id: `dok-${Date.now()}`, name: file.name || 'Avtale', text }]
+      : [{ id: `dok-${Date.now()}`, name: file.name || 'Avtale', text: text || 'Skannet avtale' }];
+    const merged = mergeInterpretation(null, remote.extracted, text);
+    const next = inputFromInterpretation(merged, { documents: docs });
+    setPayload(next);
+    setForm((current) => ({ ...formFromInput(next), projectId: current.projectId }));
+    setEngine(remote.engine || 'ocr+gemini');
+    setStatus(note);
+    setError('');
+  }
+
   async function importFile() {
     setError('');
     const file = await pickDocument({ accept: ACCEPT });
@@ -115,12 +151,17 @@ export default function DirectAgreementForm({
     setStatus('Leser avtalen…');
     try {
       const bytes = await bytesFromFile(file);
-      const text = await extractContractText(bytes, file.name, file.mimeType);
-      const docs = [
-        ...((payload?.documents || []).filter((doc) => doc.text)),
-        { id: `dok-${Date.now()}`, name: file.name || 'Avtale', text },
-      ];
-      await applyDocs(docs, `${file.name || 'Filen'} er lest. Kontroller feltene før du registrerer.`);
+      try {
+        const text = await extractContractText(bytes, file.name, file.mimeType);
+        const docs = [
+          ...((payload?.documents || []).filter((doc) => doc.text)),
+          { id: `dok-${Date.now()}`, name: file.name || 'Avtale', text },
+        ];
+        await applyDocs(docs, `${file.name || 'Filen'} er lest. Kontroller feltene før du registrerer.`);
+      } catch {
+        setStatus('Leser skannet avtale med OCR og KI…');
+        await applyRemote(file, bytes, `${file.name || 'Filen'} er lest med OCR og KI. Kontroller feltene før du registrerer.`);
+      }
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese avtalen. Lim inn teksten under.');
     } finally {
@@ -214,7 +255,7 @@ export default function DirectAgreementForm({
           <Text style={{ color: colors.brand }}>Les innlimt tekst</Text>
         </TouchableOpacity>
       ) : null}
-      {!!status && <Text style={{ color: colors.brand }}>{status}{engine ? ` · ${engine === 'gemini' ? 'KI' : 'lokal lesing'}` : ''}</Text>}
+      {!!status && <Text style={{ color: colors.brand }}>{status}{engine ? ` · ${engineLabel(engine)}` : ''}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {FIELDS.map(([key, label]) => (
         <View key={key} style={{ gap: 4 }}>

@@ -293,6 +293,13 @@
         }
       },
       {
+        "source": "/api/open-feed",
+        "function": {
+          "functionId": "fetchOpenFeedHttp",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

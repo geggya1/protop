@@ -2,12 +2,13 @@
  * Proxy for åpne feeds uten CORS (VG, DN, E24, Yahoo Finance).
  * Kun innloggede brukere, stram allowlist, rate limit.
  */
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import { validateOpenFeedUrl } from './openFeedAllow.js';
+import { applyCors, requireBearerUid } from './httpAuth.js';
 
 if (!getApps().length) initializeApp();
 
@@ -83,6 +84,48 @@ export const fetchOpenFeed = onCall(
       if (isHttpsError(err)) throw err;
       logger.warn('fetchOpenFeed failed', { message: err?.message });
       reject('unavailable', 'Kunne ikke hente kilden');
+    }
+  },
+);
+
+export const fetchOpenFeedHttp = onRequest(
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 20, memory: '256MiB' },
+  async (req, res) => {
+    applyCors(res);
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.status(405).json({ ok: false, error: 'Bruk POST.' });
+      return;
+    }
+    const uid = await requireBearerUid(req, res);
+    if (!uid) return;
+    try {
+      let target;
+      try {
+        target = validateOpenFeedUrl(req.body?.url);
+      } catch (err) {
+        const status = err?.code === 'permission-denied' ? 403 : 400;
+        res.status(status).json({ ok: false, error: err.message || 'Ugyldig adresse.' });
+        return;
+      }
+      await assertRateLimit(getFirestore(), {
+        key: hashRateKey(['openfeed', uid]),
+        limit: 80,
+        windowMs: 60 * 60 * 1000,
+      });
+      const data = await fetchFeed(target);
+      res.json(data);
+    } catch (err) {
+      if (err instanceof HttpsError) {
+        const status = err.code === 'unauthenticated' ? 401 : err.code === 'permission-denied' ? 403 : 502;
+        res.status(status).json({ ok: false, error: err.message || 'Kunne ikke hente kilden.' });
+        return;
+      }
+      logger.warn('fetchOpenFeedHttp failed', { message: err?.message });
+      res.status(502).json({ ok: false, error: 'Kunne ikke hente kilden.' });
     }
   },
 );

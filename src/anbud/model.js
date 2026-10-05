@@ -101,6 +101,153 @@ export function normalizeAnbudState(raw) {
   };
 }
 
+const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'ikke', 'tilbud']);
+
+function laterIso(left, right) {
+  const a = Date.parse(left || '') || 0;
+  const b = Date.parse(right || '') || 0;
+  if (b > a) return right || null;
+  return left || right || null;
+}
+
+function isDecided(decision) {
+  return !!decision && decision !== 'ubestemt';
+}
+
+/** Stabil nøkkel når Doffin/TED bytter id, men det er samme kunngjøring. */
+export function noticeSignature(notice) {
+  const title = fold(notice?.title || notice?.heading || '');
+  const buyer = fold(typeof notice?.buyer === 'string' ? notice.buyer : '');
+  const published = String(notice?.publishedAt || notice?.publicationDate || '').slice(0, 10);
+  if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(published)) return '';
+  return `${title}|${buyer}|${published}`;
+}
+
+function noticeKeys(row) {
+  const id = text(row?.id);
+  const sig = noticeSignature(row);
+  return [id, sig].filter(Boolean);
+}
+
+function pickReviewedNotice(left, right) {
+  const a = normalizeNotice(left);
+  const b = normalizeNotice(right);
+  const aTime = Date.parse(a.reviewedAt || '') || 0;
+  const bTime = Date.parse(b.reviewedAt || '') || 0;
+  const winner = bTime > aTime
+    ? b
+    : aTime > bTime
+      ? a
+      : (a.reviewedAt && b.reviewedAt
+        ? b
+        : (isDecided(b.decision) && !isDecided(a.decision) ? b : a));
+  const other = winner === a ? b : a;
+  return {
+    ...other,
+    ...winner,
+    id: winner.id || other.id,
+    decision: DECISIONS.has(winner.decision) ? winner.decision : (other.decision || 'ubestemt'),
+    reviewedAt: winner.reviewedAt || other.reviewedAt || null,
+    interestAt: winner.interestAt || other.interestAt || null,
+    interest: winner.interest || other.interest || null,
+    dossier: winner.dossier || other.dossier || null,
+    consideration: winner.consideration || other.consideration || null,
+    isNew: isDecided(winner.decision) ? false : !!(winner.isNew || other.isNew),
+    matchedKeywords: normalizeKeywords([...(other.matchedKeywords || []), ...(winner.matchedKeywords || [])]),
+  };
+}
+
+function mergeNoticeLists(left, right) {
+  const byKey = new Map();
+  const ingest = (list) => {
+    for (const row of (Array.isArray(list) ? list : [])) {
+      const notice = normalizeNotice(row);
+      if (!notice.id && !noticeSignature(notice)) continue;
+      const existing = noticeKeys(notice).map((key) => byKey.get(key)).find(Boolean);
+      const picked = existing ? pickReviewedNotice(existing, notice) : notice;
+      for (const key of noticeKeys(picked)) byKey.set(key, picked);
+    }
+  };
+  ingest(left);
+  ingest(right);
+  const seen = new Set();
+  const notices = [];
+  for (const row of byKey.values()) {
+    const id = row.id || noticeSignature(row);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    notices.push(row);
+  }
+  notices.sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
+  return notices;
+}
+
+function mergeById(left, right) {
+  const map = new Map();
+  for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
+    const id = text(row?.id);
+    if (!id) continue;
+    const prev = map.get(id);
+    map.set(id, prev ? { ...prev, ...row, id } : row);
+  }
+  return [...map.values()];
+}
+
+function pickWatch(left, right) {
+  const a = left && typeof left === 'object' ? left : {};
+  const b = right && typeof right === 'object' ? right : {};
+  const useRight = (Date.parse(b.savedAt || '') || 0) > (Date.parse(a.savedAt || '') || 0);
+  const src = useRight ? b : (a.savedAt || a.companyName ? a : b);
+  return {
+    ...a,
+    ...src,
+    cpvCodes: Array.isArray(src.cpvCodes) && src.cpvCodes.length ? src.cpvCodes : (a.cpvCodes || b.cpvCodes || []),
+    areas: Array.isArray(src.areas) ? src.areas : (a.areas || []),
+    channels: normalizeChannels(src.channels || a.channels || b.channels),
+    notify: normalizeNotify(src.notify || a.notify),
+    emails: normalizeEmails(src.emails || a.emails),
+    naeringskoder: normalizeTrades(src.naeringskoder || a.naeringskoder),
+    keywords: normalizeKeywords(src.keywords || a.keywords),
+  };
+}
+
+/** Slår sammen to lagrede tilstander uten å nullstille vurderinger. */
+export function mergeAnbudStates(left, right) {
+  const a = normalizeAnbudState(left);
+  const b = normalizeAnbudState(right);
+  const aSync = Date.parse(a.syncedAt || '') || 0;
+  const bSync = Date.parse(b.syncedAt || '') || 0;
+  return normalizeAnbudState({
+    watch: pickWatch(a.watch, b.watch),
+    notices: mergeNoticeLists(a.notices, b.notices),
+    bids: mergeById(a.bids, b.bids),
+    contracts: mergeById(a.contracts, b.contracts),
+    audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
+    formTemplates: a.formTemplates || b.formTemplates,
+    supplierProfile: (Date.parse(b.supplierProfile?.savedAt || '') || 0) > (Date.parse(a.supplierProfile?.savedAt || '') || 0)
+      ? b.supplierProfile
+      : (a.supplierProfile || b.supplierProfile),
+    syncedAt: laterIso(a.syncedAt, b.syncedAt),
+    queryKey: (bSync > aSync ? b.queryKey : a.queryKey) || b.queryKey || a.queryKey,
+  });
+}
+
+function stripHeavy(value) {
+  if (Array.isArray(value)) return value.map(stripHeavy);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'dataUrl' || key === 'base64') continue;
+    out[key] = stripHeavy(item);
+  }
+  return out;
+}
+
+/** Fjerner tunge filinnhold slik at valg overlever lagringsgrenser. */
+export function compactAnbudState(raw) {
+  return stripHeavy(normalizeAnbudState(raw));
+}
+
 export const LOGIN_PORTALS = [
   { id: 'mercell', name: 'Mercell', url: 'https://app.mercell.com/auth/login?bidding' },
   { id: 'eusupply', name: 'EU Supply', url: 'https://eu.eu-supply.com/login.asp' },
@@ -386,48 +533,56 @@ export function normalizeDoffinHit(hit) {
 
 export function mergeTenderNotices(state, hits, fetchedAt) {
   const incoming = (Array.isArray(hits) ? hits : []).map(normalizeDoffinHit).filter(Boolean);
-  const byId = new Map();
+  const previousRows = (state.notices || []).map(normalizeNotice);
+  const previousById = new Map(previousRows.map((row) => [row.id, row]));
+  const previousBySig = new Map();
+  for (const row of previousRows) {
+    const sig = noticeSignature(row);
+    if (sig && !previousBySig.has(sig)) previousBySig.set(sig, row);
+  }
+  const firstSync = !state.syncedAt;
+  const used = new Set();
+  const notices = [];
   for (const row of incoming) {
     if (row.status && row.status !== 'ACTIVE') continue;
-    byId.set(row.id, row);
-  }
-  const previous = new Map((state.notices || []).map((row) => [row.id, row]));
-  const firstSync = !state.syncedAt;
-  const notices = [...byId.values()].map((row) => {
-    const kept = previous.get(row.id);
-    const decided = kept?.decision && kept.decision !== 'ubestemt';
-    return {
+    const kept = previousById.get(row.id) || previousBySig.get(noticeSignature(row)) || null;
+    if (kept?.id) used.add(kept.id);
+    const decided = isDecided(kept?.decision);
+    notices.push({
       ...row,
       decision: kept?.decision || 'ubestemt',
+      reviewedAt: kept?.reviewedAt || null,
       interestAt: kept?.interestAt || null,
       interest: kept?.interest || null,
       dossier: kept?.dossier || null,
       consideration: kept?.consideration || null,
       isNew: kept ? (decided ? false : !!kept.isNew) : !firstSync,
       matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
-    };
-  });
-  for (const [id, kept] of previous) {
-    if (byId.has(id)) continue;
+    });
+  }
+  for (const kept of previousRows) {
+    if (used.has(kept.id)) continue;
     notices.push(kept);
   }
   notices.sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
   return ok({
     ...state,
-    notices,
+    notices: mergeNoticeLists(notices, []),
     syncedAt: fetchedAt || new Date().toISOString(),
   });
 }
-
-const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'ikke', 'tilbud']);
 
 const STRATEGY_IDS = new Set(STRATEGY_ITEMS.map((item) => item.id));
 
 function normalizeNotice(raw) {
   const row = raw && typeof raw === 'object' ? raw : {};
   const strategy = row.consideration ? normalizeStrategy(row.consideration.strategy) : null;
+  const decision = DECISIONS.has(row.decision) ? row.decision : 'ubestemt';
   return {
     ...row,
+    id: text(row.id),
+    decision,
+    reviewedAt: row.reviewedAt || null,
     consideration: strategy ? { strategy } : null,
   };
 }
@@ -462,6 +617,7 @@ export function setNoticeDecision(state, id, decision) {
         ? {
           ...row,
           decision,
+          reviewedAt: new Date().toISOString(),
           isNew: decision === 'ubestemt' ? !!row.isNew : false,
           interestAt: decision === 'aktuell' ? (row.interestAt || new Date().toISOString()) : row.interestAt,
         }

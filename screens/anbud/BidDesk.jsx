@@ -25,7 +25,7 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
 
   useEffect(() => {
     let live = true;
-    loadAnbudState().then((loaded) => {
+    loadAnbudState(company?.id).then((loaded) => {
       if (!live) return;
       setState(loaded);
       onSnapshot?.(loaded);
@@ -49,7 +49,7 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
     setState(result.state);
     setNote('');
     onSnapshot?.(result.state);
-    await saveAnbudState(result.state);
+    await saveAnbudState(result.state, company?.id);
   }
 
   async function refreshFiles(bid) {
@@ -68,7 +68,7 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
       setBusyId('');
       return;
     }
-    const loaded = await loadAnbudState();
+    const loaded = await loadAnbudState(company?.id);
     const next = {
       ...loaded,
       bids: (loaded.bids || []).map((row) => (
@@ -78,7 +78,7 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
         row.id === bid.noticeId ? { ...row, dossier: { ...(row.dossier || {}), ...dossier } } : row
       )),
     };
-    await saveAnbudState(next);
+    await saveAnbudState(next, company?.id);
     setState(next);
     onSnapshot?.(next);
     const stored = next.bids.find((row) => row.id === bid.id);

@@ -32,7 +32,7 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
   const [note, setNote] = useState('');
 
   useEffect(() => {
-    loadAnbudState().then((state) => {
+    loadAnbudState(company?.id).then((state) => {
       const saved = state.supplierProfile;
       setProfile(saved);
       if (!saved) return;
@@ -46,7 +46,7 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
   }, [company?.id]);
 
   async function save() {
-    const loaded = await loadAnbudState();
+    const loaded = await loadAnbudState(company?.id);
     const result = saveSupplierProfile(loaded, {
       companyName: company?.name || '',
       orgnr: company?.orgnr || '',
@@ -62,7 +62,7 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
       setNote('');
       return;
     }
-    await saveAnbudState(result.state);
+    await saveAnbudState(result.state, company?.id);
     setProfile(result.state.supplierProfile);
     setError('');
     setNote('Profilen er lagret. Merk konkurransen som aktuell, og velg deretter om det skal gis tilbud.');

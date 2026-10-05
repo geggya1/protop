@@ -24,7 +24,7 @@ npm run web
 
 Kjør kommandoen **på maskinen din**. `http://localhost:8081` er tom (ERR_CONNECTION_REFUSED) hvis Metro ikke kjører lokalt.
 
-Google på localhost bruker Firebase-popup (ikke GIS-klienten som bare godtar protop.no). Live Google på protop.no er uendret. Tillat popups for localhost, eller logg inn med e-post.
+Google på localhost bruker Firebase-redirect via `protop-c189c.firebaseapp.com` (GIS-klienten godtar bare protop.no og gir `origin_mismatch`). Live Google er uendret. Restart Metro med `npx expo start --web --clear` etter oppdateringen.
 
 Produksjonslik lokal Hosting (SPA-rewrites, headers, `dist/`) uten å røre live-siten:
 

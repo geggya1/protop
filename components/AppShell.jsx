@@ -84,6 +84,7 @@ import {
   childHomeStorageId,
 } from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
+import ShellErrorBoundary from './ShellErrorBoundary';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -548,7 +549,7 @@ function AppShellInner() {
           <PlanScreen active={tab === 'plan'} />
         </View>
       ) : null}
-      {tab !== 'plan' ? otherBody : null}
+      {tab !== 'plan' ? <ShellErrorBoundary>{otherBody}</ShellErrorBoundary> : null}
     </>
   );
 

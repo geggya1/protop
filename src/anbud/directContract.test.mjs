@@ -108,5 +108,8 @@ assert.ok(intent.draft.sourceText.includes('NS8403'));
 const unnamed = draftFromContract({ id: 'x', buyer: 'Kari', title: '' });
 assert.equal(unnamed.title, '');
 assert.equal(unnamed.buyer, 'Kari');
+assert.equal(unnamed.standard, '');
+assert.equal(unnamed.indexId, '');
+assert.equal(unnamed.model, '');
 
 console.log('directContract ok');

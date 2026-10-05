@@ -285,8 +285,15 @@ const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.
 assert.match(economyScreen, /EconomyWelcome/);
 assert.match(economyScreen, /EconomyDesk/);
 assert.match(economyScreen, /openIndexIntentFromContract/);
-assert.match(economyScreen, /IndeksreguleringPanel/);
+assert.match(economyScreen, /EconomyIndex/);
+assert.equal(economyScreen.includes('IndeksreguleringPanel'), false);
 assert.match(economyScreen, /page === 'indeks'/);
+assert.match(economyScreen, /indexOpen/);
+assert.equal(economyScreen.includes('phone: company'), false);
+const economyIndex = readFileSync(new URL('../../screens/economy/EconomyIndex.jsx', import.meta.url), 'utf8');
+assert.match(economyIndex, /draftFromRegisteredContract/);
+assert.match(economyIndex, /fetchSeriesById/);
+assert.match(economyIndex, /Påkrevd for beregningen/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /parseCustomerFile/);

@@ -1,6 +1,7 @@
 /** Direkteavtaler uten tilbudsarbeid, og overføring til indeksfeltene. */
 
 import { emptyDraft, emptyLine, parseAmount, parseIsoDate, todayIso } from '../indeksregulering/engine.js';
+import { draftFromRegisteredContract } from '../economy/fromContract.js';
 import { agreementKindFromText } from './agreementTemplate.js';
 import { formatNumberId, sortContractsChronological } from './numbering.js';
 
@@ -166,45 +167,9 @@ export function indeksCaseFromContract(contract) {
   };
 }
 
-/** Fyll indeksutkast fra en registrert avtale, også når dokumentene ikke er lest ennå. */
+/** Fyll indeksutkast fra registrert avtale. Ingen generisk NS når avtalen ikke sier det. */
 export function draftFromContract(contract, extras = {}) {
-  if (!contract || typeof contract !== 'object') return emptyDraft(extras);
-  const fields = contract.fields && typeof contract.fields === 'object' ? contract.fields : {};
-  const documents = Array.isArray(contract.documents) ? contract.documents : [];
-  const source = contract.indexDraft && typeof contract.indexDraft === 'object' ? contract.indexDraft : {};
-  const model = text(source.model || fields.model);
-  const indexId = text(source.indexId || fields.indexId);
-  const sharePercent = text(source.sharePercent || fields.sharePercent);
-  const vatPercent = text(source.vatPercent || fields.vatPercent);
-  return emptyDraft({
-    ...source,
-    title: text(source.title || contract.title),
-    buyer: text(source.buyer || contract.buyer),
-    supplier: text(source.supplier || extras.supplier || contract.supplier),
-    reference: text(source.reference || fields.reference),
-    standard: text(source.standard || fields.standard) || 'NS 8407',
-    ...(model ? { model } : {}),
-    ...(indexId ? { indexId } : {}),
-    ...(sharePercent ? { sharePercent } : {}),
-    ...(vatPercent ? { vatPercent } : {}),
-    offerDate: text(source.offerDate || fields.offerDate),
-    tenderDeadline: text(source.tenderDeadline || fields.tenderDeadline),
-    contractDate: text(source.contractDate || fields.contractDate),
-    startDate: text(source.startDate || contract.start),
-    endDate: text(source.endDate || contract.end),
-    honorar: text(source.honorar || fields.honorar || contract.honorar),
-    place: text(source.place || fields.place || contract.place),
-    address: text(source.address || fields.address || contract.address),
-    description: text(source.description || fields.description || contract.description),
-    poNumber: text(source.poNumber || fields.poNumber || contract.poNumber),
-    orgnr: text(source.orgnr || fields.orgnr || extras.orgnr),
-    supplierOrgnr: text(source.supplierOrgnr || fields.supplierOrgnr || extras.supplierOrgnr),
-    contactName: text(source.contactName || fields.contactName || extras.contactName),
-    phone: text(source.phone || fields.phone || extras.phone),
-    email: text(source.email || fields.email || extras.email),
-    website: text(source.website || extras.website),
-    documents: Array.isArray(source.documents) && source.documents.length ? source.documents : documents,
-  });
+  return draftFromRegisteredContract(contract, extras);
 }
 
 export function openIndexIntentFromContract(contract, extras = {}) {

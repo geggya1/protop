@@ -228,9 +228,13 @@ export default function ContractFollowUp({
       {view === 'list' ? (
         <>
           {alerts.slice(0, 8).map((alert) => (
-            <Text key={`${alert.contractId}-${alert.kind}-${alert.title}`} style={{ color: alert.level === 'forfalt' ? colors.danger : colors.warn }}>
-              {alert.level === 'forfalt' ? 'Forfalt' : 'Innen 14 dager'}: {alert.title} · {alert.due} · {alert.contractTitle}
-            </Text>
+            <View key={`${alert.contractId}-${alert.kind}-${alert.title}`} style={[styles.alert, { borderColor: alert.level === 'forfalt' ? colors.danger : colors.warn, backgroundColor: colors.card }]}>
+              <Text style={{ color: alert.level === 'forfalt' ? colors.danger : colors.warn, fontWeight: '700' }}>
+                {alert.level === 'forfalt' ? 'Frist passert' : 'Innen 14 dager'}
+              </Text>
+              <Text style={{ color: colors.ink }}>{alert.title} · {alert.due}</Text>
+              <Text style={{ color: colors.muted }}>{alert.contractTitle}</Text>
+            </View>
           ))}
           {!contracts.length ? (
             <Text style={{ color: colors.muted }}>Ingen avtale er registrert. Last opp oppdragsavtalen og eventuelle vedlegg, eller opprett den for hånd.</Text>
@@ -241,24 +245,24 @@ export default function ContractFollowUp({
           {visible.length ? (
             <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <View>
-                <View style={[styles.tr, styles.head, { borderBottomColor: colors.line }]}>
+                <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
                   {['Oppdrag', 'Type', 'Kunde', 'Periode', 'Sum', 'Status'].map((label) => (
                     <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
                   ))}
                 </View>
-                {paged.map((row) => (
+                {paged.map((row, index) => (
                   <TouchableOpacity
                     key={row.id}
                     onPress={() => { setSelectedId(row.id); setView('detail'); }}
                     accessibilityRole="button"
-                    style={[styles.tr, { borderBottomColor: colors.line }]}
+                    style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
                   >
-                    <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]} numberOfLines={2}>{row.title}</Text>
-                    <Text style={[styles.td, { color: colors.ink }]}>{kindLabel(row.kind) || '—'}</Text>
+                    <Text style={[styles.td, styles.tdWide, { color: colors.ink, fontWeight: '600' }]} numberOfLines={2}>{row.title}</Text>
+                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{kindLabel(row.kind) || '—'}</Text>
                     <Text style={[styles.td, { color: colors.ink }]} numberOfLines={2}>{row.buyer || '—'}</Text>
                     <Text style={[styles.td, { color: colors.ink }]}>{[row.start, row.end].filter(Boolean).join(' – ') || '—'}</Text>
-                    <Text style={[styles.td, { color: colors.ink }]}>{row.value ? formatNok(row.value) : '—'}</Text>
-                    <Text style={[styles.td, { color: colors.ink }]}>{row.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv'}</Text>
+                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{row.value ? formatNok(row.value) : '—'}</Text>
+                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{row.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv'}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -291,9 +295,12 @@ const styles = StyleSheet.create({
   date: { width: 140 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   filters: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  tableWrap: { borderWidth: 1, borderRadius: 12 },
-  tr: { flexDirection: 'row', borderBottomWidth: 1, minHeight: 44, alignItems: 'center' },
-  head: { minHeight: 40 },
-  th: { width: 160, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12 },
-  td: { width: 160, paddingHorizontal: 10, paddingVertical: 10, fontSize: 14 },
+  tableWrap: { borderWidth: 1, borderRadius: 14 },
+  tr: { flexDirection: 'row', borderBottomWidth: 1, minHeight: 48, alignItems: 'center' },
+  head: { minHeight: 42 },
+  th: { width: 148, paddingHorizontal: 12, paddingVertical: 10, fontSize: 11, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  td: { width: 148, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14 },
+  tdWide: { width: 220 },
+  tdNarrow: { width: 110 },
+  alert: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
 });

@@ -13,7 +13,10 @@ import {
   emptyOption,
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
-import { formatOrgnr, matchCustomer, customerDraftFromBrreg, normalizeOrgnr } from '../../src/anbud/customers';
+import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
+import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, normalizeOrgnr } from '../../src/anbud/customers';
+import { agreementSummary, emailLooksLikeSupplier, indexLabel, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
+import { documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 
@@ -62,6 +65,7 @@ function formFromInput(input, current = emptyForm()) {
     surchargePercent: input.surchargePercent || input.fields?.surchargePercent || '',
     contractDate: input.contractDate || input.fields?.contractDate || '',
   };
+  if (emailLooksLikeSupplier(next.email, next.supplier, next.buyer)) next.email = '';
   return next;
 }
 
@@ -90,16 +94,61 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-function engineLabel(used) {
-  if (used === 'ocr+gemini' || used === 'gemini') return 'OCR + KI';
-  if (used === 'ocr') return 'OCR';
-  return 'lokal lesing';
+async function attachmentFromPick(file) {
+  let blob = file?.blob || null;
+  if (!blob && file?.uri && typeof fetch === 'function') {
+    blob = await (await fetch(file.uri)).blob();
+  }
+  const name = file?.name || 'Avtale';
+  const mimeType = blob?.type || file?.mimeType || 'application/octet-stream';
+  const size = blob?.size || file?.size || 0;
+  let dataUrl = '';
+  if (blob && size > 0 && size <= 700000) {
+    if (typeof FileReader === 'function') {
+      dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    } else if (typeof Buffer !== 'undefined') {
+      dataUrl = `data:${mimeType};base64,${Buffer.from(await blob.arrayBuffer()).toString('base64')}`;
+    }
+  }
+  return { name, mimeType, size, dataUrl, uri: file?.uri || '' };
 }
 
-function Field({ colors, field, value, onChange }) {
+function Field({ colors, field, value, onChange, warning }) {
+  const warnColor = colors.warn || '#d97706';
+  if (field.key === 'indexId') {
+    const selected = INDEX_SERIES.find((row) => row.id === value);
+    const choices = INDEX_SERIES.filter((row) => (
+      ['ppi-byggeteknisk', 'bki-boligblokk', 'kpi', 'bki-bustader', 'bki-veg'].includes(row.id) || row.id === value
+    ));
+    return (
+      <View style={{ gap: 4, flexGrow: 1, flexBasis: '100%', minWidth: 220 }}>
+        <View style={styles.labelRow}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+          {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
+        </View>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? indexLabel(selected.id) : 'Ikke valgt'}</Text>
+        <View style={styles.row}>
+          {choices.map((row) => (
+            <TouchableOpacity key={row.id} onPress={() => onChange(row.id)} accessibilityRole="button">
+              <Text style={{ color: value === row.id ? colors.brand : colors.ink }}>{row.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 220, minWidth: 180 }}>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+        {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
+      </View>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -109,9 +158,23 @@ function Field({ colors, field, value, onChange }) {
         style={[
           styles.input,
           MULTILINE.has(field.key) && styles.inputMulti,
-          { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg },
+          { color: colors.ink, borderColor: warning ? warnColor : colors.line, backgroundColor: colors.bg },
         ]}
       />
+      {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
+    </View>
+  );
+}
+
+function Drawer({ colors, title, open, onToggle, badge, children }) {
+  return (
+    <View style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+      <TouchableOpacity onPress={onToggle} accessibilityRole="button" style={styles.drawerHead}>
+        <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{title}</Text>
+        {badge ? <Text style={{ color: colors.warn || '#d97706', fontWeight: '700' }}>!</Text> : null}
+        <Text style={{ color: colors.muted }}>{open ? '▾' : '▸'}</Text>
+      </TouchableOpacity>
+      {open ? <View style={styles.drawerBody}>{children}</View> : null}
     </View>
   );
 }
@@ -133,9 +196,19 @@ export default function DirectAgreementForm({
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
-  const [engine, setEngine] = useState('');
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState([]);
+  const [registerHit, setRegisterHit] = useState(null);
+  const [open, setOpen] = useState({
+    dokumenter: true,
+    avtalen: true,
+    sted: true,
+    kunde: true,
+    leverandor: true,
+    honorar: true,
+    ramme: false,
+    opsjoner: false,
+  });
   const brregRef = useRef('');
 
   useEffect(() => {
@@ -158,30 +231,37 @@ export default function DirectAgreementForm({
 
   const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
   useEffect(() => {
-    if (orgnrDigits.length !== 9 || brregRef.current === orgnrDigits) return undefined;
+    if (orgnrDigits.length !== 9) {
+      setRegisterHit(null);
+      return undefined;
+    }
+    if (brregRef.current === orgnrDigits && registerHit?.orgnr === orgnrDigits) return undefined;
     let live = true;
     searchBrregCompanies(orgnrDigits, { size: 1 }).then((res) => {
       if (!live) return;
       brregRef.current = orgnrDigits;
       const draft = customerDraftFromBrreg(res.results?.[0]);
-      if (!draft) return;
+      if (!draft) {
+        setRegisterHit(null);
+        return;
+      }
+      setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
       setForm((current) => ({
         ...current,
-        buyer: current.buyer || draft.name,
         orgnr: draft.orgnr || current.orgnr,
         personnummer: '',
         address: current.address || draft.address,
         place: current.place || draft.place,
-        email: current.email || draft.email,
-        phone: current.phone || draft.phone,
       }));
     }).catch(() => {
-      if (live) brregRef.current = orgnrDigits;
+      if (live) {
+        brregRef.current = orgnrDigits;
+        setRegisterHit(null);
+      }
     });
     return () => { live = false; };
   }, [orgnrDigits]);
 
-  const findings = payload?.fields?.findings || [];
   const customerHint = matchCustomer(customers, {
     name: form.buyer,
     buyer: form.buyer,
@@ -193,6 +273,9 @@ export default function DirectAgreementForm({
     email: form.email,
     phone: form.phone,
   });
+  const flags = reviewFlags(form, { registerHit });
+  const summary = agreementSummary(form);
+  const confirmText = registerConfirmText(form, customerHint, registerHit);
   const parents = parentOptions(contracts);
 
   function patch(part) {
@@ -202,29 +285,26 @@ export default function DirectAgreementForm({
   async function applyDocs(docs, note) {
     const local = interpretDocuments(docs.filter((doc) => String(doc?.text || '').trim().length >= 20));
     let merged = local;
-    let used = local.engine || 'lokal';
     try {
       const remote = await interpretAvtale({ documents: docs });
       if (remote?.extracted) {
         merged = mergeInterpretation(local, remote.extracted, docs.map((doc) => doc.text).filter(Boolean).join('\n'));
-        used = remote.engine || merged.engine || 'gemini';
       }
     } catch {
-      used = 'lokal';
+      // Lokal lesing brukes videre.
     }
     const next = inputFromInterpretation(merged, { documents: docs });
     setPayload(next);
     setFiles(docs);
     setForm((current) => formFromInput(next, current));
-    setEngine(used);
     setStatus(note);
     setError('');
   }
 
-  async function applyRemote(file, bytes, existing, note) {
+  async function applyRemote(file, bytes, existing, note, attached = {}) {
     const remote = await interpretAvtale({
-      fileName: file.name || 'Avtale.pdf',
-      mimeType: file.mimeType || 'application/pdf',
+      fileName: file.name || attached.name || 'Avtale.pdf',
+      mimeType: file.mimeType || attached.mimeType || 'application/pdf',
       fileBase64: bytesToBase64(bytes),
     });
     if (!remote?.extracted) throw new Error('Kunne ikke lese PDF-en. Lim inn teksten under.');
@@ -233,11 +313,14 @@ export default function DirectAgreementForm({
       ...existing,
       {
         id: `dok-${Date.now()}`,
-        name: file.name || 'Avtale',
+        name: attached.name || file.name || 'Avtale',
         text,
         role: existing.length ? 'vedlegg' : 'hoved',
-        mimeType: file.mimeType || 'application/pdf',
+        mimeType: attached.mimeType || file.mimeType || 'application/pdf',
         interpreted: text.length >= 20,
+        dataUrl: attached.dataUrl || '',
+        uri: attached.uri || file.uri || '',
+        size: attached.size || 0,
       },
     ];
     const merged = mergeInterpretation(null, remote.extracted, text);
@@ -245,7 +328,6 @@ export default function DirectAgreementForm({
     setPayload(next);
     setFiles(docs);
     setForm((current) => formFromInput(next, current));
-    setEngine(remote.engine || 'ocr+gemini');
     setStatus(note);
     setError('');
   }
@@ -258,6 +340,13 @@ export default function DirectAgreementForm({
     setStatus('Leser dokumentet…');
     await yieldUi();
     try {
+      const attached = await attachmentFromPick(file).catch(() => ({
+        name: file.name || 'Avtale',
+        mimeType: file.mimeType || '',
+        size: file.size || 0,
+        dataUrl: '',
+        uri: file.uri || '',
+      }));
       let bytes = await bytesFromFile(file);
       const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
       const sendRemote = async (note) => {
@@ -266,10 +355,10 @@ export default function DirectAgreementForm({
           await yieldUi();
           bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
         }
-        await applyRemote(file, bytes, files, note);
+        await applyRemote(file, bytes, files, note, attached);
       };
       if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
-        await sendRemote(`${file.name || 'Filen'} er lest med OCR og KI. Kontroller feltene før du registrerer.`);
+        await sendRemote('Dokumentet er lest. Kontroller feltene merket med ! før du registrerer.');
         return;
       }
       try {
@@ -278,35 +367,27 @@ export default function DirectAgreementForm({
           ...files,
           {
             id: `dok-${Date.now()}`,
-            name: file.name || 'Avtale',
+            name: attached.name || file.name || 'Avtale',
             text,
             role: files.length ? 'vedlegg' : 'hoved',
-            mimeType: file.mimeType || '',
+            mimeType: attached.mimeType || file.mimeType || '',
             interpreted: true,
+            dataUrl: attached.dataUrl || '',
+            uri: attached.uri || file.uri || '',
+            size: attached.size || 0,
           },
         ];
-        await applyDocs(docs, `${docs.length} dokument${docs.length === 1 ? '' : 'er'} vedlagt. Kontroller feltene før du registrerer.`);
+        await applyDocs(docs, 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
       } catch {
-        setStatus('Leser skannet dokument med OCR og KI…');
+        setStatus('Leser skannet dokument…');
         await yieldUi();
-        await sendRemote(`${file.name || 'Filen'} er lagt ved. Kontroller feltene før du registrerer.`);
+        await sendRemote('Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
       }
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentet. Lim inn teksten under.');
     } finally {
       setReading(false);
     }
-  }
-
-  function addEmptyFile() {
-    const name = `Vedlegg ${files.length + 1}`;
-    setFiles((current) => [...current, {
-      id: `dok-${Date.now()}`,
-      name,
-      text: '',
-      role: current.length ? 'vedlegg' : 'hoved',
-      interpreted: false,
-    }]);
   }
 
   function removeFile(id) {
@@ -429,17 +510,39 @@ export default function DirectAgreementForm({
     }));
   }, [form.orgnr, form.personnummer]);
 
+  function toggle(id) {
+    setOpen((current) => ({ ...current, [id]: !current[id] }));
+  }
+
+  const warnKeys = Object.keys(flags);
+  const groupBadge = (id) => kindFields.find((group) => group.id === id)?.fields.some((field) => flags[field.key]);
+
   return (
-    <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <Text style={[styles.h, { color: colors.ink }]}>Registrer avtale</Text>
-      <Text style={{ color: colors.muted }}>
-        Last opp alle avtaledokumentene. Kjente felt fra NS 8403-fremsiden fylles ut. Ukjente felt blir stående tomme.
-      </Text>
+      {summary && (form.title || form.buyer) ? (
+        <View style={[styles.summary, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>{summary}</Text>
+          {warnKeys.length ? (
+            <Text style={{ color: colors.warn || '#d97706' }}>
+              {warnKeys.length} felt trenger kontroll.
+            </Text>
+          ) : (
+            <Text style={{ color: colors.muted }}>Kontroller opplysningene og registrer.</Text>
+          )}
+        </View>
+      ) : (
+        <Text style={{ color: colors.muted }}>
+          Last opp avtaledokumentene. Kjente felt fylles ut. Felt med ! må kontrolleres.
+        </Text>
+      )}
       {reading ? (
         <View style={[styles.banner, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
           <Text style={{ color: colors.brand, fontWeight: '600' }}>{status || 'Leser avtalen…'}</Text>
         </View>
       ) : null}
+      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+
       <View style={styles.row}>
         <TouchableOpacity
           onPress={importFile}
@@ -449,47 +552,48 @@ export default function DirectAgreementForm({
         >
           <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokument' : 'Last opp dokument'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={addEmptyFile} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Tomt vedlegg</Text>
-        </TouchableOpacity>
         <TouchableOpacity onPress={onCancel} accessibilityRole="button">
           <Text style={{ color: colors.muted }}>Avbryt</Text>
         </TouchableOpacity>
       </View>
-      {files.length ? (
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Dokumenter ({files.length})</Text>
-          {files.map((doc) => (
-            <View key={doc.id} style={styles.row}>
-              <Text style={{ color: colors.ink, flex: 1 }}>{doc.name}{doc.interpreted ? ' · lest' : ''}</Text>
-              <TouchableOpacity onPress={() => removeFile(doc.id)} accessibilityRole="button">
-                <Text style={{ color: colors.muted }}>Fjern</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <TextInput
-        value={pasted}
-        onChangeText={setPasted}
-        placeholder="Eller lim inn avtaleteksten her"
-        placeholderTextColor={colors.placeholder}
-        multiline
-        style={[styles.input, styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-      />
-      {pasted.trim().length >= 20 ? (
-        <TouchableOpacity onPress={readPasted} disabled={reading} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Les innlimt tekst</Text>
-        </TouchableOpacity>
-      ) : null}
-      {!!status && <Text style={{ color: colors.brand }}>{status}{engine ? ` · ${engineLabel(engine)}` : ''}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+
+      <Drawer colors={colors} title={`Dokumenter (${files.length})`} open={open.dokumenter} onToggle={() => toggle('dokumenter')}>
+        {files.length ? files.map((doc) => (
+          <View key={doc.id} style={styles.row}>
+            <TouchableOpacity
+              onPress={() => documentIsOpenable(doc) && openAgreementDocument(doc)}
+              accessibilityRole="link"
+              style={{ flex: 1 }}
+            >
+              <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.ink, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
+                {doc.name}{doc.interpreted ? ' · lest' : ''}{doc.dataUrl ? '' : doc.size > 700000 ? ' · for stor til lagring' : ''}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => removeFile(doc.id)} accessibilityRole="button">
+              <Text style={{ color: colors.muted }}>Fjern</Text>
+            </TouchableOpacity>
+          </View>
+        )) : <Text style={{ color: colors.muted }}>Ingen dokument er lagt ved ennå.</Text>}
+        <TextInput
+          value={pasted}
+          onChangeText={setPasted}
+          placeholder="Eller lim inn avtaleteksten her"
+          placeholderTextColor={colors.placeholder}
+          multiline
+          style={[styles.input, styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+        {pasted.trim().length >= 20 ? (
+          <TouchableOpacity onPress={readPasted} disabled={reading} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Les innlimt tekst</Text>
+          </TouchableOpacity>
+        ) : null}
+      </Drawer>
 
       <View style={{ gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>Avtaletype</Text>
         <View style={styles.row}>
           {AGREEMENT_KINDS.map((row) => (
-            <TouchableOpacity key={row.id} onPress={() => patch({ kind: row.id })} accessibilityRole="button">
+            <TouchableOpacity key={row.id} onPress={() => patch({ kind: row.id })} accessibilityRole="button" style={[styles.chip, form.kind === row.id && { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
               <Text style={{ color: form.kind === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
             </TouchableOpacity>
           ))}
@@ -497,8 +601,14 @@ export default function DirectAgreementForm({
       </View>
 
       {kindFields.filter((group) => group.id !== 'ramme').map((group) => (
-        <View key={group.id} style={{ gap: 8 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{group.title}</Text>
+        <Drawer
+          key={group.id}
+          colors={colors}
+          title={group.title}
+          open={open[group.id] !== false}
+          onToggle={() => toggle(group.id)}
+          badge={groupBadge(group.id)}
+        >
           <View style={styles.grid}>
             {group.fields.filter((field) => field.key !== 'kind' && field.key !== 'parentId').map((field) => (
               <Field
@@ -506,11 +616,12 @@ export default function DirectAgreementForm({
                 colors={colors}
                 field={field}
                 value={form[field.key] || ''}
+                warning={flags[field.key]}
                 onChange={(value) => patch({ [field.key]: value })}
               />
             ))}
           </View>
-        </View>
+        </Drawer>
       ))}
 
       {parents.length ? (
@@ -529,29 +640,29 @@ export default function DirectAgreementForm({
         </View>
       ) : null}
 
-      <View style={[styles.hint, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Kunde</Text>
+      <View style={[styles.hint, { borderColor: flags.buyer || flags.orgnr ? (colors.warn || '#d97706') : colors.line, backgroundColor: colors.bg }]}>
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>Kunde</Text>
+        {confirmText ? <Text style={{ color: colors.ink }}>{confirmText}</Text> : null}
+        {registerHit?.name && !namesLikelyMatch(form.buyer, registerHit.name) ? (
+          <TouchableOpacity onPress={() => patch({ buyer: registerHit.name })} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Bruk navn fra Enhetsregisteret</Text>
+          </TouchableOpacity>
+        ) : null}
         {customerHint.status === 'match' ? (
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.ink }}>
-              Treffer {customerHint.customer.name}
-              {customerHint.customer.orgnr ? ` · ${formatOrgnr(customerHint.customer.orgnr)}` : ''}
-            </Text>
-            <View style={styles.row}>
-              <TouchableOpacity onPress={() => useCustomer(customerHint.customer)} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>{form.customerId === customerHint.customer.id ? 'Koblet' : 'Koble til kunden'}</Text>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={() => useCustomer(customerHint.customer)} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>{form.customerId === customerHint.customer.id ? 'Koblet i registeret' : 'Koble til eksisterende kunde'}</Text>
+            </TouchableOpacity>
+            {onOpenCustomer ? (
+              <TouchableOpacity onPress={() => onOpenCustomer(customerHint.customer.id)} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Åpne kundeforhold</Text>
               </TouchableOpacity>
-              {onOpenCustomer ? (
-                <TouchableOpacity onPress={() => onOpenCustomer(customerHint.customer.id)} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>Åpne kundeforhold</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            ) : null}
           </View>
         ) : null}
         {customerHint.status === 'ambiguous' ? (
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.muted }}>Flere kunder kan passe. Velg en, eller opprett ny.</Text>
+            <Text style={{ color: colors.muted }}>Flere kunder kan passe.</Text>
             {customerHint.candidates.map((row) => (
               <TouchableOpacity key={row.id} onPress={() => useCustomer(row)} accessibilityRole="button">
                 <Text style={{ color: form.customerId === row.id ? colors.brand : colors.ink }}>{row.name}{row.orgnr ? ` · ${formatOrgnr(row.orgnr)}` : ''}</Text>
@@ -560,21 +671,11 @@ export default function DirectAgreementForm({
           </View>
         ) : null}
         {customerHint.status === 'new' ? (
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.ink }}>
-              {form.buyer || 'Oppdragsgiver'} finnes ikke i kunderegisteret.
-              {form.orgnr ? ` Org.nr ${formatOrgnr(form.orgnr)}.` : ''}
-              {form.personnummer ? ' Personnummer er lest inn.' : ''}
+          <TouchableOpacity onPress={() => useCustomer(customerHint.draft, true)} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>
+              {form.createCustomer ? 'Ny kunde opprettes ved registrering' : 'Opprett som ny kunde ved registrering'}
             </Text>
-            <TouchableOpacity onPress={() => useCustomer(customerHint.draft, true)} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>
-                {form.createCustomer ? 'Ny kunde opprettes ved registrering' : 'Foreslå ny kunde'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        {customerHint.status === 'none' ? (
-          <Text style={{ color: colors.muted }}>Fyll inn oppdragsgiver. Nye kunder foreslås når navn eller nummer er lest.</Text>
+          </TouchableOpacity>
         ) : null}
       </View>
 
@@ -594,8 +695,7 @@ export default function DirectAgreementForm({
         </View>
       ) : null}
 
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Varighet og fornyelse</Text>
+      <Drawer colors={colors} title="Varighet og fornyelse" open={!!open.ramme} onToggle={() => toggle('ramme')}>
         <View style={styles.row}>
           {RENEWAL_TYPES.map((row) => (
             <TouchableOpacity key={row.id} onPress={() => patch({ renewalType: row.id })} accessibilityRole="button">
@@ -607,10 +707,9 @@ export default function DirectAgreementForm({
           <Field colors={colors} field={{ key: 'renewalUntil', label: 'Fornyes til' }} value={form.renewalUntil} onChange={(renewalUntil) => patch({ renewalUntil })} />
           <Field colors={colors} field={{ key: 'renewalNoticeDays', label: 'Varsel før utløp (dager)' }} value={form.renewalNoticeDays} onChange={(renewalNoticeDays) => patch({ renewalNoticeDays })} />
         </View>
-      </View>
+      </Drawer>
 
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Opsjoner</Text>
+      <Drawer colors={colors} title={`Opsjoner (${(form.options || []).length})`} open={!!open.opsjoner} onToggle={() => toggle('opsjoner')}>
         {(form.options || []).map((row, index) => (
           <View key={row.id || index} style={styles.grid}>
             <Field colors={colors} field={{ key: 'title', label: 'Opsjon' }} value={row.title} onChange={(title) => {
@@ -636,16 +735,8 @@ export default function DirectAgreementForm({
         >
           <Text style={{ color: colors.brand }}>Legg til opsjon</Text>
         </TouchableOpacity>
-      </View>
+      </Drawer>
 
-      {findings.length ? (
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>KI-gjennomgang</Text>
-          {findings.map((row, index) => (
-            <Text key={`${index}-${row.slice(0, 40)}`} style={{ color: colors.muted }}>{row}</Text>
-          ))}
-        </View>
-      ) : null}
       <TouchableOpacity onPress={submit} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
         <Text style={{ color: '#fff' }}>Registrer avtale</Text>
       </TouchableOpacity>
@@ -654,13 +745,19 @@ export default function DirectAgreementForm({
 }
 
 const styles = StyleSheet.create({
-  h: { fontSize: 16, fontWeight: '600' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
-  save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  h: { fontSize: 20, fontWeight: '700' },
+  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
+  save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  hint: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
+  hint: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
   banner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  summary: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
+  drawer: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12 },
+  drawerBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chip: { borderWidth: 1, borderColor: 'transparent', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
 });

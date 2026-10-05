@@ -110,7 +110,7 @@ export function interpretContract(text) {
   draft.poNumber = plausible(labeledParty(source, ['eksternt po\\. nr', 'po\\. nr', 'po-nr', 'po nummer']));
   draft.honorar = honorarForm(source) || honorarText(source);
   draft.phone = labeledPhone(source);
-  draft.email = labeledEmail(source);
+  draft.email = labeledEmail(source, { buyer: draft.buyer, supplier: draft.supplier });
   draft.personnummer = labeledPersonnummer(source);
   draft.surchargePercent = labeledPercent(source, ['påslagsprosent', 'paslagsprosent']);
   draft.kind = agreementKindFromSource(source);
@@ -310,7 +310,7 @@ function clean(value) {
 function plausible(value) {
   const text = clean(value);
   if (!text) return '';
-  if (/^(oppdrags\s*nummer|oppdragssted|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr|generelle|beskrivelse)/i.test(text)) return '';
+  if (/^(oppdrags\s*nummer|oppdragssted|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr|generelle|beskrivelse|om oppdragsgiver)/i.test(text)) return '';
   if (/[%{}<>\\]/.test(text)) return '';
   const letters = (text.match(/[A-Za-zÆØÅæøå]/g) || []).length;
   const junk = (text.match(/[^A-Za-zÆØÅæøå0-9 .,&/\-()@+]/g) || []).length;
@@ -327,13 +327,38 @@ function honorarForm(text) {
 }
 
 function labeledPhone(text) {
-  const match = String(text || '').match(/(?:telefon(?:\s*nr)?|tlf)\s*[:\-]?\s*([\d\s+]{8,16})/i);
-  return match ? match[1].replace(/\s/g, '') : '';
+  const near = String(text || '').match(/(?:kontakt\s*person|telefon(?:\s*nr)?|tlf)[^0-9]{0,48}([\d\s+]{8,16})/i);
+  return near ? near[1].replace(/\s/g, '') : '';
 }
 
-function labeledEmail(text) {
-  const match = String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return match ? match[0].toLowerCase() : '';
+function companyToken(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\b(as|asa|ans|da|sa|nuf|ba)\b/g, '')
+    .replace(/[^a-z0-9æøå]+/gi, ' ')
+    .trim()
+    .split(/\s+/)[0] || '';
+}
+
+function labeledEmail(text, parties = {}) {
+  const source = String(text || '');
+  const labeled = source.match(/e-?post\s*[:\-]?\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+  if (labeled) return labeled[1].toLowerCase();
+  const found = [...source.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)].map((row) => row[0].toLowerCase());
+  if (!found.length) return '';
+  const buyer = companyToken(parties.buyer);
+  const supplier = companyToken(parties.supplier);
+  const ranked = found.map((email) => {
+    const domain = (email.split('@')[1] || '').replace(/^www\./, '');
+    let score = 0;
+    if (buyer && domain.includes(buyer)) score += 4;
+    if (supplier && domain.includes(supplier)) score -= 4;
+    return { email, score };
+  });
+  ranked.sort((a, b) => b.score - a.score);
+  if (ranked[0].score > 0) return ranked[0].email;
+  if (ranked[0].score < 0) return '';
+  return ranked[0].email;
 }
 
 function labeledPersonnummer(text) {
@@ -378,7 +403,7 @@ function labeledParty(text, labels) {
 function cleanParty(raw) {
   return String(raw || '')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\s+(Organisasjons\s*nr|Org\.?nr|Kontakt|Epost|Telefon|Adresse|Att|Post nr|Gnr|NS\s*\d{4}|Avtalt|Tabell|Oppstart|Sluttdato|Honoreres).*$/i, '')
+    .replace(/\s+(Om\s+oppdragsgiver|Oppdragsgiver|Oppdragstaker|Organisasjons\s*nr|Org\.?nr|Kontakt|E-?post|Telefon|Adresse|Att|Post nr|Gnr|NS\s*\d{4}|Avtalt|Tabell|Oppstart|Sluttdato|Honoreres|Generelle bestemmelser|Eksternt).*$/i, '')
     .replace(/[,;].*$/, '')
     .trim();
 }

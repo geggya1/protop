@@ -2,6 +2,7 @@
 
 import { AGREEMENT_KINDS, emptyOption } from './agreementTemplate.js';
 import { normalizeOrgnr, normalizePersonnummer } from './customers.js';
+import { assignContractNumbers, claimContractNumbers, normalizeNumberId } from './numbering.js';
 
 export const STAGES = ['planlegging', 'gjennomforing', 'kontrakt', 'tapt', 'trukket'];
 
@@ -328,12 +329,14 @@ function normalizeContract(raw) {
     indeksCaseId: text(raw.indeksCaseId),
     renewal: normalizeRenewal(raw.renewal),
     options: normalizeOptions(raw.options),
+    systemId: normalizeNumberId(raw.systemId),
+    oppdragId: normalizeNumberId(raw.oppdragId),
   };
 }
 
 export function normalizeContracts(input) {
   if (!Array.isArray(input)) return [];
-  return input.map(normalizeContract).filter(Boolean);
+  return assignContractNumbers(input.map(normalizeContract).filter(Boolean));
 }
 
 export function normalizeAudit(input) {
@@ -532,6 +535,13 @@ export function awardContract(state, bidId, input) {
   if (start && end && dayNumber(end) < dayNumber(start)) {
     return fail(state, 'Sluttdato kan ikke være før oppstart.');
   }
+  const claimed = claimContractNumbers(state.contracts, {
+    systemId: input?.systemId,
+    oppdragId: input?.oppdragId,
+    customerId: input?.customerId,
+    buyer: text(bid.buyer),
+  });
+  if (!claimed.ok) return fail(state, claimed.error);
   const contract = {
     id: createId('kon'),
     bidId,
@@ -561,6 +571,8 @@ export function awardContract(state, bidId, input) {
     indeksCaseId: '',
     renewal: normalizeRenewal(null),
     options: [],
+    systemId: claimed.systemId,
+    oppdragId: claimed.oppdragId,
   };
   const next = record(replaceBid(state, bidId, { ...bid, stage: 'kontrakt' }), {
     bidId,
@@ -705,20 +717,30 @@ export function registerDirectContract(state, input) {
     contractDate: input?.contractDate != null ? input.contractDate : input?.fields?.contractDate,
     projectName: input?.projectName || input?.fields?.projectName,
   });
+  const customerId = text(input?.customerId) || text(parent?.customerId);
+  const buyer = text(input?.buyer) || text(parent?.buyer);
+  const claimed = claimContractNumbers(state.contracts, {
+    systemId: input?.systemId,
+    oppdragId: input?.oppdragId,
+    customerId,
+    buyer,
+  });
+  if (!claimed.ok) return fail(state, claimed.error);
+  if (!fields.reference) fields.reference = claimed.oppdragId;
   const contract = {
     id: createId('kon'),
     bidId: '',
     source: 'direkte',
     noticeId: '',
     title,
-    buyer: text(input?.buyer) || text(parent?.buyer),
+    buyer,
     supplier: text(input?.supplier) || text(fields.supplier) || text(parent?.supplier),
     projectName: text(input?.projectName) || title,
     description: text(input?.description) || fields.description,
     address: text(input?.address) || fields.address,
     kind,
     parentId: parent ? parent.id : '',
-    customerId: text(input?.customerId) || text(parent?.customerId),
+    customerId,
     value: rawValue,
     currency: text(input?.currency) || 'NOK',
     start: start || (kind === 'avrop' ? '' : text(parent?.start)),
@@ -738,6 +760,8 @@ export function registerDirectContract(state, input) {
       noticeDays: input?.renewalNoticeDays,
     }),
     options: normalizeOptions(input?.options),
+    systemId: claimed.systemId,
+    oppdragId: claimed.oppdragId,
   };
   const next = record(state, {
     bidId: '',
@@ -791,6 +815,15 @@ export function updateContractDetails(state, contractId, input) {
       : contract.renewal,
     options: input?.options != null ? normalizeOptions(input.options) : contract.options,
   };
+  const claimed = claimContractNumbers(state.contracts, {
+    systemId: input?.systemId != null ? input.systemId : next.systemId,
+    oppdragId: input?.oppdragId != null ? input.oppdragId : next.oppdragId,
+    customerId: next.customerId,
+    buyer: next.buyer,
+  }, contract.id);
+  if (!claimed.ok) return fail(state, claimed.error);
+  next.systemId = claimed.systemId;
+  next.oppdragId = claimed.oppdragId;
   return ok(record(replaceContract(state, contractId, next), {
     bidId: contract.bidId,
     contractId,

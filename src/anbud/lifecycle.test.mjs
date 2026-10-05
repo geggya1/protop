@@ -68,6 +68,8 @@ assert.equal(awardContract(readyBid(), 'bid_1', { value: '1500000' }).ok, false)
 state = awardContract(state, 'bid_1', { value: '1 500 000', start: '2026-10-01', end: '2027-04-01' }).state;
 assert.equal(state.bids[0].stage, 'kontrakt');
 assert.equal(state.contracts[0].value, 1500000);
+assert.equal(state.contracts[0].systemId, '1');
+assert.equal(state.contracts[0].oppdragId, '1');
 assert.equal(state.contracts[0].milestones.length, 5);
 assert.equal(state.contracts[0].milestones[0].due, '2026-10-01');
 assert.equal(state.contracts[0].milestones.find((row) => row.key === 'overlevering').due, '2027-04-01');
@@ -137,6 +139,8 @@ assert.equal(direct.ok, true, direct.error);
 assert.equal(direct.state.contracts[0].source, 'direkte');
 assert.equal(direct.state.contracts[0].bidId, '');
 assert.equal(direct.state.contracts[0].fields.standard, 'NS 8403');
+assert.equal(direct.state.contracts[0].systemId, '1');
+assert.equal(direct.state.contracts[0].oppdragId, '1');
 assert.equal(direct.state.contracts[0].documents[0].name, 'C1-H-03-001.pdf');
 assert.match(direct.state.contracts[0].documents[0].dataUrl, /^data:application\/pdf/);
 assert.equal(direct.state.contracts[0].milestones.find((row) => row.key === 'signert').status, 'utfort');

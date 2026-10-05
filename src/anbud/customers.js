@@ -109,6 +109,8 @@ export function emptyCustomer(partial = {}) {
     email: '',
     phone: '',
     notes: '',
+    ownerUid: '',
+    ownerName: '',
     createdAt: '',
     updatedAt: '',
     ...partial,
@@ -138,6 +140,8 @@ export function normalizeCustomer(raw) {
     email: text(raw.email).slice(0, 80),
     phone: text(raw.phone).slice(0, 40),
     notes: text(raw.notes).slice(0, 400),
+    ownerUid: text(raw.ownerUid).slice(0, 80),
+    ownerName: text(raw.ownerName).slice(0, 80),
     createdAt: text(raw.createdAt),
     updatedAt: text(raw.updatedAt),
   };
@@ -153,7 +157,7 @@ export function filterCustomers(customers, query = '') {
   const rows = Array.isArray(customers) ? customers : [];
   if (!needle) return rows;
   return rows.filter((row) => {
-    const hay = [row.name, row.orgnr, row.place, row.contactName, row.email, row.phone, row.address]
+    const hay = [row.name, row.orgnr, row.place, row.contactName, row.email, row.phone, row.address, row.ownerName]
       .map(fold)
       .join(' ');
     return hay.includes(needle);
@@ -232,6 +236,8 @@ export function upsertCustomer(state, input) {
       kind,
       orgnr,
       personnummer,
+      ownerUid: input?.ownerUid != null ? input.ownerUid : current.ownerUid,
+      ownerName: input?.ownerName != null ? input.ownerName : current.ownerName,
       updatedAt: now,
     });
     return {
@@ -265,7 +271,43 @@ export function upsertCustomer(state, input) {
 
 export function customerSearchHay(customer) {
   const row = customer || {};
-  return [row.name, formatOrgnr(row.orgnr), row.place, row.contactName].filter(Boolean).join(' · ');
+  return [row.name, formatOrgnr(row.orgnr), row.place, row.contactName, row.ownerName].filter(Boolean).join(' · ');
+}
+
+export function companyFollowUpPeople(members) {
+  return (Array.isArray(members) ? members : []).filter((row) => (
+    row && (row.role === 'parent' || row.role === 'adult') && (row.uid || row.id) && row.name
+  ));
+}
+
+export function ownerLabel(customer, people = []) {
+  if (!customer?.ownerUid) return '';
+  const hit = (Array.isArray(people) ? people : []).find((row) => (
+    (row.uid || row.id) === customer.ownerUid
+  ));
+  return text(hit?.name) || text(customer.ownerName);
+}
+
+export function setCustomerOwner(state, customerId, person) {
+  const id = text(customerId);
+  const customers = normalizeCustomers(state?.customers);
+  const current = customers.find((row) => row.id === id);
+  if (!current) return { ok: false, state, error: 'Kunden finnes ikke.' };
+  const ownerUid = text(person?.uid || person?.id);
+  const ownerName = text(person?.name).slice(0, 80);
+  if (person && !ownerUid) return { ok: false, state, error: 'Velg en person i bedriften.' };
+  const next = normalizeCustomer({
+    ...current,
+    ownerUid,
+    ownerName: ownerUid ? ownerName : '',
+    updatedAt: new Date().toISOString(),
+  });
+  return {
+    ok: true,
+    state: { ...state, customers: customers.map((row) => (row.id === id ? next : row)) },
+    error: null,
+    customer: next,
+  };
 }
 
 export function importCustomers(state, rows) {

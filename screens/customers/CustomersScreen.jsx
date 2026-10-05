@@ -5,6 +5,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import {
   applyCustomerKind,
+  companyFollowUpPeople,
   customerDraftFromBrreg,
   filterCustomers,
   formatOrgnr,
@@ -12,14 +13,17 @@ import {
   importCustomers,
   maskPersonnummer,
   normalizeOrgnr,
+  ownerLabel,
   upsertCustomer,
 } from '../../src/anbud/customers';
 import { CUSTOMER_IMPORT_ACCEPT, parseCustomerFile } from '../../src/anbud/customerImport';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
+import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
+import OwnerPicker from '../anbud/OwnerPicker';
 
 const EMPTY = {
   name: '',
@@ -33,6 +37,8 @@ const EMPTY = {
   email: '',
   phone: '',
   notes: '',
+  ownerUid: '',
+  ownerName: '',
 };
 
 const FORM_FIELDS = [
@@ -79,7 +85,7 @@ function fillFromBrreg(current, hit) {
 export default function CustomersScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { familyId, requestShellTab, shellIntent, clearShellIntent, members } = useApp();
   const [state, setState] = useState(null);
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
@@ -145,6 +151,7 @@ export default function CustomersScreen() {
 
   const customers = state?.customers || [];
   const contracts = state?.contracts || [];
+  const followPeople = companyFollowUpPeople(members);
   const visible = useMemo(() => filterCustomers(customers, query), [customers, query]);
   const selected = customers.find((row) => row.id === selectedId) || null;
   const related = selected
@@ -297,6 +304,7 @@ export default function CustomersScreen() {
                   row.kind === 'person' ? 'Privatkunde' : 'Virksomhet',
                   row.kind === 'person' ? maskPersonnummer(row.personnummer) : formatOrgnr(row.orgnr),
                   row.contactName,
+                  ownerLabel(row, followPeople),
                   row.place,
                 ].filter(Boolean).join(' · ')}
               </Text>
@@ -364,6 +372,15 @@ export default function CustomersScreen() {
               ))}
             </View>
           ) : null}
+          <OwnerPicker
+            colors={colors}
+            people={followPeople}
+            value={form.ownerUid}
+            onChange={(person) => patch({
+              ownerUid: person ? (person.uid || person.id) : '',
+              ownerName: person ? person.name : '',
+            })}
+          />
           <View style={styles.row}>
             <TouchableOpacity onPress={save} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
               <Text style={{ color: '#fff' }}>Lagre kunde</Text>
@@ -391,6 +408,31 @@ export default function CustomersScreen() {
             {selected.contactName ? <Text style={{ color: colors.ink }}>Kontakt {selected.contactName}</Text> : null}
             {selected.email ? <Text style={{ color: colors.ink }}>{selected.email}</Text> : null}
             {selected.phone ? <Text style={{ color: colors.ink }}>{selected.phone}</Text> : null}
+            {ownerLabel(selected, followPeople) ? (
+              <Text style={{ color: colors.ink }}>Ansvarlig {ownerLabel(selected, followPeople)}</Text>
+            ) : (
+              <Text style={{ color: colors.muted }}>Ingen ansvarlig er tildelt.</Text>
+            )}
+            <OwnerPicker
+              colors={colors}
+              people={followPeople}
+              value={selected.ownerUid}
+              onChange={async (person) => {
+                const loaded = await loadAnbudState(familyId);
+                const result = upsertCustomer(loaded, {
+                  ...selected,
+                  ownerUid: person ? (person.uid || person.id) : '',
+                  ownerName: person ? person.name : '',
+                });
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                const saved = await saveAnbudState(result.state, familyId);
+                setState(saved);
+                setNote(person ? `Ansvarlig: ${person.name}.` : 'Ansvarlig er fjernet.');
+              }}
+            />
             {selected.notes ? <Text style={{ color: colors.muted }}>{selected.notes}</Text> : null}
             <TouchableOpacity onPress={() => startEdit(selected)} accessibilityRole="button">
               <Text style={{ color: colors.brand }}>Endre kunde</Text>
@@ -405,6 +447,9 @@ export default function CustomersScreen() {
                 accessibilityRole="button"
               >
                 <Text style={{ color: colors.ink }}>{kindLabel(row.kind) || 'Avtale'} · {row.title}</Text>
+                <Text style={{ color: colors.muted }}>
+                  {[formatNumberId(row.systemId) && `System ${formatNumberId(row.systemId)}`, formatNumberId(row.oppdragId) && `Oppdrag ${formatNumberId(row.oppdragId)}`].filter(Boolean).join(' · ')}
+                </Text>
                 <Text style={{ color: colors.muted }}>
                   {[row.start, row.end].filter(Boolean).join(' – ') || 'Uten periode'}
                   {row.value ? ` · ${formatNok(row.value)}` : ''}

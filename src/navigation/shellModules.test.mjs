@@ -90,9 +90,10 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
   assert.equal(companyItems.find((i) => i.id === 'kunder').label, 'Kunder');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
+  assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Indeksregulering'],
+    ['Oversikt', 'Indeksregulering'],
   );
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
@@ -111,9 +112,15 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(kontrakt, 'kontrakt', null), true);
   assert.equal(isNavItemActive(kontrakt, 'anbud', 'tilbud'), false);
   const okonomi = items.find((item) => item.id === 'okonomi');
+  const oversikt = okonomi.children.find((item) => item.id === 'okonomi-oversikt');
   const indeks = okonomi.children.find((item) => item.id === 'okonomi-indeks');
+  assert.equal(okonomi.action.subView, 'oversikt');
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'oversikt'), true);
   assert.equal(isNavItemActive(okonomi, 'okonomi', 'indeks'), true);
+  assert.equal(isNavItemActive(oversikt, 'okonomi', 'oversikt'), true);
+  assert.equal(isNavItemActive(oversikt, 'okonomi', 'indeks'), false);
   assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
+  assert.equal(isNavItemActive(indeks, 'okonomi', 'oversikt'), false);
   assert.equal(isNavItemActive(indeks, 'projects', null), false);
   const selskap = items.find((item) => item.id === 'selskap');
   const units = selskap.children.find((item) => item.id === 'underenheter');
@@ -230,7 +237,15 @@ assert.match(shellSrc, /moreSubView === 'underenheter'/);
 assert.match(shellSrc, /CompanyUnitsScreen/);
 assert.match(shellSrc, /tab === 'okonomi'/);
 assert.match(shellSrc, /EconomyScreen/);
+assert.match(shellSrc, /defaultOkonomiSubView/);
+assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
+const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
+assert.match(economyScreen, /EconomyWelcome/);
+assert.match(economyScreen, /EconomyDesk/);
+assert.match(economyScreen, /openIndexIntentFromContract/);
+assert.match(economyScreen, /IndeksreguleringPanel/);
+assert.match(economyScreen, /page === 'indeks'/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /parseCustomerFile/);

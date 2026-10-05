@@ -73,38 +73,10 @@ jobs:
       - name: Deploy slim Cloud Functions
         continue-on-error: true
         # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.
-        # Slim entries avoid MAIL_API_KEY Secret Manager. generateCompanyForm 404
-        # shows as CORS + «internal» in Mine skjemaer until this ships.
-        run: |
-          node --input-type=module -e "
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
-          writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
-          "
-          npm ci --prefix functions
-          deploy_entry() {
-            local entry="$1"
-            local only="$2"
-            node --input-type=module -e "
-            import { readFileSync, writeFileSync } from 'node:fs';
-            const path = 'functions/package.json';
-            const pkg = JSON.parse(readFileSync(path, 'utf8'));
-            pkg.main = process.argv[1];
-            writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
-            " "$entry"
-            npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive
-          }
-          deploy_entry tenderIndex.js functions:tenderProxy
-          deploy_entry anbudFormIndex.js functions:generateCompanyForm
-          deploy_entry openFeedIndex.js functions:fetchOpenFeed
-          deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
-          node --input-type=module -e "
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const path = 'functions/package.json';
-          const pkg = JSON.parse(readFileSync(path, 'utf8'));
-          pkg.main = 'index.js';
-          writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
-          "
-          rm -f firebase.functions.json
+        # WEEKPLAN_GEMINI_KEY må ligge i GitHub secrets for AI-scan; tom nøkkel
+        # deployer fortsatt funksjonen (ellers 404/CORS). Hvert kall er uavhengig.
+        env:
+          WEEKPLAN_GEMINI_KEY: ${{ secrets.WEEKPLAN_GEMINI_KEY }}
+        run: bash scripts/deploy-slim-functions.sh
 
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

@@ -8,6 +8,7 @@ import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from './security.js';
+import { touchGeminiEnv } from './geminiEnv.js';
 import {
   classifyPlanMime,
   decodePlainText,
@@ -19,10 +20,10 @@ import {
   friendlyGeminiError,
   getGeminiKey,
 } from './aiShared.js';
-import { INDEX_SERIES } from '../src/indeksregulering/catalog.js';
-import { interpretDocuments, mergeInterpretation } from '../src/indeksregulering/interpret.js';
-import { fetchAllIndices } from '../src/indeksregulering/ssb.js';
-import { indexNews, latestMap } from '../src/indeksregulering/watch.js';
+import { INDEX_SERIES } from './indeksregulering/catalog.js';
+import { interpretDocuments, mergeInterpretation } from './indeksregulering/interpret.js';
+import { fetchAllIndices } from './indeksregulering/ssb.js';
+import { indexNews, latestMap } from './indeksregulering/watch.js';
 
 const INDEX_GUIDE = INDEX_SERIES.map((row) => `${row.id} = ${row.name}, tabell ${row.table}`).join('\n');
 
@@ -123,6 +124,7 @@ export async function handleInterpretIndeks(data) {
   if (!documents.length) reject('invalid-argument', 'Lim inn avtaleteksten, eller last opp PDF, Word eller tekst.');
   const source = agreementText(documents);
   const local = interpretDocuments(documents);
+  touchGeminiEnv();
   const apiKey = getGeminiKey();
   if (!apiKey) return { ok: true, extracted: local, engine: 'lokal', documents: documents.length };
   try {

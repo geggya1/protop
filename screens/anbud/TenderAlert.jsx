@@ -114,10 +114,14 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const loadGen = useRef(0);
+
   useEffect(() => {
     let live = true;
-    loadAnbudState().then((loaded) => {
-      if (!live) return;
+    const gen = ++loadGen.current;
+    setReady(false);
+    loadAnbudState(company?.id).then((loaded) => {
+      if (!live || gen !== loadGen.current) return;
       const watch = loaded.watch || {};
       const codes = [...(company?.cpvCodes || []), ...(watch.cpvCodes || [])];
       setSelectedCpv(new Set(codes.map((row) => normalizeCpvCode(typeof row === 'string' ? row : row?.code)).filter(Boolean)));
@@ -135,8 +139,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   }, [company?.id]);
 
   useEffect(() => {
-    if (ready) saveAnbudState(state).catch(() => setError('Kunne ikke lagre varslingen lokalt.'));
-  }, [state, ready]);
+    if (ready) saveAnbudState(state, company?.id).catch(() => setError('Kunne ikke lagre varslingen.'));
+  }, [state, ready, company?.id]);
 
   useEffect(() => {
     const orgnr = company?.orgnr;
@@ -199,6 +203,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     }
     setSyncing(true);
     setError('');
+    const gen = loadGen.current;
     try {
       const watch = draft.ok ? draft.state.watch : nextState.watch;
       const fingerprint = watchFingerprint(watch);
@@ -211,7 +216,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         keywords: watch.keywords,
         publishedFrom,
       });
-      const base = draft.ok ? { ...nextState, watch } : nextState;
+      if (gen !== loadGen.current) return;
+      const latest = stateRef.current;
+      const base = draft.ok ? { ...latest, watch } : latest;
       const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
       const added = merged.notices.filter((row) => !known.has(row.id)).length;
       setState({ ...merged, queryKey: fingerprint });
@@ -348,7 +355,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       setPullingId('');
       return;
     }
-    await saveAnbudState(made.state);
+    await saveAnbudState(made.state, company?.id);
     commitState(made.state);
     const bid = made.state.bids.find((row) => row.noticeId === id);
     setPullingId('');

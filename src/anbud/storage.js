@@ -1,11 +1,27 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { emptyAnbudState, normalizeAnbudState } from './model.js';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { compactAnbudState, emptyAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 
 const KEY = 'protop.anbud.v1';
+const remoteTimers = new Map();
+const remotePending = new Map();
 
-export async function loadAnbudState() {
+function localKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${KEY}.${id}` : KEY;
+}
+
+function anbudDoc(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return null;
+  return doc(db, 'families', id, 'anbud', 'state');
+}
+
+async function readLocal(companyId) {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
+    const scoped = await AsyncStorage.getItem(localKey(companyId));
+    const raw = scoped || (companyId ? await AsyncStorage.getItem(KEY) : null);
     if (!raw) return emptyAnbudState();
     return normalizeAnbudState(JSON.parse(raw));
   } catch {
@@ -13,6 +29,63 @@ export async function loadAnbudState() {
   }
 }
 
-export async function saveAnbudState(state) {
-  await AsyncStorage.setItem(KEY, JSON.stringify(state));
+async function readRemote(companyId) {
+  const ref = anbudDoc(companyId);
+  if (!ref) return emptyAnbudState();
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return emptyAnbudState();
+    return normalizeAnbudState(snap.data()?.state || snap.data() || {});
+  } catch {
+    return emptyAnbudState();
+  }
+}
+
+async function writeLocal(companyId, state) {
+  const payload = JSON.stringify(state);
+  const key = localKey(companyId);
+  try {
+    await AsyncStorage.setItem(key, payload);
+    if (companyId && key !== KEY) await AsyncStorage.setItem(KEY, payload).catch(() => {});
+  } catch {
+    const compact = JSON.stringify(compactAnbudState(state));
+    await AsyncStorage.setItem(key, compact);
+  }
+}
+
+async function writeRemote(companyId, state) {
+  const ref = anbudDoc(companyId);
+  if (!ref) return;
+  await setDoc(ref, {
+    state,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+function queueRemote(companyId, state) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  remotePending.set(id, state);
+  const prev = remoteTimers.get(id);
+  if (prev) clearTimeout(prev);
+  remoteTimers.set(id, setTimeout(() => {
+    remoteTimers.delete(id);
+    const pending = remotePending.get(id);
+    remotePending.delete(id);
+    if (pending) writeRemote(id, pending).catch(() => {});
+  }, 400));
+}
+
+export async function loadAnbudState(companyId) {
+  const local = await readLocal(companyId);
+  const remote = await readRemote(companyId);
+  return mergeAnbudStates(local, remote);
+}
+
+export async function saveAnbudState(state, companyId) {
+  const compact = compactAnbudState(state);
+  const next = mergeAnbudStates(await readLocal(companyId), compact);
+  await writeLocal(companyId, next);
+  queueRemote(companyId, next);
+  return next;
 }

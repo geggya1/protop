@@ -3,6 +3,8 @@ import { buildDoffinBody, searchDoffinNotices } from './doffinQuery.js';
 import { buildTedQuery } from './tedQuery.js';
 import {
   emptyAnbudState,
+  compactAnbudState,
+  mergeAnbudStates,
   mergeTenderNotices,
   normalizeAnbudState,
   normalizeCpvCode,
@@ -105,6 +107,39 @@ assert.equal(afterRefresh.notices.find((row) => row.id === '2026-3').decision, '
 assert.equal(afterRefresh.notices.find((row) => row.id === '2026-3').isNew, false);
 assert.equal(afterRefresh.notices.find((row) => row.id === '2026-4').isNew, true);
 assert.equal(afterRefresh.notices[0].id, '2026-4');
+
+const renamed = mergeTenderNotices(decidedKeep, [
+  { id: '2026-3b', heading: 'Veilys', buyer: [{ name: 'Sortland kommune' }], status: 'ACTIVE', publicationDate: '2026-09-24', estimatedValue: { amount: 14000000, currencyCode: 'NOK' } },
+], '2026-09-27T08:00:00Z').state;
+assert.equal(renamed.notices.filter((row) => /veilys/i.test(row.title)).length, 1);
+assert.equal(renamed.notices.find((row) => row.id === '2026-3b').decision, 'aktuell');
+
+const duringFetch = setNoticeDecision(first, '2026-1', 'aktuell').state;
+const staleRefresh = mergeTenderNotices(first, [
+  { id: '2026-1', heading: 'Skole', status: 'ACTIVE', publicationDate: '2026-09-20' },
+  { id: '2026-9', heading: 'Ny hall', status: 'ACTIVE', publicationDate: '2026-09-28' },
+], '2026-09-28T08:00:00Z').state;
+const recovered = mergeAnbudStates(staleRefresh, duringFetch);
+assert.equal(recovered.notices.find((row) => row.id === '2026-1').decision, 'aktuell');
+assert.ok(recovered.notices.some((row) => row.id === '2026-9'));
+
+const emptyOverwrite = mergeAnbudStates(duringFetch, emptyAnbudState());
+assert.equal(emptyOverwrite.notices.find((row) => row.id === '2026-1').decision, 'aktuell');
+
+const unmarked = setNoticeDecision(duringFetch, '2026-1', 'ubestemt').state;
+assert.equal(mergeAnbudStates(duringFetch, unmarked).notices.find((row) => row.id === '2026-1').decision, 'ubestemt');
+
+const trimmed = compactAnbudState({
+  ...duringFetch,
+  notices: [{
+    ...duringFetch.notices[0],
+    dossier: { portalFiles: [{ name: 'Krav.pdf', dataUrl: 'data:application/pdf;base64,AAA', base64: 'AAA' }] },
+  }],
+});
+assert.equal(trimmed.notices[0].decision, 'aktuell');
+assert.equal(trimmed.notices[0].dossier.portalFiles[0].name, 'Krav.pdf');
+assert.equal(trimmed.notices[0].dossier.portalFiles[0].dataUrl, undefined);
+assert.equal(trimmed.notices[0].dossier.portalFiles[0].base64, undefined);
 
 const withWords = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',

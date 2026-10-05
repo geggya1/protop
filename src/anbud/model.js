@@ -352,8 +352,16 @@ export function saveTenderWatch(state, input) {
   const companyName = text(input?.companyName);
   if (!companyName) return fail(state, 'Bedriftsnavn må fylles ut.');
   const cpvCodes = normalizeCpvList(input?.cpvCodes);
-  if (!cpvCodes.length) return fail(state, 'Registrer minst én CPV-kode.');
   if (cpvCodes.length > 20) return fail(state, 'Maks 20 CPV-koder i ett varsel.');
+  const keywords = normalizeKeywords(input?.keywords);
+  const profile = normalizeWatchProfile(input?.profile ?? state.watch?.profile);
+  const hasSignal = cpvCodes.length
+    || keywords.length
+    || profile.keywords.length
+    || profile.description
+    || profile.website
+    || profile.summary;
+  if (!hasSignal) return fail(state, 'Legg inn CPV, søkeord eller en bedriftsbeskrivelse før du lagrer.');
   const nationwide = !!input?.nationwide;
   const areas = nationwide ? [] : normalizeAreas(input?.areas);
   if (!nationwide && !areas.length) return fail(state, 'Velg minst ett fylke, eller hele Norge.');
@@ -371,8 +379,8 @@ export function saveTenderWatch(state, input) {
       notify: normalizeNotify(input?.notify),
       emails: normalizeEmails(input?.emails),
       naeringskoder: normalizeTrades(input?.naeringskoder),
-      keywords: normalizeKeywords(input?.keywords),
-      profile: normalizeWatchProfile(input?.profile ?? state.watch?.profile),
+      keywords,
+      profile,
     },
   });
 }
@@ -470,12 +478,17 @@ function fold(value) {
 }
 
 export function watchQuery(watch) {
-  if (!watch?.companyName || !watch.cpvCodes?.length) return null;
+  if (!watch?.companyName) return null;
+  const keywords = normalizeKeywords([
+    ...(watch.keywords || []),
+    ...(watch.profile?.keywords || []),
+  ]);
+  if (!watch.cpvCodes?.length && !keywords.length) return null;
   if (!watch.nationwide && !watch.areas?.length) return null;
   return {
-    cpvCodes: watch.cpvCodes.map((row) => row.code),
+    cpvCodes: (watch.cpvCodes || []).map((row) => row.code),
     locationIds: watch.nationwide ? [] : watch.areas.map((row) => row.id),
-    keywords: normalizeKeywords(watch.keywords),
+    keywords,
   };
 }
 
@@ -483,7 +496,10 @@ export function watchFingerprint(watch) {
   const cpv = (watch?.cpvCodes || []).map((row) => text(row?.code || row)).filter(Boolean).sort();
   const areas = watch?.nationwide ? ['*'] : (watch?.areas || []).map((row) => text(row?.id || row)).filter(Boolean).sort();
   const channels = (Array.isArray(watch?.channels) ? watch.channels : []).map((row) => text(row)).filter(Boolean).sort();
-  const keywords = normalizeKeywords(watch?.keywords).map((row) => fold(row)).sort();
+  const keywords = normalizeKeywords([
+    ...(watch?.keywords || []),
+    ...(watch?.profile?.keywords || []),
+  ]).map((row) => fold(row)).sort();
   return JSON.stringify({ cpv, areas, channels, keywords });
 }
 
@@ -511,9 +527,13 @@ export function noticeMatch(notice, watch) {
     notice?.noticeType,
     ...(notice?.places || []),
   ].join(' '));
-  const keywords = normalizeKeywords(watch?.keywords).filter((word) => hay.includes(fold(word)));
+  const watchedWords = normalizeKeywords([
+    ...(watch?.keywords || []),
+    ...(watch?.profile?.keywords || []),
+  ]);
+  const keywords = watchedWords.filter((word) => hay.includes(fold(word)));
   const tagged = normalizeKeywords(notice?.matchedKeywords).filter((word) => (
-    normalizeKeywords(watch?.keywords).some((item) => fold(item) === fold(word))
+    watchedWords.some((item) => fold(item) === fold(word))
   ));
   const seen = new Set();
   const words = [];

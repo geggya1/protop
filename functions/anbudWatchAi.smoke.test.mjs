@@ -10,10 +10,13 @@ const client = readFileSync(join(root, 'src/anbud/watchAi.js'), 'utf8');
 
 assert.match(ai, /export async function interpretProfile/);
 assert.match(ai, /export async function rankHits/);
+assert.match(ai, /export function buildLocalProfile/);
+assert.match(ai, /export function friendlyProfileError/);
 assert.doesNotMatch(ai, /\.\.\/src\//);
 assert.match(proxy, /action === 'interpret-profile'/);
 assert.match(proxy, /action === 'rank-hits'/);
 assert.match(proxy, /anbudWatchAi\.js/);
+assert.match(proxy, /friendlyProfileError/);
 assert.match(proxy, /if \(action === 'rank-hits'\)[\s\S]*const channels/);
 assert.match(client, /action, \.\.\.payload/);
 assert.match(client, /interpret-profile/);

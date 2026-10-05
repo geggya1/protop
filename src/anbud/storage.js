@@ -88,3 +88,18 @@ export async function saveAnbudState(state, companyId) {
   queueRemote(companyId, compactAnbudState(next));
   return next;
 }
+
+/** Lagrer med en gang og venter på Firestore, slik at «Lagre» ikke later som det gikk bra. */
+export async function persistAnbudState(state, companyId) {
+  const next = mergeAnbudStates(await readLocal(companyId), state);
+  await writeLocal(companyId, next);
+  const id = String(companyId || '').trim();
+  if (id) {
+    const prev = remoteTimers.get(id);
+    if (prev) clearTimeout(prev);
+    remoteTimers.delete(id);
+    remotePending.delete(id);
+  }
+  await writeRemote(companyId, compactAnbudState(next));
+  return next;
+}

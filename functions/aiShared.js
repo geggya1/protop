@@ -207,7 +207,10 @@ export function friendlyGeminiError(err) {
   if (/for lite|mangler/i.test(raw)) {
     return 'Dokumentet mangler eller er for lite. Ta et tydeligere foto, eller last opp PDF.';
   }
-  if (/timeout|tid/i.test(raw)) {
+  if (/ikke tilgjengelig/i.test(raw)) {
+    return 'AI er ikke tilgjengelig akkurat nå. Prøv igjen senere.';
+  }
+  if (/timeout|tok for lang tid/i.test(raw)) {
     return 'Analysen tok for lang tid. Prøv igjen med et mindre eller skarpere dokument.';
   }
   if (status || /Gemini HTTP/i.test(raw)) {

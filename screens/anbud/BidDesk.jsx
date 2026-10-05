@@ -172,7 +172,7 @@ export default function BidDesk({ company, colors, bids, focusBidId, onFocusHand
       </TouchableOpacity>
       {showForms && state ? <FormBuilderScreen state={state} colors={colors} commit={commit} /> : null}
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
-        <Text style={{ color: colors.muted }}>Kontrakter som er tildelt, ligger i kontraktsoppfølgingen.</Text>
+        <Text style={{ color: colors.muted }}>Kontrakter og avtaler ligger i kontraktsoppfølgingen, også uten tilbudsarbeid.</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
         <Text style={{ color: colors.muted }}>Innloggingsportalen endres under Innstillinger.</Text>

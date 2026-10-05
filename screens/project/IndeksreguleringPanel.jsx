@@ -150,7 +150,7 @@ function freshDraft(project, supplier) {
 
 export default function IndeksreguleringPanel({ project, onBook }) {
   const colors = useColors();
-  const { family, activeProfile } = useApp();
+  const { family, activeProfile, shellIntent, clearShellIntent } = useApp();
   const [draft, setDraft] = useState(() => freshDraft(project, ''));
   const [sourceText, setSourceText] = useState('');
   const [bundle, setBundle] = useState(null);
@@ -180,6 +180,27 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       contactName: current.contactName || (contact && contact !== 'Meg' ? contact : ''),
     }));
   }, [family?.company, activeProfile?.name, activeProfile?.kind]);
+
+  useEffect(() => {
+    if (!shellIntent || typeof shellIntent !== 'object' || shellIntent.type !== 'openIndexDraft') return;
+    const incoming = shellIntent.draft;
+    if (incoming && typeof incoming === 'object') {
+      setDraft(emptyDraft({
+        ...incoming,
+        regulationDate: incoming.regulationDate || todayIso(),
+        noticeDate: incoming.noticeDate || todayIso(),
+      }));
+      setSourceText(
+        incoming.sourceText
+        || (incoming.documents || []).map((doc) => doc.text).filter(Boolean).join('\n\n'),
+      );
+      setCaseId(shellIntent.caseId || '');
+      setStatus('Avtalen er hentet fra kontraktsoppfølgingen. Kontroller feltene før reguleringen.');
+      setPage('forside');
+      setError('');
+    }
+    clearShellIntent();
+  }, [shellIntent, clearShellIntent]);
 
   useEffect(() => {
     let live = true;

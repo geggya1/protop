@@ -12,6 +12,7 @@ import {
 } from '../src/utils/groupTypes';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
+import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
@@ -64,6 +65,7 @@ const TITLES = {
   approvals: 'Godkjenninger',
   apps: 'Apper',
   anbud: 'Anbud',
+  kunder: 'Kunder',
   kontrakt: 'Kontrakt / avtale',
   skjema: 'Skjema',
   selskap: 'Selskap',
@@ -138,6 +140,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'approvals') return <PlatformApprovalsScreen {...props} />;
     if (tab === 'more' || tab === 'apps') return <PlatformMoreScreen {...props} />;
     if (tab === 'anbud') return <AnbudScreen company={group} />;
+    if (tab === 'kunder') return <CustomersScreen />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (
@@ -208,7 +211,7 @@ export default function SocialPlatformShell({ platformType }) {
       <HelpTarget id="tabs">
         <View style={[styles.tabBar, { backgroundColor: c.tabBar, borderTopColor: c.line }]}>
           {config.tabs.map((item) => {
-            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'kontrakt' || tab === 'skjema' || tab === 'projects' || tab === 'okonomi')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
+            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'kunder' || tab === 'kontrakt' || tab === 'skjema' || tab === 'projects' || tab === 'okonomi')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
             return (
               <TouchableOpacity
                 key={item.id}

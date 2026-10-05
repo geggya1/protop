@@ -1,5 +1,6 @@
 import { areaById, cpvByCode } from './catalog.js';
 import { normalizeFormTemplates, normalizeBidWork } from './bidLibrary.js';
+import { normalizeCustomers } from './customers.js';
 import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 
 function text(value) {
@@ -66,6 +67,7 @@ export function emptyAnbudState() {
     notices: [],
     bids: [],
     contracts: [],
+    customers: [],
     audit: [],
     formTemplates: null,
     supplierProfile: null,
@@ -93,6 +95,7 @@ export function normalizeAnbudState(raw) {
     notices: Array.isArray(src.notices) ? src.notices.map(normalizeNotice) : [],
     bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidWork(normalizeBidRecord(row))),
     contracts: normalizeContracts(src.contracts),
+    customers: normalizeCustomers(src.customers),
     audit: normalizeAudit(src.audit),
     formTemplates: normalizeFormTemplates(src.formTemplates),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
@@ -222,6 +225,7 @@ export function mergeAnbudStates(left, right) {
     notices: mergeNoticeLists(a.notices, b.notices),
     bids: mergeById(a.bids, b.bids),
     contracts: mergeById(a.contracts, b.contracts),
+    customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
     formTemplates: a.formTemplates || b.formTemplates,
     supplierProfile: (Date.parse(b.supplierProfile?.savedAt || '') || 0) > (Date.parse(a.supplierProfile?.savedAt || '') || 0)

@@ -23,6 +23,7 @@ import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
+import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
@@ -509,6 +510,7 @@ function AppShellInner() {
         />
       );
     }
+    if (tab === 'kunder') return <CustomersScreen />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (
@@ -664,7 +666,7 @@ function AppShellInner() {
   );
 
   const showDeskAside = isDesktop && !kitchenMode
-    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter';
+    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter';
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

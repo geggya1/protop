@@ -34,7 +34,7 @@ function idsIn(sections) {
   assert.ok(account.items.some((i) => i.id === 'settings'));
   assert.ok(account.items.some((i) => i.id === 'help'));
   assert.ok(account.items.some((i) => i.id === 'legal'));
-  for (const hidden of ['projects', 'anbud', 'kontrakt', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
+  for (const hidden of ['projects', 'anbud', 'kunder', 'kontrakt', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
@@ -73,7 +73,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
+    ['selskap', 'kunder', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -88,6 +88,7 @@ function idsIn(sections) {
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
+  assert.equal(companyItems.find((i) => i.id === 'kunder').label, 'Kunder');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
@@ -222,6 +223,8 @@ assert.match(intakeSrc, /Registrer forespørsel/);
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);
+assert.match(shellSrc, /tab === 'kunder'/);
+assert.match(shellSrc, /CustomersScreen/);
 assert.match(shellSrc, /tab === 'selskap'/);
 assert.match(shellSrc, /moreSubView === 'underenheter'/);
 assert.match(shellSrc, /CompanyUnitsScreen/);

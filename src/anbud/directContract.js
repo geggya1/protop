@@ -1,6 +1,7 @@
 /** Direkteavtaler uten tilbudsarbeid, og overføring til indeksfeltene. */
 
 import { emptyDraft, emptyLine, parseAmount, parseIsoDate, todayIso } from '../indeksregulering/engine.js';
+import { agreementKindFromText } from './agreementTemplate.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -30,13 +31,18 @@ export function fieldsFromDraft(draft, extras = {}) {
     contractDate: text(draft?.contractDate),
     honorar: text(draft?.honorar),
     place: text(draft?.place),
-    poNumber: text(draft?.poNumber),
+    address: text(extras.address || draft?.address),
+    description: text(extras.description || draft?.description),
+    poNumber: text(extras.poNumber || draft?.poNumber),
     orgnr: text(draft?.orgnr || extras.orgnr),
+    supplierOrgnr: text(draft?.supplierOrgnr || extras.supplierOrgnr),
+    personnummer: text(draft?.personnummer || extras.personnummer),
     contactName: text(draft?.contactName || extras.contactName),
-    phone: text(draft?.phone),
-    email: text(draft?.email),
+    phone: text(draft?.phone || extras.phone),
+    email: text(draft?.email || extras.email),
     projectName: text(extras.projectName || draft?.title),
     reference: text(draft?.reference),
+    surchargePercent: text(draft?.surchargePercent || extras.surchargePercent),
     engine: text(draft?.engine),
     terms: draft?.terms || null,
     lines: Array.isArray(draft?.lines) ? draft.lines : [],
@@ -72,14 +78,35 @@ export function inputFromInterpretation(draft, extras = {}) {
   const start = parseIsoDate(extras.start || draft?.startDate) || '';
   const end = parseIsoDate(extras.end || draft?.endDate) || '';
   const documents = Array.isArray(extras.documents) ? extras.documents : [];
+  const source = documents.map((doc) => doc.text).filter(Boolean).join('\n');
   return {
     title,
     buyer: text(extras.buyer || draft?.buyer),
+    supplier: text(extras.supplier || draft?.supplier),
     projectName: text(extras.projectName || draft?.title || title),
+    description: text(extras.description || draft?.description),
+    address: text(extras.address || draft?.address),
+    kind: text(extras.kind || draft?.kind || agreementKindFromText(source)),
     value: extras.value != null && extras.value !== '' ? extras.value : contractValueFromDraft(draft),
     start,
     end,
     projectId: text(extras.projectId),
+    parentId: text(extras.parentId),
+    customerId: text(extras.customerId),
+    honorar: text(extras.honorar || draft?.honorar),
+    place: text(extras.place || draft?.place),
+    poNumber: text(extras.poNumber || draft?.poNumber),
+    orgnr: text(extras.orgnr || draft?.orgnr),
+    supplierOrgnr: text(extras.supplierOrgnr || draft?.supplierOrgnr),
+    personnummer: text(extras.personnummer || draft?.personnummer),
+    contactName: text(extras.contactName || draft?.contactName),
+    phone: text(extras.phone || draft?.phone),
+    email: text(extras.email || draft?.email),
+    reference: text(extras.reference || draft?.reference),
+    standard: text(extras.standard || draft?.standard),
+    indexId: text(extras.indexId || draft?.indexId),
+    surchargePercent: text(extras.surchargePercent || draft?.surchargePercent),
+    contractDate: text(extras.contractDate || draft?.contractDate),
     fields: fieldsFromDraft(draft, extras),
     documents,
     indexDraft: indexDraftFromInterpretation(draft, { ...extras, documents, title, start, end }),
@@ -98,7 +125,12 @@ export function filterContracts(contracts, filters = {}) {
     const projectText = `${row.projectName || ''} ${row.title || ''}`;
     if (project && !fold(projectText).includes(project)) return false;
     if (query) {
-      const hay = [row.title, row.buyer, row.projectName, row.fields?.reference, row.fields?.standard, row.fields?.contactName]
+      const hay = [
+        row.title, row.buyer, row.supplier, row.projectName, row.description,
+        row.kind, row.fields?.reference, row.fields?.standard, row.fields?.contactName,
+        row.fields?.orgnr, row.fields?.poNumber, row.address, row.place,
+        ...(row.documents || []).map((doc) => doc.name),
+      ]
         .map(fold)
         .join(' ');
       if (!hay.includes(query)) return false;

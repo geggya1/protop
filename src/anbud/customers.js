@@ -17,8 +17,12 @@ function createId(prefix) {
 }
 
 export function normalizeOrgnr(value) {
-  const raw = digits(value, 9);
-  return raw.length === 9 ? raw : '';
+  const raw = String(value || '').replace(/\D/g, '');
+  if (raw.length === 9) return raw;
+  // Norsk MVA: 0192 + organisasjonsnummer
+  if (raw.length === 13 && raw.startsWith('0192')) return raw.slice(4);
+  if (raw.length > 9) return raw.slice(-9);
+  return '';
 }
 
 export function normalizePersonnummer(value) {

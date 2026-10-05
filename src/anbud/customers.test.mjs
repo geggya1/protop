@@ -8,6 +8,7 @@ import {
   maskPersonnummer,
   matchCustomer,
   normalizeCustomer,
+  normalizeOrgnr,
   upsertCustomer,
 } from './customers.js';
 import { emptyAnbudState } from './model.js';
@@ -22,6 +23,7 @@ const created = upsertCustomer(emptyAnbudState(), {
 assert.equal(created.ok, true, created.error);
 assert.equal(created.customer.orgnr, '922987106');
 assert.equal(formatOrgnr(created.customer.orgnr), '922 987 106');
+assert.equal(normalizeOrgnr('0192:920273068'), '920273068');
 
 const again = upsertCustomer(created.state, { name: 'Igang', orgnr: '922987106' });
 assert.equal(again.ok, false);

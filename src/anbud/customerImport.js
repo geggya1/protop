@@ -29,24 +29,78 @@ async function inflateRaw(data) {
   return new Uint8Array(buffer);
 }
 
-async function zipEntries(bytes) {
+function findEocd(bytes) {
+  const min = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let i = bytes.length - 22; i >= min; i -= 1) {
+    if (u32(bytes, i) === 0x06054b50) return i;
+  }
+  return -1;
+}
+
+async function inflateZipPayload(data, method) {
+  if (method === 0) return data;
+  if (method !== 8) throw new Error('Excel-filen bruker en pakking som ikke kan leses her.');
+  try {
+    return await inflateRaw(data);
+  } catch {
+    if (typeof DecompressionStream === 'undefined') throw new Error('Kan ikke lese komprimert Excel-fil i dette miljøet.');
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+}
+
+/** Leser via sentral katalog — Excel setter ofte compressed size 0 i local header (data descriptor). */
+async function zipEntriesFromCentral(bytes) {
+  const eocd = findEocd(bytes);
+  if (eocd < 0) return [];
+  const cdSize = u32(bytes, eocd + 12);
+  const cdOff = u32(bytes, eocd + 16);
+  const files = [];
+  let offset = cdOff;
+  const end = Math.min(bytes.length, cdOff + cdSize);
+  while (offset + 46 <= end && u32(bytes, offset) === 0x02014b50) {
+    const method = u16(bytes, offset + 10);
+    const compressed = u32(bytes, offset + 20);
+    const nameLen = u16(bytes, offset + 28);
+    const extraLen = u16(bytes, offset + 30);
+    const commentLen = u16(bytes, offset + 32);
+    const localOff = u32(bytes, offset + 42);
+    const name = latin1(bytes.subarray(offset + 46, offset + 46 + nameLen));
+    if (localOff + 30 <= bytes.length && u32(bytes, localOff) === 0x04034b50) {
+      const localNameLen = u16(bytes, localOff + 26);
+      const localExtra = u16(bytes, localOff + 28);
+      const start = localOff + 30 + localNameLen + localExtra;
+      const data = bytes.subarray(start, start + compressed);
+      files.push({ name, data: await inflateZipPayload(data, method) });
+    }
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+  return files;
+}
+
+async function zipEntriesLocal(bytes) {
   const files = [];
   let offset = 0;
   while (offset + 30 <= bytes.length && u32(bytes, offset) === 0x04034b50) {
+    const flags = u16(bytes, offset + 6);
     const method = u16(bytes, offset + 8);
-    const compressed = u32(bytes, offset + 18);
+    let compressed = u32(bytes, offset + 18);
     const nameLen = u16(bytes, offset + 26);
     const extraLen = u16(bytes, offset + 28);
     const name = latin1(bytes.subarray(offset + 30, offset + 30 + nameLen));
     const start = offset + 30 + nameLen + extraLen;
+    if ((flags & 8) && !compressed) break;
     const data = bytes.subarray(start, start + compressed);
-    let raw = data;
-    if (method === 8) raw = await inflateRaw(data);
-    else if (method !== 0) throw new Error('Excel-filen bruker en pakking som ikke kan leses her.');
-    files.push({ name, data: raw });
+    files.push({ name, data: await inflateZipPayload(data, method) });
     offset = start + Math.max(compressed, 1);
   }
   return files;
+}
+
+async function zipEntries(bytes) {
+  const fromCentral = await zipEntriesFromCentral(bytes);
+  if (fromCentral.length) return fromCentral;
+  return zipEntriesLocal(bytes);
 }
 
 function decodeText(bytes) {
@@ -77,13 +131,14 @@ function foldHeader(value) {
 
 const HEADER_ALIASES = {
   name: ['navn', 'kundenavn', 'name', 'firma', 'firmanavn', 'kunde', 'selskapsnavn', 'company', 'legalname', 'kunden'],
-  orgnr: ['orgnr', 'organisasjonsnummer', 'orgnummer', 'organizationnumber', 'vat', 'mva', 'org'],
+  orgnr: ['orgnr', 'organisasjonsnummer', 'orgnummer', 'organizationnumber', 'org'],
+  vat: ['mva', 'mvanummer', 'mvanr', 'vat', 'vatnumber'],
   personnummer: ['personnummer', 'fodselsnummer', 'fnr', 'ssn', 'nationalid'],
   address: ['adresse', 'address', 'gate', 'street', 'besoksadresse', 'forretningsadresse'],
   postalCode: ['postnr', 'postnummer', 'zip', 'postalcode', 'postnrsted'],
-  place: ['poststed', 'sted', 'city', 'by', 'kommune'],
+  place: ['poststed', 'sted', 'city', 'by', 'kommune', 'postalsted'],
   contactName: ['kontakt', 'kontaktperson', 'contact', 'kontaktnavn'],
-  email: ['epost', 'email', 'mail', 'e-post'],
+  email: ['epost', 'email', 'mail', 'e-post', 'fakturaeposter', 'fakturaepost'],
   phone: ['telefon', 'tlf', 'mobil', 'phone', 'telefonnr'],
   notes: ['notat', 'notes', 'merknad', 'kommentar'],
   kind: ['type', 'kundetype', 'kind', 'kategori'],
@@ -91,6 +146,27 @@ const HEADER_ALIASES = {
 
 function mapHeader(header) {
   const key = foldHeader(header);
+  if (!key || key === 'kundenummer' || key === 'customernumber') return '';
+  if (key.includes('kundenavn')) return 'name';
+  if (key.includes('organisasjonsnummer') || key.includes('orgnr')) return 'orgnr';
+  if (key.includes('mvanummer') || key === 'mva') return 'vat';
+  if (key.includes('personnummer') || key.includes('fodselsnummer')) return 'personnummer';
+  if (key.includes('fakturaepost')) return 'email';
+  if ((key.includes('hovedadresse') || key.includes('besoksadresse') || key.includes('fakturaadresse')) && (key.includes('linje1') || key.endsWith('adresse'))) {
+    if (key.includes('hovedadresse')) return 'address';
+    if (key.includes('besoksadresse')) return 'visitAddress';
+    return 'invoiceAddress';
+  }
+  if ((key.includes('hovedadresse') || key.includes('besoksadresse') || key.includes('fakturaadresse')) && (key.includes('postnummer') || key.includes('postnr'))) {
+    if (key.includes('hovedadresse')) return 'postalCode';
+    if (key.includes('besoksadresse')) return 'visitPostalCode';
+    return 'invoicePostalCode';
+  }
+  if ((key.includes('hovedadresse') || key.includes('besoksadresse') || key.includes('fakturaadresse')) && (key.includes('sted') || key.includes('city'))) {
+    if (key.includes('hovedadresse')) return 'place';
+    if (key.includes('besoksadresse')) return 'visitPlace';
+    return 'invoicePlace';
+  }
   for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
     if (aliases.some((alias) => foldHeader(alias) === key)) return field;
   }
@@ -112,11 +188,11 @@ function rowFromObject(src) {
   return emptyCustomer({
     name,
     kind,
-    orgnr: src.orgnr || '',
+    orgnr: src.orgnr || src.vat || '',
     personnummer: src.personnummer || '',
-    address: src.address || '',
-    postalCode: src.postalCode || '',
-    place: src.place || '',
+    address: src.address || src.visitAddress || src.invoiceAddress || '',
+    postalCode: src.postalCode || src.visitPostalCode || src.invoicePostalCode || '',
+    place: src.place || src.visitPlace || src.invoicePlace || '',
     contactName: src.contactName || '',
     email: src.email || '',
     phone: src.phone || '',
@@ -168,15 +244,28 @@ function parseCsvRecords(text) {
   return rows;
 }
 
+function headerIndex(table) {
+  const limit = Math.min(table.length, 8);
+  for (let i = 0; i < limit; i += 1) {
+    const headers = (table[i] || []).map(mapHeader);
+    if (headers.includes('name') && (headers.includes('orgnr') || headers.includes('vat') || headers.includes('personnummer') || headers.includes('email'))) {
+      return i;
+    }
+  }
+  const first = (table[0] || []).map(mapHeader);
+  return first.some(Boolean) ? 0 : -1;
+}
+
 function recordsFromTable(table) {
   if (!table.length) return [];
-  const headers = table[0].map(mapHeader);
-  if (!headers.some(Boolean)) return [];
+  const start = headerIndex(table);
+  if (start < 0) return [];
+  const headers = table[start].map(mapHeader);
   const out = [];
-  for (const cells of table.slice(1)) {
+  for (const cells of table.slice(start + 1)) {
     const src = {};
     headers.forEach((key, index) => {
-      if (!key) return;
+      if (!key || src[key]) return;
       src[key] = String(cells[index] || '').trim();
     });
     const row = rowFromObject(src);
@@ -273,7 +362,11 @@ async function parseXlsxCustomers(bytes) {
     || files.find((file) => /xl\/worksheets\/sheet\d+\.xml$/i.test(file.name));
   if (!sheet) throw new Error('Fant ingen regneark i Excel-filen.');
   const strings = stringsFile ? sharedStrings(decodeText(stringsFile.data)) : [];
-  return parseSheetTable(decodeText(sheet.data), strings);
+  const rows = parseSheetTable(decodeText(sheet.data), strings);
+  if (!rows.length) {
+    throw new Error('Fant ingen kunder i Excel-filen. Trenger en kolonne med kundenavn.');
+  }
+  return rows;
 }
 
 export async function parseCustomerFile(bytes, filename = '') {

@@ -11,7 +11,9 @@ import { CPV_CODES } from '../../src/anbud/catalog';
 import { normalizeCpvCode } from '../../src/anbud/model';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
+import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyContextLabel } from '../../src/project/companyOffer';
+import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyLanding from './CompanyLanding';
 
 const PAGES = [
@@ -108,10 +110,12 @@ export default function ProjectPlatformScreen() {
         setError('Fant ikke organisasjonsnummeret i Brønnøysund.');
         return;
       }
-      next.telefon = phone.trim() || company.telefon || '';
-      next.epostadresse = email.trim() || next.epostadresse;
-      next.egneNaeringskoder = company.egneNaeringskoder || [];
-      await savePatch(familyId, { company: next, name: next.navn });
+      const merged = mergeCompanyProfile({
+        ...next,
+        telefon: phone.trim() || company.telefon || '',
+        epostadresse: email.trim() || next.epostadresse,
+      }, company);
+      await savePatch(familyId, { company: merged, name: merged.navn });
       setEmail(next.epostadresse || '');
     } catch (e) {
       setError(e?.message || 'Kunne ikke hente fra Brønnøysund.');
@@ -220,6 +224,18 @@ export default function ProjectPlatformScreen() {
             Egne CPV-koder og næringskoder brukes i anbudsvarsling, i tillegg til det som er offentlig kjent.
             {canEdit ? '' : ' Bare superadministrator kan endre dette.'}
           </Text>
+          <CompanyLogoSettings
+            company={company}
+            canEdit={canEdit}
+            colors={colors}
+            busy={busy}
+            onSave={async (logo) => {
+              const next = { ...company };
+              if (logo) next.logo = logo;
+              else delete next.logo;
+              await savePatch(familyId, { company: next });
+            }}
+          />
           <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
           <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
           <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>

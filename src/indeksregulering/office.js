@@ -1,4 +1,5 @@
 import { workbookSheets } from './letter.js';
+import { fitLogoBox, logoForDocument } from '../project/companyLogo.js';
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -157,9 +158,21 @@ function docxCalcTable(result) {
   return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/></w:tblPr>${body}</w:tbl>`;
 }
 
+function docxLogo(logo) {
+  const file = logoForDocument(logo);
+  if (!file) return null;
+  const box = fitLogoBox(file.width, file.height, 180, 64);
+  const cx = Math.round(box.width * 9525);
+  const cy = Math.round(box.height * 9525);
+  const drawing = `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="1" name="Bedriftslogo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="logo.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+  return { drawing, bytes: file.bytes };
+}
+
 export function buildDocx(letter, result) {
   const blocks = [];
+  const logo = letter.notice?.logo ? docxLogo(letter.notice.logo) : null;
   if (letter.notice) {
+    if (logo) blocks.push(logo.drawing);
     blocks.push(paragraph(letter.notice.brand, true, 32));
     blocks.push(paragraph(letter.notice.title, true, 28));
     blocks.push(paragraph(letter.notice.intro, false, 21));
@@ -190,24 +203,36 @@ export function buildDocx(letter, result) {
     });
   }
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
 <w:body>${blocks.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:body>
 </w:document>`;
   const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
+${logo ? '<Default Extension="jpg" ContentType="image/jpeg"/>' : ''}
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>`;
   const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
-  return zipStore([
+  const files = [
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rels },
     { name: 'word/document.xml', data: document },
-  ]);
+  ];
+  if (logo) {
+    files.push({
+      name: 'word/_rels/document.xml.rels',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.jpg"/>
+</Relationships>`,
+    });
+    files.push({ name: 'word/media/logo.jpg', data: logo.bytes });
+  }
+  return zipStore(files);
 }
 
 function columnName(index) {
@@ -301,7 +326,15 @@ function wrapLine(text, width) {
   return lines;
 }
 
-function pdfDocument(streams) {
+function bytesToHex(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 1) out += bytes[i].toString(16).padStart(2, '0');
+  return out;
+}
+
+function pdfDocument(streams, image = null) {
+  const imageId = image ? 5 + streams.length * 2 : 0;
+  const xobject = image ? ` /XObject << /Im1 ${imageId} 0 R >>` : '';
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     `<< /Type /Pages /Count ${streams.length} /Kids [${streams.map((_, index) => `${5 + index * 2} 0 R`).join(' ')}] >>`,
@@ -310,9 +343,13 @@ function pdfDocument(streams) {
   ];
   streams.forEach((stream, index) => {
     const contentId = 6 + index * 2;
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobject} >> /Contents ${contentId} 0 R >>`);
     objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
   });
+  if (image) {
+    const hex = `${bytesToHex(image.bytes)}>`;
+    objects.push(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${hex.length} >>\nstream\n${hex}\nendstream`);
+  }
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
   objects.forEach((body, index) => {
@@ -341,7 +378,7 @@ function paintText(ops, text, x, y, size, font) {
   ops.push('ET');
 }
 
-function noticeStreams(letter) {
+function noticeStreams(letter, showLogo) {
   const notice = letter.notice;
   const pageH = 842;
   const margin = 40;
@@ -412,9 +449,28 @@ function noticeStreams(letter) {
     });
   }
 
-  const brandWidth = textWidth(notice.brand, 16);
-  paintText(ops(), notice.brand, 555 - brandWidth, pageH - y - 16, 16, 'F2');
-  y += 28;
+  if (showLogo && notice.logo) {
+    const box = fitLogoBox(notice.logo.width, notice.logo.height);
+    const imageY = pageH - y - box.height;
+    ops().push('q');
+    ops().push(`${box.width.toFixed(2)} 0 0 ${box.height.toFixed(2)} ${margin.toFixed(2)} ${imageY.toFixed(2)} cm`);
+    ops().push('/Im1 Do');
+    ops().push('Q');
+    const brandWidth = textWidth(notice.brand, 16);
+    const brandX = 555 - brandWidth;
+    if (margin + box.width + 12 + brandWidth <= 555) {
+      paintText(ops(), notice.brand, brandX, pageH - y - 16, 16, 'F2');
+      y += Math.max(box.height, 22) + 10;
+    } else {
+      y += box.height + 8;
+      paintText(ops(), notice.brand, brandX, pageH - y - 16, 16, 'F2');
+      y += 28;
+    }
+  } else {
+    const brandWidth = textWidth(notice.brand, 16);
+    paintText(ops(), notice.brand, 555 - brandWidth, pageH - y - 16, 16, 'F2');
+    y += 28;
+  }
   heading(notice.title, 13);
   paragraphAt(notice.intro, 9);
   gap(10);
@@ -451,7 +507,10 @@ function noticeStreams(letter) {
 }
 
 export function buildPdf(letter) {
-  if (letter.notice) return pdfDocument(noticeStreams(letter));
+  if (letter.notice) {
+    const image = letter.notice.logo ? logoForDocument(letter.notice.logo) : null;
+    return pdfDocument(noticeStreams(letter, !!image), image);
+  }
   const lines = [];
   letter.paragraphs.forEach((part) => {
     if (part.heading) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Linking, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions,
+  Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
@@ -18,6 +18,7 @@ import {
   storedCompanyProfile,
   weatherQuery,
 } from '../../src/project/companyPublic';
+import { companyLogoOf } from '../../src/project/companyLogo';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -87,6 +88,7 @@ export default function CompanyLanding({
   const [history, setHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const profile = live?.company || storedCompanyProfile(stored);
+  const logo = companyLogoOf(stored);
   const orgnr = stored?.organisasjonsnummer || '';
 
   useEffect(() => {
@@ -286,6 +288,16 @@ export default function CompanyLanding({
   return (
     <View style={styles.page}>
       <View style={styles.hero}>
+        {logo?.dataUrl ? (
+          <View style={[styles.logoPlate, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Image
+              source={{ uri: logo.dataUrl }}
+              style={styles.companyLogo}
+              resizeMode="contain"
+              accessibilityLabel={`Logo for ${profile?.navn || 'bedriften'}`}
+            />
+          </View>
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
           <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
@@ -512,6 +524,8 @@ const webShadow = Platform.OS === 'web'
 const styles = StyleSheet.create({
   page: { paddingBottom: 28, gap: 14 },
   hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  logoPlate: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  companyLogo: { width: 148, height: 56 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
   hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4 },
   heroSub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },

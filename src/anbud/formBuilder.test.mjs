@@ -150,6 +150,8 @@ assert.equal(scale.scaleMax, 10);
 assert.equal(coerceAnswer('time', '08:30'), '08:30');
 assert.equal(normalizeSettings({ confirmation: 'Takk', anotherResponse: false, progress: true }).confirmation, 'Takk');
 assert.equal(normalizeSettings({}).anotherResponse, true);
+assert.equal(normalizeSettings({}).useCompanyLogo, false);
+assert.equal(normalizeSettings({ useCompanyLogo: true }).useCompanyLogo, true);
 
 const summary = summarizeQuestion(
   { id: 'mat', label: 'Mat', kind: 'choice', other: true, options: [{ id: 'a', label: 'Salat' }, { id: 'b', label: 'Dessert' }] },

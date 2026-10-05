@@ -13,6 +13,8 @@ import { fileToDataUrl, generateCompanyForm } from '../../src/anbud/intakeClient
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
+import { useApp } from '../../src/context/AppContext';
+import { companyLogoOf } from '../../src/project/companyLogo';
 import FormStudio from './FormStudio';
 
 const IMPORT_ACCEPT = 'image/*,.pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -59,6 +61,8 @@ export default function FormBuilderScreen({
 }) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
+  const { family } = useApp();
+  const companyLogo = companyLogoOf(family?.company);
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState(null);
@@ -212,6 +216,7 @@ export default function FormBuilderScreen({
         onSave={save}
         onScan={() => readDocument('scan')}
         onImport={() => readDocument('import')}
+        companyLogo={companyLogo}
       />
     );
   }

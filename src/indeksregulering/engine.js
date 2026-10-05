@@ -128,6 +128,7 @@ export function emptyDraft(partial = {}) {
     contractDate: '',
     honorar: '',
     effectiveDate: '',
+    useCompanyLogo: false,
     ...partial,
   };
 }

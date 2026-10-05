@@ -69,8 +69,13 @@ function idsIn(sections) {
   assert.equal(mainIds.includes('projects'), false);
   assert.deepEqual(
     company.find((s) => s.id === 'company').items.map((i) => i.id),
-    ['anbud', 'skjema', 'projects'],
+    ['anbud', 'skjema', 'projects', 'okonomi'],
   );
+  assert.equal(company.find((s) => s.id === 'company').items.find((item) => item.id === 'okonomi').label, 'Økonomi');
+  const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
+  const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
+  assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);
+  assert.match(economyScreen, /Indeksregulering/);
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));

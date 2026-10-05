@@ -104,15 +104,15 @@ const EXTRA_ARTICLES = [
     soft: '#E5F6FE',
     title: T('Prosjektplattformen', 'The project platform'),
     summary: T(
-      'Portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap, indeksregulering og ISO.',
-      'Portfolio, progress, HSE, quality, documents, meetings, project accounting, index regulation and ISO.',
+      'Portefølje, fremdrift, HMS, kvalitet, dokumenter, møter, prosjektregnskap og ISO.',
+      'Portfolio, progress, HSE, quality, documents, meetings, project accounting and ISO.',
     ),
-    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project', 'indeks', 'ssb', 'ns 8407'],
+    keywords: ['prosjekt', 'hms', 'regnskap', 'iso', 'avvik', 'project'],
     steps: {
       parent: [
         T('Åpne Prosjekt inne i bedriften og opprett prosjekt med nummer', 'Open Projects inside the company and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
-        T('Åpne Indeksregulering, last opp avtalen og hent SSB-indeksene. Brevet kan lastes ned som PDF, Word og Excel', 'Open Index regulation, upload the contract and fetch the SSB indices. Download the letter as PDF, Word and Excel'),
+        T('Indeksregulering ligger i Økonomi, ikke i prosjektet', 'Index regulation lives in Economy, outside the project'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
       ],
       child: [],

@@ -23,6 +23,7 @@ import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
+import EconomyScreen from '../screens/economy/EconomyScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
@@ -507,6 +508,7 @@ function AppShellInner() {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
+    if (tab === 'okonomi') return <EconomyScreen />;
     if (isOrganizationType(family?.type) && tab === 'home') return <ProjectPlatformScreen />;
     if (tab === 'more') {
       return (
@@ -648,7 +650,7 @@ function AppShellInner() {
   );
 
   const showDeskAside = isDesktop && !kitchenMode
-    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'skjema';
+    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'skjema' && tab !== 'okonomi';
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

@@ -7,7 +7,7 @@ import { useLayout } from '../../src/theme';
 import TenderAlert from './TenderAlert';
 import TenderInquiry from './TenderInquiry';
 import BidDesk from './BidDesk';
-import PortalSettings from './PortalSettings';
+import WatchSettings from './WatchSettings';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
@@ -81,7 +81,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onSnapshot={(next) => setBids(next?.bids || [])}
         />
       ) : null}
-      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} onOpenWork={() => go('tilbud')} /> : null}
+      {step === 'innstillinger' ? <WatchSettings company={company} colors={colors} onOpenWork={() => go('tilbud')} /> : null}
     </ScrollView>
   );
 }

@@ -85,7 +85,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
-    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud', 'Innstillinger'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
   assert.equal(companyItems.find((i) => i.id === 'kunder').label, 'Kunder');
@@ -202,7 +202,9 @@ assert.match(landing, /onUnits/);
 assert.equal(landing.includes('Underenheter og avdelinger'), false);
 assert.equal(landing.includes('Underenheter i Enhetsregisteret'), false);
 assert.equal(landing.includes('Arbeidsflaten'), false);
-assert.equal(landing.includes('onProjects'), false);
+assert.equal(landing.includes('Offentlige tildelinger på Doffin'), false);
+assert.equal(landing.includes('Egne koder til anbudsvarsling'), false);
+assert.match(landing, /Anbud · Innstillinger/);
 assert.equal(landing.includes('primaryTxt'), false);
 
 const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
@@ -214,9 +216,19 @@ assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 
 const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', import.meta.url), 'utf8');
 assert.match(anbudScreen, /TenderInquiry/);
+assert.match(anbudScreen, /WatchSettings/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 assert.equal(anbudScreen.includes('motta eller send'), false);
+
+const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.jsx', import.meta.url), 'utf8');
+assert.match(watchSettings, /CPV fra offentlige tildelinger/);
+assert.match(watchSettings, /Egne koder til anbudsvarsling/);
+assert.match(watchSettings, /PortalSettings/);
+
+const tenderAlert = readFileSync(new URL('../../screens/anbud/TenderAlert.jsx', import.meta.url), 'utf8');
+assert.equal(tenderAlert.includes('CPV som søkes'), false);
+assert.match(tenderAlert, /Se og endre kodene under Innstillinger/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

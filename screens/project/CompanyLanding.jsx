@@ -74,7 +74,6 @@ function Stat({ label, value, colors }) {
 
 export default function CompanyLanding({
   stored,
-  cpvCodes: storedCpv = [],
   onSettings,
   onUnits,
 }) {
@@ -86,8 +85,6 @@ export default function CompanyLanding({
   const [error, setError] = useState('');
   const [forecast, setForecast] = useState(null);
   const [placeName, setPlaceName] = useState('');
-  const [publicCpv, setPublicCpv] = useState([]);
-  const [cpvSource, setCpvSource] = useState('');
   const [history, setHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const profile = live?.company || storedCompanyProfile(stored);
@@ -113,34 +110,6 @@ export default function CompanyLanding({
       })
       .finally(() => {
         if (alive) setLoading(false);
-      });
-    return () => { alive = false; };
-  }, [orgnr]);
-
-  useEffect(() => {
-    const id = String(orgnr || '').replace(/\D/g, '');
-    if (id.length !== 9) {
-      setPublicCpv([]);
-      setCpvSource('');
-      return undefined;
-    }
-    let alive = true;
-    fetch('/api/tender-proxy', {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'lookup', orgnr: id }),
-    })
-      .then((res) => (res.ok ? res.json() : { cpvCodes: [] }))
-      .then((data) => {
-        if (!alive) return;
-        const found = Array.isArray(data?.cpvCodes) ? data.cpvCodes : [];
-        setPublicCpv(found);
-        setCpvSource(found.length ? 'Offentlige tildelinger på Doffin' : '');
-      })
-      .catch(() => {
-        if (!alive) return;
-        setPublicCpv([]);
-        setCpvSource('');
       });
     return () => { alive = false; };
   }, [orgnr]);
@@ -386,14 +355,6 @@ export default function CompanyLanding({
                 ))}
               </View>
             ) : null}
-            {(stored?.egneNaeringskoder || []).length ? (
-              <View style={styles.fact}>
-                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
-                {stored.egneNaeringskoder.map((row) => (
-                  <Text key={row} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>{row}</Text>
-                ))}
-              </View>
-            ) : null}
             {profile?.historiskeNavn?.length ? (
               <Fact label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
             ) : null}
@@ -464,33 +425,6 @@ export default function CompanyLanding({
             </Card>
           ) : null}
 
-          <Card colors={colors}>
-            <SectionTitle colors={colors}>CPV-koder</SectionTitle>
-            <Text style={[styles.mutedLine, { color: colors.muted }]}>
-              {cpvSource || 'Søkes i offentlige tildelinger på Doffin.'}
-            </Text>
-            {publicCpv.length ? publicCpv.map((row) => (
-              <View key={row.code} style={styles.listRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.code}</Text>
-                  {row.label ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.label}</Text> : null}
-                </View>
-              </View>
-            )) : (
-              <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen CPV-koder er funnet i offentlige tildelinger.</Text>
-            )}
-            {(storedCpv || []).length ? (
-              <View style={styles.fact}>
-                <Text style={[styles.factLabel, { color: colors.muted }]}>Egne koder til anbudsvarsling</Text>
-                {storedCpv.map((row) => (
-                  <Text key={row.code} style={[styles.factValue, { color: colors.ink }]}>
-                    {[row.code, row.label].filter(Boolean).join(' · ')}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-          </Card>
-
           {roles.length ? (
             <Card colors={colors}>
               <SectionTitle colors={colors}>Roller</SectionTitle>
@@ -507,7 +441,7 @@ export default function CompanyLanding({
 
           {live?.brregUrl ? (
             <TouchableOpacity onPress={() => openUrl(live.brregUrl)}>
-              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. CPV fra Doffin. Registerdetaljene ligger på forsiden inntil videre.</Text>
+              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Registerdetaljene ligger på forsiden. CPV-koder til anbudsvarsling ligger under Anbud · Innstillinger.</Text>
             </TouchableOpacity>
           ) : null}
         </View>

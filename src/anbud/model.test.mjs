@@ -236,3 +236,22 @@ const bidState = createBidWork(withFile, withFile.notices[0].id).state;
 assert.equal(bidState.bids[0].phase, 'trinn2');
 assert.equal(bidState.bids[0].noticeId, withFile.notices[0].id);
 assert.equal(bidState.notices.find((row) => row.id === withFile.notices[0].id).decision, 'tilbud');
+
+const watchProfile = saveTenderWatch(emptyAnbudState(), {
+  companyName: 'Nord Bygg',
+  cpvCodes: ['45000000'],
+  nationwide: true,
+  profile: {
+    description: 'Rådgivende ingeniører innen samferdsel',
+    website: 'nordbygg.no',
+    keywords: ['bro'],
+  },
+}).state;
+assert.equal(watchProfile.watch.profile.description, 'Rådgivende ingeniører innen samferdsel');
+assert.equal(watchProfile.watch.profile.website, 'https://nordbygg.no/');
+assert.deepEqual(watchProfile.watch.profile.keywords, ['bro']);
+const mergedWatch = mergeAnbudStates(emptyAnbudState(), watchProfile);
+assert.equal(mergedWatch.watch.profile.keywords[0], 'bro');
+assert.equal(emptyAnbudState().watch.profile.description, '');
+
+console.log('model.test.mjs ok');

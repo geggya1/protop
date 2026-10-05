@@ -13,18 +13,16 @@ export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
   { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
   { id: 'tilbud', icon: 'document-text', label: '2. Tilbud' },
+  { id: 'innstillinger', icon: 'settings', label: 'Innstillinger' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);
 
 export function defaultAnbudSubView(subView) {
-  return ANBUD_SUBVIEW_IDS.includes(subView) || subView === 'innstillinger'
-    ? subView
-    : 'varsling';
+  return ANBUD_SUBVIEW_IDS.includes(subView) ? subView : 'varsling';
 }
 
 export function anbudMenuTitle(subView) {
-  if (subView === 'innstillinger') return 'Anbud · innstillinger';
   const row = ANBUD_MENU.find((item) => item.id === subView);
   return row?.label || 'Anbud';
 }

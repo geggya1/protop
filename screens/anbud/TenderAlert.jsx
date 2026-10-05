@@ -3,15 +3,15 @@ import {
   Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
-import { buildTenderAlert } from '../../src/anbud/alertMail';
-import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, sendTenderAlert, storeReachableFiles } from '../../src/anbud/doffinClient';
+import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
+import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-  attachDossier, createBidWork, emptyAnbudState, formatMatchLabel, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+    attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
+import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
+import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import { updateGroup } from '../../src/utils/groups';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
 import BidDecision from './BidDecision';
@@ -26,21 +26,20 @@ import {
 } from '../../src/anbud/noticeText';
 
 const FILTERS = [
-  ['nye', 'Nye'],
-  ['aktuelle', 'Aktuelle'],
-  ['uaktuelle', 'Uaktuelle'],
-  ['alle', 'Alle'],
-  ['utlopt', 'Frist utløpt'],
+  ['nye', 'Nye', 'emphasis'],
+  ['aktuelle', 'Aktuelle', 'emphasis'],
+  ['uaktuelle', 'Uaktuelle', 'plain'],
+  ['alle', 'Alle', 'plain'],
+  ['utlopt', 'Frist utløpt', 'plain'],
 ];
 
 const COLUMNS = [
   { key: 'publishedAt', label: 'Publisert', width: 120, kind: 'date' },
   { key: 'source', label: 'Type', width: 90, kind: 'text' },
   { key: 'deadline', label: 'Frist', width: 110, kind: 'date' },
-  { key: 'title', label: 'Konkurranse', width: 340, kind: 'text' },
-  { key: 'buyer', label: 'Oppdragsgiver', width: 170, kind: 'text' },
+  { key: 'title', label: 'Konkurranse', width: 420, kind: 'text' },
+  { key: 'buyer', label: 'Oppdragsgiver', width: 180, kind: 'text' },
   { key: 'place', label: 'Sted', width: 150, kind: 'text' },
-  { key: 'match', label: 'Matcher', width: 160, kind: 'text' },
 ];
 
 function fold(value) {
@@ -53,7 +52,6 @@ function fold(value) {
 function columnValue(row, key, watch) {
   if (key === 'source') return row.source === 'ted' ? 'TED' : 'Doffin';
   if (key === 'place') return (row.places || []).join(', ');
-  if (key === 'match') return formatMatchLabel(row, watch);
   if (key === 'buyer') return row.buyer || '';
   if (key === 'title') return row.title || '';
   return row[key] || '';
@@ -66,21 +64,35 @@ function day(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-function Chip({ label, on, onPress, colors, hint, count }) {
-  const showCount = count != null && count > 0;
+function Chip({ label, on, onPress, colors, hint, count, emphasis }) {
+  const hasCount = count != null && count !== '';
+  const n = Number(count) || 0;
+  const countText = hasCount ? ` (${String(n).padStart(2, '0')})` : '';
+  if (emphasis) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={hint || `${label}, ${n}`}
+        style={[styles.chip, styles.chipEmphasis, { backgroundColor: on ? colors.brand : colors.sunken }]}
+      >
+        <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+        <View style={[styles.badge, { backgroundColor: on ? 'rgba(255,255,255,0.28)' : '#64748b' }]} accessibilityElementsHidden>
+          <Text style={styles.badgeTxt}>{n > 99 ? '99+' : String(n)}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={hint || (showCount ? `${label}, ${count}` : label)}
+      accessibilityLabel={hint || `${label}${countText}`}
       style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
     >
-      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>{label}</Text>
-      {showCount ? (
-        <View style={styles.badge} accessibilityElementsHidden>
-          <Text style={styles.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
-        </View>
-      ) : null}
+      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>
+        {label}{countText}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -120,7 +132,6 @@ function NoticeBody({ row, colors }) {
 
 export default function TenderAlert({ company, colors, onBids, onOpenSettings, onOpenBid }) {
   const { width } = useWindowDimensions();
-  const wide = width >= 860;
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -139,12 +150,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [filter, setFilter] = useState('nye');
   const [sourceFilter, setSourceFilter] = useState('alle');
   const [queryText, setQueryText] = useState('');
-  const [cpvQuery, setCpvQuery] = useState('');
-  const [customCpv, setCustomCpv] = useState('');
-  const [tradeDraft, setTradeDraft] = useState('');
-  const [keywordDraft, setKeywordDraft] = useState('');
   const [keywords, setKeywords] = useState([]);
-  const [emailDraft, setEmailDraft] = useState('');
   const [selectedCpv, setSelectedCpv] = useState(() => new Set());
   const [trades, setTrades] = useState([]);
   const [nationwide, setNationwide] = useState(true);
@@ -152,17 +158,14 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [channels, setChannels] = useState(() => new Set(['doffin', 'ted']));
   const [notify, setNotify] = useState({ push: true, varsel: true, email: false });
   const [emails, setEmails] = useState([]);
-  const [mailNote, setMailNote] = useState('');
   const [savedNote, setSavedNote] = useState('');
-  const [showCriteria, setShowCriteria] = useState(false);
-  const [summaryOpen, setSummaryOpen] = useState(true);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [areaId, setAreaId] = useState('');
   const [sort, setSort] = useState({ key: 'publishedAt', dir: 'desc' });
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
   const [pullingId, setPullingId] = useState('');
-  const [openGroups, setOpenGroups] = useState(() => new Set());
+  const [ranking, setRanking] = useState(false);
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -244,7 +247,47 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       emails,
       naeringskoder: trades,
       keywords,
+      profile: state.watch?.profile,
     };
+  }
+
+  async function applyAiRank(watch, notices, { silent } = {}) {
+    const profile = watch?.profile || {};
+    const terms = watchSearchTerms(watch);
+    if (!profile.description && !profile.summary && !profile.website && !terms.length) {
+      if (!silent) setError('Beskriv bedriften, legg inn hjemmeside eller søkeord under Innstillinger, så kan AI merke de beste treffene.');
+      return;
+    }
+    const open = (notices || []).filter((row) => (
+      row.decision !== 'tilbud' && !noticeIsRejected(row) && !noticeDeadlineExpired(row)
+    ));
+    const candidates = (silent ? open.filter((row) => !row.aiFit?.score) : open).slice(0, 20);
+    if (!candidates.length) {
+      if (!silent) setSavedNote('Ingen åpne treff å vurdere med AI.');
+      return;
+    }
+    setRanking(true);
+    try {
+      const data = await rankTenderHits({
+        companyName: watch.companyName || company?.name,
+        description: profile.description,
+        summary: profile.summary,
+        keywords: terms,
+        notices: candidates,
+      });
+      const next = mergeAiFit(stateRef.current.notices, data.hits || []);
+      commitState({ ...stateRef.current, notices: next });
+      const marked = (data.hits || []).filter((row) => Number(row.score) >= 8).length;
+      if (!silent || marked) {
+        setSavedNote(marked
+          ? `AI har fremhevet ${marked} treff dere bør se nærmere på.`
+          : 'AI har vurdert treffene. Ingen ble merket som særskilt gode.');
+      }
+    } catch (err) {
+      if (!silent) setError(err?.message || 'Kunne ikke vurdere treffene med AI.');
+    } finally {
+      setRanking(false);
+    }
   }
 
   async function refresh(nextState, manual = false) {
@@ -274,7 +317,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       const base = draft.ok ? { ...latest, watch } : latest;
       const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
       const added = merged.notices.filter((row) => !known.has(row.id)).length;
-      setState({ ...merged, queryKey: fingerprint });
+      commitState({ ...merged, queryKey: fingerprint });
       if (manual || added) {
         setSavedNote(added
           ? `${added} nye treff lagt til. Tidligere treff og vurderinger er beholdt.`
@@ -282,6 +325,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       }
       if (!data.hits?.length && data.errors?.length && !known.size) setError(data.errors[0]);
       else if (data.errors?.length) setError(data.errors.join(' '));
+      applyAiRank(watch, merged.notices, { silent: true }).catch(() => {});
     } catch (err) {
       const raw = String(err?.message || '');
       setError(/internal|cors|failed to fetch|ikke funnet/i.test(raw)
@@ -290,42 +334,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     } finally {
       setSyncing(false);
     }
-  }
-
-  function saveCriteria() {
-    const saved = saveTenderWatch(stateRef.current, inputFromForm());
-    if (!saved.ok) {
-      setError(saved.error);
-      return;
-    }
-    setError('');
-    setSavedNote('Lagret. Søket bruker kodene fra bedriften.');
-    setState(saved.state);
-    if (company?.id) {
-      updateGroup(company.id, {
-        cpvCodes: saved.state.watch.cpvCodes.map((row) => ({ ...row, source: 'bedrift' })),
-        cpvSource: 'bedrift',
-        tenderWatch: {
-          nationwide,
-          areas: saved.state.watch.areas,
-          channels: saved.state.watch.channels,
-          notify,
-          emails,
-          naeringskoder: trades,
-          keywords,
-        },
-      }).catch(() => {});
-    }
-    refresh(saved.state);
-  }
-
-  function toggle(setter, value) {
-    setter((current) => {
-      const next = new Set(current);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
   }
 
   function commitState(next) {
@@ -438,7 +446,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const matchWatch = useMemo(() => ({
     cpvCodes: [...selectedCpv].map((code) => ({ code })),
     keywords,
-  }), [selectedCpv, keywords]);
+    profile: state.watch?.profile,
+  }), [selectedCpv, keywords, state.watch?.profile]);
 
   const filterCounts = useMemo(() => {
     const counts = { nye: 0, aktuelle: 0, uaktuelle: 0, alle: 0, utlopt: 0 };
@@ -482,7 +491,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
       if (area && !noticeInArea(row, area)) return false;
       if (q) {
-        const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')} ${formatMatchLabel(row, matchWatch)}`);
+        const hay = fold(`${row.title} ${row.buyer} ${(row.cpvCodes || []).join(' ')} ${(row.matchedKeywords || []).join(' ')}`);
         if (!hay.includes(q)) return false;
       }
       return COLUMNS.every((col) => {
@@ -496,6 +505,10 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     const { key, dir } = sort;
     const factor = dir === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => {
+      const aFit = scoreNoticeFit(a, matchWatch);
+      const bFit = scoreNoticeFit(b, matchWatch);
+      if (aFit.strong !== bFit.strong) return aFit.strong ? -1 : 1;
+      if (aFit.score !== bFit.score) return bFit.score - aFit.score;
       const left = String(columnValue(a, key, matchWatch) || '');
       const right = String(columnValue(b, key, matchWatch) || '');
       if (!left && right) return 1;
@@ -514,73 +527,41 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           ? 'Ingen er merket aktuelle ennå.'
           : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
 
-  const preview = buildTenderAlert({
-    companyName: company?.name || state.watch.companyName,
-    cpvCodes: state.watch.cpvCodes,
-    keywords,
-    notices: notices.filter((row) => (row.isNew || row.decision === 'ubestemt') && !noticeDeadlineExpired(row)).slice(0, 12),
-  });
-
-  async function sendMail() {
-    setMailNote('');
-    if (!notify.email || !emails.length) {
-      setMailNote('Slå på e-post og legg inn minst én mottaker.');
-      return;
-    }
-    try {
-      const data = await sendTenderAlert({
-        emails,
-        companyName: company?.name || state.watch.companyName,
-        cpvCodes: state.watch.cpvCodes,
-        keywords,
-        notices: notices.filter((row) => row.decision !== 'arkiv' && row.decision !== 'forkastet' && row.decision !== 'ikke' && !noticeDeadlineExpired(row)).slice(0, 20),
-      });
-      setMailNote(data?.ok ? `Sendt til ${data.sent} mottaker${data.sent === 1 ? '' : 'e'}.` : (data?.error || 'Kunne ikke sende.'));
-    } catch (err) {
-      setMailNote(err?.message || 'Kunne ikke sende e-posten.');
-    }
-  }
-
-  const cpvLabels = [...selectedCpv].map((code) => {
-    const known = CPV_CODES.find((row) => row.code === code) || CPV_GROUPS.flatMap((group) => [group, ...group.children]).find((row) => row.code === code);
-    return known ? `${code} ${known.label}` : code;
-  });
+  const cpvCount = selectedCpv.size;
   const areaLabel = nationwide
     ? 'Hele Norge'
     : [...areas].map((id) => TENDER_AREAS.find((row) => row.id === id)?.name || id).join(', ') || 'Ingen fylker valgt';
+  const channelLabel = [...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal';
 
   const summary = (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.summaryHead}>
         <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
-        <TouchableOpacity onPress={() => setShowCriteria(true)} accessibilityRole="button" accessibilityLabel="Innstillinger for søkekriterier">
+        <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button" accessibilityLabel="Åpne innstillinger for CPV og søk">
           <Ionicons name="settings-outline" size={20} color={colors.ink} />
         </TouchableOpacity>
       </View>
-      <Text style={{ color: colors.ink, fontWeight: '400' }}>{company?.name || 'Bedriften'}</Text>
-      <Text style={{ color: colors.muted }}>{cpvLabels.length} CPV · {keywords.length} søkeord · {companyTrades.length} næringskoder · {areaLabel}</Text>
-      <Text style={{ color: colors.muted }}>Listen oppdateres automatisk én gang i døgnet, kl. 23:55. Ekstra søk gjøres med Oppdater nå.</Text>
-      <TouchableOpacity onPress={() => setSummaryOpen((value) => !value)} accessibilityRole="button">
-        <Text style={{ color: colors.brand, fontWeight: '400' }}>{summaryOpen ? 'Vis mindre' : 'Vis søket'}</Text>
-      </TouchableOpacity>
-      {summaryOpen ? (
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>CPV som søkes</Text>
-          {cpvLabels.length ? cpvLabels.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>) : <Text style={{ color: colors.muted }}>Ingen CPV valgt.</Text>}
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Søkeord</Text>
-          {keywords.length ? keywords.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>) : <Text style={{ color: colors.muted }}>Ingen søkeord. CPV-treff brukes alene.</Text>}
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Område</Text>
-          <Text style={{ color: colors.ink }}>{areaLabel}</Text>
-          <Text style={{ color: colors.muted }}>{[...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal'}</Text>
-          <Text style={{ color: colors.muted }}>{syncing ? 'Søker …' : `${notices.length} treff i listen`}</Text>
-        </View>
+      <Text style={{ color: colors.ink }}>{company?.name || 'Bedriften'}</Text>
+      <Text style={{ color: colors.muted }}>
+        {cpvCount} CPV · {keywords.length} søkeord · {companyTrades.length} næringskoder · {areaLabel} · {channelLabel}
+      </Text>
+      {state.watch?.profile?.summary ? (
+        <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>
       ) : null}
+      <Text style={{ color: colors.muted }}>
+        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${notices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
+      </Text>
+      <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button">
+        <Text style={{ color: colors.brand }}>Se og endre kodene under Innstillinger</Text>
+      </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={[styles.layout, wide && styles.layoutWide]}>
+    <View style={styles.layout}>
       <View style={styles.main}>
+        {summary}
+        {!!savedNote && <Text style={{ color: colors.brand }}>{savedNote}</Text>}
         <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
             <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
@@ -588,9 +569,19 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}. ` : ''}Nye treff legges til. Vurderinger beholdes.
             </Text>
           </View>
-          <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => applyAiRank(stateRef.current.watch, stateRef.current.notices)}
+              accessibilityRole="button"
+              accessibilityLabel="Vurder treff med AI"
+              style={[styles.save, { backgroundColor: colors.sunken }]}
+            >
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{ranking ? 'Vurderer …' : 'Vurder treff med AI'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <TextInput
           value={queryText}
@@ -600,12 +591,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
         <View style={styles.row}>
-          {FILTERS.map(([id, label]) => (
+          {FILTERS.map(([id, label, tone]) => (
             <Chip
               key={id}
               label={label}
               colors={colors}
-              count={filterCounts[id]}
+              count={filterCounts[id] || 0}
+              emphasis={tone === 'emphasis'}
               on={filter === id}
               onPress={() => setFilter(id)}
             />
@@ -706,8 +698,16 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             const open = openId === row.id;
             const aktuell = row.decision === 'aktuell';
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
+            const fit = scoreNoticeFit(row, matchWatch);
             return (
-              <View key={row.id} style={{ borderColor: colors.line, borderBottomWidth: 1, backgroundColor: aktuell ? colors.brandSoft : 'transparent' }}>
+              <View key={row.id} style={{
+                borderColor: colors.line,
+                borderBottomWidth: 1,
+                borderLeftWidth: fit.strong ? 4 : 0,
+                borderLeftColor: fit.strong ? colors.brand : 'transparent',
+                backgroundColor: aktuell || fit.strong ? colors.brandSoft : 'transparent',
+              }}
+              >
                 <View style={styles.line}>
                   <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
                     <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
@@ -720,10 +720,15 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                         </Text>
                       ) : null}
                     </View>
-                    <Text style={[styles.td, { width: 340, color: colors.ink }]}>{row.title}</Text>
-                    <Text style={[styles.td, { width: 170, color: colors.ink }]}>{row.buyer || '—'}</Text>
+                    <View style={[styles.td, { width: 420 }]}>
+                      {fit.strong ? (
+                        <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Godt treff</Text>
+                      ) : null}
+                      <Text style={{ color: colors.ink }}>{row.title}</Text>
+                      {fit.reason ? <Text style={{ color: colors.muted, fontSize: 11 }}>{fit.reason}</Text> : null}
+                    </View>
+                    <Text style={[styles.td, { width: 180, color: colors.ink }]}>{row.buyer || '—'}</Text>
                     <Text style={[styles.td, { width: 150, color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
-                    <Text style={[styles.td, { width: 160, color: colors.ink }]}>{formatMatchLabel(row, matchWatch)}</Text>
                   </TouchableOpacity>
                   <View style={styles.decision}>
                     <TouchableOpacity
@@ -768,132 +773,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         </ScrollView>
         )}
       </View>
-      <View style={[styles.side, wide && styles.sideWide]}>
-        {summary}
-        {!!savedNote && <Text style={{ color: colors.brand }}>{savedNote}</Text>}
-        {showCriteria ? (
-          <TouchableOpacity onPress={() => setShowCriteria(false)} accessibilityRole="button">
-            <Text style={{ color: colors.muted }}>Lukk innstillinger</Text>
-          </TouchableOpacity>
-        ) : null}
-        {showCriteria ? <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.h, { color: colors.ink }]}>Kriterier</Text>
-          <Text style={{ color: colors.muted }}>Utgangspunktet er CPV-kodene som er registrert på bedriften. Her kan du legge til flere.</Text>
-          <TextInput value={cpvQuery} onChangeText={setCpvQuery} placeholder="Søk i CPV" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-          {CPV_GROUPS.map((group) => {
-            const q = cpvQuery.trim().toLowerCase();
-            const children = group.children.filter((row) => !q || `${row.code} ${row.label}`.toLowerCase().includes(q));
-            const opened = openGroups.has(group.code) || !!q;
-            return (
-            <View key={group.code} style={{ gap: 6 }}>
-              <Chip label={`${group.code.slice(0, 4)} ${group.label}`} colors={colors} on={selectedCpv.has(group.code)} onPress={() => toggle(setSelectedCpv, group.code)} />
-              <TouchableOpacity onPress={() => setOpenGroups((current) => {
-                const next = new Set(current);
-                if (next.has(group.code)) next.delete(group.code);
-                else next.add(group.code);
-                return next;
-              })} accessibilityRole="button">
-                <Text style={{ color: colors.brand, fontWeight: '400' }}>{opened ? 'Skjul undernivå' : `Vis ${children.length} undernivå`}</Text>
-              </TouchableOpacity>
-              {opened ? (
-                <View style={styles.row}>
-                  {children.map((row) => (
-                    <Chip key={row.code} colors={colors} on={selectedCpv.has(row.code)} label={`${row.code.slice(0, 4)} ${row.label}`} onPress={() => toggle(setSelectedCpv, row.code)} />
-                  ))}
-                </View>
-              ) : null}
-            </View>
-            );
-          })}
-          <TextInput value={customCpv} onChangeText={setCustomCpv} placeholder="Egen CPV, 8 siffer" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-          <Chip label="Legg til CPV" colors={colors} on={false} onPress={() => {
-            const code = normalizeCpvCode(customCpv);
-            if (!code) return;
-            setSelectedCpv((current) => new Set(current).add(code));
-            setCustomCpv('');
-          }} />
-          <Text style={[styles.h, { color: colors.ink }]}>Søkeord</Text>
-          <Text style={{ color: colors.muted }}>Ord som skal treffe i tittel, beskrivelse eller oppdragsgiver, i tillegg til CPV-treff.</Text>
-          <View style={styles.row}>
-            {keywords.map((row) => (
-              <Chip key={row} label={`${row} ×`} hint={`Fjern søkeord ${row}`} colors={colors} on onPress={() => setKeywords((current) => current.filter((item) => item !== row))} />
-            ))}
-          </View>
-          <TextInput
-            value={keywordDraft}
-            onChangeText={setKeywordDraft}
-            placeholder="F.eks. sykehus, adgangskontroll"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-            onSubmitEditing={() => {
-              const next = normalizeKeywords([...keywords, ...keywordDraft.split(/[,;\n]/)]);
-              setKeywords(next);
-              setKeywordDraft('');
-            }}
-          />
-          <Chip label="Legg til søkeord" colors={colors} on={false} onPress={() => {
-            const next = normalizeKeywords([...keywords, ...keywordDraft.split(/[,;\n]/)]);
-            if (next.length === keywords.length) return;
-            setKeywords(next);
-            setKeywordDraft('');
-          }} />
-          <Text style={{ color: colors.muted }}>Næringskoder</Text>
-          {trades.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>)}
-          <TextInput value={tradeDraft} onChangeText={setTradeDraft} placeholder="Kode eller beskrivelse" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-          <Chip label="Legg til næringskode" colors={colors} on={false} onPress={() => {
-            const value = tradeDraft.trim();
-            if (!value) return;
-            setTrades((current) => current.includes(value) ? current : [...current, value]);
-            setTradeDraft('');
-          }} />
-          <Text style={[styles.h, { color: colors.ink }]}>Område</Text>
-          <View style={styles.row}>
-            <Chip label="Hele Norge" colors={colors} on={nationwide} onPress={() => setNationwide((value) => !value)} />
-            {!nationwide && TENDER_AREAS.map((area) => (
-              <Chip key={area.id} colors={colors} on={areas.has(area.id)} label={area.name} onPress={() => toggle(setAreas, area.id)} />
-            ))}
-          </View>
-          <Text style={[styles.h, { color: colors.ink }]}>Kanaler</Text>
-          <View style={styles.row}>
-            <Chip label="Doffin" colors={colors} on={channels.has('doffin')} onPress={() => toggle(setChannels, 'doffin')} />
-            <Chip label="TED" colors={colors} on={channels.has('ted')} onPress={() => toggle(setChannels, 'ted')} />
-          </View>
-          <Text style={{ color: colors.muted }}>Mercell har ikke et åpent søke-API. Treff derfra kommer ikke inn automatisk.</Text>
-          <Text style={[styles.h, { color: colors.ink }]}>Varsling</Text>
-          <View style={styles.row}>
-            <Chip label="Push" colors={colors} on={notify.push} onPress={() => setNotify((n) => ({ ...n, push: !n.push }))} />
-            <Chip label="Varsel" colors={colors} on={notify.varsel} onPress={() => setNotify((n) => ({ ...n, varsel: !n.varsel }))} />
-            <Chip label="E-post" colors={colors} on={notify.email} onPress={() => setNotify((n) => ({ ...n, email: !n.email }))} />
-          </View>
-          {emails.map((row) => <Text key={row} style={{ color: colors.ink }}>{row}</Text>)}
-          <TextInput value={emailDraft} onChangeText={setEmailDraft} placeholder="Mottaker, f.eks. nye_prosjekt@firma.no" placeholderTextColor={colors.placeholder} autoCapitalize="none" keyboardType="email-address" style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-          <Chip label="Legg til e-post" colors={colors} on={false} onPress={() => {
-            const value = emailDraft.trim().toLowerCase();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return;
-            setEmails((current) => current.includes(value) ? current : [...current, value]);
-            setEmailDraft('');
-          }} />
-          <TouchableOpacity onPress={saveCriteria} style={[styles.save, { backgroundColor: colors.brand }]} accessibilityRole="button">
-            <Text style={{ color: '#fff', fontWeight: '400' }}>{syncing ? 'Søker …' : 'Lagre og søk'}</Text>
-          </TouchableOpacity>
-          <Text style={{ color: colors.muted }}>E-posten følger samme oppsett som Mercell: treff, frist, oppdragsgiver og hvilken CPV som traff.</Text>
-          <Text style={{ color: colors.muted }} numberOfLines={4}>{preview.text}</Text>
-          <TouchableOpacity onPress={sendMail} accessibilityRole="button">
-            <Text style={{ color: colors.brand, fontWeight: '400' }}>Send varsel nå</Text>
-          </TouchableOpacity>
-          {!!mailNote && <Text style={{ color: colors.muted }}>{mailNote}</Text>}
-        </View> : null}
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   layout: { gap: 16, width: '100%', alignSelf: 'stretch' },
-  layoutWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   main: { flex: 1, gap: 8, minWidth: 0 },
-  side: { gap: 10, width: '100%' },
-  sideWide: { width: 320, flexShrink: 0, marginLeft: 24 },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tableScroll: {
     width: '100%',
@@ -901,7 +787,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1 },
-  table: { width: 1320, minWidth: 1320 },
+  table: { width: 1246, minWidth: 1246 },
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -915,6 +801,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  chipEmphasis: { paddingRight: 8 },
   badge: {
     minWidth: 20,
     height: 20,
@@ -922,7 +809,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#D92D20',
+    backgroundColor: '#64748b',
   },
   badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
   sourceBox: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },

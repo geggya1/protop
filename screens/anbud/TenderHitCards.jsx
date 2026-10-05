@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { formatMatchLabel, formatWhen } from '../../src/anbud/model';
+import { formatWhen } from '../../src/anbud/model';
+import { scoreNoticeFit } from '../../src/anbud/matchFit';
 import {
   deadlineInfo,
   formatNoticeText,
@@ -132,15 +133,16 @@ export default function TenderHitCards({
         const deadline = deadlineInfo(row.deadline);
         const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
         const place = Array.isArray(row.places) ? row.places.filter(Boolean).join(', ') : String(row.places || '');
-        const match = formatMatchLabel(row, matchWatch);
+        const fit = scoreNoticeFit(row, matchWatch);
         const body = formatNoticeText(row.dossier?.description || row.description || row.noticeType || '');
         const url = officialNoticeUrl(row);
         return (
           <View
             key={row.id}
             style={[styles.card, {
-              borderColor: open || aktuell ? colors.brand : colors.line,
-              backgroundColor: aktuell ? colors.brandSoft : colors.card,
+              borderColor: open || aktuell || fit.strong ? colors.brand : colors.line,
+              borderLeftWidth: fit.strong ? 4 : 1,
+              backgroundColor: aktuell || fit.strong ? colors.brandSoft : colors.card,
             }]}
           >
             <View style={styles.cardRow}>
@@ -152,6 +154,11 @@ export default function TenderHitCards({
                 style={styles.cardBody}
               >
                 <Text style={[styles.title, { color: colors.ink }]} numberOfLines={open ? undefined : 2}>{row.title}</Text>
+                {fit.strong ? (
+                  <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '700' }}>
+                    Godt treff{fit.reason ? ` · ${fit.reason}` : ''}
+                  </Text>
+                ) : null}
                 <Text style={[styles.buyer, { color: colors.ink }]} numberOfLines={1}>
                   {row.buyer || '—'}
                   <Text style={{ color: colors.muted }}>{` · ${place || '—'}`}</Text>
@@ -164,10 +171,6 @@ export default function TenderHitCards({
                   {` · `}
                   <Text style={{ color: colors.brand, fontWeight: '600' }}>{sourceName(row)}</Text>
                   {` · ${day(row.publishedAt)}`}
-                </Text>
-                <Text style={[styles.meta, { color: colors.ink }]} numberOfLines={1}>
-                  <Text style={{ color: colors.muted }}>Matcher </Text>
-                  {match}
                 </Text>
               </TouchableOpacity>
               <View style={styles.actions}>

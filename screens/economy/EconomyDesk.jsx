@@ -67,7 +67,7 @@ export default function EconomyDesk({
     <View nativeID="economy-desk" id="economy-desk" style={styles.stack}>
       <Text style={[styles.h, { color: colors.ink }]}>Kunder og avtaler</Text>
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Velg en kunde eller en avtale i tabellen. Først vises kunden, deretter velger du avtalen. Indeksregulering vises når avtalen er valgt.
+        Velg kunde eller avtale for indeksregulering. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale.
       </Text>
       {hint ? <Text style={{ color: colors.brand }}>{hint}</Text> : null}
       <TextInput
@@ -79,7 +79,7 @@ export default function EconomyDesk({
       />
       {!customers.length && !contracts.length ? (
         <Text style={{ color: colors.muted }}>
-          Ingen kunder eller avtaler er registrert ennå. Legg dem inn under Kunder og Avtaler i Økonomi.
+          Ingen kunder eller avtaler er registrert ennå. Registrer dem under Kunder eller Kontrakt / avtale i bedriftsmenyen.
         </Text>
       ) : null}
       {rows.length ? (

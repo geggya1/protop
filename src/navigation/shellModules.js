@@ -30,24 +30,26 @@ export function anbudMenuTitle(subView) {
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Hoved.
- * Anbud har egen undermeny. Kunder og avtaler ligger under Økonomi.
+ * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
+ * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   return 'Selskap';
 }
 
-/** Undermeny når Økonomi er valgt. Kunde og avtale før indeksregulering. */
+/**
+ * Undermeny når Økonomi er valgt.
+ * Kunder og Avtaler her er økonomiske utsnitt (okonomi-subviews), ikke fulle registre.
+ */
 export const OKONOMI_MENU = [
-  { id: 'oversikt', navId: 'okonomi-oversikt', icon: 'home', label: 'Oversikt', tab: 'okonomi', subView: 'oversikt' },
-  { id: 'kunder', navId: 'kunder', icon: 'people', label: 'Kunder', tab: 'kunder' },
-  { id: 'avtaler', navId: 'kontrakt', icon: 'ribbon', label: 'Avtaler', tab: 'kontrakt' },
-  { id: 'indeks', navId: 'okonomi-indeks', icon: 'trending-up', label: 'Indeksregulering', tab: 'okonomi', subView: 'indeks' },
+  { id: 'oversikt', icon: 'home', label: 'Oversikt' },
+  { id: 'kunder', icon: 'people', label: 'Kunder' },
+  { id: 'avtaler', icon: 'cash', label: 'Avtaler' },
+  { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
-export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU
-  .filter((item) => item.tab === 'okonomi')
-  .map((item) => item.subView || item.id);
+export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU.map((item) => item.id);
 
 export function defaultOkonomiSubView(subView) {
   return OKONOMI_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
@@ -55,18 +57,9 @@ export function defaultOkonomiSubView(subView) {
 
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
+  if (subView === 'kunder') return 'Økonomi · kunder';
+  if (subView === 'avtaler') return 'Økonomi · avtaler';
   return 'Økonomi';
-}
-
-function okonomiNavChildren() {
-  return OKONOMI_MENU.map((item) => ({
-    id: item.navId,
-    icon: item.icon,
-    label: item.label,
-    action: item.tab === 'okonomi'
-      ? { type: 'tab', tab: 'okonomi', subView: item.subView }
-      : { type: 'tab', tab: item.tab },
-  }));
 }
 
 export function companyNavItems() {
@@ -86,6 +79,7 @@ export function companyNavItems() {
         },
       ],
     },
+    { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
       icon: 'megaphone',
@@ -98,6 +92,7 @@ export function companyNavItems() {
         action: { type: 'tab', tab: 'anbud', subView: item.id },
       })),
     },
+    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     {
@@ -106,7 +101,12 @@ export function companyNavItems() {
       label: 'Økonomi',
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
       forceOpen: true,
-      children: okonomiNavChildren(),
+      children: OKONOMI_MENU.map((item) => ({
+        id: `okonomi-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: 'okonomi', subView: item.id },
+      })),
     },
   ];
 }

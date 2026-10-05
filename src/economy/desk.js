@@ -2,7 +2,8 @@
 
 import { kindLabel } from '../anbud/agreementTemplate.js';
 import { formatNok } from '../anbud/model.js';
-import { formatOrgnr } from '../anbud/customers.js';
+import { formatOrgnr, ownerLabel } from '../anbud/customers.js';
+import { formatNumberId, sortContractsChronological } from '../anbud/numbering.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -73,4 +74,57 @@ export function economyTableRows(customers = [], contracts = [], query = '') {
   const q = fold(query);
   if (!q) return rows;
   return rows.filter((row) => fold(`${row.kind} ${row.title} ${row.party} ${row.extra}`).includes(q));
+}
+
+function contractValue(contract) {
+  const n = Number(contract?.value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Kundeliste for økonomi: volum og sum, ikke full kunderegistrering. */
+export function economyCustomerRows(customers = [], contracts = [], people = [], query = '') {
+  const rows = (Array.isArray(customers) ? customers : []).map((customer) => {
+    const related = relatedContracts(contracts, customer);
+    const sum = related.reduce((total, row) => total + contractValue(row), 0);
+    return {
+      key: customer.id,
+      customerId: customer.id,
+      name: customer.name,
+      identity: customer.kind === 'person' ? 'Privatkunde' : (formatOrgnr(customer.orgnr) || 'Virksomhet'),
+      agreements: related.length,
+      value: sum,
+      valueLabel: sum ? formatNok(sum) : '—',
+      owner: ownerLabel(customer, people) || '—',
+      sort: fold(customer.name),
+    };
+  }).sort((a, b) => a.sort.localeCompare(b.sort, 'nb'));
+  const q = fold(query);
+  if (!q) return rows;
+  return rows.filter((row) => fold(`${row.name} ${row.identity} ${row.owner}`).includes(q));
+}
+
+/** Avtaleliste for økonomi: nummer, periode og sum — ikke NS 8403-registrering. */
+export function economyContractRows(customers = [], contracts = [], people = [], query = '') {
+  const rows = sortContractsChronological(Array.isArray(contracts) ? contracts : []).map((contract) => {
+    const customer = matchCustomer(customers, contract);
+    return {
+      key: contract.id,
+      contractId: contract.id,
+      systemId: formatNumberId(contract.systemId) || '—',
+      oppdragId: formatNumberId(contract.oppdragId) || '—',
+      title: text(contract.title) || 'Avtale uten navn',
+      buyer: text(contract.buyer) || 'Uten kunde',
+      period: [contract.start, contract.end].filter(Boolean).join(' – ') || '—',
+      value: contractValue(contract),
+      valueLabel: contract.value ? formatNok(contract.value) : '—',
+      status: contract.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv',
+      owner: ownerLabel(customer, people) || '—',
+      kind: kindLabel(contract.kind) || '—',
+    };
+  });
+  const q = fold(query);
+  if (!q) return rows;
+  return rows.filter((row) => fold([
+    row.systemId, row.oppdragId, row.title, row.buyer, row.period, row.valueLabel, row.status, row.owner, row.kind,
+  ].join(' ')).includes(q));
 }

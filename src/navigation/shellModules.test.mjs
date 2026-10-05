@@ -76,7 +76,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'anbud', 'skjema', 'projects', 'okonomi'],
+    ['selskap', 'kunder', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -90,8 +90,9 @@ function idsIn(sections) {
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud', 'Innstillinger'],
   );
-  assert.equal(companyItems.find((i) => i.id === 'kunder'), undefined);
-  assert.equal(companyItems.find((i) => i.id === 'kontrakt'), undefined);
+  assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
+  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
+  assert.equal(companyItems.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
@@ -99,9 +100,11 @@ function idsIn(sections) {
     ['Oversikt', 'Kunder', 'Avtaler', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
-  assert.equal(okonomiKids.find((i) => i.id === 'kunder').action.tab, 'kunder');
-  assert.equal(okonomiKids.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
-  assert.equal(okonomiKids.find((i) => i.id === 'kontrakt').label, 'Avtaler');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.subView, 'kunder');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').action.tab, 'okonomi');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').action.subView, 'avtaler');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').label, 'Avtaler');
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -113,16 +116,24 @@ function idsIn(sections) {
   const anbud = items.find((item) => item.id === 'anbud');
   const tilbud = anbud.children.find((item) => item.id === 'anbud-tilbud');
   const okonomi = items.find((item) => item.id === 'okonomi');
-  const kontrakt = okonomi.children.find((item) => item.id === 'kontrakt');
-  const kunder = okonomi.children.find((item) => item.id === 'kunder');
+  const kontrakt = items.find((item) => item.id === 'kontrakt');
+  const kunder = items.find((item) => item.id === 'kunder');
+  const okonomiKunder = okonomi.children.find((item) => item.id === 'okonomi-kunder');
+  const okonomiAvtaler = okonomi.children.find((item) => item.id === 'okonomi-avtaler');
   assert.equal(isNavItemActive(anbud, 'anbud', 'varsling'), true);
   assert.equal(isNavItemActive(tilbud, 'anbud', 'tilbud'), true);
   assert.equal(isNavItemActive(tilbud, 'anbud', 'varsling'), false);
   assert.equal(isNavItemActive(kontrakt, 'kontrakt', null), true);
   assert.equal(isNavItemActive(kontrakt, 'anbud', 'tilbud'), false);
   assert.equal(isNavItemActive(kunder, 'kunder', null), true);
-  assert.equal(isNavItemActive(okonomi, 'kunder', null), true);
-  assert.equal(isNavItemActive(okonomi, 'kontrakt', null), true);
+  assert.equal(isNavItemActive(okonomi, 'kunder', null), false);
+  assert.equal(isNavItemActive(okonomi, 'kontrakt', null), false);
+  assert.equal(isNavItemActive(okonomiKunder, 'okonomi', 'kunder'), true);
+  assert.equal(isNavItemActive(okonomiKunder, 'kunder', null), false);
+  assert.equal(isNavItemActive(okonomiAvtaler, 'okonomi', 'avtaler'), true);
+  assert.equal(isNavItemActive(okonomiAvtaler, 'kontrakt', null), false);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'kunder'), true);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'avtaler'), true);
   const oversikt = okonomi.children.find((item) => item.id === 'okonomi-oversikt');
   const indeks = okonomi.children.find((item) => item.id === 'okonomi-indeks');
   assert.equal(okonomi.action.subView, 'oversikt');
@@ -284,9 +295,15 @@ assert.match(shellSrc, /ContractScreen/);
 const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
 assert.match(economyScreen, /EconomyWelcome/);
 assert.match(economyScreen, /EconomyDesk/);
+assert.match(economyScreen, /EconomyCustomers/);
+assert.match(economyScreen, /EconomyContracts/);
 assert.match(economyScreen, /openIndexIntentFromContract/);
 assert.match(economyScreen, /IndeksreguleringPanel/);
 assert.match(economyScreen, /page === 'indeks'/);
+assert.match(economyScreen, /page === 'kunder'/);
+assert.match(economyScreen, /page === 'avtaler'/);
+assert.match(economyScreen, /requestShellTab\?\.\('kunder'/);
+assert.match(economyScreen, /requestShellTab\?\.\('kontrakt'/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /parseCustomerFile/);

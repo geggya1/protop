@@ -29,7 +29,14 @@ assert.equal(
 );
 assert.match(
   assertSafeAppContinueUrl('https://www.protop.no/verify-email', 'https://www.protop.no/'),
-  /weekplan\.no/,
+  /protop\.no/,
+);
+assert.match(
+  assertSafeAppContinueUrl(
+    'https://protop-c189c--utvikling-abc.web.app/hjem',
+    'https://www.protop.no/',
+  ),
+  /protop-c189c--utvikling-abc\.web\.app/,
 );
 
 assert.equal(isValidEmail('a@b.co'), true);

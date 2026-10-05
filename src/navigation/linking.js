@@ -8,14 +8,12 @@ import { persistPendingAddFriend } from '../utils/pendingAddFriend';
 import { GAME_TYPE_SCREENS } from '../utils/familyGamesShared';
 import { gameInviteNavParams } from '../utils/gameInviteNav';
 import { formatWebDocumentTitle } from './webDocumentTitle';
+import { linkingPrefixes } from '../utils/hostingChannel';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
 export const prefixes = [
-  'https://protop.no',
-  'https://www.protop.no',
-  'https://protop-c189c.web.app',
-  'https://protop-c189c.firebaseapp.com',
+  ...linkingPrefixes(typeof window !== 'undefined' ? window.location?.origin : ''),
   Linking.createURL('/'),
 ];
 

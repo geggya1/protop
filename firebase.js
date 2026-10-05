@@ -10,6 +10,7 @@ import { getAuth, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
+import { resolveAuthDomain as resolveAuthDomainForHost } from './src/utils/hostingChannel';
 
 /**
  * authDomain must match the site origin on browsers that block third-party
@@ -20,16 +21,7 @@ function resolveAuthDomain() {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location?.hostname) {
     return 'protop-c189c.firebaseapp.com';
   }
-  const host = window.location.hostname;
-  // Must match the page origin. Safari treats www as third-party when the
-  // user is on protop.no (no www), which breaks token refresh / callables.
-  if (host === 'protop.no' || host === 'www.protop.no') {
-    return host;
-  }
-  if (host === 'protop-c189c.web.app' || host === 'protop-c189c.firebaseapp.com') {
-    return host;
-  }
-  return 'protop-c189c.firebaseapp.com';
+  return resolveAuthDomainForHost(window.location.hostname);
 }
 
 /**

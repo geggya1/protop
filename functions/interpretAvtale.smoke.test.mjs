@@ -19,6 +19,9 @@ const openFeedIndex = readFileSync(join(__dirname, 'openFeedIndex.js'), 'utf8');
 const openFeedClient = readFileSync(join(root, 'src/utils/openFeedClient.js'), 'utf8');
 const ocrSrc = readFileSync(join(__dirname, 'ocrPdf.js'), 'utf8');
 const workflow = readFileSync(join(root, '.github/workflows/deploy-hosting.yml'), 'utf8');
+const preview = readFileSync(join(root, '.github/workflows/preview-hosting.yml'), 'utf8');
+const slimFn = readFileSync(join(root, 'scripts/ci-deploy-slim-functions.sh'), 'utf8');
+const indexJs = readFileSync(join(root, 'index.js'), 'utf8');
 const hosting = readFileSync(join(root, 'firebase.json'), 'utf8');
 const aiClient = readFileSync(join(root, 'src/indeksregulering/aiClient.js'), 'utf8');
 const formSrc = readFileSync(join(root, 'screens/anbud/DirectAgreementForm.jsx'), 'utf8');
@@ -51,11 +54,21 @@ assert.match(hosting, /friendListHttp/);
 assert.match(hosting, /\/api\/open-feed/);
 assert.match(hosting, /fetchOpenFeedHttp/);
 
-assert.match(workflow, /interpretAvtaleIndex\.js/);
-assert.match(workflow, /functions:interpretAvtaleHttp/);
-assert.match(workflow, /friendListIndex\.js/);
-assert.match(workflow, /functions:friendListHttp/);
-assert.match(workflow, /functions:fetchOpenFeedHttp/);
+assert.match(workflow, /branches:\s*\n\s*- main/);
+assert.match(workflow, /npx firebase deploy --only hosting/);
+assert.match(workflow, /ci-deploy-slim-functions\.sh/);
+assert.doesNotMatch(workflow, /hosting:channel:deploy/);
+
+assert.match(preview, /hosting:channel:deploy utvikling/);
+assert.match(preview, /branches-ignore:/);
+assert.match(preview, /- main/);
+assert.match(preview, /ci-deploy-slim-functions\.sh/);
+assert.doesNotMatch(preview, /npx firebase deploy --only hosting/);
+assert.match(slimFn, /functions:interpretAvtaleHttp/);
+assert.match(slimFn, /functions:friendListHttp/);
+assert.match(slimFn, /functions:fetchOpenFeedHttp/);
+assert.match(slimFn, /interpretAvtaleIndex\.js/);
+assert.match(indexJs, /DevHostBanner/);
 
 assert.match(aiClient, /\/api\/interpret-avtale/);
 assert.doesNotMatch(aiClient, /httpsCallable|interpretIndeksAvtale|cloudfunctions/);

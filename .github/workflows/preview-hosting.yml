@@ -1,21 +1,26 @@
-name: Deploy hosting
+name: Preview hosting
 
+# Samme nettsted (protop-c189c), men kanal «utvikling» — ikke live protop.no.
+# Live deploy skjer bare fra deploy-hosting.yml på main.
 on:
   push:
-    branches:
+    branches-ignore:
       - main
 
 concurrency:
-  group: hosting-protop-c189c
-  cancel-in-progress: false
+  group: preview-hosting-utvikling
+  cancel-in-progress: true
 
 permissions:
   contents: read
   id-token: write
+  pull-requests: write
 
 jobs:
-  deploy:
+  preview:
     runs-on: ubuntu-latest
+    env:
+      APP_BUILD_ID: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,9 +58,19 @@ jobs:
 
       - name: Deploy slim Cloud Functions
         continue-on-error: true
-        # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.
-        # Slim entries avoid MAIL_API_KEY Secret Manager. generateCompanyForm 404
-        # shows as CORS + «internal» in Mine skjemaer until this ships.
         run: bash scripts/ci-deploy-slim-functions.sh
 
-      - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive
+      - name: Deploy preview channel (not live)
+        run: |
+          npx firebase hosting:channel:deploy utvikling \
+            --expires 30d \
+            --project protop-c189c \
+            --non-interactive \
+            --json > channel.json 2> channel.err
+          cat channel.json
+          cat channel.err
+
+      - name: Comment stable preview URL on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-comment-preview.mjs

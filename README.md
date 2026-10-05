@@ -22,6 +22,10 @@ Daglig utvikling går mot Metro, ikke Firebase Hosting. Endringer vises med hot 
 npm run web
 ```
 
+Kjør kommandoen **på maskinen din**. `http://localhost:8081` er tom (ERR_CONNECTION_REFUSED) hvis Metro ikke kjører lokalt.
+
+Google på localhost bruker Firebase-popup (ikke GIS-klienten som bare godtar protop.no). Live Google på protop.no er uendret. Tillat popups for localhost, eller logg inn med e-post.
+
 Produksjonslik lokal Hosting (SPA-rewrites, headers, `dist/`) uten å røre live-siten:
 
 ```bash

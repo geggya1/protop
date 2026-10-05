@@ -33,6 +33,7 @@ const CATEGORY_META = {
   games: { label: 'FamilieSpill', icon: 'game-controller-outline' },
   progress: { label: 'Attestering', icon: 'shield-checkmark-outline' },
   rememberDates: { label: 'Bursdag', icon: 'gift-outline' },
+  nyheter: { label: 'Nyheter', icon: 'newspaper-outline' },
   other: { label: 'Annet', icon: 'notifications-outline' },
 };
 

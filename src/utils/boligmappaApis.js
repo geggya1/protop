@@ -244,13 +244,14 @@ export function normalizeKartverketEiendom(raw = {}) {
 
 export function normalizeBrregEnhet(raw = {}) {
   const orgnr = normalizeOrgnummer(raw.organisasjonsnummer);
-  const addr = raw.forretningsadresse || raw.postadresse || {};
+  const addr = raw.beliggenhetsadresse || raw.forretningsadresse || raw.postadresse || {};
   const street = Array.isArray(addr.adresse) ? addr.adresse.filter(Boolean).join(', ') : asText(addr.adresse);
   const addressLabel = [street, [asText(addr.postnummer), asText(addr.poststed)].filter(Boolean).join(' ')]
     .filter(Boolean)
     .join(', ');
   return {
     source: 'brreg.enhetsregisteret',
+    kind: raw.organisasjonsform?.kode === 'BEDR' || raw.overordnetEnhet ? 'underenhet' : 'enhet',
     organisasjonsnummer: orgnr,
     organisasjonsnummerFormatted: formatOrgnummer(orgnr),
     navn: asText(raw.navn),
@@ -482,6 +483,45 @@ export async function fetchBrregEnhet(orgnummer, { signal } = {}) {
   if (!orgnr) return null;
   const data = await fetchJson(`${BRREG_ENHETER_BASE}/enheter/${orgnr}`, { signal });
   return normalizeBrregEnhet(data);
+}
+
+export async function searchBrregUnderenheter(query, { size = 8, signal, overordnetEnhet } = {}) {
+  const parent = normalizeOrgnummer(overordnetEnhet);
+  const q = asText(query);
+  const orgnr = normalizeOrgnummer(q);
+  if (!parent && !orgnr && q.length < 2) return { results: [], total: 0 };
+  const params = new URLSearchParams({ size: String(Math.min(Math.max(size, 1), 50)) });
+  if (parent) params.set('overordnetEnhet', parent);
+  else if (orgnr) params.set('organisasjonsnummer', orgnr);
+  else params.set('navn', q);
+  const data = await fetchJson(`${BRREG_ENHETER_BASE}/underenheter?${params}`, { signal });
+  const list = Array.isArray(data?._embedded?.underenheter) ? data._embedded.underenheter : [];
+  return {
+    results: list.map((row) => normalizeBrregEnhet({ ...row, overordnetEnhet: row.overordnetEnhet || parent })),
+    total: asInt(data?.page?.totalElements, list.length) || list.length,
+  };
+}
+
+export async function searchBrregCompanies(query, opts = {}) {
+  const [enheter, under] = await Promise.all([
+    searchBrregEnheter(query, opts).catch(() => ({ results: [] })),
+    searchBrregUnderenheter(query, opts).catch(() => ({ results: [] })),
+  ]);
+  return { results: mergeBrregHits(under.results, enheter.results) };
+}
+
+export function mergeBrregHits(...groups) {
+  const seen = new Set();
+  const results = [];
+  for (const list of groups) {
+    for (const row of list || []) {
+      const id = normalizeOrgnummer(row?.organisasjonsnummer);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      results.push(row);
+    }
+  }
+  return results;
 }
 
 /** Offentlig innsynslenke for matrikkel (Seeiendom). */

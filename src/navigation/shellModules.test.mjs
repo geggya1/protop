@@ -73,10 +73,11 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
+    ['selskap', 'underenheter', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
+  assert.equal(companyItems.find((i) => i.id === 'underenheter').label, 'Underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
@@ -189,6 +190,8 @@ assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);
 assert.match(shellSrc, /tab === 'selskap'/);
+assert.match(shellSrc, /tab === 'underenheter'/);
+assert.match(shellSrc, /CompanyUnitsScreen/);
 assert.match(shellSrc, /tab === 'okonomi'/);
 assert.match(shellSrc, /EconomyScreen/);
 assert.match(shellSrc, /ContractScreen/);

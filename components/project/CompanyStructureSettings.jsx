@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -6,7 +6,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebase';
 import { createGroup, updateGroup } from '../../src/utils/groups';
-import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
+import { searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
 import { companyFromBrreg } from '../../src/project/company';
 import { digitsOrgnr, organizationByOrgnr } from '../../src/project/companyRegistry';
@@ -18,6 +18,7 @@ import {
   findOwnedOrganization,
   linkedCompanyFields,
   normalizeSubUnits,
+  publicUnitsNotRegistered,
   removeSubUnit,
   underenheterOf,
 } from '../../src/project/companyUnits';
@@ -54,9 +55,27 @@ export default function CompanyStructureSettings({
   const units = normalizeSubUnits(company?.subUnits);
   const [queryText, setQueryText] = useState('');
   const [hits, setHits] = useState([]);
+  const [publicUnits, setPublicUnits] = useState([]);
   const [searching, setSearching] = useState(false);
   const [deptName, setDeptName] = useState('');
   const [deptNote, setDeptNote] = useState('');
+  const orgnr = digitsOrgnr(company?.organisasjonsnummer);
+
+  useEffect(() => {
+    if (orgnr.length !== 9) {
+      setPublicUnits([]);
+      return undefined;
+    }
+    let alive = true;
+    searchBrregUnderenheter('', { size: 50, overordnetEnhet: orgnr })
+      .then((res) => {
+        if (alive) setPublicUnits(res.results || []);
+      })
+      .catch(() => {
+        if (alive) setPublicUnits([]);
+      });
+    return () => { alive = false; };
+  }, [orgnr]);
 
   async function persist(nextUnits) {
     await onSaved({ ...company, subUnits: nextUnits });
@@ -67,7 +86,7 @@ export default function CompanyStructureSettings({
     setError('');
     setSearching(true);
     try {
-      const res = await searchBrregEnheter(queryText, { size: 8 });
+      const res = await searchBrregCompanies(queryText, { size: 8 });
       setHits(res.results || []);
       if (!res.results?.length) setError('Ingen treff i Brønnøysund. Avdelinger uten org.nr. registreres under.');
     } catch (e) {
@@ -253,7 +272,33 @@ export default function CompanyStructureSettings({
 
       {canEdit ? (
         <>
-          <Text style={[styles.label, { color: colors.muted }]}>Registrer underenhet</Text>
+          {publicUnitsNotRegistered(publicUnits, units).length ? (
+            <>
+              <Text style={[styles.label, { color: colors.muted }]}>Fra Enhetsregisteret</Text>
+              <Text style={[styles.lead, { color: colors.muted }]}>
+                Disse underenhetene er registrert på org.nr. i Brønnøysund. Registrer dem i ProTop for eget abonnement.
+              </Text>
+              {publicUnitsNotRegistered(publicUnits, units).map((hit) => (
+                <TouchableOpacity
+                  key={hit.organisasjonsnummer}
+                  onPress={() => registerUnderenhet(hit)}
+                  disabled={busy}
+                  style={[styles.hit, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  <Ionicons name="git-network-outline" size={16} color={colors.brand} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{hit.navn}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {[hit.organisasjonsnummer, 'Underenhet', hit.addressLabel].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.brand, fontWeight: '400' }}>Registrer</Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          ) : null}
+
+          <Text style={[styles.label, { color: colors.muted }]}>Søk etter underenhet eller datterselskap</Text>
           <TextInput
             value={queryText}
             onChangeText={setQueryText}
@@ -283,7 +328,7 @@ export default function CompanyStructureSettings({
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.ink, fontWeight: '400' }}>{hit.navn}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {[hit.organisasjonsnummer, hit.organisasjonsform, hit.addressLabel].filter(Boolean).join(' · ')}
+                  {[hit.organisasjonsnummer, hit.kind === 'underenhet' ? 'Underenhet' : hit.organisasjonsform, hit.addressLabel].filter(Boolean).join(' · ')}
                 </Text>
               </View>
               <Text style={{ color: colors.brand, fontWeight: '400' }}>Registrer</Text>

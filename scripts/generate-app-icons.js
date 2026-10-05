@@ -1,6 +1,9 @@
 /**
  * Build Expo, PWA and store icons from the approved ProTop symbol.
- * Master: brand/ProTop_symbol_square_2048.png (official square, ~15% padding).
+ * Master: brand/ProTop_symbol_square_2048.png (official square).
+ * Favicons use a tighter crop so the mark is readable at 16–32 px.
+ * Apple touch icons are also written at the site root — iOS looks there
+ * first, and the SPA rewrite used to serve HTML as /apple-touch-icon.png.
  * Run: node scripts/generate-app-icons.js
  * Prefer: node scripts/sync-brand-logo.js
  */
@@ -14,17 +17,85 @@ const SOURCE = path.join(ROOT, 'brand', 'ProTop_symbol_square_2048.png');
 const WHITE_LOCKUP = path.join(ROOT, 'brand', 'ProTop_logo_white_transparent.png');
 const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
 const NAVY = { r: 7, g: 39, b: 76, alpha: 1 };
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
 /** Opaque content of the square master is ~72.4% of the canvas. */
 const MASTER_CONTENT = 0.724;
 /** Android adaptive and maskable icons keep artwork inside the center 66%. */
 const SAFE_ZONE = 0.66;
 
+let trimmedMarkCache;
+
+async function trimmedMark() {
+  if (trimmedMarkCache) return trimmedMarkCache;
+  const { data, info } = await sharp(SOURCE)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width: w, height: h } = info;
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const a = data[i + 3];
+      if (a < 12) continue;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r > 250 && g > 250 && b > 250) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  const bw = Math.max(1, maxX - minX + 1);
+  const bh = Math.max(1, maxY - minY + 1);
+  const side = Math.max(bw, bh);
+  const left = minX - Math.floor((side - bw) / 2);
+  const top = minY - Math.floor((side - bh) / 2);
+  trimmedMarkCache = await sharp(SOURCE)
+    .extract({
+      left: Math.max(0, left),
+      top: Math.max(0, top),
+      width: Math.min(side, w - Math.max(0, left)),
+      height: Math.min(side, h - Math.max(0, top)),
+    })
+    .png()
+    .toBuffer();
+  return trimmedMarkCache;
+}
+
+async function placeMark(size, { padding = 0.14, opaque = true } = {}) {
+  const inner = Math.max(1, Math.round(size * (1 - 2 * padding)));
+  const mark = await sharp(await trimmedMark())
+    .resize(inner, inner, { fit: 'contain', background: TRANSPARENT })
+    .png()
+    .toBuffer();
+  const meta = await sharp(mark).metadata();
+  const left = Math.round((size - (meta.width || inner)) / 2);
+  const top = Math.round((size - (meta.height || inner)) / 2);
+  let image = sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: opaque ? WHITE : TRANSPARENT,
+    },
+  }).composite([{ input: mark, left, top }]);
+  if (opaque) image = image.flatten({ background: WHITE }).removeAlpha();
+  return image.png().toBuffer();
+}
+
 async function masterSquare(size) {
   return sharp(SOURCE).resize(size, size, { fit: 'fill' }).png().toBuffer();
 }
 
 async function opaqueIcon(size) {
+  if (size <= 48) return placeMark(size, { padding: 0.08, opaque: true });
   const resized = await masterSquare(size);
   return sharp(resized).flatten({ background: WHITE }).removeAlpha().png().toBuffer();
 }
@@ -38,7 +109,7 @@ async function safeZoneIcon(size, { opaque = false } = {}) {
       width: size,
       height: size,
       channels: 4,
-      background: opaque ? WHITE : { r: 0, g: 0, b: 0, alpha: 0 },
+      background: opaque ? WHITE : TRANSPARENT,
     },
   }).composite([{ input: mark, left, top: left }]);
   if (opaque) image = image.flatten({ background: WHITE }).removeAlpha();
@@ -102,6 +173,10 @@ async function main() {
     ['public/icons/icon-192.png', 192],
     ['public/icons/icon-512.png', 512],
     ['public/icons/apple-touch-icon.png', 180],
+    ['public/apple-touch-icon.png', 180],
+    ['public/apple-touch-icon-precomposed.png', 180],
+    ['apple-touch-icon.png', 180],
+    ['apple-touch-icon-precomposed.png', 180],
     ['icons/icon-32.png', 32],
     ['icons/icon-180.png', 180],
     ['icons/icon-192.png', 192],

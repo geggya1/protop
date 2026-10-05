@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ICON_VERSION = '5';
+const ICON_VERSION = '6';
 
 function upsertHeadTags(html, tags) {
   let out = html;
@@ -63,8 +63,8 @@ const iconTags = [
   `  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png?v=${v}" />`,
   `  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=${v}" />`,
   `  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png?v=${v}" />`,
-  `  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=${v}" />`,
-  `  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=${v}" />`,
+  `  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${v}" />`,
+  `  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=${v}" />`,
   `  <link rel="manifest" href="/manifest.webmanifest" />`,
 ];
 
@@ -74,6 +74,7 @@ const pwaMeta = [
   ['mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-title', 'ProTop'],
+  ['application-name', 'ProTop'],
   ['apple-mobile-web-app-status-bar-style', 'default'],
   ['theme-color', '#1099F4'],
 ];
@@ -146,7 +147,7 @@ if (jsPatched) console.log(`Rewrote APP_BUILD_ID in ${jsPatched} dist file(s) â†
 
 const publicDir = path.join(__dirname, '..', 'public');
 const distDir = path.join(__dirname, '..', 'dist');
-for (const file of ['push-sw.js', 'firebase-messaging-sw.js', 'manifest.webmanifest', 'favicon.png', 'favicon-48.png', 'favicon.ico']) {
+for (const file of ['push-sw.js', 'firebase-messaging-sw.js', 'manifest.webmanifest', 'favicon.png', 'favicon-48.png', 'favicon.ico', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png']) {
   const src = path.join(publicDir, file);
   if (!fs.existsSync(src)) continue;
   fs.copyFileSync(src, path.join(distDir, file));

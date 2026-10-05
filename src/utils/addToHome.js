@@ -4,7 +4,7 @@ export const ADD_HOME_SEEN_KEY = 'weekplan_add_home_seen_v1';
 export const APP_INSTALL = {
   name: 'ProTop',
   host: 'protop.no',
-  iconSrc: '/icons/icon-192.png',
+  iconSrc: '/apple-touch-icon.png',
 };
 
 export function detectMobileWebPlatform() {

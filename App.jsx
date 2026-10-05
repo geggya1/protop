@@ -889,7 +889,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       linking={linking}
       onReady={() => setAppNav(navRef.current)}
     >
-      <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, contentStyle: { flex: 1 }, gestureEnabled: true, fullScreenGestureEnabled: true }}>
+      <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, title: 'ProTop', contentStyle: { flex: 1 }, gestureEnabled: true, fullScreenGestureEnabled: true }}>
         <Stack.Screen name="Welcome">
           {(props) => (
             <WelcomeScreen

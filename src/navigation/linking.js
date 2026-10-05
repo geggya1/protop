@@ -7,6 +7,7 @@ import { parseFriendAddUsername } from '../utils/friendsLogic';
 import { persistPendingAddFriend } from '../utils/pendingAddFriend';
 import { GAME_TYPE_SCREENS } from '../utils/familyGamesShared';
 import { gameInviteNavParams } from '../utils/gameInviteNav';
+import { formatWebDocumentTitle } from './webDocumentTitle';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -389,10 +390,7 @@ export const linking = {
     },
   },
   documentTitle: {
-    formatter: (options, route) => {
-      const base = 'ProTop';
-      const title = options?.title ?? route?.name;
-      return title ? `${title} — ${base}` : base;
-    },
+    enabled: true,
+    formatter: () => formatWebDocumentTitle(),
   },
 };

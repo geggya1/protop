@@ -1076,10 +1076,12 @@ export {
 } from './aiCallables.js';
 
 export { lookupVehicleByReg } from './vegvesenLookup.js';
-export { fetchOpenFeed } from './openFeed.js';
+export { fetchOpenFeed, fetchOpenFeedHttp } from './openFeed.js';
 export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
 export { tenderProxy } from './tenderProxy.js';
 export { sendTenderAlert } from './anbudAlert.js';
 export { sendAnbudRequest, scanAnbudDocument } from './anbudIntake.js';
 export { interpretIndeksAvtale, indeksSsbDaily } from './indeksreguleringAi.js';
+export { interpretAvtaleHttp } from './interpretAvtaleHttp.js';
+export { friendListHttp } from './friendListHttp.js';
 export { generateCompanyForm } from './anbudForm.js';

@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
+import { postSameOrigin } from './sameOriginFn';
 import { classifyInviteIdentifier, inviteLookupCandidates } from './inviteIdentifiers';
 import { hasContactInfo, isValidEmail } from './account';
 import { normalizePhone, hasValidPhone } from './phone';
@@ -15,7 +16,15 @@ import { normalizeUsername } from './usernames';
 import { notifyUsers } from './notifications';
 import { listenAfterAccess, warnPermissionOnce } from './firestoreAccess';
 
+async function callFriendHttp(name, data) {
+  const action = name === 'listMyFriends' || name === 'listFriendsForUid' ? 'friends' : 'requests';
+  return postSameOrigin('/api/friends', { action, ...(data || {}) });
+}
+
 async function callFriendFn(name, data) {
+  if (name === 'listMyFriends' || name === 'listFriendRequests' || name === 'listFriendsForUid') {
+    return callFriendHttp(name, data);
+  }
   const fn = httpsCallable(functions, name);
   const res = await fn(data || {});
   return res?.data || {};

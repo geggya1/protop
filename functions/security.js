@@ -21,6 +21,11 @@ const BLOCKED_HOSTNAMES = new Set([
   'metadata.google.internal.',
 ]);
 
+function isAllowedAppHost(host) {
+  if (WEEKPLAN_URL_HOSTS.has(host)) return true;
+  return /^protop-c189c--[\w.-]+\.web\.app$/i.test(host);
+}
+
 /** @param {import('firebase-functions/v2/https').CallableRequest['auth']} auth */
 export function requireAuth(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Du må være innlogget.');
@@ -193,7 +198,7 @@ export function assertSafeAppContinueUrl(raw, fallback) {
     return fb;
   }
   const host = parsed.hostname.toLowerCase();
-  if (!WEEKPLAN_URL_HOSTS.has(host)) return fb;
+  if (!isAllowedAppHost(host)) return fb;
   return parsed.toString();
 }
 

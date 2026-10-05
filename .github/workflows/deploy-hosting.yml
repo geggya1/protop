@@ -67,7 +67,7 @@ jobs:
       - name: Deploy slim Cloud Functions
         continue-on-error: true
         # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.
-        # WEEKPLAN_GEMINI_KEY må ligge i GitHub secrets for AI-scan; tom nøkkel
+        # WEEKPLAN_GEMINI_KEY må ligge i GitHub secrets for OCR+KI; tom nøkkel
         # deployer fortsatt funksjonen (ellers 404/CORS). Hvert kall er uavhengig.
         env:
           WEEKPLAN_GEMINI_KEY: ${{ secrets.WEEKPLAN_GEMINI_KEY }}

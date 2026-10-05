@@ -551,6 +551,24 @@ test('leser tekst ut av pdf og word', async () => {
   assert.match(fromDocx, /NS 8405/);
 });
 
+test('leser zlib-komprimert PDF med TJ-bokstaver', async () => {
+  const { deflateSync } = await import('node:zlib');
+  const content = 'BT /F1 10 Tf [(Oppdragsgiver )-2(Igang Totalentreprenør As)] TJ [( NS 8403 )] TJ [(Avtalt honorar pris 1080,-)] TJ ET';
+  const packed = deflateSync(Buffer.from(content, 'latin1'));
+  const stream = Buffer.concat([
+    Buffer.from(`%PDF-1.7\n1 0 obj\n<< /Filter /FlateDecode /Length ${packed.length} >>\nstream\n`),
+    packed,
+    Buffer.from('\nendstream\nendobj\n%%EOF'),
+  ]);
+  const text = await extractContractText(stream, 'ns8403.pdf', 'application/pdf');
+  assert.match(text, /Oppdragsgiver/);
+  assert.match(text, /Igang Totalentreprenør As/);
+  assert.match(text, /NS 8403/);
+  const draft = interpretContract(text);
+  assert.equal(draft.standard, 'NS 8403');
+  assert.equal(draft.buyer, 'Igang Totalentreprenør As');
+});
+
 test('henter boligblokk og KPI fra SSB', { timeout: 60000 }, async () => {
   const bundle = await fetchAllIndices();
   const bolig = bundle.series['bki-boligblokk'];

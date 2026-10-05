@@ -292,6 +292,27 @@
         }
       },
       {
+        "source": "/api/interpret-avtale",
+        "function": {
+          "functionId": "interpretAvtaleHttp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/friends",
+        "function": {
+          "functionId": "friendListHttp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/open-feed",
+        "function": {
+          "functionId": "fetchOpenFeedHttp",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

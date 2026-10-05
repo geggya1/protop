@@ -288,26 +288,30 @@ function labeledDate(text, labels) {
 }
 
 function labeledParty(text, labels) {
-  const colon = new RegExp(`(?:${labels.join('|')})\\s*[:\\-]\\s*([^\\n]{2,80})`, 'i');
+  const joined = labels.join('|');
+  const colon = new RegExp(`\\b(?:${joined})\\b\\s*[:\\-]\\s*([^\\n]{2,80})`, 'i');
   let match = text.match(colon);
-  if (match) return cleanParty(match[1]);
-  const space = new RegExp(`(?:^|\\n)\\s*(?:${labels.join('|')})\\s+([A-ZÆØÅ][^\\n]{2,80})`, 'i');
-  match = text.match(space);
-  if (!match) return '';
-  return cleanParty(match[1]);
+  let value = match ? cleanParty(match[1]) : '';
+  if (!value) {
+    const space = new RegExp(`\\b(?:${joined})\\b\\s+([A-ZÆØÅ][^\\n]{2,80})`, 'i');
+    match = text.match(space);
+    value = match ? cleanParty(match[1]) : '';
+  }
+  value = value.replace(new RegExp(`^(?:${joined})\\s+`, 'i'), '');
+  return cleanParty(value);
 }
 
 function cleanParty(raw) {
   return String(raw || '')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\s+(Organisasjons\s*nr|Org\.?nr|Kontakt|Epost|Telefon|Adresse|Att|Post nr|Gnr).*$/i, '')
+    .replace(/\s+(Organisasjons\s*nr|Org\.?nr|Kontakt|Epost|Telefon|Adresse|Att|Post nr|Gnr|NS\s*\d{4}|Avtalt|Tabell|Oppstart|Sluttdato|Honoreres).*$/i, '')
     .replace(/[,;].*$/, '')
     .trim();
 }
 
 function assignmentTitle(text) {
   const oppdrag = text.match(/\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,70}?)(?:\s+Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/i);
-  const beskrivelse = text.match(/Beskrivelse av oppdraget\s+([^\n]{2,80})/i);
+  const beskrivelse = text.match(/Beskrivelse av oppdraget\s+([A-ZÆØÅa-zæøå0-9][A-Za-zÆØÅæøå0-9-]*)/i);
   const name = oppdrag ? cleanParty(oppdrag[1]) : '';
   const role = beskrivelse ? cleanParty(beskrivelse[1]) : '';
   if (name && role) return `${name} · ${role}`;
@@ -334,10 +338,10 @@ function assignmentPlace(text) {
 }
 
 function honorarText(text) {
-  const match = String(text || '').match(/(?:avtalt\s+honorar(?:\s+pris)?|honoreres etter[^\n]{0,40})[^\n]{0,40}?(\d[\d\s.]*(?:,\d{1,2})?\s*-?)/i);
+  const match = String(text || '').match(/avtalt\s+honorar(?:\s+pris)?\s*[:\-]?\s*(\d[\d\s.]{2,12})/i);
   if (!match) return '';
   const amount = parseAmount(match[1]);
-  if (amount == null) return match[0].replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (amount == null || amount < 50) return '';
   return `${amount} kr eks. mva`;
 }
 
@@ -459,10 +463,12 @@ function readLines(text) {
   let match = pattern.exec(text);
   while (match && found.length < 30) {
     const rate = parseAmount(match[3]);
-    if (rate != null && rate > 20) {
-      const kind = match[1];
+    const kind = match[1];
+    const rest = match[2] || '';
+    const skip = /NS\s*\d|jf\.|kl\.|pkt\./i.test(`${kind} ${rest}`) || (rate != null && rate >= 8400 && rate <= 8499);
+    if (!skip && rate != null && rate > 50) {
       found.push(emptyLine({
-        text: `${kind} ${match[2]}`.replace(/\s+/g, ' ').trim(),
+        text: `${kind} ${rest}`.replace(/\s+/g, ' ').trim(),
         quantity: '1',
         unit: /time|honorar/i.test(kind) ? 'time' : 'enhet',
         rate: String(rate),

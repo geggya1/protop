@@ -1,11 +1,11 @@
 /**
- * Deploy entry for fetchOpenFeed only.
- * Does not import MAIL_API_KEY / GEMINI_API_KEY, so GitHub's deploy SA can ship it.
+ * Deploy entry for fetchOpenFeedHttp only.
+ * Same-origin Hosting rewrite — the callable OPTIONS preflight from protop.no
+ * has no Access-Control-Allow-Origin when IAM/deploy fails.
  */
+import './setRegion.js';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { setGlobalOptions } from 'firebase-functions/v2/options';
 
 if (!getApps().length) initializeApp();
-setGlobalOptions({ region: 'europe-west1', invoker: 'public' });
 
-export { fetchOpenFeed } from './openFeed.js';
+export { fetchOpenFeedHttp } from './openFeed.js';

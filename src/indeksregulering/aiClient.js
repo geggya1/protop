@@ -2,7 +2,7 @@ import { postSameOrigin } from '../utils/sameOriginFn';
 
 /** Ber Hosting-rewriten lese avtalen. Lokal tolkning brukes hvis kallet ikke svarer. */
 export async function interpretAvtale(payload) {
-  const documents = Array.isArray(payload?.documents) ? payload.documents.slice(0, 12).map((doc) => ({
+  const documents = Array.isArray(payload?.documents) ? payload.documents.slice(0, 40).map((doc) => ({
     name: String(doc?.name || 'Avtale').slice(0, 180),
     text: String(doc?.text || '').slice(0, 20000),
   })) : [];

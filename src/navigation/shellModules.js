@@ -56,6 +56,7 @@ export function companyNavItems() {
         },
       ],
     },
+    { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
       icon: 'megaphone',

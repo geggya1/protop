@@ -127,6 +127,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'foresporsel', t }), '1.2 Anbudsforespørsel');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'tilbud', t }), '2. Tilbud');
   assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
+  assert.equal(resolveShellHeaderTitle({ tab: 'kunder', t }), 'Kunder');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', t }), 'Økonomi');
 }
 

@@ -1,5 +1,8 @@
 /** Tilbudsstrategi, kravsjekk, kontrakt og logg for en utførende bedrift. */
 
+import { AGREEMENT_KINDS, emptyOption } from './agreementTemplate.js';
+import { normalizeOrgnr, normalizePersonnummer } from './customers.js';
+
 export const STAGES = ['planlegging', 'gjennomforing', 'kontrakt', 'tapt', 'trukket'];
 
 export const STAGE_LABELS = {
@@ -149,8 +152,42 @@ function normalizeDeliveries(input) {
   }).filter(Boolean);
 }
 
+const KIND_SET = new Set(AGREEMENT_KINDS.map((row) => row.id));
+
+function normalizeKind(value) {
+  const raw = text(value);
+  return KIND_SET.has(raw) ? raw : '';
+}
+
+function normalizeRenewal(raw) {
+  const row = raw && typeof raw === 'object' ? raw : {};
+  const type = row.type === 'automatisk' || row.type === 'opsjon' ? row.type : 'ingen';
+  const notice = Number(row.noticeDays);
+  return {
+    type,
+    until: isoDate(row.until),
+    noticeDays: Number.isFinite(notice) && notice >= 0 ? Math.round(notice) : '',
+  };
+}
+
+function normalizeOptions(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map((row, index) => {
+    const title = text(row?.title).slice(0, 160);
+    if (!title) return null;
+    return emptyOption({
+      id: text(row?.id) || `opsjon_${index + 1}`,
+      title,
+      start: isoDate(row.start),
+      end: isoDate(row.end),
+      exercised: !!row?.exercised,
+      note: text(row?.note).slice(0, 240),
+    });
+  }).filter(Boolean).slice(0, 20);
+}
+
 function normalizeFields(raw) {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== 'object') return emptyCoverFields();
   const lines = Array.isArray(raw.lines)
     ? raw.lines.slice(0, 40).map((row) => ({
       text: text(row?.text).slice(0, 120),
@@ -166,6 +203,7 @@ function normalizeFields(raw) {
     ? raw.findings.map((row) => text(row).slice(0, 240)).filter(Boolean).slice(0, 40)
     : [];
   return {
+    ...emptyCoverFields(),
     standard: text(raw.standard).slice(0, 80),
     model: text(raw.model).slice(0, 40),
     indexId: text(raw.indexId).slice(0, 40),
@@ -174,19 +212,55 @@ function normalizeFields(raw) {
     offerDate: isoDate(raw.offerDate) || text(raw.offerDate).slice(0, 20),
     tenderDeadline: isoDate(raw.tenderDeadline) || text(raw.tenderDeadline).slice(0, 20),
     contractDate: isoDate(raw.contractDate) || text(raw.contractDate).slice(0, 20),
-    honorar: text(raw.honorar).slice(0, 80),
+    honorar: text(raw.honorar).slice(0, 160),
     place: text(raw.place).slice(0, 80),
+    address: text(raw.address).slice(0, 160),
+    description: text(raw.description).slice(0, 400),
     poNumber: text(raw.poNumber).slice(0, 80),
-    orgnr: text(raw.orgnr).slice(0, 20),
+    orgnr: normalizeOrgnr(raw.orgnr) || text(raw.orgnr).slice(0, 20),
+    supplierOrgnr: normalizeOrgnr(raw.supplierOrgnr),
+    personnummer: normalizePersonnummer(raw.personnummer),
     contactName: text(raw.contactName).slice(0, 80),
     phone: text(raw.phone).slice(0, 40),
     email: text(raw.email).slice(0, 80),
     projectName: text(raw.projectName).slice(0, 160),
     reference: text(raw.reference).slice(0, 80),
+    surchargePercent: text(raw.surchargePercent).slice(0, 20),
     engine: text(raw.engine).slice(0, 40),
     terms: raw.terms && typeof raw.terms === 'object' ? raw.terms : null,
     lines,
     findings,
+  };
+}
+
+function emptyCoverFields() {
+  return {
+    standard: '',
+    model: '',
+    indexId: '',
+    sharePercent: '',
+    vatPercent: '',
+    offerDate: '',
+    tenderDeadline: '',
+    contractDate: '',
+    honorar: '',
+    place: '',
+    address: '',
+    description: '',
+    poNumber: '',
+    orgnr: '',
+    supplierOrgnr: '',
+    personnummer: '',
+    contactName: '',
+    phone: '',
+    email: '',
+    projectName: '',
+    reference: '',
+    surchargePercent: '',
+    engine: '',
+    terms: null,
+    lines: [],
+    findings: [],
   };
 }
 
@@ -195,13 +269,15 @@ function normalizeDocuments(input) {
   return input.map((row, index) => {
     const name = text(row?.name).slice(0, 180) || `Dokument ${index + 1}`;
     const body = text(row?.text).slice(0, 20000);
-    if (!body && !name) return null;
     return {
       id: text(row?.id) || `dok_${index + 1}`,
       name,
       text: body,
+      role: row?.role === 'hoved' ? 'hoved' : 'vedlegg',
+      mimeType: text(row?.mimeType).slice(0, 120),
+      interpreted: row?.interpreted === true || !!body,
     };
-  }).filter(Boolean).slice(0, 12);
+  }).filter((row) => row.name).slice(0, 40);
 }
 
 function normalizeIndexDraft(raw) {
@@ -224,7 +300,13 @@ function normalizeContract(raw) {
     noticeId: text(raw.noticeId),
     title,
     buyer: text(raw.buyer),
+    supplier: text(raw.supplier),
     projectName: text(raw.projectName),
+    description: text(raw.description).slice(0, 400),
+    address: text(raw.address).slice(0, 160),
+    kind: normalizeKind(raw.kind),
+    parentId: text(raw.parentId),
+    customerId: text(raw.customerId),
     value: Number.isFinite(value) ? value : 0,
     currency: text(raw.currency) || 'NOK',
     start: isoDate(raw.start),
@@ -238,6 +320,8 @@ function normalizeContract(raw) {
     documents: normalizeDocuments(raw.documents),
     indexDraft: normalizeIndexDraft(raw.indexDraft),
     indeksCaseId: text(raw.indeksCaseId),
+    renewal: normalizeRenewal(raw.renewal),
+    options: normalizeOptions(raw.options),
   };
 }
 
@@ -444,7 +528,13 @@ export function awardContract(state, bidId, input) {
     noticeId: text(bid.noticeId),
     title: bid.title,
     buyer: text(bid.buyer),
+    supplier: '',
     projectName: text(bid.title),
+    description: '',
+    address: '',
+    kind: 'oppdrag',
+    parentId: '',
+    customerId: '',
     value,
     currency: 'NOK',
     start,
@@ -454,10 +544,12 @@ export function awardContract(state, bidId, input) {
     milestones: buildMilestones(start, end),
     deliveries: [],
     createdAt: new Date().toISOString(),
-    fields: null,
+    fields: emptyCoverFields(),
     documents: [],
     indexDraft: null,
     indeksCaseId: '',
+    renewal: normalizeRenewal(null),
+    options: [],
   };
   const next = record(replaceBid(state, bidId, { ...bid, stage: 'kontrakt' }), {
     bidId,
@@ -575,27 +667,66 @@ export function registerDirectContract(state, input) {
   if (start && end && dayNumber(end) < dayNumber(start)) {
     return fail(state, 'Sluttdato kan ikke være før oppstart.');
   }
+  const kind = normalizeKind(input?.kind);
+  const parentId = text(input?.parentId);
+  const parent = parentId ? contractById(state, parentId) : null;
+  if (parentId && !parent) return fail(state, 'Tilknyttet avtale finnes ikke.');
+  if ((kind === 'avrop' || kind === 'endring') && !parent) {
+    return fail(state, 'Avrop og endringer må knyttes til en rammeavtale eller oppdragsavtale.');
+  }
+  const fields = normalizeFields({
+    ...(input?.fields || {}),
+    honorar: input?.honorar != null ? input.honorar : input?.fields?.honorar,
+    place: input?.place != null ? input.place : input?.fields?.place,
+    address: input?.address != null ? input.address : input?.fields?.address,
+    description: input?.description != null ? input.description : input?.fields?.description,
+    poNumber: input?.poNumber != null ? input.poNumber : input?.fields?.poNumber,
+    orgnr: input?.orgnr != null ? input.orgnr : input?.fields?.orgnr,
+    supplierOrgnr: input?.supplierOrgnr != null ? input.supplierOrgnr : input?.fields?.supplierOrgnr,
+    personnummer: input?.personnummer != null ? input.personnummer : input?.fields?.personnummer,
+    contactName: input?.contactName != null ? input.contactName : input?.fields?.contactName,
+    phone: input?.phone != null ? input.phone : input?.fields?.phone,
+    email: input?.email != null ? input.email : input?.fields?.email,
+    reference: input?.reference != null ? input.reference : input?.fields?.reference,
+    standard: input?.standard != null ? input.standard : input?.fields?.standard,
+    indexId: input?.indexId != null ? input.indexId : input?.fields?.indexId,
+    surchargePercent: input?.surchargePercent != null ? input.surchargePercent : input?.fields?.surchargePercent,
+    contractDate: input?.contractDate != null ? input.contractDate : input?.fields?.contractDate,
+    projectName: input?.projectName || input?.fields?.projectName,
+  });
   const contract = {
     id: createId('kon'),
     bidId: '',
     source: 'direkte',
     noticeId: '',
     title,
-    buyer: text(input?.buyer),
+    buyer: text(input?.buyer) || text(parent?.buyer),
+    supplier: text(input?.supplier) || text(fields.supplier) || text(parent?.supplier),
     projectName: text(input?.projectName) || title,
+    description: text(input?.description) || fields.description,
+    address: text(input?.address) || fields.address,
+    kind,
+    parentId: parent ? parent.id : '',
+    customerId: text(input?.customerId) || text(parent?.customerId),
     value: rawValue,
     currency: text(input?.currency) || 'NOK',
-    start,
-    end,
+    start: start || (kind === 'avrop' ? '' : text(parent?.start)),
+    end: end || (kind === 'avrop' ? '' : text(parent?.end)),
     status: 'aktiv',
     projectId: text(input?.projectId),
     milestones: buildMilestones(start, end),
     deliveries: [],
     createdAt: new Date().toISOString(),
-    fields: normalizeFields(input?.fields),
+    fields,
     documents: normalizeDocuments(input?.documents),
     indexDraft: normalizeIndexDraft(input?.indexDraft),
     indeksCaseId: text(input?.indeksCaseId),
+    renewal: normalizeRenewal(input?.renewal || {
+      type: input?.renewalType,
+      until: input?.renewalUntil,
+      noticeDays: input?.renewalNoticeDays,
+    }),
+    options: normalizeOptions(input?.options),
   };
   const next = record(state, {
     bidId: '',
@@ -617,11 +748,21 @@ export function updateContractDetails(state, contractId, input) {
   if (input?.end && text(input.end) && !end) return fail(state, 'Sluttdato må være på formen ÅÅÅÅ-MM-DD.');
   const rawValue = input?.value == null || input?.value === '' ? contract.value : parseAmount(input.value);
   if (!Number.isFinite(rawValue) || rawValue < 0) return fail(state, 'Kontraktssum må være et tall.');
+  const parentId = input?.parentId != null ? text(input.parentId) : contract.parentId;
+  if (parentId && parentId !== contract.id && !contractById(state, parentId)) {
+    return fail(state, 'Tilknyttet avtale finnes ikke.');
+  }
   const next = {
     ...contract,
     title,
     buyer: input?.buyer != null ? text(input.buyer) : contract.buyer,
+    supplier: input?.supplier != null ? text(input.supplier) : contract.supplier,
     projectName: input?.projectName != null ? text(input.projectName) : contract.projectName,
+    description: input?.description != null ? text(input.description).slice(0, 400) : contract.description,
+    address: input?.address != null ? text(input.address).slice(0, 160) : contract.address,
+    kind: input?.kind != null ? normalizeKind(input.kind) : contract.kind,
+    parentId: parentId === contract.id ? '' : parentId,
+    customerId: input?.customerId != null ? text(input.customerId) : contract.customerId,
     value: rawValue,
     start,
     end,
@@ -630,12 +771,42 @@ export function updateContractDetails(state, contractId, input) {
     documents: input?.documents != null ? normalizeDocuments(input.documents) : contract.documents,
     indexDraft: input?.indexDraft !== undefined ? normalizeIndexDraft(input.indexDraft) : contract.indexDraft,
     indeksCaseId: input?.indeksCaseId != null ? text(input.indeksCaseId) : contract.indeksCaseId,
+    renewal: input?.renewal != null || input?.renewalType != null
+      ? normalizeRenewal(input?.renewal || {
+        type: input?.renewalType,
+        until: input?.renewalUntil,
+        noticeDays: input?.renewalNoticeDays,
+      })
+      : contract.renewal,
+    options: input?.options != null ? normalizeOptions(input.options) : contract.options,
   };
   return ok(record(replaceContract(state, contractId, next), {
     bidId: contract.bidId,
     contractId,
     action: 'avtale-oppdatert',
     detail: title,
+  }));
+}
+
+export function setContractOptions(state, contractId, options) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (contract.status === 'avsluttet') return fail(state, 'Kontrakten er avsluttet.');
+  return ok(replaceContract(state, contractId, { ...contract, options: normalizeOptions(options) }));
+}
+
+export function exerciseOption(state, contractId, optionId, exercised = true) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (contract.status === 'avsluttet') return fail(state, 'Kontrakten er avsluttet.');
+  const option = (contract.options || []).find((row) => row.id === optionId);
+  if (!option) return fail(state, 'Opsjonen finnes ikke.');
+  const options = contract.options.map((row) => (row.id === optionId ? { ...row, exercised: !!exercised } : row));
+  return ok(record(replaceContract(state, contractId, { ...contract, options }), {
+    bidId: contract.bidId,
+    contractId,
+    action: exercised ? 'opsjon-utlost' : 'opsjon-apnet',
+    detail: option.title,
   }));
 }
 

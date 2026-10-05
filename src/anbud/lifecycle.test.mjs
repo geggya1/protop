@@ -136,6 +136,30 @@ assert.equal(direct.ok, true, direct.error);
 assert.equal(direct.state.contracts[0].source, 'direkte');
 assert.equal(direct.state.contracts[0].bidId, '');
 assert.equal(direct.state.contracts[0].fields.standard, 'NS 8403');
+
+const frame = registerDirectContract(emptyAnbudState(), {
+  title: 'Rammeavtale byggherre',
+  buyer: 'Sola kommune',
+  kind: 'rammeavtale',
+  start: '2024-01-01',
+  end: '2027-12-31',
+  renewal: { type: 'automatisk', until: '2030-12-31', noticeDays: 90 },
+  options: [{ title: 'Forlengelse 1 år', start: '2028-01-01', end: '2028-12-31' }],
+});
+assert.equal(frame.ok, true, frame.error);
+assert.equal(frame.state.contracts[0].kind, 'rammeavtale');
+assert.equal(frame.state.contracts[0].renewal.type, 'automatisk');
+assert.equal(frame.state.contracts[0].options[0].title, 'Forlengelse 1 år');
+const callOff = registerDirectContract(frame.state, {
+  title: 'Avrop 1',
+  kind: 'avrop',
+  parentId: frame.state.contracts[0].id,
+  value: '25000',
+});
+assert.equal(callOff.ok, true, callOff.error);
+assert.equal(callOff.state.contracts[0].parentId, frame.state.contracts[0].id);
+assert.equal(callOff.state.contracts[0].buyer, 'Sola kommune');
+assert.equal(registerDirectContract(emptyAnbudState(), { title: 'Avrop uten ramme', kind: 'avrop' }).ok, false);
 assert.equal(registerDirectContract(emptyAnbudState(), { title: '' }).ok, false);
 
 const seeded = {

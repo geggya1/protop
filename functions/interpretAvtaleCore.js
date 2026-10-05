@@ -45,11 +45,17 @@ Returner KUN JSON:
   "regulationExcluded": false,
   "honorar": "",
   "place": "",
+  "address": "",
+  "description": "",
   "poNumber": "",
   "orgnr": "",
+  "supplierOrgnr": "",
+  "personnummer": "",
   "contactName": "",
   "phone": "",
   "email": "",
+  "surchargePercent": "",
+  "kind": "oppdrag | rammeavtale | avrop | endring | ",
   "terms": {
     "baseRule": "auto | tender | offer | contract",
     "frequency": "month | quarter | year | once",
@@ -67,6 +73,8 @@ NS 8407 og NS 8417 uten annen navngitt indeks skal ha indexId bki-boligblokk og 
 NS 8403 og timepris for konsulent skal ha indexId ppi-byggeteknisk og model engang når tabell 14335 eller byggeteknisk konsulentvirksomhet er nevnt.
 Husleie skal ha model husleie, indexId kpi og vatPercent 0.
 Datoer skrives YYYY-MM-DD. Tom streng når feltet ikke finnes. rate skal være et tall som står i teksten.
+kind fylles bare når dokumentet selv sier rammeavtale, avrop, endring eller oppdragsavtale.
+personnummer og orgnr fylles bare når sifrene står i teksten. Ikke gjette.
 variables er andre størrelser avtalen navngir, for eksempel sosiale utgifter eller materialandel, skrevet slik de står.`;
 
 function reject(code, message) {

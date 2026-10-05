@@ -8,22 +8,29 @@ import ContractFollowUp from './ContractFollowUp';
 export default function ContractScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { requestShellTab, familyId } = useApp();
+  const { requestShellTab, familyId, shellIntent, clearShellIntent } = useApp();
 
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      <Text style={[styles.h, { color: colors.ink }]}>Kontrakt / avtale</Text>
-      <Text style={{ color: colors.muted }}>
-        Oppfølging av inngåtte kontrakter og avtaler. Nye avtaler kan importeres og registreres her, uten forutgående tilbudsarbeid.
-      </Text>
+      {!(shellIntent?.type === 'openContract') ? (
+        <>
+          <Text style={[styles.h, { color: colors.ink }]}>Kontrakt / avtale</Text>
+          <Text style={{ color: colors.muted }}>
+            Register og søk i inngåtte avtaler. Standardfeltene følger NS 8403-fremsiden. Ukjente verdier blir stående tomme.
+          </Text>
+        </>
+      ) : null}
       <ContractFollowUp
         colors={colors}
         companyId={familyId}
+        intent={shellIntent}
+        onClearIntent={clearShellIntent}
         onOpenWork={() => requestShellTab?.('anbud', 'tilbud')}
         onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
+        onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
       />
     </ScrollView>
   );

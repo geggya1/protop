@@ -158,3 +158,49 @@ export function findOwnedOrganization(groups, orgnr) {
     digitsOrgnr(group?.company?.organisasjonsnummer || group?.orgnr) === id
   )) || null;
 }
+
+function unitPreview(row) {
+  const name = text(row?.navn || row?.name);
+  if (!name) return null;
+  return {
+    name,
+    organisasjonsnummer: digitsOrgnr(row.organisasjonsnummer),
+    detail: text(row.adresse || row.naering || row.note),
+  };
+}
+
+/** Kort konsern- og underenhetsoversikt til selskapssiden. */
+export function groupOverview({
+  konsern = false,
+  morselskap = false,
+  parentCompanyName = '',
+  publicUnits = [],
+  registered = [],
+} = {}) {
+  const units = normalizeSubUnits(registered);
+  const underenheter = underenheterOf(units);
+  const avdelinger = departmentsOf(units);
+  const publicList = (Array.isArray(publicUnits) ? publicUnits : [])
+    .map(unitPreview)
+    .filter(Boolean);
+  const registeredPreview = underenheter.map(unitPreview).filter(Boolean);
+  const preview = (publicList.length ? publicList : registeredPreview).slice(0, 3);
+  const sourceCount = publicList.length ? publicList.length : registeredPreview.length;
+  const summary = [];
+  if (konsern) summary.push('Selskapet inngår i konsern.');
+  if (morselskap) summary.push('Morselskap i siste årsregnskap.');
+  const parent = text(parentCompanyName);
+  if (parent) summary.push(`Overordnet selskap: ${parent}.`);
+  if (!summary.length) summary.push('Ikke registrert i konsern i Enhetsregisteret.');
+  return {
+    inKonsern: konsern === true,
+    isMorselskap: morselskap === true,
+    parentCompanyName: parent,
+    summary,
+    publicCount: publicList.length,
+    registeredCount: underenheter.length,
+    departmentCount: avdelinger.length,
+    preview,
+    remaining: Math.max(0, sourceCount - preview.length),
+  };
+}

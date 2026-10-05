@@ -19,6 +19,7 @@ import {
   weatherQuery,
 } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
+import { groupOverview } from '../../src/project/companyUnits';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -27,9 +28,13 @@ function openUrl(url) {
   Linking.openURL(href).catch(() => {});
 }
 
-function Card({ children, colors, style }) {
+function Card({ children, colors, style, nativeID, id }) {
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }, style]}>
+    <View
+      nativeID={nativeID}
+      id={id}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }, style]}
+    >
       {children}
     </View>
   );
@@ -69,11 +74,9 @@ function Stat({ label, value, colors }) {
 
 export default function CompanyLanding({
   stored,
-  projects = [],
-  members = [],
   cpvCodes: storedCpv = [],
-  onProjects,
   onSettings,
+  onUnits,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -188,6 +191,13 @@ export default function CompanyLanding({
     [accounts, history],
   );
   const signature = live?.signature || null;
+  const overview = useMemo(() => groupOverview({
+    konsern: profile?.konsern === true,
+    morselskap: accountView?.morselskap === true,
+    parentCompanyName: stored?.parentCompanyName,
+    publicUnits: live?.units || [],
+    registered: stored?.subUnits,
+  }), [profile?.konsern, accountView?.morselskap, stored?.parentCompanyName, stored?.subUnits, live?.units]);
 
   useEffect(() => {
     const id = String(orgnr || '').replace(/\D/g, '');
@@ -214,13 +224,6 @@ export default function CompanyLanding({
       });
     return () => { alive = false; };
   }, [orgnr]);
-  const activeProjects = projects.filter((row) => row?.status !== 'arkivert');
-  const phaseCounts = activeProjects.reduce((map, row) => {
-    const key = row.phase || 'ukjent';
-    map[key] = (map[key] || 0) + 1;
-    return map;
-  }, {});
-
   const weatherCard = (
     <Card colors={colors}>
       <SectionTitle colors={colors}>Været{placeName ? ` i ${placeName}` : ''}</SectionTitle>
@@ -254,33 +257,51 @@ export default function CompanyLanding({
     </Card>
   );
 
-  const workCard = (
-    <Card colors={colors}>
-      <SectionTitle colors={colors} action="Åpne prosjekt" onAction={onProjects}>Arbeidsflaten</SectionTitle>
+  const konsernCard = (
+    <Card colors={colors} nativeID="company-landing-konsern" id="company-landing-konsern">
+      <SectionTitle colors={colors}>Konsern</SectionTitle>
+      {overview.summary.map((line) => (
+        <Text key={line} style={[styles.body, { color: colors.ink }]}>{line}</Text>
+      ))}
+    </Card>
+  );
+
+  const unitsCard = (
+    <Card colors={colors} nativeID="company-landing-units" id="company-landing-units">
+      <SectionTitle colors={colors} action={onUnits ? 'Se alle' : null} onAction={onUnits}>
+        Underenheter
+      </SectionTitle>
       <View style={styles.statRow}>
-        <Stat label="Prosjekt" value={String(activeProjects.length)} colors={colors} />
-        <Stat label="Medlemmer" value={String(members.length)} colors={colors} />
+        <Stat label="I Enhetsregisteret" value={String(overview.publicCount)} colors={colors} />
+        <Stat label="Registrert her" value={String(overview.registeredCount)} colors={colors} />
       </View>
-      {Object.keys(phaseCounts).length ? (
+      {overview.departmentCount ? (
         <Text style={[styles.mutedLine, { color: colors.muted }]}>
-          {Object.entries(phaseCounts).map(([phase, count]) => `${count} i ${phase}`).join(' · ')}
+          {overview.departmentCount === 1
+            ? '1 avdeling er registrert.'
+            : `${overview.departmentCount} avdelinger er registrert.`}
         </Text>
-      ) : (
-        <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen åpne prosjekt ennå.</Text>
-      )}
-      {activeProjects.slice(0, 4).map((row) => (
-        <TouchableOpacity key={row.id || row.number} style={styles.listRow} onPress={onProjects}>
-          <Ionicons name="construct-outline" size={16} color={colors.brand} />
+      ) : null}
+      {overview.preview.length ? overview.preview.map((row) => (
+        <View key={row.organisasjonsnummer || row.name} style={styles.listRow}>
+          <Ionicons name="git-branch-outline" size={16} color={colors.brand} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.ink, fontWeight: '400' }} numberOfLines={1}>
-              {[row.number, row.name].filter(Boolean).join(' · ') || 'Prosjekt'}
-            </Text>
+            <Text style={{ color: colors.ink, fontWeight: '400' }} numberOfLines={1}>{row.name}</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-              {[row.phase, row.place, row.client].filter(Boolean).join(' · ') || 'Uten sted'}
+              {[row.organisasjonsnummer, row.detail].filter(Boolean).join(' · ') || 'Underenhet'}
             </Text>
           </View>
-        </TouchableOpacity>
-      ))}
+        </View>
+      )) : (
+        <Text style={[styles.mutedLine, { color: colors.muted }]}>
+          {loading && !live ? 'Henter underenheter…' : 'Ingen underenheter i Enhetsregisteret.'}
+        </Text>
+      )}
+      {overview.remaining ? (
+        <Text style={[styles.mutedLine, { color: colors.muted }]}>
+          {overview.remaining === 1 ? 'Og 1 til.' : `Og ${overview.remaining} til.`}
+        </Text>
+      ) : null}
     </Card>
   );
 
@@ -300,10 +321,6 @@ export default function CompanyLanding({
             ) : null}
           </View>
           <View style={styles.heroActions}>
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.brand }]} onPress={onProjects}>
-              <Ionicons name="construct-outline" size={15} color="#fff" />
-              <Text style={styles.primaryTxt}>Prosjekt</Text>
-            </TouchableOpacity>
             <TouchableOpacity
               onPress={onSettings}
               accessibilityLabel="Innstillinger for bedriften"
@@ -497,7 +514,8 @@ export default function CompanyLanding({
 
         <View style={[styles.sideCol, wide && styles.sideColWide]}>
           {weatherCard}
-          {workCard}
+          {konsernCard}
+          {unitsCard}
         </View>
       </View>
     </View>
@@ -526,8 +544,6 @@ const styles = StyleSheet.create({
   },
   pillTxt: { fontSize: 12, fontWeight: '400' },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 10 },
-  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   penBtn: {
     width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },

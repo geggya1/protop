@@ -182,13 +182,20 @@ assert.equal(/fontWeight:\s*'[7-9]00'/.test(company), false);
 assert.match(company, /CompanyStructureSettings/);
 assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
+assert.match(company, /requestShellTab\?\.\('selskap', 'underenheter'\)/);
 assert.equal(company.includes('GroupSettings'), false);
 
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
 assert.match(landing, /nativeID="company-landing-logo"/);
 assert.match(landing, /marginLeft: 'auto'/);
+assert.match(landing, /nativeID="company-landing-konsern"/);
+assert.match(landing, /nativeID="company-landing-units"/);
+assert.match(landing, /onUnits/);
 assert.equal(landing.includes('Underenheter og avdelinger'), false);
 assert.equal(landing.includes('Underenheter i Enhetsregisteret'), false);
+assert.equal(landing.includes('Arbeidsflaten'), false);
+assert.equal(landing.includes('onProjects'), false);
+assert.equal(landing.includes('primaryTxt'), false);
 
 const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
 assert.match(unitsScreen, /Underenheter/);

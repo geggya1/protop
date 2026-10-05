@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -41,7 +41,7 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 export default function ProjectPlatformScreen() {
   const colors = useColors();
   const nav = useNavigation();
-  const { family, familyId, families, applyFamilyPatch, requestShellTab, members, uid, userProfile, selectFamily } = useApp();
+  const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const canEdit = isSuperAdmin(family, uid);
   const contextLabel = companyContextLabel(family);
@@ -64,8 +64,6 @@ export default function ProjectPlatformScreen() {
     setSelectedCpv(new Set(savedCpvKey ? savedCpvKey.split(',') : []));
     setOwnTrades(savedTradesKey ? savedTradesKey.split('|') : []);
   }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, savedCpvKey, savedTradesKey]);
-
-  const projects = useMemo(() => (Array.isArray(family?.projects) ? family.projects : []), [family?.projects]);
 
   async function savePatch(id, patch) {
     await updateGroup(id, patch);
@@ -204,12 +202,9 @@ export default function ProjectPlatformScreen() {
       {page === 'oversikt' ? (
         <CompanyLanding
           stored={company}
-          projects={projects}
-          members={members || []}
           cpvCodes={family?.cpvCodes || []}
-          onProjects={() => requestShellTab?.('projects')}
           onSettings={() => setPage('innstillinger')}
-          canEdit={canEdit}
+          onUnits={() => requestShellTab?.('selskap', 'underenheter')}
         />
       ) : null}
 

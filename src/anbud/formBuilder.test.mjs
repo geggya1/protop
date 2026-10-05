@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   applyDrag,
   blankField,
+  fieldsForModule,
+  insertModule,
   coerceAnswer,
   dragTargetIndex,
   duplicateField,
@@ -164,5 +166,17 @@ const csv = responsesToCsv({
 });
 assert.equal(csv.includes('Salat'), true);
 assert.equal(csv.includes('a@bedrift.no'), true);
+
+const signatur = fieldsForModule('signatur');
+assert.equal(signatur.map((row) => row.label).join(','), 'Sted,Dato,Navn');
+assert.equal(new Set(signatur.map((row) => row.id)).size, 3);
+const withModule = insertModule(start, 1, 'mottaker');
+assert.equal(withModule[1].label, 'Mottaker');
+assert.equal(withModule[2].kind, 'long');
+assert.equal(withModule.length, 5);
+const dropped = applyDrag(start, 'module:pris', 0);
+assert.equal(dropped[0].label, 'Beløp ekskl. mva');
+assert.equal(dropped[1].kind, 'date');
+assert.equal(applyDrag(start, 'module:finnes-ikke', 0).length, 3);
 
 console.log('form builder ok');

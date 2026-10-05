@@ -157,7 +157,7 @@ export default function IndeksreguleringPanel({
   onSaved,
 }) {
   const colors = useColors();
-  const { family, activeProfile, shellIntent, clearShellIntent } = useApp();
+  const { family, shellIntent, clearShellIntent } = useApp();
   const [draft, setDraft] = useState(() => (
     seedDraft && typeof seedDraft === 'object' ? emptyDraft(seedDraft) : freshDraft(project, '')
   ));
@@ -179,17 +179,13 @@ export default function IndeksreguleringPanel({
 
   useEffect(() => {
     const company = family?.company || {};
-    const contact = activeProfile?.kind === 'parent' ? activeProfile.name : '';
     setDraft((current) => ({
       ...current,
       supplier: current.supplier || company.navn || '',
-      orgnr: current.orgnr || company.organisasjonsnummer || '',
-      phone: current.phone || company.telefon || '',
-      email: current.email || company.epostadresse || '',
+      supplierOrgnr: current.supplierOrgnr || company.organisasjonsnummer || '',
       website: current.website || company.hjemmeside || '',
-      contactName: current.contactName || (contact && contact !== 'Meg' ? contact : ''),
     }));
-  }, [family?.company, activeProfile?.name, activeProfile?.kind]);
+  }, [family?.company]);
 
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object' || shellIntent.type !== 'openIndexDraft') return;

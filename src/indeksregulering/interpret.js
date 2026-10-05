@@ -92,6 +92,17 @@ export function interpretContract(text) {
   if (!draft.offerDate && contractDate) draft.offerDate = contractDate;
   draft.startDate = labeledDate(source, ['oppstart', 'engasjementsperioden', 'start dato']);
   draft.endDate = labeledDate(source, ['sluttdato', 'avsluttes', 'slutt dato']);
+  if (!draft.firstRegulationDate) {
+    const locked = readLockInDate(source, {
+      startDate: draft.startDate,
+      contractDate: draft.contractDate || contractDate,
+      offerDate: draft.offerDate,
+    });
+    if (locked) {
+      draft.firstRegulationDate = locked.date;
+      findings.push(locked.finding);
+    }
+  }
   if (draft.tenderDeadline) findings.push(`Tilbudsfrist ${showDate(draft.tenderDeadline)}.`);
   if (draft.offerDate) findings.push(`Tilbudsdato eller siste prisfastsetting ${showDate(draft.offerDate)}.`);
   if (draft.startDate) findings.push(`Oppstart ${showDate(draft.startDate)}.`);
@@ -378,6 +389,53 @@ function agreementKindFromSource(text) {
   if (/endringsavtale|endringsordre|tilleggsavtale/i.test(text)) return 'endring';
   if (/oppdragsavtale|oppdragsbekreftelse/i.test(text)) return 'oppdrag';
   return '';
+}
+
+function addMonthsIso(iso, months) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1 + Number(months), Number(match[3])));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Bindingstid / første år uten regulering → firstRegulationDate.
+ * Basis er oppstart, ellers kontraktsdato / tilbudsdato.
+ */
+function readLockInDate(source, dates = {}) {
+  const basis = parseIsoDate(dates.startDate) || parseIsoDate(dates.contractDate) || parseIsoDate(dates.offerDate) || '';
+  if (!basis) return null;
+  const year = source.match(/(?:første|forste)\s+(?:året|aar(?:et)?)\s+(?:uten|utan)\s+(?:indeks)?regulering|(?:bindingstid|bundet|fast)\s+(?:i\s+)?(?:ett|et|1)\s+(?:år|aar)|reguleres\s+ikke\s+(?:før|for)\s+(?:etter\s+)?(?:ett|et|1)\s+(?:år|aar)|ikke\s+reguler(?:es|ing)\s+(?:før|for)\s+(?:ett|et|1)\s+(?:år|aar)\s+(?:er\s+)?(?:gått|passert)/i);
+  if (year) {
+    return {
+      date: addMonthsIso(basis, 12),
+      finding: `Avtalen er bundet første året. Første regulering tidligst ${showDate(addMonthsIso(basis, 12))}.`,
+    };
+  }
+  const months = source.match(/(?:bindingstid|bundet|reguleres\s+ikke\s+(?:før|for)|ikke\s+reguler(?:es|ing)\s+(?:før|for))\s+(?:etter\s+)?(\d{1,2})\s+(?:måneder|maneder|mnd)/i);
+  if (months) {
+    const n = Number(months[1]);
+    if (n > 0 && n <= 60) {
+      const date = addMonthsIso(basis, n);
+      return {
+        date,
+        finding: `Avtalen er bundet i ${n} måneder. Første regulering tidligst ${showDate(date)}.`,
+      };
+    }
+  }
+  const years = source.match(/(?:bindingstid|bundet|reguleres\s+ikke\s+(?:før|for)|ikke\s+reguler(?:es|ing)\s+(?:før|for))\s+(?:etter\s+)?(\d)\s+(?:år|aar)/i);
+  if (years) {
+    const n = Number(years[1]);
+    if (n > 0 && n <= 5) {
+      const date = addMonthsIso(basis, n * 12);
+      return {
+        date,
+        finding: `Avtalen er bundet i ${n} år. Første regulering tidligst ${showDate(date)}.`,
+      };
+    }
+  }
+  return null;
 }
 
 function labeledDate(text, labels) {

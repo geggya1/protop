@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { companyFollowUpPeople } from '../../src/anbud/customers';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState } from '../../src/anbud/storage';
-import { emptyProjectState, postEntry } from '../../src/project/engine';
+import { addDocument, emptyProjectState, postEntry } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
+import { dueByContractId } from '../../src/indeksregulering/watch';
+import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import IndeksreguleringPanel from '../project/IndeksreguleringPanel';
 import EconomyContracts from './EconomyContracts';
 import EconomyCustomers from './EconomyCustomers';
@@ -24,6 +26,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const [ready, setReady] = useState(false);
   const [anbud, setAnbud] = useState(null);
   const [chosen, setChosen] = useState(null);
+  const [cases, setCases] = useState([]);
+  const [series, setSeries] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -44,21 +48,42 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   }, [familyId]);
 
   useEffect(() => {
+    let live = true;
+    Promise.all([loadCases(), loadIndexCache()]).then(([stored, cache]) => {
+      if (!live) return;
+      setCases(stored);
+      setSeries(cache?.series || null);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [page, chosen?.id]);
+
+  useEffect(() => {
     if (shellIntent?.type === 'openIndexDraft' && shellIntent.draft) {
       setChosen({
         id: shellIntent.contractId || shellIntent.caseId || '',
         title: shellIntent.draft.title || '',
+        projectId: shellIntent.projectId || '',
       });
     }
   }, [shellIntent]);
 
-  const project = state.projects.find((item) => item.id === state.activeProjectId && item.status !== 'arkivert') || null;
-  const company = family?.company || null;
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];
   const people = companyFollowUpPeople(members);
+  const projects = state.projects || [];
+  const company = family?.company || null;
   const incomingDraft = shellIntent?.type === 'openIndexDraft' && shellIntent.draft;
   const showIndex = page === 'indeks' && !!(chosen || incomingDraft);
+  const linkedProjectId = chosen?.projectId
+    || contracts.find((row) => row.id === chosen?.id)?.projectId
+    || '';
+  const project = projects.find((item) => item.id === linkedProjectId && item.status !== 'arkivert')
+    || projects.find((item) => item.id === state.activeProjectId && item.status !== 'arkivert')
+    || null;
+  const dueById = useMemo(
+    () => dueByContractId(contracts, cases, series),
+    [contracts, cases, series],
+  );
 
   function book(entry) {
     const booked = postEntry(state, entry);
@@ -76,11 +101,34 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     };
     const intent = openIndexIntentFromContract(contract, extras);
     setChosen(contract);
-    requestShellTab?.('okonomi', 'indeks', intent);
+    requestShellTab?.('okonomi', 'indeks', {
+      ...intent,
+      projectId: contract.projectId || '',
+    });
   }
 
   function backToDesk() {
-    requestShellTab?.('okonomi', 'oversikt');
+    setChosen(null);
+    requestShellTab?.('okonomi', 'indeks');
+  }
+
+  function saveGeneration(row) {
+    setCases((prev) => [row, ...prev.filter((item) => item.id !== row.id)].slice(0, 40));
+    if (!project?.id || !row?.letterPlain) return;
+    const titled = `Indeksregulering ${String(row.regulatedPeriod || '').replace(/^(\d{4})M(\d{2})$/, '$1-$2') || String(row.savedAt || '').slice(0, 10)}`;
+    const next = addDocument(state, {
+      projectId: project.id,
+      title: titled,
+      discipline: 'indeksregulering',
+      note: [
+        row.title || 'Indeksregulering',
+        row.reference ? `Ref. ${row.reference}` : '',
+        row.addition != null ? `Tillegg ${row.addition} kr` : '',
+        '',
+        row.letterPlain,
+      ].filter((line, index, all) => line || index === all.length - 1).join('\n'),
+    });
+    if (next.ok) setState(next.state);
   }
 
   if (showIndex) {
@@ -91,15 +139,40 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         keyboardShouldPersistTaps="handled"
       >
         <TouchableOpacity onPress={backToDesk} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Til oversikt</Text>
+          <Text style={{ color: colors.brand }}>Til valg av kunde / avtale</Text>
         </TouchableOpacity>
         {chosen?.title ? (
           <Text style={{ color: colors.muted }}>Indeksregulering av {chosen.title}</Text>
         ) : null}
         <IndeksreguleringPanel
           project={project}
+          contractId={chosen?.id || shellIntent?.contractId || ''}
           onBook={project ? book : null}
+          onSaved={saveGeneration}
           seedDraft={incomingDraft || undefined}
+          seedCaseId={shellIntent?.caseId || chosen?.indeksCaseId || ''}
+        />
+      </ScrollView>
+    );
+  }
+
+  if (page === 'indeks') {
+    return (
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+      >
+        <EconomyDesk
+          customers={customers}
+          contracts={contracts}
+          projects={projects}
+          dueById={dueById}
+          chosenContractId={chosen?.id || ''}
+          title="Indeksregulering"
+          lead="Velg kunde eller prosjekt, deretter avtalen. Beregningen bruker avtaleinfo og siste kjente SSB-indeks. Utropstegn viser avtaler som er klare for ny regulering."
+          onChooseContract={setChosen}
+          onOpenIndex={openIndex}
         />
       </ScrollView>
     );
@@ -116,8 +189,11 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         <EconomyDesk
           customers={customers}
           contracts={contracts}
+          projects={projects}
+          dueById={dueById}
           chosenContractId={chosen?.id || ''}
-          hint=""
+          title="Kunder og avtaler"
+          lead="Økonomisk oversikt. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale."
           onChooseContract={setChosen}
           onOpenIndex={openIndex}
         />
@@ -138,16 +214,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           people={people}
           onOpenRegister={() => requestShellTab?.('kontrakt')}
           onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
-          onOpenIndex={openIndex}
-        />
-      ) : null}
-      {page === 'indeks' && !showIndex ? (
-        <EconomyDesk
-          customers={customers}
-          contracts={contracts}
-          chosenContractId={chosen?.id || ''}
-          hint="Velg en avtale først. Indeksregulering vises når avtalen er valgt."
-          onChooseContract={setChosen}
           onOpenIndex={openIndex}
         />
       ) : null}

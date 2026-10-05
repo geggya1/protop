@@ -233,7 +233,7 @@ export default function CustomersScreen() {
       setNote(`Importert: ${parts.join(', ')}.`);
       setView('list');
     } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese kundelisten.');
+      setError(cause?.message || 'Kunne ikke lese Excel-filen. Prøv CSV, eller sjekk at første rad har Kundenavn og Org.nr.');
     } finally {
       setImporting(false);
     }

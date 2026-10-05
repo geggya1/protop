@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { emptyProjectState } from '../project/engine.js';
 import { projectFromAward } from './handoff.js';
 import {
+  addContractDocuments,
   attachContractDocumentFile,
   awardContract,
   closeContract,
@@ -174,6 +175,16 @@ assert.equal(attached.ok, true, attached.error);
 assert.match(attached.state.contracts[0].documents[0].url, /^https:\/\/firebasestorage/);
 assert.equal(attached.state.contracts[0].documents[0].text, 'Oppdragsbekreftelse');
 assert.equal(attached.state.contracts[0].documents[0].dataUrl, '');
+
+const many = addContractDocuments(attached.state, attached.state.contracts[0].id, [
+  { name: 'Tillegg 1.pdf', url: 'https://example.com/1.pdf', mimeType: 'application/pdf', size: 10 },
+  { name: 'Tillegg 2.pdf', url: 'https://example.com/2.pdf', mimeType: 'application/pdf', size: 11 },
+  { name: 'Endring.docx', url: 'https://example.com/3.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 12 },
+]);
+assert.equal(many.ok, true, many.error);
+assert.equal(many.state.contracts[0].documents.length, 4);
+assert.equal(many.state.contracts[0].documents.filter((row) => /Tillegg|Endring/.test(row.name)).length, 3);
+assert.equal(many.state.contracts[0].documents.some((row) => row.name === 'Tillegg 2.pdf' && row.url.includes('2.pdf')), true);
 
 const frame = registerDirectContract(emptyAnbudState(), {
   title: 'Rammeavtale byggherre',

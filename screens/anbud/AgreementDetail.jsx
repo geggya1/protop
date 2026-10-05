@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
+  addContractDocuments,
   addDelivery,
   attachContractDocumentFile,
   closeContract,
@@ -19,6 +20,8 @@ import { documentHasOriginalFile, documentIsOpenable, openAgreementDocument } fr
 import { loadAnbudState } from '../../src/anbud/storage';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from './OwnerPicker';
+
+const DOC_ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export default function AgreementDetail({
   contract,
@@ -56,13 +59,11 @@ export default function AgreementDetail({
   async function attachOriginal(doc) {
     if (!companyId || !doc?.id || docBusyId) return;
     setDocNote('');
-    const picked = await pickDocument({
-      accept: '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    });
+    const picked = await pickDocument({ accept: DOC_ACCEPT });
     if (!picked) return;
     setDocBusyId(doc.id);
     try {
-      const uploaded = await uploadAgreementFile(companyId, picked);
+      const uploaded = await uploadAgreementFile(companyId, picked, { salt: `${doc.id}-${Date.now()}` });
       const result = await apply((loaded) => attachContractDocumentFile(loaded, contract.id, doc.id, uploaded));
       if (!result?.ok) {
         setDocNote(result?.error || 'Kunne ikke knytte originalfilen.');
@@ -71,6 +72,34 @@ export default function AgreementDetail({
       setDocNote('Originalfilen er lagret. Åpne dokumentet for å se PDF-en.');
     } catch (cause) {
       setDocNote(cause?.message || 'Kunne ikke laste opp originalfilen.');
+    } finally {
+      setDocBusyId('');
+    }
+  }
+
+  async function addDocuments() {
+    if (!companyId || docBusyId) return;
+    setDocNote('');
+    const picked = await pickDocument({ accept: DOC_ACCEPT, multiple: true });
+    const list = (Array.isArray(picked) ? picked : (picked ? [picked] : [])).filter(Boolean);
+    if (!list.length) return;
+    setDocBusyId('new');
+    try {
+      const uploaded = [];
+      for (let index = 0; index < list.length; index += 1) {
+        setDocNote(list.length > 1 ? `Laster opp ${index + 1}/${list.length}…` : 'Laster opp…');
+        uploaded.push(await uploadAgreementFile(companyId, list[index], { salt: `${Date.now()}-${index}` }));
+      }
+      const result = await apply((loaded) => addContractDocuments(loaded, contract.id, uploaded));
+      if (!result?.ok) {
+        setDocNote(result?.error || 'Kunne ikke legge til dokumentene.');
+        return;
+      }
+      setDocNote(list.length > 1
+        ? `${list.length} dokumenter er lagret som PDF.`
+        : 'Dokumentet er lagret. Åpne det for å se PDF-en.');
+    } catch (cause) {
+      setDocNote(cause?.message || 'Kunne ikke laste opp dokumentene.');
     } finally {
       setDocBusyId('');
     }
@@ -162,35 +191,38 @@ export default function AgreementDetail({
           <Text style={{ color: colors.muted }}>{open.dokumenter ? '▾' : '▸'}</Text>
         </TouchableOpacity>
         {open.dokumenter ? (
-          (contract.documents || []).length ? (
-            <View style={{ gap: 10 }}>
-              {contract.documents.map((doc) => (
-                <View key={doc.id} style={{ gap: 4 }}>
+          <View style={{ gap: 10 }}>
+            {(contract.documents || []).length ? contract.documents.map((doc) => (
+              <View key={doc.id} style={{ gap: 4 }}>
+                <TouchableOpacity
+                  onPress={() => openAgreementDocument(doc)}
+                  accessibilityRole="link"
+                  disabled={!documentIsOpenable(doc)}
+                >
+                  <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.muted, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
+                    {doc.name}{documentHasOriginalFile(doc) ? '' : ' · mangler originalfil'}
+                  </Text>
+                </TouchableOpacity>
+                {!documentHasOriginalFile(doc) ? (
                   <TouchableOpacity
-                    onPress={() => openAgreementDocument(doc)}
-                    accessibilityRole="link"
-                    disabled={!documentIsOpenable(doc)}
+                    onPress={() => attachOriginal(doc)}
+                    accessibilityRole="button"
+                    disabled={!!docBusyId}
                   >
-                    <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.muted, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
-                      {doc.name}{documentHasOriginalFile(doc) ? '' : ' · mangler originalfil'}
+                    <Text style={{ color: colors.brand }}>
+                      {docBusyId === doc.id ? 'Laster opp…' : 'Last opp original PDF'}
                     </Text>
                   </TouchableOpacity>
-                  {!documentHasOriginalFile(doc) ? (
-                    <TouchableOpacity
-                      onPress={() => attachOriginal(doc)}
-                      accessibilityRole="button"
-                      disabled={!!docBusyId}
-                    >
-                      <Text style={{ color: colors.brand }}>
-                        {docBusyId === doc.id ? 'Laster opp…' : 'Last opp original PDF'}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ))}
-              {docNote ? <Text style={{ color: colors.muted }}>{docNote}</Text> : null}
-            </View>
-          ) : <Text style={{ color: colors.muted }}>Ingen dokumenter er lagt ved.</Text>
+                ) : null}
+              </View>
+            )) : <Text style={{ color: colors.muted }}>Ingen dokumenter er lagt ved.</Text>}
+            <TouchableOpacity onPress={addDocuments} accessibilityRole="button" disabled={!!docBusyId}>
+              <Text style={{ color: colors.brand }}>
+                {docBusyId === 'new' ? 'Laster opp…' : 'Legg til dokumenter'}
+              </Text>
+            </TouchableOpacity>
+            {docNote ? <Text style={{ color: colors.muted }}>{docNote}</Text> : null}
+          </View>
         ) : null}
       </View>
 

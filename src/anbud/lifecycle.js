@@ -285,7 +285,7 @@ function normalizeDocuments(input) {
       storagePath: text(row?.storagePath).slice(0, 500),
       size: Number(row?.size) || 0,
     };
-  }).filter((row) => row.name).slice(0, 40);
+  }).filter((row) => row.name).slice(0, 100);
 }
 
 function normalizeIndexDraft(raw) {
@@ -871,6 +871,39 @@ export function attachContractDocumentFile(state, contractId, documentId, file) 
     contractId,
     action: 'avtale-dokument-fil',
     detail: text(file?.name) || current.name,
+  }));
+}
+
+/** Legger til én eller flere avtalefiler (vedlegg) på en eksisterende kontrakt. */
+export function addContractDocuments(state, contractId, files) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  const incoming = (Array.isArray(files) ? files : []).filter((file) => text(file?.url) || text(file?.dataUrl) || text(file?.text));
+  if (!incoming.length) return fail(state, 'Ingen filer å legge til.');
+  const existing = Array.isArray(contract.documents) ? contract.documents : [];
+  const stamp = Date.now();
+  const rows = incoming.map((file, index) => ({
+    id: text(file?.id) || `dok-${stamp}-${index}`,
+    name: text(file?.name) || `Dokument ${existing.length + index + 1}`,
+    text: text(file?.text),
+    role: existing.length || index ? 'vedlegg' : 'hoved',
+    mimeType: text(file?.mimeType) || 'application/pdf',
+    interpreted: !!text(file?.text),
+    dataUrl: text(file?.dataUrl),
+    url: text(file?.url),
+    uri: text(file?.uri),
+    storagePath: text(file?.storagePath),
+    size: Number(file?.size) || 0,
+  }));
+  const names = rows.map((row) => row.name).filter(Boolean);
+  return ok(record(replaceContract(state, contractId, {
+    ...contract,
+    documents: normalizeDocuments([...existing, ...rows]),
+  }), {
+    bidId: contract.bidId,
+    contractId,
+    action: 'avtale-dokumenter-lagt-til',
+    detail: names.length === 1 ? names[0] : `${names.length} dokumenter`,
   }));
 }
 

@@ -319,26 +319,24 @@ export default function DirectAgreementForm({
     setError('');
   }
 
-  async function storeOriginal(file, attached = {}) {
+  async function storeOriginal(file, attached = {}, salt = '') {
     if (!companyId) return { url: '', storagePath: '', size: attached.size || file.size || 0 };
-    setStatus('Lagrer originalfil…');
-    await yieldUi();
     const uploaded = await uploadAgreementFile(companyId, {
       blob: file.blob || attached.blob || null,
       uri: attached.uri || file.uri || '',
       name: attached.name || file.name || 'Avtale.pdf',
       mimeType: attached.mimeType || file.mimeType || 'application/pdf',
       size: attached.size || file.size || 0,
-    });
+    }, { salt });
     return uploaded;
   }
 
-  function documentRow(existing, attached, file, text, original = {}) {
+  function documentRow(existing, attached, file, text, original = {}, index = 0) {
     return {
-      id: `dok-${Date.now()}-${existing.length}`,
+      id: `dok-${Date.now()}-${existing.length + index}`,
       name: attached.name || file.name || 'Avtale',
       text,
-      role: existing.length ? 'vedlegg' : 'hoved',
+      role: (existing.length + index) ? 'vedlegg' : 'hoved',
       mimeType: attached.mimeType || file.mimeType || 'application/pdf',
       interpreted: String(text || '').trim().length >= 20,
       dataUrl: original.url ? '' : (attached.dataUrl || ''),
@@ -349,73 +347,74 @@ export default function DirectAgreementForm({
     };
   }
 
-  async function applyRemote(file, bytes, existing, note, attached = {}, original = {}) {
-    const remote = await interpretAvtale({
-      fileName: file.name || attached.name || 'Avtale.pdf',
-      mimeType: file.mimeType || attached.mimeType || 'application/pdf',
-      fileBase64: bytesToBase64(bytes),
-    });
-    if (!remote?.extracted) throw new Error('Kunne ikke lese PDF-en. Lim inn teksten under.');
-    const text = String(remote.text || '').trim();
-    const docs = [...existing, documentRow(existing, attached, file, text, original)];
-    const merged = mergeInterpretation(null, remote.extracted, text);
-    const next = inputFromInterpretation(merged, { documents: docs });
-    setPayload(next);
-    setFiles(docs);
-    setForm((current) => formFromInput(next, current));
-    setStatus(note);
-    setError('');
+  async function readOneFile(file, existing, index, total) {
+    const label = total > 1 ? ` (${index + 1}/${total})` : '';
+    setStatus(`Lagrer originalfil${label}…`);
+    await yieldUi();
+    const attached = await attachmentFromPick(file).catch(() => ({
+      name: file.name || 'Avtale',
+      mimeType: file.mimeType || '',
+      size: file.size || 0,
+      dataUrl: '',
+      uri: file.uri || '',
+    }));
+    let original = { url: '', storagePath: '', size: attached.size || file.size || 0 };
+    try {
+      original = await storeOriginal(file, attached, `${Date.now()}-${index}`);
+    } catch (cause) {
+      if (!attached.dataUrl) throw cause;
+    }
+    setStatus(`Leser dokumentet${label}…`);
+    await yieldUi();
+    let bytes = await bytesFromFile(file);
+    const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
+    if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
+      if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
+      const remote = await interpretAvtale({
+        fileName: file.name || attached.name || 'Avtale.pdf',
+        mimeType: file.mimeType || attached.mimeType || 'application/pdf',
+        fileBase64: bytesToBase64(bytes),
+      });
+      if (!remote?.extracted) throw new Error(`Kunne ikke lese ${attached.name || file.name || 'PDF-en'}.`);
+      return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+    }
+    try {
+      const text = await extractContractText(bytes, file.name, file.mimeType);
+      return documentRow(existing, attached, file, text, original, index);
+    } catch {
+      if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
+      setStatus(`Leser skannet dokument${label}…`);
+      await yieldUi();
+      const remote = await interpretAvtale({
+        fileName: file.name || attached.name || 'Avtale.pdf',
+        mimeType: file.mimeType || attached.mimeType || 'application/pdf',
+        fileBase64: bytesToBase64(bytes),
+      });
+      if (!remote?.extracted) throw new Error(`Kunne ikke lese ${attached.name || file.name || 'dokumentet'}.`);
+      return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+    }
   }
 
   async function importFile() {
     setError('');
-    const file = await pickDocument({ accept: ACCEPT });
-    if (!file) return;
+    const picked = await pickDocument({ accept: ACCEPT, multiple: true });
+    const list = (Array.isArray(picked) ? picked : (picked ? [picked] : [])).filter(Boolean);
+    if (!list.length) return;
     setReading(true);
-    setStatus('Leser dokumentet…');
+    setStatus(list.length > 1 ? `Leser ${list.length} dokumenter…` : 'Leser dokumentet…');
     await yieldUi();
     try {
-      const attached = await attachmentFromPick(file).catch(() => ({
-        name: file.name || 'Avtale',
-        mimeType: file.mimeType || '',
-        size: file.size || 0,
-        dataUrl: '',
-        uri: file.uri || '',
-      }));
-      let original = { url: '', storagePath: '', size: attached.size || file.size || 0 };
-      try {
-        original = await storeOriginal(file, attached);
-      } catch (cause) {
-        if (!attached.dataUrl) {
-          setError(cause?.message || 'Kunne ikke lagre originalfilen. Prøv på nytt.');
-          return;
-        }
+      const added = [];
+      for (let index = 0; index < list.length; index += 1) {
+        added.push(await readOneFile(list[index], files, index, list.length));
       }
-      let bytes = await bytesFromFile(file);
-      const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
-      const sendRemote = async (note) => {
-        if (bytes.length > MAX_REMOTE_BYTES) {
-          setStatus('Filen er stor. Leser starten med OCR og KI…');
-          await yieldUi();
-          bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
-        }
-        await applyRemote(file, bytes, files, note, attached, original);
-      };
-      if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
-        await sendRemote('Dokumentet er lest. Kontroller feltene merket med ! før du registrerer.');
-        return;
-      }
-      try {
-        const text = await extractContractText(bytes, file.name, file.mimeType);
-        const docs = [...files, documentRow(files, attached, file, text, original)];
-        await applyDocs(docs, 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
-      } catch {
-        setStatus('Leser skannet dokument…');
-        await yieldUi();
-        await sendRemote('Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
-      }
+      const docs = [...files, ...added];
+      const note = list.length > 1
+        ? `${list.length} dokumenter er vedlagt. Kontroller feltene merket med ! før du registrerer.`
+        : 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.';
+      await applyDocs(docs, note);
     } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese dokumentet. Lim inn teksten under.');
+      setError(cause?.message || 'Kunne ikke lese dokumentene. Lim inn teksten under.');
     } finally {
       setReading(false);
     }
@@ -587,7 +586,7 @@ export default function DirectAgreementForm({
           accessibilityRole="button"
           style={[styles.save, { backgroundColor: colors.brand, opacity: reading ? 0.6 : 1 }]}
         >
-          <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokument' : 'Last opp dokument'}</Text>
+          <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokumenter' : 'Last opp dokumenter'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onCancel} accessibilityRole="button">
           <Text style={{ color: colors.muted }}>Avbryt</Text>

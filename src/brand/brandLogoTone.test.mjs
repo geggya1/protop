@@ -19,7 +19,7 @@ const drawer = readFileSync(new URL('../../components/ShellDrawer.jsx', import.m
 const logo = readFileSync(new URL('../../components/BrandLogo.tsx', import.meta.url), 'utf8');
 
 assert.match(header, /brandLogoToneForBackground\(chromeOnly \? colors\.card : colors\.bg\)/);
-assert.match(header, /tone=\{logoTone\}/);
+assert.match(header, /<PlatformSwitch compact \/>/);
 assert.match(drawer, /brandLogoToneForBackground\(colors\.card\)/);
 assert.match(drawer, /tone=\{logoTone\}/);
 assert.match(logo, /ProTop_logo_white_transparent\.png/);

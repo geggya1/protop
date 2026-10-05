@@ -30,11 +30,18 @@ assert.ok(file.bytes[0] === 0xff && file.bytes[1] === 0xd8);
 
 const merged = mergeCompanyProfile(
   { navn: 'Ny AS', organisasjonsnummer: '999999999', telefon: '', epostadresse: 'ny@bedrift.no' },
-  { telefon: '22334455', epostadresse: 'gammel@bedrift.no', egneNaeringskoder: ['elektro'], logo },
+  {
+    telefon: '22334455',
+    epostadresse: 'gammel@bedrift.no',
+    egneNaeringskoder: ['elektro'],
+    subUnits: [{ id: 'd1', kind: 'avdeling', name: 'Drift' }],
+    logo,
+  },
 );
 assert.equal(merged.telefon, '22334455');
 assert.equal(merged.epostadresse, 'ny@bedrift.no');
 assert.deepEqual(merged.egneNaeringskoder, ['elektro']);
+assert.equal(merged.subUnits[0].name, 'Drift');
 assert.equal(merged.logo.dataUrl, TINY);
 assert.equal(mergeCompanyProfile({ navn: 'Uten' }, {}).logo, undefined);
 

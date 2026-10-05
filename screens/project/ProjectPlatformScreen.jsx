@@ -14,6 +14,7 @@ import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
+import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyLanding from './CompanyLanding';
 
 const PAGES = [
@@ -40,7 +41,7 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 export default function ProjectPlatformScreen() {
   const colors = useColors();
   const nav = useNavigation();
-  const { family, familyId, applyFamilyPatch, requestShellTab, members, uid } = useApp();
+  const { family, familyId, families, applyFamilyPatch, requestShellTab, members, uid, userProfile, selectFamily } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const canEdit = isSuperAdmin(family, uid);
   const contextLabel = companyContextLabel(family);
@@ -234,6 +235,24 @@ export default function ProjectPlatformScreen() {
               if (logo) next.logo = logo;
               else delete next.logo;
               await savePatch(familyId, { company: next });
+            }}
+          />
+          <CompanyStructureSettings
+            company={company}
+            familyId={familyId}
+            families={families || []}
+            canEdit={canEdit}
+            colors={colors}
+            busy={busy}
+            setBusy={setBusy}
+            setError={setError}
+            userProfile={userProfile}
+            onSaved={async (next) => {
+              await savePatch(familyId, { company: next });
+            }}
+            onOpenCompany={(id) => {
+              selectFamily?.(id);
+              requestShellTab?.('selskap');
             }}
           />
           <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />

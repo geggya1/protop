@@ -73,8 +73,10 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['anbud', 'kontrakt', 'skjema', 'projects'],
+    ['selskap', 'anbud', 'kontrakt', 'skjema', 'projects'],
   );
+  assert.equal(companyItems[0].label, 'Selskap');
+  assert.equal(companyItems[0].action.tab, 'selskap');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
@@ -156,9 +158,15 @@ assert.match(orgScreen, /width: 320/);
 
 const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
 assert.equal(/fontWeight:\s*'[7-9]00'/.test(company), false);
+assert.match(company, /CompanyStructureSettings/);
 assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
 assert.equal(company.includes('GroupSettings'), false);
+
+const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
+assert.match(landing, /nativeID="company-landing-logo"/);
+assert.match(landing, /marginLeft: 'auto'/);
+assert.match(landing, /Underenheter og avdelinger/);
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
@@ -170,6 +178,7 @@ assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);
+assert.match(shellSrc, /tab === 'selskap'/);
 assert.match(shellSrc, /ContractScreen/);
 
 console.log('shellModules.test.mjs: ok');

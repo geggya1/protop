@@ -120,17 +120,20 @@ function systemSortValue(row) {
   return n > 0 ? n : Number.MAX_SAFE_INTEGER;
 }
 
-/** Eldste først, deretter lavest system-ID. */
+/** System-ID stigende når begge har nummer, ellers eldste først. */
 export function sortContractsChronological(contracts) {
   const rows = Array.isArray(contracts) ? [...contracts] : [];
   return rows.sort((left, right) => {
+    const leftSys = systemSortValue(left);
+    const rightSys = systemSortValue(right);
+    const bothNumbered = leftSys !== Number.MAX_SAFE_INTEGER && rightSys !== Number.MAX_SAFE_INTEGER;
+    if (bothNumbered && leftSys !== rightSys) return leftSys - rightSys;
     const a = chronoStamp(left);
     const b = chronoStamp(right);
     if (a && b && a !== b) return a.localeCompare(b);
     if (a && !b) return -1;
     if (!a && b) return 1;
-    const sys = systemSortValue(left) - systemSortValue(right);
-    if (sys) return sys;
+    if (leftSys !== rightSys) return leftSys - rightSys;
     return text(left?.id).localeCompare(text(right?.id));
   });
 }

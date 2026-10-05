@@ -63,6 +63,12 @@ const sorted = sortContractsChronological([
 ]);
 assert.equal(sorted.map((row) => row.id).join(), 'a,b');
 
+const byNumber = sortContractsChronological([
+  { id: 'late-low', createdAt: '2026-06-01', systemId: '1' },
+  { id: 'early-high', createdAt: '2025-01-01', systemId: '9' },
+]);
+assert.equal(byNumber.map((row) => row.id).join(), 'late-low,early-high');
+
 let state = emptyAnbudState();
 const kunde = upsertCustomer(state, { name: 'Igang Totalentreprenør As', orgnr: '922987106' });
 assert.equal(kunde.ok, true);

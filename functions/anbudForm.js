@@ -1,10 +1,13 @@
 /**
  * Leser et opplastet skjema og bygger feltene med AI.
+ * Keep this entry inside functions/ — ../src is not uploaded on slim deploys.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import * as logger from 'firebase-functions/logger';
 import { requireAuth } from './security.js';
-import { formFromScan } from '../src/anbud/formBuilder.js';
+import { formFromScan } from './anbud/formBuilder.js';
 import { classifyPlanMime, decodePlainText, extractDocxText, extractPdfText } from './documentText.js';
+import { touchGeminiEnv } from './geminiEnv.js';
 import {
   callGeminiJson,
   friendlyGeminiError,
@@ -59,10 +62,11 @@ async function documentParts(dataUrl, fileName) {
 export const generateCompanyForm = onCall(
   { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 90, memory: '1GiB' },
   async (request) => {
-    requireAuth(request.auth);
-    const apiKey = getGeminiKey();
-    if (!apiKey) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
     try {
+      requireAuth(request.auth);
+      touchGeminiEnv();
+      const apiKey = getGeminiKey();
+      if (!apiKey) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
       const parts = await documentParts(request.data?.imageBase64, request.data?.fileName);
       const parsed = await callGeminiJson(apiKey, PROMPT, parts, { maxOutputTokens: 4096, perModelTimeoutMs: 50000 });
       const made = formFromScan(parsed);
@@ -70,7 +74,8 @@ export const generateCompanyForm = onCall(
       return { ok: true, form: made.form, engine: 'gemini' };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
-      reject('unavailable', friendlyGeminiError(err));
+      logger.warn('generateCompanyForm failed', { message: err?.message });
+      reject('failed-precondition', friendlyGeminiError(err));
     }
     return { ok: false };
   },

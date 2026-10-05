@@ -133,7 +133,7 @@ async function resolveFriendActorUid(callerUid, { asUid = '', familyId = '' } = 
 
 /** List accepted friends for the caller (from Admin-managed mirror docs). */
 export const listMyFriends = onCall(
-  { region: 'europe-west1', timeoutSeconds: 20, memory: '256MiB', cors: true },
+  { region: 'europe-west1', timeoutSeconds: 20, memory: '256MiB', cors: true, invoker: 'public' },
   async (req) => {
     const uid = requireAuth(req.auth);
     const snap = await db.collection(`users/${uid}/friends`).get();
@@ -214,7 +214,7 @@ export const listFriendsForUid = onCall(
 );
 
 export const listFriendRequests = onCall(
-  { region: 'europe-west1', timeoutSeconds: 20, memory: '256MiB', cors: true },
+  { region: 'europe-west1', timeoutSeconds: 20, memory: '256MiB', cors: true, invoker: 'public' },
   async (req) => {
     try {
       const callerUid = requireAuth(req.auth);

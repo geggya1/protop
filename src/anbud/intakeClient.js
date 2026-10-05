@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { applyScan } from './intake.js';
+import { friendlyFormScanError } from './formScanError.js';
 
 export async function sendDirectAnbud(input) {
   const call = httpsCallable(functions, 'sendAnbudRequest', { timeout: 20000 });
@@ -9,9 +10,13 @@ export async function sendDirectAnbud(input) {
 }
 
 export async function generateCompanyForm(imageBase64, fileName) {
-  const call = httpsCallable(functions, 'generateCompanyForm', { timeout: 90000 });
-  const res = await call({ imageBase64, fileName: fileName || '' });
-  return res?.data || { ok: false };
+  try {
+    const call = httpsCallable(functions, 'generateCompanyForm', { timeout: 90000 });
+    const res = await call({ imageBase64, fileName: fileName || '' });
+    return res?.data || { ok: false };
+  } catch (err) {
+    throw new Error(friendlyFormScanError(err));
+  }
 }
 
 export async function scanAnbudFile(imageBase64) {

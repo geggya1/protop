@@ -51,9 +51,11 @@ jobs:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
-      - name: Deploy tender proxy function
+      - name: Deploy slim Cloud Functions
         continue-on-error: true
         # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.
+        # Slim entries avoid MAIL_API_KEY Secret Manager. generateCompanyForm 404
+        # shows as CORS + «internal» in Mine skjemaer until this ships.
         run: |
           node --input-type=module -e "
           import { readFileSync, writeFileSync } from 'node:fs';
@@ -61,14 +63,29 @@ jobs:
           writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
           "
           npm ci --prefix functions
+          deploy_entry() {
+            local entry="$1"
+            local only="$2"
+            node --input-type=module -e "
+            import { readFileSync, writeFileSync } from 'node:fs';
+            const path = 'functions/package.json';
+            const pkg = JSON.parse(readFileSync(path, 'utf8'));
+            pkg.main = process.argv[1];
+            writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+            " "$entry"
+            npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive
+          }
+          deploy_entry tenderIndex.js functions:tenderProxy
+          deploy_entry anbudFormIndex.js functions:generateCompanyForm
+          deploy_entry openFeedIndex.js functions:fetchOpenFeed
+          deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
           node --input-type=module -e "
           import { readFileSync, writeFileSync } from 'node:fs';
           const path = 'functions/package.json';
           const pkg = JSON.parse(readFileSync(path, 'utf8'));
-          pkg.main = 'tenderIndex.js';
+          pkg.main = 'index.js';
           writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
           "
-          npx firebase deploy --only functions:tenderProxy --config firebase.functions.json --project protop-c189c --non-interactive
           rm -f firebase.functions.json
 
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

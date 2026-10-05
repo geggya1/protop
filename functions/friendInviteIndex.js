@@ -4,7 +4,7 @@
  */
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 
-setGlobalOptions({ region: 'europe-west1' });
+setGlobalOptions({ region: 'europe-west1', invoker: 'public' });
 
 export { lookupFriendProfile } from './friendLookup.js';
 export {

@@ -310,7 +310,7 @@ function clean(value) {
 function plausible(value) {
   const text = clean(value);
   if (!text) return '';
-  if (/^(oppdrags\s*nummer|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr)/i.test(text)) return '';
+  if (/^(oppdrags\s*nummer|oppdragssted|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr|generelle|beskrivelse)/i.test(text)) return '';
   if (/[%{}<>\\]/.test(text)) return '';
   const letters = (text.match(/[A-Za-zÆØÅæøå]/g) || []).length;
   const junk = (text.match(/[^A-Za-zÆØÅæøå0-9 .,&/\-()@+]/g) || []).length;

@@ -29,7 +29,7 @@ export default function ContractScreen() {
         intent={shellIntent}
         onClearIntent={clearShellIntent}
         onOpenWork={() => requestShellTab?.('anbud', 'tilbud')}
-        onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
+        onOpenIndex={(intent) => requestShellTab?.('okonomi', 'avtaler', intent)}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
       />
     </ScrollView>

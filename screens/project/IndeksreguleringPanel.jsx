@@ -555,7 +555,7 @@ export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
   }
 
   const shownSpan = span.length > 18 ? [...span.slice(0, 3), null, ...span.slice(-6)] : span;
-  const sheet = useMemo(() => agreementSheet(draft, live, selected), [draft, live, selected]);
+  const sheet = useMemo(() => agreementSheet(draft, live, selected, { omitEmpty: true }), [draft, live, selected]);
 
   return (
     <View style={styles.stack}>

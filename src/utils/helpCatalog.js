@@ -112,7 +112,7 @@ const EXTRA_ARTICLES = [
       parent: [
         T('Åpne Prosjekt inne i bedriften og opprett prosjekt med nummer', 'Open Projects inside the company and create a project with a number'),
         T('Før timer og kostnader på konto og prosjektkode', 'Post hours and costs on an account and cost code'),
-        T('Åpne Økonomi, velg kunde og avtale, og åpne indeksregulering', 'Open Economy, choose customer and contract, then open index regulation'),
+        T('Åpne Økonomi, gå til Avtaler og velg kontrakten som skal reguleres', 'Open Economy, go to Contracts and choose the agreement to regulate'),
         T('Lukk avvik først når årsak og tiltak er fylt ut', 'Close a deviation only after cause and action are filled in'),
       ],
       child: [],

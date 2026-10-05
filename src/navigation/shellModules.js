@@ -39,20 +39,26 @@ export function selskapMenuTitle(subView) {
   return 'Selskap';
 }
 
-/** Undermeny når Økonomi er valgt. Indeksregulering åpnes etter valgt avtale. */
+/** Undermeny når Økonomi er valgt. Indeksregulering ligger under valgt avtale. */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
-  { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
+  { id: 'selskap', icon: 'briefcase', label: 'Selskap' },
+  { id: 'kunder', icon: 'people', label: 'Kunder' },
+  { id: 'avtaler', icon: 'ribbon', label: 'Avtaler' },
 ];
 
 export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU.map((item) => item.id);
 
 export function defaultOkonomiSubView(subView) {
+  if (subView === 'indeks') return 'avtaler';
   return OKONOMI_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
 }
 
 export function okonomiMenuTitle(subView) {
-  if (subView === 'indeks') return 'Indeksregulering';
+  const page = defaultOkonomiSubView(subView);
+  if (page === 'selskap') return 'Selskap';
+  if (page === 'kunder') return 'Kunder';
+  if (page === 'avtaler') return 'Avtaler';
   return 'Økonomi';
 }
 

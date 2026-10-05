@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { emptyProjectState, postEntry } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
-import IndeksreguleringPanel from '../project/IndeksreguleringPanel';
-import EconomyDesk from './EconomyDesk';
 import EconomyWelcome from './EconomyWelcome';
+import EconomyCompany from './EconomyCompany';
+import EconomyCustomers from './EconomyCustomers';
+import EconomyContracts from './EconomyContracts';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
@@ -20,7 +20,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [anbud, setAnbud] = useState(null);
-  const [chosen, setChosen] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -40,21 +39,12 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     loadAnbudState(familyId).then(setAnbud);
   }, [familyId]);
 
-  useEffect(() => {
-    if (shellIntent?.type === 'openIndexDraft' && shellIntent.draft) {
-      setChosen({
-        id: shellIntent.contractId || shellIntent.caseId || '',
-        title: shellIntent.draft.title || '',
-      });
-    }
-  }, [shellIntent]);
-
   const project = state.projects.find((item) => item.id === state.activeProjectId && item.status !== 'arkivert') || null;
   const company = family?.company || null;
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];
-  const incomingDraft = shellIntent?.type === 'openIndexDraft' && shellIntent.draft;
-  const showIndex = page === 'indeks' && !!(chosen || incomingDraft);
+  const incomingDraft = shellIntent?.type === 'openIndexDraft' ? shellIntent.draft : null;
+  const incomingContractId = shellIntent?.contractId || '';
 
   function book(entry) {
     const booked = postEntry(state, entry);
@@ -62,42 +52,41 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return booked;
   }
 
-  function openIndex(contract) {
-    const extras = {
-      supplier: company?.navn || '',
-      supplierOrgnr: company?.organisasjonsnummer || '',
-      website: company?.hjemmeside || '',
-      phone: company?.telefon || '',
-      email: company?.epostadresse || '',
-    };
-    const intent = openIndexIntentFromContract(contract, extras);
-    setChosen(contract);
-    requestShellTab?.('okonomi', 'indeks', intent);
+  function openPage(id) {
+    requestShellTab?.('okonomi', id);
   }
 
-  function backToDesk() {
-    requestShellTab?.('okonomi', 'oversikt');
-  }
-
-  if (showIndex) {
-    return (
-      <ScrollView
-        style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.inner}
-        keyboardShouldPersistTaps="handled"
-      >
-        <TouchableOpacity onPress={backToDesk} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Til oversikt</Text>
-        </TouchableOpacity>
-        {chosen?.title ? (
-          <Text style={{ color: colors.muted }}>Indeksregulering av {chosen.title}</Text>
-        ) : null}
-        <IndeksreguleringPanel
-          project={project}
-          onBook={project ? book : null}
-          seedDraft={incomingDraft || undefined}
-        />
-      </ScrollView>
+  let body = (
+    <EconomyWelcome stored={company} onOpen={openPage} />
+  );
+  if (page === 'selskap') {
+    body = (
+      <EconomyCompany
+        stored={company}
+        cpvCodes={family?.cpvCodes || []}
+        onSettings={() => requestShellTab?.('selskap')}
+        onUnits={() => requestShellTab?.('selskap', 'underenheter')}
+      />
+    );
+  } else if (page === 'kunder') {
+    body = (
+      <EconomyCustomers
+        customers={customers}
+        contracts={contracts}
+        onOpenContract={(id) => requestShellTab?.('okonomi', 'avtaler', { type: 'openEconomyContract', contractId: id })}
+      />
+    );
+  } else if (page === 'avtaler') {
+    body = (
+      <EconomyContracts
+        customers={customers}
+        contracts={contracts}
+        company={company}
+        selectedId={incomingContractId}
+        seedDraft={incomingDraft}
+        project={project}
+        onBook={book}
+      />
     );
   }
 
@@ -107,19 +96,11 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      <EconomyWelcome stored={company} />
-      <EconomyDesk
-        customers={customers}
-        contracts={contracts}
-        chosenContractId={chosen?.id || ''}
-        hint={page === 'indeks' ? 'Velg en avtale først. Indeksregulering vises når avtalen er valgt.' : ''}
-        onChooseContract={setChosen}
-        onOpenIndex={openIndex}
-      />
-      {!company?.navn ? (
+      {body}
+      {!company?.navn && page === 'oversikt' ? (
         <View style={{ paddingTop: 8 }}>
           <Text style={{ color: colors.muted }}>
-            Åpne Selskap for å knytte bedriften, så vises logo og nøkkeltall her.
+            Åpne Selskap i bedriftsmenyen for å knytte bedriften.
           </Text>
         </View>
       ) : null}

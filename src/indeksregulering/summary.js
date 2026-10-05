@@ -91,7 +91,7 @@ function firstList(...lists) {
  * Standardfeltene på avtalens fremside.
  * result kan mangle. Da leses indeksen da fra seriens historikk.
  */
-export function agreementSheet(draft, result, series) {
+export function agreementSheet(draft, result, series, options = {}) {
   const basis = contractBasis(draft || {});
   const frequency = series?.frequency || result?.series?.frequency || 'month';
   const basisPeriod = result?.ok
@@ -125,7 +125,8 @@ export function agreementSheet(draft, result, series) {
     ? `${formatIndex(nowPoint.value)} · ${periodLabel(nowPoint.period)}`
     : '';
 
-  return {
+  const fromAgreement = !!(draft?.engine || draft?.standard || (draft?.findings || []).length);
+  const sheet = {
     title: draft?.title || 'Avtale uten navn',
     reference: draft?.reference || '',
     groups: [
@@ -159,7 +160,7 @@ export function agreementSheet(draft, result, series) {
           { label: 'Honorar', value: draft?.honorar || '' },
           { label: 'Grunnlag', value: sum == null ? '' : money(sum) },
           { label: 'Satser', value: rateCount(draft) },
-          { label: 'Prisregulering', value: priceRule(draft) },
+          { label: 'Prisregulering', value: fromAgreement ? priceRule(draft) : '' },
           { label: 'Nettsted', value: draft?.website || '' },
           { label: 'Dokumenter', value: documents.length ? documents.join(', ') : '' },
         ],
@@ -179,8 +180,8 @@ export function agreementSheet(draft, result, series) {
       {
         title: 'Vilkår',
         rows: [
-          { label: 'Intervall', value: FREQUENCY[draft?.terms?.frequency] || FREQUENCY.month },
-          { label: 'Basismåned', value: BASIS[draft?.terms?.baseRule] || BASIS.auto },
+          { label: 'Intervall', value: fromAgreement ? (FREQUENCY[draft?.terms?.frequency] || FREQUENCY.month) : '' },
+          { label: 'Basismåned', value: fromAgreement ? (BASIS[draft?.terms?.baseRule] || BASIS.auto) : '' },
           { label: 'Terskel', value: draft?.terms?.thresholdPercent ? `${draft.terms.thresholdPercent} %` : '' },
           { label: 'Tak', value: draft?.terms?.capPercent ? `${draft.terms.capPercent} %` : '' },
           { label: 'Avrunding', value: draft?.terms?.roundToKrone ? 'Nærmeste krone' : '' },
@@ -194,5 +195,15 @@ export function agreementSheet(draft, result, series) {
       ...group,
       rows: group.rows.map((row) => ({ ...row, value: blank(row.value) })),
     })),
+  };
+  if (!options.omitEmpty) return sheet;
+  return {
+    ...sheet,
+    groups: sheet.groups
+      .map((group) => ({
+        ...group,
+        rows: group.rows.filter((row) => row.value && row.value !== 'Ikke oppgitt'),
+      }))
+      .filter((group) => group.rows.length),
   };
 }

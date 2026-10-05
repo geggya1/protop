@@ -93,7 +93,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Indeksregulering'],
+    ['Oversikt', 'Selskap', 'Kunder', 'Avtaler'],
   );
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
@@ -113,15 +113,19 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(kontrakt, 'anbud', 'tilbud'), false);
   const okonomi = items.find((item) => item.id === 'okonomi');
   const oversikt = okonomi.children.find((item) => item.id === 'okonomi-oversikt');
-  const indeks = okonomi.children.find((item) => item.id === 'okonomi-indeks');
+  const selskapEco = okonomi.children.find((item) => item.id === 'okonomi-selskap');
+  const kunderEco = okonomi.children.find((item) => item.id === 'okonomi-kunder');
+  const avtaler = okonomi.children.find((item) => item.id === 'okonomi-avtaler');
   assert.equal(okonomi.action.subView, 'oversikt');
   assert.equal(isNavItemActive(okonomi, 'okonomi', 'oversikt'), true);
-  assert.equal(isNavItemActive(okonomi, 'okonomi', 'indeks'), true);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'avtaler'), true);
   assert.equal(isNavItemActive(oversikt, 'okonomi', 'oversikt'), true);
-  assert.equal(isNavItemActive(oversikt, 'okonomi', 'indeks'), false);
-  assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
-  assert.equal(isNavItemActive(indeks, 'okonomi', 'oversikt'), false);
-  assert.equal(isNavItemActive(indeks, 'projects', null), false);
+  assert.equal(isNavItemActive(oversikt, 'okonomi', 'avtaler'), false);
+  assert.equal(isNavItemActive(selskapEco, 'okonomi', 'selskap'), true);
+  assert.equal(isNavItemActive(kunderEco, 'okonomi', 'kunder'), true);
+  assert.equal(isNavItemActive(avtaler, 'okonomi', 'avtaler'), true);
+  assert.equal(isNavItemActive(avtaler, 'okonomi', 'oversikt'), false);
+  assert.equal(isNavItemActive(avtaler, 'projects', null), false);
   const selskap = items.find((item) => item.id === 'selskap');
   const units = selskap.children.find((item) => item.id === 'underenheter');
   assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);
@@ -242,10 +246,10 @@ assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
 const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
 assert.match(economyScreen, /EconomyWelcome/);
-assert.match(economyScreen, /EconomyDesk/);
-assert.match(economyScreen, /openIndexIntentFromContract/);
-assert.match(economyScreen, /IndeksreguleringPanel/);
-assert.match(economyScreen, /page === 'indeks'/);
+assert.match(economyScreen, /EconomyCompany/);
+assert.match(economyScreen, /EconomyCustomers/);
+assert.match(economyScreen, /EconomyContracts/);
+assert.equal(economyScreen.includes('EconomyDesk'), false);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /parseCustomerFile/);

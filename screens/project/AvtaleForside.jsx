@@ -11,12 +11,18 @@ function Fact({ row, colors }) {
   );
 }
 
+function visibleRows(group) {
+  return (group?.rows || []).filter((row) => row.value && row.value !== 'Ikke oppgitt');
+}
+
 function FactCard({ group, colors, emphasis }) {
+  const rows = visibleRows(group);
+  if (!rows.length) return null;
   return (
     <View style={[styles.card, { borderColor: emphasis ? colors.brand : colors.line, backgroundColor: colors.card }]}>
       <Text style={[styles.heading, { color: colors.ink }]}>{group.title}</Text>
       <View style={styles.grid}>
-        {group.rows.map((row) => (
+        {rows.map((row) => (
           <Fact key={`${group.title}-${row.label}`} row={row} colors={colors} />
         ))}
       </View>
@@ -26,7 +32,8 @@ function FactCard({ group, colors, emphasis }) {
 
 export default function AvtaleForside({ sheet, colors }) {
   if (!sheet) return null;
-  const [lead, ...rest] = sheet.groups;
+  const groups = (sheet.groups || []).filter((group) => visibleRows(group).length);
+  const [lead, ...rest] = groups;
   return (
     <View style={styles.stack}>
       <View style={[styles.cover, { borderColor: colors.line, backgroundColor: colors.card }]}>

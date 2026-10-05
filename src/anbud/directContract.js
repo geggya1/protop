@@ -1,6 +1,7 @@
 /** Direkteavtaler uten tilbudsarbeid, og overføring til indeksfeltene. */
 
 import { emptyDraft, emptyLine, parseAmount, parseIsoDate, todayIso } from '../indeksregulering/engine.js';
+import { interpretDocuments } from '../indeksregulering/interpret.js';
 import { agreementKindFromText } from './agreementTemplate.js';
 
 function text(value) {
@@ -161,44 +162,72 @@ export function indeksCaseFromContract(contract) {
   };
 }
 
-/** Fyll indeksutkast fra en registrert avtale, også når dokumentene ikke er lest ennå. */
+function pick(...values) {
+  for (const value of values) {
+    const next = text(value);
+    if (next) return next;
+  }
+  return '';
+}
+
+function blankIndexDraft(partial = {}) {
+  return emptyDraft({
+    standard: '',
+    model: '',
+    indexId: '',
+    sharePercent: '',
+    vatPercent: '',
+    ...partial,
+    standard: pick(partial.standard),
+    model: pick(partial.model),
+    indexId: pick(partial.indexId),
+    sharePercent: pick(partial.sharePercent),
+    vatPercent: pick(partial.vatPercent),
+  });
+}
+
+/** Fyll indeksutkast bare fra den registrerte avtalen. Ingen standard-NS når avtalen ikke sier det. */
 export function draftFromContract(contract, extras = {}) {
-  if (!contract || typeof contract !== 'object') return emptyDraft(extras);
+  if (!contract || typeof contract !== 'object') return blankIndexDraft(extras);
   const fields = contract.fields && typeof contract.fields === 'object' ? contract.fields : {};
   const documents = Array.isArray(contract.documents) ? contract.documents : [];
   const source = contract.indexDraft && typeof contract.indexDraft === 'object' ? contract.indexDraft : {};
-  const model = text(source.model || fields.model);
-  const indexId = text(source.indexId || fields.indexId);
-  const sharePercent = text(source.sharePercent || fields.sharePercent);
-  const vatPercent = text(source.vatPercent || fields.vatPercent);
-  return emptyDraft({
+  const readable = documents.filter((doc) => text(doc.text).length >= 20);
+  const interpreted = readable.length ? interpretDocuments(readable) : null;
+  const priced = Array.isArray(source.lines) && source.lines.some((line) => parseAmount(line?.rate) != null);
+  return blankIndexDraft({
+    ...interpreted,
     ...source,
-    title: text(source.title || contract.title),
-    buyer: text(source.buyer || contract.buyer),
-    supplier: text(source.supplier || extras.supplier || contract.supplier),
-    reference: text(source.reference || fields.reference),
-    standard: text(source.standard || fields.standard) || 'NS 8407',
-    ...(model ? { model } : {}),
-    ...(indexId ? { indexId } : {}),
-    ...(sharePercent ? { sharePercent } : {}),
-    ...(vatPercent ? { vatPercent } : {}),
-    offerDate: text(source.offerDate || fields.offerDate),
-    tenderDeadline: text(source.tenderDeadline || fields.tenderDeadline),
-    contractDate: text(source.contractDate || fields.contractDate),
-    startDate: text(source.startDate || contract.start),
-    endDate: text(source.endDate || contract.end),
-    honorar: text(source.honorar || fields.honorar || contract.honorar),
-    place: text(source.place || fields.place || contract.place),
-    address: text(source.address || fields.address || contract.address),
-    description: text(source.description || fields.description || contract.description),
-    poNumber: text(source.poNumber || fields.poNumber || contract.poNumber),
-    orgnr: text(source.orgnr || fields.orgnr || extras.orgnr),
-    supplierOrgnr: text(source.supplierOrgnr || fields.supplierOrgnr || extras.supplierOrgnr),
-    contactName: text(source.contactName || fields.contactName || extras.contactName),
-    phone: text(source.phone || fields.phone || extras.phone),
-    email: text(source.email || fields.email || extras.email),
-    website: text(source.website || extras.website),
-    documents: Array.isArray(source.documents) && source.documents.length ? source.documents : documents,
+    title: pick(source.title, contract.title, interpreted?.title),
+    buyer: pick(source.buyer, contract.buyer, interpreted?.buyer),
+    supplier: pick(source.supplier, extras.supplier, contract.supplier, interpreted?.supplier),
+    reference: pick(source.reference, fields.reference, interpreted?.reference),
+    standard: pick(source.standard, fields.standard, interpreted?.standard),
+    model: pick(source.model, fields.model, interpreted?.model),
+    indexId: pick(source.indexId, fields.indexId, interpreted?.indexId),
+    sharePercent: pick(source.sharePercent, fields.sharePercent, interpreted?.sharePercent),
+    vatPercent: pick(source.vatPercent, fields.vatPercent, interpreted?.vatPercent),
+    offerDate: pick(source.offerDate, fields.offerDate, interpreted?.offerDate),
+    tenderDeadline: pick(source.tenderDeadline, fields.tenderDeadline, interpreted?.tenderDeadline),
+    contractDate: pick(source.contractDate, fields.contractDate, interpreted?.contractDate),
+    startDate: pick(source.startDate, contract.start, interpreted?.startDate),
+    endDate: pick(source.endDate, contract.end, interpreted?.endDate),
+    honorar: pick(source.honorar, fields.honorar, contract.honorar, interpreted?.honorar),
+    place: pick(source.place, fields.place, contract.place, interpreted?.place),
+    address: pick(source.address, fields.address, contract.address, interpreted?.address),
+    description: pick(source.description, fields.description, contract.description, interpreted?.description),
+    poNumber: pick(source.poNumber, fields.poNumber, contract.poNumber, interpreted?.poNumber),
+    orgnr: pick(source.orgnr, fields.orgnr, extras.orgnr, interpreted?.orgnr),
+    supplierOrgnr: pick(source.supplierOrgnr, fields.supplierOrgnr, extras.supplierOrgnr, interpreted?.supplierOrgnr),
+    contactName: pick(source.contactName, fields.contactName, extras.contactName, interpreted?.contactName),
+    phone: pick(source.phone, fields.phone, extras.phone, interpreted?.phone),
+    email: pick(source.email, fields.email, extras.email, interpreted?.email),
+    website: pick(source.website, extras.website),
+    lines: priced ? source.lines : (interpreted?.lines?.length ? interpreted.lines : [emptyLine({ text: 'Kontraktssum' })]),
+    terms: source.terms || interpreted?.terms,
+    documents: documents.length ? documents : (Array.isArray(source.documents) ? source.documents : []),
+    findings: interpreted?.findings || source.findings || [],
+    engine: interpreted?.engine || source.engine || '',
   });
 }
 

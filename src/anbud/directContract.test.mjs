@@ -95,5 +95,17 @@ assert.ok(intent.draft.sourceText.includes('NS8403'));
 const unnamed = draftFromContract({ id: 'x', buyer: 'Kari', title: '' });
 assert.equal(unnamed.title, '');
 assert.equal(unnamed.buyer, 'Kari');
+assert.equal(unnamed.standard, '');
+assert.equal(unnamed.indexId, '');
+assert.equal(unnamed.model, '');
+
+const fromDocs = draftFromContract({
+  id: 'd1',
+  title: '',
+  documents: [{ id: '1', name: 'C1.pdf', text: NS8403 }],
+});
+assert.equal(fromDocs.standard, 'NS 8403');
+assert.equal(fromDocs.indexId, 'ppi-byggeteknisk');
+assert.equal(fromDocs.buyer, 'Igang Totalentreprenør As');
 
 console.log('directContract ok');

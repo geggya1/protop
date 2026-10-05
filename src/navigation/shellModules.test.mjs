@@ -225,10 +225,20 @@ const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.js
 assert.match(watchSettings, /CPV fra offentlige tildelinger/);
 assert.match(watchSettings, /Egne koder til anbudsvarsling/);
 assert.match(watchSettings, /PortalSettings/);
+assert.match(watchSettings, /AI-profil/);
+assert.match(watchSettings, /La AI tolke bedriften/);
+assert.match(watchSettings, /Hjemmeside/);
 
 const tenderAlert = readFileSync(new URL('../../screens/anbud/TenderAlert.jsx', import.meta.url), 'utf8');
 assert.equal(tenderAlert.includes('CPV som søkes'), false);
 assert.match(tenderAlert, /Se og endre kodene under Innstillinger/);
+assert.equal(tenderAlert.includes("label: 'Matcher'"), false);
+assert.match(tenderAlert, /padStart\(2, '0'\)/);
+assert.match(tenderAlert, /#64748b/);
+assert.match(tenderAlert, /Godt treff/);
+assert.match(tenderAlert, /Vurder treff med AI/);
+assert.match(tenderAlert, /\['nye', 'Nye', 'emphasis'\]/);
+assert.match(tenderAlert, /\['uaktuelle', 'Uaktuelle', 'plain'\]/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

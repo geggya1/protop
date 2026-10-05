@@ -63,6 +63,7 @@ export function emptyAnbudState() {
       savedAt: null,
       orgnr: '',
       cpvSource: '',
+      profile: normalizeWatchProfile(null),
     },
     notices: [],
     bids: [],
@@ -91,6 +92,7 @@ export function normalizeAnbudState(raw) {
       emails: normalizeEmails(watch.emails),
       naeringskoder: normalizeTrades(watch.naeringskoder),
       keywords: normalizeKeywords(watch.keywords),
+      profile: normalizeWatchProfile(watch.profile),
     },
     notices: Array.isArray(src.notices) ? src.notices.map(normalizeNotice) : [],
     bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidWork(normalizeBidRecord(row))),
@@ -211,6 +213,7 @@ function pickWatch(left, right) {
     emails: normalizeEmails(src.emails || a.emails),
     naeringskoder: normalizeTrades(src.naeringskoder || a.naeringskoder),
     keywords: normalizeKeywords(src.keywords || a.keywords),
+    profile: normalizeWatchProfile(src.profile || a.profile || b.profile),
   };
 }
 
@@ -369,6 +372,7 @@ export function saveTenderWatch(state, input) {
       emails: normalizeEmails(input?.emails),
       naeringskoder: normalizeTrades(input?.naeringskoder),
       keywords: normalizeKeywords(input?.keywords),
+      profile: normalizeWatchProfile(input?.profile ?? state.watch?.profile),
     },
   });
 }
@@ -431,6 +435,31 @@ export function normalizeKeywords(input) {
     if (out.length >= 20) break;
   }
   return out;
+}
+
+function normalizeWebsite(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  try {
+    const href = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!/^https?:$/.test(href.protocol)) return raw.slice(0, 300);
+    href.username = '';
+    href.password = '';
+    return href.toString().slice(0, 300);
+  } catch {
+    return raw.slice(0, 300);
+  }
+}
+
+export function normalizeWatchProfile(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    description: text(src.description).slice(0, 2000),
+    website: normalizeWebsite(src.website),
+    summary: text(src.summary).slice(0, 800),
+    keywords: normalizeKeywords(src.keywords).slice(0, 30),
+    updatedAt: text(src.updatedAt),
+  };
 }
 
 function fold(value) {
@@ -585,6 +614,7 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
       consideration: kept?.consideration || null,
       isNew: kept ? (decided ? false : !!kept.isNew) : !firstSync,
       matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
+      aiFit: kept?.aiFit || row.aiFit || null,
     });
   }
   for (const kept of previousRows) {
@@ -611,6 +641,13 @@ function normalizeNotice(raw) {
     decision,
     reviewedAt: row.reviewedAt || null,
     consideration: strategy ? { strategy } : null,
+    aiFit: row.aiFit && typeof row.aiFit === 'object'
+      ? {
+        score: Math.max(0, Math.min(10, Number(row.aiFit.score) || 0)),
+        reason: text(row.aiFit.reason).slice(0, 220),
+        at: text(row.aiFit.at),
+      }
+      : null,
   };
 }
 

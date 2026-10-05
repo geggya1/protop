@@ -76,6 +76,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'kontrakt') return 'Kontrakt / avtale';
   if (tab === 'skjema') return 'Skjema';
   if (tab === 'projects') return 'Prosjekt';
+  if (tab === 'okonomi') return 'Økonomi';
   if (tab === 'plan') return t('tabs.plan');
   if (tab === 'mail') return t('tabs.mail');
   if (tab === 'chores') return t('tabs.chores');

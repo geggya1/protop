@@ -52,6 +52,20 @@ export function companyNavItems() {
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+    {
+      id: 'okonomi',
+      icon: 'wallet',
+      label: 'Økonomi',
+      action: { type: 'tab', tab: 'okonomi', subView: 'indeks' },
+      children: [
+        {
+          id: 'okonomi-indeks',
+          icon: 'trending-up',
+          label: 'Indeksregulering',
+          action: { type: 'tab', tab: 'okonomi', subView: 'indeks' },
+        },
+      ],
+    },
   ];
 }
 

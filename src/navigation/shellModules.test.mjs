@@ -73,7 +73,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'anbud', 'kontrakt', 'skjema', 'projects'],
+    ['selskap', 'anbud', 'kontrakt', 'skjema', 'projects', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -82,6 +82,11 @@ function idsIn(sections) {
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
+  assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
+  assert.deepEqual(
+    companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
+    ['Indeksregulering'],
+  );
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -98,6 +103,11 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(tilbud, 'anbud', 'varsling'), false);
   assert.equal(isNavItemActive(kontrakt, 'kontrakt', null), true);
   assert.equal(isNavItemActive(kontrakt, 'anbud', 'tilbud'), false);
+  const okonomi = items.find((item) => item.id === 'okonomi');
+  const indeks = okonomi.children.find((item) => item.id === 'okonomi-indeks');
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'indeks'), true);
+  assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
+  assert.equal(isNavItemActive(indeks, 'projects', null), false);
 }
 
 {
@@ -179,6 +189,10 @@ assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);
 assert.match(shellSrc, /tab === 'selskap'/);
+assert.match(shellSrc, /tab === 'okonomi'/);
+assert.match(shellSrc, /EconomyScreen/);
 assert.match(shellSrc, /ContractScreen/);
+const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
+assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);
 
 console.log('shellModules.test.mjs: ok');

@@ -10,10 +10,13 @@ import {
     attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
+import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
+import { locateNotice, mapCandidateNotices, mapPinsForNotices } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
+import TenderMap from './TenderMap';
 import BidDecision from './BidDecision';
 import {
   deadlineInfo,
@@ -517,6 +520,39 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     });
   }, [notices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
 
+  const mapRows = useMemo(
+    () => mapCandidateNotices(notices, noticeDeadlineExpired),
+    [notices],
+  );
+  const pins = useMemo(
+    () => mapPinsForNotices(mapRows),
+    [mapRows],
+  );
+  const missingPlaces = mapRows.filter((row) => !locateNotice(row)).length;
+  const missingKey = mapRows.filter((row) => !locateNotice(row)).map((row) => row.id).join(',');
+
+  useEffect(() => {
+    if (!ready || !missingKey) return undefined;
+    let live = true;
+    const unknown = mapRows.filter((row) => !locateNotice(row));
+    geocodeMissing(unknown, locateNotice, geocodeQuery).then((hits) => {
+      if (!live || !hits.length) return;
+      const byId = new Map(hits.map((row) => [row.id, row.geo]));
+      const next = (stateRef.current.notices || []).map((row) => (
+        byId.has(row.id) ? { ...row, geo: byId.get(row.id) } : row
+      ));
+      commitState({ ...stateRef.current, notices: next });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [ready, missingKey]);
+
+  function focusNotice(id) {
+    const row = (stateRef.current.notices || []).find((item) => item.id === id);
+    if (!row) return;
+    setFilter(row.decision === 'aktuell' ? 'aktuelle' : 'nye');
+    setOpenId(id);
+  }
+
   const listEmpty = filter === 'utlopt'
     ? 'Ingen konkurranser med utløpt frist.'
     : filter === 'nye'
@@ -558,9 +594,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   );
 
   return (
-    <View style={styles.layout}>
+    <View style={[styles.layout, !phone && styles.layoutDesktop]}>
       <View style={styles.main}>
-        {summary}
+        {phone ? summary : null}
         {!!savedNote && <Text style={{ color: colors.brand }}>{savedNote}</Text>}
         <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
@@ -627,6 +663,15 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
+        {phone ? (
+          <TenderMap
+            pins={pins}
+            selectedId={openId}
+            colors={colors}
+            missing={missingPlaces}
+            onSelect={focusNotice}
+          />
+        ) : null}
         {phone ? (
           <TenderHitCards
             rows={rows}
@@ -773,13 +818,33 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         </ScrollView>
         )}
       </View>
+      {!phone ? (
+        <View style={styles.side}>
+          {summary}
+          <TenderMap
+            pins={pins}
+            selectedId={openId}
+            colors={colors}
+            missing={missingPlaces}
+            onSelect={focusNotice}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   layout: { gap: 16, width: '100%', alignSelf: 'stretch' },
+  layoutDesktop: { flexDirection: 'row', alignItems: 'flex-start' },
   main: { flex: 1, gap: 8, minWidth: 0 },
+  side: {
+    width: 360,
+    flexGrow: 0,
+    flexShrink: 0,
+    gap: 12,
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 12, alignSelf: 'flex-start' } : null),
+  },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tableScroll: {
     width: '100%',

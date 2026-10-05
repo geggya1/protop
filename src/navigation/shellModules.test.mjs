@@ -238,7 +238,12 @@ assert.match(tenderAlert, /#64748b/);
 assert.match(tenderAlert, /Godt treff/);
 assert.match(tenderAlert, /Vurder treff med AI/);
 assert.match(tenderAlert, /\['nye', 'Nye', 'emphasis'\]/);
+assert.match(tenderAlert, /TenderMap/);
 assert.match(tenderAlert, /\['uaktuelle', 'Uaktuelle', 'plain'\]/);
+
+const tenderMap = readFileSync(new URL('../../screens/anbud/TenderMap.jsx', import.meta.url), 'utf8');
+assert.match(tenderMap, /OpenStreetMap/);
+assert.match(tenderMap, /Kartverket/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

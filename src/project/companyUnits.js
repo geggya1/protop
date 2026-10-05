@@ -129,6 +129,28 @@ export function linkedCompanyFields({ parentId, parentName, company }) {
   };
 }
 
+export function mergeUnitHits(...groups) {
+  const seen = new Set();
+  const results = [];
+  for (const list of groups) {
+    for (const row of list || []) {
+      const id = digitsOrgnr(row?.organisasjonsnummer);
+      if (id.length !== 9 || seen.has(id)) continue;
+      seen.add(id);
+      results.push(row);
+    }
+  }
+  return results;
+}
+
+export function publicUnitsNotRegistered(publicUnits, registered) {
+  const taken = new Set(underenheterOf(registered).map((row) => row.organisasjonsnummer));
+  return (publicUnits || []).filter((row) => {
+    const id = digitsOrgnr(row.organisasjonsnummer);
+    return id.length === 9 && !taken.has(id);
+  });
+}
+
 export function findOwnedOrganization(groups, orgnr) {
   const id = digitsOrgnr(orgnr);
   if (id.length !== 9) return null;

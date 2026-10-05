@@ -15,6 +15,7 @@ import ContractScreen from '../screens/anbud/ContractScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -68,6 +69,7 @@ const TITLES = {
   selskap: 'Selskap',
   projects: 'Prosjekt',
   okonomi: 'Økonomi',
+  underenheter: 'Underenheter',
 };
 
 function matchesPlatformType(type, platformType) {
@@ -145,6 +147,7 @@ export default function SocialPlatformShell({ platformType }) {
       );
     }
     if (tab === 'projects' || tab === 'selskap') return <ProjectPlatformScreen />;
+    if (tab === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'okonomi') return <EconomyScreen />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;

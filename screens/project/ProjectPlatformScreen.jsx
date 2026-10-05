@@ -209,6 +209,7 @@ export default function ProjectPlatformScreen() {
           cpvCodes={family?.cpvCodes || []}
           onProjects={() => requestShellTab?.('projects')}
           onSettings={() => setPage('innstillinger')}
+          onUnits={() => requestShellTab?.('underenheter')}
           canEdit={canEdit}
         />
       ) : null}

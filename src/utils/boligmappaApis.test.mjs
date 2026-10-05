@@ -6,6 +6,7 @@ import {
   normalizeKartverketAdresse,
   normalizeKartverketEiendom,
   normalizeBrregEnhet,
+  mergeBrregHits,
   buildSeeiendomUrl,
   buildOsmMapUrl,
   buildBrregUrl,
@@ -110,6 +111,26 @@ const enhet = normalizeBrregEnhet({
 assert.equal(enhet.organisasjonsnummer, '998131650');
 assert.match(enhet.addressLabel, /Dronning Mauds gate 10/);
 assert.equal(enhet.organisasjonsform, 'Aksjeselskap');
+
+const under = normalizeBrregEnhet({
+  organisasjonsnummer: '876543210',
+  navn: 'BOLIGMAPPA OSLO',
+  overordnetEnhet: '998131650',
+  beliggenhetsadresse: {
+    adresse: ['Svanholmen 7'],
+    postnummer: '4313',
+    poststed: 'SANDNES',
+  },
+});
+assert.equal(under.kind, 'underenhet');
+assert.match(under.addressLabel, /Svanholmen 7/);
+assert.deepEqual(
+  mergeBrregHits(
+    [{ organisasjonsnummer: '876543210', navn: 'Under' }],
+    [{ organisasjonsnummer: '876543210', navn: 'Dup' }, { organisasjonsnummer: '998131650', navn: 'Hoved' }],
+  ).map((row) => row.navn),
+  ['Under', 'Hoved'],
+);
 
 assert.equal(
   buildSeeiendomUrl({ kommunenummer: '301', gardsnummer: 207, bruksnummer: 80 }),

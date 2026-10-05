@@ -75,6 +75,7 @@ export default function CompanyLanding({
   cpvCodes: storedCpv = [],
   onProjects,
   onSettings,
+  onUnits,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -494,7 +495,7 @@ export default function CompanyLanding({
           ) : null}
 
           <Card colors={colors}>
-            <SectionTitle colors={colors} action="Innstillinger" onAction={onSettings}>Underenheter og avdelinger</SectionTitle>
+            <SectionTitle colors={colors} action="Registrer" onAction={onUnits || onSettings}>Underenheter og avdelinger</SectionTitle>
             <Text style={[styles.mutedLine, { color: colors.muted }]}>
               Underenheter har eget abonnement. Avdelinger uten org.nr. ligger på dette selskapet.
             </Text>

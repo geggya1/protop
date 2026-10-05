@@ -17,6 +17,7 @@ import {
 } from './formBuilder.js';
 import { emptyAnbudState, normalizeAnbudState } from './model.js';
 import { saveFormTemplate } from './bidLibrary.js';
+import { readFileSync } from 'node:fs';
 
 const start = [blankField('title'), blankField('text'), blankField('date')].map((row, index) => ({
   ...row,
@@ -166,5 +167,9 @@ const csv = responsesToCsv({
 });
 assert.equal(csv.includes('Salat'), true);
 assert.equal(csv.includes('a@bedrift.no'), true);
+
+const deployedBuilder = readFileSync(new URL('../../functions/anbud/formBuilder.js', import.meta.url), 'utf8');
+const sourceBuilder = readFileSync(new URL('./formBuilder.js', import.meta.url), 'utf8');
+assert.equal(deployedBuilder, sourceBuilder);
 
 console.log('form builder ok');

@@ -49,6 +49,8 @@ for (const [file, size] of [
   ['public/icons/icon-192.png', 192],
   ['public/icons/icon-512.png', 512],
   ['public/icons/apple-touch-icon.png', 180],
+  ['public/apple-touch-icon.png', 180],
+  ['public/apple-touch-icon-precomposed.png', 180],
   ['public/icons/icon-512-maskable.png', 512],
 ]) {
   const image = await meta(file);
@@ -56,6 +58,16 @@ for (const [file, size] of [
   assert.equal(image.height, size, file);
   assert.equal(image.hasAlpha, false, file);
 }
+
+const stamp = readFileSync(new URL('../../scripts/stamp-build.js', import.meta.url), 'utf8');
+assert.match(stamp, /href="\/apple-touch-icon\.png/);
+assert.match(stamp, /apple-touch-icon-precomposed\.png/);
+assert.match(stamp, /ICON_VERSION = '6'/);
+
+const firebase = JSON.parse(readFileSync(new URL('../../firebase.json', import.meta.url), 'utf8'));
+const headerSources = firebase.hosting.headers.map((h) => h.source);
+assert.ok(headerSources.includes('/apple-touch-icon.png'));
+assert.ok(headerSources.includes('/apple-touch-icon-precomposed.png'));
 
 const og = await meta('public/og-image.png');
 assert.equal(og.width, 1200);
@@ -65,3 +77,5 @@ const lockup = await meta('assets/weekplan-logo-transparent.png');
 assert.equal(lockup.width, 1306);
 assert.equal(lockup.height, 481);
 assert.equal(lockup.hasAlpha, true);
+
+console.log('appIcons.test.mjs ok');

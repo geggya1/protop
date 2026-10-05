@@ -11,13 +11,14 @@ import { isOrganizationType } from '../utils/groupTypes.js';
 /** Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet. */
 export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
-  { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
+  { id: 'henvendelse', icon: 'mail-open', label: '1.2 Henvendelse' },
   { id: 'tilbud', icon: 'document-text', label: '2. Tilbud' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);
 
 export function defaultAnbudSubView(subView) {
+  if (subView === 'foresporsel') return 'henvendelse';
   return ANBUD_SUBVIEW_IDS.includes(subView) || subView === 'innstillinger'
     ? subView
     : 'varsling';

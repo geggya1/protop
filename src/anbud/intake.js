@@ -1,4 +1,4 @@
-/** Mottak av anbud: direkte i ProTop, Doffin-varsel, eller manuell henvendelse. */
+/** Mottak av henvendelser mot bedriften: Doffin-varsel eller manuell registrering. */
 
 export const INTAKE_SOURCES = ['protop', 'doffin', 'manuell'];
 export const INTAKE_CHANNELS = [

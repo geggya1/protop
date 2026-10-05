@@ -20,9 +20,10 @@ export const COVER_FIELD_GROUPS = [
     title: 'Avtalen',
     fields: [
       { key: 'kind', label: 'Avtaletype' },
+      { key: 'systemId', label: 'System-ID' },
+      { key: 'oppdragId', label: 'Oppdrags-ID' },
       { key: 'title', label: 'Oppdrag' },
       { key: 'description', label: 'Beskrivelse av oppdraget' },
-      { key: 'reference', label: 'Oppdragsnummer' },
       { key: 'poNumber', label: 'Eksternt PO-nummer' },
       { key: 'standard', label: 'Generelle bestemmelser' },
       { key: 'parentId', label: 'Tilknyttet avtale' },
@@ -94,6 +95,8 @@ export function emptyCoverForm() {
   form.projectId = '';
   form.customerId = '';
   form.createCustomer = false;
+  form.ownerUid = '';
+  form.ownerName = '';
   return form;
 }
 
@@ -110,11 +113,15 @@ export function coverFromRecord(record = {}) {
     else if (key === 'renewalNoticeDays') form.renewalNoticeDays = renewal.noticeDays == null ? '' : String(renewal.noticeDays);
     else if (key === 'kind') form.kind = record.kind || '';
     else if (key === 'parentId') form.parentId = record.parentId || '';
+    else if (key === 'systemId') form.systemId = record.systemId || '';
+    else if (key === 'oppdragId') form.oppdragId = record.oppdragId || record.fields?.reference || '';
     else if (record[key] != null && record[key] !== '') form[key] = String(record[key]);
     else if (fields[key] != null && fields[key] !== '') form[key] = String(fields[key]);
   }
   form.projectId = record.projectId || '';
   form.customerId = record.customerId || '';
+  form.ownerUid = '';
+  form.ownerName = '';
   return form;
 }
 

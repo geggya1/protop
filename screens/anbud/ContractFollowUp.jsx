@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { projectFromAward } from '../../src/anbud/handoff';
 import {
-  contractAlerts,
   linkProject,
   registerDirectContract,
   updateContractDetails,
@@ -10,7 +9,8 @@ import {
 import { filterContracts, indeksCaseFromContract } from '../../src/anbud/directContract';
 import { formatNok } from '../../src/anbud/model';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
-import { upsertCustomer } from '../../src/anbud/customers';
+import { companyFollowUpPeople, ownerLabel, setCustomerOwner, upsertCustomer } from '../../src/anbud/customers';
+import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
@@ -18,10 +18,23 @@ import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
 
 const PAGE = 50;
+const COLUMNS = [
+  { key: 'systemId', label: 'System-ID', width: 92 },
+  { key: 'oppdragId', label: 'Oppdrags-ID', width: 110 },
+  { key: 'title', label: 'Oppdrag', width: 220 },
+  { key: 'kind', label: 'Type', width: 120 },
+  { key: 'buyer', label: 'Kunde', width: 160 },
+  { key: 'place', label: 'Sted', width: 130 },
+  { key: 'period', label: 'Periode', width: 170 },
+  { key: 'value', label: 'Sum', width: 110 },
+  { key: 'owner', label: 'Ansvarlig', width: 140 },
+  { key: 'status', label: 'Status', width: 100 },
+];
 
 export default function ContractFollowUp({
   colors,
   companyId,
+  people = [],
   onOpenWork,
   onOpenIndex,
   onOpenCustomer,
@@ -99,6 +112,8 @@ export default function ContractFollowUp({
         contactName: input.contactName,
         email: input.email,
         phone: input.phone,
+        ownerUid: input.ownerUid,
+        ownerName: input.ownerName,
       });
       if (!made.ok && made.customer) {
         input = { ...input, customerId: made.customer.id };
@@ -109,11 +124,18 @@ export default function ContractFollowUp({
         input = { ...input, customerId: made.customer.id };
       }
     }
+    if (input.customerId && input.ownerUid) {
+      const owned = setCustomerOwner(loaded, input.customerId, { uid: input.ownerUid, name: input.ownerName });
+      if (owned.ok) loaded = owned.state;
+    }
     if (composeKind && !input.kind) input = { ...input, kind: composeKind };
     if (composeParent && !input.parentId) input = { ...input, parentId: composeParent };
-    const result = await commit(registerDirectContract(loaded, input));
+    const made = registerDirectContract(loaded, input);
+    if (!made.ok) return commit(made);
+    const createdId = made.state.contracts[0]?.id;
+    const result = await commit(made);
     if (!result?.ok) return result;
-    const contract = result.state.contracts[0];
+    const contract = result.state.contracts.find((row) => row.id === createdId) || result.state.contracts[0];
     const indeksCaseId = await seedIndex(contract);
     if (indeksCaseId && contract) {
       const linked = await loadAnbudState(companyId);
@@ -157,14 +179,38 @@ export default function ContractFollowUp({
 
   const contracts = state?.contracts || [];
   const customers = state?.customers || [];
+  const followPeople = companyFollowUpPeople(people);
   const visible = useMemo(() => filterContracts(contracts, filters), [contracts, filters]);
   const paged = visible.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(visible.length / PAGE));
-  const alerts = contractAlerts(visible);
   const selected = contracts.find((row) => row.id === selectedId) || null;
   const selectedCustomer = selected
     ? customers.find((row) => row.id === selected.customerId) || null
     : null;
+
+  function cell(row, key) {
+    const customer = customers.find((item) => item.id === row.customerId) || null;
+    if (key === 'systemId') return formatNumberId(row.systemId) || '—';
+    if (key === 'oppdragId') return formatNumberId(row.oppdragId) || '—';
+    if (key === 'title') return row.title || '—';
+    if (key === 'kind') return kindLabel(row.kind) || '—';
+    if (key === 'buyer') return row.buyer || '—';
+    if (key === 'place') return row.fields?.place || row.address || '—';
+    if (key === 'period') return [row.start, row.end].filter(Boolean).join(' – ') || '—';
+    if (key === 'value') return row.value ? formatNok(row.value) : '—';
+    if (key === 'owner') return ownerLabel(customer, followPeople) || '—';
+    if (key === 'status') return row.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv';
+    return '—';
+  }
+
+  async function assignOwner(person) {
+    if (!selectedCustomer) {
+      setNote('Koble avtalen til en kunde før ansvarlig tildeles.');
+      return;
+    }
+    const loaded = await loadAnbudState(companyId);
+    await commit(setCustomerOwner(loaded, selectedCustomer.id, person));
+  }
 
   if (!state) return null;
 
@@ -201,6 +247,7 @@ export default function ContractFollowUp({
           projects={projects}
           contracts={contracts}
           customers={customers}
+          people={followPeople}
           parentId={composeParent}
           kind={composeKind}
           customerId={composeCustomer}
@@ -214,6 +261,7 @@ export default function ContractFollowUp({
           contract={selected}
           contracts={contracts}
           customer={selectedCustomer}
+          people={followPeople}
           colors={colors}
           companyId={companyId}
           onCommit={commit}
@@ -221,21 +269,13 @@ export default function ContractFollowUp({
           onOpenProject={() => openProject(selected)}
           onOpenIndex={() => openIndex(selected)}
           onOpenCustomer={onOpenCustomer}
+          onAssignOwner={assignOwner}
           onOpenAgreement={(id) => { setSelectedId(id); setView('detail'); }}
           onNewChild={(kind) => { setComposeKind(kind); setComposeParent(selected.id); setView('compose'); }}
         />
       ) : null}
       {view === 'list' ? (
         <>
-          {alerts.slice(0, 8).map((alert) => (
-            <View key={`${alert.contractId}-${alert.kind}-${alert.title}`} style={[styles.alert, { borderColor: alert.level === 'forfalt' ? colors.danger : colors.warn, backgroundColor: colors.card }]}>
-              <Text style={{ color: alert.level === 'forfalt' ? colors.danger : colors.warn, fontWeight: '700' }}>
-                {alert.level === 'forfalt' ? 'Frist passert' : 'Innen 14 dager'}
-              </Text>
-              <Text style={{ color: colors.ink }}>{alert.title} · {alert.due}</Text>
-              <Text style={{ color: colors.muted }}>{alert.contractTitle}</Text>
-            </View>
-          ))}
           {!contracts.length ? (
             <Text style={{ color: colors.muted }}>Ingen avtale er registrert. Last opp oppdragsavtalen og eventuelle vedlegg, eller opprett den for hånd.</Text>
           ) : null}
@@ -246,8 +286,8 @@ export default function ContractFollowUp({
             <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <View>
                 <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-                  {['Oppdrag', 'Type', 'Kunde', 'Periode', 'Sum', 'Status'].map((label) => (
-                    <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
+                  {COLUMNS.map((column) => (
+                    <Text key={column.key} style={[styles.th, { width: column.width, color: colors.muted }]}>{column.label}</Text>
                   ))}
                 </View>
                 {paged.map((row, index) => (
@@ -257,12 +297,19 @@ export default function ContractFollowUp({
                     accessibilityRole="button"
                     style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
                   >
-                    <Text style={[styles.td, styles.tdWide, { color: colors.ink, fontWeight: '600' }]} numberOfLines={2}>{row.title}</Text>
-                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{kindLabel(row.kind) || '—'}</Text>
-                    <Text style={[styles.td, { color: colors.ink }]} numberOfLines={2}>{row.buyer || '—'}</Text>
-                    <Text style={[styles.td, { color: colors.ink }]}>{[row.start, row.end].filter(Boolean).join(' – ') || '—'}</Text>
-                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{row.value ? formatNok(row.value) : '—'}</Text>
-                    <Text style={[styles.td, styles.tdNarrow, { color: colors.ink }]}>{row.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv'}</Text>
+                    {COLUMNS.map((column) => (
+                      <Text
+                        key={column.key}
+                        style={[
+                          styles.td,
+                          { width: column.width, color: colors.ink },
+                          column.key === 'title' && { fontWeight: '600' },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {cell(row, column.key)}
+                      </Text>
+                    ))}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -298,9 +345,6 @@ const styles = StyleSheet.create({
   tableWrap: { borderWidth: 1, borderRadius: 14 },
   tr: { flexDirection: 'row', borderBottomWidth: 1, minHeight: 48, alignItems: 'center' },
   head: { minHeight: 42 },
-  th: { width: 148, paddingHorizontal: 12, paddingVertical: 10, fontSize: 11, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
-  td: { width: 148, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14 },
-  tdWide: { width: 220 },
-  tdNarrow: { width: 110 },
-  alert: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
+  th: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 11, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  td: { paddingHorizontal: 12, paddingVertical: 12, fontSize: 14 },
 });

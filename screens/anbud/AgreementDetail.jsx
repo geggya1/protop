@@ -12,13 +12,16 @@ import { childAgreements, coverFromRecord, coverGroups, kindLabel } from '../../
 import { formatNok } from '../../src/anbud/model';
 import { formatOrgnr, maskPersonnummer } from '../../src/anbud/customers';
 import { indexLabel } from '../../src/anbud/fieldReview';
+import { formatNumberId } from '../../src/anbud/numbering';
 import { documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { loadAnbudState } from '../../src/anbud/storage';
+import OwnerPicker from './OwnerPicker';
 
 export default function AgreementDetail({
   contract,
   contracts = [],
   customer = null,
+  people = [],
   colors,
   companyId,
   onCommit,
@@ -26,6 +29,7 @@ export default function AgreementDetail({
   onOpenProject,
   onOpenIndex,
   onOpenCustomer,
+  onAssignOwner,
   onOpenAgreement,
   onNewChild,
 }) {
@@ -51,6 +55,7 @@ export default function AgreementDetail({
     if (field.key === 'value') return formatNok(value) || value;
     if (field.key === 'parentId') return parent?.title || '';
     if (field.key === 'indexId') return indexLabel(value) || value;
+    if (field.key === 'systemId' || field.key === 'oppdragId') return formatNumberId(value) || value;
     return value;
   }
 
@@ -68,6 +73,9 @@ export default function AgreementDetail({
       <View style={[styles.hero, { borderColor: colors.brand, backgroundColor: colors.card }]}>
         <Text style={{ color: colors.muted, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>{kindLabel(contract.kind) || 'Avtale'}</Text>
         <Text style={[styles.h, { color: colors.ink }]}>{contract.title}</Text>
+        <Text style={{ color: colors.ink }}>
+          {[`System-ID ${formatNumberId(contract.systemId) || '—'}`, `Oppdrags-ID ${formatNumberId(contract.oppdragId) || '—'}`].join(' · ')}
+        </Text>
         <Text style={{ color: colors.ink }}>
           {[contract.buyer, [contract.start, contract.end].filter(Boolean).join(' – '), contract.value ? formatNok(contract.value) : '', contract.fields?.standard].filter(Boolean).join(' · ')}
         </Text>
@@ -105,6 +113,12 @@ export default function AgreementDetail({
             <Text style={{ color: colors.muted }}>
               {[customer.kind === 'person' ? 'Privatkunde' : 'Virksomhet', formatOrgnr(customer.orgnr), customer.contactName].filter(Boolean).join(' · ')}
             </Text>
+            <OwnerPicker
+              colors={colors}
+              people={people}
+              value={customer.ownerUid}
+              onChange={(person) => onAssignOwner?.(person)}
+            />
             <TouchableOpacity onPress={() => onOpenCustomer?.(customer.id)} accessibilityRole="button">
               <Text style={{ color: colors.brand }}>Åpne kundeforholdet</Text>
             </TouchableOpacity>

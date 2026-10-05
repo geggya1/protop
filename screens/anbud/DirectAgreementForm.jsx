@@ -14,11 +14,13 @@ import {
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
-import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, normalizeOrgnr } from '../../src/anbud/customers';
+import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople } from '../../src/anbud/customers';
+import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
 import { agreementSummary, emailLooksLikeSupplier, indexLabel, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
 import { documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
+import OwnerPicker from './OwnerPicker';
 
 const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
 const MAX_REMOTE_BYTES = 2500000;
@@ -28,6 +30,10 @@ function yieldUi() {
 }
 
 const MULTILINE = new Set(['description', 'honorar']);
+const NUMBER_PLACEHOLDERS = {
+  systemId: 'Neste ledige i systemet',
+  oppdragId: 'Neste ledige for kunden',
+};
 
 function emptyForm() {
   return { ...emptyCoverForm(), options: [] };
@@ -50,6 +56,8 @@ function formFromInput(input, current = emptyForm()) {
     projectId: current.projectId || input.projectId || '',
     parentId: current.parentId || input.parentId || '',
     customerId: current.customerId || input.customerId || '',
+    systemId: input.systemId || current.systemId || '',
+    oppdragId: input.oppdragId || current.oppdragId || input.reference || input.fields?.reference || '',
     honorar: input.honorar || input.fields?.honorar || '',
     place: input.place || input.fields?.place || '',
     poNumber: input.poNumber || input.fields?.poNumber || '',
@@ -60,6 +68,8 @@ function formFromInput(input, current = emptyForm()) {
     email: input.email || input.fields?.email || '',
     phone: input.phone || input.fields?.phone || '',
     reference: input.reference || input.fields?.reference || '',
+    ownerUid: current.ownerUid || input.ownerUid || '',
+    ownerName: current.ownerName || input.ownerName || '',
     standard: input.standard || input.fields?.standard || '',
     indexId: input.indexId || input.fields?.indexId || '',
     surchargePercent: input.surchargePercent || input.fields?.surchargePercent || '',
@@ -152,7 +162,7 @@ function Field({ colors, field, value, onChange, warning }) {
       <TextInput
         value={value}
         onChangeText={onChange}
-        placeholder=""
+        placeholder={NUMBER_PLACEHOLDERS[field.key] || ''}
         placeholderTextColor={colors.placeholder}
         multiline={MULTILINE.has(field.key)}
         style={[
@@ -187,6 +197,7 @@ export default function DirectAgreementForm({
   parentId = '',
   kind = '',
   customerId = '',
+  people = [],
   onCancel,
   onRegister,
   onOpenCustomer,
@@ -226,6 +237,8 @@ export default function DirectAgreementForm({
       contactName: current.contactName || hit.contactName,
       email: current.email || hit.email,
       phone: current.phone || hit.phone,
+      ownerUid: current.ownerUid || hit.ownerUid || '',
+      ownerName: current.ownerName || hit.ownerName || '',
     }));
   }, [customerId, customers]);
 
@@ -277,6 +290,9 @@ export default function DirectAgreementForm({
   const summary = agreementSummary(form);
   const confirmText = registerConfirmText(form, customerHint, registerHit);
   const parents = parentOptions(contracts);
+  const followPeople = companyFollowUpPeople(people);
+  const previewSystem = form.systemId || nextSystemId(contracts);
+  const previewOppdrag = form.oppdragId || nextOppdragId(contracts, form.customerId, form.buyer);
 
   function patch(part) {
     setForm((current) => ({ ...current, ...part }));
@@ -439,6 +455,8 @@ export default function DirectAgreementForm({
       contactName: form.contactName || customer.contactName,
       email: form.email || customer.email,
       phone: form.phone || customer.phone,
+      ownerUid: customer.ownerUid || form.ownerUid || '',
+      ownerName: customer.ownerName || form.ownerName || '',
     });
   }
 
@@ -463,11 +481,15 @@ export default function DirectAgreementForm({
         contactName: form.contactName,
         email: form.email,
         phone: form.phone,
-        reference: form.reference,
+        reference: form.oppdragId || form.reference,
         surchargePercent: form.surchargePercent,
         contractDate: form.contractDate,
         projectName: form.projectName.trim() || form.title.trim(),
       },
+      systemId: form.systemId,
+      oppdragId: form.oppdragId,
+      ownerUid: form.ownerUid,
+      ownerName: form.ownerName,
       documents: files,
       options: (form.options || []).filter((row) => String(row.title || '').trim()),
       renewal: {
@@ -599,6 +621,9 @@ export default function DirectAgreementForm({
           ))}
         </View>
       </View>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Tomt System-ID og Oppdrags-ID settes automatisk. Oppdrags-ID er unik per kunde. Skriv inn verdier fra et annet system ved overføring. Neste: System-ID {previewSystem} · Oppdrags-ID {previewOppdrag}.
+      </Text>
 
       {kindFields.filter((group) => group.id !== 'ramme').map((group) => (
         <Drawer
@@ -677,6 +702,15 @@ export default function DirectAgreementForm({
             </Text>
           </TouchableOpacity>
         ) : null}
+        <OwnerPicker
+          colors={colors}
+          people={followPeople}
+          value={form.ownerUid}
+          onChange={(person) => patch({
+            ownerUid: person ? (person.uid || person.id) : '',
+            ownerName: person ? person.name : '',
+          })}
+        />
       </View>
 
       {projects.length ? (

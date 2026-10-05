@@ -2,6 +2,7 @@
 
 import { emptyDraft, emptyLine, parseAmount, parseIsoDate, todayIso } from '../indeksregulering/engine.js';
 import { agreementKindFromText } from './agreementTemplate.js';
+import { formatNumberId, sortContractsChronological } from './numbering.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -93,6 +94,8 @@ export function inputFromInterpretation(draft, extras = {}) {
     projectId: text(extras.projectId),
     parentId: text(extras.parentId),
     customerId: text(extras.customerId),
+    systemId: text(extras.systemId),
+    oppdragId: text(extras.oppdragId || extras.reference || draft?.reference),
     honorar: text(extras.honorar || draft?.honorar),
     place: text(extras.place || draft?.place),
     poNumber: text(extras.poNumber || draft?.poNumber),
@@ -120,15 +123,16 @@ export function filterContracts(contracts, filters = {}) {
   const query = fold(filters.query);
   const from = parseIsoDate(filters.from);
   const to = parseIsoDate(filters.to);
-  return rows.filter((row) => {
+  const matched = rows.filter((row) => {
     if (buyer && !fold(row.buyer).includes(buyer)) return false;
     const projectText = `${row.projectName || ''} ${row.title || ''}`;
     if (project && !fold(projectText).includes(project)) return false;
     if (query) {
       const hay = [
         row.title, row.buyer, row.supplier, row.projectName, row.description,
-        row.kind, row.fields?.reference, row.fields?.standard, row.fields?.contactName,
-        row.fields?.orgnr, row.fields?.poNumber, row.address, row.place,
+        row.kind, row.systemId, row.oppdragId, formatNumberId(row.systemId), formatNumberId(row.oppdragId),
+        row.fields?.reference, row.fields?.standard, row.fields?.contactName,
+        row.fields?.orgnr, row.fields?.poNumber, row.address, row.place, row.fields?.place,
         ...(row.documents || []).map((doc) => doc.name),
       ]
         .map(fold)
@@ -141,6 +145,7 @@ export function filterContracts(contracts, filters = {}) {
     if ((from || to) && !date) return false;
     return true;
   });
+  return sortContractsChronological(matched);
 }
 
 export function indeksCaseFromContract(contract) {

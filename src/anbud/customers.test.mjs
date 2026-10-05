@@ -9,6 +9,8 @@ import {
   matchCustomer,
   namesLikelyMatch,
   normalizeCustomer,
+  ownerLabel,
+  setCustomerOwner,
   upsertCustomer,
 } from './customers.js';
 import { emptyAnbudState } from './model.js';
@@ -101,5 +103,10 @@ assert.match(
 
 assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'IGANG TOTALENTREPRENØR AS'), true);
 assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'Consult1 AS'), false);
+
+const owned = setCustomerOwner(created.state, created.customer.id, { uid: 'p1', name: 'Kari Konsulent' });
+assert.equal(owned.ok, true);
+assert.equal(owned.customer.ownerUid, 'p1');
+assert.equal(ownerLabel(owned.customer, [{ uid: 'p1', name: 'Kari Konsulent' }]), 'Kari Konsulent');
 
 console.log('customers.test.mjs: ok');

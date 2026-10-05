@@ -8,7 +8,7 @@ import ContractFollowUp from './ContractFollowUp';
 export default function ContractScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { requestShellTab, familyId, shellIntent, clearShellIntent } = useApp();
+  const { requestShellTab, familyId, shellIntent, clearShellIntent, members } = useApp();
 
   return (
     <ScrollView
@@ -26,6 +26,7 @@ export default function ContractScreen() {
       <ContractFollowUp
         colors={colors}
         companyId={familyId}
+        people={members}
         intent={shellIntent}
         onClearIntent={clearShellIntent}
         onOpenWork={() => requestShellTab?.('anbud', 'tilbud')}

@@ -37,7 +37,7 @@ export default function AnbudScreen({ company, subView }) {
     >
       <Text style={[styles.h, { color: colors.ink }]}>Anbud</Text>
       <Text style={{ color: colors.muted }}>
-        Varsle om konkurranser, motta eller send forespørsler, og arbeid med hvert tilbud for seg.
+        Varsle om konkurranser, registrer innkommende forespørsler, og arbeid med hvert tilbud for seg.
       </Text>
       <View style={styles.row}>
         {ANBUD_MENU.map((item) => {

@@ -167,6 +167,17 @@ const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', 
 assert.match(anbudScreen, /TenderInquiry/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
+assert.equal(anbudScreen.includes('motta eller send'), false);
+
+const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
+assert.equal(inquirySrc.includes('Send i ProTop'), false);
+assert.equal(inquirySrc.includes('sendDirectAnbud'), false);
+assert.match(inquirySrc, /Registrer forespørsler dere mottar/);
+
+const intakeSrc = readFileSync(new URL('../../screens/anbud/IntakePanel.jsx', import.meta.url), 'utf8');
+assert.equal(intakeSrc.includes('sendDirectAnbud'), false);
+assert.equal(intakeSrc.includes('Send forespørsel'), false);
+assert.match(intakeSrc, /Registrer forespørsel/);
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);

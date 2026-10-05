@@ -30,11 +30,12 @@ npm run preview:web
 
 Det bygger `dist` og starter Firebase Hosting-emulatoren på `http://127.0.0.1:5000`. `npm run serve:web` starter emulatoren på nytt hvis `dist` allerede er bygget.
 
-Push til `main` kjører `.github/workflows/deploy-hosting.yml`. Den bygger web med unik `APP_BUILD_ID` (git SHA), sjekker at `dist` er ProTop, og kjører `firebase deploy --only hosting --project protop-c189c`. Innloggingen er GitHub OIDC mot `github-hosting-deploy@protop-c189c.iam.gserviceaccount.com`, som kun har Firebase Hosting Admin. Functions, Firestore og Storage deployes ikke.
-
-Hver Hosting-revisjon skriver `dist/build.json`. PWA-en på protop.no henter den med `cache: no-store` og laster inn ny bundle når id-en endrer seg. Lokal Metro hopper over den sjekken, så hot reload ikke kjemper mot en hard refresh.
+Vanlig `git push` (inkl. `main`) går **ikke** til protop.no. Når du sier **offentlig**, går **alle** commits som ikke er live ennå ut i ett snapshot:
 
 ```bash
-npm run build:web
-npx firebase deploy --only hosting --project protop-c189c
+npm run offentlig
 ```
+
+Det pusher `HEAD` til branchen `offentlig`. `.github/workflows/deploy-hosting.yml` kjører bare der (eller via `workflow_dispatch` med bekreftelsen `offentlig`). Den bygger web med unik `APP_BUILD_ID` (git SHA), sjekker at `dist` er ProTop, og kjører `firebase deploy --only hosting --project protop-c189c`. Innloggingen er GitHub OIDC mot `github-hosting-deploy@protop-c189c.iam.gserviceaccount.com`, som kun har Firebase Hosting Admin. Functions, Firestore og Storage deployes ikke som del av en vanlig push.
+
+Hver Hosting-revisjon skriver `dist/build.json`. PWA-en på protop.no henter den med `cache: no-store` og laster inn ny bundle når id-en endrer seg. Lokal Metro hopper over den sjekken, så hot reload ikke kjemper mot en hard refresh.

@@ -14,11 +14,10 @@
       "problemMatcher": []
     },
     {
-      "label": "Publish to Web (Firebase)",
+      "label": "Offentlig — send alt live til protop.no",
       "type": "npm",
-      "script": "publish:web",
-      "group": "build",
+      "script": "offentlig",
       "problemMatcher": []
-    }
+    },
   ]
 }

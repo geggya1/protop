@@ -148,10 +148,12 @@ function freshDraft(project, supplier) {
   });
 }
 
-export default function IndeksreguleringPanel({ project, onBook }) {
+export default function IndeksreguleringPanel({ project, onBook, seedDraft }) {
   const colors = useColors();
   const { family, activeProfile, shellIntent, clearShellIntent } = useApp();
-  const [draft, setDraft] = useState(() => freshDraft(project, ''));
+  const [draft, setDraft] = useState(() => (
+    seedDraft && typeof seedDraft === 'object' ? emptyDraft(seedDraft) : freshDraft(project, '')
+  ));
   const [sourceText, setSourceText] = useState('');
   const [bundle, setBundle] = useState(null);
   const bundleRef = useRef(null);
@@ -557,9 +559,9 @@ export default function IndeksreguleringPanel({ project, onBook }) {
 
   return (
     <View style={styles.stack}>
-      <Text style={[styles.h2, { color: colors.ink }]}>Avtaler</Text>
+      <Text style={[styles.h2, { color: colors.ink }]}>{draft.title || 'Indeksregulering'}</Text>
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Fremsiden samler det avtalen sier. Dokumenter, vilkår, satser, indeks og regulering ligger på hver sin side.
+        Dokumenter, vilkår, satser, indeks og regulering ligger på hver sin side når avtalen er valgt.
       </Text>
       <View style={styles.rowWrap}>
         {PAGES.map(([id, label]) => (

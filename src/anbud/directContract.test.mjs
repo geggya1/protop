@@ -3,6 +3,8 @@ import {
   filterContracts,
   inputFromInterpretation,
   contractValueFromDraft,
+  draftFromContract,
+  openIndexIntentFromContract,
 } from './directContract.js';
 import { interpretContract } from '../indeksregulering/interpret.js';
 
@@ -69,5 +71,29 @@ assert.equal(filterContracts(rows, { buyer: 'igang' }).map((row) => row.id).join
 assert.equal(filterContracts(rows, { project: 'skole' }).map((row) => row.id).join(), 'b');
 assert.equal(filterContracts(rows, { from: '2026-01-01' }).map((row) => row.id).join(), 'b');
 assert.equal(filterContracts(rows, { query: '8403' }).map((row) => row.id).join(), 'a');
+
+const contract = {
+  id: 'ctr-1',
+  title: input.title,
+  buyer: input.buyer,
+  supplier: input.supplier,
+  start: input.start,
+  end: input.end,
+  fields: input.fields,
+  indexDraft: input.indexDraft,
+  documents: input.documents,
+};
+const fromContract = draftFromContract(contract, { supplier: 'Consult1 AS' });
+assert.equal(fromContract.buyer, 'Igang Totalentreprenør As');
+assert.match(fromContract.title, /Madlalia/);
+assert.equal(fromContract.standard, 'NS 8403');
+const intent = openIndexIntentFromContract(contract);
+assert.equal(intent.type, 'openIndexDraft');
+assert.equal(intent.caseId, 'ir-ctr-1');
+assert.ok(intent.draft.sourceText.includes('NS8403'));
+
+const unnamed = draftFromContract({ id: 'x', buyer: 'Kari', title: '' });
+assert.equal(unnamed.title, '');
+assert.equal(unnamed.buyer, 'Kari');
 
 console.log('directContract ok');

@@ -39,6 +39,23 @@ export function selskapMenuTitle(subView) {
   return 'Selskap';
 }
 
+/** Undermeny når Økonomi er valgt. Indeksregulering åpnes etter valgt avtale. */
+export const OKONOMI_MENU = [
+  { id: 'oversikt', icon: 'home', label: 'Oversikt' },
+  { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
+];
+
+export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU.map((item) => item.id);
+
+export function defaultOkonomiSubView(subView) {
+  return OKONOMI_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
+}
+
+export function okonomiMenuTitle(subView) {
+  if (subView === 'indeks') return 'Indeksregulering';
+  return 'Økonomi';
+}
+
 export function companyNavItems() {
   return [
     {
@@ -76,15 +93,14 @@ export function companyNavItems() {
       id: 'okonomi',
       icon: 'wallet',
       label: 'Økonomi',
-      action: { type: 'tab', tab: 'okonomi', subView: 'indeks' },
-      children: [
-        {
-          id: 'okonomi-indeks',
-          icon: 'trending-up',
-          label: 'Indeksregulering',
-          action: { type: 'tab', tab: 'okonomi', subView: 'indeks' },
-        },
-      ],
+      action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
+      forceOpen: true,
+      children: OKONOMI_MENU.map((item) => ({
+        id: `okonomi-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: 'okonomi', subView: item.id },
+      })),
     },
   ];
 }

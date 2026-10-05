@@ -28,7 +28,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultOkonomiSubView } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -425,6 +425,11 @@ function AppShellInner() {
       setTab('anbud');
       return;
     }
+    if (id === 'okonomi') {
+      setMoreSubView(defaultOkonomiSubView(subView));
+      setTab('okonomi');
+      return;
+    }
     setMoreSubView(subView);
     setTab(id);
   };
@@ -521,7 +526,7 @@ function AppShellInner() {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
-    if (tab === 'okonomi') return <EconomyScreen />;
+    if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'selskap' || (isOrganizationType(family?.type) && tab === 'home')) {

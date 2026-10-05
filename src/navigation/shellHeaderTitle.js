@@ -3,7 +3,7 @@
  * More-hub subviews must use the module name — never the generic "Mer" tab label.
  */
 
-import { anbudMenuTitle, selskapMenuTitle } from './shellModules.js';
+import { anbudMenuTitle, okonomiMenuTitle, selskapMenuTitle } from './shellModules.js';
 
 export function moreSubviewTitleMap(t) {
   return {
@@ -78,7 +78,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'kontrakt') return 'Kontrakt / avtale';
   if (tab === 'skjema') return 'Skjema';
   if (tab === 'projects') return 'Prosjekt';
-  if (tab === 'okonomi') return 'Økonomi';
+  if (tab === 'okonomi') return okonomiMenuTitle(moreSubView);
   if (tab === 'plan') return t('tabs.plan');
   if (tab === 'mail') return t('tabs.mail');
   if (tab === 'chores') return t('tabs.chores');

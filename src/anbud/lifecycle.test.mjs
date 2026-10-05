@@ -9,6 +9,7 @@ import {
   markOutcome,
   normalizeBidRecord,
   openExecution,
+  registerDirectContract,
   regulatoryChecks,
   setMilestoneStatus,
   toggleStrategy,
@@ -120,6 +121,22 @@ assert.equal(handed.state.contracts[0].value, 1500000);
 const again = projectFromAward(handed.state, { ...state.contracts[0], projectId: handed.projectId });
 assert.equal(again.created, false);
 assert.equal(again.state.projects.length, 1);
+
+const direct = registerDirectContract(emptyAnbudState(), {
+  title: 'Madlalia · Anleggsleder',
+  buyer: 'Igang Totalentreprenør As',
+  projectName: 'Madlalia',
+  value: '1080',
+  start: '2025-11-17',
+  end: '2028-12-31',
+  fields: { standard: 'NS 8403', indexId: 'ppi-byggeteknisk', contactName: 'Øyvind Lerbrekk' },
+  indexDraft: { title: 'Madlalia · Anleggsleder', standard: 'NS 8403' },
+});
+assert.equal(direct.ok, true, direct.error);
+assert.equal(direct.state.contracts[0].source, 'direkte');
+assert.equal(direct.state.contracts[0].bidId, '');
+assert.equal(direct.state.contracts[0].fields.standard, 'NS 8403');
+assert.equal(registerDirectContract(emptyAnbudState(), { title: '' }).ok, false);
 
 const seeded = {
   ...emptyAnbudState(),

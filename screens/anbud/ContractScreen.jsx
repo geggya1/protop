@@ -8,7 +8,7 @@ import ContractFollowUp from './ContractFollowUp';
 export default function ContractScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { requestShellTab } = useApp();
+  const { requestShellTab, familyId } = useApp();
 
   return (
     <ScrollView
@@ -17,11 +17,13 @@ export default function ContractScreen() {
     >
       <Text style={[styles.h, { color: colors.ink }]}>Kontrakt / avtale</Text>
       <Text style={{ color: colors.muted }}>
-        Oppfølging av inngåtte kontrakter og avtaler. Tildeling kommer hit fra tilbudsarbeidet.
+        Oppfølging av inngåtte kontrakter og avtaler. Nye avtaler kan importeres og registreres her, uten forutgående tilbudsarbeid.
       </Text>
       <ContractFollowUp
         colors={colors}
+        companyId={familyId}
         onOpenWork={() => requestShellTab?.('anbud', 'tilbud')}
+        onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
       />
     </ScrollView>
   );

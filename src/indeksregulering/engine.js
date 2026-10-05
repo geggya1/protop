@@ -126,6 +126,8 @@ export function emptyDraft(partial = {}) {
     place: '',
     poNumber: '',
     contractDate: '',
+    startDate: '',
+    endDate: '',
     honorar: '',
     effectiveDate: '',
     useCompanyLogo: false,

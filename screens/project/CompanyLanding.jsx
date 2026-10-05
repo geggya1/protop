@@ -19,7 +19,6 @@ import {
   weatherQuery,
 } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
-import { departmentsOf, normalizeSubUnits, underenheterOf } from '../../src/project/companyUnits';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -75,7 +74,6 @@ export default function CompanyLanding({
   cpvCodes: storedCpv = [],
   onProjects,
   onSettings,
-  onUnits,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -184,10 +182,6 @@ export default function CompanyLanding({
     : placeName;
   const registers = registerRows(profile);
   const roles = live?.roles || [];
-  const units = live?.units || [];
-  const registered = normalizeSubUnits(stored?.subUnits);
-  const registeredUnits = underenheterOf(registered);
-  const departments = departmentsOf(registered);
   const accounts = live?.accounts || null;
   const accountView = useMemo(
     () => mergeAccountYears(accounts, history || []),
@@ -488,54 +482,6 @@ export default function CompanyLanding({
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.navn}</Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>{row.rolle}</Text>
-                  </View>
-                </View>
-              ))}
-            </Card>
-          ) : null}
-
-          <Card colors={colors}>
-            <SectionTitle colors={colors} action="Registrer" onAction={onUnits || onSettings}>Underenheter og avdelinger</SectionTitle>
-            <Text style={[styles.mutedLine, { color: colors.muted }]}>
-              Underenheter har eget abonnement. Avdelinger uten org.nr. ligger på dette selskapet.
-            </Text>
-            {registeredUnits.map((row) => (
-              <View key={row.id} style={styles.listRow}>
-                <Ionicons name="git-network-outline" size={16} color={colors.brand} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {[row.organisasjonsnummer, 'Eget abonnement'].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-              </View>
-            ))}
-            {departments.map((row) => (
-              <View key={row.id} style={styles.listRow}>
-                <Ionicons name="people-outline" size={16} color={colors.brand} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {['Avdeling', row.note].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-              </View>
-            ))}
-            {!registered.length ? (
-              <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen underenheter eller avdelinger er registrert ennå.</Text>
-            ) : null}
-          </Card>
-
-          {units.length ? (
-            <Card colors={colors}>
-              <SectionTitle colors={colors}>Underenheter i Enhetsregisteret</SectionTitle>
-              {units.map((row) => (
-                <View key={row.organisasjonsnummer} style={styles.listRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.navn}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {[row.organisasjonsnummer, row.naering, row.adresse].filter(Boolean).join(' · ')}
-                    </Text>
                   </View>
                 </View>
               ))}

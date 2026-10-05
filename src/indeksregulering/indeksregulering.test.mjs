@@ -5,6 +5,8 @@ import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
 import { buildLetter, formatMoney } from './letter.js';
+import { honorarPrice } from './priceText.js';
+import { regulationCells, regulationEntry, rememberRegulation } from './regulationLog.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
 import { fetchAllIndices, parseSsbCsv } from './ssb.js';
 import { dueRegulations, dueByContractId, indexNews, regulationStatus, shouldCheckToday } from './watch.js';
@@ -517,6 +519,7 @@ test('varsel om timepris følger eksempelet', () => {
   assert.match(letter.plain, /1148,56/);
   assert.match(letter.plain, /kr 1 149,- eks mva/);
   assert.match(letter.plain, /kr 1 050,- eks mva/);
+  assert.match(letter.plain, /Avtalt honorar \| Oppdraget honoreres etter medgått tid/);
   assert.match(letter.plain, /01\.08\.25/);
   assert.match(letter.plain, /916 538 804/);
   assert.match(letter.plain, /NS 8403/);
@@ -524,6 +527,68 @@ test('varsel om timepris følger eksempelet', () => {
   assert.match(pdf, /Varsel om indeksregulering av timepriser/);
   assert.match(pdf, /1148,56/);
   assert.match(pdf, /Consult1 AS/);
+  assert.doesNotMatch(letter.plain, /Avtalt honorarpris/);
+});
+
+test('samme beløp med inklusiv blir én pris, og brevet lagres i tabellen', () => {
+  const draft = {
+    supplier: 'Consult1 AS',
+    buyer: 'Igang Totalentreprenør As',
+    title: 'Madlalia - Anleggsleder',
+    standard: 'NS 8403',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    offerDate: '2025-09-15',
+    contractDate: '2025-10-09',
+    regulationDate: '2026-06-15',
+    honorar: '1 080 kr inklusiv mva',
+    value: '1080',
+    sharePercent: '100',
+    vatPercent: '0',
+    lines: [{ text: '1 080 kr inklusiv mva', quantity: '1', unit: 'time', rate: '1080', included: true }],
+    terms: null,
+  };
+  const priced = honorarPrice(draft, 1080);
+  assert.equal(priced.duplicate, true);
+  assert.equal(priced.description, '');
+  assert.equal(priced.phrase, 'inkl. mva');
+  const result = calculate(draft, {
+    'ppi-byggeteknisk': {
+      id: 'ppi-byggeteknisk',
+      name: 'Byggeteknisk konsulentvirksomhet',
+      table: '14335',
+      codes: ['71.121'],
+      frequency: 'quarter',
+      points: [
+        { period: '2025K3', value: 119.5 },
+        { period: '2026K2', value: 122.9 },
+      ],
+    },
+  });
+  assert.equal(result.ok, true, result.error);
+  const letter = buildLetter(draft, result, { today: '2026-10-05' });
+  assert.match(letter.plain, /Avtalt pris \| kr 1 080,- inkl\. mva/);
+  assert.match(letter.plain, /kr 1 111,- inkl\. mva/);
+  assert.doesNotMatch(letter.plain, /Avtalt honorar \|/);
+  const entry = regulationEntry(draft, result, letter);
+  assert.equal(entry.before, 1080);
+  assert.equal(entry.after, result.rows[0].newRate);
+  assert.equal(entry.increase, result.rows[0].addition);
+  assert.equal(entry.fromPeriod, result.basisPoint.period);
+  assert.equal(entry.toPeriod, result.regulationPoint.period);
+  assert.match(entry.query, /14335/);
+  assert.equal(entry.letterTitle, letter.title);
+  assert.match(entry.letterPlain, /Varsel om indeksregulering/);
+  const stored = rememberRegulation([{ id: 'eldre', before: 1 }], entry);
+  assert.equal(stored[0].id, entry.id);
+  assert.equal(stored.length, 2);
+  assert.equal(rememberRegulation(stored, entry).length, 2);
+  const cells = regulationCells(entry);
+  assert.deepEqual(cells.map((cell) => cell.label), [
+    'Lagret', 'Før', 'Etter', 'Økning', 'Fra', 'Til', 'Endring', 'Brev', 'Spørring',
+  ]);
+  assert.match(cells.find((cell) => cell.label === 'Før').value, /1\s?080/);
+  assert.match(cells.find((cell) => cell.label === 'Spørring').value, /t0/);
 });
 
 test('pdf, word og excel inneholder kravet', () => {

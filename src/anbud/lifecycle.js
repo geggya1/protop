@@ -292,6 +292,26 @@ function normalizeIndexDraft(raw) {
   return raw;
 }
 
+function normalizeRegulations(input) {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 40).map((row) => ({
+    id: text(row?.id).slice(0, 80),
+    savedAt: text(row?.savedAt).slice(0, 10),
+    before: Number(row?.before) || 0,
+    after: Number(row?.after) || 0,
+    increase: Number(row?.increase) || 0,
+    fromPeriod: text(row?.fromPeriod).slice(0, 20),
+    fromIndex: Number(row?.fromIndex) || 0,
+    toPeriod: text(row?.toPeriod).slice(0, 20),
+    toIndex: Number(row?.toIndex) || 0,
+    changePercent: Number(row?.changePercent) || 0,
+    formula: text(row?.formula).slice(0, 200),
+    query: text(row?.query).slice(0, 400),
+    letterTitle: text(row?.letterTitle).slice(0, 160),
+    letterPlain: text(row?.letterPlain).slice(0, 20000),
+  })).filter((row) => row.id);
+}
+
 function normalizeContract(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const id = text(raw.id);
@@ -326,6 +346,7 @@ function normalizeContract(raw) {
     fields: normalizeFields(raw.fields),
     documents: normalizeDocuments(raw.documents),
     indexDraft: normalizeIndexDraft(raw.indexDraft),
+    regulations: normalizeRegulations(raw.regulations),
     indeksCaseId: text(raw.indeksCaseId),
     renewal: normalizeRenewal(raw.renewal),
     options: normalizeOptions(raw.options),
@@ -805,6 +826,7 @@ export function updateContractDetails(state, contractId, input) {
     fields: input?.fields != null ? normalizeFields(input.fields) : contract.fields,
     documents: input?.documents != null ? normalizeDocuments(input.documents) : contract.documents,
     indexDraft: input?.indexDraft !== undefined ? normalizeIndexDraft(input.indexDraft) : contract.indexDraft,
+    regulations: input?.regulations != null ? normalizeRegulations(input.regulations) : (contract.regulations || []),
     indeksCaseId: input?.indeksCaseId != null ? text(input.indeksCaseId) : contract.indeksCaseId,
     renewal: input?.renewal != null || input?.renewalType != null
       ? normalizeRenewal(input?.renewal || {

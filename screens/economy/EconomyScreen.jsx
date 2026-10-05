@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { companyFollowUpPeople } from '../../src/anbud/customers';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { emptyProjectState } from '../../src/project/engine';
@@ -10,6 +11,8 @@ import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
 import { dueByContractId } from '../../src/indeksregulering/watch';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { matchCustomer } from '../../src/economy/desk';
+import EconomyContracts from './EconomyContracts';
+import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import EconomyWelcome from './EconomyWelcome';
@@ -17,7 +20,7 @@ import EconomyWelcome from './EconomyWelcome';
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, requestShellTab, shellIntent,
+    family, familyId, members, requestShellTab, shellIntent,
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
@@ -68,6 +71,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];
+  const people = companyFollowUpPeople(members);
   const projects = state.projects || [];
   const company = family?.company || null;
   const selectedContract = contracts.find((row) => row.id === chosen?.id) || chosen;
@@ -144,8 +148,40 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      <EconomyWelcome stored={company} />
-      {!company?.navn ? (
+      {page === 'oversikt' ? <EconomyWelcome stored={company} /> : null}
+      {page === 'oversikt' ? (
+        <EconomyDesk
+          customers={customers}
+          contracts={contracts}
+          projects={projects}
+          dueById={dueById}
+          chosenContractId={chosen?.id || ''}
+          title="Kunder og avtaler"
+          lead="Økonomisk oversikt. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale."
+          onChooseContract={setChosen}
+          onOpenIndex={openIndex}
+        />
+      ) : null}
+      {page === 'kunder' ? (
+        <EconomyCustomers
+          customers={customers}
+          contracts={contracts}
+          people={people}
+          onOpenRegister={() => requestShellTab?.('kunder')}
+          onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+        />
+      ) : null}
+      {page === 'avtaler' ? (
+        <EconomyContracts
+          customers={customers}
+          contracts={contracts}
+          people={people}
+          onOpenRegister={() => requestShellTab?.('kontrakt')}
+          onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
+          onOpenIndex={openIndex}
+        />
+      ) : null}
+      {page === 'oversikt' && !company?.navn ? (
         <View style={{ paddingTop: 8 }}>
           <Text style={{ color: colors.muted }}>
             Åpne Selskap for å knytte bedriften, så vises logo og nøkkeltall her.

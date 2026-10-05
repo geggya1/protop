@@ -40,7 +40,7 @@ export default function EconomyDesk({
   chosenContractId = '',
   hint = '',
   title = 'Kunder og avtaler',
-  lead = 'Velg en kunde, et prosjekt eller en avtale. Indeksregulering åpnes når avtalen er valgt.',
+  lead = 'Velg en kunde, et prosjekt eller en avtale. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale.',
   onChooseContract,
   onOpenIndex,
 }) {
@@ -118,7 +118,7 @@ export default function EconomyDesk({
       />
       {!customers.length && !contracts.length && !projects.length ? (
         <Text style={{ color: colors.muted }}>
-          Ingen kunder, prosjekt eller avtaler er registrert ennå. Legg dem inn under Kunder og Avtaler i Økonomi.
+          Ingen kunder, prosjekt eller avtaler er registrert ennå. Registrer dem under Kunder eller Kontrakt / avtale i bedriftsmenyen.
         </Text>
       ) : null}
       {rows.length ? (

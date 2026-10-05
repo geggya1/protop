@@ -15,11 +15,21 @@ import { updateGroup } from '../../src/utils/groups';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
 import BidDecision from './BidDecision';
+import {
+  deadlineInfo,
+  formatNoticeText,
+  noticeIsCurrent,
+  noticeIsRejected,
+  noticeNeedsReview,
+  officialNoticeUrl,
+  sourceLabel,
+} from '../../src/anbud/noticeText';
 
 const FILTERS = [
-  ['alle', 'Alle'],
   ['nye', 'Nye'],
   ['aktuelle', 'Aktuelle'],
+  ['uaktuelle', 'Uaktuelle'],
+  ['alle', 'Alle'],
   ['utlopt', 'Frist utløpt'],
 ];
 
@@ -56,11 +66,55 @@ function day(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-function Chip({ label, on, onPress, colors, hint }) {
+function Chip({ label, on, onPress, colors, hint, count }) {
+  const showCount = count != null && count > 0;
   return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={hint || label} style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}>
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={hint || (showCount ? `${label}, ${count}` : label)}
+      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+    >
       <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13, fontWeight: '400' }}>{label}</Text>
+      {showCount ? (
+        <View style={styles.badge} accessibilityElementsHidden>
+          <Text style={styles.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
+  );
+}
+
+function NoticeBody({ row, colors }) {
+  const raw = row.dossier?.description || row.description || row.noticeType || '';
+  const body = formatNoticeText(raw) || 'Ingen utdrag.';
+  const url = officialNoticeUrl(row);
+  const label = sourceLabel(row);
+  const deadline = deadlineInfo(row.deadline || row.dossier?.submissionDeadline);
+  const toneColor = deadline.tone === 'danger'
+    ? colors.danger
+    : deadline.tone === 'warn'
+      ? (colors.warn || colors.danger)
+      : colors.ink;
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={[styles.deadlineBox, {
+        borderColor: toneColor,
+        backgroundColor: deadline.tone === 'danger' || deadline.tone === 'warn' ? colors.brandSoft : colors.sunken,
+      }]}
+      >
+        <Text style={{ color: toneColor, fontSize: 18, fontWeight: '700' }}>{deadline.headline}</Text>
+        <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
+      </View>
+      <Text style={{ color: colors.ink, lineHeight: 22 }}>{body}</Text>
+      {url ? (
+        <TouchableOpacity onPress={() => Linking.openURL(url)} accessibilityRole="link">
+          <Text style={{ color: colors.brand }}>Åpne på {label}</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={{ color: colors.muted }}>Offisiell kunngjøring mangler lenke.</Text>
+      )}
+    </View>
   );
 }
 
@@ -82,7 +136,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const [filter, setFilter] = useState('alle');
+  const [filter, setFilter] = useState('nye');
   const [sourceFilter, setSourceFilter] = useState('alle');
   const [queryText, setQueryText] = useState('');
   const [cpvQuery, setCpvQuery] = useState('');
@@ -102,9 +156,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [savedNote, setSavedNote] = useState('');
   const [showCriteria, setShowCriteria] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(true);
-  const [archiveOn, setArchiveOn] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [areaId, setAreaId] = useState('');
-  const [areaOpen, setAreaOpen] = useState(false);
   const [sort, setSort] = useState({ key: 'publishedAt', dir: 'desc' });
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
@@ -293,7 +346,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       : releaseUntouchedBid(decided.state, id);
     setError('');
     commitState(released.state);
-    if (nextDecision === 'forkastet' || nextDecision === 'arkiv') setArchiveOn(false);
     if (nextDecision === 'aktuell') pullCurrent(id, current);
   }
 
@@ -388,19 +440,45 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     keywords,
   }), [selectedCpv, keywords]);
 
+  const filterCounts = useMemo(() => {
+    const counts = { nye: 0, aktuelle: 0, uaktuelle: 0, alle: 0, utlopt: 0 };
+    for (const row of notices) {
+      if (row.decision === 'tilbud') continue;
+      const expired = noticeDeadlineExpired(row);
+      const rejected = noticeIsRejected(row);
+      if (rejected) {
+        counts.uaktuelle += 1;
+        continue;
+      }
+      if (expired && noticeNeedsReview(row)) {
+        counts.utlopt += 1;
+        continue;
+      }
+      counts.alle += 1;
+      if (noticeIsCurrent(row)) counts.aktuelle += 1;
+      else if (noticeNeedsReview(row)) counts.nye += 1;
+    }
+    return counts;
+  }, [notices]);
+
   const rows = useMemo(() => {
     const q = fold(queryText.trim());
     const area = TENDER_AREAS.find((row) => row.id === areaId) || null;
     const filtered = notices.filter((row) => {
       if (row.decision === 'tilbud') return false;
-      const archived = row.decision === 'arkiv' || row.decision === 'forkastet' || row.decision === 'ikke';
-      if (archiveOn !== archived) return false;
       const expired = noticeDeadlineExpired(row);
-      if (!archiveOn && filter === 'utlopt') {
-        if (!expired) return false;
-      } else if (!archiveOn && expired) return false;
-      if (!archiveOn && filter === 'nye' && !row.isNew) return false;
-      if (!archiveOn && filter === 'aktuelle' && row.decision !== 'aktuell') return false;
+      const rejected = noticeIsRejected(row);
+      if (filter === 'utlopt') {
+        if (!(expired && noticeNeedsReview(row))) return false;
+      } else if (filter === 'uaktuelle') {
+        if (!rejected) return false;
+      } else if (filter === 'nye') {
+        if (rejected || expired || !noticeNeedsReview(row)) return false;
+      } else if (filter === 'aktuelle') {
+        if (!noticeIsCurrent(row) || rejected) return false;
+      } else if (filter === 'alle') {
+        if (rejected || (expired && noticeNeedsReview(row))) return false;
+      }
       if (sourceFilter !== 'alle' && row.source !== sourceFilter) return false;
       if (area && !noticeInArea(row, area)) return false;
       if (q) {
@@ -424,13 +502,17 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       if (left && !right) return -1;
       return left.localeCompare(right, 'nb', { numeric: true }) * factor;
     });
-  }, [notices, filter, sourceFilter, queryText, archiveOn, areaId, colFilter, sort, matchWatch]);
+  }, [notices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
 
-  const listEmpty = archiveOn
-    ? 'Arkivet er tomt.'
-    : filter === 'utlopt'
-      ? 'Ingen konkurranser med utløpt frist.'
-      : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
+  const listEmpty = filter === 'utlopt'
+    ? 'Ingen konkurranser med utløpt frist.'
+    : filter === 'nye'
+      ? 'Ingen ubehandlede treff. Oppdater for å søke, eller se Aktuelle.'
+      : filter === 'uaktuelle'
+        ? 'Ingen uaktuelle konkurranser.'
+        : filter === 'aktuelle'
+          ? 'Ingen er merket aktuelle ennå.'
+          : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
 
   const preview = buildTenderAlert({
     companyName: company?.name || state.watch.companyName,
@@ -519,24 +601,37 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         />
         <View style={styles.row}>
           {FILTERS.map(([id, label]) => (
-            <Chip key={id} label={label} colors={colors} on={!archiveOn && filter === id} onPress={() => { setArchiveOn(false); setFilter(id); }} />
+            <Chip
+              key={id}
+              label={label}
+              colors={colors}
+              count={filterCounts[id]}
+              on={filter === id}
+              onPress={() => setFilter(id)}
+            />
           ))}
-          <Chip label="Arkiv" colors={colors} on={archiveOn} onPress={() => setArchiveOn((value) => !value)} />
-          <Chip label="Doffin" colors={colors} on={sourceFilter === 'doffin'} onPress={() => setSourceFilter(sourceFilter === 'doffin' ? 'alle' : 'doffin')} />
-          <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
           <Chip
-            label={areaId ? (TENDER_AREAS.find((row) => row.id === areaId)?.name || 'Område') : 'Område'}
+            label={sourceOpen || sourceFilter !== 'alle' || areaId ? 'Kilde og område' : 'Kilde og område'}
             colors={colors}
-            on={!!areaId || areaOpen}
-            onPress={() => setAreaOpen((value) => !value)}
+            on={sourceOpen || sourceFilter !== 'alle' || !!areaId}
+            onPress={() => setSourceOpen((value) => !value)}
+            hint="Vis filter for Doffin, TED og område"
           />
         </View>
-        {areaOpen ? (
-          <View style={styles.row}>
-            <Chip label="Alle områder" colors={colors} on={!areaId} onPress={() => setAreaId('')} />
-            {TENDER_AREAS.map((area) => (
-              <Chip key={area.id} label={area.name} colors={colors} on={areaId === area.id} onPress={() => setAreaId(area.id)} />
-            ))}
+        {sourceOpen ? (
+          <View style={[styles.sourceBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Kanal og område</Text>
+            <View style={styles.row}>
+              <Chip label="Alle kanaler" colors={colors} on={sourceFilter === 'alle'} onPress={() => setSourceFilter('alle')} />
+              <Chip label="Doffin" colors={colors} on={sourceFilter === 'doffin'} onPress={() => setSourceFilter(sourceFilter === 'doffin' ? 'alle' : 'doffin')} />
+              <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
+            </View>
+            <View style={styles.row}>
+              <Chip label="Alle områder" colors={colors} on={!areaId} onPress={() => setAreaId('')} />
+              {TENDER_AREAS.map((area) => (
+                <Chip key={area.id} label={area.name} colors={colors} on={areaId === area.id} onPress={() => setAreaId(areaId === area.id ? '' : area.id)} />
+              ))}
+            </View>
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
@@ -563,7 +658,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               />
             )}
             matchWatch={matchWatch}
-            archiveOn={archiveOn}
             syncing={syncing}
             emptyText={listEmpty}
           />
@@ -607,7 +701,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             <Text style={[styles.th, { width: 176, color: colors.ink }]}>Vurdering</Text>
           </View>
           {rows.map((row) => {
-            const soon = row.deadline && new Date(row.deadline).getTime() - Date.now() < 14 * 86400000;
+            const deadline = deadlineInfo(row.deadline);
+            const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
             const open = openId === row.id;
             const aktuell = row.decision === 'aktuell';
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
@@ -617,7 +712,14 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                   <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
                     <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
                     <Text style={[styles.td, { width: 90, color: colors.ink }]}>{row.source === 'ted' ? 'TED' : 'Doffin'}</Text>
-                    <Text style={[styles.td, { width: 110, color: soon ? colors.danger : colors.ink }]}>{day(row.deadline)}</Text>
+                    <View style={[styles.td, { width: 110 }]}>
+                      <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '700' : '400' }}>{day(row.deadline)}</Text>
+                      {deadline.daysLeft != null && deadline.daysLeft >= 0 ? (
+                        <Text style={{ color: soon ? colors.danger : colors.muted, fontSize: 11 }}>
+                          {deadline.daysLeft === 0 ? 'I dag' : `${deadline.daysLeft} d`}
+                        </Text>
+                      ) : null}
+                    </View>
                     <Text style={[styles.td, { width: 340, color: colors.ink }]}>{row.title}</Text>
                     <Text style={[styles.td, { width: 170, color: colors.ink }]}>{row.buyer || '—'}</Text>
                     <Text style={[styles.td, { width: 150, color: colors.muted }]}>{(row.places || []).join(', ') || '—'}</Text>
@@ -644,11 +746,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                 </View>
                 {open ? (
                   <View style={{ padding: 8, gap: 8 }}>
-                    <Text style={{ color: colors.ink }}>{row.dossier?.description || row.description || row.noticeType || 'Ingen utdrag.'}</Text>
+                    <NoticeBody row={row} colors={colors} />
                     {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
-                    <TouchableOpacity onPress={() => row.url && Linking.openURL(row.url)} accessibilityRole="link">
-                      <Text style={{ color: colors.brand }}>Åpne kunngjøringen</Text>
-                    </TouchableOpacity>
                     {aktuell ? (
                       <BidDecision
                         notice={row}
@@ -808,7 +907,26 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   titleRowPhone: { flexWrap: 'wrap', alignItems: 'flex-start' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  chip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D92D20',
+  },
+  badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  sourceBox: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },
+  deadlineBox: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   tr: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'flex-start' },

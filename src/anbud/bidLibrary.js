@@ -286,6 +286,34 @@ function normalizeQuestion(raw) {
   };
 }
 
+export function normalizeAssignment(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    personId: text(src.personId).slice(0, 80),
+    personName: text(src.personName).slice(0, 120),
+    unitId: text(src.unitId).slice(0, 80),
+    unitName: text(src.unitName).slice(0, 160),
+    unitKind: text(src.unitKind).slice(0, 40),
+    companyId: text(src.companyId).slice(0, 80),
+    companyName: text(src.companyName).slice(0, 160),
+    note: text(src.note).slice(0, 400),
+    updatedAt: text(src.updatedAt),
+  };
+}
+
+export function updateBidAssignment(state, bidId, input = {}) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    assignment: normalizeAssignment({
+      ...bid.assignment,
+      ...input,
+      updatedAt: new Date().toISOString(),
+    }),
+  }));
+}
+
 export function normalizeBidWork(raw) {
   const bid = raw && typeof raw === 'object' ? raw : {};
   const folders = [groundFolder(), ...(Array.isArray(bid.folders) ? bid.folders : []).map(normalizeFolder).filter(Boolean)];
@@ -324,6 +352,7 @@ export function normalizeBidWork(raw) {
   const own = stored.filter((row) => row.kind === 'egen' && row.folderId !== GROUND_FOLDER_ID);
   return {
     ...bid,
+    assignment: normalizeAssignment(bid.assignment),
     folders: uniqueFolders.slice(0, 40),
     files: [...ground, ...own].slice(0, 80),
     forms: (Array.isArray(bid.forms) ? bid.forms : []).map(normalizeForm).filter(Boolean).slice(0, 30),
@@ -335,6 +364,7 @@ export function bidOverview(bid) {
   const files = bid?.files || [];
   const forms = bid?.forms || [];
   const doneForms = forms.filter((row) => row.status === 'ferdig').length;
+  const assignment = normalizeAssignment(bid?.assignment);
   return {
     stage: bid?.stage || 'planlegging',
     deadline: text(bid?.dossier?.submissionDeadline),
@@ -346,6 +376,7 @@ export function bidOverview(bid) {
     forms: forms.length,
     doneForms,
     openForms: forms.length - doneForms,
+    assignee: assignment.personName || assignment.unitName || assignment.companyName || '',
   };
 }
 

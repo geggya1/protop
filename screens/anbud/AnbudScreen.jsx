@@ -9,7 +9,7 @@ import TenderInquiry from './TenderInquiry';
 import BidDesk from './BidDesk';
 import PortalSettings from './PortalSettings';
 
-export default function AnbudScreen({ company, subView }) {
+export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { requestShellTab } = useApp();
@@ -71,6 +71,9 @@ export default function AnbudScreen({ company, subView }) {
           colors={colors}
           bids={bids}
           focusBidId={focusBidId}
+          members={members}
+          units={units}
+          companies={companies}
           onFocusHandled={() => setFocusBidId('')}
           onOpenSettings={() => go('innstillinger')}
           onOpenAlerts={() => go('varsling')}

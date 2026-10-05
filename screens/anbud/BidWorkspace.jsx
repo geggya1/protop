@@ -14,6 +14,7 @@ import {
   pullFormTemplate,
   setFormStatus,
   setFormValue,
+  updateBidAssignment,
 } from '../../src/anbud/bidLibrary';
 import {
   awardContract,
@@ -25,6 +26,12 @@ import {
   STRATEGY_ITEMS,
   toggleStrategy,
 } from '../../src/anbud/lifecycle';
+import {
+  deadlineInfo,
+  formatNoticeText,
+  officialNoticeUrl,
+  sourceLabel,
+} from '../../src/anbud/noticeText';
 import { pickDocument } from '../../src/utils/media';
 import FormAnswer from './FormAnswer';
 
@@ -75,7 +82,16 @@ function statusLabel(file) {
   return 'Lenke';
 }
 
-export default function BidWorkspace({ bid, state, colors, busy, note, onBack, onCommit, onRefresh }) {
+function toneColor(tone, colors) {
+  if (tone === 'danger') return colors.danger;
+  if (tone === 'warn') return colors.warn || colors.danger;
+  if (tone === 'brand') return colors.brand;
+  return colors.ink;
+}
+
+export default function BidWorkspace({
+  bid, state, colors, busy, note, onBack, onCommit, onRefresh, members = [], units = [], companies = [],
+}) {
   const [step, setStep] = useState('grunnlag');
   const [folderId, setFolderId] = useState(null);
   const [folderName, setFolderName] = useState('');
@@ -102,6 +118,16 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
   const locked = stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
   const folder = folderId ? bid.folders.find((row) => row.id === folderId) : null;
   const message = localNote || note;
+  const deadline = deadlineInfo(dossier.submissionDeadline || bid.deadline);
+  const notice = (state?.notices || []).find((row) => row.id === bid.noticeId) || null;
+  const noticeUrl = officialNoticeUrl({
+    ...(notice || {}),
+    id: bid.noticeId || notice?.id,
+    source: notice?.source || bid.source,
+    url: notice?.url || dossier.noticeUrl || dossier.documentsUrl,
+    dossier,
+  });
+  const source = sourceLabel(notice || { source: /^\d{4}-\d+$/.test(String(bid.noticeId || '')) ? 'doffin' : 'ted' });
 
   async function commit(result) {
     setLocalNote('');
@@ -168,9 +194,25 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
       <TouchableOpacity onPress={onBack} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Alle tilbud</Text>
       </TouchableOpacity>
+      <DeadlineBanner deadline={deadline} colors={colors} />
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
+      {noticeUrl ? (
+        <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
+          <Text style={{ color: colors.brand }}>Åpne på {source}</Text>
+        </TouchableOpacity>
+      ) : null}
+      <AssignmentPanel
+        bid={bid}
+        state={state}
+        colors={colors}
+        locked={locked}
+        members={members}
+        units={units}
+        companies={companies}
+        onCommit={commit}
+      />
       <View style={styles.row}>
         {BID_STEPS.map((item) => {
           const on = step === item.id;
@@ -193,7 +235,7 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
           <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
           <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
           <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
-          {dossier.description ? <FoldedText text={dossier.description} colors={colors} /> : null}
+          {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
           <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
             <Text style={{ color: colors.brand }}>{busy ? 'Henter dokumenter …' : 'Hent dokumenter på nytt'}</Text>
           </TouchableOpacity>
@@ -364,6 +406,153 @@ export default function BidWorkspace({ bid, state, colors, busy, note, onBack, o
   );
 }
 
+function DeadlineBanner({ deadline, colors }) {
+  const color = toneColor(deadline.tone, colors);
+  const urgent = deadline.tone === 'danger' || deadline.tone === 'warn';
+  return (
+    <View
+      style={[styles.deadlineBanner, {
+        borderColor: color,
+        backgroundColor: urgent ? colors.brandSoft : colors.card,
+      }]}
+      accessibilityRole="summary"
+      accessibilityLabel={`${deadline.headline}. ${deadline.detail}`}
+    >
+      <Text style={{ color, fontSize: 28, fontWeight: '700', lineHeight: 32 }}>{deadline.headline}</Text>
+      <Text style={{ color: colors.ink, fontSize: 15 }}>{deadline.detail}</Text>
+      {deadline.daysLeft != null && deadline.daysLeft >= 0 && deadline.daysLeft <= 7 ? (
+        <Text style={{ color, fontWeight: '600' }}>Fristen nærmer seg — prioriter dette tilbudet.</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function AssignmentPanel({ bid, state, colors, locked, members, units, companies, onCommit }) {
+  const interest = bid.interest || {};
+  const assignment = bid.assignment || {};
+  const people = (members || []).filter((row) => row.role !== 'child');
+  const unitRows = units || [];
+  const companyRows = (companies || []).filter((row) => row.id && row.id !== state?.companyId);
+
+  function assignPerson(person) {
+    onCommit(updateBidAssignment(state, bid.id, {
+      personId: person.id || person.uid || '',
+      personName: person.name || '',
+    }));
+  }
+
+  function assignUnit(unit) {
+    onCommit(updateBidAssignment(state, bid.id, {
+      unitId: unit.id,
+      unitName: unit.name,
+      unitKind: unit.kind || '',
+      companyId: unit.companyId || '',
+      companyName: unit.kind === 'underenhet' ? unit.name : assignment.companyName,
+    }));
+  }
+
+  function assignCompany(company) {
+    onCommit(updateBidAssignment(state, bid.id, {
+      companyId: company.id,
+      companyName: company.name,
+      unitId: '',
+      unitName: '',
+      unitKind: '',
+    }));
+  }
+
+  return (
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Tildeling og interesse</Text>
+      <Text style={{ color: colors.muted }}>
+        {interest.contactName || interest.username
+          ? `Interesse meldt av ${[interest.contactName, interest.username].filter(Boolean).join(' · ')}${interest.registeredAt ? ` (${String(interest.registeredAt).slice(0, 10)})` : ''}.`
+          : 'Ingen har meldt interesse via portalen ennå. Merking som aktuell lagres på tilbudet.'}
+      </Text>
+      {assignment.personName || assignment.unitName || assignment.companyName ? (
+        <Text style={{ color: colors.ink }}>
+          Tildelt:
+          {assignment.personName ? ` ${assignment.personName}` : ''}
+          {assignment.unitName ? ` · ${assignment.unitName}` : ''}
+          {assignment.companyName ? ` · ${assignment.companyName}` : ''}
+        </Text>
+      ) : (
+        <Text style={{ color: colors.muted }}>Ikke tildelt ennå.</Text>
+      )}
+      {!locked ? (
+        <View style={{ gap: 8 }}>
+          {people.length ? (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Person i selskapet</Text>
+              <View style={styles.row}>
+                {people.map((person) => {
+                  const on = assignment.personId === (person.id || person.uid);
+                  return (
+                    <TouchableOpacity
+                      key={person.id || person.uid}
+                      onPress={() => assignPerson(person)}
+                      accessibilityRole="button"
+                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                    >
+                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{person.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          {unitRows.length ? (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Avdeling eller underenhet</Text>
+              <View style={styles.row}>
+                {unitRows.map((unit) => {
+                  const on = assignment.unitId === unit.id;
+                  const label = unit.kind === 'underenhet' ? `${unit.name} (selskap)` : `${unit.name} (avdeling)`;
+                  return (
+                    <TouchableOpacity
+                      key={unit.id}
+                      onPress={() => assignUnit(unit)}
+                      accessibilityRole="button"
+                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                    >
+                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          {companyRows.length ? (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Annet selskap i konsernet</Text>
+              <View style={styles.row}>
+                {companyRows.map((company) => {
+                  const on = assignment.companyId === company.id;
+                  return (
+                    <TouchableOpacity
+                      key={company.id}
+                      onPress={() => assignCompany(company)}
+                      accessibilityRole="button"
+                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                    >
+                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{company.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          {!people.length && !unitRows.length && !companyRows.length ? (
+            <Text style={{ color: colors.muted }}>
+              Legg til medlemmer eller underenheter i selskapet for å tildele tilbudsarbeidet.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function ExecutionPanel({ bid, state, colors, locked, value, start, end, setValue, setStart, setEnd, onCommit }) {
   const stage = bid.stage || 'planlegging';
   const checks = regulatoryChecks(bid);
@@ -434,7 +623,7 @@ function FileList({ files, colors, openFileId, onOpen, onDelete }) {
               <Text style={{ color: colors.ink, fontWeight: '600' }}>{file.name}</Text>
               <Text style={{ color: colors.muted }}>{statusLabel(file)}{file.sizeLabel ? ` · ${file.sizeLabel}` : ''}</Text>
             </TouchableOpacity>
-            {open && file.text ? <FoldedText text={file.text} colors={colors} limit={700} /> : null}
+            {open && file.text ? <FoldedText text={formatNoticeText(file.text)} colors={colors} limit={700} /> : null}
             <View style={styles.row}>
               {file.status === 'lastet' || file.url ? (
                 <TouchableOpacity onPress={() => openStoredFile(file)} accessibilityRole="button">
@@ -461,7 +650,7 @@ function FoldedText({ text, colors, limit = 280 }) {
   const shown = open || !long ? value : `${value.slice(0, limit).trim()} …`;
   return (
     <View style={{ gap: 4 }}>
-      <Text style={{ color: colors.ink }}>{shown}</Text>
+      <Text style={{ color: colors.ink, lineHeight: 22 }}>{shown}</Text>
       {long ? (
         <TouchableOpacity onPress={() => setOpen((current) => !current)} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>{open ? 'Vis mindre' : 'Vis hele teksten'}</Text>
@@ -484,4 +673,6 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   long: { minHeight: 80, textAlignVertical: 'top' },
+  deadlineBanner: { borderWidth: 2, borderRadius: 14, padding: 14, gap: 4 },
+  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
 });

@@ -52,4 +52,23 @@ if (!/rel="apple-touch-icon"[^>]*href="\/apple-touch-icon\.png/.test(index)) {
   fail('dist/index.html must point apple-touch-icon at /apple-touch-icon.png');
 }
 
-console.log('verify-web-dist: ok (ProTop SPA index.html + PWA icons)');
+if (!/name="protop-build-id"/.test(index)) {
+  fail('dist/index.html missing protop-build-id meta (run stamp:web)');
+}
+const buildJsonPath = join(root, 'dist', 'build.json');
+if (!existsSync(buildJsonPath)) fail('dist/build.json missing — run stamp:web');
+let buildJson;
+try {
+  buildJson = JSON.parse(readFileSync(buildJsonPath, 'utf8'));
+} catch {
+  fail('dist/build.json is not JSON');
+}
+if (!buildJson?.id) fail('dist/build.json must have id');
+if (buildJson.id === '20260923-protop-shell' || buildJson.id === '20261005-local-preview') {
+  fail('dist/build.json still has the source placeholder — APP_BUILD_ID was not stamped');
+}
+if (!index.includes(buildJson.id)) {
+  fail('dist/index.html must include the stamped build id');
+}
+
+console.log(`verify-web-dist: ok (ProTop SPA index.html + PWA icons, build ${buildJson.id})`);

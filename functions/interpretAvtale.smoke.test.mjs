@@ -54,14 +54,16 @@ assert.match(hosting, /friendListHttp/);
 assert.match(hosting, /\/api\/open-feed/);
 assert.match(hosting, /fetchOpenFeedHttp/);
 
-assert.match(workflow, /branches:\s*\n\s*- main/);
+assert.match(workflow, /offentlig/);
 assert.match(workflow, /npx firebase deploy --only hosting/);
 assert.match(workflow, /ci-deploy-slim-functions\.sh/);
 assert.doesNotMatch(workflow, /hosting:channel:deploy/);
+assert.doesNotMatch(workflow, /branches:\s*\n\s*- main/);
 
 assert.match(preview, /hosting:channel:deploy utvikling/);
 assert.match(preview, /branches-ignore:/);
 assert.match(preview, /- main/);
+assert.match(preview, /- offentlig/);
 assert.match(preview, /ci-deploy-slim-functions\.sh/);
 assert.doesNotMatch(preview, /npx firebase deploy --only hosting/);
 assert.match(slimFn, /functions:interpretAvtaleHttp/);

@@ -14,9 +14,32 @@ The Firebase client and Hosting config target only project `protop-c189c`. Cloud
 
 Offentlig adresse er [https://protop.no](https://protop.no), uten www til sertifikatet for www er klart. Reserve er [https://protop-c189c.web.app](https://protop-c189c.web.app).
 
-Push til `main` kjører `.github/workflows/deploy-hosting.yml`. Den bygger web, sjekker at `dist` er ProTop, og kjører `firebase deploy --only hosting --project protop-c189c`. Innloggingen er GitHub OIDC mot `github-hosting-deploy@protop-c189c.iam.gserviceaccount.com`, som kun har Firebase Hosting Admin. Functions, Firestore og Storage deployes ikke.
+## Lokal web (uten å vente på protop.no)
+
+Daglig utvikling går mot Metro, ikke Firebase Hosting. Endringer vises med hot reload på `http://localhost:8081`. Du trenger ikke `git push` eller `npm run publish:web` for å se UI.
 
 ```bash
-npm run build:web
-npx firebase deploy --only hosting --project protop-c189c
+npm run web
 ```
+
+Kjør kommandoen **på maskinen din**. `http://localhost:8081` er tom (ERR_CONNECTION_REFUSED) hvis Metro ikke kjører lokalt.
+
+Google på localhost bruker Firebase-redirect via `protop-c189c.firebaseapp.com` (GIS-klienten godtar bare protop.no og gir `origin_mismatch`). Live Google er uendret. Restart Metro med `npx expo start --web --clear` etter oppdateringen.
+
+Produksjonslik lokal Hosting (SPA-rewrites, headers, `dist/`) uten å røre live-siten:
+
+```bash
+npm run preview:web
+```
+
+Det bygger `dist` og starter Firebase Hosting-emulatoren på `http://127.0.0.1:5000`. `npm run serve:web` starter emulatoren på nytt hvis `dist` allerede er bygget.
+
+Vanlig `git push` (inkl. `main`) går **ikke** til protop.no. Når du sier **offentlig**, går **alle** commits som ikke er live ennå ut i ett snapshot:
+
+```bash
+npm run offentlig
+```
+
+Det pusher `HEAD` til branchen `offentlig`. `.github/workflows/deploy-hosting.yml` kjører bare der (eller via `workflow_dispatch` med bekreftelsen `offentlig`). Den bygger web med unik `APP_BUILD_ID` (git SHA), sjekker at `dist` er ProTop, og kjører `firebase deploy --only hosting --project protop-c189c`. Innloggingen er GitHub OIDC mot `github-hosting-deploy@protop-c189c.iam.gserviceaccount.com`, som kun har Firebase Hosting Admin. Functions, Firestore og Storage deployes ikke som del av en vanlig push.
+
+Hver Hosting-revisjon skriver `dist/build.json`. PWA-en på protop.no henter den med `cache: no-store` og laster inn ny bundle når id-en endrer seg. Lokal Metro hopper over den sjekken, så hot reload ikke kjemper mot en hard refresh.

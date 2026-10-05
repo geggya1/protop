@@ -268,6 +268,19 @@
             "value": "no-cache, no-store, must-revalidate"
           }
         ]
+      },
+      {
+        "source": "/build.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json; charset=utf-8"
+          }
+        ]
       }
     ],
     "rewrites": [
@@ -305,5 +318,14 @@
       }
     ],
     "site": "protop-c189c"
+  },
+  "emulators": {
+    "hosting": {
+      "port": 5000,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": false
+    }
   }
 }

@@ -6,7 +6,9 @@ import {
   departmentsOf,
   findOwnedOrganization,
   linkedCompanyFields,
+  mergeUnitHits,
   normalizeSubUnits,
+  publicUnitsNotRegistered,
   removeSubUnit,
   underenheterOf,
 } from './companyUnits.js';
@@ -63,5 +65,17 @@ assert.equal(
   'fam2',
 );
 assert.equal(findOwnedOrganization([], '917103801'), null);
+
+const mergedHits = mergeUnitHits(
+  [{ organisasjonsnummer: '111111111', navn: 'Under' }],
+  [{ organisasjonsnummer: '111 111 111', navn: 'Dup' }, { organisasjonsnummer: '222222222', navn: 'Datter' }],
+);
+assert.deepEqual(mergedHits.map((row) => row.navn), ['Under', 'Datter']);
+
+const leftover = publicUnitsNotRegistered(
+  [{ organisasjonsnummer: '917103801', navn: 'Datter AS' }, { organisasjonsnummer: '222222222', navn: 'Annen' }],
+  [unit.unit],
+);
+assert.deepEqual(leftover.map((row) => row.navn), ['Annen']);
 
 console.log('companyUnits.test.mjs ok');

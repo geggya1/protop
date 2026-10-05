@@ -77,6 +77,12 @@ function idsIn(sections) {
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
+  assert.equal(companyItems[0].forceOpen, true);
+  assert.deepEqual(
+    companyItems.find((i) => i.id === 'selskap').children.map((i) => i.label),
+    ['Underenheter'],
+  );
+  assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
@@ -108,6 +114,11 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(okonomi, 'okonomi', 'indeks'), true);
   assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
   assert.equal(isNavItemActive(indeks, 'projects', null), false);
+  const selskap = items.find((item) => item.id === 'selskap');
+  const units = selskap.children.find((item) => item.id === 'underenheter');
+  assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);
+  assert.equal(isNavItemActive(units, 'selskap', null), false);
+  assert.equal(isNavItemActive(selskap, 'selskap', 'underenheter'), true);
 }
 
 {
@@ -176,7 +187,12 @@ assert.equal(company.includes('GroupSettings'), false);
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
 assert.match(landing, /nativeID="company-landing-logo"/);
 assert.match(landing, /marginLeft: 'auto'/);
-assert.match(landing, /Underenheter og avdelinger/);
+assert.equal(landing.includes('Underenheter og avdelinger'), false);
+assert.equal(landing.includes('Underenheter i Enhetsregisteret'), false);
+
+const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
+assert.match(unitsScreen, /Underenheter/);
+assert.match(unitsScreen, /CompanyStructureSettings/);
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
@@ -185,10 +201,23 @@ const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', 
 assert.match(anbudScreen, /TenderInquiry/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
+assert.equal(anbudScreen.includes('motta eller send'), false);
+
+const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
+assert.equal(inquirySrc.includes('Send i ProTop'), false);
+assert.equal(inquirySrc.includes('sendDirectAnbud'), false);
+assert.match(inquirySrc, /Registrer forespørsler dere mottar/);
+
+const intakeSrc = readFileSync(new URL('../../screens/anbud/IntakePanel.jsx', import.meta.url), 'utf8');
+assert.equal(intakeSrc.includes('sendDirectAnbud'), false);
+assert.equal(intakeSrc.includes('Send forespørsel'), false);
+assert.match(intakeSrc, /Registrer forespørsel/);
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
 assert.match(shellSrc, /tab === 'kontrakt'/);
 assert.match(shellSrc, /tab === 'selskap'/);
+assert.match(shellSrc, /moreSubView === 'underenheter'/);
+assert.match(shellSrc, /CompanyUnitsScreen/);
 assert.match(shellSrc, /tab === 'okonomi'/);
 assert.match(shellSrc, /EconomyScreen/);
 assert.match(shellSrc, /ContractScreen/);

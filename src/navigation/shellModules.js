@@ -34,9 +34,28 @@ export function anbudMenuTitle(subView) {
  * ikke blant de personlige punktene i Hoved.
  * Anbud har egen undermeny. Kontrakt / avtale ligger utenfor anbud.
  */
+export function selskapMenuTitle(subView) {
+  if (subView === 'underenheter') return 'Underenheter';
+  return 'Selskap';
+}
+
 export function companyNavItems() {
   return [
-    { id: 'selskap', icon: 'briefcase', label: 'Selskap', action: { type: 'tab', tab: 'selskap' } },
+    {
+      id: 'selskap',
+      icon: 'briefcase',
+      label: 'Selskap',
+      action: { type: 'tab', tab: 'selskap' },
+      forceOpen: true,
+      children: [
+        {
+          id: 'underenheter',
+          icon: 'git-network',
+          label: 'Underenheter',
+          action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
+        },
+      ],
+    },
     {
       id: 'anbud',
       icon: 'megaphone',

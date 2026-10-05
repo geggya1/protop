@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { resolveBuildId } = require('./resolve-build-id');
 
 const ICON_VERSION = '6';
+const PLACEHOLDER_BUILD_ID = '20261005-local-preview';
 
 function upsertHeadTags(html, tags) {
   let out = html;
@@ -24,14 +26,7 @@ function upsertHeadTags(html, tags) {
 }
 
 const constantsPath = path.join(__dirname, '..', 'src', 'constants', 'build.js');
-let buildId = process.env.APP_BUILD_ID || 'dev';
-if (!process.env.APP_BUILD_ID) {
-  try {
-    const src = fs.readFileSync(constantsPath, 'utf8');
-    const match = src.match(/APP_BUILD_ID\s*=\s*['"]([^'"]+)['"]/);
-    if (match) buildId = match[1];
-  } catch {}
-}
+const buildId = resolveBuildId();
 
 // Expo export writes dist/index.html. Hosting rewrites ** to that file.
 const distDirEarly = path.join(__dirname, '..', 'dist');
@@ -89,6 +84,7 @@ for (const [name, content] of pwaMeta) {
   }
 }
 
+html = injectBuildRefreshScript(html, buildId);
 fs.writeFileSync(indexPath, html);
 // Hosting SPA catch-all rewrites to /app.html — keep Expo exports working without marketing merge.
 try {
@@ -101,6 +97,12 @@ try {
   console.warn('app.html copy skipped', e.message);
 }
 
+fs.writeFileSync(
+  path.join(distDirEarly, 'build.json'),
+  `${JSON.stringify({ id: buildId }, null, 2)}\n`,
+);
+console.log(`Wrote dist/build.json id=${buildId}`);
+
 console.log(`Stamped ${path.basename(indexPath)} with build id: ${buildId}`);
 
 /**
@@ -108,14 +110,22 @@ console.log(`Stamped ${path.basename(indexPath)} with build id: ${buildId}`);
  * when a new Hosting revision goes live. Expo export leaves the source
  * constant unchanged unless we rewrite it here.
  */
+function injectBuildRefreshScript(html, nextId) {
+  const script = `<script data-protop-build-refresh>(function(){var id=${JSON.stringify(nextId)};var k='protop_html_build';try{var p=localStorage.getItem(k);localStorage.setItem(k,id);if(p&&p!==id){location.reload();return;}}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)location.reload();}).catch(function(){})})();</script>`;
+  if (/data-protop-build-refresh/.test(html)) {
+    return html.replace(/<script data-protop-build-refresh>[\s\S]*?<\/script>/, script);
+  }
+  return html.replace('</head>', `  ${script}\n  </head>`);
+}
+
 function stampJsBuildIds(rootDir, nextId) {
   const fromConst = (() => {
     try {
       const src = fs.readFileSync(constantsPath, 'utf8');
       const match = src.match(/APP_BUILD_ID\s*=\s*['"]([^'"]+)['"]/);
-      return match ? match[1] : null;
+      return match ? match[1] : PLACEHOLDER_BUILD_ID;
     } catch {
-      return null;
+      return PLACEHOLDER_BUILD_ID;
     }
   })();
   if (!fromConst || fromConst === nextId) return 0;

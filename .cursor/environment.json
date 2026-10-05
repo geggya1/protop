@@ -1,6 +1,7 @@
 {
   "name": "protop",
   "install": "npm ci",
+  "start": "CI=1 EXPO_NO_TELEMETRY=1 npx expo start --web --port 8081 --non-interactive",
   "repositoryDependencies": [
     "github.com/geggya1/weekplan-app"
   ]

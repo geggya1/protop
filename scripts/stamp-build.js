@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { resolveBuildId } = require('./resolve-build-id');
 
-const ICON_VERSION = '6';
+const ICON_VERSION = '7';
 const PLACEHOLDER_BUILD_ID = '20261005-local-preview';
 
 function upsertHeadTags(html, tags) {

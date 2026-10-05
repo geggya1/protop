@@ -62,12 +62,32 @@ for (const [file, size] of [
 const stamp = readFileSync(new URL('../../scripts/stamp-build.js', import.meta.url), 'utf8');
 assert.match(stamp, /href="\/apple-touch-icon\.png/);
 assert.match(stamp, /apple-touch-icon-precomposed\.png/);
-assert.match(stamp, /ICON_VERSION = '6'/);
+assert.match(stamp, /ICON_VERSION = '7'/);
 
 const firebase = JSON.parse(readFileSync(new URL('../../firebase.json', import.meta.url), 'utf8'));
 const headerSources = firebase.hosting.headers.map((h) => h.source);
 assert.ok(headerSources.includes('/apple-touch-icon.png'));
 assert.ok(headerSources.includes('/apple-touch-icon-precomposed.png'));
+
+async function bottomRightIsMostlyWhite(rel) {
+  const image = sharp(assetPath(rel));
+  const { width, height } = await image.metadata();
+  const side = Math.max(8, Math.round(Math.min(width, height) * 0.18));
+  const { data, info } = await sharp(assetPath(rel))
+    .extract({ left: width - side, top: height - side, width: side, height: side })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let white = 0;
+  const px = info.width * info.height;
+  for (let i = 0; i < data.length; i += info.channels) {
+    if (data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245) white += 1;
+  }
+  assert.ok(white / px > 0.9, `${rel} still has Digi in the bottom-right (${white}/${px} white)`);
+}
+
+await bottomRightIsMostlyWhite('public/apple-touch-icon.png');
+await bottomRightIsMostlyWhite('public/icons/icon-192.png');
+await bottomRightIsMostlyWhite('assets/icon.png');
 
 const og = await meta('public/og-image.png');
 assert.equal(og.width, 1200);

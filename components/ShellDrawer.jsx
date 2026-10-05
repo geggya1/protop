@@ -394,8 +394,8 @@ export default function ShellDrawer({
                     )}
                     {expanded ? section.items.map((item) => {
                       const kids = item.children || [];
-                      const showKids = kids.length > 0 && item.action?.tab === activeTab;
-                      const parentOn = isItemActive(item) || showKids;
+                      const showKids = kids.length > 0 && (item.action?.tab === activeTab || item.forceOpen);
+                      const parentOn = isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab);
                       return (
                       <View
                         key={item.id}

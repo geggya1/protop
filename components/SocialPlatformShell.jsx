@@ -146,8 +146,8 @@ export default function SocialPlatformShell({ platformType }) {
         </View>
       );
     }
-    if (tab === 'projects' || tab === 'selskap') return <ProjectPlatformScreen />;
-    if (tab === 'underenheter') return <CompanyUnitsScreen />;
+    if (tab === 'projects' || (tab === 'selskap' && route.params?.subView !== 'underenheter')) return <ProjectPlatformScreen />;
+    if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
     if (tab === 'okonomi') return <EconomyScreen />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;

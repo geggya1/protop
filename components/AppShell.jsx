@@ -519,6 +519,7 @@ function AppShellInner() {
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'okonomi') return <EconomyScreen />;
+    if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'selskap' || (isOrganizationType(family?.type) && tab === 'home')) {
       return <ProjectPlatformScreen />;

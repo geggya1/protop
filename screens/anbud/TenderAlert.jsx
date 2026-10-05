@@ -670,6 +670,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colors={colors}
             missing={missingPlaces}
             onSelect={focusNotice}
+            onMark={mark}
+            busyId={pullingId}
           />
         ) : null}
         {phone ? (
@@ -827,6 +829,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colors={colors}
             missing={missingPlaces}
             onSelect={focusNotice}
+            onMark={mark}
+            busyId={pullingId}
           />
         </View>
       ) : null}

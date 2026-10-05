@@ -9,14 +9,20 @@ export default function TenderMap({
   selectedId = '',
   colors,
   onSelect,
+  onMark,
+  busyId = '',
   missing = 0,
 }) {
   const iframeRef = useRef(null);
   const [cursorId, setCursorId] = useState(selectedId);
   const pinKey = pins.map((row) => row.id).join(',');
+  const kindKey = pins.map((row) => `${row.id}:${row.kind === 'aktuell' ? 'aktuell' : 'ny'}`).join(',');
   const html = useMemo(
-    () => tenderMapDocument(pins, { brand: colors?.brand || '#3D6B8A' }),
-    [pinKey, colors?.brand],
+    () => tenderMapDocument(pins, {
+      brand: colors?.brand || '#3D6B8A',
+      danger: colors?.danger || '#dc2626',
+    }),
+    [pinKey, colors?.brand, colors?.danger],
   );
   const index = Math.max(0, pins.findIndex((row) => row.id === (cursorId || selectedId)));
   const current = pins[index] || pins[0];
@@ -29,10 +35,13 @@ export default function TenderMap({
       if (!id) return;
       if (type === 'preview') setCursorId(id);
       if (type === 'open') onSelect?.(id);
+      if (type === 'mark' && (event?.data?.decision === 'aktuell' || event?.data?.decision === 'forkastet')) {
+        onMark?.(id, event.data.decision);
+      }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [onSelect]);
+  }, [onSelect, onMark]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -43,6 +52,18 @@ export default function TenderMap({
   function showInMap(id) {
     iframeRef.current?.contentWindow?.postMessage({ type: 'show', id }, '*');
   }
+
+  function syncMap() {
+    iframeRef.current?.contentWindow?.postMessage({
+      type: 'sync',
+      rows: pins.map((row) => ({ id: row.id, kind: row.kind === 'aktuell' ? 'aktuell' : 'ny' })),
+      busyId: busyId || '',
+    }, '*');
+  }
+
+  useEffect(() => {
+    syncMap();
+  }, [kindKey, busyId]);
 
   function step(delta) {
     if (!pins.length) return;
@@ -60,7 +81,7 @@ export default function TenderMap({
         <Text style={{ color: colors.muted, fontSize: 12 }}>{count} nål{count === 1 ? '' : 'er'}</Text>
       </View>
       <Text style={{ color: colors.muted, fontSize: 12 }}>
-        Trykk en nål for infoboble. Åpne i listen hopper til treffet. Forrige og neste går mellom stedene.
+        Trykk en nål for infoboble. Aktuell og uaktuell merker treffet. Forrige og neste går mellom stedene. Åpne i listen hopper til treffet.
       </Text>
       <View style={styles.legend}>
         <View style={styles.legendItem}>
@@ -80,7 +101,10 @@ export default function TenderMap({
             srcDoc: html,
             sandbox: 'allow-scripts allow-same-origin',
             style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
-            onLoad: () => { if (selectedId || cursorId) showInMap(selectedId || cursorId); },
+            onLoad: () => {
+              syncMap();
+              if (selectedId || cursorId) showInMap(selectedId || cursorId);
+            },
           })}
         </View>
       ) : current ? (
@@ -114,6 +138,30 @@ export default function TenderMap({
               <Text style={{ color: colors.ink }}>Neste</Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.decisions}>
+            <TouchableOpacity
+              onPress={() => onMark?.(current.id, 'aktuell')}
+              accessibilityRole="button"
+              accessibilityLabel={`Merk ${current.title} som aktuell`}
+              accessibilityState={{ selected: current.kind === 'aktuell' }}
+              style={[styles.markBtn, {
+                backgroundColor: current.kind === 'aktuell' ? colors.brand : colors.card,
+                borderColor: current.kind === 'aktuell' ? colors.brand : colors.line,
+              }]}
+            >
+              <Text style={{ color: current.kind === 'aktuell' ? '#fff' : colors.ink, fontSize: 13, fontWeight: '600' }}>
+                {busyId === current.id ? 'Henter …' : 'Aktuell'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onMark?.(current.id, 'forkastet')}
+              accessibilityRole="button"
+              accessibilityLabel={`Merk ${current.title} som uaktuell`}
+              style={[styles.markBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+            >
+              <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Uaktuell</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button" style={[styles.jump, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Åpne i listen</Text>
           </TouchableOpacity>
@@ -141,5 +189,7 @@ const styles = StyleSheet.create({
   bubble: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 },
   navBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  decisions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  markBtn: { flex: 1, alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   jump: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', marginTop: 4 },
 });

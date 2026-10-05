@@ -153,7 +153,11 @@ export default function DirectAgreementForm({
       } catch (localError) {
         try {
           await applyRemoteFile(file, bytes, `${file.name || 'Filen'} er sendt til KI. Kontroller feltene før du registrerer.`);
-        } catch {
+        } catch (remoteError) {
+          const remote = String(remoteError?.message || '');
+          if (/cors|access-control|failed to fetch|internal/i.test(remote)) {
+            throw new Error('Kunne ikke lese PDF-en lokalt, og KI-tjenesten svarte ikke. Lim inn teksten under.');
+          }
           throw localError;
         }
       }

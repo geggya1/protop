@@ -15,13 +15,26 @@ function u32(bytes, offset) {
   return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
 }
 
-async function inflateRaw(data) {
+async function inflateBytes(data, format) {
   if (typeof DecompressionStream === 'undefined') {
     throw new Error('Kan ikke lese komprimert Word eller PDF i dette miljøet.');
   }
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream(format));
   const buffer = await new Response(stream).arrayBuffer();
   return new Uint8Array(buffer);
+}
+
+async function inflateRaw(data) {
+  return inflateBytes(data, 'deflate-raw');
+}
+
+/** PDF FlateDecode is zlib (RFC 1950). ZIP/DOCX uses raw deflate. */
+async function inflatePdfStream(data) {
+  try {
+    return await inflateBytes(data, 'deflate');
+  } catch {
+    return await inflateBytes(data, 'deflate-raw');
+  }
 }
 
 async function zipEntries(bytes) {
@@ -89,7 +102,7 @@ function decodePdfLiteral(body) {
 
 function pdfOperatorsToText(source) {
   const parts = [];
-  const literal = /\((?:\\.|[^\\)])*\)\s*Tj/g;
+  const literal = /\((?:\\.|[^\\)])*\)\s*(?:Tj|')/g;
   let match = literal.exec(source);
   while (match) {
     const body = match[0].slice(1, match[0].lastIndexOf(')'));
@@ -105,13 +118,36 @@ function pdfOperatorsToText(source) {
     if (text) parts.push(text);
     match = arrays.exec(source);
   }
-  return parts.join('\n');
+  return joinPdfParts(parts);
 }
 
-export async function extractPdfText(bytes) {
-  const raw = latin1(bytes);
-  const chunks = [];
-  const marker = /<<[^>]*?FlateDecode[^>]*?>>\s*stream\r?\n/g;
+function shouldGluePdfParts(prev, next) {
+  if (!prev || !next) return false;
+  const last = prev.slice(-1);
+  const first = next[0];
+  if (/[\d.,:%-]/.test(first) && (next.length <= 3 || /[\d.,:%-]/.test(last))) return true;
+  if (/[A-Za-zÆØÅæøå]/.test(last) && /[A-Za-zÆØÅæøå]/.test(first) && (prev.length <= 2 || next.length <= 2)) return true;
+  if (/[-/]$/.test(prev) || /^[-/]/.test(next)) return true;
+  return false;
+}
+
+function joinPdfParts(parts) {
+  let out = '';
+  for (const part of parts) {
+    const piece = String(part || '').replace(/\s+/g, ' ').trim();
+    if (!piece) continue;
+    if (!out) {
+      out = piece;
+      continue;
+    }
+    out += `${shouldGluePdfParts(out, piece) ? '' : ' '}${piece}`;
+  }
+  return out.replace(/\s+/g, ' ').replace(/nb-NO|en-GB|nn-NO/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function pdfFlateBodies(raw) {
+  const bodies = [];
+  const marker = /\/FlateDecode\b[\s\S]{0,500}?>>\s*stream(?:\r\n|\n|\r)/g;
   let match = marker.exec(raw);
   while (match) {
     const start = match.index + match[0].length;
@@ -119,18 +155,32 @@ export async function extractPdfText(bytes) {
     if (end > start) {
       let slice = raw.slice(start, end);
       if (slice.endsWith('\r\n')) slice = slice.slice(0, -2);
-      else if (slice.endsWith('\n')) slice = slice.slice(0, -1);
-      try {
-        const inflated = await inflateRaw(Uint8Array.from(slice, (ch) => ch.charCodeAt(0)));
-        chunks.push(pdfOperatorsToText(latin1(inflated)));
-      } catch {
-        // Neste strøm kan likevel inneholde teksten.
-      }
+      else if (slice.endsWith('\n') || slice.endsWith('\r')) slice = slice.slice(0, -1);
+      bodies.push(slice);
     }
     match = marker.exec(raw);
   }
+  return bodies;
+}
+
+export async function extractPdfText(bytes) {
+  const raw = latin1(bytes);
+  const chunks = [];
+  for (const slice of pdfFlateBodies(raw)) {
+    try {
+      const inflated = await inflatePdfStream(Uint8Array.from(slice, (ch) => ch.charCodeAt(0)));
+      chunks.push(pdfOperatorsToText(latin1(inflated)));
+    } catch {
+      // Neste strøm kan likevel inneholde teksten.
+    }
+  }
   chunks.push(pdfOperatorsToText(raw));
-  const text = chunks.join('\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const text = chunks.join(' ')
+    .replace(/nb-NO|en-GB|nn-NO/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   if (text.length < 8) throw new Error('Fant ikke lesbar tekst i PDF-en. Lim inn teksten, eller bruk en digital PDF.');
   return text;
 }

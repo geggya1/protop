@@ -41,6 +41,7 @@ import PlatformAnnouncementsScreen from '../screens/platform/PlatformAnnouncemen
 import PlatformTasksScreen from '../screens/platform/PlatformTasksScreen';
 import ModuleIntroHost from './ModuleIntroHost';
 import HelpTarget from './HelpTarget';
+import ShellErrorBoundary from './ShellErrorBoundary';
 
 const TITLES = {
   home: 'Hjem',
@@ -204,7 +205,7 @@ export default function SocialPlatformShell({ platformType }) {
       />
 
       <View style={styles.body}>
-        {body}
+        <ShellErrorBoundary>{body}</ShellErrorBoundary>
         <ModuleIntroHost scope={platformType} moduleId={tab} />
       </View>
 

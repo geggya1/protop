@@ -438,6 +438,7 @@ export default function IndeksreguleringPanel({ project, onBook }) {
     if (!file) return;
     setWorking(true);
     setStatus('Leser avtalen…');
+    await new Promise((resolve) => setTimeout(resolve, 40));
     try {
       const bytes = await bytesFromFile(file);
       const text = await extractContractText(bytes, file.name, file.mimeType);
@@ -448,7 +449,9 @@ export default function IndeksreguleringPanel({ project, onBook }) {
       setSourceText(docs.map((doc) => doc.text).join('\n\n'));
       await applyReading(docs, `${file.name || 'Filen'} er lagt til avtalen.`);
     } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese avtalen.');
+      setError(cause?.message === 'PDF_TOO_LARGE_FOR_LOCAL'
+        ? 'PDF-en er for stor til å leses her. Lim inn teksten, eller registrer den under Kontrakt / avtale.'
+        : (cause?.message || 'Kunne ikke lese avtalen.'));
     } finally {
       setWorking(false);
     }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
-import { extractContractText } from '../../src/indeksregulering/extractText';
+import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
 import { interpretDocuments, mergeInterpretation } from '../../src/indeksregulering/interpret';
 import { indexDraftFromInterpretation, inputFromInterpretation } from '../../src/anbud/directContract';
@@ -17,6 +17,11 @@ import { formatOrgnr, matchCustomer } from '../../src/anbud/customers';
 import { pickDocument } from '../../src/utils/media';
 
 const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+const MAX_REMOTE_BYTES = 2500000;
+
+function yieldUi() {
+  return new Promise((resolve) => setTimeout(resolve, 40));
+}
 
 const MULTILINE = new Set(['description', 'honorar']);
 
@@ -67,6 +72,9 @@ async function bytesFromFile(file) {
   }
   if (!blob || typeof blob.arrayBuffer !== 'function') {
     throw new Error('Kunne ikke lese filen.');
+  }
+  if (typeof blob.slice === 'function' && blob.size > MAX_REMOTE_BYTES) {
+    blob = blob.slice(0, MAX_REMOTE_BYTES);
   }
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -221,8 +229,22 @@ export default function DirectAgreementForm({
     if (!file) return;
     setReading(true);
     setStatus('Leser dokumentet…');
+    await yieldUi();
     try {
-      const bytes = await bytesFromFile(file);
+      let bytes = await bytesFromFile(file);
+      const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
+      const sendRemote = async (note) => {
+        if (bytes.length > MAX_REMOTE_BYTES) {
+          setStatus('Filen er stor. Leser starten med OCR og KI…');
+          await yieldUi();
+          bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
+        }
+        await applyRemote(file, bytes, files, note);
+      };
+      if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
+        await sendRemote(`${file.name || 'Filen'} er lest med OCR og KI. Kontroller feltene før du registrerer.`);
+        return;
+      }
       try {
         const text = await extractContractText(bytes, file.name, file.mimeType);
         const docs = [
@@ -239,7 +261,8 @@ export default function DirectAgreementForm({
         await applyDocs(docs, `${docs.length} dokument${docs.length === 1 ? '' : 'er'} vedlagt. Kontroller feltene før du registrerer.`);
       } catch {
         setStatus('Leser skannet dokument med OCR og KI…');
-        await applyRemote(file, bytes, files, `${file.name || 'Filen'} er lagt ved. Kontroller feltene før du registrerer.`);
+        await yieldUi();
+        await sendRemote(`${file.name || 'Filen'} er lagt ved. Kontroller feltene før du registrerer.`);
       }
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentet. Lim inn teksten under.');
@@ -377,6 +400,11 @@ export default function DirectAgreementForm({
       <Text style={{ color: colors.muted }}>
         Last opp alle avtaledokumentene. Kjente felt fra NS 8403-fremsiden fylles ut. Ukjente felt blir stående tomme.
       </Text>
+      {reading ? (
+        <View style={[styles.banner, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>{status || 'Leser avtalen…'}</Text>
+        </View>
+      ) : null}
       <View style={styles.row}>
         <TouchableOpacity
           onPress={importFile}
@@ -599,4 +627,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   hint: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
+  banner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 });

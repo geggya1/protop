@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { extractContractText } from './extractText.js';
+import { extractContractText, MAX_LOCAL_PDF_BYTES } from './extractText.js';
 import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
@@ -535,6 +535,26 @@ test('indeksbrevet kan bruke bedriftens logo', () => {
   assert.ok(docx['word/media/logo.jpg']?.length > 20);
   assert.match(new TextDecoder().decode(docx['word/document.xml']), /rIdLogo/);
   assert.match(new TextDecoder().decode(docx['word/document.xml']), /ProTop Bygg AS/);
+});
+
+test('stor PDF leses ikke i nettleseren', async () => {
+  const huge = new Uint8Array(MAX_LOCAL_PDF_BYTES + 20);
+  huge.set(Buffer.from('%PDF-1.4'), 0);
+  await assert.rejects(
+    () => extractContractText(huge, 'stor.pdf', 'application/pdf'),
+    /PDF_TOO_LARGE_FOR_LOCAL/,
+  );
+});
+
+test('hopper over store FlateDecode-strømmer i PDF', async () => {
+  const filler = 'x'.repeat(260000);
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.4\n1 0 obj\n<< /Filter /FlateDecode /Length 260000 >>\nstream\n'),
+    Buffer.from(filler),
+    Buffer.from('\nendstream\nendobj\nBT (NS 8407 Kontraktssum 2000000) Tj ET\n%%EOF'),
+  ]);
+  const text = await extractContractText(pdf, 'skannet.pdf', 'application/pdf');
+  assert.match(text, /NS 8407/);
 });
 
 test('leser tekst ut av pdf og word', async () => {

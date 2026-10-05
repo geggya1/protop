@@ -10,7 +10,7 @@ export async function interpretAvtale(payload) {
     text: String(payload?.text || '').slice(0, 40000),
     fileName: String(payload?.fileName || '').slice(0, 180),
     mimeType: String(payload?.mimeType || '').slice(0, 120),
-    fileBase64: String(payload?.fileBase64 || '').slice(0, 6000000),
+    fileBase64: String(payload?.fileBase64 || '').slice(0, 3500000),
     documents,
-  });
+  }, { timeoutMs: 90000 });
 }

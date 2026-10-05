@@ -1,10 +1,18 @@
+/** Over denne størrelsen fryser nettleseren på skannede PDF-er. Sendes til server i stedet. */
+export const MAX_LOCAL_PDF_BYTES = 800000;
+const MAX_FLATE_BODY = 250000;
+const MAX_FLATE_STREAMS = 12;
+
 function latin1(bytes) {
-  let text = '';
-  const size = 0x8000;
+  const parts = [];
+  const size = 0x2000;
   for (let i = 0; i < bytes.length; i += size) {
-    text += String.fromCharCode(...bytes.subarray(i, Math.min(bytes.length, i + size)));
+    const slice = bytes.subarray(i, Math.min(bytes.length, i + size));
+    let chunk = '';
+    for (let j = 0; j < slice.length; j += 1) chunk += String.fromCharCode(slice[j]);
+    parts.push(chunk);
   }
-  return text;
+  return parts.join('');
 }
 
 function u16(bytes, offset) {
@@ -164,9 +172,17 @@ function pdfFlateBodies(raw) {
 }
 
 export async function extractPdfText(bytes) {
-  const raw = latin1(bytes);
+  const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (data.length > MAX_LOCAL_PDF_BYTES) {
+    throw new Error('PDF_TOO_LARGE_FOR_LOCAL');
+  }
+  const raw = latin1(data);
   const chunks = [];
+  let decoded = 0;
   for (const slice of pdfFlateBodies(raw)) {
+    if (decoded >= MAX_FLATE_STREAMS) break;
+    if (slice.length > MAX_FLATE_BODY) continue;
+    decoded += 1;
     try {
       const inflated = await inflatePdfStream(Uint8Array.from(slice, (ch) => ch.charCodeAt(0)));
       chunks.push(pdfOperatorsToText(latin1(inflated)));
@@ -197,6 +213,9 @@ function kindOf(name, mime) {
 export async function extractContractText(bytes, name, mime) {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
   const kind = kindOf(name, mime);
+  if (kind === 'pdf' && data.length > MAX_LOCAL_PDF_BYTES) {
+    throw new Error('PDF_TOO_LARGE_FOR_LOCAL');
+  }
   if (kind === 'text') return new TextDecoder('utf-8').decode(data).replace(/\u0000/g, '').trim();
   if (kind === 'docx') return extractDocxText(data);
   if (kind === 'pdf') return extractPdfText(data);

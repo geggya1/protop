@@ -202,7 +202,6 @@ export default function ProjectPlatformScreen() {
       {page === 'oversikt' ? (
         <CompanyLanding
           stored={company}
-          cpvCodes={family?.cpvCodes || []}
           onSettings={() => setPage('innstillinger')}
           onUnits={() => requestShellTab?.('selskap', 'underenheter')}
         />

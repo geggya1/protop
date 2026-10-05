@@ -2,19 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { companyFollowUpPeople } from '../../src/anbud/customers';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { emptyProjectState, postEntry } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
 import IndeksreguleringPanel from '../project/IndeksreguleringPanel';
+import EconomyContracts from './EconomyContracts';
+import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyWelcome from './EconomyWelcome';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, requestShellTab, shellIntent,
+    family, familyId, members, requestShellTab, shellIntent,
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
@@ -53,6 +56,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const company = family?.company || null;
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];
+  const people = companyFollowUpPeople(members);
   const incomingDraft = shellIntent?.type === 'openIndexDraft' && shellIntent.draft;
   const showIndex = page === 'indeks' && !!(chosen || incomingDraft);
 
@@ -107,16 +111,47 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      <EconomyWelcome stored={company} />
-      <EconomyDesk
-        customers={customers}
-        contracts={contracts}
-        chosenContractId={chosen?.id || ''}
-        hint={page === 'indeks' ? 'Velg en avtale først. Indeksregulering vises når avtalen er valgt.' : ''}
-        onChooseContract={setChosen}
-        onOpenIndex={openIndex}
-      />
-      {!company?.navn ? (
+      {page === 'oversikt' ? <EconomyWelcome stored={company} /> : null}
+      {page === 'oversikt' ? (
+        <EconomyDesk
+          customers={customers}
+          contracts={contracts}
+          chosenContractId={chosen?.id || ''}
+          hint=""
+          onChooseContract={setChosen}
+          onOpenIndex={openIndex}
+        />
+      ) : null}
+      {page === 'kunder' ? (
+        <EconomyCustomers
+          customers={customers}
+          contracts={contracts}
+          people={people}
+          onOpenRegister={() => requestShellTab?.('kunder')}
+          onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+        />
+      ) : null}
+      {page === 'avtaler' ? (
+        <EconomyContracts
+          customers={customers}
+          contracts={contracts}
+          people={people}
+          onOpenRegister={() => requestShellTab?.('kontrakt')}
+          onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
+          onOpenIndex={openIndex}
+        />
+      ) : null}
+      {page === 'indeks' && !showIndex ? (
+        <EconomyDesk
+          customers={customers}
+          contracts={contracts}
+          chosenContractId={chosen?.id || ''}
+          hint="Velg en avtale først. Indeksregulering vises når avtalen er valgt."
+          onChooseContract={setChosen}
+          onOpenIndex={openIndex}
+        />
+      ) : null}
+      {page === 'oversikt' && !company?.navn ? (
         <View style={{ paddingTop: 8 }}>
           <Text style={{ color: colors.muted }}>
             Åpne Selskap for å knytte bedriften, så vises logo og nøkkeltall her.

@@ -32,16 +32,22 @@ export function anbudMenuTitle(subView) {
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Hoved.
- * Anbud har egen undermeny. Kontrakt / avtale ligger utenfor anbud.
+ * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
+ * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   return 'Selskap';
 }
 
-/** Undermeny når Økonomi er valgt. Indeksregulering åpnes etter valgt avtale. */
+/**
+ * Undermeny når Økonomi er valgt.
+ * Kunder og Avtaler her er økonomisk utsnitt; full register ligger i bedriftsmenyen.
+ */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
+  { id: 'kunder', icon: 'people', label: 'Kunder' },
+  { id: 'avtaler', icon: 'cash', label: 'Avtaler' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
@@ -53,6 +59,8 @@ export function defaultOkonomiSubView(subView) {
 
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
+  if (subView === 'kunder') return 'Økonomi · kunder';
+  if (subView === 'avtaler') return 'Økonomi · avtaler';
   return 'Økonomi';
 }
 

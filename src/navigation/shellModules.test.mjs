@@ -93,8 +93,14 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Indeksregulering'],
+    ['Oversikt', 'Kunder', 'Avtaler', 'Indeksregulering'],
   );
+  assert.deepEqual(
+    companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.action.subView),
+    ['oversikt', 'kunder', 'avtaler', 'indeks'],
+  );
+  assert.ok(companyItems.some((i) => i.id === 'kunder' && i.action.tab === 'kunder'));
+  assert.ok(companyItems.some((i) => i.id === 'kontrakt' && i.action.tab === 'kontrakt'));
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -122,6 +128,12 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
   assert.equal(isNavItemActive(indeks, 'okonomi', 'oversikt'), false);
   assert.equal(isNavItemActive(indeks, 'projects', null), false);
+  const okonomiKunder = okonomi.children.find((item) => item.id === 'okonomi-kunder');
+  const okonomiAvtaler = okonomi.children.find((item) => item.id === 'okonomi-avtaler');
+  assert.equal(isNavItemActive(okonomiKunder, 'okonomi', 'kunder'), true);
+  assert.equal(isNavItemActive(okonomiKunder, 'kunder', null), false);
+  assert.equal(isNavItemActive(okonomiAvtaler, 'okonomi', 'avtaler'), true);
+  assert.equal(isNavItemActive(okonomiAvtaler, 'kontrakt', null), false);
   const selskap = items.find((item) => item.id === 'selskap');
   const units = selskap.children.find((item) => item.id === 'underenheter');
   assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);
@@ -243,9 +255,15 @@ assert.match(shellSrc, /ContractScreen/);
 const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
 assert.match(economyScreen, /EconomyWelcome/);
 assert.match(economyScreen, /EconomyDesk/);
+assert.match(economyScreen, /EconomyCustomers/);
+assert.match(economyScreen, /EconomyContracts/);
 assert.match(economyScreen, /openIndexIntentFromContract/);
 assert.match(economyScreen, /IndeksreguleringPanel/);
 assert.match(economyScreen, /page === 'indeks'/);
+assert.match(economyScreen, /page === 'kunder'/);
+assert.match(economyScreen, /page === 'avtaler'/);
+assert.match(economyScreen, /requestShellTab\?\.\('kunder'/);
+assert.match(economyScreen, /requestShellTab\?\.\('kontrakt'/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /parseCustomerFile/);

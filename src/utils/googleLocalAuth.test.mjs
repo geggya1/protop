@@ -1,20 +1,24 @@
 import assert from 'assert';
-import { shouldUseFirebasePopupForGoogle } from './googleLocalAuth.js';
+import {
+  isLocalGoogleHost,
+  shouldUseFirebaseGoogleOnLocal,
+} from './googleLocalAuth.js';
+
+assert.strictEqual(isLocalGoogleHost('localhost'), true);
+assert.strictEqual(isLocalGoogleHost('127.0.0.1'), true);
+assert.strictEqual(isLocalGoogleHost('192.168.1.20'), true);
+assert.strictEqual(isLocalGoogleHost('protop.no'), false);
 
 assert.strictEqual(
-  shouldUseFirebasePopupForGoogle({ isWeb: true, hostname: 'localhost' }),
+  shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname: 'localhost' }),
   true,
 );
 assert.strictEqual(
-  shouldUseFirebasePopupForGoogle({ isWeb: true, hostname: '127.0.0.1' }),
-  true,
-);
-assert.strictEqual(
-  shouldUseFirebasePopupForGoogle({ isWeb: true, hostname: 'protop.no' }),
+  shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname: 'protop.no' }),
   false,
 );
 assert.strictEqual(
-  shouldUseFirebasePopupForGoogle({ isWeb: false, hostname: 'localhost' }),
+  shouldUseFirebaseGoogleOnLocal({ isWeb: false, hostname: 'localhost' }),
   false,
 );
 

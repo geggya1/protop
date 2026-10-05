@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, firebaseConfig } from '../../firebase';
 import { isLocalWebHost } from './webBuildRefresh';
-import { shouldUseFirebasePopupForGoogle } from './googleLocalAuth';
+import { shouldUseFirebaseGoogleOnLocal } from './googleLocalAuth';
 
 /**
  * ProTop web client (protop-c189c). Google only accepts JavaScript origins and
@@ -21,6 +21,12 @@ export const GOOGLE_WEB_CLIENT_ID =
 
 function prefersRedirectAuth() {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+  if (typeof window !== 'undefined' && shouldUseFirebaseGoogleOnLocal({
+    isWeb: true,
+    hostname: window.location.hostname,
+  })) {
+    return true;
+  }
   const ua = navigator.userAgent || '';
   const iOS = /iPad|iPhone|iPod/.test(ua)
     || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
@@ -198,6 +204,9 @@ export function socialErrorMessage(t, err, provider) {
 
 function loadGisScript() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no-window'));
+  if (shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname: window.location.hostname })) {
+    return Promise.reject(Object.assign(new Error('gis-disabled-on-local'), { code: 'gis-disabled-on-local' }));
+  }
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-gis="1"]');
@@ -217,6 +226,12 @@ function loadGisScript() {
 }
 
 function requestGoogleAccessToken() {
+  if (typeof window !== 'undefined' && shouldUseFirebaseGoogleOnLocal({
+    isWeb: true,
+    hostname: window.location.hostname,
+  })) {
+    return Promise.reject(Object.assign(new Error('gis-disabled-on-local'), { code: 'gis-disabled-on-local' }));
+  }
   return loadGisScript().then(() => new Promise((resolve, reject) => {
     if (!window.google?.accounts?.oauth2) {
       reject(new Error('gis-unavailable'));
@@ -397,9 +412,10 @@ export async function signInWithGoogle() {
 
   if (Platform.OS === 'web') {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    // Local Metro: skip GIS (origin_mismatch on localhost:8081). Live Google is unchanged.
-    if (shouldUseFirebasePopupForGoogle({ isWeb: true, hostname })) {
-      return signInWithProviderFirebase(provider, { allowRedirect: false });
+    // Local Metro: never GIS (origin_mismatch). Redirect via firebaseapp.com
+    // so Google sees an already-authorized origin, not localhost:8081.
+    if (shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname })) {
+      return signInWithProviderFirebase(provider, { allowRedirect: true });
     }
     // Mobile Safari: GIS popup often completes without a token — use Firebase redirect.
     if (prefersRedirectAuth()) {

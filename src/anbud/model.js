@@ -635,6 +635,7 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
       isNew: kept ? (decided ? false : !!kept.isNew) : !firstSync,
       matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
       aiFit: kept?.aiFit || row.aiFit || null,
+      geo: kept?.geo || row.geo || null,
     });
   }
   for (const kept of previousRows) {
@@ -666,6 +667,15 @@ function normalizeNotice(raw) {
         score: Math.max(0, Math.min(10, Number(row.aiFit.score) || 0)),
         reason: text(row.aiFit.reason).slice(0, 220),
         at: text(row.aiFit.at),
+      }
+      : null,
+    geo: row.geo && Number.isFinite(Number(row.geo.lat)) && Number.isFinite(Number(row.geo.lng))
+      ? {
+        lat: Number(row.geo.lat),
+        lng: Number(row.geo.lng),
+        label: text(row.geo.label).slice(0, 120),
+        precision: text(row.geo.precision).slice(0, 20),
+        source: text(row.geo.source).slice(0, 20),
       }
       : null,
   };

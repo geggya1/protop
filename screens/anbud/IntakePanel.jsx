@@ -154,7 +154,7 @@ export default function IntakePanel({ mode, colors, company }) {
           <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
           <Field label="E-post" value={email} onChangeText={setEmail} placeholder="navn@firma.no" colors={colors} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
-          <TouchableOpacity onPress={sendDirect} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity onPress={sendDirect} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Sender …' : 'Send forespørsel'}</Text>
           </TouchableOpacity>
           {inbox.length ? inbox.slice(0, 8).map((row) => (
@@ -185,7 +185,7 @@ export default function IntakePanel({ mode, colors, company }) {
           <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} placeholder="Telefon" colors={colors} />
           <Field label="Henvendelse" value={message} onChangeText={setMessage} placeholder="Det som ble lest, eller det du skriver selv" colors={colors} />
-          <TouchableOpacity onPress={saveManual} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity onPress={saveManual} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#fff', fontWeight: '400' }}>{busy ? 'Lagrer …' : 'Registrer forespørsel'}</Text>
           </TouchableOpacity>
           {saved.slice(0, 8).map((row) => (

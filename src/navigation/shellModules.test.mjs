@@ -4,6 +4,8 @@ import {
   buildShellModules,
   buildParentDashboardApps,
   buildChildDashboardApps,
+  companyNavItems,
+  isNavItemActive,
 } from './shellModules.js';
 import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
 import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
@@ -32,7 +34,7 @@ function idsIn(sections) {
   assert.ok(account.items.some((i) => i.id === 'settings'));
   assert.ok(account.items.some((i) => i.id === 'help'));
   assert.ok(account.items.some((i) => i.id === 'legal'));
-  for (const hidden of ['projects', 'anbud', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
+  for (const hidden of ['projects', 'anbud', 'kontrakt', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
@@ -61,20 +63,39 @@ function idsIn(sections) {
   });
   const ids = idsIn(company);
   assert.ok(ids.includes('anbud'));
+  assert.ok(ids.includes('kontrakt'));
   assert.ok(ids.includes('projects'));
   assert.equal(ids.includes('members'), false);
   assert.ok(ids.includes('mail'));
   const mainIds = company.find((s) => s.id === 'main').items.map((i) => i.id);
   assert.equal(mainIds.includes('anbud'), false);
   assert.equal(mainIds.includes('projects'), false);
+  const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
-    company.find((s) => s.id === 'company').items.map((i) => i.id),
-    ['anbud', 'skjema', 'projects'],
+    companyItems.map((i) => i.id),
+    ['anbud', 'kontrakt', 'skjema', 'projects'],
   );
+  assert.deepEqual(
+    companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
+  );
+  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
   assert.equal(company.find((s) => s.id === 'company').title, 'shell.company');
+}
+
+{
+  const items = companyNavItems();
+  const anbud = items.find((item) => item.id === 'anbud');
+  const tilbud = anbud.children.find((item) => item.id === 'anbud-tilbud');
+  const kontrakt = items.find((item) => item.id === 'kontrakt');
+  assert.equal(isNavItemActive(anbud, 'anbud', 'varsling'), true);
+  assert.equal(isNavItemActive(tilbud, 'anbud', 'tilbud'), true);
+  assert.equal(isNavItemActive(tilbud, 'anbud', 'varsling'), false);
+  assert.equal(isNavItemActive(kontrakt, 'kontrakt', null), true);
+  assert.equal(isNavItemActive(kontrakt, 'anbud', 'tilbud'), false);
 }
 
 {
@@ -141,5 +162,14 @@ assert.equal(company.includes('GroupSettings'), false);
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
+
+const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', import.meta.url), 'utf8');
+assert.match(anbudScreen, /TenderInquiry/);
+assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
+assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
+
+const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
+assert.match(shellSrc, /tab === 'kontrakt'/);
+assert.match(shellSrc, /ContractScreen/);
 
 console.log('shellModules.test.mjs: ok');

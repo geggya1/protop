@@ -228,16 +228,19 @@ export default function MoreHubScreen({ subView, setSubView }) {
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => {
-          const label = String(item.label || '').toLowerCase();
-          const id = String(item.id || '').toLowerCase();
-          return label.includes(q) || id.includes(q)
-            || (q.includes('skrape') && id === 'scratchmap')
-            || (q.includes('reise') && id === 'scratchmap')
-            || (q.includes('kart') && id === 'scratchmap')
-            || (q.includes('besøk') && id === 'scratchmap')
-            || (q.includes('slekt') && id === 'familytree')
-            || (q.includes('tre') && id === 'familytree')
-            || (q.includes('familietre') && id === 'familytree');
+          const hay = [
+            item.label,
+            item.id,
+            ...(item.children || []).flatMap((child) => [child.label, child.id]),
+          ].join(' ').toLowerCase();
+          return hay.includes(q)
+            || (q.includes('skrape') && hay.includes('scratch'))
+            || (q.includes('reise') && hay.includes('scratch'))
+            || (q.includes('kart') && hay.includes('scratch'))
+            || (q.includes('besøk') && hay.includes('scratch'))
+            || (q.includes('slekt') && hay.includes('familytree'))
+            || (q.includes('tre') && hay.includes('familytree'))
+            || (q.includes('familietre') && hay.includes('familytree'));
         }),
       }))
       .filter((section) => section.items.length > 0);
@@ -405,10 +408,24 @@ export default function MoreHubScreen({ subView, setSubView }) {
                       onPress={() => runAction(item.action, item.id)}
                     />
                   );
+                  const kids = item.children || [];
                   const spot = sectionIndex === 0 && itemIndex === 0;
                   return (
                     <View key={item.id} style={multiCol ? { width: colWidth } : null}>
                       {spot ? <HelpTarget id="content" style={{ width: '100%' }}>{row}</HelpTarget> : row}
+                      {kids.map((child) => (
+                        <View key={child.id} style={{ paddingLeft: 18 }}>
+                          <Row
+                            icon={child.icon}
+                            label={child.label}
+                            badgeCount={countForItem(unreadByModule, child)}
+                            compact={isDesktop}
+                            showChevron={!isDesktop}
+                            moduleId={child.id}
+                            onPress={() => runAction(child.action, child.id)}
+                          />
+                        </View>
+                      ))}
                     </View>
                   );
                 })}

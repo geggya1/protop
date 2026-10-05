@@ -1,39 +1,30 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { contractAlerts } from '../../src/anbud/lifecycle';
-import { loadAnbudState } from '../../src/anbud/storage';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { useLayout } from '../../src/theme';
 import TenderAlert from './TenderAlert';
+import TenderInquiry from './TenderInquiry';
 import BidDesk from './BidDesk';
-import ContractFollowUp from './ContractFollowUp';
 import PortalSettings from './PortalSettings';
 
-const STEPS = [
-  ['varsling', 'Varsling'],
-  ['tilbud', 'Tilbud'],
-  ['kontrakt', 'Kontrakt'],
-  ['innstillinger', 'Innstillinger'],
-];
-
-export default function AnbudScreen({ company }) {
+export default function AnbudScreen({ company, subView }) {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const [step, setStep] = useState('varsling');
+  const { requestShellTab } = useApp();
+  const [step, setStep] = useState(() => defaultAnbudSubView(subView));
   const [bids, setBids] = useState([]);
-  const [snapshot, setSnapshot] = useState(null);
   const [focusBidId, setFocusBidId] = useState('');
+
   useEffect(() => {
-    loadAnbudState().then((loaded) => {
-      setSnapshot(loaded);
-      setBids(loaded.bids || []);
-    });
-  }, []);
-  const activeContracts = useMemo(
-    () => (snapshot?.contracts || []).filter((row) => row.status !== 'avsluttet'),
-    [snapshot],
-  );
-  const alerts = useMemo(() => contractAlerts(snapshot?.contracts || []), [snapshot]);
+    setStep(defaultAnbudSubView(subView));
+  }, [subView]);
+
+  function go(id) {
+    setStep(id);
+    requestShellTab?.('anbud', id);
+  }
 
   return (
     <ScrollView
@@ -46,42 +37,34 @@ export default function AnbudScreen({ company }) {
     >
       <Text style={[styles.h, { color: colors.ink }]}>Anbud</Text>
       <Text style={{ color: colors.muted }}>
-        Merk jobben som aktuell, ta stilling til tilbud, og følg hvert tilbud for seg.
+        Varsle om konkurranser, motta eller send forespørsler, og arbeid med hvert tilbud for seg.
       </Text>
       <View style={styles.row}>
-        {STEPS.map(([id, label]) => {
-          const on = step === id;
-          const extra = id === 'tilbud' && bids.length
-            ? ` (${bids.length})`
-            : id === 'kontrakt' && activeContracts.length
-              ? ` (${activeContracts.length})`
-              : '';
+        {ANBUD_MENU.map((item) => {
+          const on = step === item.id;
+          const extra = item.id === 'tilbud' && bids.length ? ` (${bids.length})` : '';
           return (
             <TouchableOpacity
-              key={id}
-              onPress={() => setStep(id)}
+              key={item.id}
+              onPress={() => go(item.id)}
               accessibilityRole="button"
               style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
             >
-              <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{label}{extra}</Text>
+              <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{item.label}{extra}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
-      {alerts.length > 0 && step !== 'kontrakt' ? (
-        <TouchableOpacity onPress={() => setStep('kontrakt')} accessibilityRole="button">
-          <Text style={{ color: colors.warn }}>{alerts.length} {alerts.length === 1 ? 'frist krever' : 'frister krever'} oppfølging i kontrakten.</Text>
-        </TouchableOpacity>
-      ) : null}
       {step === 'varsling' ? (
         <TenderAlert
           company={company}
           colors={colors}
           onBids={setBids}
-          onOpenSettings={() => setStep('innstillinger')}
-          onOpenBid={(bidId) => { setStep('tilbud'); setFocusBidId(bidId); }}
+          onOpenSettings={() => go('innstillinger')}
+          onOpenBid={(bidId) => { go('tilbud'); setFocusBidId(bidId); }}
         />
       ) : null}
+      {step === 'foresporsel' ? <TenderInquiry company={company} colors={colors} /> : null}
       {step === 'tilbud' ? (
         <BidDesk
           company={company}
@@ -89,16 +72,13 @@ export default function AnbudScreen({ company }) {
           bids={bids}
           focusBidId={focusBidId}
           onFocusHandled={() => setFocusBidId('')}
-          onOpenSettings={() => setStep('innstillinger')}
-          onOpenAlerts={() => setStep('varsling')}
-          onOpenContracts={() => setStep('kontrakt')}
-          onSnapshot={(next) => { setSnapshot(next); setBids(next?.bids || []); }}
+          onOpenSettings={() => go('innstillinger')}
+          onOpenAlerts={() => go('varsling')}
+          onOpenContracts={() => requestShellTab?.('kontrakt')}
+          onSnapshot={(next) => setBids(next?.bids || [])}
         />
       ) : null}
-      {step === 'kontrakt' ? (
-        <ContractFollowUp colors={colors} onOpenWork={() => setStep('tilbud')} onSnapshot={setSnapshot} />
-      ) : null}
-      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} onOpenWork={() => setStep('tilbud')} /> : null}
+      {step === 'innstillinger' ? <PortalSettings company={company} colors={colors} onOpenWork={() => go('tilbud')} /> : null}
     </ScrollView>
   );
 }

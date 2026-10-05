@@ -8,16 +8,63 @@ import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
 
+/** Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet. */
+export const ANBUD_MENU = [
+  { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
+  { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
+  { id: 'tilbud', icon: 'document-text', label: '2. Tilbud' },
+];
+
+export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);
+
+export function defaultAnbudSubView(subView) {
+  return ANBUD_SUBVIEW_IDS.includes(subView) || subView === 'innstillinger'
+    ? subView
+    : 'varsling';
+}
+
+export function anbudMenuTitle(subView) {
+  if (subView === 'innstillinger') return 'Anbud · innstillinger';
+  const row = ANBUD_MENU.find((item) => item.id === subView);
+  return row?.label || 'Anbud';
+}
+
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Hoved.
+ * Anbud har egen undermeny. Kontrakt / avtale ligger utenfor anbud.
  */
 export function companyNavItems() {
   return [
-    { id: 'anbud', icon: 'megaphone', label: 'Anbud', action: { type: 'tab', tab: 'anbud' } },
+    {
+      id: 'anbud',
+      icon: 'megaphone',
+      label: 'Anbud',
+      action: { type: 'tab', tab: 'anbud', subView: 'varsling' },
+      children: ANBUD_MENU.map((item) => ({
+        id: `anbud-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: 'anbud', subView: item.id },
+      })),
+    },
+    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
   ];
+}
+
+export function isNavItemActive(item, activeTab, activeSubView) {
+  const action = item?.action;
+  if (!action || action.type !== 'tab') return false;
+  if (action.tab !== activeTab) return false;
+  if (item.children?.length) {
+    return item.children.some((child) => isNavItemActive(child, activeTab, activeSubView));
+  }
+  if (action.tab === 'more' || action.subView) {
+    return (action.subView || null) === (activeSubView || null);
+  }
+  return true;
 }
 
 /**

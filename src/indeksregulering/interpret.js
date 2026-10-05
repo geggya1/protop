@@ -23,7 +23,7 @@ const INDEX_HINTS = [
   ['bki-boligblokk', /boligblokk|bustadblokk/i],
   ['bki-bustader-arbeid', /arbeidskraftindeks|indeks for arbeidskraft/i],
   ['bki-bustader-materialer', /materialindeks|indeks for materialer/i],
-  ['ppi-byggeteknisk', /byggeteknisk konsulent|tabell\s*14335|71\.121|konsulentvirksomhet/i],
+  ['ppi-byggeteknisk', /byggeteknisk konsulent|tabell[:\s]*14335|71\.121|konsulentvirksomhet/i],
   ['kpi', /konsumprisindeks|\bKPI\b/i],
   ['bki-bustader', /byggekostnadsindeks for boliger|bustader i alt|boliger i alt/i],
 ];

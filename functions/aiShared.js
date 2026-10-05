@@ -31,10 +31,10 @@ export const AI_LIMITS = {
 };
 
 export function getGeminiKey() {
-  // WEEKPLAN_GEMINI_KEY (CI/.env) først — gammel Secret Manager GEMINI_API_KEY
+  // PROTOP_GEMINI_KEY (CI/.env) først — gammel Secret Manager GEMINI_API_KEY
   // kan være utdatert/tom og ville ellers skygge den fungerende env-nøkkelen.
   return String(
-    process.env.WEEKPLAN_GEMINI_KEY
+    process.env.PROTOP_GEMINI_KEY
     || process.env.GEMINI_API_KEY
     || '',
   ).trim();

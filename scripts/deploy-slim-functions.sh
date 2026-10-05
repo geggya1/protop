@@ -10,8 +10,8 @@ node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';
 const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
 writeFileSync('firebase.functions.json', JSON.stringify({ ...cfg, functions: { source: 'functions' } }));
-const key = process.env.WEEKPLAN_GEMINI_KEY || '';
-writeFileSync('functions/.env', 'WEEKPLAN_GEMINI_KEY=' + JSON.stringify(key) + '\n');
+const key = process.env.PROTOP_GEMINI_KEY || '';
+writeFileSync('functions/.env', 'PROTOP_GEMINI_KEY=' + JSON.stringify(key) + '\n');
 "
 
 npm ci --prefix functions

@@ -58,7 +58,7 @@ assert.match(friendlyProfileError(new Error('AI er ikke tilgjengelig akkurat nå
 assert.match(friendlyProfileError(new Error('Gemini HTTP 503 (gemini-2.5-flash)')), /Kunne ikke tolke bedriften/);
 assert.doesNotMatch(friendlyProfileError(new Error('AI er ikke tilgjengelig akkurat nå.')), /dokumentet/);
 
-if (process.env.WEEKPLAN_GEMINI_KEY || process.env.GEMINI_API_KEY) {
+if (process.env.PROTOP_GEMINI_KEY || process.env.GEMINI_API_KEY) {
   console.log('anbudWatchAi.test.mjs: skipped live site fallback (Gemini key present)');
 } else {
   const live = await interpretProfile({

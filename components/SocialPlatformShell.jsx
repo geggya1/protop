@@ -11,6 +11,7 @@ import {
   isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType,
 } from '../src/utils/groupTypes';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
+import ContractScreen from '../screens/anbud/ContractScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { openPlatformHome } from '../src/utils/platformNav';
@@ -61,6 +62,7 @@ const TITLES = {
   approvals: 'Godkjenninger',
   apps: 'Apper',
   anbud: 'Anbud',
+  kontrakt: 'Kontrakt / avtale',
   skjema: 'Skjema',
   projects: 'Prosjekt',
 };
@@ -131,6 +133,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'approvals') return <PlatformApprovalsScreen {...props} />;
     if (tab === 'more' || tab === 'apps') return <PlatformMoreScreen {...props} />;
     if (tab === 'anbud') return <AnbudScreen company={group} />;
+    if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (
         <View style={{ flex: 1, minHeight: 0 }}>
@@ -198,7 +201,7 @@ export default function SocialPlatformShell({ platformType }) {
       <HelpTarget id="tabs">
         <View style={[styles.tabBar, { backgroundColor: c.tabBar, borderTopColor: c.line }]}>
           {config.tabs.map((item) => {
-            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'skjema' || tab === 'projects')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
+            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'kontrakt' || tab === 'skjema' || tab === 'projects')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
             return (
               <TouchableOpacity
                 key={item.id}

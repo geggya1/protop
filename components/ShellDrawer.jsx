@@ -10,7 +10,7 @@ import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
-import { buildShellModules } from '../src/navigation/shellModules';
+import { buildShellModules, isNavItemActive } from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
 import { useAiPlanImport } from '../src/hooks/useAiPlanImport';
@@ -26,7 +26,7 @@ import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 const DRAWER_WIDTH = 268;
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
-function DrawerRow({ item, active, onPress, badgeCount = 0 }) {
+function DrawerRow({ item, active, onPress, badgeCount = 0, nested = false }) {
   const colors = useColors();
   const highlight = !!item.highlight;
   const base = item.icon || 'ellipse';
@@ -39,6 +39,7 @@ function DrawerRow({ item, active, onPress, badgeCount = 0 }) {
       onPress={onPress}
       style={[
         styles.row,
+        nested && styles.rowChild,
         active && styles.rowActive,
         highlight && styles.rowHighlight,
       ]}
@@ -202,13 +203,9 @@ export default function ShellDrawer({
     });
   };
 
-  const isItemActive = useCallback((item) => {
-    const a = item.action;
-    if (!a || a.type !== 'tab') return false;
-    if (a.tab !== activeTab) return false;
-    if (a.tab === 'more') return (a.subView || null) === (activeSubView || null);
-    return !activeSubView;
-  }, [activeTab, activeSubView]);
+  const isItemActive = useCallback((item) => (
+    isNavItemActive(item, activeTab, activeSubView)
+  ), [activeTab, activeSubView]);
 
   const sectionHasActive = useCallback((section) => (
     (section.items || []).some((item) => isItemActive(item))
@@ -217,6 +214,8 @@ export default function ShellDrawer({
   const findActiveItem = useCallback(() => {
     for (const section of sections) {
       for (const item of section.items || []) {
+        const child = (item.children || []).find((row) => isItemActive(row));
+        if (child) return { itemId: child.id, sectionId: section.id };
         if (isItemActive(item)) {
           return { itemId: item.id, sectionId: section.id };
         }
@@ -393,7 +392,11 @@ export default function ShellDrawer({
                     ) : (
                       <Text style={styles.sectionTitle}>{section.title}</Text>
                     )}
-                    {expanded ? section.items.map((item) => (
+                    {expanded ? section.items.map((item) => {
+                      const kids = item.children || [];
+                      const showKids = kids.length > 0 && item.action?.tab === activeTab;
+                      const parentOn = isItemActive(item) || showKids;
+                      return (
                       <View
                         key={item.id}
                         ref={(node) => {
@@ -404,12 +407,31 @@ export default function ShellDrawer({
                       >
                         <DrawerRow
                           item={item}
-                          active={isItemActive(item)}
+                          active={parentOn}
                           badgeCount={countForItem(unreadByModule, item)}
                           onPress={() => runAction(item.action)}
                         />
+                        {showKids ? kids.map((child) => (
+                          <View
+                            key={child.id}
+                            ref={(node) => {
+                              if (node) rowRefs.current[child.id] = node;
+                              else delete rowRefs.current[child.id];
+                            }}
+                            collapsable={false}
+                          >
+                            <DrawerRow
+                              item={child}
+                              nested
+                              active={isItemActive(child)}
+                              badgeCount={countForItem(unreadByModule, child)}
+                              onPress={() => runAction(child.action)}
+                            />
+                          </View>
+                        )) : null}
                       </View>
-                    )) : null}
+                      );
+                    }) : null}
                   </View>
                 );
               })}
@@ -532,6 +554,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7, paddingHorizontal: 8,
     borderRadius: 8, marginBottom: 1,
   },
+  rowChild: { paddingLeft: 22 },
   rowActive: { backgroundColor: colors.brandSoft },
   rowHighlight: { backgroundColor: colors.brand },
   iconWrap: {

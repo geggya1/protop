@@ -22,8 +22,10 @@ import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
+import ContractScreen from '../screens/anbud/ContractScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
+import { defaultAnbudSubView } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -414,6 +416,11 @@ function AppShellInner() {
       setTab('mail');
       return;
     }
+    if (id === 'anbud') {
+      setMoreSubView(defaultAnbudSubView(subView));
+      setTab('anbud');
+      return;
+    }
     setMoreSubView(subView);
     setTab(id);
   };
@@ -459,7 +466,7 @@ function AppShellInner() {
 
   const goHome = () => selectTab('home');
   const goBackFromGate = () => {
-    if (moreSubView) {
+    if (tab === 'more' && moreSubView) {
       setMoreSubView(null);
       if (isDesktop) setTab('home');
       else setTab('more');
@@ -484,6 +491,7 @@ function AppShellInner() {
     if (tab === 'anbud') {
       return (
         <AnbudScreen
+          subView={moreSubView}
           company={{
             id: familyId,
             name: family?.company?.navn || family?.name || '',
@@ -499,6 +507,7 @@ function AppShellInner() {
         />
       );
     }
+    if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (
         <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.bg }}>
@@ -648,7 +657,7 @@ function AppShellInner() {
   );
 
   const showDeskAside = isDesktop && !kitchenMode
-    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'skjema';
+    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kontrakt' && tab !== 'skjema';
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

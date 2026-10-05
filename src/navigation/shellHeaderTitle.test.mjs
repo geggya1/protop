@@ -120,6 +120,10 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'home', t }), 'Hjem');
   assert.equal(resolveShellHeaderTitle({ tab: 'plan', t }), 'Kalender');
   assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjema');
+  assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'varsling', t }), '1.1 Anbudsvarsling');
+  assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'foresporsel', t }), '1.2 Anbudsforespørsel');
+  assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'tilbud', t }), '2. Tilbud');
+  assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
 }
 
 console.log('shellHeaderTitle.test.mjs: ok');

@@ -8,7 +8,7 @@ import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
-import { buildShellModules } from '../src/navigation/shellModules';
+import { buildShellModules, isNavItemActive } from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
 import { useChatDockPreferred } from '../src/context/ChatDockContext';
@@ -34,7 +34,7 @@ function itemIcon(item, active) {
   return `${base}-outline`;
 }
 
-function NavRow({ item, active, nested, collapsed, onPress, badgeCount = 0 }) {
+function NavRow({ item, active, nested, child, collapsed, onPress, badgeCount = 0 }) {
   const colors = useColors();
   const color = active ? colors.brand : colors.ink;
   return (
@@ -43,6 +43,7 @@ function NavRow({ item, active, nested, collapsed, onPress, badgeCount = 0 }) {
       style={[
         styles.row,
         nested && styles.rowNested,
+        child && styles.rowChild,
         active && styles.rowActive,
         active && { backgroundColor: colors.brandSoft },
         collapsed && styles.rowCollapsed,
@@ -164,21 +165,21 @@ export default function DesktopRail({
     }
   };
 
-  const isItemActive = (item) => {
-    const a = item.action;
-    if (!a || a.type !== 'tab') return false;
-    if (a.tab !== activeTab) return false;
-    if (a.tab === 'more') return (a.subView || null) === (activeSubView || null);
-    return true;
-  };
+  const isItemActive = (item) => isNavItemActive(item, activeTab, activeSubView);
 
   const q = query.trim().toLowerCase();
   const filteredSections = useMemo(() => {
     if (!q) return sections;
+    const match = (item) => String(item.label || '').toLowerCase().includes(q);
     return sections
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => String(item.label || '').toLowerCase().includes(q)),
+        items: (section.items || []).map((item) => {
+          const kids = (item.children || []).filter(match);
+          if (match(item)) return item;
+          if (kids.length) return { ...item, children: kids, forceOpen: true };
+          return null;
+        }).filter(Boolean),
       }))
       .filter((section) => section.items.length > 0);
   }, [sections, q]);
@@ -221,7 +222,7 @@ export default function DesktopRail({
               key={item.id}
               item={item}
               collapsed
-              active={isItemActive(item)}
+              active={isItemActive(item) || item.action?.tab === activeTab}
               badgeCount={countForItem(unreadByModule, item)}
               onPress={() => runAction(item.action)}
             />
@@ -294,16 +295,32 @@ export default function DesktopRail({
                   color={appFolder ? colors.ink : colors.muted}
                 />
               </TouchableOpacity>
-              {expanded ? section.items.map((item) => (
-                <NavRow
-                  key={item.id}
-                  item={item}
-                  nested
-                  active={isItemActive(item)}
-                  badgeCount={countForItem(unreadByModule, item)}
-                  onPress={() => runAction(item.action)}
-                />
-              )) : null}
+              {expanded ? section.items.map((item) => {
+                const kids = item.children || [];
+                const showKids = kids.length > 0 && (item.action?.tab === activeTab || item.forceOpen || !!q);
+                return (
+                  <View key={item.id}>
+                    <NavRow
+                      item={item}
+                      nested
+                      active={isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab)}
+                      badgeCount={countForItem(unreadByModule, item)}
+                      onPress={() => runAction(item.action)}
+                    />
+                    {showKids ? kids.map((child) => (
+                      <NavRow
+                        key={child.id}
+                        item={child}
+                        nested
+                        child
+                        active={isItemActive(child)}
+                        badgeCount={countForItem(unreadByModule, child)}
+                        onPress={() => runAction(child.action)}
+                      />
+                    )) : null}
+                  </View>
+                );
+              }) : null}
             </View>
           );
         })}
@@ -396,6 +413,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5, paddingHorizontal: 8, borderRadius: 5, minHeight: 28,
   },
   rowNested: { paddingLeft: 8 },
+  rowChild: { paddingLeft: 22 },
   rowCollapsed: { justifyContent: 'center', paddingHorizontal: 6, width: 36 },
   rowActive: { backgroundColor: colors.brandSoft },
   rowLabel: { flex: 1, fontWeight: '400', fontSize: 13, color: colors.ink },

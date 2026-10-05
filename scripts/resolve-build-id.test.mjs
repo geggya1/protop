@@ -12,14 +12,14 @@ assert.strictEqual(
 const local = resolveBuildId({
   env: {},
   exec: () => 'deadbee\n',
-  now: () => 0xabc,
+  now: () => Number.parseInt('abc', 36),
 });
 assert.strictEqual(local, 'deadbee-abc');
 
 const fallback = resolveBuildId({
   env: { APP_BUILD_ID: '  ' },
   exec: () => { throw new Error('no git'); },
-  now: () => 0xdef,
+  now: () => Number.parseInt('def', 36),
 });
 assert.strictEqual(fallback, 'dev-def');
 

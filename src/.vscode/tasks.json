@@ -2,11 +2,22 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Publish to Web (Firebase)",
+      "label": "Local web (Expo Metro)",
       "type": "npm",
-      "script": "publish:web",
-      "group": "build",
+      "script": "web",
       "problemMatcher": []
-    }
+    },
+    {
+      "label": "Local hosting preview",
+      "type": "npm",
+      "script": "preview:web",
+      "problemMatcher": []
+    },
+    {
+      "label": "Offentlig — send alt live til protop.no",
+      "type": "npm",
+      "script": "offentlig",
+      "problemMatcher": []
+    },
   ]
 }

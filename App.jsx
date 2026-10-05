@@ -152,6 +152,11 @@ import {
 } from './screens/settings/GroupSettingsScreen';
 import { consentsComplete, loadLocalConsents, persistUserConsents } from './src/utils/consents';
 import { APP_BUILD_ID } from './src/constants/build';
+import {
+  BUILD_JSON_PATH,
+  shouldReloadForRemoteBuild,
+  shouldSkipWebBuildRefresh,
+} from './src/utils/webBuildRefresh';
 import { markPreferApp, clearPreferApp } from './src/utils/preferApp';
 import { shouldRedirectStartUrlToMarketing } from './src/utils/authBootGate';
 import {
@@ -336,18 +341,43 @@ export default function App() {
   useEffect(() => {
     if (!isWeb || typeof window === 'undefined') return;
     // Never hard-reload while returning from Apple/Google OAuth — that wipes getRedirectResult.
-    if (isLikelyOauthReturn() || isCalendarOauthReturn()) {
+    const oauthReturn = isLikelyOauthReturn() || isCalendarOauthReturn();
+    if (oauthReturn) {
       window.localStorage.setItem('weekplan_app_build', APP_BUILD_ID);
-      return;
+      return undefined;
     }
     const key = 'weekplan_app_build';
     const prev = window.localStorage.getItem(key);
     if (prev && prev !== APP_BUILD_ID) {
       window.localStorage.setItem(key, APP_BUILD_ID);
       window.location.reload();
-      return;
+      return undefined;
     }
     window.localStorage.setItem(key, APP_BUILD_ID);
+    // Local Metro (`npm run web`) skips this so hot reload is instant.
+    // On protop.no, poll build.json so a new Hosting revision loads without
+    // waiting for a stale PWA bundle.
+    if (shouldSkipWebBuildRefresh({ hostname: window.location.hostname, oauthReturn })) {
+      return undefined;
+    }
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${BUILD_JSON_PATH}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && shouldReloadForRemoteBuild(APP_BUILD_ID, data?.id)) {
+          window.localStorage.setItem(key, data.id);
+          window.location.reload();
+        }
+      } catch { /* metro / offline */ }
+    };
+    check();
+    const interval = window.setInterval(check, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [isWeb]);
 
   // Only mark "prefer app" for signed-in users (and clear on logout).

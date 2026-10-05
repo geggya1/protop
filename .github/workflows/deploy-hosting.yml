@@ -3,7 +3,13 @@ name: Deploy hosting
 on:
   push:
     branches:
-      - main
+      - offentlig
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Skriv offentlig for å sende alt som ikke er live ut på protop.no
+        required: true
+        type: string
 
 concurrency:
   group: hosting-protop-c189c
@@ -15,8 +21,12 @@ permissions:
 
 jobs:
   deploy:
+    if: github.event_name == 'push' || github.event.inputs.confirm == 'offentlig'
     runs-on: ubuntu-latest
     steps:
+      - name: Offentlig utsending
+        run: echo "Sender ${GITHUB_SHA} live til protop.no (ref ${GITHUB_REF})"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -26,7 +36,11 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run verify:local-web
+
       - run: npm run build:web
+        env:
+          APP_BUILD_ID: ${{ github.sha }}
 
       - run: npm run verify:dist
 
@@ -36,8 +50,13 @@ jobs:
           import { readFileSync } from 'node:fs';
           const cfg = JSON.parse(readFileSync('firebase.json', 'utf8'));
           const keys = Object.keys(cfg);
-          if (keys.length !== 1 || keys[0] !== 'hosting') {
-            console.error('firebase.json may only contain hosting');
+          const extra = keys.filter((k) => k !== 'hosting' && k !== 'emulators');
+          if (extra.length) {
+            console.error('firebase.json may only contain hosting and emulators, found:', extra.join(','));
+            process.exit(1);
+          }
+          if (!cfg.hosting) {
+            console.error('firebase.json must contain hosting');
             process.exit(1);
           }
           if (cfg.hosting.site !== 'protop-c189c') {

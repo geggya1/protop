@@ -12,6 +12,7 @@ export default function TenderMap({
   onMark,
   busyId = '',
   missing = 0,
+  mapHeight = 440,
 }) {
   const iframeRef = useRef(null);
   const [cursorId, setCursorId] = useState(selectedId);
@@ -94,7 +95,7 @@ export default function TenderMap({
         </View>
       </View>
       {Platform.OS === 'web' ? (
-        <View style={styles.map}>
+        <View style={[styles.map, { height: mapHeight }]}>
           {React.createElement('iframe', {
             ref: iframeRef,
             title: 'Kart over nye og aktuelle treff',

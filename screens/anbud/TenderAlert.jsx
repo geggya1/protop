@@ -7,17 +7,20 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-    attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+    alignDepartmentAreas, attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
 import { locateNotice, mapCandidateNotices, mapPinsForNotices } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
+import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
 import TenderMap from './TenderMap';
 import BidDecision from './BidDecision';
+import RegionCoverage from './RegionCoverage';
 import {
   deadlineInfo,
   formatNoticeText,
@@ -133,7 +136,7 @@ function NoticeBody({ row, colors }) {
   );
 }
 
-export default function TenderAlert({ company, colors, onBids, onOpenSettings, onOpenBid }) {
+export default function TenderAlert({ company, colors, onBids, onOpenSettings, onOpenBid, units = [] }) {
   const { width } = useWindowDimensions();
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
@@ -158,6 +161,10 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [trades, setTrades] = useState([]);
   const [nationwide, setNationwide] = useState(true);
   const [areas, setAreas] = useState(() => new Set());
+  const [departmentAreas, setDepartmentAreas] = useState([]);
+  const [departmentId, setDepartmentId] = useState('');
+  const [sideWidth, setSideWidth] = useState(360);
+  const sideWidthRef = useRef(360);
   const [channels, setChannels] = useState(() => new Set(['doffin', 'ted']));
   const [notify, setNotify] = useState({ push: true, varsel: true, email: false });
   const [emails, setEmails] = useState([]);
@@ -177,6 +184,44 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const loadGen = useRef(0);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(SIDE_WIDTH_KEY);
+    if (!raw) return;
+    const next = clampSideWidth(Number(raw));
+    sideWidthRef.current = next;
+    setSideWidth(next);
+  }, []);
+
+  function rememberSideWidth(next) {
+    sideWidthRef.current = next;
+    setSideWidth(next);
+  }
+
+  function startSideResize(event) {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    event.preventDefault?.();
+    const startX = event.clientX ?? event.nativeEvent?.clientX;
+    const startW = sideWidthRef.current;
+    const max = Math.min(840, Math.max(320, window.innerWidth - 520));
+    const previousCursor = document.body.style.cursor;
+    const previousSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    function move(e) {
+      rememberSideWidth(sideWidthFromDrag(startW, startX, e.clientX, { min: 280, max }));
+    }
+    function up() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelect;
+      try { localStorage.setItem(SIDE_WIDTH_KEY, String(sideWidthRef.current)); } catch { /* lagring er valgfri */ }
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  useEffect(() => {
     let live = true;
     const gen = ++loadGen.current;
     setReady(false);
@@ -188,6 +233,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       setTrades([...(company?.naeringskoder || []), ...(watch.naeringskoder || [])].filter((row, index, list) => list.indexOf(row) === index));
       setNationwide(watch.savedAt ? !!watch.nationwide : true);
       setAreas(new Set((watch.areas || []).map((row) => row.id)));
+      setDepartmentAreas(normalizeDepartmentAreas(watch.departmentAreas));
       setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
       setNotify(watch.notify || { push: true, varsel: true, email: false });
       setEmails(watch.emails || []);
@@ -246,6 +292,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       }),
       nationwide,
       areas: [...areas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
+      departmentAreas,
       channels: [...channels],
       notify,
       emails,
@@ -472,6 +519,54 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     }
   }
 
+  const departmentList = useMemo(
+    () => departmentsOf(units).map((row) => ({ id: row.id, name: row.name })),
+    [units],
+  );
+  const alignedDepartments = useMemo(
+    () => alignDepartmentAreas(departmentAreas, departmentList),
+    [departmentAreas, departmentList],
+  );
+  const coverageWatch = useMemo(() => ({
+    nationwide,
+    areas: [...areas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
+    departmentAreas: alignedDepartments,
+  }), [nationwide, areas, alignedDepartments]);
+  const viewCoverage = useMemo(
+    () => searchCoverage(coverageWatch, departmentId),
+    [coverageWatch, departmentId],
+  );
+  const scopedNotices = useMemo(
+    () => notices.filter((row) => noticeInCoverage(row, viewCoverage)),
+    [notices, viewCoverage],
+  );
+
+  function areaObjects(ids) {
+    return [...ids].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean);
+  }
+
+  function commitCoverage({ nextNationwide, nextAreaIds, nextDepartments }) {
+    if (!ready) return;
+    const nation = nextNationwide ?? nationwide;
+    const areaIds = nextAreaIds ?? [...areas];
+    const rows = nextDepartments ?? departmentAreas;
+    setNationwide(nation);
+    setAreas(new Set(areaIds));
+    setDepartmentAreas(rows);
+    const saved = saveTenderWatch(stateRef.current, {
+      ...inputFromForm(),
+      nationwide: nation,
+      areas: areaObjects(areaIds),
+      departmentAreas: rows,
+    });
+    if (!saved.ok) {
+      setError(saved.error);
+      return;
+    }
+    setError('');
+    commitState(saved.state);
+  }
+
   const matchWatch = useMemo(() => ({
     cpvCodes: [...selectedCpv].map((code) => ({ code })),
     keywords,
@@ -480,7 +575,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
 
   const filterCounts = useMemo(() => {
     const counts = { nye: 0, aktuelle: 0, uaktuelle: 0, alle: 0, utlopt: 0 };
-    for (const row of notices) {
+    for (const row of scopedNotices) {
       if (row.decision === 'tilbud') continue;
       const expired = noticeDeadlineExpired(row);
       const rejected = noticeIsRejected(row);
@@ -497,12 +592,12 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       else if (noticeNeedsReview(row)) counts.nye += 1;
     }
     return counts;
-  }, [notices]);
+  }, [scopedNotices]);
 
   const rows = useMemo(() => {
     const q = fold(queryText.trim());
     const area = TENDER_AREAS.find((row) => row.id === areaId) || null;
-    const filtered = notices.filter((row) => {
+    const filtered = scopedNotices.filter((row) => {
       if (row.decision === 'tilbud') return false;
       const expired = noticeDeadlineExpired(row);
       const rejected = noticeIsRejected(row);
@@ -544,11 +639,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       if (left && !right) return -1;
       return left.localeCompare(right, 'nb', { numeric: true }) * factor;
     });
-  }, [notices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
+  }, [scopedNotices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
 
   const mapRows = useMemo(
-    () => mapCandidateNotices(notices, noticeDeadlineExpired),
-    [notices],
+    () => mapCandidateNotices(scopedNotices, noticeDeadlineExpired),
+    [scopedNotices],
   );
   const pins = useMemo(
     () => mapPinsForNotices(mapRows),
@@ -590,9 +685,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
 
   const cpvCount = selectedCpv.size;
-  const areaLabel = nationwide
-    ? 'Hele Norge'
-    : [...areas].map((id) => TENDER_AREAS.find((row) => row.id === id)?.name || id).join(', ') || 'Ingen fylker valgt';
+  const areaLabel = viewCoverage.nationwide
+    ? (viewCoverage.label ? `${viewCoverage.label} · hele Norge` : 'Hele Norge')
+    : (viewCoverage.areas.map((row) => row.name).join(', ') || 'Ingen fylker valgt');
   const channelLabel = [...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal';
 
   const summary = (
@@ -611,7 +706,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>
       ) : null}
       <Text style={{ color: colors.muted }}>
-        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${notices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
+        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
       </Text>
       <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Se og endre kodene under Innstillinger</Text>
@@ -652,6 +747,44 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           placeholderTextColor={colors.placeholder}
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
+        <View style={[styles.sourceBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <RegionCoverage
+            colors={colors}
+            picker
+            departments={alignedDepartments}
+            companyNationwide={nationwide}
+            companyAreaIds={[...areas]}
+            selectedDepartmentId={departmentId}
+            onSelectDepartment={setDepartmentId}
+            onCompanyChange={({ nationwide: nextNationwide, areaIds }) => commitCoverage({
+              nextNationwide,
+              nextAreaIds: areaIds,
+            })}
+            onDepartmentChange={(id, patch) => {
+              const next = alignedDepartments.map((row) => (
+                row.id === id
+                  ? {
+                    ...row,
+                    nationwide: !!patch.nationwide,
+                    areas: patch.nationwide ? [] : areaObjects(patch.areaIds || []),
+                  }
+                  : row
+              ));
+              commitCoverage({ nextDepartments: next });
+            }}
+          />
+          {departmentId && !viewCoverage.nationwide && !viewCoverage.areas.length ? (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Avdelingen har ingen region. Velg fylker eller hele Norge, og trykk Oppdater nå.
+            </Text>
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {alignedDepartments.length
+                ? 'Oppdater nå henter treff for avdelingenes regioner. Velg en avdeling for å se bare den.'
+                : 'Oppdater nå henter treff for fylkene som er valgt.'}
+            </Text>
+          )}
+        </View>
         <View style={styles.row}>
           {FILTERS.map(([id, label, tone]) => (
             <Chip
@@ -847,18 +980,47 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         )}
       </View>
       {!phone ? (
-        <View style={styles.side}>
-          {summary}
-          <TenderMap
-            pins={pins}
-            selectedId={openId}
-            colors={colors}
-            missing={missingPlaces}
-            onSelect={focusNotice}
-            onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
-            busyId={pullingId}
-          />
-        </View>
+        <>
+          {Platform.OS === 'web' ? React.createElement('div', {
+            role: 'separator',
+            'aria-orientation': 'vertical',
+            'aria-label': 'Dra for å endre bredden på kartet',
+            'aria-valuenow': sideWidth,
+            'aria-valuemin': 280,
+            'aria-valuemax': 840,
+            onPointerDown: startSideResize,
+            style: {
+              width: 14,
+              cursor: 'col-resize',
+              alignSelf: 'stretch',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              touchAction: 'none',
+              flexShrink: 0,
+            },
+          }, React.createElement('div', {
+            style: {
+              width: 4,
+              height: 56,
+              borderRadius: 4,
+              background: colors.line,
+            },
+          })) : null}
+          <View style={[styles.side, { width: sideWidth }]}>
+            {summary}
+            <TenderMap
+              pins={pins}
+              selectedId={openId}
+              colors={colors}
+              missing={missingPlaces}
+              mapHeight={mapHeightForSide(sideWidth)}
+              onSelect={focusNotice}
+              onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
+              busyId={pullingId}
+            />
+          </View>
+        </>
       ) : null}
     </View>
   );

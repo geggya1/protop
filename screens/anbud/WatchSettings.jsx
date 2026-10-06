@@ -3,11 +3,13 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-nativ
 import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { fetchCompanyCpv, sendTenderAlert } from '../../src/anbud/doffinClient';
-import { emptyAnbudState, normalizeCpvCode, normalizeKeywords, noticeDeadlineExpired, saveTenderWatch } from '../../src/anbud/model';
+import { alignDepartmentAreas, emptyAnbudState, normalizeCpvCode, normalizeDepartmentAreas, normalizeKeywords, noticeDeadlineExpired, saveTenderWatch } from '../../src/anbud/model';
+import { departmentsOf } from '../../src/project/companyUnits';
 import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
 import { updateGroup } from '../../src/utils/groups';
 import PortalSettings from './PortalSettings';
+import RegionCoverage from './RegionCoverage';
 
 function Chip({ label, on, onPress, colors, hint }) {
   return (
@@ -37,7 +39,7 @@ function toggle(setter, value) {
   });
 }
 
-export default function WatchSettings({ company, colors, onOpenWork }) {
+export default function WatchSettings({ company, colors, onOpenWork, units = [] }) {
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -53,6 +55,7 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
   const [trades, setTrades] = useState([]);
   const [nationwide, setNationwide] = useState(true);
   const [areas, setAreas] = useState(() => new Set());
+  const [departmentAreas, setDepartmentAreas] = useState([]);
   const [channels, setChannels] = useState(() => new Set(['doffin', 'ted']));
   const [notify, setNotify] = useState({ push: true, varsel: true, email: false });
   const [emails, setEmails] = useState([]);
@@ -77,6 +80,7 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       setTrades([...(company?.naeringskoder || []), ...(watch.naeringskoder || [])].filter((row, index, list) => list.indexOf(row) === index));
       setNationwide(watch.savedAt ? !!watch.nationwide : true);
       setAreas(new Set((watch.areas || []).map((row) => row.id)));
+      setDepartmentAreas(normalizeDepartmentAreas(watch.departmentAreas));
       setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
       setNotify(watch.notify || { push: true, varsel: true, email: false });
       setEmails(watch.emails || []);
@@ -147,6 +151,10 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
       }),
       nationwide,
       areas: [...areas].map((id) => TENDER_AREAS.find((row) => row.id === id)).filter(Boolean),
+      departmentAreas: alignDepartmentAreas(
+        departmentAreas,
+        departmentsOf(units).map((row) => ({ id: row.id, name: row.name })),
+      ),
       channels: [...channels],
       notify,
       emails,
@@ -169,6 +177,7 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
           tenderWatch: {
             nationwide,
             areas: next.watch.areas,
+            departmentAreas: next.watch.departmentAreas,
             channels: next.watch.channels,
             notify,
             emails,
@@ -487,13 +496,36 @@ export default function WatchSettings({ company, colors, onOpenWork }) {
             setTradeDraft('');
           }}
         />
-        <Text style={[styles.h, { color: colors.ink }]}>Område</Text>
-        <View style={styles.row}>
-          <Chip label="Hele Norge" colors={colors} on={nationwide} onPress={() => setNationwide((value) => !value)} />
-          {!nationwide && TENDER_AREAS.map((area) => (
-            <Chip key={area.id} colors={colors} on={areas.has(area.id)} label={area.name} onPress={() => toggle(setAreas, area.id)} />
-          ))}
-        </View>
+        <RegionCoverage
+          colors={colors}
+          departments={alignDepartmentAreas(
+            departmentAreas,
+            departmentsOf(units).map((row) => ({ id: row.id, name: row.name })),
+          )}
+          companyNationwide={nationwide}
+          companyAreaIds={[...areas]}
+          onCompanyChange={({ nationwide: nextNationwide, areaIds }) => {
+            setNationwide(nextNationwide);
+            setAreas(new Set(areaIds));
+          }}
+          onDepartmentChange={(id, patch) => {
+            const rows = alignDepartmentAreas(
+              departmentAreas,
+              departmentsOf(units).map((row) => ({ id: row.id, name: row.name })),
+            );
+            setDepartmentAreas(rows.map((row) => (
+              row.id === id
+                ? {
+                  ...row,
+                  nationwide: !!patch.nationwide,
+                  areas: patch.nationwide
+                    ? []
+                    : patch.areaIds.map((areaId) => TENDER_AREAS.find((area) => area.id === areaId)).filter(Boolean),
+                }
+                : row
+            )));
+          }}
+        />
         <Text style={[styles.h, { color: colors.ink }]}>Kanaler</Text>
         <View style={styles.row}>
           <Chip label="Doffin" colors={colors} on={channels.has('doffin')} onPress={() => toggle(setChannels, 'doffin')} />

@@ -284,6 +284,11 @@ assert.match(tenderAlert, /busyId=\{pullingId\}/);
 assert.match(tenderAlert, /toggle: false, reveal: true/);
 assert.match(tenderAlert, /nextNoticeDecision/);
 assert.match(tenderMap, /height: 440/);
+assert.match(tenderMap, /mapHeight/);
+assert.match(tenderAlert, /Dra for å endre bredden på kartet/);
+assert.match(tenderAlert, /RegionCoverage/);
+assert.match(watchSettings, /RegionCoverage/);
+assert.match(anbudScreen, /units=\{units\}/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

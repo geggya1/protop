@@ -6,7 +6,8 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
-import { pickImage, uploadImage } from '../../src/utils/media';
+import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
+import { EMPLOYEE_IMPORT_ACCEPT, planEmployeeImport } from '../../src/employees/import';
 import {
   absorbCompanyIntoProfile,
   applyProfessionalProfile,
@@ -47,6 +48,17 @@ import {
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeFields from './EmployeeFields';
 
+async function bytesFromFile(file) {
+  let blob = file?.blob || null;
+  if (!blob && file?.uri && typeof fetch === 'function') {
+    blob = await (await fetch(file.uri)).blob();
+  }
+  if (!blob || typeof blob.arrayBuffer !== 'function') {
+    throw new Error('Kunne ikke lese filen.');
+  }
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
 const FILTERS = [
   ['current', 'Nåværende'],
   ['external', 'Eksterne'],
@@ -59,6 +71,7 @@ function showDetailValue(employee, field, reveal) {
   if (field.sensitive && !reveal) return '';
   if (field.type === 'photo' || field.type === 'departments' || field.type === 'member') return '';
   const raw = readPath(employee, field.key);
+  if (field.type === 'tags') return Array.isArray(raw) ? raw.filter(Boolean).join(', ') : '';
   if (field.type === 'bool') return raw ? 'Ja' : '';
   if (field.key === 'person.nationalId') return reveal ? raw : maskNationalId(raw);
   if (field.type === 'date') return formatNbDate(raw);
@@ -100,6 +113,7 @@ export default function EmployeesScreen() {
   const [busy, setBusy] = useState(false);
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [importPlan, setImportPlan] = useState(null);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -171,6 +185,61 @@ export default function EmployeesScreen() {
     setDraft(null);
     setAddressHits([]);
     resetMessage();
+  }
+
+  async function openImport() {
+    if (!isAdmin || busy) return;
+    resetMessage();
+    const picked = await pickDocument({ accept: EMPLOYEE_IMPORT_ACCEPT });
+    const file = Array.isArray(picked) ? picked[0] : picked;
+    if (!file) return;
+    setBusy(true);
+    try {
+      const bytes = await bytesFromFile(file);
+      const plan = await planEmployeeImport(bytes, file.name, { existing: rows, departments });
+      setImportPlan(plan);
+      setView('import');
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lese listen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmImport() {
+    if (!isAdmin || !importPlan || busy) return;
+    const accepted = importPlan.rows.filter((row) => row.employee);
+    if (!accepted.length) {
+      showError('Ingen rader kan importeres.');
+      return;
+    }
+    if (!familyId) {
+      showError('Åpne selskapet før du importerer.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const saved = [];
+      for (const row of accepted) saved.push(await saveEmployee(familyId, row.employee));
+      setRows((current) => {
+        const map = new Map(current.map((row) => [row.id, row]));
+        for (const row of saved) map.set(row.id, row);
+        return sortEmployees([...map.values()]);
+      });
+      const created = importPlan.rows.filter((row) => row.action === 'create').length;
+      const updated = importPlan.rows.filter((row) => row.action === 'update').length;
+      const skipped = importPlan.rows.filter((row) => row.action === 'skip').length;
+      setImportPlan(null);
+      setDraft(null);
+      setView('list');
+      setNote(`Importert ${created} nye og oppdatert ${updated}.${skipped ? ` ${skipped} rader ble hoppet over.` : ''}`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke importere listen.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openNew() {
@@ -405,7 +474,7 @@ export default function EmployeesScreen() {
     >
       <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
       <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        {view === 'mine' ? 'Min side' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : view !== 'list' && selected ? displayName(selected) : 'Ansatte'}
+        {view === 'mine' ? 'Min side' : view === 'import' ? 'Importer liste' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : view !== 'list' && selected ? displayName(selected) : 'Ansatte'}
       </Text>
       {view === 'list' ? (
         <Text style={[styles.lead, { color: colors.muted }]}>
@@ -421,6 +490,11 @@ export default function EmployeesScreen() {
             {isAdmin ? (
               <TouchableOpacity nativeID="employees-new" onPress={openNew} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
                 <Text style={styles.primaryText}>Ny medarbeider</Text>
+              </TouchableOpacity>
+            ) : null}
+            {isAdmin ? (
+              <TouchableOpacity nativeID="employees-import" onPress={openImport} disabled={busy} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}>
+                <Text style={{ color: colors.ink }}>{busy ? 'Leser liste…' : 'Importer liste'}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity nativeID="employees-mine" onPress={openMine} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
@@ -506,6 +580,61 @@ export default function EmployeesScreen() {
               <Text style={{ color: colors.ink }}>CV</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+
+      {view === 'import' && importPlan ? (
+        <View nativeID="employees-import-plan" style={styles.stack}>
+          <Text style={{ color: colors.muted }}>
+            Kontroller treffene før de lagres. Like e-postadresser oppdaterer medarbeideren som finnes. Tomme celler lar det som allerede er registrert stå.
+          </Text>
+          <Text style={{ color: colors.ink }}>
+            Rettighetene lagres på ansettelsen. Importen endrer ikke hvem som er administrator i ProTop.
+          </Text>
+          {importPlan.permissionColumns.length ? (
+            <Text style={{ color: colors.muted }}>{`Rettighetskolonner: ${importPlan.permissionColumns.join(', ')}.`}</Text>
+          ) : null}
+          {importPlan.customColumns.length ? (
+            <Text style={{ color: colors.muted }}>{`Andre kolonner lagres som egne felt: ${importPlan.customColumns.join(', ')}.`}</Text>
+          ) : null}
+          {importPlan.rows.map((row, index) => (
+            <View key={`${row.action}-${index}`} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={[styles.personName, { color: colors.ink }]}>{row.name}</Text>
+              <Text style={{ color: colors.muted }}>
+                {row.action === 'create' ? 'Ny' : row.action === 'update' ? 'Oppdateres' : 'Hoppes over'}
+                {row.email ? ` · ${row.email}` : ''}
+                {row.accessRole ? ` · ${row.accessRole}` : ''}
+              </Text>
+              {row.permissions?.length ? (
+                <Text style={{ color: colors.ink }}>{`Rettigheter: ${row.permissions.join(', ')}`}</Text>
+              ) : null}
+              {row.action !== 'skip' ? (
+                <Text style={{ color: colors.muted }}>
+                  {[
+                    row.canLogin ? 'Kan logge inn' : '',
+                    row.hasLicense ? 'Lisens' : '',
+                    row.canHandleLegal ? 'Juridiske saker' : '',
+                    row.external ? 'Ekstern' : '',
+                  ].filter(Boolean).join(' · ') || 'Ingen innlogging, lisens eller juridisk tilgang fra listen.'}
+                </Text>
+              ) : null}
+              {row.reason ? <Text style={{ color: colors.danger || '#b42318' }}>{row.reason}</Text> : null}
+              {(row.warnings || []).map((warning) => (
+                <Text key={warning} style={{ color: colors.muted }}>{warning}</Text>
+              ))}
+            </View>
+          ))}
+          <TouchableOpacity
+            nativeID="employees-import-confirm"
+            onPress={confirmImport}
+            disabled={busy || !importPlan.rows.some((row) => row.employee)}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+          >
+            <Text style={styles.primaryText}>
+              {busy ? 'Importerer…' : `Importer ${importPlan.rows.filter((row) => row.employee).length} medarbeidere`}
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 

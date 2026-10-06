@@ -200,13 +200,7 @@ function xmlTagValue(block, names) {
 function parseXmlCustomers(text) {
   const source = String(text || '');
   if (/<Worksheet[\s>]|<ss:Worksheet/i.test(source) && /<Table[\s>]/i.test(source)) {
-    const rows = [...source.matchAll(/<Row\b[\s\S]*?<\/Row>/gi)].map((match) => (
-      [...match[0].matchAll(/<Cell\b[\s\S]*?<\/Cell>|<Cell\b[^>]*\/>/gi)].map((cell) => {
-        const data = cell[0].match(/<Data\b[^>]*>([\s\S]*?)<\/Data>/i);
-        return data ? decodeEntities(data[1].replace(/<[^>]+>/g, '')).trim() : '';
-      })
-    ));
-    return recordsFromTable(rows);
+    return recordsFromTable(spreadsheetMlRows(source));
   }
   const blocks = [...source.matchAll(/<(kunde|customer|klient|client|part)\b[^>]*>[\s\S]*?<\/\1>/gi)];
   if (!blocks.length) return [];
@@ -240,7 +234,7 @@ function sharedStrings(xml) {
   ));
 }
 
-function parseSheetTable(xml, strings) {
+function parseSheetRows(xml, strings) {
   const rows = [];
   for (const rowMatch of String(xml || '').matchAll(/<row\b[\s\S]*?<\/row>/gi)) {
     const cells = [];
@@ -263,7 +257,49 @@ function parseSheetTable(xml, strings) {
     }
     rows.push(cells.map((cell) => cell || ''));
   }
-  return recordsFromTable(rows);
+  return rows;
+}
+
+function parseSheetTable(xml, strings) {
+  return recordsFromTable(parseSheetRows(xml, strings));
+}
+
+function spreadsheetMlRows(text) {
+  return [...String(text || '').matchAll(/<Row\b[\s\S]*?<\/Row>/gi)].map((match) => (
+    [...match[0].matchAll(/<Cell\b[\s\S]*?<\/Cell>|<Cell\b[^>]*\/>/gi)].map((cell) => {
+      const data = cell[0].match(/<Data\b[^>]*>([\s\S]*?)<\/Data>/i);
+      return data ? decodeEntities(data[1].replace(/<[^>]+>/g, '')).trim() : '';
+    })
+  ));
+}
+
+export async function readSpreadsheetTables(bytes, filename = '') {
+  const name = String(filename || '').toLowerCase();
+  const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (!raw.length) throw new Error('Filen er tom.');
+  const isZip = raw[0] === 0x50 && raw[1] === 0x4b;
+  if (isZip || /\.xlsx$/i.test(name)) {
+    const files = await zipEntries(raw);
+    const stringsFile = files.find((file) => /xl\/sharedStrings\.xml$/i.test(file.name));
+    const strings = stringsFile ? sharedStrings(decodeText(stringsFile.data)) : [];
+    const sheets = files
+      .filter((file) => /xl\/worksheets\/sheet\d+\.xml$/i.test(file.name))
+      .sort((a, b) => {
+        const left = Number(a.name.match(/sheet(\d+)/i)?.[1] || 0);
+        const right = Number(b.name.match(/sheet(\d+)/i)?.[1] || 0);
+        return left - right;
+      });
+    if (!sheets.length) throw new Error('Fant ingen regneark i Excel-filen.');
+    return sheets.map((sheet) => ({
+      name: sheet.name,
+      table: parseSheetRows(decodeText(sheet.data), strings),
+    }));
+  }
+  const text = decodeText(raw);
+  if (/<Worksheet[\s>]|<ss:Worksheet/i.test(text) && /<Table[\s>]/i.test(text)) {
+    return [{ name: filename || 'ark', table: spreadsheetMlRows(text) }];
+  }
+  return [{ name: filename || 'liste', table: parseCsvRecords(text) }];
 }
 
 async function parseXlsxCustomers(bytes) {

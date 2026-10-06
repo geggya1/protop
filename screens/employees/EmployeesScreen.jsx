@@ -318,6 +318,7 @@ export default function EmployeesScreen() {
     setBusyKind('cv');
     try {
       const bytes = await bytesFromFile(file);
+      if (bytes.length > 8_000_000) setNote('Filen er stor. Sidene gjøres mindre før de leses.');
       const interpreted = await readCvImport(bytes, file.name, {
         familyId,
         ask: (payload) => askImportInterpret(payload),

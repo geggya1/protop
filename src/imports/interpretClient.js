@@ -2,11 +2,19 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { prepareImportBody, readableImportError } from './filePayload';
 
-async function shrinkImageInBrowser(bytes, { maxEdge = 1400, quality = 0.72 } = {}) {
+async function shrinkImageInBrowser(bytes, { maxEdge = 1100, quality = 0.62 } = {}) {
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return null;
   const blob = new Blob([bytes], { type: 'image/jpeg' });
-  const bitmap = await createImageBitmap(blob);
+  const resize = bytes.length > 350_000
+    ? { resizeWidth: maxEdge, resizeQuality: 'medium' }
+    : undefined;
+  let bitmap = null;
   try {
+    try {
+      bitmap = await createImageBitmap(blob, resize);
+    } catch {
+      bitmap = await createImageBitmap(blob);
+    }
     const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height, 1));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));

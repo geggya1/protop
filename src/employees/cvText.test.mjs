@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { normalizeEmployee } from './model.js';
-import { mergeCvReads, parseProtopCv } from './cvText.js';
+import { mergeCvReads, parseProjectSheet, parseProtopCv } from './cvText.js';
 
 const sample = `
 CURRICULUM VITAE
@@ -147,5 +147,59 @@ assert.equal(withImage.cv.projects[0].imageUrl, undefined);
 assert.deepEqual(withImage.cv.projects[1].images, []);
 assert.deepEqual(withImage.cv.projects[2].images, ['data:image/jpeg;base64,aaaa']);
 assert.equal(withImage.cv.projects[2].title, '');
+
+const sheet = parseProjectSheet(`
+Næringsbygg 7 etasjer - Byfjordparken (Nybygg
+*Breeam
+Dusavikveien 69, 4007 Stavanger, Norge
+Oppdragsgiver
+Jærentreprenør AS
+Periode
+aug. 17 - jan. 21
+Areal
+m2
+59 172
+Prosjektsum
+190 MNOK eks mva
+Tiltaksklasse
+3
+Byfjordparken ILK2 finner du i den nye bydelen i Stavanger Nord.
+Geir Ove Andersen
+Assisterende prosjekterings- og prosjektledelse samt fremdrifts og LEAN-ansvar.
+Kontaktperson hos oppdragsgiver
+Leif Jarle Vigre
+Jærentreprenør AS
+93419004
+lv@jarentreprenor.no
+Roller i prosjektet
+• Byggeleder
+• Prosjektleder
+• Prosjekteringsledelse
+`);
+assert.match(sheet.title, /Byfjordparken/);
+assert.match(sheet.title, /Breeam/);
+assert.equal(sheet.address, 'Dusavikveien 69, 4007 Stavanger, Norge');
+assert.equal(sheet.client, 'Jærentreprenør AS');
+assert.equal(sheet.period, 'aug. 17 - jan. 21');
+assert.equal(sheet.area, '59 172 m2');
+assert.equal(sheet.cost, '190 MNOK eks mva');
+assert.equal(sheet.buildingClass, '3');
+assert.match(sheet.description, /Byfjordparken ILK2/);
+assert.equal(sheet.referenceName, 'Geir Ove Andersen');
+assert.match(sheet.responsibility, /LEAN-ansvar/);
+assert.equal(sheet.contact, 'Leif Jarle Vigre');
+assert.equal(sheet.contactCompany, 'Jærentreprenør AS');
+assert.equal(sheet.phone, '93419004');
+assert.equal(sheet.email, 'lv@jarentreprenor.no');
+assert.match(sheet.roles, /Byggeleder/);
+assert.match(sheet.roles, /Prosjekteringsledelse/);
+assert.equal(sheet.category, '');
+assert.equal(sheet.object, '');
+assert.equal(parseProjectSheet('Kunde\nTinfos\nPeriode\n2021'), null);
+
+const stored = normalizeEmployee({ cv: { projects: [sheet] } });
+assert.equal(stored.cv.projects[0].area, '59 172 m2');
+assert.equal(stored.cv.projects[0].buildingClass, '3');
+assert.equal(stored.cv.projects[0].category, '');
 
 console.log('cvText.test.mjs: ok');

@@ -176,6 +176,11 @@ const PROJECT_FIELDS = [
   ['period', /^periode\s*(.*)$/i],
   ['cost', /^kostnad\s*(.*)$/i],
   ['client', /^kunde\s*(.*)$/i],
+  ['client', /^oppdragsgiver\s*(.*)$/i],
+  ['area', /^areal\s*(.*)$/i],
+  ['cost', /^prosjektsum\s*(.*)$/i],
+  ['buildingClass', /^tiltaksklasse\s*(.*)$/i],
+  ['description', /^beskrivelse\s*(.*)$/i],
   ['contact', /^kontakt\s*(.*)$/i],
   ['phone', /^telefon\s*(.*)$/i],
   ['email', /^e-?post\s*(.*)$/i],
@@ -207,6 +212,11 @@ function blankProject() {
     employer: '',
     roles: '',
     responsibility: '',
+    area: '',
+    buildingClass: '',
+    description: '',
+    referenceName: '',
+    contactCompany: '',
     source: 'cv',
     link: { owner: 'person', companyProjectId: '' },
   };
@@ -309,6 +319,141 @@ export function parseProtopCv(text) {
     experience: parseExperience(sections.experience),
     projects: parseProjects(sections.projects),
   };
+}
+
+const SHEET_FACTS = [
+  ['client', /^oppdragsgiver$/i],
+  ['period', /^periode$/i],
+  ['area', /^areal$/i],
+  ['cost', /^prosjektsum$/i],
+  ['buildingClass', /^tiltaksklasse$/i],
+];
+
+function sheetLabel(line) {
+  const raw = String(line || '').trim();
+  const bare = raw.replace(/\s*:\s*$/, '').trim();
+  const contact = raw.match(/^kontaktperson hos oppdragsgiver\s*(?::\s*(.*))?$/i);
+  if (contact) return contact[1] ? `contact:${contact[1].trim()}` : 'contact';
+  if (/^roller i prosjektet$/i.test(bare)) return 'roles';
+  for (const [key, pattern] of SHEET_FACTS) {
+    if (pattern.test(bare)) return key;
+  }
+  const inline = raw.match(/^(oppdragsgiver|periode|areal|prosjektsum|tiltaksklasse)\s*:\s*(.+)$/i)
+    || raw.match(/^(oppdragsgiver|periode|areal|prosjektsum|tiltaksklasse)\s+(.+)$/i);
+  if (!inline) return '';
+  const key = SHEET_FACTS.find(([, pattern]) => pattern.test(inline[1]))?.[0];
+  return key ? `${key}:${inline[2].trim()}` : '';
+}
+
+function postalLine(line) {
+  return /\b\d{4}\b/.test(line) && /,/.test(line);
+}
+
+function personName(line) {
+  const parts = String(line || '').split(' ').filter(Boolean);
+  if (parts.length < 2 || parts.length > 4 || line.length > 40 || /[.:,]/.test(line)) return false;
+  return parts.every((part) => /^[A-ZÆØÅ]/.test(part));
+}
+
+function isAreaUnit(bit) {
+  return /^m[2²]$/i.test(String(bit || '').replace(/\s/g, ''));
+}
+
+function factValue(key, bits) {
+  if (key !== 'area') return bits.join(' ').replace(/\s+/g, ' ').trim();
+  const unit = bits.find((bit) => isAreaUnit(bit));
+  const number = bits.find((bit) => !isAreaUnit(bit) && /\d/.test(bit));
+  const unitText = unit ? 'm2' : '';
+  if (!number) return unitText;
+  return /m2|m²/i.test(number) ? number : [number, unitText].filter(Boolean).join(' ');
+}
+
+function takeFact(lines, index) {
+  const bits = [];
+  let cursor = index;
+  while (cursor < lines.length && !sheetLabel(lines[cursor])) {
+    const line = lines[cursor];
+    if (isAreaUnit(line)) {
+      bits.push(line);
+      cursor += 1;
+      continue;
+    }
+    const started = bits.some((bit) => !isAreaUnit(bit) && (/\d/.test(bit) || bit.length > 3));
+    if (started) break;
+    bits.push(line);
+    cursor += 1;
+    if (bits.length > 3) break;
+  }
+  return [bits, cursor];
+}
+
+/** Ett helsides referanseark, slik det skrives ut ved siden av CV-en. */
+export function parseProjectSheet(text) {
+  const lines = linesOf(text);
+  const hasClient = lines.some((line) => /^oppdragsgiver\b/i.test(line));
+  const hasSheet = lines.some((line) => /^(prosjektsum|tiltaksklasse|areal)\b/i.test(line));
+  if (!hasClient || !hasSheet) return null;
+  const project = blankProject();
+  const addressAt = lines.findIndex((line, index) => index > 0 && postalLine(line));
+  const titleEnd = addressAt > 0 ? addressAt : 1;
+  project.title = lines.slice(0, titleEnd).join(' ').replace(/\s+/g, ' ').trim();
+  if (addressAt > 0) project.address = lines[addressAt];
+  let index = addressAt > 0 ? addressAt + 1 : 1;
+  while (index < lines.length) {
+    const label = sheetLabel(lines[index]);
+    if (!label || label === 'contact' || label === 'roles' || label.startsWith('contact:')) break;
+    if (label.includes(':')) {
+      const splitAt = label.indexOf(':');
+      const key = label.slice(0, splitAt);
+      const value = label.slice(splitAt + 1);
+      project[key] = factValue(key, [value]);
+      index += 1;
+      continue;
+    }
+    const [bits, next] = takeFact(lines, index + 1);
+    project[label] = factValue(label, bits);
+    index = next;
+  }
+  const description = [];
+  while (index < lines.length && !sheetLabel(lines[index]) && !personName(lines[index])) {
+    description.push(lines[index]);
+    index += 1;
+  }
+  project.description = description.join('\n').trim();
+  if (personName(lines[index] || '')) {
+    project.referenceName = lines[index];
+    index += 1;
+  }
+  const responsibility = [];
+  while (index < lines.length && !sheetLabel(lines[index])) {
+    responsibility.push(lines[index]);
+    index += 1;
+  }
+  project.responsibility = responsibility.join(' ').replace(/\s+/g, ' ').trim();
+  const contactLabel = sheetLabel(lines[index] || '');
+  if (contactLabel === 'contact' || contactLabel.startsWith('contact:')) {
+    const block = [];
+    if (contactLabel.startsWith('contact:')) block.push(contactLabel.slice('contact:'.length));
+    index += 1;
+    while (index < lines.length && sheetLabel(lines[index]) !== 'roles') {
+      block.push(lines[index]);
+      index += 1;
+    }
+    const rest = [];
+    for (const line of block) {
+      const value = line.replace(/^(firma|telefon|tlf|mobil|e-?post)\s*:\s*/i, '').trim();
+      if (value.includes('@')) project.email = repairEmail(value);
+      else if (/^\+?\d[\d\s]{5,}$/.test(value)) project.phone = value;
+      else rest.push(value);
+    }
+    project.contact = rest[0] || '';
+    project.contactCompany = rest[1] || '';
+  }
+  if (sheetLabel(lines[index] || '') === 'roles') {
+    project.roles = lines.slice(index + 1).map((line) => line.replace(/^[•\-*]\s*/, '')).filter(Boolean).join('\n');
+  }
+  project.email = repairEmail(project.email);
+  return project.title ? project : null;
 }
 
 function filled(value) {

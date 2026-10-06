@@ -6,7 +6,9 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
+import { downloadBytes } from '../../src/indeksregulering/office';
 import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
+import { projectSheetFile, projectSheetLines } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
@@ -118,6 +120,7 @@ export default function EmployeesScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState('');
+  const [sheetId, setSheetId] = useState('');
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
@@ -333,6 +336,27 @@ export default function EmployeesScreen() {
     }
   }
 
+  async function projectsFromSheet(bytes, filename) {
+    const interpreted = await readCvImport(bytes, filename, {
+      familyId,
+      ask: (payload) => askImportInterpret(payload),
+    });
+    const projects = interpreted.cv?.projects || [];
+    if (!projects.length) throw new Error('Fant ingen referanseprosjekter i dokumentet.');
+    return projects;
+  }
+
+  function downloadSheet(project, kind) {
+    try {
+      const currentName = displayName(draft);
+      const personName = currentName === 'Uten navn' ? (project.referenceName || '') : currentName;
+      const file = projectSheetFile(project, kind, personName);
+      downloadBytes(file.filename, file.bytes, file.mime);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lage referansearket.');
+    }
+  }
+
   async function importProjectsFile() {
     if (!draft || busy) return;
     setError('');
@@ -342,14 +366,17 @@ export default function EmployeesScreen() {
     setBusyKind('projects');
     try {
       const bytes = await bytesFromFile(file);
-      const projects = await readProjectTable(bytes, file.name);
+      const sheetFile = /\.(pdf|png|jpe?g|webp|docx)$/i.test(file.name || '');
+      const projects = sheetFile
+        ? await projectsFromSheet(bytes, file.name)
+        : await readProjectTable(bytes, file.name);
       const applied = applyImportedCv(draft, { projects });
       setDraft(presentEmployee(applied.employee));
       const found = applied.added.length
         ? `Lagt inn: ${applied.added.join(', ')}.`
         : 'Ingen nye prosjekter ble funnet.';
       const saveLabel = view === 'cv' ? 'Lagre CV' : 'Lagre';
-      setNote(`Prosjektlisten er lest. ${found} Prosjektene knyttes til personen, og kan senere flyttes til bedriftens prosjektregister. Ingenting er lagret før du trykker ${saveLabel}.`);
+      setNote(`Prosjektlisten er lest. ${found} Feltene som stod i dokumentet er fylt ut, og tomme felt er tomme. Prosjektene knyttes til personen. Ingenting er lagret før du trykker ${saveLabel}.`);
     } catch (err) {
       showError(err?.message || 'Kunne ikke lese prosjektlisten.');
     } finally {
@@ -929,7 +956,7 @@ export default function EmployeesScreen() {
           </Text>
           {canEditCv ? (
             <Text style={{ color: colors.muted }}>
-              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Prosjekter kan også hentes fra Excel. Ingenting lagres før du trykker Lagre CV.
+              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Prosjekter kan hentes fra Excel eller fra et referanseark. Ingenting lagres før du trykker Lagre CV.
             </Text>
           ) : null}
           <View style={styles.row}>
@@ -992,12 +1019,28 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </>
           ) : null}
+          <ReferenceSheets
+            projects={draft?.cv?.projects}
+            draft={draft}
+            sheetId={sheetId}
+            onToggle={setSheetId}
+            onDownload={downloadSheet}
+            colors={colors}
+          />
           <EmployeeCvView cv={cv} colors={colors} />
         </View>
       ) : null}
 
       {view === 'mine' && mineCv ? (
         <View style={styles.stack}>
+          <ReferenceSheets
+            projects={draft?.cv?.projects}
+            draft={draft}
+            sheetId={sheetId}
+            onToggle={setSheetId}
+            onDownload={downloadSheet}
+            colors={colors}
+          />
           <Text style={[styles.sectionTitle, { color: colors.ink }]}>Slik blir CV-en</Text>
           <EmployeeCvView cv={mineCv} colors={colors} />
         </View>
@@ -1017,6 +1060,41 @@ function repeatSummary(sectionId, item) {
   if (sectionId === 'courses') return [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
   if (sectionId === 'projects') return [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
   return item.title || 'Oppføring';
+}
+
+function ReferenceSheets({ projects, draft, sheetId, onToggle, onDownload, colors }) {
+  if (!projects?.length) return null;
+  return (
+    <View style={styles.stack}>
+      <Text style={[styles.sectionTitle, { color: colors.ink }]}>Referanseark</Text>
+      <Text style={{ color: colors.muted }}>
+        CV-en under viser et utvalg. Referansearket har alle feltene og kan lastes ned som PDF eller Word, som kan åpnes og redigeres. Tomme felt tas ikke med i utskriften.
+      </Text>
+      {projects.map((project) => {
+        const currentName = displayName(draft);
+        const personName = currentName === 'Uten navn' ? (project.referenceName || '') : currentName;
+        return (
+          <View key={project.id} style={styles.stackTight}>
+            <Text style={{ color: colors.ink }}>{project.title || 'Prosjekt'}</Text>
+            <View style={styles.row}>
+              <TouchableOpacity onPress={() => onToggle(sheetId === project.id ? '' : project.id)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>{sheetId === project.id ? 'Skjul' : 'Vis'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onDownload(project, 'pdf')} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onDownload(project, 'docx')} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>Word</Text>
+              </TouchableOpacity>
+            </View>
+            {sheetId === project.id ? projectSheetLines(project, personName).map((line, index) => (
+              <Text key={`${project.id}-${index}`} style={{ color: line ? colors.ink : colors.muted }}>{line || ' '}</Text>
+            )) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function GapList({ title, items, colors }) {

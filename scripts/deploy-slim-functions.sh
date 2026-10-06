@@ -16,6 +16,12 @@ writeFileSync('functions/.env', 'PROTOP_GEMINI_KEY=' + JSON.stringify(key) + '\n
 
 npm ci --prefix functions
 
+node scripts/stage-function-src.mjs stage
+restore_src() {
+  node scripts/stage-function-src.mjs restore || true
+}
+trap restore_src EXIT
+
 deploy_entry() {
   local entry="$1"
   local only="$2"
@@ -51,3 +57,5 @@ pkg.main = 'index.js';
 writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 "
 rm -f firebase.functions.json
+restore_src
+trap - EXIT

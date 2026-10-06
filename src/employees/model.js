@@ -329,6 +329,11 @@ function normalizeProjects(list) {
     employer: rowText(row, 'employer'),
     roles: text(row?.roles),
     responsibility: text(row?.responsibility),
+    area: rowText(row, 'area'),
+    buildingClass: rowText(row, 'buildingClass'),
+    description: text(row?.description),
+    referenceName: rowText(row, 'referenceName'),
+    contactCompany: rowText(row, 'contactCompany'),
     source: row?.source === 'cv' || row?.source === 'excel' ? row.source : 'manual',
     link: projectLink(row),
   })).filter((row) => row.title || row.client || row.responsibility || row.images.length);

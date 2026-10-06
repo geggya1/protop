@@ -130,4 +130,43 @@ assert.equal(kept.cv.projects[0].email, 'kari@eksempel.no');
 assert.equal(kept.cv.projects[0].link.owner, 'person');
 assert.equal(kept.cv.birthDate, '6.4.1980');
 
+const sheetOnly = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  text: [
+    'Næringsbygg 7 etasjer - Eksempelfjorden',
+    'Eksempelveien 1, 0150 Oslo, Norge',
+    'Oppdragsgiver',
+    'Oppdrag AS',
+    'Areal',
+    'm2',
+    '59 172',
+    'Tiltaksklasse',
+    '3',
+  ].join('\n'),
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async () => ({
+    firstName: 'Ola',
+    lastName: 'Nordmann',
+    headline: 'Byggeleder',
+    projects: [{
+      title: 'Næringsbygg 7 etasjer - Eksempelfjorden',
+      category: 'Næring',
+      object: 'Nybygg',
+      client: 'Oppdrag AS',
+    }],
+  }),
+});
+assert.equal(sheetOnly.cv.firstName, '');
+assert.equal(sheetOnly.cv.lastName, '');
+assert.equal(sheetOnly.cv.headline, '');
+assert.equal(sheetOnly.cv.projects.length, 1);
+assert.equal(sheetOnly.cv.projects[0].area, '59 172 m2');
+assert.equal(sheetOnly.cv.projects[0].buildingClass, '3');
+assert.equal(sheetOnly.cv.projects[0].category, '');
+assert.equal(sheetOnly.cv.projects[0].object, '');
+assert.equal(sheetOnly.cv.projects[0].referenceName, '');
+
 console.log('importInterpret.test.mjs: ok');

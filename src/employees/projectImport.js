@@ -11,7 +11,12 @@ const FIELDS = [
   ['category', ['kategori']],
   ['object', ['objekt', 'objekttype']],
   ['period', ['periode']],
-  ['cost', ['kostnad', 'sum', 'verdi', 'kontraktssum']],
+  ['cost', ['kostnad', 'prosjektsum', 'sum', 'verdi', 'kontraktssum']],
+  ['area', ['areal', 'arealm2']],
+  ['buildingClass', ['tiltaksklasse']],
+  ['description', ['beskrivelse', 'prosjektbeskrivelse']],
+  ['referenceName', ['navnpaareferansearket', 'referansenavn']],
+  ['contactCompany', ['firmahoskontakt', 'kontaktfirma']],
   ['client', ['kunde', 'oppdragsgiver', 'byggherre']],
   ['contact', ['kontakt', 'kontaktperson']],
   ['phone', ['telefon', 'tlf', 'mobil']],
@@ -71,7 +76,12 @@ export function personProject(input, source = 'excel') {
     object: text(row.object),
     period: text(row.period),
     cost: text(row.cost),
+    area: text(row.area),
+    buildingClass: text(row.buildingClass),
+    description: text(row.description),
+    referenceName: text(row.referenceName),
     contact: text(row.contact),
+    contactCompany: text(row.contactCompany),
     phone: text(row.phone),
     email: text(row.email).replace(/\s+/g, ''),
     employer: text(row.employer),
@@ -111,8 +121,10 @@ export async function readProjectTable(bytes, filename = '') {
 }
 
 export const PROJECT_IMPORT_ACCEPT = [
-  '.csv', '.txt', '.xlsx', '.xls',
+  '.csv', '.txt', '.xlsx', '.xls', '.pdf', '.png', '.jpg', '.jpeg', '.webp', '.docx',
   'text/csv', 'text/plain',
+  'application/pdf', 'image/png', 'image/jpeg', 'image/webp',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ].join(',');

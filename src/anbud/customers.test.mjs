@@ -7,6 +7,7 @@ import {
   importCustomers,
   maskPersonnummer,
   planCustomerImport,
+  withCustomerNumbers,
   matchCustomer,
   namesLikelyMatch,
   normalizeCustomer,
@@ -140,5 +141,36 @@ assert.equal(importFile.includes('saveAnbudState'), false);
 assert.match(importFile, /planCustomerImport/);
 assert.match(screen, /confirmCustomerImport/);
 assert.match(screen, /Ingenting er lagret ennå/);
+assert.match(screen, /neste ledige er/);
+
+const first = upsertCustomer(emptyAnbudState(), { name: 'A AS', orgnr: '923456785', address: 'Gate 1', postalCode: '4073', place: 'Oslo', email: 'a@a.no', phone: '92082276' });
+const second = upsertCustomer(first.state, { name: 'B AS', orgnr: '923456793', customerNumber: '10180', address: 'Gate 2', postalCode: '4073', place: 'Oslo', email: 'b@b.no', phone: '92082276' });
+const third = upsertCustomer(second.state, { name: 'C AS', orgnr: '923456807', address: 'Gate 3', postalCode: '4073', place: 'Oslo', email: 'c@c.no', phone: '92082276' });
+assert.equal(first.customer.customerNumber, '1');
+assert.equal(second.customer.customerNumber, '10180');
+assert.equal(third.customer.customerNumber, '10181');
+
+const migrated = withCustomerNumbers([
+  { id: 'a', name: 'A', notes: 'Kundenr 10180 · nettside', createdAt: '2024-01-02' },
+  { id: 'b', name: 'B', createdAt: '2024-01-01' },
+]);
+assert.equal(migrated.find((row) => row.id === 'a').customerNumber, '10180');
+assert.equal(migrated.find((row) => row.id === 'a').notes, 'nettside');
+assert.equal(migrated.find((row) => row.id === 'b').customerNumber, '10181');
+const migratedAgain = withCustomerNumbers(migrated);
+assert.equal(migratedAgain.find((row) => row.id === 'b').customerNumber, '10181');
+assert.equal(migratedAgain.find((row) => row.id === 'a').notes, 'nettside');
+
+const ordered = filterCustomers([
+  { id: 'b', name: 'Senere', kind: 'org', customerNumber: '2', email: 's@s.no', phone: '92082276', address: 'Gate' },
+  { id: 'a', name: 'Først', kind: 'person', customerNumber: '10', email: '', phone: '', address: '' },
+], '10', { kind: 'person', gap: 'contact' });
+assert.equal(ordered.length, 1);
+assert.equal(ordered[0].name, 'Først');
+const byNumber = filterCustomers([
+  { id: 'b', name: 'Senere', kind: 'org', customerNumber: '12' },
+  { id: 'a', name: 'Først', kind: 'org', customerNumber: '2' },
+], '');
+assert.deepEqual(byNumber.map((row) => row.customerNumber), ['2', '12']);
 
 console.log('customers.test.mjs: ok');

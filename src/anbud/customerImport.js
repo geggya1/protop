@@ -206,11 +206,7 @@ function rowFromObject(src) {
     joinLines(src.visitAddress, src.visitAddress2),
     joinLines(src.invoiceAddress, src.invoiceAddress2),
   );
-  const notes = [
-    src.customerNo ? `Kundenr ${String(src.customerNo).trim()}` : '',
-    src.website,
-    src.notes,
-  ].map((value) => String(value || '').trim()).filter(Boolean).join(' · ');
+  const notes = [src.website, src.notes].map((value) => String(value || '').trim()).filter(Boolean).join(' · ');
   return emptyCustomer({
     name,
     kind,
@@ -222,6 +218,7 @@ function rowFromObject(src) {
     contactName: src.contactName || '',
     email: firstFilled(src.email, src.invoiceEmail),
     phone: src.phone || '',
+    customerNumber: src.customerNo || '',
     notes,
   });
 }

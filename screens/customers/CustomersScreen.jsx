@@ -12,10 +12,12 @@ import {
   identityFieldsForKind,
   importCustomers,
   maskPersonnummer,
+  nextCustomerNumber,
   planCustomerImport,
   normalizeOrgnr,
   ownerLabel,
   upsertCustomer,
+  withCustomerNumbers,
 } from '../../src/anbud/customers';
 import { CUSTOMER_IMPORT_ACCEPT } from '../../src/anbud/customerImport';
 import { readCustomerImport } from '../../src/imports/assist';
@@ -104,7 +106,10 @@ export default function CustomersScreen() {
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
+  const [kindFilter, setKindFilter] = useState('');
+  const [gapFilter, setGapFilter] = useState('');
   const lookupRef = useRef('');
+  const numberSave = useRef('');
 
   useEffect(() => {
     loadAnbudState(familyId).then(setState);
@@ -160,7 +165,30 @@ export default function CustomersScreen() {
   const customers = state?.customers || [];
   const contracts = state?.contracts || [];
   const followPeople = companyFollowUpPeople(members);
-  const visible = useMemo(() => filterCustomers(customers, query), [customers, query]);
+  const numbered = useMemo(() => withCustomerNumbers(customers), [customers]);
+  const visible = useMemo(
+    () => filterCustomers(numbered, query, { kind: kindFilter, gap: gapFilter }),
+    [numbered, query, kindFilter, gapFilter],
+  );
+  const upcomingNumber = nextCustomerNumber(numbered);
+
+  useEffect(() => {
+    if (!state || !familyId) return undefined;
+    const next = withCustomerNumbers(state.customers || []);
+    const before = (state.customers || []).map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
+    const after = next.map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
+    if (before === after || numberSave.current === after) return undefined;
+    numberSave.current = after;
+    let live = true;
+    saveAnbudState({ ...state, customers: next }, familyId).then((saved) => {
+      if (live) setState(saved);
+    }).catch(() => {
+      numberSave.current = '';
+    });
+    return () => {
+      live = false;
+    };
+  }, [state, familyId]);
   const selected = customers.find((row) => row.id === selectedId) || null;
   const related = selected
     ? contracts.filter((row) => row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase()))
@@ -325,7 +353,14 @@ export default function CustomersScreen() {
     id: String(index),
     severity: row.severity,
     title: row.name,
-    meta: [formatOrgnr(row.orgnr), row.address, row.place, row.email, row.phone].filter(Boolean).join(' · '),
+    meta: [
+      row.customer?.customerNumber ? `Kundenr ${row.customer.customerNumber}` : '',
+      formatOrgnr(row.orgnr),
+      row.address,
+      row.place,
+      row.email,
+      row.phone,
+    ].filter(Boolean).join(' · '),
     issues: row.issues || [],
     included: row.severity !== 'block' && !dropped.has(String(index)),
   }));
@@ -383,38 +418,98 @@ export default function CustomersScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Søk i navn, org.nr, kontakt"
+            placeholder="Søk i kundenr, navn, org.nr, sted, e-post"
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          {!customers.length ? (
+          <View style={styles.row}>
+            {[
+              ['', 'Alle'],
+              ['org', 'Virksomhet'],
+              ['person', 'Privat'],
+            ].map(([id, label]) => (
+              <TouchableOpacity key={id || 'all-kind'} onPress={() => setKindFilter(id)} accessibilityRole="button">
+                <Text style={{ color: kindFilter === id ? colors.brand : colors.ink, fontWeight: kindFilter === id ? '700' : '400' }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+            {[
+              ['', 'Alle opplysninger'],
+              ['contact', 'Mangler kontakt'],
+              ['address', 'Mangler adresse'],
+              ['orgnr', 'Mangler org.nr'],
+            ].map(([id, label]) => (
+              <TouchableOpacity key={`gap-${id || 'all'}`} onPress={() => setGapFilter(id)} accessibilityRole="button">
+                <Text style={{ color: gapFilter === id ? colors.brand : colors.muted, fontWeight: gapFilter === id ? '700' : '400' }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
+            {` · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
+          </Text>
+          {!numbered.length ? (
             <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
           ) : null}
-          {visible.map((row) => (
-            <TouchableOpacity
-              key={row.id}
-              onPress={() => { setSelectedId(row.id); setView('detail'); }}
-              accessibilityRole="button"
-              style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
-            >
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
-              <Text style={{ color: colors.muted }}>
-                {[
-                  row.kind === 'person' ? 'Privatkunde' : 'Virksomhet',
-                  row.kind === 'person' ? maskPersonnummer(row.personnummer) : formatOrgnr(row.orgnr),
-                  row.contactName,
-                  ownerLabel(row, followPeople),
-                  row.place,
-                ].filter(Boolean).join(' · ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {numbered.length && !visible.length ? (
+            <Text style={{ color: colors.muted }}>Ingen kunder treffer søket eller filteret.</Text>
+          ) : null}
+          {visible.length ? (
+            <View nativeID="customer-list" style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              {!isPhone ? (
+                <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
+                  {[
+                    ['Nr', styles.cellNr],
+                    ['Kunde', styles.cellGrow],
+                    ['Org.nr', styles.cellId],
+                    ['Adresse', styles.cellGrow],
+                    ['Kontakt', styles.cellGrow],
+                    ['E-post', styles.cellGrow],
+                    ['Telefon', styles.cellPhone],
+                  ].map(([label, size]) => (
+                    <Text key={label} style={[styles.cell, size, styles.headCell, { color: colors.muted }]}>{label}</Text>
+                  ))}
+                </View>
+              ) : null}
+              {visible.map((row) => (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => { setSelectedId(row.id); setView('detail'); }}
+                  accessibilityRole="button"
+                  style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
+                >
+                  <Text style={[styles.cell, !isPhone && styles.cellNr, { color: colors.ink, fontWeight: '700' }]}>{row.customerNumber}</Text>
+                  <View style={[styles.cell, !isPhone && styles.cellGrow]}>
+                    <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
+                      {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.cell, !isPhone && styles.cellId, { color: colors.ink }]}>
+                    {row.kind === 'person' ? (maskPersonnummer(row.personnummer) || '—') : (formatOrgnr(row.orgnr) || '—')}
+                  </Text>
+                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>
+                    {[row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}
+                  </Text>
+                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>{row.contactName || '—'}</Text>
+                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>{row.email || '—'}</Text>
+                  <Text style={[styles.cell, !isPhone && styles.cellPhone, { color: colors.ink }]}>{row.phone || '—'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </>
       ) : null}
 
       {view === 'edit' ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>{form.id ? 'Endre kunde' : 'Ny kunde'}</Text>
+          <Text style={{ color: colors.ink }}>
+            {`Kundenummer ${form.id ? (form.customerNumber || selected?.customerNumber || '') : upcomingNumber}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Nummeret følger rekkefølgen. En ny kunde får automatisk neste ledige.
+          </Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setKind('org')} accessibilityRole="button">
               <Text style={{ color: form.kind === 'org' ? colors.brand : colors.ink }}>Virksomhet</Text>
@@ -499,6 +594,7 @@ export default function CustomersScreen() {
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Kundeforhold</Text>
             <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '600' }}>{selected.name}</Text>
+            <Text style={{ color: colors.ink }}>{`Kundenummer ${selected.customerNumber || '—'}`}</Text>
             <Text style={{ color: colors.ink }}>{selected.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}</Text>
             {selected.kind !== 'person' && selected.orgnr ? <Text style={{ color: colors.ink }}>Org.nr {formatOrgnr(selected.orgnr)}</Text> : null}
             {selected.kind === 'person' && selected.personnummer ? <Text style={{ color: colors.ink }}>Personnummer {maskPersonnummer(selected.personnummer)}</Text> : null}
@@ -579,4 +675,14 @@ const styles = StyleSheet.create({
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16, backgroundColor: '#fff' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
+  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
+  tableRowPhone: { flexDirection: 'column', gap: 2 },
+  tableHead: { borderTopWidth: 0 },
+  headCell: { fontSize: 12, fontWeight: '700' },
+  cell: { fontSize: 14 },
+  cellNr: { width: 64 },
+  cellId: { width: 120 },
+  cellPhone: { width: 110 },
+  cellGrow: { flex: 1, minWidth: 90 },
 });

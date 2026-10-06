@@ -109,11 +109,87 @@ export function emptyCustomer(partial = {}) {
     email: '',
     phone: '',
     notes: '',
+    customerNumber: '',
     ownerUid: '',
     ownerName: '',
     createdAt: '',
     updatedAt: '',
     ...partial,
+  };
+}
+
+export function normalizeCustomerNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const number = Number(digits);
+  if (!Number.isFinite(number) || number <= 0 || number > 999999999) return '';
+  return String(number);
+}
+
+export function customerNumberFromNotes(notes) {
+  const match = String(notes || '').match(/Kundenr\s+(\d+)/i);
+  return normalizeCustomerNumber(match?.[1]);
+}
+
+function stripCustomerNumberNote(notes, number) {
+  return text(String(notes || '').replace(new RegExp(`Kundenr\\s+${number}`, 'i'), ''))
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/^\s*·\s*|\s*·\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function nextCustomerNumber(customers) {
+  let max = 0;
+  for (const row of Array.isArray(customers) ? customers : []) {
+    const number = Number(normalizeCustomerNumber(row?.customerNumber));
+    if (number > max) max = number;
+  }
+  return String(max + 1);
+}
+
+/** Gir hver kunde et kundenummer. Definerte nummer beholdes. Nye får neste ledige, eldste først. */
+export function withCustomerNumbers(customers) {
+  const rows = normalizeCustomers(customers).map((row) => {
+    const defined = normalizeCustomerNumber(row.customerNumber);
+    const fromNotes = customerNumberFromNotes(row.notes);
+    const customerNumber = defined || fromNotes;
+    const notes = fromNotes && (!defined || defined === fromNotes)
+      ? stripCustomerNumberNote(row.notes, fromNotes)
+      : row.notes;
+    return { ...row, customerNumber, notes };
+  });
+  const ordered = [...rows].sort((left, right) => (
+    String(left.createdAt).localeCompare(String(right.createdAt))
+    || left.name.localeCompare(right.name, 'nb')
+  ));
+  const used = new Set();
+  const kept = new Map();
+  const pending = [];
+  for (const row of ordered) {
+    if (row.customerNumber && !used.has(row.customerNumber)) {
+      used.add(row.customerNumber);
+      kept.set(row.id, row);
+    } else {
+      pending.push(row);
+    }
+  }
+  let next = nextCustomerNumber([...kept.values()]);
+  for (const row of pending) {
+    kept.set(row.id, { ...row, customerNumber: next });
+    next = String(Number(next) + 1);
+  }
+  return rows.map((row) => kept.get(row.id) || row);
+}
+
+export function assignCustomerNumber(customers, requested) {
+  const rows = withCustomerNumbers(customers);
+  const wanted = normalizeCustomerNumber(requested);
+  const taken = new Set(rows.map((row) => row.customerNumber));
+  if (wanted && !taken.has(wanted)) return { customerNumber: wanted, replaced: '' };
+  return {
+    customerNumber: nextCustomerNumber(rows),
+    replaced: wanted || '',
   };
 }
 
@@ -140,6 +216,7 @@ export function normalizeCustomer(raw) {
     email: text(raw.email).slice(0, 80),
     phone: text(raw.phone).slice(0, 40),
     notes: text(raw.notes).slice(0, 400),
+    customerNumber: normalizeCustomerNumber(raw.customerNumber) || customerNumberFromNotes(raw.notes),
     ownerUid: text(raw.ownerUid).slice(0, 80),
     ownerName: text(raw.ownerName).slice(0, 80),
     createdAt: text(raw.createdAt),
@@ -152,16 +229,26 @@ export function normalizeCustomers(input) {
   return input.map(normalizeCustomer).filter(Boolean);
 }
 
-export function filterCustomers(customers, query = '') {
+export function filterCustomers(customers, query = '', { kind = '', gap = '' } = {}) {
   const needle = fold(query);
-  const rows = Array.isArray(customers) ? customers : [];
-  if (!needle) return rows;
-  return rows.filter((row) => {
-    const hay = [row.name, row.orgnr, row.place, row.contactName, row.email, row.phone, row.address, row.ownerName]
-      .map(fold)
-      .join(' ');
-    return hay.includes(needle);
-  });
+  let rows = Array.isArray(customers) ? customers : [];
+  if (kind === 'org' || kind === 'person') rows = rows.filter((row) => row.kind === kind);
+  if (gap === 'contact') rows = rows.filter((row) => !text(row.email) && !text(row.phone));
+  if (gap === 'address') rows = rows.filter((row) => !text(row.address));
+  if (gap === 'orgnr') rows = rows.filter((row) => row.kind !== 'person' && !text(row.orgnr));
+  if (needle) {
+    rows = rows.filter((row) => {
+      const hay = [
+        row.customerNumber, row.name, row.orgnr, row.place, row.postalCode, row.address,
+        row.contactName, row.email, row.phone, row.ownerName, row.notes,
+      ].map(fold).join(' ');
+      return hay.includes(needle);
+    });
+  }
+  return [...rows].sort((left, right) => (
+    Number(left.customerNumber || 0) - Number(right.customerNumber || 0)
+    || left.name.localeCompare(right.name, 'nb')
+  ));
 }
 
 function sameName(left, right) {
@@ -236,6 +323,7 @@ export function upsertCustomer(state, input) {
       kind,
       orgnr,
       personnummer,
+      customerNumber: normalizeCustomerNumber(input?.customerNumber) || current.customerNumber,
       ownerUid: input?.ownerUid != null ? input.ownerUid : current.ownerUid,
       ownerName: input?.ownerName != null ? input.ownerName : current.ownerName,
       updatedAt: now,
@@ -251,13 +339,15 @@ export function upsertCustomer(state, input) {
   if (clash) {
     return { ok: false, state, error: 'En kunde med samme organisasjons- eller personnummer finnes allerede.', customer: clash };
   }
-  const customer = normalizeCustomer({
+    const assigned = assignCustomerNumber(customers, input?.customerNumber);
+    const customer = normalizeCustomer({
     ...emptyCustomer(input),
     id: createId('kunde'),
     name,
     kind,
     orgnr,
     personnummer,
+    customerNumber: assigned.customerNumber,
     createdAt: now,
     updatedAt: now,
   });
@@ -346,6 +436,7 @@ export function planCustomerImport(state, rows) {
   const seenOrgnr = new Set();
   const seenPerson = new Set();
   const seenNames = new Set();
+  let registry = withCustomerNumbers(existing);
   const planned = [];
   for (const row of Array.isArray(rows) ? rows : []) {
     const name = text(row?.name);
@@ -388,18 +479,25 @@ export function planCustomerImport(state, rows) {
       if (orgnr) seenOrgnr.add(orgnr);
       if (personnummer) seenPerson.add(personnummer);
     }
-    const customer = block ? null : emptyCustomer({
-      ...row,
-      name,
-      kind,
-      orgnr,
-      personnummer,
-      address,
-      place,
-      postalCode: postal.value,
-      email: email.value,
-      phone: phone.value,
-    });
+    let customer = null;
+    if (!block) {
+      const assigned = assignCustomerNumber(registry, row?.customerNumber || customerNumberFromNotes(row?.notes));
+      if (assigned.replaced) issues.push(`Kundenummer ${assigned.replaced} er opptatt. Nytt nummer blir ${assigned.customerNumber}.`);
+      customer = emptyCustomer({
+        ...row,
+        name,
+        kind,
+        orgnr,
+        personnummer,
+        address,
+        place,
+        postalCode: postal.value,
+        email: email.value,
+        phone: phone.value,
+        customerNumber: assigned.customerNumber,
+      });
+      registry = [...registry, { ...customer, id: `plan_${planned.length}` }];
+    }
     planned.push({
       action: block ? 'skip' : 'create',
       severity: block ? 'block' : (issues.length ? 'review' : 'ok'),

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { emptyProjectState } from '../project/engine.js';
 import { projectFromAward } from './handoff.js';
 import {
+  addContractDocuments,
+  attachContractDocumentFile,
   awardContract,
   closeContract,
   contractAlerts,
@@ -145,6 +147,44 @@ assert.equal(direct.state.contracts[0].documents[0].name, 'C1-H-03-001.pdf');
 assert.match(direct.state.contracts[0].documents[0].dataUrl, /^data:application\/pdf/);
 assert.equal(direct.state.contracts[0].milestones.find((row) => row.key === 'signert').status, 'utfort');
 assert.equal(contractAlerts(direct.state.contracts, new Date(2026, 9, 5)).filter((row) => /signert|Oppstart/.test(row.title)).length, 0);
+
+const textOnly = registerDirectContract(emptyAnbudState(), {
+  title: 'Madlalia uten fil',
+  buyer: 'Igang Totalentreprenør As',
+  documents: [{
+    id: 'dok-text',
+    name: 'C1-H-03-001 Oppdragsavtale NS8403.pdf',
+    mimeType: 'application/pdf',
+    text: 'Oppdragsbekreftelse',
+  }],
+});
+assert.equal(textOnly.ok, true, textOnly.error);
+const attached = attachContractDocumentFile(
+  textOnly.state,
+  textOnly.state.contracts[0].id,
+  'dok-text',
+  {
+    url: 'https://firebasestorage.googleapis.com/v0/b/protop-c189c.firebasestorage.app/o/families%2Fx%2Fanbud%2Fcontracts%2Favtale.pdf?alt=media&token=abc',
+    storagePath: 'families/x/anbud/contracts/avtale.pdf',
+    name: 'C1-H-03-001 Oppdragsavtale NS8403.pdf',
+    mimeType: 'application/pdf',
+    size: 120000,
+  },
+);
+assert.equal(attached.ok, true, attached.error);
+assert.match(attached.state.contracts[0].documents[0].url, /^https:\/\/firebasestorage/);
+assert.equal(attached.state.contracts[0].documents[0].text, 'Oppdragsbekreftelse');
+assert.equal(attached.state.contracts[0].documents[0].dataUrl, '');
+
+const many = addContractDocuments(attached.state, attached.state.contracts[0].id, [
+  { name: 'Tillegg 1.pdf', url: 'https://example.com/1.pdf', mimeType: 'application/pdf', size: 10 },
+  { name: 'Tillegg 2.pdf', url: 'https://example.com/2.pdf', mimeType: 'application/pdf', size: 11 },
+  { name: 'Endring.docx', url: 'https://example.com/3.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 12 },
+]);
+assert.equal(many.ok, true, many.error);
+assert.equal(many.state.contracts[0].documents.length, 4);
+assert.equal(many.state.contracts[0].documents.filter((row) => /Tillegg|Endring/.test(row.name)).length, 3);
+assert.equal(many.state.contracts[0].documents.some((row) => row.name === 'Tillegg 2.pdf' && row.url.includes('2.pdf')), true);
 
 const frame = registerDirectContract(emptyAnbudState(), {
   title: 'Rammeavtale byggherre',

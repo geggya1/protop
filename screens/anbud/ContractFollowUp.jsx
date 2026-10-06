@@ -244,6 +244,7 @@ export default function ContractFollowUp({
       {view === 'compose' ? (
         <DirectAgreementForm
           colors={colors}
+          companyId={companyId}
           projects={projects}
           contracts={contracts}
           customers={customers}

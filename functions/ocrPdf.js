@@ -108,7 +108,16 @@ async function pageImages(page, OPS) {
   return found.slice(0, 2);
 }
 
-export async function ocrPdfPages(buffer, { maxPages = 4 } = {}) {
+function pageText(content) {
+  const chunks = [];
+  for (const item of content?.items || []) {
+    if (item?.str) chunks.push(item.str);
+    chunks.push(item?.hasEOL ? '\n' : ' ');
+  }
+  return chunks.join('').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+export async function ocrPdfPages(buffer, { maxPages = 12 } = {}) {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   const { getDocument, OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await getDocument({
@@ -123,12 +132,15 @@ export async function ocrPdfPages(buffer, { maxPages = 4 } = {}) {
     const pages = Math.min(doc.numPages || 0, maxPages);
     for (let pageNo = 1; pageNo <= pages; pageNo += 1) {
       const page = await doc.getPage(pageNo);
+      const layer = pageText(await page.getTextContent().catch(() => null));
+      if (layer) texts.push(layer);
+      if (layer.length >= 80) continue;
       const pngs = await pageImages(page, OPS);
       for (const png of pngs) {
         images.push(png);
         try {
           const recognized = await worker.recognize(png.buffer);
-          const text = String(recognized?.data?.text || '').replace(/\s+/g, ' ').trim();
+          const text = String(recognized?.data?.text || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
           if (text) texts.push(text);
         } catch {
           // Gemini kan fortsatt lese bildet.
@@ -140,6 +152,6 @@ export async function ocrPdfPages(buffer, { maxPages = 4 } = {}) {
   }
   return {
     text: texts.join('\n').trim(),
-    images: images.slice(0, 6),
+    images: images.slice(0, 8),
   };
 }

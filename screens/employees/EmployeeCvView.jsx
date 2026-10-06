@@ -67,6 +67,7 @@ export default function EmployeeCvView({ cv, colors }) {
         {cv.projects.length ? cv.projects.map((row) => (
           <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
             <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.title || 'Prosjekt'}</Text>
+            {!!row.address && <Text style={{ color: colors.muted }}>{row.address}</Text>}
             {[
               ['Kategori', row.category],
               ['Kunde', row.client],

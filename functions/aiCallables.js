@@ -201,12 +201,12 @@ export const aiClassListOcr = onCall(
   },
 );
 
-/** OCR og kolonne-tolking av kundelister og medarbeiderlister. */
+/** OCR og kolonne-tolking av kundelister, medarbeiderlister og CV-er. */
 export const interpretImport = onCall(
   {
     region: 'europe-west1',
-    timeoutSeconds: 120,
-    memory: '1GiB',
+    timeoutSeconds: 180,
+    memory: '2GiB',
     cors: true,
   },
   async (req) => {

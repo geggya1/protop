@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { handleInterpretImport } from './importInterpret.js';
 
 const deps = {
@@ -168,5 +169,8 @@ assert.equal(sheetOnly.cv.projects[0].buildingClass, '3');
 assert.equal(sheetOnly.cv.projects[0].category, '');
 assert.equal(sheetOnly.cv.projects[0].object, '');
 assert.equal(sheetOnly.cv.projects[0].referenceName, '');
+
+const source = readFileSync(new URL('./importInterpret.js', import.meta.url), 'utf8');
+assert.match(source, /imageBase64.length <= 1_500_000/);
 
 console.log('importInterpret.test.mjs: ok');

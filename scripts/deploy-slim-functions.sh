@@ -41,6 +41,7 @@ deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 deploy_entry friendListIndex.js functions:friendListHttp
 deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
+deploy_entry importIndex.js functions:interpretImport
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

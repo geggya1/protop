@@ -6,7 +6,8 @@
  */
 
 const MAX_BASE64_CHARS = 5_500_000;
-const MAX_SOURCE_BYTES = 40_000_000;
+const HEAVY_BASE64_CHARS = 2_400_000;
+const MAX_SOURCE_BYTES = 80 * 1024 * 1024;
 const MAX_PAGES = 12;
 const MIN_EMBEDDED_BYTES = 20_000;
 
@@ -40,8 +41,8 @@ export function base64Length(byteLength) {
   return Math.ceil(Number(byteLength || 0) / 3) * 4;
 }
 
-function fits(bytes) {
-  return base64Length(bytes?.length || 0) <= MAX_BASE64_CHARS;
+function fits(bytes, limit = MAX_BASE64_CHARS) {
+  return base64Length(bytes?.length || 0) <= limit;
 }
 
 function jpegEnd(raw, start) {
@@ -183,16 +184,17 @@ async function shrunkPage(bytes, shrinkImage, options) {
   try {
     const shrunk = await shrinkImage(bytes, options);
     if (!shrunk?.bytes?.length || !(shrunk.width > 0) || !(shrunk.height > 0)) return null;
-    return shrunk.bytes.length < bytes.length ? shrunk : { bytes, width: shrunk.width, height: shrunk.height };
+    if (shrunk.bytes.length >= bytes.length) return null;
+    return shrunk;
   } catch {
     return null;
   }
 }
 
 const SHRINK_ATTEMPTS = [
-  { maxEdge: 1400, quality: 0.72 },
-  { maxEdge: 1000, quality: 0.58 },
-  { maxEdge: 720, quality: 0.46 },
+  { maxEdge: 1100, quality: 0.62 },
+  { maxEdge: 860, quality: 0.5 },
+  { maxEdge: 640, quality: 0.42 },
 ];
 
 export async function prepareImportBody({ bytes, filename = '', mime = '' } = {}, { shrinkImage } = {}) {
@@ -202,8 +204,11 @@ export async function prepareImportBody({ bytes, filename = '', mime = '' } = {}
     throw new Error('Filen er for stor. Lagre den som en mindre PDF, eller del den opp.');
   }
   const pdf = isPdf(filename, mime);
-  const embedded = pdf ? extractEmbeddedJpegs(raw) : [];
-  const heavy = !fits(raw) || raw.length > 3_500_000 || embedded.some((image) => image.length > 600_000);
+  const large = raw.length > 3_500_000 || !fits(raw);
+  const embedded = pdf
+    ? extractEmbeddedJpegs(raw, large ? { minBytes: 80_000, maxCount: 8 } : {})
+    : [];
+  const heavy = large || embedded.some((image) => image.length > 600_000);
   if (pdf && embedded.length && heavy) {
     let pages = [];
     for (const image of embedded) {
@@ -220,11 +225,11 @@ export async function prepareImportBody({ bytes, filename = '', mime = '' } = {}
         pages = smaller;
       }
       let packed = pdfFromJpegs(pages);
-      while (packed && !fits(packed) && pages.length > 1) {
+      while (packed && !fits(packed, HEAVY_BASE64_CHARS) && pages.length > 1) {
         pages.pop();
         packed = pdfFromJpegs(pages);
       }
-      if (packed && fits(packed)) {
+      if (packed && fits(packed, HEAVY_BASE64_CHARS)) {
         return { mime: 'application/pdf', imageBase64: bytesToBase64(packed) };
       }
     }

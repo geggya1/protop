@@ -206,7 +206,7 @@ export const interpretImport = onCall(
   {
     region: 'europe-west1',
     timeoutSeconds: 180,
-    memory: '2GiB',
+    memory: '1GiB',
     cors: true,
   },
   async (req) => {

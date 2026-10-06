@@ -5,4 +5,4 @@
 import './setRegion.js';
 import './geminiEnv.js';
 
-export { interpretImport } from './aiCallables.js';
+export { interpretImport } from './importCallable.js';

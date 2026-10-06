@@ -42,7 +42,7 @@ function pageJpeg(width, height, extra = 0) {
   ]);
 }
 
-const page = pageJpeg(1200, 1600, 30_000);
+const page = pageJpeg(1200, 1600, 90_000);
 assert.equal(jpegSize(page).width, 1200);
 assert.equal(jpegSize(page).height, 1600);
 const found = extractEmbeddedJpegs(concat([Uint8Array.from([0x25, 0x50, 0x44, 0x46]), page]));
@@ -73,8 +73,25 @@ assert.ok(prepared.imageBase64.length < base64Length(source.length));
 const decoded = Uint8Array.from(atob(prepared.imageBase64), (char) => char.charCodeAt(0));
 assert.equal(extractEmbeddedJpegs(decoded, { minBytes: 20 }).length, 1);
 
+const forty = new Uint8Array(45 * 1024 * 1024);
+forty.set(page, 4000);
+const fromForty = await prepareImportBody({
+  bytes: forty,
+  filename: 'cv-40mb.pdf',
+  mime: 'application/pdf',
+}, {
+  shrinkImage: async () => ({ bytes: small, width: 32, height: 32 }),
+});
+assert.equal(fromForty.mime, 'application/pdf');
+assert.ok(fromForty.imageBase64.length < 2_400_000);
+assert.ok(fromForty.imageBase64.length < base64Length(forty.length));
+
 await assert.rejects(
   () => prepareImportBody({ bytes: new Uint8Array(5_000_000), filename: 'stor.pdf', mime: 'application/pdf' }),
+  /for stor/,
+);
+await assert.rejects(
+  () => prepareImportBody({ bytes: new Uint8Array(90 * 1024 * 1024), filename: 'for-stor.pdf', mime: 'application/pdf' }),
   /for stor/,
 );
 

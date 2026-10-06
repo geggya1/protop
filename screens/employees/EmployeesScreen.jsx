@@ -713,6 +713,20 @@ export default function EmployeesScreen() {
               </View>
             );
           })}
+          {selected.customFields?.some((field) => field.value && (isAdmin || (field.owner === 'person' && selected.personUid === uid))) ? (
+            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <View style={styles.cardHead}>
+                <Text style={[styles.sectionTitle, { color: colors.ink }]}>Egne felt</Text>
+                <Text style={{ color: colors.brand, fontSize: 12 }}>Fra listen eller skjemaet</Text>
+              </View>
+              {selected.customFields.filter((field) => field.value && (isAdmin || (field.owner === 'person' && selected.personUid === uid))).map((field) => (
+                <View key={field.id} style={styles.fact}>
+                  <Text style={[styles.factLabel, { color: colors.muted }]}>{field.label}</Text>
+                  <Text style={[styles.factValue, { color: colors.ink }]}>{field.value}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {gaps ? (
             <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={[styles.sectionTitle, { color: colors.ink }]}>Mangler</Text>

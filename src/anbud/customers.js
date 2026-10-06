@@ -310,6 +310,115 @@ export function setCustomerOwner(state, customerId, person) {
   };
 }
 
+function cleanContact(value, { email = false, phone = false, postal = false } = {}) {
+  const raw = text(value);
+  if (!raw) return { value: '', issue: '' };
+  if (email) {
+    return raw.includes('@')
+      ? { value: raw, issue: '' }
+      : { value: '', issue: 'E-post er ikke gyldig og blir ikke lagret.' };
+  }
+  if (phone) {
+    const count = raw.replace(/\D/g, '').length;
+    return count >= 8 && count <= 15
+      ? { value: raw, issue: '' }
+      : { value: '', issue: 'Telefonnummeret er ikke gyldig og blir ikke lagret.' };
+  }
+  if (postal) {
+    const code = raw.replace(/\D/g, '');
+    return code.length === 4
+      ? { value: code, issue: '' }
+      : { value: '', issue: 'Postnummeret er ikke fire siffer og blir ikke lagret.' };
+  }
+  return { value: raw, issue: '' };
+}
+
+/**
+ * Kontrollerer en kundeliste uten å lagre.
+ * severity block: raden kan ikke importeres og krever behandling.
+ * severity review: raden kan importeres, men har avvik.
+ */
+export function planCustomerImport(state, rows) {
+  const existing = normalizeCustomers(state?.customers);
+  const existingOrgnr = new Set(existing.map((row) => row.orgnr).filter(Boolean));
+  const existingPerson = new Set(existing.map((row) => row.personnummer).filter(Boolean));
+  const existingNames = new Set(existing.map((row) => fold(row.name)).filter(Boolean));
+  const seenOrgnr = new Set();
+  const seenPerson = new Set();
+  const seenNames = new Set();
+  const planned = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const name = text(row?.name);
+    const kind = row?.kind === 'person' || row?.kind === 'org'
+      ? row.kind
+      : (customerKindFromIds(row?.orgnr, row?.personnummer) || 'org');
+    const orgnr = kind === 'person' ? '' : normalizeOrgnr(row?.orgnr);
+    const personnummer = kind === 'org' ? '' : normalizePersonnummer(row?.personnummer);
+    const email = cleanContact(row?.email, { email: true });
+    const phone = cleanContact(row?.phone, { phone: true });
+    const postal = cleanContact(row?.postalCode, { postal: true });
+    const address = text(row?.address);
+    const place = text(row?.place);
+    const issues = [];
+    if (email.issue) issues.push(email.issue);
+    if (phone.issue) issues.push(phone.issue);
+    if (postal.issue) issues.push(postal.issue);
+    if (!address) issues.push('Mangler adresse.');
+    else {
+      if (!text(row?.postalCode)) issues.push('Mangler postnummer.');
+      if (!place) issues.push('Mangler poststed.');
+    }
+    if (!text(row?.email) && !text(row?.phone)) issues.push('Mangler e-post og telefon.');
+    const label = name || text(row?.orgnr) || text(row?.email) || 'Uten navn';
+    let block = '';
+    if (!name) block = 'Mangler navn.';
+    else if (kind === 'org' && text(row?.orgnr) && !orgnr) block = 'Organisasjonsnummer må være ni siffer.';
+    else if (kind === 'person' && text(row?.personnummer) && !personnummer) block = 'Personnummer må være elleve siffer.';
+    else if (orgnr && existingOrgnr.has(orgnr)) block = 'En kunde med samme organisasjonsnummer finnes allerede.';
+    else if (orgnr && seenOrgnr.has(orgnr)) block = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
+    else if (personnummer && existingPerson.has(personnummer)) block = 'En kunde med samme personnummer finnes allerede.';
+    else if (personnummer && seenPerson.has(personnummer)) block = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
+    if (!block) {
+      const nameKey = fold(name);
+      if (kind === 'org' && !orgnr) issues.push('Mangler organisasjonsnummer.');
+      if (kind === 'person' && !personnummer) issues.push('Mangler personnummer.');
+      if (nameKey && existingNames.has(nameKey)) issues.push('Samme navn finnes allerede i kunderegisteret.');
+      else if (nameKey && seenNames.has(nameKey)) issues.push('Samme navn står flere ganger i listen.');
+      if (nameKey) seenNames.add(nameKey);
+      if (orgnr) seenOrgnr.add(orgnr);
+      if (personnummer) seenPerson.add(personnummer);
+    }
+    const customer = block ? null : emptyCustomer({
+      ...row,
+      name,
+      kind,
+      orgnr,
+      personnummer,
+      address,
+      place,
+      postalCode: postal.value,
+      email: email.value,
+      phone: phone.value,
+    });
+    planned.push({
+      action: block ? 'skip' : 'create',
+      severity: block ? 'block' : (issues.length ? 'review' : 'ok'),
+      name: label,
+      orgnr,
+      place,
+      address,
+      email: email.value,
+      phone: phone.value,
+      reason: block,
+      issues: block ? [block, ...issues] : issues,
+      customer,
+    });
+  }
+  const rank = { block: 0, review: 1, ok: 2 };
+  planned.sort((left, right) => rank[left.severity] - rank[right.severity]);
+  return { rows: planned };
+}
+
 export function importCustomers(state, rows) {
   let next = state;
   const created = [];

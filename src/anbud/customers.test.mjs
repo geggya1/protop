@@ -6,6 +6,7 @@ import {
   formatOrgnr,
   importCustomers,
   maskPersonnummer,
+  planCustomerImport,
   matchCustomer,
   namesLikelyMatch,
   normalizeCustomer,
@@ -108,5 +109,36 @@ const owned = setCustomerOwner(created.state, created.customer.id, { uid: 'p1', 
 assert.equal(owned.ok, true);
 assert.equal(owned.customer.ownerUid, 'p1');
 assert.equal(ownerLabel(owned.customer, [{ uid: 'p1', name: 'Kari Konsulent' }]), 'Kari Konsulent');
+
+const planned = planCustomerImport(created.state, [
+  { name: 'Ny kunde AS', orgnr: '923456785', address: 'Storgata 1', postalCode: '4073', place: 'Randaberg', email: 'post@ny.no', phone: '92082276' },
+  { name: 'Igang Totalentreprenør As', orgnr: '922987106', address: 'Gate 1', postalCode: '4073', place: 'Randaberg', email: 'a@b.no', phone: '92082276' },
+  { name: 'Halv kunde', orgnr: '923456793', email: 'uten-alfakrøll', phone: '12' },
+  { name: 'Ny kunde AS', orgnr: '923456785', address: 'Annen gate', postalCode: '4073', place: 'Oslo', email: 'b@c.no', phone: '92082276' },
+  { orgnr: '923456807', address: 'Uten navn gate' },
+  { name: 'Feil nummer', orgnr: '123', address: 'Gate', postalCode: '4073', place: 'Oslo', email: 'c@d.no', phone: '92082276' },
+]);
+const byName = Object.fromEntries(planned.rows.map((row) => [row.name, row]));
+const ny = planned.rows.filter((row) => row.name === 'Ny kunde AS');
+assert.equal(ny.filter((row) => row.severity === 'ok' && row.action === 'create').length, 1);
+assert.equal(ny.filter((row) => row.severity === 'block' && /flere ganger/.test(row.reason)).length, 1);
+assert.equal(byName['Igang Totalentreprenør As'].severity, 'block');
+assert.match(byName['Igang Totalentreprenør As'].reason, /finnes allerede/);
+assert.equal(byName['Halv kunde'].severity, 'review');
+assert.equal(byName['Halv kunde'].customer.email, '');
+assert.equal(byName['Halv kunde'].customer.phone, '');
+assert.ok(byName['Halv kunde'].issues.some((issue) => /E-post/.test(issue)));
+assert.ok(byName['Halv kunde'].issues.some((issue) => /adresse/.test(issue)));
+assert.equal(byName['923456807'].severity, 'block');
+assert.match(byName['923456807'].reason, /Mangler navn/);
+assert.equal(byName['Feil nummer'].severity, 'block');
+assert.equal(planned.rows[0].severity, 'block');
+
+const screen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
+const importFile = screen.slice(screen.indexOf('async function importFile'), screen.indexOf('function toggleCustomer'));
+assert.equal(importFile.includes('saveAnbudState'), false);
+assert.match(importFile, /planCustomerImport/);
+assert.match(screen, /confirmCustomerImport/);
+assert.match(screen, /Ingenting er lagret ennå/);
 
 console.log('customers.test.mjs: ok');

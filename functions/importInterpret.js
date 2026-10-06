@@ -2,7 +2,7 @@
  * OCR og AI-tolking av kundelister og medarbeiderlister.
  * Regneark: modellen navngir ukjente kolonner. Skann: OCR-tekst og bilder leses av modellen.
  */
-import { mergeCvReads, parseProtopCv } from '../src/employees/cvText.js';
+import { mergeCvReads, parseProjectSheet, parseProtopCv } from '../src/employees/cvText.js';
 import {
   columnPrompt,
   cvPrompt,
@@ -88,6 +88,20 @@ export async function handleInterpretImport(data, auth, deps = {}) {
         sourceText = document.text || '';
       }
       const local = parseProtopCv(sourceText);
+      const sheet = parseProjectSheet(sourceText);
+      const cvDocument = /^(profil|utdanning|erfaringer|referanseprosjekter)$/im.test(sourceText);
+      if (sheet?.title) {
+        if (!cvDocument) {
+          local.headline = '';
+          local.summary = '';
+          local.firstName = '';
+          local.middleName = '';
+          local.lastName = '';
+          local.projects = [sheet];
+        } else if (!(local.projects || []).some((row) => row.title === sheet.title)) {
+          local.projects = [...(local.projects || []), sheet];
+        }
+      }
       let parsed = null;
       try {
         parsed = await call(apiKey, cvPrompt(), parts, {
@@ -97,8 +111,28 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       } catch (err) {
         if (!local.headline && !local.projects?.length && !local.experience?.length) throw err;
       }
+      const merged = mergeCvReads(local, parsed || {});
+      if (sheet?.title && !cvDocument) {
+        merged.firstName = '';
+        merged.middleName = '';
+        merged.lastName = '';
+        merged.headline = '';
+        merged.summary = '';
+        merged.birthDate = '';
+        merged.maritalStatus = '';
+        merged.nationality = '';
+        merged.language = '';
+        merged.education = [];
+        merged.certifications = [];
+        merged.courses = [];
+        merged.experience = [];
+        const match = (merged.projects || []).find((row) => row.title === sheet.title) || sheet;
+        if (!sheet.category) match.category = '';
+        if (!sheet.object) match.object = '';
+        merged.projects = [match];
+      }
       const read = sanitizeCv({
-        ...mergeCvReads(local, parsed || {}),
+        ...merged,
         summaryNote: parsed?.summaryNote,
       });
       return {

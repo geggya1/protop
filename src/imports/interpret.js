@@ -368,8 +368,13 @@ export function sanitizeCv(parsed) {
       client: clipText(row?.client, 160),
       object: clipText(row?.object, 160),
       period: clipText(row?.period, 80),
-      cost: clipText(row?.cost, 40),
+      cost: clipText(row?.cost, 80),
+      area: clipText(row?.area, 40),
+      buildingClass: clipText(row?.buildingClass, 20),
+      description: clipText(row?.description, 4000, true),
+      referenceName: clipText(row?.referenceName, 80),
       contact: clipText(row?.contact, 80),
+      contactCompany: clipText(row?.contactCompany, 160),
       phone: clipText(row?.phone, 40),
       email: repairEmail(row?.email),
       employer: clipText(row?.employer, 160),
@@ -407,13 +412,15 @@ export function sanitizeCv(parsed) {
 export function cvPrompt() {
   return `Du leser én CV, enten som skann, PDF eller ren tekst, og trekker ut innholdet.
 Returner KUN gyldig JSON:
-{"firstName":"","middleName":"","lastName":"","headline":"","summary":"","birthDate":"","language":"","nationality":"","maritalStatus":"","education":[{"from":"","to":"","school":"","program":""}],"certifications":[{"title":""}],"courses":[{"date":"","title":""}],"experience":[{"employer":"","place":"","from":"","to":"","current":false,"title":"","tasks":""}],"projects":[{"title":"","address":"","category":"","client":"","object":"","period":"","cost":"","contact":"","phone":"","email":"","employer":"","roles":"","responsibility":""}],"summaryNote":"én kort setning"}
+{"firstName":"","middleName":"","lastName":"","headline":"","summary":"","birthDate":"","language":"","nationality":"","maritalStatus":"","education":[{"from":"","to":"","school":"","program":""}],"certifications":[{"title":""}],"courses":[{"date":"","title":""}],"experience":[{"employer":"","place":"","from":"","to":"","current":false,"title":"","tasks":""}],"projects":[{"title":"","address":"","category":"","client":"","object":"","period":"","cost":"","area":"","buildingClass":"","description":"","referenceName":"","contact":"","contactCompany":"","phone":"","email":"","employer":"","roles":"","responsibility":""}],"summaryNote":"én kort setning"}
 Regler:
 - Ta bare med det som står i dokumentet. Ikke finn opp arbeidsgivere, skoler, årstall, kunder eller prosjekter.
 - Ta med alle utdanninger, sertifiseringer, kurs, erfaringer og referanseprosjekter. Ikke gjør et utvalg.
 - summary er oppsummeringen og nøkkelkvalifikasjonene, én linje per punkt.
 - birthDate er fødselsdatoen slik den står, for eksempel 6.4.1980.
 - projects.address er adresselinjen under prosjektnavnet.
+- Et helsides referanseark har også areal, tiltaksklasse, beskrivelse og navnet som står på arket i referenceName. Oppdragsgiver er client, prosjektsum er cost.
+- La felt som ikke står i dokumentet være tomme. Ikke fyll inn kategori, objekt eller andre felt som mangler.
 - tasks er arbeidsoppgaver, én linje per oppgave.
 - current er true bare når stillingen er merket som nåværende, eller sluttdatoen mangler.
 - Tom streng eller tom liste når feltet ikke finnes.`;

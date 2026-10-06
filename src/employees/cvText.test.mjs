@@ -149,11 +149,11 @@ assert.deepEqual(withImage.cv.projects[2].images, ['data:image/jpeg;base64,aaaa'
 assert.equal(withImage.cv.projects[2].title, '');
 
 const sheet = parseProjectSheet(`
-Næringsbygg 7 etasjer - Byfjordparken (Nybygg
+Næringsbygg 7 etasjer - Eksempelfjorden (Nybygg
 *Breeam
-Dusavikveien 69, 4007 Stavanger, Norge
+Eksempelveien 1, 0150 Oslo, Norge
 Oppdragsgiver
-Jærentreprenør AS
+Oppdrag AS
 Periode
 aug. 17 - jan. 21
 Areal
@@ -163,34 +163,34 @@ Prosjektsum
 190 MNOK eks mva
 Tiltaksklasse
 3
-Byfjordparken ILK2 finner du i den nye bydelen i Stavanger Nord.
-Geir Ove Andersen
+Eksempelfjorden ILK2 finner du i den nye bydelen.
+Ola Nordmann
 Assisterende prosjekterings- og prosjektledelse samt fremdrifts og LEAN-ansvar.
 Kontaktperson hos oppdragsgiver
-Leif Jarle Vigre
-Jærentreprenør AS
-93419004
-lv@jarentreprenor.no
+Kari Nord Lie
+Oppdrag AS
+90011223
+kari@example.no
 Roller i prosjektet
 • Byggeleder
 • Prosjektleder
 • Prosjekteringsledelse
 `);
-assert.match(sheet.title, /Byfjordparken/);
+assert.match(sheet.title, /Eksempelfjorden/);
 assert.match(sheet.title, /Breeam/);
-assert.equal(sheet.address, 'Dusavikveien 69, 4007 Stavanger, Norge');
-assert.equal(sheet.client, 'Jærentreprenør AS');
+assert.equal(sheet.address, 'Eksempelveien 1, 0150 Oslo, Norge');
+assert.equal(sheet.client, 'Oppdrag AS');
 assert.equal(sheet.period, 'aug. 17 - jan. 21');
 assert.equal(sheet.area, '59 172 m2');
 assert.equal(sheet.cost, '190 MNOK eks mva');
 assert.equal(sheet.buildingClass, '3');
-assert.match(sheet.description, /Byfjordparken ILK2/);
-assert.equal(sheet.referenceName, 'Geir Ove Andersen');
+assert.match(sheet.description, /Eksempelfjorden ILK2/);
+assert.equal(sheet.referenceName, 'Ola Nordmann');
 assert.match(sheet.responsibility, /LEAN-ansvar/);
-assert.equal(sheet.contact, 'Leif Jarle Vigre');
-assert.equal(sheet.contactCompany, 'Jærentreprenør AS');
-assert.equal(sheet.phone, '93419004');
-assert.equal(sheet.email, 'lv@jarentreprenor.no');
+assert.equal(sheet.contact, 'Kari Nord Lie');
+assert.equal(sheet.contactCompany, 'Oppdrag AS');
+assert.equal(sheet.phone, '90011223');
+assert.equal(sheet.email, 'kari@example.no');
 assert.match(sheet.roles, /Byggeleder/);
 assert.match(sheet.roles, /Prosjekteringsledelse/);
 assert.equal(sheet.category, '');

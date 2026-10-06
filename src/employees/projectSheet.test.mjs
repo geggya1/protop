@@ -4,20 +4,20 @@ import { parseProjectSheet } from './cvText.js';
 import { projectSheetFile, projectSheetLines } from './projectSheet.js';
 
 const project = {
-  title: 'Næringsbygg 7 etasjer - Byfjordparken',
-  address: 'Dusavikveien 69, 4007 Stavanger, Norge',
-  client: 'Jærentreprenør AS',
+  title: 'Næringsbygg 7 etasjer - Eksempelfjorden',
+  address: 'Eksempelveien 1, 0150 Oslo, Norge',
+  client: 'Oppdrag AS',
   period: 'aug. 17 - jan. 21',
   area: '59 172 m2',
   cost: '190 MNOK eks mva',
   buildingClass: '3',
-  description: 'Byfjordparken ILK2 finner du i den nye bydelen.',
-  referenceName: 'Geir Ove Andersen',
+  description: 'Eksempelfjorden ILK2 finner du i den nye bydelen.',
+  referenceName: 'Ola Nordmann',
   responsibility: 'Assisterende prosjekteringsledelse.',
-  contact: 'Leif Jarle Vigre',
-  contactCompany: 'Jærentreprenør AS',
-  phone: '93419004',
-  email: 'lv@example.no',
+  contact: 'Kari Nord Lie',
+  contactCompany: 'Oppdrag AS',
+  phone: '90011223',
+  email: 'kari@example.no',
   roles: 'Byggeleder\nProsjektleder',
   category: '',
   object: '',
@@ -25,12 +25,12 @@ const project = {
 
 const lines = projectSheetLines(project, '');
 assert.equal(lines[0], project.title);
-assert.ok(lines.includes('Oppdragsgiver: Jærentreprenør AS'));
+assert.ok(lines.includes('Oppdragsgiver: Oppdrag AS'));
 assert.ok(lines.includes('Areal: 59 172 m2'));
 assert.ok(lines.includes('Tiltaksklasse: 3'));
 assert.equal(lines.some((line) => line.startsWith('Kategori:')), false);
 assert.equal(lines.some((line) => line.startsWith('Objekt:')), false);
-assert.ok(lines.includes('Geir Ove Andersen'));
+assert.ok(lines.includes('Ola Nordmann'));
 assert.ok(lines.includes('- Prosjektleder'));
 
 const roundtrip = parseProjectSheet(lines.join('\n'));
@@ -46,7 +46,7 @@ assert.match(roundtrip.roles, /Prosjektleder/);
 assert.equal(roundtrip.category, '');
 assert.equal(roundtrip.object, '');
 
-const pdf = projectSheetFile(project, 'pdf', 'Geir Ove Andersen');
+const pdf = projectSheetFile(project, 'pdf', 'Ola Nordmann');
 assert.match(pdf.filename, /\.pdf$/);
 assert.equal(String.fromCharCode(...pdf.bytes.slice(0, 4)), '%PDF');
 

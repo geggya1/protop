@@ -135,10 +135,10 @@ const sheetOnly = await handleInterpretImport({
   kind: 'cv',
   mode: 'ocr',
   text: [
-    'Næringsbygg 7 etasjer - Byfjordparken',
-    'Dusavikveien 69, 4007 Stavanger, Norge',
+    'Næringsbygg 7 etasjer - Eksempelfjorden',
+    'Eksempelveien 1, 0150 Oslo, Norge',
     'Oppdragsgiver',
-    'Jærentreprenør AS',
+    'Oppdrag AS',
     'Areal',
     'm2',
     '59 172',
@@ -148,14 +148,14 @@ const sheetOnly = await handleInterpretImport({
 }, { uid: 'user' }, {
   ...deps,
   callGeminiJson: async () => ({
-    firstName: 'Geir',
-    lastName: 'Andersen',
+    firstName: 'Ola',
+    lastName: 'Nordmann',
     headline: 'Byggeleder',
     projects: [{
-      title: 'Næringsbygg 7 etasjer - Byfjordparken',
+      title: 'Næringsbygg 7 etasjer - Eksempelfjorden',
       category: 'Næring',
       object: 'Nybygg',
-      client: 'Jærentreprenør AS',
+      client: 'Oppdrag AS',
     }],
   }),
 });

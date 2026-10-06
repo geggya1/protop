@@ -269,6 +269,9 @@ assert.match(tenderMap, /Kartverket/);
 assert.match(tenderMap, /Åpne i listen/);
 assert.match(tenderMap, /Forrige/);
 assert.match(tenderMap, /Neste/);
+assert.match(tenderMap, /Uaktuell/);
+assert.match(tenderMap, /Merk \$\{current\.title\} som aktuell/);
+assert.match(tenderAlert, /busyId=\{pullingId\}/);
 
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);

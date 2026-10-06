@@ -8,6 +8,16 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+function decisionButtonsHtml(row) {
+  const id = escapeHtml(row?.id || '');
+  const aktuell = row?.kind === 'aktuell';
+  const label = row?.busy ? 'Henter …' : 'Aktuell';
+  return `<div class="decisions">
+      <button type="button" class="mark aktuell${aktuell ? ' on' : ''}" data-mark="aktuell" data-id="${id}" aria-pressed="${aktuell ? 'true' : 'false'}" aria-label="Merk som aktuell">${label}</button>
+      <button type="button" class="mark uaktuell" data-mark="forkastet" data-id="${id}" aria-pressed="false" aria-label="Merk som uaktuell">Uaktuell</button>
+    </div>`;
+}
+
 export function pinPopupHtml(row, index, total) {
   const n = Number(index) || 0;
   const of = Math.max(1, Number(total) || 1);
@@ -26,11 +36,12 @@ export function pinPopupHtml(row, index, total) {
       <span class="count">${n + 1} / ${of}</span>
       <button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button>
     </div>
+    ${decisionButtonsHtml(row)}
     <button type="button" class="open" data-open="${escapeHtml(row?.id || '')}">Åpne i listen</button>
   </div>`;
 }
 
-export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A' } = {}) {
+export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', danger = '#dc2626' } = {}) {
   const rows = (Array.isArray(pins) ? pins : []).filter((row) => (
     Number.isFinite(Number(row?.lat)) && Number.isFinite(Number(row?.lng))
   ));
@@ -77,6 +88,10 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A' } =
   .meta { font-size: 12px; color: #5b6b82; }
   .row { display: flex; gap: 6px; align-items: center; }
   .count { font-size: 12px; color: #5b6b82; flex: 1; text-align: center; }
+  .decisions { display: flex; gap: 6px; }
+  .decisions .mark { flex: 1; font-weight: 600; }
+  .mark.aktuell.on { background: ${escapeHtml(brand)} !important; color: #fff !important; }
+  .mark.uaktuell.on { background: ${escapeHtml(danger)} !important; color: #fff !important; }
   .open { background: ${escapeHtml(brand)} !important; color: #fff !important; font-weight: 600; }
 </style>
 </head>
@@ -99,6 +114,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 function esc(value) {
   return String(value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function decisionRow(row) {
+  const on = row.kind === 'aktuell';
+  const label = row.busy ? 'Henter …' : 'Aktuell';
+  return '<div class="decisions">'
+    + '<button type="button" class="mark aktuell' + (on ? ' on' : '') + '" data-mark="aktuell" data-id="' + esc(row.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="Merk som aktuell">' + label + '</button>'
+    + '<button type="button" class="mark uaktuell" data-mark="forkastet" data-id="' + esc(row.id) + '" aria-pressed="false" aria-label="Merk som uaktuell">Uaktuell</button>'
+    + '</div>';
+}
 function popupHtml(row, index) {
   const kind = row.kind === 'aktuell' ? 'Aktuell' : 'Ny';
   const meta = [row.buyer, row.deadline ? ('Frist ' + row.deadline) : '', row.source].filter(Boolean).join(' · ');
@@ -110,6 +133,7 @@ function popupHtml(row, index) {
     + '<button type="button" class="nav" data-act="prev" aria-label="Forrige sted">Forrige</button>'
     + '<span class="count">' + (index + 1) + ' / ' + pins.length + '</span>'
     + '<button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button></div>'
+    + decisionRow(row)
     + '<button type="button" class="open" data-open="' + esc(row.id) + '">Åpne i listen</button></div>';
 }
 const layer = L.featureGroup();
@@ -129,8 +153,8 @@ function paint() {
   if (row && title) title.textContent = row.title;
   if (meta) meta.textContent = row ? ((current + 1) + ' / ' + pins.length + ' · ' + (row.label || '')) : '';
 }
-function tell(type, id) {
-  if (window.parent) window.parent.postMessage({ type: type, tenderId: id }, '*');
+function tell(type, id, extra) {
+  if (window.parent) window.parent.postMessage(Object.assign({ type: type, tenderId: id }, extra || {}), '*');
 }
 function show(index, { jump, pan } = {}) {
   if (!pins.length) return;
@@ -156,6 +180,15 @@ pins.forEach((row, index) => {
   markers.push(marker);
 });
 document.addEventListener('click', (event) => {
+  const mark = event.target.closest('[data-mark]');
+  if (mark) {
+    event.preventDefault();
+    event.stopPropagation();
+    const id = mark.getAttribute('data-id') || (pins[current] && pins[current].id);
+    const decision = mark.getAttribute('data-mark');
+    if (id && (decision === 'aktuell' || decision === 'forkastet')) tell('mark', id, { decision: decision });
+    return;
+  }
   const open = event.target.closest('[data-open]');
   if (open && open.getAttribute('data-open')) {
     event.preventDefault();
@@ -168,6 +201,26 @@ document.addEventListener('click', (event) => {
   show(current + (act.getAttribute('data-act') === 'next' ? 1 : -1), { pan: true });
 });
 window.addEventListener('message', (event) => {
+  if (event?.data?.type === 'sync' && Array.isArray(event.data.rows)) {
+    const byId = new Map(event.data.rows.map((row) => [row.id, row.kind === 'aktuell' ? 'aktuell' : 'ny']));
+    const busyId = String(event.data.busyId || '');
+    let changed = false;
+    pins.forEach((row) => {
+      const kind = byId.has(row.id) ? byId.get(row.id) : row.kind;
+      const busy = row.id === busyId;
+      if (row.kind !== kind || !!row.busy !== busy) {
+        row.kind = kind;
+        row.busy = busy;
+        changed = true;
+      }
+    });
+    if (changed) {
+      paint();
+      const marker = markers[current];
+      if (marker && marker.isPopupOpen()) marker.setPopupContent(popupHtml(pins[current], current));
+    }
+    return;
+  }
   const id = event?.data?.id || event?.data?.tenderId;
   if (event?.data?.type === 'show' && id) {
     const index = pins.findIndex((row) => row.id === id);

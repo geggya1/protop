@@ -620,13 +620,14 @@ export default function EmployeesScreen() {
           nativeID="employees-import-plan"
           colors={colors}
           lead={[
-            'Ingenting er lagret ennå. Kontroller innholdet og bekreft importen. Like e-postadresser oppdaterer medarbeideren som finnes.',
-            'Rettighetene lagres på ansettelsen og endrer ikke hvem som er administrator i ProTop.',
+            'Ingenting er lagret ennå. Kontroller radene og bekreft importen.',
+            'Lik e-post oppdaterer medarbeideren som finnes. Rettigheter lagres på ansettelsen og endrer ikke hvem som er administrator i ProTop.',
+            summaryNote(importPlan.ignoredSummaries),
             importPlan.interpretation?.engine?.includes('ocr') ? 'Dokumentet er lest med OCR og AI.' : '',
-            importPlan.interpretation?.engine && !importPlan.interpretation.engine.includes('ocr') ? 'Ukjente kolonner er tolket med AI.' : '',
+            importPlan.interpretation?.engine && importPlan.interpretation.engine !== 'lokal' && !importPlan.interpretation.engine.includes('ocr') ? 'Ukjente kolonner er tolket med AI.' : '',
             importPlan.permissionColumns?.length ? `Rettighetskolonner: ${importPlan.permissionColumns.join(', ')}.` : '',
             importPlan.customColumns?.length ? `Andre kolonner lagres som egne felt: ${importPlan.customColumns.join(', ')}.` : '',
-          ].filter(Boolean).join(' ')}
+          ].filter(Boolean).join('\n')}
           rows={importPlan.rows.map((row, index) => ({
             id: String(index),
             severity: employeeReviewSeverity(row),
@@ -634,6 +635,7 @@ export default function EmployeesScreen() {
             meta: [
               row.action === 'create' ? 'Ny' : row.action === 'update' ? 'Oppdaterer eksisterende' : '',
               row.email,
+              row.detail,
               row.accessRole,
               row.permissions?.length ? `Rettigheter: ${row.permissions.join(', ')}` : '',
             ].filter(Boolean).join(' · '),
@@ -859,6 +861,13 @@ function GapList({ title, items, colors }) {
       ))}
     </View>
   );
+}
+
+function summaryNote(labels) {
+  const list = (Array.isArray(labels) ? labels : []).map((label) => String(label || '').trim()).filter(Boolean);
+  if (!list.length) return '';
+  if (list.length === 1) return `«${list[0]}» er en sumrad i filen, ikke en medarbeider, og tas ikke med.`;
+  return `Sumrader tas ikke med: ${list.join(', ')}. De er ikke medarbeidere.`;
 }
 
 const styles = StyleSheet.create({

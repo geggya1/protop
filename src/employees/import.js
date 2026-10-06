@@ -382,13 +382,97 @@ function readRow(cells, columns) {
   return { bag, permissions: unique(permissions), roles: unique(roles), custom };
 }
 
+function words(value) {
+  return text(value).split(' ').filter(Boolean);
+}
+
+function sameWord(left, right) {
+  return foldHeader(left) === foldHeader(right);
+}
+
+function dropLeadingOverlap(head, tail) {
+  const max = Math.min(head.length, tail.length);
+  for (let size = max; size > 0; size -= 1) {
+    const suffix = head.slice(head.length - size);
+    const prefix = tail.slice(0, size);
+    if (suffix.every((word, index) => sameWord(word, prefix[index]))) return tail.slice(size);
+  }
+  return tail;
+}
+
+function dropTrailingOverlap(head, tail) {
+  const max = Math.min(head.length, tail.length);
+  for (let size = max; size > 0; size -= 1) {
+    const suffix = head.slice(head.length - size);
+    const prefix = tail.slice(0, size);
+    if (suffix.every((word, index) => sameWord(word, prefix[index]))) return head.slice(0, head.length - size);
+  }
+  return head;
+}
+
+/** Fornavn som allerede slutter på mellomnavnet skal ikke få det en gang til. */
+function withoutRepeatedMiddle(firstName, middleName, lastName) {
+  const first = words(firstName);
+  const last = words(lastName);
+  const middle = dropTrailingOverlap(dropLeadingOverlap(first, words(middleName)), last);
+  return {
+    firstName: first.join(' '),
+    middleName: middle.join(' '),
+    lastName: last.join(' '),
+  };
+}
+
 function namesFrom(bag) {
   const named = splitName(firstValue(bag, 'fullName'));
-  return {
-    firstName: firstValue(bag, 'firstName') || named.firstName,
-    middleName: firstValue(bag, 'middleName') || named.middleName,
-    lastName: firstValue(bag, 'lastName') || named.lastName,
-  };
+  let firstName = firstValue(bag, 'firstName') || named.firstName;
+  let middleName = firstValue(bag, 'middleName') || named.middleName;
+  let lastName = firstValue(bag, 'lastName') || named.lastName;
+  const firstWords = words(firstName);
+  const lastWords = words(lastName);
+  if (lastWords.length && firstWords.length > lastWords.length) {
+    const suffix = firstWords.slice(firstWords.length - lastWords.length);
+    if (suffix.every((word, index) => sameWord(word, lastWords[index]))) {
+      const rest = firstWords.slice(0, firstWords.length - lastWords.length);
+      if (!middleName && rest.length > 1) {
+        firstName = rest[0];
+        middleName = rest.slice(1).join(' ');
+      } else {
+        firstName = rest.join(' ');
+      }
+    }
+  }
+  return withoutRepeatedMiddle(firstName, middleName, lastName);
+}
+
+const SUMMARY_LABELS = new Set(['totalt', 'total', 'sum', 'summert', 'totalsum', 'sumtotal']);
+
+function isSummaryRow(names, bag) {
+  const label = [names.firstName, names.middleName, names.lastName, firstValue(bag, 'fullName')].map(text).filter(Boolean).join(' ');
+  const tokens = words(label).map(foldHeader);
+  if (!tokens.length || !tokens.every((token) => SUMMARY_LABELS.has(token))) return false;
+  const email = firstValue(bag, 'email') || firstValue(bag, 'workEmail');
+  return !email.includes('@');
+}
+
+function summaryLabel(names, bag) {
+  return [names.firstName, names.middleName, names.lastName].filter(Boolean).join(' ') || firstValue(bag, 'fullName') || 'Sum';
+}
+
+function missingNameReason(names) {
+  const who = [names.firstName, names.middleName, names.lastName].filter(Boolean).join(' ');
+  if (names.firstName && !names.lastName) return `${who} mangler etternavn.`;
+  if (!names.firstName && names.lastName) return `${who} mangler fornavn.`;
+  return 'Raden mangler navn.';
+}
+
+function rowDetail(bag) {
+  const number = firstValue(bag, 'externalEmployeeNumber');
+  return [
+    firstValue(bag, 'phone') || firstValue(bag, 'phoneAlt'),
+    number ? `Ansattnr ${number}` : '',
+    firstValue(bag, 'title'),
+    firstValue(bag, 'department'),
+  ].filter(Boolean).join(' · ');
 }
 
 function matchExisting(list, draft) {
@@ -532,11 +616,12 @@ function buildDraft(existing, bag, rights, departments) {
   };
 }
 
-function skipped(name, reason, permissions = [], email = '', warnings = []) {
+function skipped(name, reason, permissions = [], email = '', warnings = [], detail = '') {
   return {
     action: 'skip',
     name,
     email,
+    detail,
     accessRole: '',
     permissions,
     warnings,
@@ -607,13 +692,20 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
   const hasRights = columns.some((column) => column.kind === 'permission' || column.kind === 'role' || (column.kind === 'field' && column.field === 'permissionsText'));
   const working = (existing || []).map((row) => normalizeEmployee(row));
   const planned = [];
+  const ignoredSummaries = [];
   for (const cells of dataRows) {
     if (!(cells || []).some((cell) => text(cell))) continue;
     const rights = readRow(cells, columns);
     const bag = rights.bag;
     const names = namesFrom(bag);
+    if (isSummaryRow(names, bag)) {
+      const label = summaryLabel(names, bag);
+      if (!ignoredSummaries.includes(label)) ignoredSummaries.push(label);
+      continue;
+    }
     if (!names.firstName || !names.lastName) {
-      planned.push(skipped(rowLabel(bag), 'Mangler fornavn og etternavn.', rights.permissions));
+      const email = firstValue(bag, 'email') || firstValue(bag, 'workEmail');
+      planned.push(skipped(rowLabel(bag), missingNameReason(names), rights.permissions, email, [], rowDetail(bag)));
       continue;
     }
     const probe = normalizeEmployee({
@@ -671,6 +763,7 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
     sheetName: best.sheet.name,
     permissionColumns,
     customColumns,
+    ignoredSummaries,
     rows: planned,
   };
 }

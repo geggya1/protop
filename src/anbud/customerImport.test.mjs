@@ -61,4 +61,23 @@ assert.equal(sheet[0].name, 'ProTop AS');
 assert.equal(sheet[0].orgnr, '123456789');
 assert.equal(sheet[0].address, 'Oslo');
 
+const overview = await parseCustomerFile(new TextEncoder().encode(
+  'Kundenummer;Kundenavn;Org.nr.;E-post;Faktura-e-poster;Nettside;Hovedadresse - Linje 1;Hovedadresse - Linje 2;Hovedadresse - Postnummer;Hovedadresse - Postal sted;Fakturaadresse - Linje 1;Besøksadresse - Linje 1\n'
+  + '10180;Eksempel AS;923456785;post@eksempel.no;;https://eksempel.no;Kvernstien 2;Bygg A;4073;Randaberg;Fakturagata 1;\n'
+  + '10181;Besøk AS;923456793;;;;;'
+  + ';;;;Storgata 4\n'
+  + '10182;Faktura AS;923456807;;faktura@eksempel.no;;;;;Ålgård;;\n',
+), 'overview.csv');
+assert.equal(overview.length, 3);
+assert.equal(overview[0].name, 'Eksempel AS');
+assert.equal(overview[0].orgnr, '923456785');
+assert.equal(overview[0].address, 'Kvernstien 2, Bygg A');
+assert.equal(overview[0].postalCode, '4073');
+assert.equal(overview[0].place, 'Randaberg');
+assert.equal(overview[0].email, 'post@eksempel.no');
+assert.equal(overview[0].notes, 'Kundenr 10180 · https://eksempel.no');
+assert.equal(overview[1].address, 'Storgata 4');
+assert.equal(overview[2].email, 'faktura@eksempel.no');
+assert.equal(overview[2].place, 'Ålgård');
+
 console.log('customerImport.test.mjs: ok');

@@ -126,6 +126,9 @@ function decodeEntities(value) {
 function foldHeader(value) {
   return String(value || '')
     .toLowerCase()
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .replace(/å/g, 'a')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '');
@@ -139,18 +142,39 @@ const HEADER_ALIASES = {
   postalCode: ['postnr', 'postnummer', 'zip', 'postalcode', 'postnrsted'],
   place: ['poststed', 'sted', 'city', 'by', 'kommune'],
   contactName: ['kontakt', 'kontaktperson', 'contact', 'kontaktnavn'],
-  email: ['epost', 'email', 'mail', 'e-post'],
+  email: ['epost', 'email', 'mail'],
+  invoiceEmail: ['fakturaepost', 'fakturaeposter', 'invoiceemail'],
   phone: ['telefon', 'tlf', 'mobil', 'phone', 'telefonnr'],
   notes: ['notat', 'notes', 'merknad', 'kommentar'],
   kind: ['type', 'kundetype', 'kind', 'kategori'],
+  customerNo: ['kundenummer', 'kundenr', 'customernumber', 'kundeno'],
+  website: ['nettside', 'hjemmeside', 'website', 'web'],
 };
+
+function addressColumn(key) {
+  let slot = '';
+  if (key.startsWith('hovedadresse')) slot = 'main';
+  else if (key.startsWith('besoksadresse')) slot = 'visit';
+  else if (key.startsWith('fakturaadresse')) slot = 'invoice';
+  else return '';
+  const fields = {
+    main: { line1: 'address', line2: 'address2', postal: 'postalCode', place: 'place' },
+    visit: { line1: 'visitAddress', line2: 'visitAddress2', postal: 'visitPostal', place: 'visitPlace' },
+    invoice: { line1: 'invoiceAddress', line2: 'invoiceAddress2', postal: 'invoicePostal', place: 'invoicePlace' },
+  };
+  if (/linje2$/.test(key)) return fields[slot].line2;
+  if (/linje1$|adresse1$/.test(key)) return fields[slot].line1;
+  if (key.includes('postnummer') || key.endsWith('postnr')) return fields[slot].postal;
+  if (key.includes('postalsted') || key.includes('poststed') || key.endsWith('sted')) return fields[slot].place;
+  return '';
+}
 
 function mapHeader(header) {
   const key = foldHeader(header);
   for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
     if (aliases.some((alias) => foldHeader(alias) === key)) return field;
   }
-  return '';
+  return addressColumn(key);
 }
 
 function kindFromValue(value) {
@@ -161,22 +185,40 @@ function kindFromValue(value) {
   return '';
 }
 
+function firstFilled(...values) {
+  return values.map((value) => String(value || '').trim()).find(Boolean) || '';
+}
+
+function joinLines(...values) {
+  return values.map((value) => String(value || '').trim()).filter(Boolean).join(', ');
+}
+
 function rowFromObject(src) {
   const name = String(src.name || '').trim();
   if (!name) return null;
   const kind = src.kind === 'person' || src.kind === 'org' ? src.kind : (kindFromValue(src.kind) || '');
+  const address = firstFilled(
+    joinLines(src.address, src.address2),
+    joinLines(src.visitAddress, src.visitAddress2),
+    joinLines(src.invoiceAddress, src.invoiceAddress2),
+  );
+  const notes = [
+    src.customerNo ? `Kundenr ${String(src.customerNo).trim()}` : '',
+    src.website,
+    src.notes,
+  ].map((value) => String(value || '').trim()).filter(Boolean).join(' · ');
   return emptyCustomer({
     name,
     kind,
     orgnr: src.orgnr || '',
     personnummer: src.personnummer || '',
-    address: src.address || '',
-    postalCode: src.postalCode || '',
-    place: src.place || '',
+    address,
+    postalCode: firstFilled(src.postalCode, src.visitPostal, src.invoicePostal),
+    place: firstFilled(src.place, src.visitPlace, src.invoicePlace),
     contactName: src.contactName || '',
-    email: src.email || '',
+    email: firstFilled(src.email, src.invoiceEmail),
     phone: src.phone || '',
-    notes: src.notes || '',
+    notes,
   });
 }
 

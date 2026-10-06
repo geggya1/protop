@@ -414,6 +414,18 @@ function Field({
     );
   }
 
+  if (field.type === 'tags') {
+    return (
+      <TagsField
+        label={label}
+        value={value}
+        editable={editable}
+        colors={colors}
+        onChange={(next) => onChange(field.key, next)}
+      />
+    );
+  }
+
   const multiline = field.type === 'textarea';
   return (
     <View style={styles.field}>
@@ -442,6 +454,52 @@ function Field({
           ))}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function TagsField({ label, value, editable, colors, onChange }) {
+  const list = Array.isArray(value) ? value : [];
+  const [draft, setDraft] = useState('');
+  function add() {
+    const next = draft.trim();
+    if (!next) return;
+    if (!list.some((item) => item.toLowerCase() === next.toLowerCase())) onChange([...list, next]);
+    setDraft('');
+  }
+  return (
+    <View style={styles.field}>
+      {label}
+      <View style={styles.chips}>
+        {list.map((item) => (
+          <Chip
+            key={item}
+            label={item}
+            on
+            disabled={!editable}
+            colors={colors}
+            onPress={() => onChange(list.filter((row) => row !== item))}
+          />
+        ))}
+      </View>
+      {editable ? (
+        <View style={styles.inline}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={add}
+            placeholder="Ny rettighet"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TouchableOpacity onPress={add} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink }}>Legg til</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Rettighetene gjelder ansettelsen. De gir ikke administrator i ProTop.
+      </Text>
     </View>
   );
 }

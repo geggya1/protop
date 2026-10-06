@@ -96,9 +96,10 @@ export const FORM_SECTIONS = [
     owner: 'company',
     purpose: 'operations',
     scope: 'employee',
-    blurb: 'Styrer hva medarbeideren kan gjøre i selskapet og på prosjekter.',
+    blurb: 'Rollen og rettighetene gjelder ansettelsen. De gjør ikke personen til administrator i ProTop.',
     fields: [
       { key: 'company.accessRole', label: 'Tilgangsstyringsrolle', type: 'suggest', options: ACCESS_OPTIONS },
+      { key: 'company.permissions', label: 'Rettigheter', type: 'tags' },
       { key: 'company.canHandleLegal', label: 'Kan behandle juridiske saker', type: 'bool' },
       { key: 'company.projectRole', label: 'Standard rolle på prosjekter', type: 'suggest', options: PROJECT_ROLE_OPTIONS },
     ],

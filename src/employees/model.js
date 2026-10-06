@@ -98,6 +98,7 @@ export function emptyCompany() {
     extraDepartments: [],
     title: '',
     accessRole: '',
+    permissions: [],
     canHandleLegal: false,
     employmentType: '',
     compensationType: '',
@@ -355,6 +356,7 @@ function normalizeCompany(raw) {
   company.extraDepartments = stringList(source.extraDepartments);
   company.title = text(source.title);
   company.accessRole = text(source.accessRole);
+  company.permissions = stringList(source.permissions);
   company.canHandleLegal = bool(source.canHandleLegal);
   company.employmentType = text(source.employmentType);
   company.compensationType = text(source.compensationType);
@@ -499,7 +501,7 @@ export function directoryStats(list) {
 }
 
 function filled(value, type) {
-  if (type === 'bool' || type === 'photo' || type === 'departments' || type === 'member') return true;
+  if (type === 'bool' || type === 'photo' || type === 'departments' || type === 'member' || type === 'tags') return true;
   return !!text(value);
 }
 

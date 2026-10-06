@@ -310,3 +310,94 @@ Regler:
 - Hopp over overskrifter, summer og tomme rader.
 - Maks 80 rader. Tom streng for felt som ikke finnes.`;
 }
+
+function clipText(value, max, lines = false) {
+  const raw = String(value ?? '');
+  const text = lines
+    ? raw.replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim()
+    : raw.replace(/\s+/g, ' ').trim();
+  return text.slice(0, max);
+}
+
+function cvItems(list, max, map) {
+  return (Array.isArray(list) ? list : []).slice(0, max).map(map).filter(Boolean);
+}
+
+export function sanitizeCv(parsed) {
+  const src = parsed && typeof parsed === 'object' ? parsed : {};
+  const education = cvItems(src.education, 12, (row) => {
+    const item = {
+      from: clipText(row?.from, 20),
+      to: clipText(row?.to, 20),
+      school: clipText(row?.school, 160),
+      program: clipText(row?.program, 160),
+    };
+    return item.school || item.program || item.from ? item : null;
+  });
+  const certifications = cvItems(src.certifications, 20, (row) => {
+    const title = clipText(row?.title || row, 160);
+    return title ? { title } : null;
+  });
+  const courses = cvItems(src.courses, 20, (row) => {
+    const item = { date: clipText(row?.date, 40), title: clipText(row?.title, 160) };
+    return item.title ? item : null;
+  });
+  const experience = cvItems(src.experience, 20, (row) => {
+    const current = row?.current === true || /^(ja|true|1|nå|naa|navaerende|dd)$/i.test(clipText(row?.current, 20));
+    const item = {
+      employer: clipText(row?.employer, 160),
+      place: clipText(row?.place, 80),
+      from: clipText(row?.from, 20),
+      to: current ? '' : clipText(row?.to, 20),
+      current,
+      title: clipText(row?.title, 160),
+      tasks: clipText(row?.tasks, 2000, true),
+    };
+    return item.employer || item.title || item.tasks ? item : null;
+  });
+  const projects = cvItems(src.projects, 20, (row) => {
+    const email = clipText(row?.email, 80);
+    const item = {
+      title: clipText(row?.title, 160),
+      category: clipText(row?.category, 80),
+      client: clipText(row?.client, 160),
+      object: clipText(row?.object, 160),
+      period: clipText(row?.period, 40),
+      cost: clipText(row?.cost, 40),
+      contact: clipText(row?.contact, 80),
+      phone: clipText(row?.phone, 40),
+      email: email.includes('@') ? email : '',
+      employer: clipText(row?.employer, 160),
+      roles: clipText(row?.roles, 500, true),
+      responsibility: clipText(row?.responsibility, 1000, true),
+    };
+    return item.title || item.client || item.responsibility ? item : null;
+  });
+  return {
+    cv: {
+      headline: clipText(src.headline, 160),
+      summary: clipText(src.summary, 4000, true),
+      language: clipText(src.language, 80),
+      nationality: clipText(src.nationality, 80),
+      maritalStatus: clipText(src.maritalStatus, 80),
+      education,
+      certifications,
+      courses,
+      experience,
+      projects,
+    },
+    summary: clipText(src.summaryNote, 240),
+  };
+}
+
+export function cvPrompt() {
+  return `Du leser én CV, enten som skann, PDF eller ren tekst, og trekker ut innholdet.
+Returner KUN gyldig JSON:
+{"headline":"","summary":"","language":"","nationality":"","maritalStatus":"","education":[{"from":"","to":"","school":"","program":""}],"certifications":[{"title":""}],"courses":[{"date":"","title":""}],"experience":[{"employer":"","place":"","from":"","to":"","current":false,"title":"","tasks":""}],"projects":[{"title":"","category":"","client":"","object":"","period":"","cost":"","contact":"","phone":"","email":"","employer":"","roles":"","responsibility":""}],"summaryNote":"én kort setning"}
+Regler:
+- Ta bare med det som står i dokumentet. Ikke finn opp arbeidsgivere, skoler, årstall, kunder eller prosjekter.
+- summary er oppsummeringen og nøkkelkvalifikasjonene som sammenhengende tekst.
+- tasks er arbeidsoppgaver, én linje per oppgave.
+- current er true bare når stillingen er merket som nåværende.
+- Tom streng eller tom liste når feltet ikke finnes.`;
+}

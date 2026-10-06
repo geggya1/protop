@@ -7,6 +7,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
+import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
@@ -41,7 +42,7 @@ import {
   sortEmployees,
   statusLabel,
 } from '../../src/employees/model';
-import { FORM_SECTIONS, OWNER_LABEL } from '../../src/employees/schema';
+import { FORM_SECTIONS, OWNER_LABEL, cvEditorSections } from '../../src/employees/schema';
 import {
   loadProfessionalProfile,
   removeEmployee,
@@ -296,6 +297,38 @@ export default function EmployeesScreen() {
     setView('edit');
   }
 
+  function openCv(row) {
+    resetMessage();
+    setSelectedId(row.id);
+    setDraft(presentEmployee(row));
+    setView('cv');
+  }
+
+  async function importCvFile() {
+    if (!draft || busy) return;
+    setError('');
+    const file = await pickDocument({ accept: CV_IMPORT_ACCEPT });
+    if (!file) return;
+    setBusy(true);
+    try {
+      const bytes = await bytesFromFile(file);
+      const interpreted = await readCvImport(bytes, file.name, {
+        familyId,
+        ask: (payload) => askImportInterpret(payload),
+      });
+      const applied = applyImportedCv(draft, interpreted.cv);
+      setDraft(presentEmployee(applied.employee));
+      const understood = interpreted.engine?.includes('ocr') ? ' med OCR og AI' : ' med AI';
+      const found = applied.added.length ? `Lagt inn: ${applied.added.join(', ')}.` : 'Ingen nye opplysninger ble funnet.';
+      const kept = applied.kept.length ? ` Det som allerede var fylt ut, ble beholdt: ${applied.kept.join(', ')}.` : '';
+      setNote(`CV-en er lest${understood}. ${found}${kept} Ingenting er lagret før du trykker Lagre CV.`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lese CV-en.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openMine() {
     resetMessage();
     const base = profile || { person: {}, cv: {}, customFields: [] };
@@ -412,6 +445,11 @@ export default function EmployeesScreen() {
         setProfile(stored);
       }
       setSelectedId(saved.id);
+      if (view === 'cv') {
+        setDraft(presentEmployee(saved));
+        setNote('CV-en er lagret.');
+        return;
+      }
       setView('detail');
       setDraft(null);
       setNote('Medarbeideren er lagret.');
@@ -484,7 +522,9 @@ export default function EmployeesScreen() {
     setError('Kopiering er ikke tilgjengelig i denne visningen.');
   }
 
-  const cv = selected ? buildCv(selected, { companyName }) : null;
+  const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
+  const cv = cvEmployee ? buildCv(cvEmployee, { companyName }) : null;
+  const canEditCv = view === 'cv' && !!draft && (isAdmin || (!!selected?.personUid && selected.personUid === uid));
   const mineCv = draft && view === 'mine' ? buildCv({
     ...draft,
     company: {
@@ -608,7 +648,7 @@ export default function EmployeesScreen() {
             </TouchableOpacity>
           ) : null}
           {view === 'detail' && selected && (isAdmin || selected.personUid === uid) ? (
-            <TouchableOpacity onPress={() => { resetMessage(); setView('cv'); }} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+            <TouchableOpacity onPress={() => openCv(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>CV</Text>
             </TouchableOpacity>
           ) : null}
@@ -805,15 +845,29 @@ export default function EmployeesScreen() {
       ) : null}
 
       {view === 'cv' && cv ? (
-        <View style={styles.stack}>
-          {cv.gaps.length ? (
+        <View nativeID="employee-cv-editor" style={styles.stack}>
+          <Text style={{ color: colors.muted }}>
+            {cv.gaps.length
+              ? `CV-en kan skrives ut, men mangler: ${cv.gaps.map((item) => item.label).join(', ')}.`
+              : 'CV-en er bygget fra profilen og ansettelsen.'}
+          </Text>
+          {canEditCv ? (
             <Text style={{ color: colors.muted }}>
-              {`CV-en kan skrives ut, men mangler: ${cv.gaps.map((item) => item.label).join(', ')}.`}
+              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Ingenting lagres før du trykker Lagre CV.
             </Text>
-          ) : (
-            <Text style={{ color: colors.muted }}>CV-en er bygget fra profilen og ansettelsen.</Text>
-          )}
+          ) : null}
           <View style={styles.row}>
+            {canEditCv ? (
+              <TouchableOpacity
+                nativeID="employee-cv-import"
+                onPress={importCvFile}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.ink }}>{busy ? 'Leser CV…' : 'Importer CV'}</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity onPress={() => copyCv(cv)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Kopier tekst</Text>
             </TouchableOpacity>
@@ -823,6 +877,33 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+          {canEditCv ? (
+            <>
+              <EmployeeFields
+                draft={draft}
+                scope="employee"
+                sections={cvEditorSections('employee')}
+                showCustom={false}
+                colors={colors}
+                canEditOwner={canEditOwner}
+                departments={departments}
+                members={people}
+                addressHits={addressHits}
+                onPickAddress={pickAddress}
+                onChange={changeDraft}
+                onPhoto={choosePhoto}
+              />
+              <TouchableOpacity
+                nativeID="employee-cv-save"
+                onPress={save}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
           <EmployeeCvView cv={cv} colors={colors} />
         </View>
       ) : null}

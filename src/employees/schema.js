@@ -281,6 +281,23 @@ export function sectionsFor(scope) {
   return FORM_SECTIONS.filter((section) => section.scope === 'both' || section.scope === want);
 }
 
+const CV_PROFILE_KEYS = ['person.language', 'person.nationality', 'person.maritalStatus'];
+
+/** Feltene som skrives på CV-siden: profilinjer og CV-avsnittene. */
+export function cvEditorSections(scope) {
+  return sectionsFor(scope).flatMap((section) => {
+    if (section.purpose === 'cv') return [section];
+    if (section.id !== 'personal') return [];
+    return [{
+      ...section,
+      title: 'Profil',
+      purpose: 'cv',
+      blurb: 'Språk, nasjonalitet og sivil status vises øverst på CV-en.',
+      fields: section.fields.filter((field) => CV_PROFILE_KEYS.includes(field.key)),
+    }];
+  });
+}
+
 export function scalarFields() {
   return FORM_SECTIONS.filter((section) => !section.repeatable).flatMap((section) => (
     section.fields.map((field) => ({ ...field, sectionId: section.id, owner: section.owner, purpose: section.purpose }))

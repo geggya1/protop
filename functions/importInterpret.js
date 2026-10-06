@@ -4,8 +4,10 @@
  */
 import {
   columnPrompt,
+  cvPrompt,
   ocrPrompt,
   sanitizeColumnMap,
+  sanitizeCv,
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
 
@@ -57,7 +59,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const uid = auth?.uid;
   if (!uid) throw new Error('Ikke innlogget');
   const familyId = clean(data?.familyId, 80);
-  const kind = data?.kind === 'employees' ? 'employees' : 'customers';
+  const kind = data?.kind === 'employees' ? 'employees' : data?.kind === 'cv' ? 'cv' : 'customers';
   const mode = data?.mode === 'ocr' ? 'ocr' : 'columns';
   if (!familyId) throw new Error('Åpne selskapet før du importerer.');
 
@@ -70,6 +72,26 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const call = runtime.callGeminiJson;
 
   try {
+    if (kind === 'cv') {
+      const prose = clean(data?.text, 12000);
+      let parts;
+      let usedOcr = false;
+      if (prose.length >= 40) {
+        parts = [{ text: `CV-tekst:\n${prose}` }];
+      } else {
+        const document = await (deps.documentParts || documentParts)(data);
+        parts = document.parts;
+        usedOcr = document.usedOcr;
+      }
+      const parsed = await call(apiKey, cvPrompt(), parts, {
+        maxOutputTokens: 8192,
+        perModelTimeoutMs: 50000,
+      });
+      return {
+        ...sanitizeCv(parsed),
+        engine: prose.length >= 40 ? 'gemini' : (usedOcr ? 'ocr+gemini' : 'gemini'),
+      };
+    }
     if (mode === 'columns') {
       const parsed = await call(apiKey, columnPrompt(kind), [{ text: tableMessage(data) }], {
         maxOutputTokens: 2048,

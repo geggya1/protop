@@ -1,5 +1,6 @@
 import { METHOD_NOTES, modelById } from './catalog.js';
 import { presentCompanyLogo } from '../project/companyLogo.js';
+import { honorarPrice } from './priceText.js';
 
 export function formatMoney(value) {
   const number = Number(value) || 0;
@@ -121,10 +122,9 @@ export function buildLetter(draft, result, options = {}) {
   const effective = formatShortDate(draft.effectiveDate || result.regulationDate || todayIso);
   const contractDate = formatDate(draft.contractDate || result.basisDate);
   const first = result.rows[0];
-  const honorar = draft.honorar
-    || (hourly ? 'Oppdraget honoreres etter medgått tid' : 'Avtalt pris');
-  const priceLabel = result.rows.length === 1
-    ? `${formatKrone(first.rate)} eks mva`
+  const priced = honorarPrice(draft, first?.rate);
+  const priceLabel = result.rows.length === 1 && priced.amount != null
+    ? `${formatKrone(priced.amount)}${priced.phrase ? ` ${priced.phrase}` : ''}`
     : 'Se satsene under';
 
   const party = {
@@ -147,15 +147,15 @@ export function buildLetter(draft, result, options = {}) {
       [cell('Eksternt PO-nr.', 1, true), cell(draft.poNumber || ''), cell('Kontraktsdato', 1, true), cell(contractDate)],
       [cell('Generelle bestemmelser', 1, true), cell(draft.standard || ''), cell(result.standard?.label || '', 2)],
       ...(draft.buyer ? [[cell('Motpart', 1, true), cell(draft.buyer, 3)]] : []),
-      [cell('Avtalt honorar', 1, true), cell(honorar, 3)],
-      [cell('Avtalt honorarpris', 1, true), cell(priceLabel, 3)],
+      ...(priced.description ? [[cell('Avtalt honorar', 1, true), cell(priced.description, 3)]] : []),
+      [cell('Avtalt pris', 1, true), cell(priceLabel, 3)],
     ],
   };
 
   const regulationRows = result.rows.map((row) => {
     const lineHourly = isHourly(row);
     const ny = lineHourly ? 'Ny timesats' : 'Nytt beløp';
-    const rounded = `${formatKrone(row.newRate)} eks mva`;
+    const rounded = `${formatKrone(row.newRate)} ${priced.phrase || 'eks mva'}`;
     return {
       heading: result.rows.length > 1 ? row.text : (lineHourly ? 'Indeksregulering av timepriser' : 'Indeksregulering'),
       lead: lineHourly

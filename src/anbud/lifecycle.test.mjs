@@ -13,6 +13,7 @@ import {
   openExecution,
   registerDirectContract,
   regulatoryChecks,
+  updateContractDetails,
   setMilestoneStatus,
   toggleStrategy,
   STRATEGY_ITEMS,
@@ -210,6 +211,41 @@ assert.equal(callOff.state.contracts[0].parentId, frame.state.contracts[0].id);
 assert.equal(callOff.state.contracts[0].buyer, 'Sola kommune');
 assert.equal(registerDirectContract(emptyAnbudState(), { title: 'Avrop uten ramme', kind: 'avrop' }).ok, false);
 assert.equal(registerDirectContract(emptyAnbudState(), { title: '' }).ok, false);
+
+const logged = updateContractDetails(callOff.state, callOff.state.contracts[0].id, {
+  regulations: [{
+    id: '2025K4-2026K2-1080',
+    savedAt: '2026-10-05',
+    before: 1080,
+    after: 1110.73,
+    increase: 30.73,
+    fromPeriod: '2025K4',
+    fromIndex: 119.5,
+    toPeriod: '2026K2',
+    toIndex: 122.9,
+    changePercent: 2.85,
+    formula: 'ny verdi = opprinnelig × (1 − s + s × t / t0)',
+    query: 't0 4. kvartal 2025 = 119,5 · t 2. kvartal 2026 = 122,9',
+    letterTitle: 'Varsel om indeksregulering',
+    letterPlain: 'Brevtekst om indeksregulering',
+    ignored: 'skal ikke bli med',
+  }],
+});
+assert.equal(logged.ok, true, logged.error);
+const storedRow = logged.state.contracts.find((item) => item.id === callOff.state.contracts[0].id);
+assert.equal(storedRow.regulations.length, 1);
+assert.equal(storedRow.regulations[0].before, 1080);
+assert.equal(storedRow.regulations[0].after, 1110.73);
+assert.equal(storedRow.regulations[0].increase, 30.73);
+assert.equal(storedRow.regulations[0].fromPeriod, '2025K4');
+assert.equal(storedRow.regulations[0].toPeriod, '2026K2');
+assert.equal(storedRow.regulations[0].letterPlain, 'Brevtekst om indeksregulering');
+assert.equal(storedRow.regulations[0].ignored, undefined);
+const reloaded = normalizeAnbudState(logged.state);
+const kept = reloaded.contracts.find((item) => item.id === storedRow.id);
+assert.equal(kept.regulations[0].fromIndex, 119.5);
+assert.equal(kept.regulations[0].toIndex, 122.9);
+assert.match(kept.regulations[0].query, /119,5/);
 
 const seeded = {
   ...emptyAnbudState(),

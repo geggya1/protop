@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { companyFollowUpPeople } from '../../src/anbud/customers';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
-import { loadAnbudState } from '../../src/anbud/storage';
+import { updateContractDetails } from '../../src/anbud/lifecycle';
+import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { rememberRegulation } from '../../src/indeksregulering/regulationLog';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
@@ -30,6 +32,22 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const [indexOpen, setIndexOpen] = useState(false);
   const [cases, setCases] = useState([]);
   const [series, setSeries] = useState(null);
+  const saveChain = useRef(Promise.resolve());
+
+  const saveRegulations = useCallback((contractId, entry) => {
+    const job = saveChain.current.then(async () => {
+      const loaded = await loadAnbudState(familyId);
+      const current = (loaded?.contracts || []).find((row) => row.id === contractId);
+      const regulations = rememberRegulation(current?.regulations, entry);
+      const result = updateContractDetails(loaded, contractId, { regulations });
+      if (!result?.ok) return result;
+      const stored = await saveAnbudState(result.state, familyId);
+      setAnbud(stored);
+      return { ok: true, state: stored };
+    });
+    saveChain.current = job.catch(() => {});
+    return job;
+  }, [familyId]);
 
   useEffect(() => {
     let live = true;
@@ -115,6 +133,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           customer={matchCustomer(customers, selectedContract)}
           company={company}
           onClose={backToDesk}
+          onSaveRegulations={saveRegulations}
         />
       </ScrollView>
     );

@@ -83,4 +83,20 @@ assert.equal(companyMustNotBecomeBuyer.contactName, 'Øyvind Lerbrekk');
 assert.equal(companyMustNotBecomeBuyer.email, 'oyvind@igang.no');
 assert.equal(companyMustNotBecomeBuyer.supplierOrgnr, '916538804');
 
+const described = knownIndexFacts(draft);
+assert.ok(described.some((row) => row.label === 'Honorar' && /medgått tid/.test(row.value)));
+assert.ok(described.some((row) => row.label === 'Avtalt pris' && /1\s?080/.test(row.value) && /eks mva/.test(row.value)));
+assert.equal(described.some((row) => row.label === 'Avtalt honorar pris'), false);
+
+const duplicate = draftFromRegisteredContract({
+  ...madla,
+  fields: { ...madla.fields, honorar: '1 080 kr inklusiv mva' },
+});
+const collapsed = knownIndexFacts(duplicate);
+assert.equal(collapsed.some((row) => row.label === 'Honorar'), false);
+const onlyPrice = collapsed.find((row) => row.label === 'Avtalt pris');
+assert.match(onlyPrice.value, /1\s?080/);
+assert.match(onlyPrice.value, /inkl\. mva/);
+assert.equal(collapsed.filter((row) => /1\s?080|1080/.test(row.value)).length, 1);
+
 console.log('fromContract ok');

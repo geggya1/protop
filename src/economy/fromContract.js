@@ -4,6 +4,8 @@ import { coverFromRecord, kindLabel } from '../anbud/agreementTemplate.js';
 import { emptyLine, parseAmount, parseIsoDate, todayIso } from '../indeksregulering/engine.js';
 import { MODELS, STANDARDS, seriesById } from '../indeksregulering/catalog.js';
 import { interpretDocuments } from '../indeksregulering/interpret.js';
+import { formatKrone } from '../indeksregulering/letter.js';
+import { honorarPrice } from '../indeksregulering/priceText.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -107,6 +109,7 @@ export function draftFromRegisteredContract(contract, extras = {}) {
 export function knownIndexFacts(draft) {
   const series = seriesById(draft?.indexId);
   const rule = standardRule(draft?.standard);
+  const price = honorarPrice(draft);
   return [
     { label: 'Avtale', value: draft?.title },
     { label: 'Avtaletype', value: kindLabel(draft?.kind) },
@@ -125,8 +128,8 @@ export function knownIndexFacts(draft) {
     { label: 'Tilbudsdato', value: draft?.offerDate },
     { label: 'Tilbudsfrist', value: draft?.tenderDeadline },
     { label: 'Periode', value: [draft?.startDate, draft?.endDate].filter(Boolean).join(' – ') },
-    { label: 'Avtalt honorar pris', value: draft?.value },
-    { label: 'Honorar', value: draft?.honorar },
+    { label: 'Honorar', value: price.description },
+    { label: 'Avtalt pris', value: price.amount == null ? '' : `${formatKrone(price.amount)}${price.phrase ? ` ${price.phrase}` : ''}` },
     { label: 'Påslag', value: draft?.surchargePercent ? `${draft.surchargePercent} %` : '' },
     { label: 'Sted', value: [draft?.address, draft?.place].filter(Boolean).join(', ') },
   ].filter((row) => text(row.value));

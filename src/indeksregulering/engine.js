@@ -143,13 +143,14 @@ export function emptyDraft(partial = {}) {
 }
 
 export function emptyTerms(partial = {}) {
+  const source = partial && typeof partial === 'object' ? partial : {};
   return {
-    baseRule: partial.baseRule || 'auto',
-    frequency: partial.frequency || 'month',
-    thresholdPercent: partial.thresholdPercent ?? '',
-    capPercent: partial.capPercent ?? '',
-    roundToKrone: partial.roundToKrone === true,
-    variables: Array.isArray(partial.variables) ? partial.variables : [],
+    baseRule: source.baseRule || 'auto',
+    frequency: source.frequency || 'month',
+    thresholdPercent: source.thresholdPercent ?? '',
+    capPercent: source.capPercent ?? '',
+    roundToKrone: source.roundToKrone === true,
+    variables: Array.isArray(source.variables) ? source.variables : [],
   };
 }
 

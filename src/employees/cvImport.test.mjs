@@ -77,8 +77,37 @@ assert.equal(scanned.cv.summary, 'Fra skann');
 
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(screen, /Importer CV/);
+assert.match(screen, /Importer prosjekter/);
 assert.match(screen, /Lagre CV/);
 assert.match(screen, /cvEditorSections/);
 assert.match(screen, /readCvImport/);
+assert.match(screen, /readProjectTable/);
+
+const named = sanitizeCv({
+  firstName: 'Titi',
+  middleName: 'Alexandru',
+  lastName: 'Georgescu',
+  birthDate: '6.4.1980',
+  headline: 'Prosjekt- og byggeleder',
+  projects: [{
+    title: 'Kraftverk',
+    address: 'Evje',
+    email: 'eirik.smedstad@t infos.no',
+    phone: '518000',
+    link: { owner: 'company', companyProjectId: 'prj_senere' },
+  }],
+});
+assert.equal(named.cv.firstName, 'Titi');
+assert.equal(named.cv.projects[0].email, 'eirik.smedstad@tinfos.no');
+assert.equal(named.cv.projects[0].phone, '518000');
+assert.equal(named.cv.projects[0].link.owner, 'person');
+assert.equal(named.cv.projects[0].link.companyProjectId, 'prj_senere');
+const withName = applyImportedCv(emptyEmployee('emp-titi'), named.cv);
+assert.equal(withName.employee.person.firstName, 'Titi');
+assert.equal(withName.employee.person.middleName, 'Alexandru');
+assert.equal(withName.employee.person.lastName, 'Georgescu');
+assert.equal(withName.employee.person.birthDate, '6.4.1980');
+assert.equal(withName.employee.cv.projects[0].address, 'Evje');
+assert.equal(withName.employee.cv.projects[0].source, 'cv');
 
 console.log('cvImport.test.mjs: ok');

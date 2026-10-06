@@ -8,6 +8,7 @@ import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
+import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
@@ -116,6 +117,7 @@ export default function EmployeesScreen() {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState('');
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
@@ -310,6 +312,7 @@ export default function EmployeesScreen() {
     const file = await pickDocument({ accept: CV_IMPORT_ACCEPT });
     if (!file) return;
     setBusy(true);
+    setBusyKind('cv');
     try {
       const bytes = await bytesFromFile(file);
       const interpreted = await readCvImport(bytes, file.name, {
@@ -326,6 +329,32 @@ export default function EmployeesScreen() {
       showError(err?.message || 'Kunne ikke lese CV-en.');
     } finally {
       setBusy(false);
+      setBusyKind('');
+    }
+  }
+
+  async function importProjectsFile() {
+    if (!draft || busy) return;
+    setError('');
+    const file = await pickDocument({ accept: PROJECT_IMPORT_ACCEPT });
+    if (!file) return;
+    setBusy(true);
+    setBusyKind('projects');
+    try {
+      const bytes = await bytesFromFile(file);
+      const projects = await readProjectTable(bytes, file.name);
+      const applied = applyImportedCv(draft, { projects });
+      setDraft(presentEmployee(applied.employee));
+      const found = applied.added.length
+        ? `Lagt inn: ${applied.added.join(', ')}.`
+        : 'Ingen nye prosjekter ble funnet.';
+      const saveLabel = view === 'cv' ? 'Lagre CV' : 'Lagre';
+      setNote(`Prosjektlisten er lest. ${found} Prosjektene knyttes til personen, og kan senere flyttes til bedriftens prosjektregister. Ingenting er lagret før du trykker ${saveLabel}.`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lese prosjektlisten.');
+    } finally {
+      setBusy(false);
+      setBusyKind('');
     }
   }
 
@@ -369,6 +398,24 @@ export default function EmployeesScreen() {
       },
     }));
     setAddressHits([]);
+  }
+
+  async function chooseProjectImage(index) {
+    try {
+      const picked = await pickImage({ edit: true, aspect: [4, 3] });
+      if (!picked || !draft) return;
+      const id = draft.id || newId('emp');
+      const projectId = draft.cv?.projects?.[index]?.id || newId('prj');
+      const url = await uploadImage(`families/${familyId || 'personal'}/employees/${id}/projects/${projectId}`, picked);
+      setDraft((current) => {
+        const projects = (current.cv?.projects || []).map((row, rowIndex) => (
+          rowIndex === index ? { ...row, id: row.id || projectId, imageUrl: url } : row
+        ));
+        return { ...current, id, cv: { ...current.cv, projects } };
+      });
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke laste opp prosjektbildet.');
+    }
   }
 
   async function choosePhoto() {
@@ -822,6 +869,17 @@ export default function EmployeesScreen() {
               {linked ? '' : ' Ingen ansettelse er knyttet til deg i dette selskapet ennå.'}
             </Text>
           ) : null}
+          {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (
+            <TouchableOpacity
+              nativeID="employee-project-import"
+              onPress={importProjectsFile}
+              disabled={busy}
+              accessibilityRole="button"
+              style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1, alignSelf: 'flex-start' }]}
+            >
+              <Text style={{ color: colors.ink }}>{busy && busyKind === 'projects' ? 'Leser prosjekter…' : 'Importer prosjekter'}</Text>
+            </TouchableOpacity>
+          ) : null}
           <EmployeeFields
             draft={draft}
             scope={view === 'mine' ? 'profile' : 'employee'}
@@ -833,6 +891,7 @@ export default function EmployeesScreen() {
             onPickAddress={pickAddress}
             onChange={changeDraft}
             onPhoto={choosePhoto}
+            onProjectImage={chooseProjectImage}
           />
           <TouchableOpacity
             nativeID="employee-save"
@@ -855,7 +914,7 @@ export default function EmployeesScreen() {
           </Text>
           {canEditCv ? (
             <Text style={{ color: colors.muted }}>
-              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Ingenting lagres før du trykker Lagre CV.
+              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Prosjekter kan også hentes fra Excel. Ingenting lagres før du trykker Lagre CV.
             </Text>
           ) : null}
           <View style={styles.row}>
@@ -867,7 +926,18 @@ export default function EmployeesScreen() {
                 accessibilityRole="button"
                 style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
               >
-                <Text style={{ color: colors.ink }}>{busy ? 'Leser CV…' : 'Importer CV'}</Text>
+                <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canEditCv ? (
+              <TouchableOpacity
+                nativeID="employee-project-import-cv"
+                onPress={importProjectsFile}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.ink }}>{busy && busyKind === 'projects' ? 'Leser prosjekter…' : 'Importer prosjekter'}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={() => copyCv(cv)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
@@ -894,6 +964,7 @@ export default function EmployeesScreen() {
                 onPickAddress={pickAddress}
                 onChange={changeDraft}
                 onPhoto={choosePhoto}
+                onProjectImage={chooseProjectImage}
               />
               <TouchableOpacity
                 nativeID="employee-cv-save"

@@ -311,6 +311,11 @@ Regler:
 - Maks 80 rader. Tom streng for felt som ikke finnes.`;
 }
 
+function repairEmail(value) {
+  const raw = String(value || '').replace(/\s+/g, '').replace(/[,;]+$/g, '');
+  return raw.includes('@') && raw.includes('.') ? raw.slice(0, 120) : '';
+}
+
 function clipText(value, max, lines = false) {
   const raw = String(value ?? '');
   const text = lines
@@ -325,7 +330,7 @@ function cvItems(list, max, map) {
 
 export function sanitizeCv(parsed) {
   const src = parsed && typeof parsed === 'object' ? parsed : {};
-  const education = cvItems(src.education, 12, (row) => {
+  const education = cvItems(src.education, 20, (row) => {
     const item = {
       from: clipText(row?.from, 20),
       to: clipText(row?.to, 20),
@@ -334,15 +339,15 @@ export function sanitizeCv(parsed) {
     };
     return item.school || item.program || item.from ? item : null;
   });
-  const certifications = cvItems(src.certifications, 20, (row) => {
+  const certifications = cvItems(src.certifications, 40, (row) => {
     const title = clipText(row?.title || row, 160);
     return title ? { title } : null;
   });
-  const courses = cvItems(src.courses, 20, (row) => {
+  const courses = cvItems(src.courses, 40, (row) => {
     const item = { date: clipText(row?.date, 40), title: clipText(row?.title, 160) };
     return item.title ? item : null;
   });
-  const experience = cvItems(src.experience, 20, (row) => {
+  const experience = cvItems(src.experience, 30, (row) => {
     const current = row?.current === true || /^(ja|true|1|nå|naa|navaerende|dd)$/i.test(clipText(row?.current, 20));
     const item = {
       employer: clipText(row?.employer, 160),
@@ -355,28 +360,37 @@ export function sanitizeCv(parsed) {
     };
     return item.employer || item.title || item.tasks ? item : null;
   });
-  const projects = cvItems(src.projects, 20, (row) => {
-    const email = clipText(row?.email, 80);
+  const projects = cvItems(src.projects, 40, (row) => {
     const item = {
       title: clipText(row?.title, 160),
+      address: clipText(row?.address, 200),
       category: clipText(row?.category, 80),
       client: clipText(row?.client, 160),
       object: clipText(row?.object, 160),
-      period: clipText(row?.period, 40),
+      period: clipText(row?.period, 80),
       cost: clipText(row?.cost, 40),
       contact: clipText(row?.contact, 80),
       phone: clipText(row?.phone, 40),
-      email: email.includes('@') ? email : '',
+      email: repairEmail(row?.email),
       employer: clipText(row?.employer, 160),
       roles: clipText(row?.roles, 500, true),
       responsibility: clipText(row?.responsibility, 1000, true),
+      source: row?.source === 'excel' || row?.source === 'cv' ? row.source : 'cv',
+      link: {
+        owner: 'person',
+        companyProjectId: clipText(row?.link?.companyProjectId, 80),
+      },
     };
     return item.title || item.client || item.responsibility ? item : null;
   });
   return {
     cv: {
+      firstName: clipText(src.firstName, 80),
+      middleName: clipText(src.middleName, 80),
+      lastName: clipText(src.lastName, 80),
       headline: clipText(src.headline, 160),
-      summary: clipText(src.summary, 4000, true),
+      summary: clipText(src.summary, 8000, true),
+      birthDate: clipText(src.birthDate, 20),
       language: clipText(src.language, 80),
       nationality: clipText(src.nationality, 80),
       maritalStatus: clipText(src.maritalStatus, 80),
@@ -393,11 +407,14 @@ export function sanitizeCv(parsed) {
 export function cvPrompt() {
   return `Du leser én CV, enten som skann, PDF eller ren tekst, og trekker ut innholdet.
 Returner KUN gyldig JSON:
-{"headline":"","summary":"","language":"","nationality":"","maritalStatus":"","education":[{"from":"","to":"","school":"","program":""}],"certifications":[{"title":""}],"courses":[{"date":"","title":""}],"experience":[{"employer":"","place":"","from":"","to":"","current":false,"title":"","tasks":""}],"projects":[{"title":"","category":"","client":"","object":"","period":"","cost":"","contact":"","phone":"","email":"","employer":"","roles":"","responsibility":""}],"summaryNote":"én kort setning"}
+{"firstName":"","middleName":"","lastName":"","headline":"","summary":"","birthDate":"","language":"","nationality":"","maritalStatus":"","education":[{"from":"","to":"","school":"","program":""}],"certifications":[{"title":""}],"courses":[{"date":"","title":""}],"experience":[{"employer":"","place":"","from":"","to":"","current":false,"title":"","tasks":""}],"projects":[{"title":"","address":"","category":"","client":"","object":"","period":"","cost":"","contact":"","phone":"","email":"","employer":"","roles":"","responsibility":""}],"summaryNote":"én kort setning"}
 Regler:
 - Ta bare med det som står i dokumentet. Ikke finn opp arbeidsgivere, skoler, årstall, kunder eller prosjekter.
-- summary er oppsummeringen og nøkkelkvalifikasjonene som sammenhengende tekst.
+- Ta med alle utdanninger, sertifiseringer, kurs, erfaringer og referanseprosjekter. Ikke gjør et utvalg.
+- summary er oppsummeringen og nøkkelkvalifikasjonene, én linje per punkt.
+- birthDate er fødselsdatoen slik den står, for eksempel 6.4.1980.
+- projects.address er adresselinjen under prosjektnavnet.
 - tasks er arbeidsoppgaver, én linje per oppgave.
-- current er true bare når stillingen er merket som nåværende.
+- current er true bare når stillingen er merket som nåværende, eller sluttdatoen mangler.
 - Tom streng eller tom liste når feltet ikke finnes.`;
 }

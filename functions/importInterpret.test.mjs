@@ -91,4 +91,43 @@ assert.equal(cv.cv.education[0].school, 'UiS');
 assert.equal(cv.cv.projects.length, 0);
 assert.equal(cv.summary, 'Én CV');
 
+const cvText = [
+  'CURRICULUM VITAE',
+  'Kari Nord',
+  'Byggeleder',
+  'Profil',
+  'Født 6.4.1980',
+  'Referanseprosjekter',
+  'Kraftverk',
+  'Evje',
+  'Kategori Entreprenør',
+  'Periode aug. 21 - mai 24',
+  'Epost kari@eksempel .no',
+].join('\n');
+let seenImages = null;
+const kept = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  text: 'kort',
+  mime: 'application/pdf',
+  imageBase64: 'a'.repeat(120),
+}, { uid: 'user' }, {
+  ...deps,
+  documentParts: async (_data, options) => {
+    seenImages = options;
+    return { usedOcr: true, text: cvText, parts: [{ text: cvText }] };
+  },
+  callGeminiJson: async () => {
+    throw new Error('modell nede');
+  },
+});
+assert.equal(seenImages.maxImages, 8);
+assert.equal(kept.engine, 'ocr+gemini');
+assert.equal(kept.cv.projects.length, 1);
+assert.equal(kept.cv.projects[0].title, 'Kraftverk');
+assert.equal(kept.cv.projects[0].email, 'kari@eksempel.no');
+assert.equal(kept.cv.projects[0].link.owner, 'person');
+assert.equal(kept.cv.birthDate, '6.4.1980');
+
 console.log('importInterpret.test.mjs: ok');

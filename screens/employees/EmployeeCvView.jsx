@@ -67,6 +67,15 @@ export default function EmployeeCvView({ cv, colors }) {
         {cv.projects.length ? cv.projects.map((row) => (
           <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
             <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.title || 'Prosjekt'}</Text>
+            {!!row.imageUrl && (
+              <Image
+                source={{ uri: row.imageUrl }}
+                style={styles.projectImage}
+                resizeMode="cover"
+                accessibilityLabel={`Prosjektbilde for ${row.title || 'prosjektet'}`}
+              />
+            )}
+            {!!row.address && <Text style={{ color: colors.muted }}>{row.address}</Text>}
             {[
               ['Kategori', row.category],
               ['Kunde', row.client],
@@ -113,4 +122,5 @@ const styles = StyleSheet.create({
   job: { gap: 2, marginBottom: 8 },
   jobTitle: { fontSize: 16, fontWeight: '600' },
   project: { borderTopWidth: 1, paddingTop: 8, gap: 2 },
+  projectImage: { width: '100%', height: 160, borderRadius: 8 },
 });

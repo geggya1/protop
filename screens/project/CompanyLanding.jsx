@@ -7,10 +7,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { fetchWeatherForecast, roundTemp, searchWeatherPlaces } from '../../src/utils/weather';
 import { formatGreetingDate } from '../../src/utils/timeGreeting';
-import AccountHistoryCard from '../../components/project/AccountHistoryCard';
-import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
-  accountHistoryEndpoint,
   fetchPublicCompany,
   nbDate,
   nok,
@@ -85,8 +82,6 @@ export default function CompanyLanding({
   const [error, setError] = useState('');
   const [forecast, setForecast] = useState(null);
   const [placeName, setPlaceName] = useState('');
-  const [history, setHistory] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const profile = live?.company || storedCompanyProfile(stored);
   const logo = companyLogoOf(stored);
   const orgnr = stored?.organisasjonsnummer || '';
@@ -155,44 +150,15 @@ export default function CompanyLanding({
   const registers = registerRows(profile);
   const roles = live?.roles || [];
   const accounts = live?.accounts || null;
-  const accountView = useMemo(
-    () => mergeAccountYears(accounts, history || []),
-    [accounts, history],
-  );
   const signature = live?.signature || null;
   const overview = useMemo(() => groupOverview({
     konsern: profile?.konsern === true,
-    morselskap: accountView?.morselskap === true,
+    morselskap: accounts?.morselskap === true,
     parentCompanyName: stored?.parentCompanyName,
     publicUnits: live?.units || [],
     registered: stored?.subUnits,
-  }), [profile?.konsern, accountView?.morselskap, stored?.parentCompanyName, stored?.subUnits, live?.units]);
+  }), [profile?.konsern, accounts?.morselskap, stored?.parentCompanyName, stored?.subUnits, live?.units]);
 
-  useEffect(() => {
-    const id = String(orgnr || '').replace(/\D/g, '');
-    if (id.length !== 9) return undefined;
-    let alive = true;
-    setHistory(null);
-    setHistoryLoading(true);
-    const endpoint = accountHistoryEndpoint();
-    fetch(endpoint, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'account-history', orgnr: id }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!alive) return;
-        setHistory(Array.isArray(data?.years) ? data.years : []);
-      })
-      .catch(() => {
-        if (alive) setHistory([]);
-      })
-      .finally(() => {
-        if (alive) setHistoryLoading(false);
-      });
-    return () => { alive = false; };
-  }, [orgnr]);
   const weatherCard = (
     <Card colors={colors}>
       <SectionTitle colors={colors}>Været{placeName ? ` i ${placeName}` : ''}</SectionTitle>
@@ -392,17 +358,6 @@ export default function CompanyLanding({
               {!profile?.konkurs && !profile?.avvikling && !profile?.tvang ? (
                 <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen konkurs eller avvikling er registrert.</Text>
               ) : null}
-            </Card>
-          ) : null}
-
-          {accountView ? (
-            <Card colors={colors}>
-              <AccountHistoryCard
-                accounts={accountView}
-                founded={profile?.stiftelsesdato}
-                loading={historyLoading}
-                colors={colors}
-              />
             </Card>
           ) : null}
 

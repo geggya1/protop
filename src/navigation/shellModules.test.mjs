@@ -228,6 +228,13 @@ assert.equal(landing.includes('Offentlige tildelinger på Doffin'), false);
 assert.equal(landing.includes('Egne koder til anbudsvarsling'), false);
 assert.match(landing, /Anbud · Innstillinger/);
 assert.equal(landing.includes('primaryTxt'), false);
+assert.equal(landing.includes('AccountHistoryCard'), false);
+assert.equal(landing.includes('account-history'), false);
+assert.equal(landing.includes('Regnskap og nøkkeltall'), false);
+
+const economyWelcome = readFileSync(new URL('../../screens/economy/EconomyWelcome.jsx', import.meta.url), 'utf8');
+assert.match(economyWelcome, /AccountHistoryCard/);
+assert.match(economyWelcome, /nativeID="economy-accounts"/);
 
 const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
 assert.match(unitsScreen, /Underenheter/);

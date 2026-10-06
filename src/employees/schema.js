@@ -262,7 +262,7 @@ export const FORM_SECTIONS = [
     blurb: 'Referanseprosjekter knyttet til personen. De kan senere flyttes inn i bedriftens prosjektregister.',
     fields: [
       { key: 'title', label: 'Prosjekt', type: 'text' },
-      { key: 'imageUrl', label: 'Prosjektbilde', type: 'photo' },
+      { key: 'images', label: 'Bilder', type: 'photos' },
       { key: 'address', label: 'Adresse', type: 'text' },
       { key: 'category', label: 'Kategori', type: 'text', placeholder: 'Offentlig næring' },
       { key: 'client', label: 'Kunde', type: 'text' },
@@ -295,8 +295,11 @@ export function cvEditorSections(scope) {
       ...section,
       title: 'Profil',
       purpose: 'cv',
-      blurb: 'Språk, nasjonalitet og sivil status vises øverst på CV-en.',
-      fields: section.fields.filter((field) => CV_PROFILE_KEYS.includes(field.key)),
+      blurb: 'Bildet følger personen. Språk, nasjonalitet og sivil status vises øverst på CV-en.',
+      fields: [
+        { key: 'person.photoUrl', label: 'Bilde', type: 'photo' },
+        ...section.fields.filter((field) => CV_PROFILE_KEYS.includes(field.key)),
+      ],
     }];
   });
 }

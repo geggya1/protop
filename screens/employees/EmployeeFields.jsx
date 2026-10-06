@@ -521,7 +521,35 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto }
         <View key={item.id || index} style={[styles.repeat, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Text style={[styles.label, { color: colors.ink }]}>{section.itemLabel} {index + 1}</Text>
           {section.fields.map((field) => (
-            field.type === 'photo' ? (
+            field.type === 'photos' ? (
+              <View key={field.key} style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
+                <View style={styles.photoGrid}>
+                  {(Array.isArray(item[field.key]) ? item[field.key] : []).map((url, imageIndex) => (
+                    <View key={`${imageIndex}-${String(url).slice(0, 24)}`} style={styles.stackTight}>
+                      <Image source={{ uri: url }} style={styles.projectPhoto} resizeMode="cover" />
+                      {editable ? (
+                        <TouchableOpacity
+                          onPress={() => patch(index, field.key, item[field.key].filter((_, rowIndex) => rowIndex !== imageIndex))}
+                          accessibilityRole="button"
+                        >
+                          <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+                {editable ? (
+                  <TouchableOpacity
+                    onPress={() => onItemPhoto?.(index)}
+                    accessibilityRole="button"
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Legg til bilder</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : field.type === 'photo' ? (
               <View key={field.key} style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
                 <View style={styles.photoRow}>
@@ -617,6 +645,7 @@ const styles = StyleSheet.create({
   photoRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   photo: { width: 84, height: 84, borderRadius: 12 },
   projectPhoto: { width: 120, height: 80, borderRadius: 8 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoEmpty: { alignItems: 'center', justifyContent: 'center' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   inline: { flexDirection: 'row', gap: 8, alignItems: 'center' },

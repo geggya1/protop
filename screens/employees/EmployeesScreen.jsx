@@ -6,7 +6,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
-import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
+import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
@@ -400,21 +400,36 @@ export default function EmployeesScreen() {
     setAddressHits([]);
   }
 
-  async function chooseProjectImage(index) {
+  async function addProjectImages(index) {
     try {
-      const picked = await pickImage({ edit: true, aspect: [4, 3] });
-      if (!picked || !draft) return;
+      const picked = await pickImages({ max: 8 });
+      const files = Array.isArray(picked) ? picked.filter(Boolean) : [];
+      if (!files.length || !draft) return;
       const id = draft.id || newId('emp');
       const projectId = draft.cv?.projects?.[index]?.id || newId('prj');
-      const url = await uploadImage(`families/${familyId || 'personal'}/employees/${id}/projects/${projectId}`, picked);
+      const urls = [];
+      for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+        const url = await uploadImage(
+          `families/${familyId || 'personal'}/employees/${id}/projects/${projectId}/${Date.now().toString(36)}-${fileIndex}`,
+          files[fileIndex],
+        );
+        if (url) urls.push(url);
+      }
+      if (!urls.length) throw new Error('Kunne ikke laste opp bildene.');
       setDraft((current) => {
-        const projects = (current.cv?.projects || []).map((row, rowIndex) => (
-          rowIndex === index ? { ...row, id: row.id || projectId, imageUrl: url } : row
-        ));
+        const projects = (current.cv?.projects || []).map((row, rowIndex) => {
+          if (rowIndex !== index) return row;
+          const existing = Array.isArray(row.images) ? row.images : [];
+          return {
+            ...row,
+            id: row.id || projectId,
+            images: [...existing, ...urls].slice(0, 8),
+          };
+        });
         return { ...current, id, cv: { ...current.cv, projects } };
       });
     } catch (err) {
-      setError(err?.message || 'Kunne ikke laste opp prosjektbildet.');
+      setError(err?.message || 'Kunne ikke laste opp bildene.');
     }
   }
 
@@ -891,7 +906,7 @@ export default function EmployeesScreen() {
             onPickAddress={pickAddress}
             onChange={changeDraft}
             onPhoto={choosePhoto}
-            onProjectImage={chooseProjectImage}
+            onProjectImage={addProjectImages}
           />
           <TouchableOpacity
             nativeID="employee-save"
@@ -964,7 +979,7 @@ export default function EmployeesScreen() {
                 onPickAddress={pickAddress}
                 onChange={changeDraft}
                 onPhoto={choosePhoto}
-                onProjectImage={chooseProjectImage}
+                onProjectImage={addProjectImages}
               />
               <TouchableOpacity
                 nativeID="employee-cv-save"

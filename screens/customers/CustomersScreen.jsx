@@ -12,6 +12,7 @@ import {
   identityFieldsForKind,
   importCustomers,
   maskPersonnummer,
+  planCustomerImport,
   normalizeOrgnr,
   ownerLabel,
   upsertCustomer,
@@ -19,6 +20,8 @@ import {
 import { CUSTOMER_IMPORT_ACCEPT } from '../../src/anbud/customerImport';
 import { readCustomerImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
+import { importResult } from '../../src/imports/review';
+import ImportReview, { ImportResult } from '../../components/ImportReview';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
@@ -98,6 +101,9 @@ export default function CustomersScreen() {
   const [hits, setHits] = useState([]);
   const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importPlan, setImportPlan] = useState(null);
+  const [dropped, setDropped] = useState(() => new Set());
+  const [importReport, setImportReport] = useState(null);
   const lookupRef = useRef('');
 
   useEffect(() => {
@@ -230,24 +236,20 @@ export default function CustomersScreen() {
         familyId,
         ask: (payload) => askImportInterpret(payload),
       });
-      const rows = interpreted.rows;
       const loaded = await loadAnbudState(familyId);
-      const result = importCustomers(loaded, rows);
-      if (!result.created.length && !result.skipped.length) {
-        setError(result.error || 'Fant ingen kunder i filen.');
+      const plan = planCustomerImport(loaded, interpreted.rows);
+      if (!plan.rows.length) {
+        setError('Fant ingen kunder i filen.');
         return;
       }
-      const saved = await saveAnbudState(result.state, familyId);
-      setState(saved);
-      const parts = [];
-      if (result.created.length) parts.push(`${result.created.length} nye`);
-      if (result.skipped.length) parts.push(`${result.skipped.length} fantes fra før`);
-      if (result.errors.length) parts.push(`${result.errors.length} uten navn hoppet over`);
       const understood = interpreted.engine && interpreted.engine !== 'lokal'
         ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
         : '';
-      setNote(`Importert: ${parts.join(', ')}.${understood}`);
-      setView('list');
+      setImportPlan({ ...plan, understood });
+      setDropped(new Set());
+      setImportReport(null);
+      setNote('');
+      setView('import');
     } catch (cause) {
       const message = String(cause?.message || '');
       setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
@@ -258,6 +260,76 @@ export default function CustomersScreen() {
     }
   }
 
+  function toggleCustomer(id) {
+    setDropped((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmCustomerImport() {
+    if (!importPlan || importing) return;
+    const chosen = [];
+    const leftOut = [];
+    importPlan.rows.forEach((row, index) => {
+      const id = String(index);
+      if (row.severity === 'block' || dropped.has(id) || !row.customer) {
+        leftOut.push({
+          name: row.name,
+          reason: row.severity === 'block' ? (row.reason || 'Kan ikke importeres.') : 'Valgt bort før lagring.',
+        });
+        return;
+      }
+      chosen.push(row);
+    });
+    if (!chosen.length) {
+      setError('Ingen kunder er valgt for import.');
+      return;
+    }
+    setImporting(true);
+    setError('');
+    try {
+      const loaded = await loadAnbudState(familyId);
+      const result = importCustomers(loaded, chosen.map((row) => row.customer));
+      if (!result.created.length) {
+        setError(result.error || 'Ingen kunder ble lagret.');
+        return;
+      }
+      const saved = await saveAnbudState(result.state, familyId);
+      setState(saved);
+      let cursor = 0;
+      const imported = [];
+      for (const row of chosen) {
+        const customer = result.created[cursor];
+        if (customer && customer.name === row.name) {
+          imported.push({ name: customer.name, issues: row.issues || [] });
+          cursor += 1;
+        } else {
+          leftOut.push({ name: row.name, reason: 'Ble ikke lagret.' });
+        }
+      }
+      setImportReport(importResult(imported, leftOut));
+      setImportPlan(null);
+      setDropped(new Set());
+      setView('list');
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke lagre kundelisten.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const customerReviewRows = (importPlan?.rows || []).map((row, index) => ({
+    id: String(index),
+    severity: row.severity,
+    title: row.name,
+    meta: [formatOrgnr(row.orgnr), row.address, row.place, row.email, row.phone].filter(Boolean).join(' · '),
+    issues: row.issues || [],
+    included: row.severity !== 'block' && !dropped.has(String(index)),
+  }));
+
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
@@ -265,7 +337,7 @@ export default function CustomersScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={[styles.title, { color: colors.ink }]}>
-        {view === 'detail' && selected ? selected.name : 'Kunder'}
+        {view === 'import' ? 'Kontroller import' : view === 'detail' && selected ? selected.name : 'Kunder'}
       </Text>
       {view === 'list' ? (
         <Text style={{ color: colors.muted }}>
@@ -274,6 +346,21 @@ export default function CustomersScreen() {
       ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
+
+      {view === 'import' && importPlan ? (
+        <ImportReview
+          nativeID="customers-import-plan"
+          colors={colors}
+          lead={`Ingenting er lagret ennå. Kontroller innholdet og bekreft importen.${importPlan.understood || ''}`}
+          rows={customerReviewRows}
+          busy={importing}
+          confirmLabel={(count) => `Importer ${count} kunder`}
+          onToggle={toggleCustomer}
+          onConfirm={confirmCustomerImport}
+          onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
+        />
+      ) : null}
 
       {view === 'list' ? (
         <>

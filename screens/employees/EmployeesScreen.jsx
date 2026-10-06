@@ -10,6 +10,8 @@ import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
+import { employeeReviewSeverity, importResult } from '../../src/imports/review';
+import ImportReview, { ImportResult } from '../../components/ImportReview';
 import {
   absorbCompanyIntoProfile,
   applyProfessionalProfile,
@@ -116,6 +118,8 @@ export default function EmployeesScreen() {
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
+  const [dropped, setDropped] = useState(() => new Set());
+  const [importReport, setImportReport] = useState(null);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -204,6 +208,8 @@ export default function EmployeesScreen() {
         familyId,
       }, (payload) => askImportInterpret(payload));
       setImportPlan(plan);
+      setDropped(new Set());
+      setImportReport(null);
       setView('import');
       scrollRef.current?.scrollTo?.({ y: 0, animated: true });
     } catch (err) {
@@ -218,9 +224,11 @@ export default function EmployeesScreen() {
 
   async function confirmImport() {
     if (!isAdmin || !importPlan || busy) return;
-    const accepted = importPlan.rows.filter((row) => row.employee);
+    const accepted = importPlan.rows.filter((row, index) => (
+      employeeReviewSeverity(row) !== 'block' && !dropped.has(String(index)) && row.employee
+    ));
     if (!accepted.length) {
-      showError('Ingen rader kan importeres.');
+      showError('Ingen rader er valgt for import.');
       return;
     }
     if (!familyId) {
@@ -237,13 +245,27 @@ export default function EmployeesScreen() {
         for (const row of saved) map.set(row.id, row);
         return sortEmployees([...map.values()]);
       });
-      const created = importPlan.rows.filter((row) => row.action === 'create').length;
-      const updated = importPlan.rows.filter((row) => row.action === 'update').length;
-      const skipped = importPlan.rows.filter((row) => row.action === 'skip').length;
+      const imported = [];
+      const leftOut = [];
+      importPlan.rows.forEach((row, index) => {
+        const taken = employeeReviewSeverity(row) !== 'block' && !dropped.has(String(index)) && row.employee;
+        if (!taken) {
+          leftOut.push({
+            name: row.name,
+            reason: employeeReviewSeverity(row) === 'block'
+              ? (row.reason || 'Kan ikke importeres.')
+              : 'Valgt bort før lagring.',
+          });
+          return;
+        }
+        imported.push({ name: row.name, issues: row.warnings || [] });
+      });
+      setImportReport(importResult(imported, leftOut));
       setImportPlan(null);
+      setDropped(new Set());
       setDraft(null);
       setView('list');
-      setNote(`Importert ${created} nye og oppdatert ${updated}.${skipped ? ` ${skipped} rader ble hoppet over.` : ''}`);
+      setNote(importResult(imported, leftOut).complete ? '' : 'Se hvem som ikke ble importert, og hvilke avvik som ble lagret.');
     } catch (err) {
       showError(err?.message || 'Kunne ikke importere listen.');
     } finally {
@@ -483,7 +505,7 @@ export default function EmployeesScreen() {
     >
       <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
       <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        {view === 'mine' ? 'Min side' : view === 'import' ? 'Importer liste' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : view !== 'list' && selected ? displayName(selected) : 'Ansatte'}
+        {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : view !== 'list' && selected ? displayName(selected) : 'Ansatte'}
       </Text>
       {view === 'list' ? (
         <Text style={[styles.lead, { color: colors.muted }]}>
@@ -492,6 +514,7 @@ export default function EmployeesScreen() {
       ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
 
       {view === 'list' ? (
         <>
@@ -593,63 +616,41 @@ export default function EmployeesScreen() {
       ) : null}
 
       {view === 'import' && importPlan ? (
-        <View nativeID="employees-import-plan" style={styles.stack}>
-          <Text style={{ color: colors.muted }}>
-            Kontroller treffene før de lagres. Like e-postadresser oppdaterer medarbeideren som finnes. Tomme celler lar det som allerede er registrert stå.
-            {importPlan.interpretation?.engine?.includes('ocr')
-              ? ' Dokumentet er lest med OCR og AI.'
-              : importPlan.interpretation?.engine
-                ? ' Ukjente kolonner er tolket med AI.'
-                : ''}
-          </Text>
-          <Text style={{ color: colors.ink }}>
-            Rettighetene lagres på ansettelsen. Importen endrer ikke hvem som er administrator i ProTop.
-          </Text>
-          {importPlan.permissionColumns.length ? (
-            <Text style={{ color: colors.muted }}>{`Rettighetskolonner: ${importPlan.permissionColumns.join(', ')}.`}</Text>
-          ) : null}
-          {importPlan.customColumns.length ? (
-            <Text style={{ color: colors.muted }}>{`Andre kolonner lagres som egne felt: ${importPlan.customColumns.join(', ')}.`}</Text>
-          ) : null}
-          {importPlan.rows.map((row, index) => (
-            <View key={`${row.action}-${index}`} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={[styles.personName, { color: colors.ink }]}>{row.name}</Text>
-              <Text style={{ color: colors.muted }}>
-                {row.action === 'create' ? 'Ny' : row.action === 'update' ? 'Oppdateres' : 'Hoppes over'}
-                {row.email ? ` · ${row.email}` : ''}
-                {row.accessRole ? ` · ${row.accessRole}` : ''}
-              </Text>
-              {row.permissions?.length ? (
-                <Text style={{ color: colors.ink }}>{`Rettigheter: ${row.permissions.join(', ')}`}</Text>
-              ) : null}
-              {row.action !== 'skip' ? (
-                <Text style={{ color: colors.muted }}>
-                  {[
-                    row.canLogin ? 'Kan logge inn' : '',
-                    row.hasLicense ? 'Lisens' : '',
-                    row.canHandleLegal ? 'Juridiske saker' : '',
-                    row.external ? 'Ekstern' : '',
-                  ].filter(Boolean).join(' · ') || 'Ingen innlogging, lisens eller juridisk tilgang fra listen.'}
-                </Text>
-              ) : null}
-              {row.reason ? <Text style={{ color: colors.danger || '#b42318' }}>{row.reason}</Text> : null}
-              {(row.warnings || []).map((warning) => (
-                <Text key={warning} style={{ color: colors.muted }}>{warning}</Text>
-              ))}
-            </View>
-          ))}
-          <TouchableOpacity
-            nativeID="employees-import-confirm"
-            onPress={confirmImport}
-            disabled={busy || !importPlan.rows.some((row) => row.employee)}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-          >
-            <Text style={styles.primaryText}>
-              {busy ? 'Importerer…' : `Importer ${importPlan.rows.filter((row) => row.employee).length} medarbeidere`}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <ImportReview
+          nativeID="employees-import-plan"
+          colors={colors}
+          lead={[
+            'Ingenting er lagret ennå. Kontroller innholdet og bekreft importen. Like e-postadresser oppdaterer medarbeideren som finnes.',
+            'Rettighetene lagres på ansettelsen og endrer ikke hvem som er administrator i ProTop.',
+            importPlan.interpretation?.engine?.includes('ocr') ? 'Dokumentet er lest med OCR og AI.' : '',
+            importPlan.interpretation?.engine && !importPlan.interpretation.engine.includes('ocr') ? 'Ukjente kolonner er tolket med AI.' : '',
+            importPlan.permissionColumns?.length ? `Rettighetskolonner: ${importPlan.permissionColumns.join(', ')}.` : '',
+            importPlan.customColumns?.length ? `Andre kolonner lagres som egne felt: ${importPlan.customColumns.join(', ')}.` : '',
+          ].filter(Boolean).join(' ')}
+          rows={importPlan.rows.map((row, index) => ({
+            id: String(index),
+            severity: employeeReviewSeverity(row),
+            title: row.name,
+            meta: [
+              row.action === 'create' ? 'Ny' : row.action === 'update' ? 'Oppdaterer eksisterende' : '',
+              row.email,
+              row.accessRole,
+              row.permissions?.length ? `Rettigheter: ${row.permissions.join(', ')}` : '',
+            ].filter(Boolean).join(' · '),
+            issues: [row.reason, ...(row.warnings || [])].filter(Boolean),
+            included: employeeReviewSeverity(row) !== 'block' && !dropped.has(String(index)),
+          }))}
+          busy={busy}
+          confirmLabel={(count) => `Importer ${count} medarbeidere`}
+          onToggle={(id) => setDropped((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })}
+          onConfirm={confirmImport}
+          onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
+        />
       ) : null}
 
       {view === 'detail' && selected ? (

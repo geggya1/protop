@@ -27,6 +27,7 @@ import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
+import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { defaultAnbudSubView, defaultOkonomiSubView } from '../src/navigation/shellModules';
 import {
@@ -528,6 +529,7 @@ function AppShellInner() {
       );
     }
     if (tab === 'kunder') return <CustomersScreen />;
+    if (tab === 'ansatte') return <EmployeesScreen />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (

@@ -32,6 +32,7 @@ export function anbudMenuTitle(subView) {
  * ikke blant de personlige punktene i Hoved.
  * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
  * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
+ * Ansatte er et eget register: ansettelsen følger selskapet, CV-en følger personen.
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
@@ -79,6 +80,7 @@ export function companyNavItems() {
         },
       ],
     },
+    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',

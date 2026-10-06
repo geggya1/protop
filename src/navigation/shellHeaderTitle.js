@@ -71,6 +71,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'home' && asChildView) return childHomeTitle;
   if (tab === 'home') return t('tabs.home');
   if (tab === 'selskap') return selskapMenuTitle(moreSubView);
+  if (tab === 'ansatte') return 'Ansatte';
   if (tab === 'underenheter') return 'Underenheter';
   if (tab === 'chat') return t('tabs.chat');
   if (tab === 'anbud') return anbudMenuTitle(moreSubView);

@@ -17,6 +17,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
+import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -70,6 +71,7 @@ const TITLES = {
   kontrakt: 'Kontrakt / avtale',
   skjema: 'Skjema',
   selskap: 'Selskap',
+  ansatte: 'Ansatte',
   projects: 'Prosjekt',
   okonomi: 'Økonomi',
   underenheter: 'Underenheter',
@@ -158,6 +160,7 @@ export default function SocialPlatformShell({ platformType }) {
       );
     }
     if (tab === 'kunder') return <CustomersScreen />;
+    if (tab === 'ansatte') return <EmployeesScreen />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (

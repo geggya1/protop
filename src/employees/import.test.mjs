@@ -186,6 +186,35 @@ assert.deepEqual(csv.rows[0].employee.company.permissions, ['Administrator', 'Fa
 assert.deepEqual(csv.rows[0].employee.company.departmentIds, ['d1']);
 assert.equal(displayName(csv.rows[0].employee), 'Bo Berg');
 
+const named = await planEmployeeImport(new TextEncoder().encode(
+  'Fornavn;Mellomnavn;Etternavn;E-post;Telefon;Tittel\n'
+  + 'Jan Erik;Erik;Aanestad;jea@consult1.no;90000001;Prosjektleder\n'
+  + 'Jan Erik;;Hafnor;jeh@consult1.no;90000002;Innleid\n'
+  + 'Geir;Ove;Andersen;geir@firma.example;90000003;Leder\n'
+  + 'Kari;;;kari.en@firma.example;90000004;;\n'
+  + 'Totalt;;;;;\n',
+), 'ansatte.csv');
+const jan = named.rows.find((row) => row.email === 'jea@consult1.no');
+assert.equal(jan.employee.person.firstName, 'Jan Erik');
+assert.equal(jan.employee.person.middleName, '');
+assert.equal(jan.employee.person.lastName, 'Aanestad');
+assert.equal(displayName(jan.employee), 'Jan Erik Aanestad');
+assert.equal(displayName(named.rows.find((row) => row.email === 'jeh@consult1.no').employee), 'Jan Erik Hafnor');
+const geirParts = named.rows.find((row) => row.email === 'geir@firma.example');
+assert.equal(geirParts.employee.person.middleName, 'Ove');
+assert.equal(displayName(geirParts.employee), 'Geir Ove Andersen');
+const embedded = await planEmployeeImport(new TextEncoder().encode(
+  'Fornavn;Mellomnavn;Etternavn;E-post\nPer Ove Olsen;Ove;Olsen;per@consult1.no\n',
+), 'heltnavn.csv');
+assert.equal(displayName(embedded.rows[0].employee), 'Per Ove Olsen');
+assert.equal(embedded.rows[0].employee.person.middleName, '');
+const kariOnly = named.rows.find((row) => row.email === 'kari.en@firma.example');
+assert.equal(kariOnly.action, 'skip');
+assert.match(kariOnly.reason, /Kari mangler etternavn/);
+assert.match(kariOnly.detail, /90000004/);
+assert.deepEqual(named.ignoredSummaries, ['Totalt']);
+assert.equal(named.rows.some((row) => row.name === 'Totalt'), false);
+
 function le(n, size) {
   const out = new Uint8Array(size);
   const view = new DataView(out.buffer);

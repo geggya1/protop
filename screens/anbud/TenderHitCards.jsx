@@ -139,6 +139,7 @@ export default function TenderHitCards({
         return (
           <View
             key={row.id}
+            dataSet={{ noticeId: row.id }}
             style={[styles.card, {
               borderColor: open || aktuell || fit.strong ? colors.brand : colors.line,
               borderLeftWidth: fit.strong ? 4 : 1,

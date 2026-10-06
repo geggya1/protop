@@ -29,6 +29,7 @@ export function pinPopupHtml(row, index, total) {
   ].filter(Boolean).join(' · ');
   return `<div class="bubble">
     <div class="kicker">${kind} · ${escapeHtml(row?.label || 'Sted')}</div>
+    ${decisionButtonsHtml(row)}
     <button type="button" class="jump" data-open="${escapeHtml(row?.id || '')}">${escapeHtml(row?.title || 'Kunngjøring')}</button>
     ${meta ? `<div class="meta">${meta}</div>` : ''}
     <div class="row">
@@ -36,7 +37,6 @@ export function pinPopupHtml(row, index, total) {
       <span class="count">${n + 1} / ${of}</span>
       <button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button>
     </div>
-    ${decisionButtonsHtml(row)}
     <button type="button" class="open" data-open="${escapeHtml(row?.id || '')}">Åpne i listen</button>
   </div>`;
 }
@@ -81,8 +81,9 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
   .bar .where { flex: 1; min-width: 0; font: 12px/1.3 system-ui, sans-serif; color: #1a2744; }
   .bar .where b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bar .where span { color: #5b6b82; }
-  .leaflet-popup-content { margin: 10px 12px; min-width: 180px; }
+  .leaflet-popup-content { margin: 10px 12px; min-width: 180px; max-height: 250px; overflow-y: auto; }
   .bubble { display: flex; flex-direction: column; gap: 6px; max-width: 240px; }
+  .bubble button, .decisions .mark { touch-action: manipulation; }
   .kicker { font-size: 11px; color: #5b6b82; font-weight: 600; }
   .jump { text-align: left; background: transparent !important; padding: 0 !important; font-weight: 700; color: ${escapeHtml(brand)} !important; }
   .meta { font-size: 12px; color: #5b6b82; }
@@ -127,13 +128,13 @@ function popupHtml(row, index) {
   const meta = [row.buyer, row.deadline ? ('Frist ' + row.deadline) : '', row.source].filter(Boolean).join(' · ');
   return '<div class="bubble">'
     + '<div class="kicker">' + kind + ' · ' + esc(row.label || 'Sted') + '</div>'
+    + decisionRow(row)
     + '<button type="button" class="jump" data-open="' + esc(row.id) + '">' + esc(row.title) + '</button>'
     + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '')
     + '<div class="row">'
     + '<button type="button" class="nav" data-act="prev" aria-label="Forrige sted">Forrige</button>'
     + '<span class="count">' + (index + 1) + ' / ' + pins.length + '</span>'
     + '<button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button></div>'
-    + decisionRow(row)
     + '<button type="button" class="open" data-open="' + esc(row.id) + '">Åpne i listen</button></div>';
 }
 const layer = L.featureGroup();
@@ -169,7 +170,7 @@ function show(index, { jump, pan } = {}) {
 }
 pins.forEach((row, index) => {
   const marker = L.marker([row.lat, row.lng], { icon: icon(row.kind, index === current), title: row.title });
-  marker.bindPopup(() => popupHtml(row, index), { maxWidth: 260, autoPanPadding: [48, 56] });
+  marker.bindPopup(() => popupHtml(row, index), { maxWidth: 260, maxHeight: 280, autoPanPadding: [12, 64], keepInView: true });
   marker.on('click', () => {
     current = index;
     paint();
@@ -179,6 +180,8 @@ pins.forEach((row, index) => {
   marker.addTo(layer);
   markers.push(marker);
 });
+let lastMarkKey = '';
+let lastMarkAt = 0;
 document.addEventListener('click', (event) => {
   const mark = event.target.closest('[data-mark]');
   if (mark) {
@@ -186,7 +189,15 @@ document.addEventListener('click', (event) => {
     event.stopPropagation();
     const id = mark.getAttribute('data-id') || (pins[current] && pins[current].id);
     const decision = mark.getAttribute('data-mark');
-    if (id && (decision === 'aktuell' || decision === 'forkastet')) tell('mark', id, { decision: decision });
+    if (id && (decision === 'aktuell' || decision === 'forkastet')) {
+      const key = id + '\0' + decision;
+      const now = Date.now();
+      if (!(lastMarkKey === key && now - lastMarkAt < 800)) {
+        lastMarkKey = key;
+        lastMarkAt = now;
+        tell('mark', id, { decision: decision });
+      }
+    }
     return;
   }
   const open = event.target.closest('[data-open]');

@@ -108,6 +108,20 @@ export function normalizeAnbudState(raw) {
 
 const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'ikke', 'tilbud']);
 
+/** Neste vurdering. Listen veksler av igjen. Kartet setter verdien og lar den stå. */
+export function nextNoticeDecision(current, requested, { toggle = true } = {}) {
+  const now = DECISIONS.has(current) ? current : 'ubestemt';
+  if (!DECISIONS.has(requested) || requested === 'tilbud') return now;
+  if (toggle && now === requested) return 'ubestemt';
+  return requested;
+}
+
+/** Samme merking innen vinduet er ett trykk, ikke en ny vurdering. */
+export function sameMarkGesture(previous, key, now, windowMs = 800) {
+  if (!previous || previous.key !== key) return false;
+  return (Number(now) - Number(previous.at)) < windowMs;
+}
+
 function laterIso(left, right) {
   const a = Date.parse(left || '') || 0;
   const b = Date.parse(right || '') || 0;

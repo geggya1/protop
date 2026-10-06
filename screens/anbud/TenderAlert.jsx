@@ -7,7 +7,7 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-    attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+    attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, noticeDeadlineExpired, noticeInArea, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
@@ -172,6 +172,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const lastMark = useRef({ key: '', at: 0 });
 
   const loadGen = useRef(0);
 
@@ -344,9 +345,33 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     setState(next);
   }
 
-  function mark(id, decision) {
+  function revealMarked(id, decision) {
+    if (decision === 'aktuell' || decision === 'tilbud') setFilter('aktuelle');
+    else if (decision === 'forkastet' || decision === 'arkiv' || decision === 'ikke') setFilter('uaktuelle');
+    setOpenId(id);
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const selector = `[data-notice-id="${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
+    requestAnimationFrame(() => {
+      document.querySelector(selector)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  function mark(id, decision, options = {}) {
+    const toggle = options.toggle !== false;
+    const reveal = options.reveal === true;
+    const key = `${id}\0${decision}\0${toggle ? 't' : 's'}`;
+    const now = Date.now();
+    if (sameMarkGesture(lastMark.current, key, now)) {
+      if (reveal) revealMarked(id, decision);
+      return;
+    }
+    lastMark.current = { key, at: now };
     const current = (stateRef.current.notices || []).find((row) => row.id === id);
-    const nextDecision = current?.decision === decision ? 'ubestemt' : decision;
+    const nextDecision = nextNoticeDecision(current?.decision, decision, { toggle });
+    if (!current || current.decision === nextDecision) {
+      if (reveal) revealMarked(id, nextDecision || decision);
+      return;
+    }
     const decided = setNoticeDecision(stateRef.current, id, nextDecision);
     if (!decided.ok) {
       setError(decided.error);
@@ -357,6 +382,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       : releaseUntouchedBid(decided.state, id);
     setError('');
     commitState(released.state);
+    if (reveal) revealMarked(id, nextDecision);
     if (nextDecision === 'aktuell') pullCurrent(id, current);
   }
 
@@ -670,7 +696,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colors={colors}
             missing={missingPlaces}
             onSelect={focusNotice}
-            onMark={mark}
+            onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
             busyId={pullingId}
           />
         ) : null}
@@ -747,7 +773,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
             const fit = scoreNoticeFit(row, matchWatch);
             return (
-              <View key={row.id} style={{
+              <View key={row.id} dataSet={{ noticeId: row.id }} style={{
                 borderColor: colors.line,
                 borderBottomWidth: 1,
                 borderLeftWidth: fit.strong ? 4 : 0,
@@ -829,7 +855,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colors={colors}
             missing={missingPlaces}
             onSelect={focusNotice}
-            onMark={mark}
+            onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
             busyId={pullingId}
           />
         </View>

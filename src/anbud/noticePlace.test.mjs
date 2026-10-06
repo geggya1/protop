@@ -66,5 +66,11 @@ assert.match(bubble, /Merk som aktuell/);
 assert.match(bubble, /Merk som uaktuell/);
 assert.match(bubble, /aria-pressed="true"/);
 assert.match(bubble, /class="mark aktuell on"/);
+assert.ok(bubble.indexOf('data-mark="aktuell"') < bubble.indexOf('Gangbru og fasader'), 'Aktuell skal ligge over tittelen');
+assert.ok(bubble.indexOf('data-mark="forkastet"') < bubble.indexOf('Åpne i listen'));
+const liveBubble = html.slice(html.indexOf('function popupHtml'), html.indexOf('const layer'));
+assert.ok(liveBubble.indexOf('decisionRow(row)') < liveBubble.indexOf('data-open'), 'kartboblen viser merkeknappene før tittelen');
+assert.match(html, /lastMarkKey/);
+assert.match(html, /touch-action: manipulation/);
 
 console.log('noticePlace.test.mjs ok');

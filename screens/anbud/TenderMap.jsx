@@ -124,20 +124,6 @@ export default function TenderMap({
           <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
             {current.kind === 'aktuell' ? 'Aktuell' : 'Ny'} · {current.label}
           </Text>
-          <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button">
-            <Text style={{ color: colors.brand, fontWeight: '700' }}>{current.title}</Text>
-          </TouchableOpacity>
-          {current.buyer ? <Text style={{ color: colors.ink, fontSize: 12 }}>{current.buyer}</Text> : null}
-          {current.deadline ? <Text style={{ color: colors.muted, fontSize: 12 }}>Frist {current.deadline}</Text> : null}
-          <View style={styles.nav}>
-            <TouchableOpacity onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel="Forrige sted" style={[styles.navBtn, { backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink }}>Forrige</Text>
-            </TouchableOpacity>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{count ? `${index + 1} / ${count}` : '0 / 0'}</Text>
-            <TouchableOpacity onPress={() => step(1)} accessibilityRole="button" accessibilityLabel="Neste sted" style={[styles.navBtn, { backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink }}>Neste</Text>
-            </TouchableOpacity>
-          </View>
           <View style={styles.decisions}>
             <TouchableOpacity
               onPress={() => onMark?.(current.id, 'aktuell')}
@@ -162,6 +148,20 @@ export default function TenderMap({
               <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Uaktuell</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '700' }}>{current.title}</Text>
+          </TouchableOpacity>
+          {current.buyer ? <Text style={{ color: colors.ink, fontSize: 12 }}>{current.buyer}</Text> : null}
+          {current.deadline ? <Text style={{ color: colors.muted, fontSize: 12 }}>Frist {current.deadline}</Text> : null}
+          <View style={styles.nav}>
+            <TouchableOpacity onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel="Forrige sted" style={[styles.navBtn, { backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink }}>Forrige</Text>
+            </TouchableOpacity>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{count ? `${index + 1} / ${count}` : '0 / 0'}</Text>
+            <TouchableOpacity onPress={() => step(1)} accessibilityRole="button" accessibilityLabel="Neste sted" style={[styles.navBtn, { backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink }}>Neste</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button" style={[styles.jump, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Åpne i listen</Text>
           </TouchableOpacity>
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   legendItem: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   dot: { width: 10, height: 10, borderRadius: 99 },
-  map: { height: 360, borderRadius: 12, overflow: 'hidden' },
+  map: { height: 440, borderRadius: 12, overflow: 'hidden' },
   open: { flexDirection: 'row', gap: 8, alignItems: 'center', borderRadius: 10, padding: 10 },
   bubble: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 },

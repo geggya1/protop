@@ -201,7 +201,10 @@ export default function EmployeesScreen() {
       setView('import');
       scrollRef.current?.scrollTo?.({ y: 0, animated: true });
     } catch (err) {
-      showError(err?.message || 'Kunne ikke lese listen.');
+      const message = String(err?.message || '');
+      showError(/failed to fetch/i.test(message) || (err?.name === 'TypeError' && !message)
+        ? 'Kunne ikke lese Excel-filen. Eksporter listen som CSV og importer den i stedet.'
+        : (message || 'Kunne ikke lese listen.'));
     } finally {
       setBusy(false);
     }

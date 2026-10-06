@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { handleInterpretImport } from './importInterpret.js';
 
 const deps = {
@@ -129,5 +130,8 @@ assert.equal(kept.cv.projects[0].title, 'Kraftverk');
 assert.equal(kept.cv.projects[0].email, 'kari@eksempel.no');
 assert.equal(kept.cv.projects[0].link.owner, 'person');
 assert.equal(kept.cv.birthDate, '6.4.1980');
+
+const source = readFileSync(new URL('./importInterpret.js', import.meta.url), 'utf8');
+assert.match(source, /imageBase64.length <= 1_500_000/);
 
 console.log('importInterpret.test.mjs: ok');

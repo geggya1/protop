@@ -48,7 +48,7 @@ async function documentParts(data, options = {}) {
         inline_data: { mime_type: image.mime || 'image/png', data: image.buffer.toString('base64') },
       });
     }
-    if (!(ocr.text || '').trim() && !(ocr.images || []).length) {
+    if (!(ocr.text || '').trim() && !(ocr.images || []).length && imageBase64.length <= 1_500_000) {
       parts.push({ inline_data: { mime_type: 'application/pdf', data: imageBase64 } });
     }
     return { parts, text: ocr.text || '', usedOcr: Boolean(ocr.text || (ocr.images || []).length) };

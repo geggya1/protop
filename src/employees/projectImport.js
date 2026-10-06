@@ -61,7 +61,10 @@ export function personProject(input, source = 'excel') {
   const row = input && typeof input === 'object' ? input : {};
   return {
     title: text(row.title),
-    imageUrl: text(row.imageUrl),
+    images: String(row.imageUrl || '')
+      .split(/[\s,;]+/)
+      .map((part) => part.trim())
+      .filter(Boolean),
     address: text(row.address),
     category: text(row.category),
     client: text(row.client),

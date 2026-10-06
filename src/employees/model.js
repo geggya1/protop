@@ -287,6 +287,21 @@ function projectImageUrl(value) {
   return '';
 }
 
+function projectImages(row) {
+  const raw = [
+    ...(Array.isArray(row?.images) ? row.images : []),
+    row?.imageUrl,
+  ];
+  const images = [];
+  for (const item of raw) {
+    const url = projectImageUrl(item);
+    if (!url || images.includes(url)) continue;
+    images.push(url);
+    if (images.length >= 8) break;
+  }
+  return images;
+}
+
 function projectLink(row) {
   const link = row?.link && typeof row.link === 'object' ? row.link : {};
   // Import knytter prosjektet til personen. owner company er reservert til senere flytting
@@ -301,7 +316,7 @@ function normalizeProjects(list) {
   return (Array.isArray(list) ? list : []).map((row, index) => ({
     id: itemId('prj', row?.id, index),
     title: rowText(row, 'title'),
-    imageUrl: projectImageUrl(row?.imageUrl),
+    images: projectImages(row),
     address: rowText(row, 'address'),
     category: rowText(row, 'category'),
     client: rowText(row, 'client'),
@@ -316,7 +331,7 @@ function normalizeProjects(list) {
     responsibility: text(row?.responsibility),
     source: row?.source === 'cv' || row?.source === 'excel' ? row.source : 'manual',
     link: projectLink(row),
-  })).filter((row) => row.title || row.client || row.responsibility || row.imageUrl);
+  })).filter((row) => row.title || row.client || row.responsibility || row.images.length);
 }
 
 function normalizeCustomFields(list) {
@@ -774,7 +789,9 @@ export function canSeeSensitive(employee, { uid = '', isAdmin = false } = {}) {
 export function blankRepeatItem(section) {
   const item = { id: newId(section.id.slice(0, 3) || 'row') };
   for (const field of section.fields || []) {
-    item[field.key] = field.type === 'bool' ? false : '';
+    if (field.type === 'bool') item[field.key] = false;
+    else if (field.type === 'photos') item[field.key] = [];
+    else item[field.key] = '';
   }
   return item;
 }
@@ -857,7 +874,9 @@ export function cvPlainText(cv) {
   for (const row of cv?.projects || []) {
     lines.push(row.title || 'Prosjekt');
     if (row.address) lines.push(row.address);
-    if (/^https?:\/\//i.test(row.imageUrl || '')) lines.push(`Prosjektbilde: ${row.imageUrl}`);
+    for (const url of row.images || []) {
+      if (/^https?:\/\//i.test(url)) lines.push(`Prosjektbilde: ${url}`);
+    }
     const bits = [
       ['Kategori', row.category],
       ['Kunde', row.client],

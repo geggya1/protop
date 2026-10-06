@@ -132,15 +132,20 @@ assert.equal(promoted.cv.projects[0].link.companyProjectId, 'prj_1');
 const withImage = normalizeEmployee({
   cv: {
     projects: [
-      { title: 'Bro', imageUrl: 'https://cdn.example/bro.jpg' },
+      {
+        title: 'Bro',
+        images: ['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg', 'javascript:alert(1)'],
+        imageUrl: 'https://cdn.example/a.jpg',
+      },
       { title: 'Feil', imageUrl: 'javascript:alert(1)' },
       { imageUrl: 'data:image/jpeg;base64,aaaa' },
     ],
   },
 });
-assert.equal(withImage.cv.projects[0].imageUrl, 'https://cdn.example/bro.jpg');
-assert.equal(withImage.cv.projects[1].imageUrl, '');
-assert.equal(withImage.cv.projects[2].imageUrl, 'data:image/jpeg;base64,aaaa');
+assert.deepEqual(withImage.cv.projects[0].images, ['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg']);
+assert.equal(withImage.cv.projects[0].imageUrl, undefined);
+assert.deepEqual(withImage.cv.projects[1].images, []);
+assert.deepEqual(withImage.cv.projects[2].images, ['data:image/jpeg;base64,aaaa']);
 assert.equal(withImage.cv.projects[2].title, '');
 
 console.log('cvText.test.mjs: ok');

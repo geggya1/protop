@@ -67,14 +67,19 @@ export default function EmployeeCvView({ cv, colors }) {
         {cv.projects.length ? cv.projects.map((row) => (
           <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
             <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.title || 'Prosjekt'}</Text>
-            {!!row.imageUrl && (
-              <Image
-                source={{ uri: row.imageUrl }}
-                style={styles.projectImage}
-                resizeMode="cover"
-                accessibilityLabel={`Prosjektbilde for ${row.title || 'prosjektet'}`}
-              />
-            )}
+            {(row.images || []).length ? (
+              <View style={styles.projectImages}>
+                {row.images.map((url, imageIndex) => (
+                  <Image
+                    key={`${imageIndex}-${String(url).slice(0, 24)}`}
+                    source={{ uri: url }}
+                    style={styles.projectImage}
+                    resizeMode="cover"
+                    accessibilityLabel={`Bilde ${imageIndex + 1} for ${row.title || 'prosjektet'}`}
+                  />
+                ))}
+              </View>
+            ) : null}
             {!!row.address && <Text style={{ color: colors.muted }}>{row.address}</Text>}
             {[
               ['Kategori', row.category],
@@ -122,5 +127,6 @@ const styles = StyleSheet.create({
   job: { gap: 2, marginBottom: 8 },
   jobTitle: { fontSize: 16, fontWeight: '600' },
   project: { borderTopWidth: 1, paddingTop: 8, gap: 2 },
-  projectImage: { width: '100%', height: 160, borderRadius: 8 },
+  projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  projectImage: { width: 160, height: 110, borderRadius: 8 },
 });

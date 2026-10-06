@@ -16,7 +16,9 @@ import {
   ownerLabel,
   upsertCustomer,
 } from '../../src/anbud/customers';
-import { CUSTOMER_IMPORT_ACCEPT, parseCustomerFile } from '../../src/anbud/customerImport';
+import { CUSTOMER_IMPORT_ACCEPT } from '../../src/anbud/customerImport';
+import { readCustomerImport } from '../../src/imports/assist';
+import { askImportInterpret } from '../../src/imports/interpretClient';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
@@ -224,7 +226,11 @@ export default function CustomersScreen() {
     setImporting(true);
     try {
       const bytes = await bytesFromFile(file);
-      const rows = await parseCustomerFile(bytes, file.name);
+      const interpreted = await readCustomerImport(bytes, file.name, {
+        familyId,
+        ask: (payload) => askImportInterpret(payload),
+      });
+      const rows = interpreted.rows;
       const loaded = await loadAnbudState(familyId);
       const result = importCustomers(loaded, rows);
       if (!result.created.length && !result.skipped.length) {
@@ -237,7 +243,10 @@ export default function CustomersScreen() {
       if (result.created.length) parts.push(`${result.created.length} nye`);
       if (result.skipped.length) parts.push(`${result.skipped.length} fantes fra før`);
       if (result.errors.length) parts.push(`${result.errors.length} uten navn hoppet over`);
-      setNote(`Importert: ${parts.join(', ')}.`);
+      const understood = interpreted.engine && interpreted.engine !== 'lokal'
+        ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
+        : '';
+      setNote(`Importert: ${parts.join(', ')}.${understood}`);
       setView('list');
     } catch (cause) {
       const message = String(cause?.message || '');
@@ -278,11 +287,11 @@ export default function CustomersScreen() {
               accessibilityRole="button"
               style={[styles.save, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
             >
-              <Text style={{ color: colors.ink }}>{importing ? 'Importerer…' : 'Importer fil'}</Text>
+              <Text style={{ color: colors.ink }}>{importing ? 'Tolker filen…' : 'Importer fil'}</Text>
             </TouchableOpacity>
           </View>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            CSV, Excel eller XML. Kolonner som Kundenavn, Org.nr, Hovedadresse, Postnummer og E-post.
+            CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.
           </Text>
           <TextInput
             value={query}

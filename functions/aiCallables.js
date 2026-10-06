@@ -25,6 +25,7 @@ import { handleAiMealIngredients } from './aiMealPlan.js';
 import { handleAiRecipeImport } from './aiRecipeImport.js';
 import { handleAiReceiptOcr } from './aiReceiptOcr.js';
 import { handleAiClassListOcr } from './aiClassListOcr.js';
+import { handleInterpretImport } from './importInterpret.js';
 import {
   handleAiMatcoachWeekPlan,
   handleAiMatcoachFridgeScan,
@@ -196,6 +197,26 @@ export const aiClassListOcr = onCall(
     } catch (error) {
       logger.warn('aiClassListOcr failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke tolke klasselisten.');
+    }
+  },
+);
+
+/** OCR og kolonne-tolking av kundelister og medarbeiderlister. */
+export const interpretImport = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 120,
+    memory: '1GiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      const uid = requireAuth(req.auth);
+      await guardAiBurst(uid, 'import', 20, 60);
+      return await handleInterpretImport(req.data, req.auth);
+    } catch (error) {
+      logger.warn('interpretImport failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke tolke importfilen.');
     }
   },
 );

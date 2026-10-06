@@ -111,14 +111,27 @@ function foldHeader(value) {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-function fieldAlias(header) {
+const EMPLOYEE_FIELD_IDS = new Set(FIELD_ALIASES.map(([field]) => field));
+
+function hintedField(header, extras) {
+  if (!extras) return '';
+  const label = text(header);
+  const field = extras[label] || extras[foldHeader(label)] || '';
+  return EMPLOYEE_FIELD_IDS.has(field) ? field : '';
+}
+
+function fieldAlias(header, extras) {
   const key = foldHeader(header);
-  if (!key) return '';
+  if (!key && !text(header)) return '';
   for (const [field, aliases] of FIELD_ALIASES) {
     if (aliases.some((alias) => foldHeader(alias) === key)) return field;
   }
   if (/^(avdeling|department|enhet|businessunit|kostnadssted)/.test(key)) return 'department';
-  return '';
+  return hintedField(header, extras);
+}
+
+export function employeeColumnField(header) {
+  return fieldAlias(header);
 }
 
 function boolToken(value) {
@@ -236,19 +249,19 @@ function highestRole(roles) {
   return best;
 }
 
-function headerRank(row) {
+function headerRank(row, extras) {
   const cells = (row || []).map(text).filter(Boolean);
   if (!cells.length) return 0;
-  const aliases = cells.filter((cell) => fieldAlias(cell)).length;
-  const name = cells.some((cell) => NAME_FIELDS.has(fieldAlias(cell)) || NAME_FALLBACK.has(foldHeader(cell)));
+  const aliases = cells.filter((cell) => fieldAlias(cell, extras)).length;
+  const name = cells.some((cell) => NAME_FIELDS.has(fieldAlias(cell, extras)) || NAME_FALLBACK.has(foldHeader(cell)));
   return aliases * 10 + (name ? 5 : 0);
 }
 
-function findHeaderIndex(table) {
+function findHeaderIndex(table, extras) {
   let best = -1;
   let score = 0;
   for (let index = 0; index < Math.min(table.length, 15); index += 1) {
-    const rank = headerRank(table[index]);
+    const rank = headerRank(table[index], extras);
     if (rank > score) {
       score = rank;
       best = index;
@@ -266,10 +279,10 @@ function columnValues(table, index, start) {
   return values;
 }
 
-function classifyColumns(headerRow, dataRows) {
+function classifyColumns(headerRow, dataRows, extras) {
   const columns = headerRow.map((header, index) => {
     const label = text(header);
-    const field = fieldAlias(label);
+    const field = fieldAlias(label, extras);
     if (!label) return { index, header: '', kind: 'ignore' };
     if (field) return { index, header: label, kind: 'field', field };
     return { index, header: label, kind: 'pending' };
@@ -557,13 +570,27 @@ function rowLabel(bag, employee) {
   return [names.firstName, names.middleName, names.lastName].filter(Boolean).join(' ') || 'Uten navn';
 }
 
-export async function planEmployeeImport(bytes, filename, { existing = [], departments = [] } = {}) {
+export function previewEmployeeTable(tables) {
+  let best = null;
+  for (const sheet of tables || []) {
+    const table = sheet?.table || [];
+    for (let index = 0; index < Math.min(table.length, 15); index += 1) {
+      const cells = (table[index] || []).map(text).filter(Boolean);
+      const letters = cells.filter((cell) => /[a-zæøå]/i.test(cell)).length;
+      const rank = letters * 2 + cells.length;
+      if (!best || rank > best.rank) best = { table: table.slice(index), rank };
+    }
+  }
+  return best?.table || [];
+}
+
+export async function planEmployeeImport(bytes, filename, { existing = [], departments = [], columnFields = null } = {}) {
   const tables = await readSpreadsheetTables(bytes, filename);
   let best = null;
   for (const sheet of tables) {
-    const headerIndex = findHeaderIndex(sheet.table);
+    const headerIndex = findHeaderIndex(sheet.table, columnFields);
     if (headerIndex < 0) continue;
-    const rank = headerRank(sheet.table[headerIndex]);
+    const rank = headerRank(sheet.table[headerIndex], columnFields);
     if (!best || rank > best.rank) best = { sheet, headerIndex, rank };
   }
   if (!best) {
@@ -571,7 +598,7 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
   }
   const headerRow = best.sheet.table[best.headerIndex];
   const dataRows = best.sheet.table.slice(best.headerIndex + 1);
-  const columns = classifyColumns(headerRow, dataRows);
+  const columns = classifyColumns(headerRow, dataRows, columnFields);
   if (!columns.some((column) => column.kind === 'field' && NAME_FIELDS.has(column.field))) {
     throw new Error('Listen mangler en navnekolonne.');
   }
@@ -649,7 +676,8 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
 }
 
 export const EMPLOYEE_IMPORT_ACCEPT = [
-  '.csv', '.txt', '.xml', '.xlsx',
-  'text/csv', 'text/plain', 'application/xml', 'text/xml',
+  '.csv', '.txt', '.xml', '.xlsx', '.pdf', '.png', '.jpg', '.jpeg', '.webp',
+  'text/csv', 'text/plain', 'application/xml', 'text/xml', 'application/pdf',
+  'image/png', 'image/jpeg', 'image/webp',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ].join(',');

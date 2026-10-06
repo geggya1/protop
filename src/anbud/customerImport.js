@@ -177,6 +177,10 @@ function mapHeader(header) {
   return addressColumn(key);
 }
 
+export function customerColumnField(header) {
+  return mapHeader(header);
+}
+
 function kindFromValue(value) {
   const raw = foldHeader(value);
   if (!raw) return '';
@@ -266,9 +270,25 @@ function parseCsvRecords(text) {
   return rows;
 }
 
-function recordsFromTable(table) {
-  if (!table.length) return [];
-  const headers = table[0].map(mapHeader);
+const ASSIGNABLE_FIELDS = new Set([
+  ...Object.keys(HEADER_ALIASES),
+  'address2', 'invoiceEmail', 'customerNo', 'website',
+  'visitAddress', 'visitAddress2', 'visitPostal', 'visitPlace',
+  'invoiceAddress', 'invoiceAddress2', 'invoicePostal', 'invoicePlace',
+]);
+
+export function customersFromTable(table, assignments = {}) {
+  if (!table?.length) return [];
+  const used = new Set();
+  const headers = table[0].map((header) => {
+    const label = String(header || '').trim();
+    const local = mapHeader(label);
+    const hinted = assignments[label];
+    const field = local || (ASSIGNABLE_FIELDS.has(hinted) ? hinted : '');
+    if (!field || used.has(field)) return '';
+    used.add(field);
+    return field;
+  });
   if (!headers.some(Boolean)) return [];
   const out = [];
   for (const cells of table.slice(1)) {
@@ -281,6 +301,10 @@ function recordsFromTable(table) {
     if (row) out.push(row);
   }
   return out;
+}
+
+function recordsFromTable(table) {
+  return customersFromTable(table);
 }
 
 function parseCsvCustomers(text) {
@@ -429,8 +453,9 @@ export async function parseCustomerFile(bytes, filename = '') {
 }
 
 export const CUSTOMER_IMPORT_ACCEPT = [
-  '.csv', '.txt', '.xml', '.xls', '.xlsx', '.xlm',
-  'text/csv', 'text/plain', 'application/xml', 'text/xml',
+  '.csv', '.txt', '.xml', '.xls', '.xlsx', '.xlm', '.pdf', '.png', '.jpg', '.jpeg', '.webp',
+  'text/csv', 'text/plain', 'application/xml', 'text/xml', 'application/pdf',
+  'image/png', 'image/jpeg', 'image/webp',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ].join(',');

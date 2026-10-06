@@ -400,6 +400,24 @@ export default function EmployeesScreen() {
     setAddressHits([]);
   }
 
+  async function chooseProjectImage(index) {
+    try {
+      const picked = await pickImage({ edit: true, aspect: [4, 3] });
+      if (!picked || !draft) return;
+      const id = draft.id || newId('emp');
+      const projectId = draft.cv?.projects?.[index]?.id || newId('prj');
+      const url = await uploadImage(`families/${familyId || 'personal'}/employees/${id}/projects/${projectId}`, picked);
+      setDraft((current) => {
+        const projects = (current.cv?.projects || []).map((row, rowIndex) => (
+          rowIndex === index ? { ...row, id: row.id || projectId, imageUrl: url } : row
+        ));
+        return { ...current, id, cv: { ...current.cv, projects } };
+      });
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke laste opp prosjektbildet.');
+    }
+  }
+
   async function choosePhoto() {
     try {
       const picked = await pickImage({ edit: true, aspect: [1, 1] });
@@ -873,6 +891,7 @@ export default function EmployeesScreen() {
             onPickAddress={pickAddress}
             onChange={changeDraft}
             onPhoto={choosePhoto}
+            onProjectImage={chooseProjectImage}
           />
           <TouchableOpacity
             nativeID="employee-save"
@@ -945,6 +964,7 @@ export default function EmployeesScreen() {
                 onPickAddress={pickAddress}
                 onChange={changeDraft}
                 onPhoto={choosePhoto}
+                onProjectImage={chooseProjectImage}
               />
               <TouchableOpacity
                 nativeID="employee-cv-save"

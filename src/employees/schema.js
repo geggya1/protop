@@ -262,6 +262,7 @@ export const FORM_SECTIONS = [
     blurb: 'Referanseprosjekter knyttet til personen. De kan senere flyttes inn i bedriftens prosjektregister.',
     fields: [
       { key: 'title', label: 'Prosjekt', type: 'text' },
+      { key: 'imageUrl', label: 'Prosjektbilde', type: 'photo' },
       { key: 'address', label: 'Adresse', type: 'text' },
       { key: 'category', label: 'Kategori', type: 'text', placeholder: 'Offentlig næring' },
       { key: 'client', label: 'Kunde', type: 'text' },

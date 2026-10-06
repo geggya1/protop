@@ -6,6 +6,7 @@ import { readSpreadsheetTables } from '../anbud/customerImport.js';
 
 const FIELDS = [
   ['title', ['prosjekt', 'prosjektnavn', 'tittel', 'referanseprosjekt', 'navn']],
+  ['imageUrl', ['prosjektbilde', 'bilde', 'bildeurl', 'foto']],
   ['address', ['adresse', 'lokasjon', 'beliggenhet']],
   ['category', ['kategori']],
   ['object', ['objekt', 'objekttype']],
@@ -60,6 +61,7 @@ export function personProject(input, source = 'excel') {
   const row = input && typeof input === 'object' ? input : {};
   return {
     title: text(row.title),
+    imageUrl: text(row.imageUrl),
     address: text(row.address),
     category: text(row.category),
     client: text(row.client),

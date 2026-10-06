@@ -276,6 +276,17 @@ function normalizeExperience(list) {
   })).filter((row) => row.employer || row.title || row.tasks);
 }
 
+function projectImageUrl(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw.slice(0, 8000);
+  const compact = raw.replace(/\s+/g, '');
+  if (/^data:image\/(?:jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(compact) && compact.length <= 700000) {
+    return compact;
+  }
+  return '';
+}
+
 function projectLink(row) {
   const link = row?.link && typeof row.link === 'object' ? row.link : {};
   // Import knytter prosjektet til personen. owner company er reservert til senere flytting
@@ -290,6 +301,7 @@ function normalizeProjects(list) {
   return (Array.isArray(list) ? list : []).map((row, index) => ({
     id: itemId('prj', row?.id, index),
     title: rowText(row, 'title'),
+    imageUrl: projectImageUrl(row?.imageUrl),
     address: rowText(row, 'address'),
     category: rowText(row, 'category'),
     client: rowText(row, 'client'),
@@ -304,7 +316,7 @@ function normalizeProjects(list) {
     responsibility: text(row?.responsibility),
     source: row?.source === 'cv' || row?.source === 'excel' ? row.source : 'manual',
     link: projectLink(row),
-  })).filter((row) => row.title || row.client || row.responsibility);
+  })).filter((row) => row.title || row.client || row.responsibility || row.imageUrl);
 }
 
 function normalizeCustomFields(list) {
@@ -845,6 +857,7 @@ export function cvPlainText(cv) {
   for (const row of cv?.projects || []) {
     lines.push(row.title || 'Prosjekt');
     if (row.address) lines.push(row.address);
+    if (/^https?:\/\//i.test(row.imageUrl || '')) lines.push(`Prosjektbilde: ${row.imageUrl}`);
     const bits = [
       ['Kategori', row.category],
       ['Kunde', row.client],

@@ -83,6 +83,7 @@ export default function EmployeeFields({
   onPickAddress,
   onChange,
   onPhoto,
+  onProjectImage,
   sections: sectionsProp,
   showCustom = true,
 }) {
@@ -136,6 +137,7 @@ export default function EmployeeFields({
                 colors={colors}
                 editable={editable}
                 onChange={(items) => updateItems(section.collection, items)}
+                onItemPhoto={section.id === 'projects' ? onProjectImage : undefined}
               />
             ) : section.fields.map((field) => (
               <Field
@@ -508,7 +510,7 @@ function TagsField({ label, value, editable, colors, onChange }) {
   );
 }
 
-function RepeatBlock({ section, items, colors, editable, onChange }) {
+function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto }) {
   const list = Array.isArray(items) ? items : [];
   function patch(index, key, value) {
     onChange(list.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
@@ -519,7 +521,36 @@ function RepeatBlock({ section, items, colors, editable, onChange }) {
         <View key={item.id || index} style={[styles.repeat, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Text style={[styles.label, { color: colors.ink }]}>{section.itemLabel} {index + 1}</Text>
           {section.fields.map((field) => (
-            field.type === 'bool' ? (
+            field.type === 'photo' ? (
+              <View key={field.key} style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
+                <View style={styles.photoRow}>
+                  {item[field.key] ? (
+                    <Image source={{ uri: item[field.key] }} style={styles.projectPhoto} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.projectPhoto, styles.photoEmpty, { backgroundColor: colors.sunken }]}>
+                      <Text style={{ color: colors.muted }}>Bilde</Text>
+                    </View>
+                  )}
+                  {editable ? (
+                    <View style={styles.stackTight}>
+                      <TouchableOpacity
+                        onPress={() => onItemPhoto?.(index)}
+                        accessibilityRole="button"
+                        style={[styles.secondary, { borderColor: colors.line }]}
+                      >
+                        <Text style={{ color: colors.ink }}>{item[field.key] ? 'Bytt bilde' : 'Velg bilde'}</Text>
+                      </TouchableOpacity>
+                      {item[field.key] ? (
+                        <TouchableOpacity onPress={() => patch(index, field.key, '')} accessibilityRole="button">
+                          <Text style={{ color: colors.danger || '#b42318' }}>Fjern bilde</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : field.type === 'bool' ? (
               <Chip
                 key={field.key}
                 label={field.label}
@@ -585,6 +616,7 @@ const styles = StyleSheet.create({
   dials: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   photo: { width: 84, height: 84, borderRadius: 12 },
+  projectPhoto: { width: 120, height: 80, borderRadius: 8 },
   photoEmpty: { alignItems: 'center', justifyContent: 'center' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   inline: { flexDirection: 'row', gap: 8, alignItems: 'center' },

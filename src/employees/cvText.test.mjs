@@ -129,4 +129,18 @@ assert.equal(promoted.cv.projects[0].source, 'excel');
 assert.equal(promoted.cv.projects[0].link.owner, 'company');
 assert.equal(promoted.cv.projects[0].link.companyProjectId, 'prj_1');
 
+const withImage = normalizeEmployee({
+  cv: {
+    projects: [
+      { title: 'Bro', imageUrl: 'https://cdn.example/bro.jpg' },
+      { title: 'Feil', imageUrl: 'javascript:alert(1)' },
+      { imageUrl: 'data:image/jpeg;base64,aaaa' },
+    ],
+  },
+});
+assert.equal(withImage.cv.projects[0].imageUrl, 'https://cdn.example/bro.jpg');
+assert.equal(withImage.cv.projects[1].imageUrl, '');
+assert.equal(withImage.cv.projects[2].imageUrl, 'data:image/jpeg;base64,aaaa');
+assert.equal(withImage.cv.projects[2].title, '');
+
 console.log('cvText.test.mjs: ok');

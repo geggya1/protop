@@ -330,7 +330,7 @@ assert.match(economyIndex, /fetchSeriesById/);
 assert.match(economyIndex, /Påkrevd for beregningen/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /searchBrregCompanies/);
-assert.match(customerScreen, /parseCustomerFile/);
+assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);
 const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
 assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);

@@ -1060,6 +1060,7 @@ export {
   aiRecipeImport,
   aiReceiptOcr,
   aiClassListOcr,
+  interpretImport,
   aiMatcoachWeekPlan,
   aiMatcoachFridgeScan,
   aiMatcoachLunchBoxes,

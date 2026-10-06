@@ -1,0 +1,167 @@
+/**
+ * Leser importfiler lokalt, og spør OCR/AI når kolonnene er ukjente eller filen er skannet.
+ */
+import {
+  customerColumnField,
+  customersFromTable,
+  parseCustomerFile,
+  readSpreadsheetTables,
+} from '../anbud/customerImport.js';
+import {
+  employeeColumnField,
+  planEmployeeImport,
+  previewEmployeeTable,
+} from '../employees/import.js';
+import {
+  assignmentMap,
+  claimAssignments,
+  columnsNeedingHelp,
+  fileMedia,
+  mergeCustomerRows,
+  objectsToTable,
+  sanitizeOcrRows,
+  tablePreview,
+  tableToCsv,
+} from './interpret.js';
+
+const MAX_BYTES = 4_000_000;
+
+function asBytes(bytes) {
+  const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (!raw.length) throw new Error('Filen er tom.');
+  if (raw.length > MAX_BYTES) throw new Error('Filen er for stor. Del den opp eller eksporter et mindre utdrag.');
+  return raw;
+}
+
+function headerSlice(table) {
+  let best = 0;
+  let score = -1;
+  for (let index = 0; index < Math.min((table || []).length, 8); index += 1) {
+    const cells = (table[index] || []).map((cell) => String(cell || '').trim()).filter(Boolean);
+    const letters = cells.filter((cell) => /[a-zæøå]/i.test(cell)).length;
+    const rank = letters * 2 + cells.length;
+    if (rank > score) {
+      score = rank;
+      best = index;
+    }
+  }
+  return (table || []).slice(best);
+}
+
+async function localCustomers(bytes, filename) {
+  let table = null;
+  let rows = [];
+  try {
+    const tables = await readSpreadsheetTables(bytes, filename);
+    const richest = [...tables].sort((left, right) => (right.table?.length || 0) - (left.table?.length || 0))[0];
+    table = headerSlice(richest?.table || []);
+    rows = customersFromTable(table);
+  } catch {
+    table = null;
+  }
+  if (!rows.length) {
+    const parsed = await parseCustomerFile(bytes, filename).catch(() => []);
+    if (parsed.length) return { rows: parsed, table: null };
+  }
+  return { rows, table };
+}
+
+function claimedFrom(table, localField, columns) {
+  const headers = table?.[0] || [];
+  const preview = tablePreview(table);
+  const hinted = assignmentMap(columns, preview.headers);
+  const localFields = headers.map((header) => localField(header));
+  return claimAssignments(preview.headers, localFields, hinted);
+}
+
+export async function readCustomerImport(bytes, filename, { ask, familyId } = {}) {
+  const raw = asBytes(bytes);
+  const media = fileMedia(raw, filename);
+  if (media.kind !== 'table') {
+    if (!ask || !familyId) throw new Error('Skannede lister leses med OCR og AI. Åpne selskapet og prøv igjen.');
+    const result = await ask({
+      mode: 'ocr', kind: 'customers', familyId, filename, media, bytes: raw,
+    });
+    const clean = sanitizeOcrRows(result, 'customers');
+    const table = objectsToTable(clean.rows);
+    const assignments = Object.fromEntries((table[0] || []).map((header) => [header, header]));
+    const rows = customersFromTable(table, assignments);
+    if (!rows.length) throw new Error(result?.summary || 'AI fant ingen kunder i dokumentet.');
+    return { rows, engine: result?.engine || 'ocr+gemini', summary: result?.summary || '' };
+  }
+  const local = await localCustomers(raw, filename);
+  const gaps = local.table ? columnsNeedingHelp(local.table, customerColumnField) : [];
+  if (!gaps.length || !ask || !familyId) {
+    if (!local.rows.length) throw new Error('Fant ingen kunder i filen. Bruk CSV, Excel, PDF eller et bilde av listen.');
+    return { rows: local.rows, engine: 'lokal', summary: '' };
+  }
+  try {
+    const preview = tablePreview(local.table);
+    const result = await ask({
+      mode: 'columns',
+      kind: 'customers',
+      familyId,
+      filename,
+      headers: preview.headers,
+      samples: preview.samples,
+    });
+    const claimed = claimedFrom(local.table, customerColumnField, result?.columns);
+    const assisted = customersFromTable(local.table, claimed);
+    const rows = mergeCustomerRows(local.rows, assisted);
+    if (!rows.length) throw new Error('Fant ingen kunder i filen.');
+    return { rows, engine: result?.engine || 'gemini', summary: result?.summary || '' };
+  } catch (err) {
+    if (local.rows.length) return { rows: local.rows, engine: 'lokal', summary: '' };
+    throw err;
+  }
+}
+
+export async function readEmployeeImport(bytes, filename, options = {}, ask) {
+  const raw = asBytes(bytes);
+  const media = fileMedia(raw, filename);
+  const { familyId, ...planOptions } = options;
+  if (media.kind !== 'table') {
+    if (!ask || !familyId) throw new Error('Skannede lister leses med OCR og AI. Åpne selskapet og prøv igjen.');
+    const result = await ask({
+      mode: 'ocr', kind: 'employees', familyId, filename, media, bytes: raw,
+    });
+    const clean = sanitizeOcrRows(result, 'employees');
+    const table = objectsToTable(clean.rows);
+    if (!table[0]?.length) throw new Error(result?.summary || 'AI fant ingen medarbeidere i dokumentet.');
+    const csv = new TextEncoder().encode(tableToCsv(table));
+    const columnFields = Object.fromEntries(table[0].map((header) => [header, header]));
+    const plan = await planEmployeeImport(csv, 'ocr.csv', { ...planOptions, columnFields });
+    return { ...plan, interpretation: { engine: result?.engine || 'ocr+gemini', summary: result?.summary || '' } };
+  }
+  let plan = null;
+  let localError = null;
+  try {
+    plan = await planEmployeeImport(raw, filename, planOptions);
+  } catch (err) {
+    localError = err;
+  }
+  const tables = await readSpreadsheetTables(raw, filename).catch(() => []);
+  const table = previewEmployeeTable(tables);
+  const gaps = columnsNeedingHelp(table, employeeColumnField);
+  if (!gaps.length || !ask || !familyId) {
+    if (!plan) throw localError || new Error('Fant ingen medarbeiderliste.');
+    return plan;
+  }
+  try {
+    const preview = tablePreview(table);
+    const result = await ask({
+      mode: 'columns',
+      kind: 'employees',
+      familyId,
+      filename,
+      headers: preview.headers,
+      samples: preview.samples,
+    });
+    const claimed = claimedFrom(table, employeeColumnField, result?.columns);
+    const next = await planEmployeeImport(raw, filename, { ...planOptions, columnFields: claimed });
+    return { ...next, interpretation: { engine: result?.engine || 'gemini', summary: result?.summary || '' } };
+  } catch (err) {
+    if (plan) return plan;
+    throw localError || err;
+  }
+}

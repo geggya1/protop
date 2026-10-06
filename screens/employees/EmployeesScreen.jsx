@@ -7,7 +7,9 @@ import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { pickDocument, pickImage, uploadImage } from '../../src/utils/media';
-import { EMPLOYEE_IMPORT_ACCEPT, planEmployeeImport } from '../../src/employees/import';
+import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
+import { readEmployeeImport } from '../../src/imports/assist';
+import { askImportInterpret } from '../../src/imports/interpretClient';
 import {
   absorbCompanyIntoProfile,
   applyProfessionalProfile,
@@ -196,7 +198,11 @@ export default function EmployeesScreen() {
     setBusy(true);
     try {
       const bytes = await bytesFromFile(file);
-      const plan = await planEmployeeImport(bytes, file.name, { existing: rows, departments });
+      const plan = await readEmployeeImport(bytes, file.name, {
+        existing: rows,
+        departments,
+        familyId,
+      }, (payload) => askImportInterpret(payload));
       setImportPlan(plan);
       setView('import');
       scrollRef.current?.scrollTo?.({ y: 0, animated: true });
@@ -497,7 +503,7 @@ export default function EmployeesScreen() {
             ) : null}
             {isAdmin ? (
               <TouchableOpacity nativeID="employees-import" onPress={openImport} disabled={busy} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}>
-                <Text style={{ color: colors.ink }}>{busy ? 'Leser liste…' : 'Importer liste'}</Text>
+                <Text style={{ color: colors.ink }}>{busy ? 'Tolker filen…' : 'Importer liste'}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity nativeID="employees-mine" onPress={openMine} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
@@ -590,6 +596,11 @@ export default function EmployeesScreen() {
         <View nativeID="employees-import-plan" style={styles.stack}>
           <Text style={{ color: colors.muted }}>
             Kontroller treffene før de lagres. Like e-postadresser oppdaterer medarbeideren som finnes. Tomme celler lar det som allerede er registrert stå.
+            {importPlan.interpretation?.engine?.includes('ocr')
+              ? ' Dokumentet er lest med OCR og AI.'
+              : importPlan.interpretation?.engine
+                ? ' Ukjente kolonner er tolket med AI.'
+                : ''}
           </Text>
           <Text style={{ color: colors.ink }}>
             Rettighetene lagres på ansettelsen. Importen endrer ikke hvem som er administrator i ProTop.

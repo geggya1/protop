@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -189,7 +189,7 @@ export default function CustomersScreen() {
       live = false;
     };
   }, [state, familyId]);
-  const selected = customers.find((row) => row.id === selectedId) || null;
+  const selected = numbered.find((row) => row.id === selectedId) || null;
   const related = selected
     ? contracts.filter((row) => row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase()))
     : [];
@@ -416,32 +416,53 @@ export default function CustomersScreen() {
             CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.
           </Text>
           <TextInput
+            nativeID="customer-search"
             value={query}
             onChangeText={setQuery}
-            placeholder="Søk i kundenr, navn, org.nr, sted, e-post"
+            placeholder="Søk i kundenr, navn, org.nr, sted, e-post, telefon"
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          <View style={styles.row}>
+          <View style={styles.chips}>
             {[
               ['', 'Alle'],
               ['org', 'Virksomhet'],
               ['person', 'Privat'],
-            ].map(([id, label]) => (
-              <TouchableOpacity key={id || 'all-kind'} onPress={() => setKindFilter(id)} accessibilityRole="button">
-                <Text style={{ color: kindFilter === id ? colors.brand : colors.ink, fontWeight: kindFilter === id ? '700' : '400' }}>{label}</Text>
-              </TouchableOpacity>
-            ))}
+            ].map(([id, label]) => {
+              const on = kindFilter === id;
+              return (
+                <TouchableOpacity
+                  key={id || 'all-kind'}
+                  nativeID={`customer-filter-kind-${id || 'all'}`}
+                  onPress={() => setKindFilter(id)}
+                  accessibilityRole="button"
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.chips}>
             {[
               ['', 'Alle opplysninger'],
               ['contact', 'Mangler kontakt'],
               ['address', 'Mangler adresse'],
               ['orgnr', 'Mangler org.nr'],
-            ].map(([id, label]) => (
-              <TouchableOpacity key={`gap-${id || 'all'}`} onPress={() => setGapFilter(id)} accessibilityRole="button">
-                <Text style={{ color: gapFilter === id ? colors.brand : colors.muted, fontWeight: gapFilter === id ? '700' : '400' }}>{label}</Text>
-              </TouchableOpacity>
-            ))}
+            ].map(([id, label]) => {
+              const on = gapFilter === id;
+              return (
+                <TouchableOpacity
+                  key={`gap-${id || 'all'}`}
+                  nativeID={`customer-filter-gap-${id || 'all'}`}
+                  onPress={() => setGapFilter(id)}
+                  accessibilityRole="button"
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
@@ -454,49 +475,56 @@ export default function CustomersScreen() {
             <Text style={{ color: colors.muted }}>Ingen kunder treffer søket eller filteret.</Text>
           ) : null}
           {visible.length ? (
-            <View nativeID="customer-list" style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <CustomerTable phone={isPhone} colors={colors}>
               {!isPhone ? (
                 <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
-                  {[
-                    ['Nr', styles.cellNr],
-                    ['Kunde', styles.cellGrow],
-                    ['Org.nr', styles.cellId],
-                    ['Adresse', styles.cellGrow],
-                    ['Kontakt', styles.cellGrow],
-                    ['E-post', styles.cellGrow],
-                    ['Telefon', styles.cellPhone],
-                  ].map(([label, size]) => (
-                    <Text key={label} style={[styles.cell, size, styles.headCell, { color: colors.muted }]}>{label}</Text>
+                  {LIST_COLUMNS.map(([label, width]) => (
+                    <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
                   ))}
                 </View>
               ) : null}
-              {visible.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => { setSelectedId(row.id); setView('detail'); }}
-                  accessibilityRole="button"
-                  style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
-                >
-                  <Text style={[styles.cell, !isPhone && styles.cellNr, { color: colors.ink, fontWeight: '700' }]}>{row.customerNumber}</Text>
-                  <View style={[styles.cell, !isPhone && styles.cellGrow]}>
-                    <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
-                      {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
+              {visible.map((row) => {
+                const idLabel = row.kind === 'person'
+                  ? (maskPersonnummer(row.personnummer) || '—')
+                  : (formatOrgnr(row.orgnr) || '—');
+                const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
+                return (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => { setSelectedId(row.id); setView('detail'); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${row.customerNumber} ${row.name}`}
+                    style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
+                  >
+                    <Text style={[styles.cell, colWidth(0, isPhone), { color: colors.ink, fontWeight: '700' }]}>
+                      {isPhone ? `Nr ${row.customerNumber}` : row.customerNumber}
                     </Text>
-                  </View>
-                  <Text style={[styles.cell, !isPhone && styles.cellId, { color: colors.ink }]}>
-                    {row.kind === 'person' ? (maskPersonnummer(row.personnummer) || '—') : (formatOrgnr(row.orgnr) || '—')}
-                  </Text>
-                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>
-                    {[row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}
-                  </Text>
-                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>{row.contactName || '—'}</Text>
-                  <Text style={[styles.cell, !isPhone && styles.cellGrow, { color: colors.ink }]}>{row.email || '—'}</Text>
-                  <Text style={[styles.cell, !isPhone && styles.cellPhone, { color: colors.ink }]}>{row.phone || '—'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <View style={[styles.cell, colWidth(1, isPhone)]}>
+                      <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
+                        {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.cell, colWidth(2, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `${row.kind === 'person' ? 'Personnummer' : 'Org.nr'} ${idLabel}` : idLabel}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(3, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Adresse ${address}` : address}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(4, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Kontakt ${row.contactName || '—'}` : (row.contactName || '—')}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(5, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `E-post ${row.email || '—'}` : (row.email || '—')}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(6, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Telefon ${row.phone || '—'}` : (row.phone || '—')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </CustomerTable>
           ) : null}
         </>
       ) : null}
@@ -664,6 +692,41 @@ export default function CustomersScreen() {
   );
 }
 
+const LIST_COLUMNS = [
+  ['Nr', 72],
+  ['Kunde', 240],
+  ['Org.nr', 140],
+  ['Adresse', 260],
+  ['Kontakt', 170],
+  ['E-post', 220],
+  ['Telefon', 130],
+];
+
+function colWidth(index, phone) {
+  if (phone) return null;
+  return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
+}
+
+function CustomerTable({ phone, colors, children }) {
+  const body = (
+    <View nativeID="customer-list" style={[styles.table, phone && styles.tablePhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      {children}
+    </View>
+  );
+  if (phone) return body;
+  return (
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator
+      style={styles.tableScroll}
+      contentContainerStyle={styles.tableContent}
+    >
+      {body}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
@@ -675,14 +738,20 @@ const styles = StyleSheet.create({
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16, backgroundColor: '#fff' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
-  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  tableScroll: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+  },
+  tableContent: { flexGrow: 1 },
+  table: { width: 1320, minWidth: 1320, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tablePhone: { width: '100%', minWidth: 0 },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableRowPhone: { flexDirection: 'column', gap: 2 },
   tableHead: { borderTopWidth: 0 },
   headCell: { fontSize: 12, fontWeight: '700' },
   cell: { fontSize: 14 },
-  cellNr: { width: 64 },
-  cellId: { width: 120 },
-  cellPhone: { width: 110 },
-  cellGrow: { flex: 1, minWidth: 90 },
 });

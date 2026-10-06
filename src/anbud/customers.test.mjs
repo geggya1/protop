@@ -172,5 +172,11 @@ const byNumber = filterCustomers([
   { id: 'a', name: 'Først', kind: 'org', customerNumber: '2' },
 ], '');
 assert.deepEqual(byNumber.map((row) => row.customerNumber), ['2', '12']);
+const byPerson = filterCustomers([
+  { id: 'p', name: 'Thor', kind: 'person', customerNumber: '4', personnummer: '01017012345', email: 't@t.no', phone: '90000000', address: 'Vei 1' },
+  { id: 'o', name: 'Org', kind: 'org', customerNumber: '5', orgnr: '916538804' },
+], '010170');
+assert.equal(byPerson.length, 1);
+assert.equal(byPerson[0].name, 'Thor');
 
 console.log('customers.test.mjs: ok');

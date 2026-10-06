@@ -239,7 +239,7 @@ export function filterCustomers(customers, query = '', { kind = '', gap = '' } =
   if (needle) {
     rows = rows.filter((row) => {
       const hay = [
-        row.customerNumber, row.name, row.orgnr, row.place, row.postalCode, row.address,
+        row.customerNumber, row.name, row.orgnr, row.personnummer, row.place, row.postalCode, row.address,
         row.contactName, row.email, row.phone, row.ownerName, row.notes,
       ].map(fold).join(' ');
       return hay.includes(needle);

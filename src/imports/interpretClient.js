@@ -22,7 +22,10 @@ export async function askImportInterpret(payload) {
     mode: payload?.mode || 'columns',
     filename: payload?.filename || '',
   };
-  if (body.mode === 'columns') {
+  if (payload?.text) {
+    body.mode = 'ocr';
+    body.text = String(payload.text).slice(0, 12000);
+  } else if (body.mode === 'columns') {
     body.headers = payload?.headers || [];
     body.samples = payload?.samples || [];
   } else {

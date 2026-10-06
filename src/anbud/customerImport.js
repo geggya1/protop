@@ -71,7 +71,7 @@ async function entryFromCentral(bytes, cursor) {
   };
 }
 
-async function zipEntries(bytes) {
+export async function zipEntries(bytes) {
   const eocd = findEocd(bytes);
   if (eocd >= 0) {
     const count = u16(bytes, eocd + 10);

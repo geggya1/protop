@@ -83,11 +83,13 @@ export default function EmployeeFields({
   onPickAddress,
   onChange,
   onPhoto,
+  sections: sectionsProp,
+  showCustom = true,
 }) {
   const [extraDepartment, setExtraDepartment] = useState('');
   const [custom, setCustom] = useState({ label: '', value: '', owner: 'person', purpose: 'cv' });
   if (!draft) return null;
-  const sections = sectionsFor(scope);
+  const sections = sectionsProp || sectionsFor(scope);
 
   function update(path, value) {
     onChange(setEmployeePath(draft, path, value));
@@ -156,6 +158,7 @@ export default function EmployeeFields({
         );
       })}
 
+      {showCustom ? (
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={[styles.sectionTitle, { color: colors.ink }]}>Egne felt</Text>
         <Text style={[styles.purpose, { color: colors.muted }]}>
@@ -220,6 +223,7 @@ export default function EmployeeFields({
           <Text style={{ color: colors.ink }}>Legg til felt</Text>
         </TouchableOpacity>
       </View>
+      ) : null}
     </View>
   );
 }

@@ -67,4 +67,28 @@ await assert.rejects(
   /Ikke innlogget/,
 );
 
+const cv = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  text: 'Anders Rolandsen. Prosjektleder. Utdanning ved UiS 2004-2007. Erfaring fra CONSULT1 AS siden 2016.',
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async (_key, prompt, parts) => {
+    assert.match(prompt, /education/);
+    assert.match(parts[0].text, /UiS/);
+    return {
+      headline: 'Prosjektleder',
+      summary: 'Erfaring fra CONSULT1 AS.',
+      education: [{ from: '2004', to: '2007', school: 'UiS', program: 'Bygg' }],
+      projects: [{ email: 'ikke' }],
+      summaryNote: 'Én CV',
+    };
+  },
+});
+assert.equal(cv.engine, 'gemini');
+assert.equal(cv.cv.education[0].school, 'UiS');
+assert.equal(cv.cv.projects.length, 0);
+assert.equal(cv.summary, 'Én CV');
+
 console.log('importInterpret.test.mjs: ok');

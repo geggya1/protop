@@ -109,11 +109,87 @@ export function emptyCustomer(partial = {}) {
     email: '',
     phone: '',
     notes: '',
+    customerNumber: '',
     ownerUid: '',
     ownerName: '',
     createdAt: '',
     updatedAt: '',
     ...partial,
+  };
+}
+
+export function normalizeCustomerNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const number = Number(digits);
+  if (!Number.isFinite(number) || number <= 0 || number > 999999999) return '';
+  return String(number);
+}
+
+export function customerNumberFromNotes(notes) {
+  const match = String(notes || '').match(/Kundenr\s+(\d+)/i);
+  return normalizeCustomerNumber(match?.[1]);
+}
+
+function stripCustomerNumberNote(notes, number) {
+  return text(String(notes || '').replace(new RegExp(`Kundenr\\s+${number}`, 'i'), ''))
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/^\s*·\s*|\s*·\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function nextCustomerNumber(customers) {
+  let max = 0;
+  for (const row of Array.isArray(customers) ? customers : []) {
+    const number = Number(normalizeCustomerNumber(row?.customerNumber));
+    if (number > max) max = number;
+  }
+  return String(max + 1);
+}
+
+/** Gir hver kunde et kundenummer. Definerte nummer beholdes. Nye får neste ledige, eldste først. */
+export function withCustomerNumbers(customers) {
+  const rows = normalizeCustomers(customers).map((row) => {
+    const defined = normalizeCustomerNumber(row.customerNumber);
+    const fromNotes = customerNumberFromNotes(row.notes);
+    const customerNumber = defined || fromNotes;
+    const notes = fromNotes && (!defined || defined === fromNotes)
+      ? stripCustomerNumberNote(row.notes, fromNotes)
+      : row.notes;
+    return { ...row, customerNumber, notes };
+  });
+  const ordered = [...rows].sort((left, right) => (
+    String(left.createdAt).localeCompare(String(right.createdAt))
+    || left.name.localeCompare(right.name, 'nb')
+  ));
+  const used = new Set();
+  const kept = new Map();
+  const pending = [];
+  for (const row of ordered) {
+    if (row.customerNumber && !used.has(row.customerNumber)) {
+      used.add(row.customerNumber);
+      kept.set(row.id, row);
+    } else {
+      pending.push(row);
+    }
+  }
+  let next = nextCustomerNumber([...kept.values()]);
+  for (const row of pending) {
+    kept.set(row.id, { ...row, customerNumber: next });
+    next = String(Number(next) + 1);
+  }
+  return rows.map((row) => kept.get(row.id) || row);
+}
+
+export function assignCustomerNumber(customers, requested) {
+  const rows = withCustomerNumbers(customers);
+  const wanted = normalizeCustomerNumber(requested);
+  const taken = new Set(rows.map((row) => row.customerNumber));
+  if (wanted && !taken.has(wanted)) return { customerNumber: wanted, replaced: '' };
+  return {
+    customerNumber: nextCustomerNumber(rows),
+    replaced: wanted || '',
   };
 }
 
@@ -140,6 +216,7 @@ export function normalizeCustomer(raw) {
     email: text(raw.email).slice(0, 80),
     phone: text(raw.phone).slice(0, 40),
     notes: text(raw.notes).slice(0, 400),
+    customerNumber: normalizeCustomerNumber(raw.customerNumber) || customerNumberFromNotes(raw.notes),
     ownerUid: text(raw.ownerUid).slice(0, 80),
     ownerName: text(raw.ownerName).slice(0, 80),
     createdAt: text(raw.createdAt),
@@ -152,16 +229,26 @@ export function normalizeCustomers(input) {
   return input.map(normalizeCustomer).filter(Boolean);
 }
 
-export function filterCustomers(customers, query = '') {
+export function filterCustomers(customers, query = '', { kind = '', gap = '' } = {}) {
   const needle = fold(query);
-  const rows = Array.isArray(customers) ? customers : [];
-  if (!needle) return rows;
-  return rows.filter((row) => {
-    const hay = [row.name, row.orgnr, row.place, row.contactName, row.email, row.phone, row.address, row.ownerName]
-      .map(fold)
-      .join(' ');
-    return hay.includes(needle);
-  });
+  let rows = Array.isArray(customers) ? customers : [];
+  if (kind === 'org' || kind === 'person') rows = rows.filter((row) => row.kind === kind);
+  if (gap === 'contact') rows = rows.filter((row) => !text(row.email) && !text(row.phone));
+  if (gap === 'address') rows = rows.filter((row) => !text(row.address));
+  if (gap === 'orgnr') rows = rows.filter((row) => row.kind !== 'person' && !text(row.orgnr));
+  if (needle) {
+    rows = rows.filter((row) => {
+      const hay = [
+        row.customerNumber, row.name, row.orgnr, row.personnummer, row.place, row.postalCode, row.address,
+        row.contactName, row.email, row.phone, row.ownerName, row.notes,
+      ].map(fold).join(' ');
+      return hay.includes(needle);
+    });
+  }
+  return [...rows].sort((left, right) => (
+    Number(left.customerNumber || 0) - Number(right.customerNumber || 0)
+    || left.name.localeCompare(right.name, 'nb')
+  ));
 }
 
 function sameName(left, right) {
@@ -236,6 +323,7 @@ export function upsertCustomer(state, input) {
       kind,
       orgnr,
       personnummer,
+      customerNumber: normalizeCustomerNumber(input?.customerNumber) || current.customerNumber,
       ownerUid: input?.ownerUid != null ? input.ownerUid : current.ownerUid,
       ownerName: input?.ownerName != null ? input.ownerName : current.ownerName,
       updatedAt: now,
@@ -251,13 +339,15 @@ export function upsertCustomer(state, input) {
   if (clash) {
     return { ok: false, state, error: 'En kunde med samme organisasjons- eller personnummer finnes allerede.', customer: clash };
   }
-  const customer = normalizeCustomer({
+    const assigned = assignCustomerNumber(customers, input?.customerNumber);
+    const customer = normalizeCustomer({
     ...emptyCustomer(input),
     id: createId('kunde'),
     name,
     kind,
     orgnr,
     personnummer,
+    customerNumber: assigned.customerNumber,
     createdAt: now,
     updatedAt: now,
   });
@@ -308,6 +398,123 @@ export function setCustomerOwner(state, customerId, person) {
     error: null,
     customer: next,
   };
+}
+
+function cleanContact(value, { email = false, phone = false, postal = false } = {}) {
+  const raw = text(value);
+  if (!raw) return { value: '', issue: '' };
+  if (email) {
+    return raw.includes('@')
+      ? { value: raw, issue: '' }
+      : { value: '', issue: 'E-post er ikke gyldig og blir ikke lagret.' };
+  }
+  if (phone) {
+    const count = raw.replace(/\D/g, '').length;
+    return count >= 8 && count <= 15
+      ? { value: raw, issue: '' }
+      : { value: '', issue: 'Telefonnummeret er ikke gyldig og blir ikke lagret.' };
+  }
+  if (postal) {
+    const code = raw.replace(/\D/g, '');
+    return code.length === 4
+      ? { value: code, issue: '' }
+      : { value: '', issue: 'Postnummeret er ikke fire siffer og blir ikke lagret.' };
+  }
+  return { value: raw, issue: '' };
+}
+
+/**
+ * Kontrollerer en kundeliste uten å lagre.
+ * severity block: raden kan ikke importeres og krever behandling.
+ * severity review: raden kan importeres, men har avvik.
+ */
+export function planCustomerImport(state, rows) {
+  const existing = normalizeCustomers(state?.customers);
+  const existingOrgnr = new Set(existing.map((row) => row.orgnr).filter(Boolean));
+  const existingPerson = new Set(existing.map((row) => row.personnummer).filter(Boolean));
+  const existingNames = new Set(existing.map((row) => fold(row.name)).filter(Boolean));
+  const seenOrgnr = new Set();
+  const seenPerson = new Set();
+  const seenNames = new Set();
+  let registry = withCustomerNumbers(existing);
+  const planned = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const name = text(row?.name);
+    const kind = row?.kind === 'person' || row?.kind === 'org'
+      ? row.kind
+      : (customerKindFromIds(row?.orgnr, row?.personnummer) || 'org');
+    const orgnr = kind === 'person' ? '' : normalizeOrgnr(row?.orgnr);
+    const personnummer = kind === 'org' ? '' : normalizePersonnummer(row?.personnummer);
+    const email = cleanContact(row?.email, { email: true });
+    const phone = cleanContact(row?.phone, { phone: true });
+    const postal = cleanContact(row?.postalCode, { postal: true });
+    const address = text(row?.address);
+    const place = text(row?.place);
+    const issues = [];
+    if (email.issue) issues.push(email.issue);
+    if (phone.issue) issues.push(phone.issue);
+    if (postal.issue) issues.push(postal.issue);
+    if (!address) issues.push('Mangler adresse.');
+    else {
+      if (!text(row?.postalCode)) issues.push('Mangler postnummer.');
+      if (!place) issues.push('Mangler poststed.');
+    }
+    if (!text(row?.email) && !text(row?.phone)) issues.push('Mangler e-post og telefon.');
+    const label = name || text(row?.orgnr) || text(row?.email) || 'Uten navn';
+    let block = '';
+    if (!name) block = 'Mangler navn.';
+    else if (kind === 'org' && text(row?.orgnr) && !orgnr) block = 'Organisasjonsnummer må være ni siffer.';
+    else if (kind === 'person' && text(row?.personnummer) && !personnummer) block = 'Personnummer må være elleve siffer.';
+    else if (orgnr && existingOrgnr.has(orgnr)) block = 'En kunde med samme organisasjonsnummer finnes allerede.';
+    else if (orgnr && seenOrgnr.has(orgnr)) block = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
+    else if (personnummer && existingPerson.has(personnummer)) block = 'En kunde med samme personnummer finnes allerede.';
+    else if (personnummer && seenPerson.has(personnummer)) block = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
+    if (!block) {
+      const nameKey = fold(name);
+      if (kind === 'org' && !orgnr) issues.push('Mangler organisasjonsnummer.');
+      if (kind === 'person' && !personnummer) issues.push('Mangler personnummer.');
+      if (nameKey && existingNames.has(nameKey)) issues.push('Samme navn finnes allerede i kunderegisteret.');
+      else if (nameKey && seenNames.has(nameKey)) issues.push('Samme navn står flere ganger i listen.');
+      if (nameKey) seenNames.add(nameKey);
+      if (orgnr) seenOrgnr.add(orgnr);
+      if (personnummer) seenPerson.add(personnummer);
+    }
+    let customer = null;
+    if (!block) {
+      const assigned = assignCustomerNumber(registry, row?.customerNumber || customerNumberFromNotes(row?.notes));
+      if (assigned.replaced) issues.push(`Kundenummer ${assigned.replaced} er opptatt. Nytt nummer blir ${assigned.customerNumber}.`);
+      customer = emptyCustomer({
+        ...row,
+        name,
+        kind,
+        orgnr,
+        personnummer,
+        address,
+        place,
+        postalCode: postal.value,
+        email: email.value,
+        phone: phone.value,
+        customerNumber: assigned.customerNumber,
+      });
+      registry = [...registry, { ...customer, id: `plan_${planned.length}` }];
+    }
+    planned.push({
+      action: block ? 'skip' : 'create',
+      severity: block ? 'block' : (issues.length ? 'review' : 'ok'),
+      name: label,
+      orgnr,
+      place,
+      address,
+      email: email.value,
+      phone: phone.value,
+      reason: block,
+      issues: block ? [block, ...issues] : issues,
+      customer,
+    });
+  }
+  const rank = { block: 0, review: 1, ok: 2 };
+  planned.sort((left, right) => rank[left.severity] - rank[right.severity]);
+  return { rows: planned };
 }
 
 export function importCustomers(state, rows) {

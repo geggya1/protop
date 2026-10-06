@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -12,13 +12,18 @@ import {
   identityFieldsForKind,
   importCustomers,
   maskPersonnummer,
+  nextCustomerNumber,
+  planCustomerImport,
   normalizeOrgnr,
   ownerLabel,
   upsertCustomer,
+  withCustomerNumbers,
 } from '../../src/anbud/customers';
 import { CUSTOMER_IMPORT_ACCEPT } from '../../src/anbud/customerImport';
 import { readCustomerImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
+import { importResult } from '../../src/imports/review';
+import ImportReview, { ImportResult } from '../../components/ImportReview';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
@@ -98,7 +103,13 @@ export default function CustomersScreen() {
   const [hits, setHits] = useState([]);
   const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importPlan, setImportPlan] = useState(null);
+  const [dropped, setDropped] = useState(() => new Set());
+  const [importReport, setImportReport] = useState(null);
+  const [kindFilter, setKindFilter] = useState('');
+  const [gapFilter, setGapFilter] = useState('');
   const lookupRef = useRef('');
+  const numberSave = useRef('');
 
   useEffect(() => {
     loadAnbudState(familyId).then(setState);
@@ -154,8 +165,31 @@ export default function CustomersScreen() {
   const customers = state?.customers || [];
   const contracts = state?.contracts || [];
   const followPeople = companyFollowUpPeople(members);
-  const visible = useMemo(() => filterCustomers(customers, query), [customers, query]);
-  const selected = customers.find((row) => row.id === selectedId) || null;
+  const numbered = useMemo(() => withCustomerNumbers(customers), [customers]);
+  const visible = useMemo(
+    () => filterCustomers(numbered, query, { kind: kindFilter, gap: gapFilter }),
+    [numbered, query, kindFilter, gapFilter],
+  );
+  const upcomingNumber = nextCustomerNumber(numbered);
+
+  useEffect(() => {
+    if (!state || !familyId) return undefined;
+    const next = withCustomerNumbers(state.customers || []);
+    const before = (state.customers || []).map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
+    const after = next.map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
+    if (before === after || numberSave.current === after) return undefined;
+    numberSave.current = after;
+    let live = true;
+    saveAnbudState({ ...state, customers: next }, familyId).then((saved) => {
+      if (live) setState(saved);
+    }).catch(() => {
+      numberSave.current = '';
+    });
+    return () => {
+      live = false;
+    };
+  }, [state, familyId]);
+  const selected = numbered.find((row) => row.id === selectedId) || null;
   const related = selected
     ? contracts.filter((row) => row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase()))
     : [];
@@ -230,24 +264,20 @@ export default function CustomersScreen() {
         familyId,
         ask: (payload) => askImportInterpret(payload),
       });
-      const rows = interpreted.rows;
       const loaded = await loadAnbudState(familyId);
-      const result = importCustomers(loaded, rows);
-      if (!result.created.length && !result.skipped.length) {
-        setError(result.error || 'Fant ingen kunder i filen.');
+      const plan = planCustomerImport(loaded, interpreted.rows);
+      if (!plan.rows.length) {
+        setError('Fant ingen kunder i filen.');
         return;
       }
-      const saved = await saveAnbudState(result.state, familyId);
-      setState(saved);
-      const parts = [];
-      if (result.created.length) parts.push(`${result.created.length} nye`);
-      if (result.skipped.length) parts.push(`${result.skipped.length} fantes fra før`);
-      if (result.errors.length) parts.push(`${result.errors.length} uten navn hoppet over`);
       const understood = interpreted.engine && interpreted.engine !== 'lokal'
         ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
         : '';
-      setNote(`Importert: ${parts.join(', ')}.${understood}`);
-      setView('list');
+      setImportPlan({ ...plan, understood });
+      setDropped(new Set());
+      setImportReport(null);
+      setNote('');
+      setView('import');
     } catch (cause) {
       const message = String(cause?.message || '');
       setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
@@ -258,6 +288,83 @@ export default function CustomersScreen() {
     }
   }
 
+  function toggleCustomer(id) {
+    setDropped((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmCustomerImport() {
+    if (!importPlan || importing) return;
+    const chosen = [];
+    const leftOut = [];
+    importPlan.rows.forEach((row, index) => {
+      const id = String(index);
+      if (row.severity === 'block' || dropped.has(id) || !row.customer) {
+        leftOut.push({
+          name: row.name,
+          reason: row.severity === 'block' ? (row.reason || 'Kan ikke importeres.') : 'Valgt bort før lagring.',
+        });
+        return;
+      }
+      chosen.push(row);
+    });
+    if (!chosen.length) {
+      setError('Ingen kunder er valgt for import.');
+      return;
+    }
+    setImporting(true);
+    setError('');
+    try {
+      const loaded = await loadAnbudState(familyId);
+      const result = importCustomers(loaded, chosen.map((row) => row.customer));
+      if (!result.created.length) {
+        setError(result.error || 'Ingen kunder ble lagret.');
+        return;
+      }
+      const saved = await saveAnbudState(result.state, familyId);
+      setState(saved);
+      let cursor = 0;
+      const imported = [];
+      for (const row of chosen) {
+        const customer = result.created[cursor];
+        if (customer && customer.name === row.name) {
+          imported.push({ name: customer.name, issues: row.issues || [] });
+          cursor += 1;
+        } else {
+          leftOut.push({ name: row.name, reason: 'Ble ikke lagret.' });
+        }
+      }
+      setImportReport(importResult(imported, leftOut));
+      setImportPlan(null);
+      setDropped(new Set());
+      setView('list');
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke lagre kundelisten.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const customerReviewRows = (importPlan?.rows || []).map((row, index) => ({
+    id: String(index),
+    severity: row.severity,
+    title: row.name,
+    meta: [
+      row.customer?.customerNumber ? `Kundenr ${row.customer.customerNumber}` : '',
+      formatOrgnr(row.orgnr),
+      row.address,
+      row.place,
+      row.email,
+      row.phone,
+    ].filter(Boolean).join(' · '),
+    issues: row.issues || [],
+    included: row.severity !== 'block' && !dropped.has(String(index)),
+  }));
+
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
@@ -265,7 +372,7 @@ export default function CustomersScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={[styles.title, { color: colors.ink }]}>
-        {view === 'detail' && selected ? selected.name : 'Kunder'}
+        {view === 'import' ? 'Kontroller import' : view === 'detail' && selected ? selected.name : 'Kunder'}
       </Text>
       {view === 'list' ? (
         <Text style={{ color: colors.muted }}>
@@ -274,6 +381,21 @@ export default function CustomersScreen() {
       ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
+
+      {view === 'import' && importPlan ? (
+        <ImportReview
+          nativeID="customers-import-plan"
+          colors={colors}
+          lead={`Ingenting er lagret ennå. Kontroller innholdet og bekreft importen.${importPlan.understood || ''}`}
+          rows={customerReviewRows}
+          busy={importing}
+          confirmLabel={(count) => `Importer ${count} kunder`}
+          onToggle={toggleCustomer}
+          onConfirm={confirmCustomerImport}
+          onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
+        />
+      ) : null}
 
       {view === 'list' ? (
         <>
@@ -294,40 +416,128 @@ export default function CustomersScreen() {
             CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.
           </Text>
           <TextInput
+            nativeID="customer-search"
             value={query}
             onChangeText={setQuery}
-            placeholder="Søk i navn, org.nr, kontakt"
+            placeholder="Søk i kundenr, navn, org.nr, sted, e-post, telefon"
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          {!customers.length ? (
+          <View style={styles.chips}>
+            {[
+              ['', 'Alle'],
+              ['org', 'Virksomhet'],
+              ['person', 'Privat'],
+            ].map(([id, label]) => {
+              const on = kindFilter === id;
+              return (
+                <TouchableOpacity
+                  key={id || 'all-kind'}
+                  nativeID={`customer-filter-kind-${id || 'all'}`}
+                  onPress={() => setKindFilter(id)}
+                  accessibilityRole="button"
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.chips}>
+            {[
+              ['', 'Alle opplysninger'],
+              ['contact', 'Mangler kontakt'],
+              ['address', 'Mangler adresse'],
+              ['orgnr', 'Mangler org.nr'],
+            ].map(([id, label]) => {
+              const on = gapFilter === id;
+              return (
+                <TouchableOpacity
+                  key={`gap-${id || 'all'}`}
+                  nativeID={`customer-filter-gap-${id || 'all'}`}
+                  onPress={() => setGapFilter(id)}
+                  accessibilityRole="button"
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
+            {` · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
+          </Text>
+          {!numbered.length ? (
             <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
           ) : null}
-          {visible.map((row) => (
-            <TouchableOpacity
-              key={row.id}
-              onPress={() => { setSelectedId(row.id); setView('detail'); }}
-              accessibilityRole="button"
-              style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
-            >
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
-              <Text style={{ color: colors.muted }}>
-                {[
-                  row.kind === 'person' ? 'Privatkunde' : 'Virksomhet',
-                  row.kind === 'person' ? maskPersonnummer(row.personnummer) : formatOrgnr(row.orgnr),
-                  row.contactName,
-                  ownerLabel(row, followPeople),
-                  row.place,
-                ].filter(Boolean).join(' · ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {numbered.length && !visible.length ? (
+            <Text style={{ color: colors.muted }}>Ingen kunder treffer søket eller filteret.</Text>
+          ) : null}
+          {visible.length ? (
+            <CustomerTable phone={isPhone} colors={colors}>
+              {!isPhone ? (
+                <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
+                  {LIST_COLUMNS.map(([label, width]) => (
+                    <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
+                  ))}
+                </View>
+              ) : null}
+              {visible.map((row) => {
+                const idLabel = row.kind === 'person'
+                  ? (maskPersonnummer(row.personnummer) || '—')
+                  : (formatOrgnr(row.orgnr) || '—');
+                const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
+                return (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => { setSelectedId(row.id); setView('detail'); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${row.customerNumber} ${row.name}`}
+                    style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
+                  >
+                    <Text style={[styles.cell, colWidth(0, isPhone), { color: colors.ink, fontWeight: '700' }]}>
+                      {isPhone ? `Nr ${row.customerNumber}` : row.customerNumber}
+                    </Text>
+                    <View style={[styles.cell, colWidth(1, isPhone)]}>
+                      <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
+                        {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.cell, colWidth(2, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `${row.kind === 'person' ? 'Personnummer' : 'Org.nr'} ${idLabel}` : idLabel}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(3, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Adresse ${address}` : address}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(4, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Kontakt ${row.contactName || '—'}` : (row.contactName || '—')}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(5, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `E-post ${row.email || '—'}` : (row.email || '—')}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(6, isPhone), { color: colors.ink }]}>
+                      {isPhone ? `Telefon ${row.phone || '—'}` : (row.phone || '—')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </CustomerTable>
+          ) : null}
         </>
       ) : null}
 
       {view === 'edit' ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>{form.id ? 'Endre kunde' : 'Ny kunde'}</Text>
+          <Text style={{ color: colors.ink }}>
+            {`Kundenummer ${form.id ? (form.customerNumber || selected?.customerNumber || '') : upcomingNumber}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Nummeret følger rekkefølgen. En ny kunde får automatisk neste ledige.
+          </Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setKind('org')} accessibilityRole="button">
               <Text style={{ color: form.kind === 'org' ? colors.brand : colors.ink }}>Virksomhet</Text>
@@ -412,6 +622,7 @@ export default function CustomersScreen() {
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Kundeforhold</Text>
             <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '600' }}>{selected.name}</Text>
+            <Text style={{ color: colors.ink }}>{`Kundenummer ${selected.customerNumber || '—'}`}</Text>
             <Text style={{ color: colors.ink }}>{selected.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}</Text>
             {selected.kind !== 'person' && selected.orgnr ? <Text style={{ color: colors.ink }}>Org.nr {formatOrgnr(selected.orgnr)}</Text> : null}
             {selected.kind === 'person' && selected.personnummer ? <Text style={{ color: colors.ink }}>Personnummer {maskPersonnummer(selected.personnummer)}</Text> : null}
@@ -481,6 +692,41 @@ export default function CustomersScreen() {
   );
 }
 
+const LIST_COLUMNS = [
+  ['Nr', 72],
+  ['Kunde', 240],
+  ['Org.nr', 140],
+  ['Adresse', 260],
+  ['Kontakt', 170],
+  ['E-post', 220],
+  ['Telefon', 130],
+];
+
+function colWidth(index, phone) {
+  if (phone) return null;
+  return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
+}
+
+function CustomerTable({ phone, colors, children }) {
+  const body = (
+    <View nativeID="customer-list" style={[styles.table, phone && styles.tablePhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      {children}
+    </View>
+  );
+  if (phone) return body;
+  return (
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator
+      style={styles.tableScroll}
+      contentContainerStyle={styles.tableContent}
+    >
+      {body}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
@@ -492,4 +738,20 @@ const styles = StyleSheet.create({
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16, backgroundColor: '#fff' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  tableScroll: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+  },
+  tableContent: { flexGrow: 1 },
+  table: { width: 1320, minWidth: 1320, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tablePhone: { width: '100%', minWidth: 0 },
+  tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
+  tableRowPhone: { flexDirection: 'column', gap: 2 },
+  tableHead: { borderTopWidth: 0 },
+  headCell: { fontSize: 12, fontWeight: '700' },
+  cell: { fontSize: 14 },
 });

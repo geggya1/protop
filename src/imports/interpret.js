@@ -174,7 +174,7 @@ export function acceptableValue(field, value) {
   return raw;
 }
 
-const CUSTOMER_FILL = ['orgnr', 'personnummer', 'address', 'postalCode', 'place', 'contactName', 'email', 'phone', 'notes', 'kind'];
+const CUSTOMER_FILL = ['orgnr', 'personnummer', 'address', 'postalCode', 'place', 'contactName', 'email', 'phone', 'notes', 'kind', 'customerNumber'];
 
 export function mergeCustomerRows(localRows, assistedRows) {
   const local = Array.isArray(localRows) ? localRows : [];

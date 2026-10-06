@@ -276,10 +276,21 @@ function normalizeExperience(list) {
   })).filter((row) => row.employer || row.title || row.tasks);
 }
 
+function projectLink(row) {
+  const link = row?.link && typeof row.link === 'object' ? row.link : {};
+  // Import knytter prosjektet til personen. owner company er reservert til senere flytting
+  // inn i bedriftens prosjektregister, og beholdes hvis den allerede er satt.
+  return {
+    owner: link.owner === 'company' ? 'company' : 'person',
+    companyProjectId: text(link.companyProjectId),
+  };
+}
+
 function normalizeProjects(list) {
   return (Array.isArray(list) ? list : []).map((row, index) => ({
     id: itemId('prj', row?.id, index),
     title: rowText(row, 'title'),
+    address: rowText(row, 'address'),
     category: rowText(row, 'category'),
     client: rowText(row, 'client'),
     object: rowText(row, 'object'),
@@ -287,10 +298,12 @@ function normalizeProjects(list) {
     cost: rowText(row, 'cost'),
     contact: rowText(row, 'contact'),
     phone: rowText(row, 'phone'),
-    email: rowText(row, 'email').toLowerCase(),
+    email: rowText(row, 'email').replace(/\s+/g, '').toLowerCase(),
     employer: rowText(row, 'employer'),
     roles: text(row?.roles),
     responsibility: text(row?.responsibility),
+    source: row?.source === 'cv' || row?.source === 'excel' ? row.source : 'manual',
+    link: projectLink(row),
   })).filter((row) => row.title || row.client || row.responsibility);
 }
 
@@ -831,6 +844,7 @@ export function cvPlainText(cv) {
   lines.push('', 'Referanseprosjekter');
   for (const row of cv?.projects || []) {
     lines.push(row.title || 'Prosjekt');
+    if (row.address) lines.push(row.address);
     const bits = [
       ['Kategori', row.category],
       ['Kunde', row.client],

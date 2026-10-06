@@ -2,6 +2,7 @@
  * OCR og AI-tolking av kundelister og medarbeiderlister.
  * Regneark: modellen navngir ukjente kolonner. Skann: OCR-tekst og bilder leses av modellen.
  */
+import { mergeCvReads, parseProtopCv } from '../src/employees/cvText.js';
 import {
   columnPrompt,
   cvPrompt,
@@ -29,7 +30,7 @@ function tableMessage(data) {
   return `Tolker disse kolonnene:\n${lines.join('\n')}`;
 }
 
-async function documentParts(data) {
+async function documentParts(data, options = {}) {
   const mime = clean(data?.mime, 80) || 'image/jpeg';
   const imageBase64 = String(data?.imageBase64 || '').replace(/^data:[^;]+;base64,/, '');
   if (imageBase64.length < 80 || imageBase64.length > MAX_DOC_CHARS) {
@@ -40,16 +41,17 @@ async function documentParts(data) {
     const buffer = Buffer.from(imageBase64, 'base64');
     const { ocrPdfPages } = await import('./ocrPdf.js');
     const ocr = await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));
-    if (ocr.text) parts.push({ text: `OCR-tekst:\n${ocr.text.slice(0, 12000)}` });
-    for (const image of (ocr.images || []).slice(0, 4)) {
+    if (ocr.text) parts.push({ text: `OCR-tekst:\n${ocr.text.slice(0, 24000)}` });
+    const maxImages = Number(options.maxImages) > 0 ? Number(options.maxImages) : 4;
+    for (const image of (ocr.images || []).slice(0, maxImages)) {
       parts.push({
         inline_data: { mime_type: image.mime || 'image/png', data: image.buffer.toString('base64') },
       });
     }
-    if (!(ocr.images || []).length) {
+    if (!(ocr.text || '').trim() && !(ocr.images || []).length) {
       parts.push({ inline_data: { mime_type: 'application/pdf', data: imageBase64 } });
     }
-    return { parts, usedOcr: Boolean(ocr.text || (ocr.images || []).length) };
+    return { parts, text: ocr.text || '', usedOcr: Boolean(ocr.text || (ocr.images || []).length) };
   }
   parts.push({ inline_data: { mime_type: mime, data: imageBase64 } });
   return { parts, usedOcr: true };
@@ -73,23 +75,35 @@ export async function handleInterpretImport(data, auth, deps = {}) {
 
   try {
     if (kind === 'cv') {
-      const prose = clean(data?.text, 12000);
+      const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, 24000);
       let parts;
       let usedOcr = false;
+      let sourceText = prose;
       if (prose.length >= 40) {
         parts = [{ text: `CV-tekst:\n${prose}` }];
       } else {
-        const document = await (deps.documentParts || documentParts)(data);
+        const document = await (deps.documentParts || documentParts)(data, { maxImages: 8 });
         parts = document.parts;
         usedOcr = document.usedOcr;
+        sourceText = document.text || '';
       }
-      const parsed = await call(apiKey, cvPrompt(), parts, {
-        maxOutputTokens: 8192,
-        perModelTimeoutMs: 50000,
+      const local = parseProtopCv(sourceText);
+      let parsed = null;
+      try {
+        parsed = await call(apiKey, cvPrompt(), parts, {
+          maxOutputTokens: 16384,
+          perModelTimeoutMs: 50000,
+        });
+      } catch (err) {
+        if (!local.headline && !local.projects?.length && !local.experience?.length) throw err;
+      }
+      const read = sanitizeCv({
+        ...mergeCvReads(local, parsed || {}),
+        summaryNote: parsed?.summaryNote,
       });
       return {
-        ...sanitizeCv(parsed),
-        engine: prose.length >= 40 ? 'gemini' : (usedOcr ? 'ocr+gemini' : 'gemini'),
+        ...read,
+        engine: usedOcr ? 'ocr+gemini' : 'gemini',
       };
     }
     if (mode === 'columns') {

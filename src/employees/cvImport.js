@@ -118,6 +118,15 @@ export function applyImportedCv(employee, cv) {
   } else if (incoming.language && incoming.language !== base.person.language) {
     kept.push('språk');
   }
+  for (const [key, label] of [['firstName', 'fornavn'], ['middleName', 'mellomnavn'], ['lastName', 'etternavn']]) {
+    if (!incoming[key] || base.person[key]) continue;
+    base.person[key] = incoming[key];
+    added.push(label);
+  }
+  if (incoming.birthDate && !base.person.birthDate) {
+    base.person.birthDate = incoming.birthDate;
+    added.push('fødselsdato');
+  }
   for (const [key, label] of [['nationality', 'nasjonalitet'], ['maritalStatus', 'sivil status']]) {
     if (!incoming[key]) continue;
     if (!base.person[key]) {

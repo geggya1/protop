@@ -38,6 +38,44 @@ export function normalizeCpvList(input) {
   return out;
 }
 
+export function normalizeDepartmentAreas(input) {
+  const rows = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const id = text(row?.id);
+    const name = text(row?.name || row?.navn).slice(0, 80);
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    const nationwide = row?.nationwide === true;
+    out.push({
+      id,
+      name,
+      nationwide,
+      areas: nationwide ? [] : normalizeAreas(row?.areas),
+    });
+  }
+  return out;
+}
+
+/** Kobler lagrede områder til avdelingene som finnes nå. */
+export function alignDepartmentAreas(saved, departments) {
+  const prev = normalizeDepartmentAreas(saved);
+  const out = [];
+  const seen = new Set();
+  for (const unit of Array.isArray(departments) ? departments : []) {
+    const id = text(unit?.id);
+    const name = text(unit?.name || unit?.navn).slice(0, 80);
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    const found = prev.find((row) => row.id === id);
+    out.push(found
+      ? { ...found, name }
+      : { id, name, nationwide: false, areas: [] });
+  }
+  return out;
+}
+
 export function normalizeAreas(input) {
   const rows = Array.isArray(input) ? input : [];
   const seen = new Set();
@@ -59,6 +97,7 @@ export function emptyAnbudState() {
       cpvCodes: [],
       keywords: [],
       areas: [],
+      departmentAreas: [],
       nationwide: false,
       savedAt: null,
       orgnr: '',
@@ -87,6 +126,7 @@ export function normalizeAnbudState(raw) {
       ...watch,
       cpvCodes: Array.isArray(watch.cpvCodes) ? watch.cpvCodes : [],
       areas: Array.isArray(watch.areas) ? watch.areas : [],
+      departmentAreas: normalizeDepartmentAreas(watch.departmentAreas),
       channels: normalizeChannels(watch.channels),
       notify: normalizeNotify(watch.notify),
       emails: normalizeEmails(watch.emails),
@@ -222,6 +262,9 @@ function pickWatch(left, right) {
     ...src,
     cpvCodes: Array.isArray(src.cpvCodes) && src.cpvCodes.length ? src.cpvCodes : (a.cpvCodes || b.cpvCodes || []),
     areas: Array.isArray(src.areas) ? src.areas : (a.areas || []),
+    departmentAreas: normalizeDepartmentAreas(
+      Array.isArray(src.departmentAreas) ? src.departmentAreas : (a.departmentAreas || b.departmentAreas),
+    ),
     channels: normalizeChannels(src.channels || a.channels || b.channels),
     notify: normalizeNotify(src.notify || a.notify),
     emails: normalizeEmails(src.emails || a.emails),
@@ -379,12 +422,16 @@ export function saveTenderWatch(state, input) {
   const nationwide = !!input?.nationwide;
   const areas = nationwide ? [] : normalizeAreas(input?.areas);
   if (!nationwide && !areas.length) return fail(state, 'Velg minst ett fylke, eller hele Norge.');
+  const departmentAreas = normalizeDepartmentAreas(
+    input?.departmentAreas ?? state.watch?.departmentAreas,
+  );
   return ok({
     ...state,
     watch: {
       companyName,
       cpvCodes,
       areas,
+      departmentAreas,
       nationwide,
       savedAt: new Date().toISOString(),
       orgnr: text(input?.orgnr).replace(/\D/g, '').slice(0, 9),
@@ -491,6 +538,47 @@ function fold(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Området søket faktisk bruker. Avdelinger med egne fylker avgrenser treffene. */
+export function searchCoverage(watch, departmentId = '') {
+  const rows = normalizeDepartmentAreas(watch?.departmentAreas);
+  const configured = rows.filter((row) => row.nationwide || row.areas.length);
+  const company = {
+    nationwide: !!watch?.nationwide,
+    areas: watch?.nationwide ? [] : normalizeAreas(watch?.areas),
+    departmentId: '',
+    label: '',
+  };
+  if (!configured.length && !departmentId) return company;
+  if (departmentId) {
+    const one = rows.find((row) => row.id === departmentId);
+    if (!one || (!one.nationwide && !one.areas.length)) {
+      return { nationwide: false, areas: [], departmentId, label: one?.name || '' };
+    }
+    return {
+      nationwide: !!one.nationwide,
+      areas: one.nationwide ? [] : one.areas,
+      departmentId: one.id,
+      label: one.name,
+    };
+  }
+  if (configured.some((row) => row.nationwide)) {
+    return { nationwide: true, areas: [], departmentId: '', label: 'Alle avdelinger' };
+  }
+  return {
+    nationwide: false,
+    areas: normalizeAreas(configured.flatMap((row) => row.areas)),
+    departmentId: '',
+    label: 'Alle avdelinger',
+  };
+}
+
+export function noticeInCoverage(notice, coverage) {
+  if (!coverage || coverage.nationwide) return true;
+  const areas = Array.isArray(coverage.areas) ? coverage.areas : [];
+  if (!areas.length) return false;
+  return areas.some((area) => noticeInArea(notice, area));
+}
+
 export function watchQuery(watch) {
   if (!watch?.companyName) return null;
   const keywords = normalizeKeywords([
@@ -498,17 +586,19 @@ export function watchQuery(watch) {
     ...(watch.profile?.keywords || []),
   ]);
   if (!watch.cpvCodes?.length && !keywords.length) return null;
-  if (!watch.nationwide && !watch.areas?.length) return null;
+  const coverage = searchCoverage(watch);
+  if (!coverage.nationwide && !coverage.areas.length) return null;
   return {
     cpvCodes: (watch.cpvCodes || []).map((row) => row.code),
-    locationIds: watch.nationwide ? [] : watch.areas.map((row) => row.id),
+    locationIds: coverage.nationwide ? [] : coverage.areas.map((row) => row.id),
     keywords,
   };
 }
 
 export function watchFingerprint(watch) {
   const cpv = (watch?.cpvCodes || []).map((row) => text(row?.code || row)).filter(Boolean).sort();
-  const areas = watch?.nationwide ? ['*'] : (watch?.areas || []).map((row) => text(row?.id || row)).filter(Boolean).sort();
+  const coverage = searchCoverage(watch);
+  const areas = coverage.nationwide ? ['*'] : coverage.areas.map((row) => text(row?.id || row)).filter(Boolean).sort();
   const channels = (Array.isArray(watch?.channels) ? watch.channels : []).map((row) => text(row)).filter(Boolean).sort();
   const keywords = normalizeKeywords([
     ...(watch?.keywords || []),

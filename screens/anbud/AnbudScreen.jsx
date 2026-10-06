@@ -59,6 +59,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
         <TenderAlert
           company={company}
           colors={colors}
+          units={units}
           onBids={setBids}
           onOpenSettings={() => go('innstillinger')}
           onOpenBid={(bidId) => { go('tilbud'); setFocusBidId(bidId); }}
@@ -81,7 +82,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onSnapshot={(next) => setBids(next?.bids || [])}
         />
       ) : null}
-      {step === 'innstillinger' ? <WatchSettings company={company} colors={colors} onOpenWork={() => go('tilbud')} /> : null}
+      {step === 'innstillinger' ? <WatchSettings company={company} colors={colors} units={units} onOpenWork={() => go('tilbud')} /> : null}
     </ScrollView>
   );
 }

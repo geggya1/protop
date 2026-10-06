@@ -240,7 +240,10 @@ export default function CustomersScreen() {
       setNote(`Importert: ${parts.join(', ')}.`);
       setView('list');
     } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese kundelisten.');
+      const message = String(cause?.message || '');
+      setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
+        ? 'Kunne ikke lese Excel-filen. Eksporter listen som CSV og importer den i stedet.'
+        : (message || 'Kunne ikke lese kundelisten.'));
     } finally {
       setImporting(false);
     }
@@ -279,7 +282,7 @@ export default function CustomersScreen() {
             </TouchableOpacity>
           </View>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            CSV, Excel eller XML. Kolonner som Navn, Org.nr, Adresse, Postnr, E-post.
+            CSV, Excel eller XML. Kolonner som Kundenavn, Org.nr, Hovedadresse, Postnummer og E-post.
           </Text>
           <TextInput
             value={query}

@@ -1,21 +1,36 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
+import { prepareImportBody, readableImportError } from './filePayload';
 
-function bytesToBase64(bytes) {
-  const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
-  let binary = '';
-  const chunk = 0x8000;
-  for (let index = 0; index < raw.length; index += chunk) {
-    binary += String.fromCharCode(...raw.subarray(index, index + chunk));
+async function shrinkImageInBrowser(bytes, { maxEdge = 1400, quality = 0.72 } = {}) {
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return null;
+  const blob = new Blob([bytes], { type: 'image/jpeg' });
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height, 1));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    if (typeof document.createElement !== 'function') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context || typeof canvas.toDataURL !== 'function') return null;
+    context.drawImage(bitmap, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    const encoded = String(dataUrl || '').split(',')[1] || '';
+    if (!encoded || typeof atob !== 'function') return null;
+    const binary = atob(encoded);
+    const out = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) out[index] = binary.charCodeAt(index);
+    return { bytes: out, width, height };
+  } finally {
+    bitmap.close?.();
   }
-  if (typeof btoa !== 'function') {
-    throw new Error('Kunne ikke sende filen til tolking.');
-  }
-  return btoa(binary);
 }
 
 export async function askImportInterpret(payload) {
-  const call = httpsCallable(functions, 'interpretImport', { timeout: 120000 });
+  const call = httpsCallable(functions, 'interpretImport', { timeout: 180000 });
   const body = {
     familyId: payload?.familyId || '',
     kind: payload?.kind || 'customers',
@@ -29,17 +44,18 @@ export async function askImportInterpret(payload) {
     body.headers = payload?.headers || [];
     body.samples = payload?.samples || [];
   } else {
-    body.mime = payload?.media?.mime || 'image/jpeg';
-    body.imageBase64 = bytesToBase64(payload?.bytes);
+    const prepared = await prepareImportBody({
+      bytes: payload?.bytes,
+      filename: payload?.filename,
+      mime: payload?.media?.mime,
+    }, { shrinkImage: shrinkImageInBrowser });
+    body.mime = prepared.mime;
+    body.imageBase64 = prepared.imageBase64;
   }
   try {
     const res = await call(body);
     return res?.data || {};
   } catch (err) {
-    const code = String(err?.code || '');
-    if (code.includes('not-found') || code.includes('unavailable')) {
-      throw new Error('AI-tolking er ikke tilgjengelig akkurat nå.');
-    }
-    throw err;
+    throw readableImportError(err);
   }
 }

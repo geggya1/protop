@@ -3,6 +3,7 @@
  * Brukes når pdfjs ikke finner tekstlag. Gemini får både OCR-tekst og sidene.
  */
 import { createRequire } from 'node:module';
+import { jpegWithinLimit } from './imageLimit.js';
 import os from 'node:os';
 import path from 'node:path';
 import { PNG } from 'pngjs';
@@ -32,6 +33,7 @@ function bitmapToPng(img) {
   const bytes = img?.data;
   if (!bytes) return null;
   if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    if (!jpegWithinLimit(bytes)) return null;
     return { buffer: Buffer.from(bytes), mime: 'image/jpeg' };
   }
   const width = img.width || 0;

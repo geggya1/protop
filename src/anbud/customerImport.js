@@ -21,15 +21,70 @@ function u32(bytes, offset) {
 }
 
 async function inflateRaw(data) {
+  if (!data?.length) return new Uint8Array();
   if (typeof DecompressionStream === 'undefined') {
-    throw new Error('Kan ikke lese komprimert Excel-fil i dette miljøet.');
+    throw new Error('Kan ikke lese komprimert Excel-fil i denne nettleseren.');
   }
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-  const buffer = await new Response(stream).arrayBuffer();
-  return new Uint8Array(buffer);
+  const copy = new Uint8Array(data);
+  try {
+    const stream = new Blob([copy]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const buffer = await new Response(stream).arrayBuffer();
+    return new Uint8Array(buffer);
+  } catch {
+    throw new Error('Kunne ikke pakke ut Excel-filen. Eksporter listen som CSV og importer den i stedet.');
+  }
+}
+
+function findEocd(bytes) {
+  const min = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let i = bytes.length - 22; i >= min; i -= 1) {
+    if (u32(bytes, i) !== 0x06054b50) continue;
+    const commentLen = u16(bytes, i + 20);
+    if (i + 22 + commentLen === bytes.length) return i;
+  }
+  return -1;
+}
+
+async function entryFromCentral(bytes, cursor) {
+  if (cursor + 46 > bytes.length || u32(bytes, cursor) !== 0x02014b50) return null;
+  const method = u16(bytes, cursor + 10);
+  const compressed = u32(bytes, cursor + 20);
+  const nameLen = u16(bytes, cursor + 28);
+  const extraLen = u16(bytes, cursor + 30);
+  const commentLen = u16(bytes, cursor + 32);
+  const localOffset = u32(bytes, cursor + 42);
+  if (compressed === 0xffffffff || localOffset === 0xffffffff) {
+    throw new Error('Excel-filen er for stor til å leses her. Eksporter listen som CSV.');
+  }
+  const name = latin1(bytes.subarray(cursor + 46, cursor + 46 + nameLen));
+  if (localOffset + 30 > bytes.length || u32(bytes, localOffset) !== 0x04034b50) return null;
+  const localNameLen = u16(bytes, localOffset + 26);
+  const localExtraLen = u16(bytes, localOffset + 28);
+  const start = localOffset + 30 + localNameLen + localExtraLen;
+  const data = bytes.subarray(start, start + compressed);
+  let raw = data;
+  if (method === 8) raw = await inflateRaw(data);
+  else if (method !== 0) throw new Error('Excel-filen bruker en pakking som ikke kan leses her.');
+  return {
+    file: { name, data: raw },
+    next: cursor + 46 + nameLen + extraLen + commentLen,
+  };
 }
 
 async function zipEntries(bytes) {
+  const eocd = findEocd(bytes);
+  if (eocd >= 0) {
+    const count = u16(bytes, eocd + 10);
+    let cursor = u32(bytes, eocd + 16);
+    const files = [];
+    for (let i = 0; i < count; i += 1) {
+      const entry = await entryFromCentral(bytes, cursor);
+      if (!entry) break;
+      files.push(entry.file);
+      cursor = entry.next;
+    }
+    if (files.length) return files;
+  }
   const files = [];
   let offset = 0;
   while (offset + 30 <= bytes.length && u32(bytes, offset) === 0x04034b50) {
@@ -44,7 +99,8 @@ async function zipEntries(bytes) {
     if (method === 8) raw = await inflateRaw(data);
     else if (method !== 0) throw new Error('Excel-filen bruker en pakking som ikke kan leses her.');
     files.push({ name, data: raw });
-    offset = start + Math.max(compressed, 1);
+    offset = start + compressed;
+    if (!compressed) break;
   }
   return files;
 }

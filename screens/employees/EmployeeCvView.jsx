@@ -1,28 +1,51 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-function Block({ title, colors, children }) {
+function Pencil({ label, onPress, colors }) {
+  if (!onPress) return null;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[styles.iconButton, { borderColor: colors.line }]}
+    >
+      <Text style={{ color: colors.ink }}>✎</Text>
+    </TouchableOpacity>
+  );
+}
+
+function Block({ title, colors, onEdit, children }) {
   return (
     <View style={styles.block}>
-      <Text style={[styles.blockTitle, { color: colors.brand }]}>{title}</Text>
+      <View style={styles.blockHead}>
+        <Text style={[styles.blockTitle, { color: colors.brand }]}>{title}</Text>
+        <Pencil label={`Rediger ${title}`} onPress={onEdit} colors={colors} />
+      </View>
       {children}
     </View>
   );
 }
 
-export default function EmployeeCvView({ cv, colors }) {
+export default function EmployeeCvView({ cv, colors, onEdit, onEditProject, onProjectFile }) {
   if (!cv) return null;
   return (
     <View nativeID="employee-cv" id="employee-cv" style={[styles.page, { backgroundColor: colors.card, borderColor: colors.line }]}>
       <Text style={[styles.kicker, { color: colors.muted }]}>CURRICULUM VITAE</Text>
       <View style={styles.head}>
         <View style={styles.grow}>
-          <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{cv.name}</Text>
+          <View style={styles.blockHead}>
+            <Text accessibilityRole="header" style={[styles.name, { color: colors.ink, flex: 1 }]}>{cv.name}</Text>
+            <Pencil label="Rediger CV-profil" onPress={onEdit ? () => onEdit('cvProfile') : undefined} colors={colors} />
+          </View>
           {!!cv.title && <Text style={[styles.title, { color: colors.ink }]}>{cv.title}</Text>}
         </View>
-        {cv.photoUrl ? <Image source={{ uri: cv.photoUrl }} style={styles.photo} /> : null}
+        <View style={styles.photoWrap}>
+          {cv.photoUrl ? <Image source={{ uri: cv.photoUrl }} style={styles.photo} accessibilityLabel="Profilbilde" /> : null}
+          <Pencil label="Rediger profilbilde" onPress={onEdit ? () => onEdit('personal') : undefined} colors={colors} />
+        </View>
       </View>
-      <Block title="Profil" colors={colors}>
+      <Block title="Profil" colors={colors} onEdit={onEdit ? () => onEdit('personal') : undefined}>
         {cv.facts.map(([label, value]) => (
           <View key={label} style={styles.fact}>
             <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
@@ -30,29 +53,29 @@ export default function EmployeeCvView({ cv, colors }) {
           </View>
         ))}
       </Block>
-      <Block title="Oppsummering og nøkkelkvalifikasjoner" colors={colors}>
+      <Block title="Oppsummering og nøkkelkvalifikasjoner" colors={colors} onEdit={onEdit ? () => onEdit('cvProfile') : undefined}>
         <Text style={[styles.body, { color: colors.ink }]}>{cv.summary || 'Oppsummering er ikke fylt ut.'}</Text>
       </Block>
-      <Block title="Utdanning" colors={colors}>
+      <Block title="Utdanning" colors={colors} onEdit={onEdit ? () => onEdit('education') : undefined}>
         {cv.education.length ? cv.education.map((row) => (
           <Text key={row.id} style={[styles.body, { color: colors.ink }]}>
             {[row.when, [row.school, row.program].filter(Boolean).join(' – ')].filter(Boolean).join('  ')}
           </Text>
         )) : <Text style={{ color: colors.muted }}>Ingen utdanning er lagt inn.</Text>}
       </Block>
-      <Block title="Sertifiseringer" colors={colors}>
+      <Block title="Sertifiseringer" colors={colors} onEdit={onEdit ? () => onEdit('certifications') : undefined}>
         {cv.certifications.length ? cv.certifications.map((title) => (
           <Text key={title} style={[styles.body, { color: colors.ink }]}>{`• ${title}`}</Text>
         )) : <Text style={{ color: colors.muted }}>Ingen sertifiseringer er lagt inn.</Text>}
       </Block>
-      <Block title="Kurs" colors={colors}>
+      <Block title="Kurs" colors={colors} onEdit={onEdit ? () => onEdit('courses') : undefined}>
         {cv.courses.length ? cv.courses.map((row) => (
           <Text key={row.id} style={[styles.body, { color: colors.ink }]}>
             {[row.when, row.title].filter(Boolean).join('  ')}
           </Text>
         )) : <Text style={{ color: colors.muted }}>Ingen kurs er lagt inn.</Text>}
       </Block>
-      <Block title="Erfaringer" colors={colors}>
+      <Block title="Erfaringer" colors={colors} onEdit={onEdit ? () => onEdit('experience') : undefined}>
         {cv.experience.length ? cv.experience.map((row) => (
           <View key={row.id} style={styles.job}>
             <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.employer || 'Arbeidsgiver'}</Text>
@@ -63,10 +86,39 @@ export default function EmployeeCvView({ cv, colors }) {
           </View>
         )) : <Text style={{ color: colors.muted }}>Ingen erfaring er lagt inn.</Text>}
       </Block>
-      <Block title="Referanseprosjekter" colors={colors}>
+      <Block title="Referanseprosjekter" colors={colors} onEdit={onEdit ? () => onEdit('projects') : undefined}>
         {cv.projects.length ? cv.projects.map((row) => (
           <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
-            <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.title || 'Prosjekt'}</Text>
+            <View style={styles.projectHead}>
+              <Text style={[styles.jobTitle, { color: colors.ink, flex: 1 }]}>{row.title || 'Prosjekt'}</Text>
+              <View style={styles.projectActions}>
+                <Pencil
+                  label={`Rediger ${row.title || 'prosjekt'}`}
+                  onPress={onEditProject ? () => onEditProject(row) : undefined}
+                  colors={colors}
+                />
+                {onProjectFile ? (
+                  <TouchableOpacity
+                    onPress={() => onProjectFile(row, 'pdf')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Referanseark som PDF for ${row.title || 'prosjektet'}`}
+                    style={[styles.fileButton, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>PDF</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {onProjectFile ? (
+                  <TouchableOpacity
+                    onPress={() => onProjectFile(row, 'docx')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Referanseark som Word for ${row.title || 'prosjektet'}`}
+                    style={[styles.fileButton, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>Word</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
             {(row.images || []).length ? (
               <View style={styles.projectImages}>
                 {row.images.map((url, imageIndex) => (
@@ -117,9 +169,13 @@ const styles = StyleSheet.create({
   grow: { flex: 1, gap: 4 },
   name: { fontSize: 28, fontWeight: '700' },
   title: { fontSize: 16 },
+  photoWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   photo: { width: 96, height: 112, borderRadius: 8 },
   block: { gap: 6 },
-  blockTitle: { fontSize: 16, fontWeight: '700' },
+  blockHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  blockTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
+  iconButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  fileButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   fact: { flexDirection: 'row', gap: 12 },
   factLabel: { width: 110, fontSize: 14 },
   factValue: { flex: 1, fontSize: 14 },
@@ -127,6 +183,8 @@ const styles = StyleSheet.create({
   job: { gap: 2, marginBottom: 8 },
   jobTitle: { fontSize: 16, fontWeight: '600' },
   project: { borderTopWidth: 1, paddingTop: 8, gap: 2 },
+  projectHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  projectActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' },
   projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   projectImage: { width: 160, height: 110, borderRadius: 8 },
 });

@@ -86,12 +86,16 @@ export function cvDocumentFits(employee, limit = 800000) {
   }
 }
 
-/** Tar bort bilder som fortsatt ligger som data-URL, så teksten kan lagres. */
-export function withoutInlineImages(employee) {
+/**
+ * Tar bort bilder som fortsatt ligger som data-URL, så teksten kan lagres.
+ * Profilbildet beholdes når keepPhoto er satt, og prosjektbildene ryddes først.
+ */
+export function withoutInlineImages(employee, options = {}) {
+  const keepPhoto = options.keepPhoto === true;
   const row = employee && typeof employee === 'object' ? employee : {};
   let dropped = 0;
   let photoUrl = row.person?.photoUrl || '';
-  if (isInline(photoUrl)) {
+  if (isInline(photoUrl) && !keepPhoto) {
     photoUrl = '';
     dropped += 1;
   }
@@ -105,11 +109,27 @@ export function withoutInlineImages(employee) {
   });
   return {
     dropped,
+    keptPhoto: keepPhoto && isInline(photoUrl),
     employee: {
       ...row,
       person: { ...(row.person || {}), photoUrl },
       cv: { ...(row.cv || {}), projects },
     },
+  };
+}
+
+/** Slipper prosjektbilder først, slik at portrettet på profilen blir igjen. */
+export function slimCvDocument(employee, limit = 800000) {
+  if (cvDocumentFits(employee, limit)) return { employee, dropped: 0, keptPhoto: false };
+  const kept = withoutInlineImages(employee, { keepPhoto: true });
+  if (cvDocumentFits(kept.employee, limit)) {
+    return { employee: kept.employee, dropped: kept.dropped, keptPhoto: !!kept.keptPhoto };
+  }
+  const bare = withoutInlineImages(kept.employee);
+  return {
+    employee: bare.employee,
+    dropped: kept.dropped + bare.dropped,
+    keptPhoto: false,
   };
 }
 

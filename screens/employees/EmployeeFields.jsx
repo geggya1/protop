@@ -80,12 +80,19 @@ const REVIEW_PLURAL = {
   projects: ['prosjekt', 'prosjekter'],
 };
 
+function clipText(value, limit = 120) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 1).trimEnd()}…`;
+}
+
 function itemLine(section, item) {
-  if (section.id === 'education') return [item.from, item.to, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
-  if (section.id === 'experience') return [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
-  if (section.id === 'courses') return [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
-  if (section.id === 'projects') return [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
-  return item.title || section.itemLabel || 'Oppføring';
+  let line = item.title || section.itemLabel || 'Oppføring';
+  if (section.id === 'education') line = [item.from, item.to, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
+  else if (section.id === 'experience') line = [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
+  else if (section.id === 'courses') line = [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
+  else if (section.id === 'projects') line = [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
+  return clipText(line, 90);
 }
 
 function sectionLine(section, draft) {
@@ -99,9 +106,9 @@ function sectionLine(section, draft) {
     const value = readPath(draft, field.key);
     if (field.type === 'photo') return value ? 'Bilde er lagt inn' : '';
     if (field.type === 'bool') return value ? field.label : '';
-    return String(value || '').replace(/\s+/g, ' ').trim();
+    return clipText(value, 80);
   }).filter(Boolean);
-  return bits.slice(0, 3).join(' · ') || 'Ikke fylt ut';
+  return clipText(bits.slice(0, 3).join(' · ') || 'Ikke fylt ut');
 }
 
 export default function EmployeeFields({
@@ -119,10 +126,18 @@ export default function EmployeeFields({
   sections: sectionsProp,
   showCustom = true,
   review = false,
+  startOpen = '',
+  focusItemId = '',
+  openToken = 0,
+  hideItems = false,
+  onClose,
 }) {
   const [extraDepartment, setExtraDepartment] = useState('');
   const [custom, setCustom] = useState({ label: '', value: '', owner: 'person', purpose: 'cv' });
-  const [openId, setOpenId] = useState('');
+  const [openId, setOpenId] = useState(startOpen);
+  useEffect(() => {
+    if (startOpen) setOpenId(startOpen);
+  }, [startOpen, openToken]);
   if (!draft) return null;
   const sections = sectionsProp || sectionsFor(scope);
 
@@ -161,7 +176,10 @@ export default function EmployeeFields({
               <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
               {review ? (
                 <TouchableOpacity
-                  onPress={() => setOpenId(open ? '' : section.id)}
+                  onPress={() => {
+                    if (open && onClose) onClose();
+                    else setOpenId(open ? '' : section.id);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={`Rediger ${section.title}`}
                   style={[styles.secondary, { borderColor: colors.line }]}
@@ -188,6 +206,8 @@ export default function EmployeeFields({
                 colors={colors}
                 editable={editable}
                 compact={review}
+                focusItemId={focusItemId}
+                hideItems={hideItems}
                 onChange={(items) => updateItems(section.collection, items)}
                 onItemPhoto={section.id === 'projects' ? onProjectImage : undefined}
               />
@@ -563,7 +583,7 @@ function TagsField({ label, value, editable, colors, onChange }) {
   );
 }
 
-function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, compact = false }) {
+function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, compact = false, focusItemId = '', hideItems = false }) {
   const list = Array.isArray(items) ? items : [];
   const [openIndex, setOpenIndex] = useState(-1);
   function patch(index, key, value) {
@@ -571,13 +591,20 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
   }
   return (
     <View style={styles.stackTight}>
-      {list.map((item, index) => {
-        const showFields = !compact || openIndex === index;
+      {hideItems ? (
+        <Text style={{ color: colors.muted }}>
+          Blyanten på prosjektet i CV-en åpner det. PDF og Word lager referansearket.
+        </Text>
+      ) : null}
+      {hideItems ? null : list.map((item, index) => {
+        const focused = !!focusItemId && item.id === focusItemId;
+        if (focusItemId && !focused) return null;
+        const showFields = focused || !compact || openIndex === index;
         return (
         <View key={item.id || index} style={[styles.repeat, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <View style={styles.cardHead}>
             <Text style={[styles.label, { color: colors.ink, flex: 1 }]}>{compact ? itemLine(section, item) : `${section.itemLabel} ${index + 1}`}</Text>
-            {compact ? (
+            {compact && !focused ? (
               <TouchableOpacity
                 onPress={() => setOpenIndex(showFields ? -1 : index)}
                 accessibilityRole="button"

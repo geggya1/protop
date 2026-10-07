@@ -8,10 +8,10 @@ import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
 import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
-import { projectSheetFile, projectSheetLines } from '../../src/employees/projectSheet';
+import { projectSheetFile } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { cvAttention } from '../../src/employees/cvReview';
-import { cvDocumentFits, storeCvImages, withoutInlineImages } from '../../src/employees/cvPictures';
+import { slimCvDocument, storeCvImages } from '../../src/employees/cvPictures';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
@@ -87,7 +87,13 @@ function showDetailValue(employee, field, reveal) {
   if (field.type === 'date') return formatNbDate(raw);
   if (field.type === 'choice') return choiceLabel(field.options, raw);
   if (field.type === 'percent') return raw ? `${raw} %` : '';
-  return String(raw || '').trim();
+  return clipDetail(raw);
+}
+
+function clipDetail(value, limit = 220) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 1).trimEnd()}…`;
 }
 
 export default function EmployeesScreen() {
@@ -122,7 +128,9 @@ export default function EmployeesScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState('');
-  const [sheetId, setSheetId] = useState('');
+  const [editSection, setEditSection] = useState('');
+  const [editItemId, setEditItemId] = useState('');
+  const [editToken, setEditToken] = useState(0);
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
@@ -194,10 +202,28 @@ export default function EmployeesScreen() {
     setConfirmDelete(false);
   }
 
+  function clearSectionEdit() {
+    setEditSection('');
+    setEditItemId('');
+  }
+
+  function beginSectionEdit(sectionId, itemId = '') {
+    setEditSection(sectionId);
+    setEditItemId(itemId);
+    setEditToken((current) => current + 1);
+    if (Platform.OS === 'web') {
+      const targetId = view === 'cv' ? 'employee-cv-section' : 'employee-fields';
+      setTimeout(() => {
+        globalThis.document?.getElementById(targetId)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      }, 40);
+    }
+  }
+
   function openList() {
     setView('list');
     setDraft(null);
     setAddressHits([]);
+    clearSectionEdit();
     resetMessage();
   }
 
@@ -283,6 +309,7 @@ export default function EmployeesScreen() {
 
   function openNew() {
     resetMessage();
+    clearSectionEdit();
     setSelectedId('');
     setDraft(presentEmployee({
       ...emptyEmployee(newId('emp')),
@@ -293,12 +320,14 @@ export default function EmployeesScreen() {
 
   function openDetail(row) {
     resetMessage();
+    clearSectionEdit();
     setSelectedId(row.id);
     setView('detail');
   }
 
   function openEdit(row) {
     resetMessage();
+    clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
     setView('edit');
@@ -306,6 +335,7 @@ export default function EmployeesScreen() {
 
   function openCv(row) {
     resetMessage();
+    clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
     setView('cv');
@@ -395,6 +425,7 @@ export default function EmployeesScreen() {
 
   function openMine() {
     resetMessage();
+    clearSectionEdit();
     const base = profile || { person: {}, cv: {}, customFields: [] };
     const seed = !hasPersonContent(base) && linked ? absorbCompanyIntoProfile(base, linked) : base;
     setDraft(presentEmployee({
@@ -509,11 +540,13 @@ export default function EmployeesScreen() {
       const uploaded = await storeCvImages(result.employee, (path, dataUrl) => (
         uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl)
       ));
-      const slim = cvDocumentFits(uploaded) ? { employee: uploaded, dropped: 0 } : withoutInlineImages(uploaded);
+      const slim = slimCvDocument(uploaded);
       const employee = slim.employee;
-      const imageNote = slim.dropped
-        ? ` ${slim.dropped} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`
-        : '';
+      const imageNote = !slim.dropped
+        ? ''
+        : slim.keptPhoto
+          ? ` Profilbildet er beholdt. ${slim.dropped} prosjektbilder ble ikke med og kan legges inn med blyanten.`
+          : ` ${slim.dropped} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`;
       if (scope === 'profile') {
         const nextProfile = rememberLink({
           ...(profile || {}),
@@ -863,15 +896,22 @@ export default function EmployeesScreen() {
           {FORM_SECTIONS.filter((section) => section.repeatable).map((section) => {
             const items = readPath(selected, section.collection) || [];
             if (!items.length) return null;
+            const shown = items.slice(0, 3);
+            const more = items.length - shown.length;
             return (
               <View key={section.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 <View style={styles.cardHead}>
                   <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
-                  <Text style={{ color: colors.brand, fontSize: 12 }}>{OWNER_LABEL[section.owner]}</Text>
+                  <Text style={{ color: colors.brand, fontSize: 12 }}>{`${items.length}`}</Text>
                 </View>
-                {items.map((item) => (
+                {shown.map((item) => (
                   <Text key={item.id} style={{ color: colors.ink }}>{repeatSummary(section.id, item)}</Text>
                 ))}
+                {more > 0 ? (
+                  <TouchableOpacity onPress={() => openCv(selected)} accessibilityRole="button">
+                    <Text style={{ color: colors.brand }}>{`og ${more} til i CV-en`}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             );
           })}
@@ -920,13 +960,15 @@ export default function EmployeesScreen() {
       ) : null}
 
       {(view === 'edit' || view === 'mine') && draft ? (
-        <View style={styles.stack}>
+        <View nativeID="employee-fields" style={styles.stack}>
           {view === 'mine' ? (
             <Text style={{ color: colors.muted }}>
               Dette følger deg. Bedriften ser det på ansettelsen når du er knyttet, og du kan ta det med til neste selskap.
               {linked ? '' : ' Ingen ansettelse er knyttet til deg i dette selskapet ennå.'}
             </Text>
-          ) : null}
+          ) : (
+            <Text style={{ color: colors.muted }}>Åpne ett avsnitt om gangen. Bildet vises på profilen og øverst i CV-en.</Text>
+          )}
           {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (
             <TouchableOpacity
               nativeID="employee-project-import"
@@ -950,6 +992,10 @@ export default function EmployeesScreen() {
             onChange={changeDraft}
             onPhoto={choosePhoto}
             onProjectImage={addProjectImages}
+            review
+            startOpen={editSection}
+            focusItemId={editItemId}
+            openToken={editToken}
           />
           <TouchableOpacity
             nativeID="employee-save"
@@ -966,7 +1012,39 @@ export default function EmployeesScreen() {
       {view === 'cv' && cv ? (
         <View nativeID="employee-cv-editor" style={styles.stack}>
           <CvAttention draft={cvEmployee} colors={colors} />
-          <EmployeeCvView cv={cv} colors={colors} />
+          {canEditCv && editSection ? (
+            <View nativeID="employee-cv-section">
+              <EmployeeFields
+                key={`${editSection}:${editItemId}:${editToken}`}
+                draft={draft}
+                scope="employee"
+                sections={cvEditorSections('employee').filter((section) => section.id === editSection)}
+                showCustom={false}
+                review
+                startOpen={editSection}
+                focusItemId={editItemId}
+                openToken={editToken}
+                hideItems={editSection === 'projects' && !editItemId}
+                onClose={clearSectionEdit}
+                colors={colors}
+                canEditOwner={canEditOwner}
+                departments={departments}
+                members={people}
+                addressHits={addressHits}
+                onPickAddress={pickAddress}
+                onChange={changeDraft}
+                onPhoto={choosePhoto}
+                onProjectImage={addProjectImages}
+              />
+            </View>
+          ) : null}
+          <EmployeeCvView
+            cv={cv}
+            colors={colors}
+            onEdit={canEditCv ? (sectionId) => beginSectionEdit(sectionId) : undefined}
+            onEditProject={canEditCv ? (project) => beginSectionEdit('projects', project.id) : undefined}
+            onProjectFile={downloadSheet}
+          />
           <View style={styles.row}>
             {canEditCv ? (
               <TouchableOpacity
@@ -1010,52 +1088,19 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
-          {canEditCv ? (
-            <Text style={{ color: colors.muted }}>
-              Se over CV-en over før du lagrer. Blyanten åpner ett avsnitt. PDF og bilde leses med OCR og AI, og bildene i filen tas med. Ingenting lagres før du trykker Lagre CV.
-            </Text>
-          ) : null}
-          {canEditCv ? (
-            <EmployeeFields
-              draft={draft}
-              scope="employee"
-              sections={cvEditorSections('employee')}
-              showCustom={false}
-              review
-              colors={colors}
-              canEditOwner={canEditOwner}
-              departments={departments}
-              members={people}
-              addressHits={addressHits}
-              onPickAddress={pickAddress}
-              onChange={changeDraft}
-              onPhoto={choosePhoto}
-              onProjectImage={addProjectImages}
-            />
-          ) : null}
-          <ReferenceSheets
-            projects={draft?.cv?.projects}
-            draft={draft}
-            sheetId={sheetId}
-            onToggle={setSheetId}
-            onDownload={downloadSheet}
-            colors={colors}
-          />
         </View>
       ) : null}
 
       {view === 'mine' && mineCv ? (
         <View style={styles.stack}>
-          <ReferenceSheets
-            projects={draft?.cv?.projects}
-            draft={draft}
-            sheetId={sheetId}
-            onToggle={setSheetId}
-            onDownload={downloadSheet}
-            colors={colors}
-          />
           <Text style={[styles.sectionTitle, { color: colors.ink }]}>Slik blir CV-en</Text>
-          <EmployeeCvView cv={mineCv} colors={colors} />
+          <EmployeeCvView
+            cv={mineCv}
+            colors={colors}
+            onEdit={(sectionId) => beginSectionEdit(sectionId)}
+            onEditProject={(project) => beginSectionEdit('projects', project.id)}
+            onProjectFile={downloadSheet}
+          />
         </View>
       ) : null}
     </ScrollView>
@@ -1063,51 +1108,18 @@ export default function EmployeesScreen() {
 }
 
 function repeatSummary(sectionId, item) {
+  let line = item.title || 'Oppføring';
   if (sectionId === 'education') {
     const when = [item.from, item.to].filter(Boolean).join('–');
-    return [when, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
+    line = [when, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
+  } else if (sectionId === 'experience') {
+    line = [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
+  } else if (sectionId === 'courses') {
+    line = [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
+  } else if (sectionId === 'projects') {
+    line = [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
   }
-  if (sectionId === 'experience') {
-    return [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
-  }
-  if (sectionId === 'courses') return [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
-  if (sectionId === 'projects') return [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
-  return item.title || 'Oppføring';
-}
-
-function ReferenceSheets({ projects, draft, sheetId, onToggle, onDownload, colors }) {
-  if (!projects?.length) return null;
-  return (
-    <View style={styles.stack}>
-      <Text style={[styles.sectionTitle, { color: colors.ink }]}>Referanseark</Text>
-      <Text style={{ color: colors.muted }}>
-        CV-en under viser et utvalg. Referansearket har alle feltene og kan lastes ned som PDF eller Word, som kan åpnes og redigeres. Tomme felt tas ikke med i utskriften.
-      </Text>
-      {projects.map((project) => {
-        const currentName = displayName(draft);
-        const personName = currentName === 'Uten navn' ? (project.referenceName || '') : currentName;
-        return (
-          <View key={project.id} style={styles.stackTight}>
-            <Text style={{ color: colors.ink }}>{project.title || 'Prosjekt'}</Text>
-            <View style={styles.row}>
-              <TouchableOpacity onPress={() => onToggle(sheetId === project.id ? '' : project.id)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>{sheetId === project.id ? 'Skjul' : 'Vis'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => onDownload(project, 'pdf')} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => onDownload(project, 'docx')} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Word</Text>
-              </TouchableOpacity>
-            </View>
-            {sheetId === project.id ? projectSheetLines(project, personName).map((line, index) => (
-              <Text key={`${project.id}-${index}`} style={{ color: line ? colors.ink : colors.muted }}>{line || ' '}</Text>
-            )) : null}
-          </View>
-        );
-      })}
-    </View>
-  );
+  return clipDetail(line, 90);
 }
 
 function CvAttention({ draft, colors }) {

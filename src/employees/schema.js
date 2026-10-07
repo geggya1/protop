@@ -259,7 +259,7 @@ export const FORM_SECTIONS = [
     repeatable: true,
     collection: 'cv.projects',
     itemLabel: 'Prosjekt',
-    blurb: 'Referanseprosjekter knyttet til personen. De kan senere flyttes til bedriftens prosjektregister. CV-en viser et utvalg. Alle feltene kan skrives ut som helside i PDF og Word. Tomme felt blir stående tomme.',
+    blurb: 'Referanseprosjekter knyttet til personen. På CV-en åpner blyanten prosjektet, og PDF og Word lager referansearket.',
     fields: [
       { key: 'title', label: 'Prosjekt', type: 'text' },
       { key: 'images', label: 'Bilder', type: 'photos' },

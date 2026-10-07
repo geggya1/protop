@@ -107,4 +107,22 @@ describe('callGeminiJson race / lite-first', () => {
     assert.match(friendlyGeminiError(hidden), /klarte ikke lese sidene/);
     assert.match(friendlyGeminiError(new Error('Gemini HTTP 404 (gemini-3.5-flash)')), /midlertidig utilgjengelig/);
   });
+
+  it('sender bilder med JSON-navnene inlineData og mimeType', async () => {
+    let body = null;
+    mock.method(globalThis, 'fetch', async (_url, opts) => {
+      body = JSON.parse(opts.body);
+      return geminiOk({ ok: true });
+    });
+    await callGeminiJson('fake-key', 'sys', [{
+      inline_data: { mime_type: 'image/jpeg', data: 'abc' },
+    }], {
+      models: ['gemini-2.5-flash'],
+      maxModels: 1,
+    });
+    const part = body.contents[0].parts[0];
+    assert.equal(part.inlineData.mimeType, 'image/jpeg');
+    assert.equal(part.inlineData.data, 'abc');
+    assert.equal(part.inline_data, undefined);
+  });
 });

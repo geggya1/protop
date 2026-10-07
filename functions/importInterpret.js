@@ -21,11 +21,17 @@ function imageParts(parts) {
   return (parts || []).filter((part) => part?.inline_data || part?.inlineData);
 }
 
-function withFewerPages(parts) {
-  const images = imageParts(parts);
-  if (images.length <= 2) return null;
-  const text = (parts || []).filter((part) => !part?.inline_data && !part?.inlineData);
-  return [...text, ...images.slice(0, 2)];
+function textParts(parts) {
+  return (parts || []).filter((part) => !part?.inline_data && !part?.inlineData);
+}
+
+function rememberRead(current, parsed) {
+  if (!parsed) return current;
+  if (!current) return parsed;
+  return {
+    ...mergeCvReads(current, parsed),
+    summaryNote: parsed.summaryNote || current.summaryNote || '',
+  };
 }
 
 async function readCvModel(call, apiKey, parts) {
@@ -34,13 +40,40 @@ async function readCvModel(call, apiKey, parts) {
     perModelTimeoutMs: 45000,
     models: CV_MODELS,
   };
-  try {
-    return await call(apiKey, cvPrompt(), parts, options);
-  } catch (err) {
-    const shorter = withFewerPages(parts);
-    if (!shorter) throw err;
-    return await call(apiKey, cvPrompt(), shorter, options);
+  const images = imageParts(parts);
+  const prompt = cvPrompt();
+  const text = textParts(parts);
+  const readBatch = async (slice) => {
+    try {
+      return await call(apiKey, prompt, [...text, ...slice], options);
+    } catch (err) {
+      if (slice.length < 2) throw err;
+      let merged = null;
+      let lastErr = err;
+      for (const image of slice) {
+        try {
+          merged = rememberRead(merged, await call(apiKey, prompt, [...text, image], options));
+        } catch (singleErr) {
+          lastErr = singleErr;
+        }
+      }
+      if (merged) return merged;
+      throw lastErr;
+    }
+  };
+  if (!images.length) return call(apiKey, prompt, parts, options);
+
+  let merged = null;
+  let lastErr = null;
+  for (let index = 0; index < images.length; index += 2) {
+    try {
+      merged = rememberRead(merged, await readBatch(images.slice(index, index + 2)));
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  if (merged) return merged;
+  throw lastErr || new Error('Gemini feilet');
 }
 
 function clean(value, max) {

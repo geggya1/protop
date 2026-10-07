@@ -203,6 +203,37 @@ assert.equal(cvCalls, 2);
 assert.equal(manyPages.cv.firstName, 'Geir');
 assert.equal(manyPages.cv.lastName, 'Andersen');
 
+let pageCalls = [];
+const oneByOne = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  mime: 'application/pdf',
+  imageBase64: 'a'.repeat(120),
+}, { uid: 'user' }, {
+  ...deps,
+  documentParts: async () => ({
+    usedOcr: true,
+    text: '',
+    parts: [
+      { text: 'Les CV-en.' },
+      { inline_data: { mime_type: 'image/jpeg', data: 'a' } },
+      { inline_data: { mime_type: 'image/jpeg', data: 'b' } },
+    ],
+  }),
+  callGeminiJson: async (_key, _prompt, parts) => {
+    const images = parts.filter((part) => part.inline_data).map((part) => part.inline_data.data);
+    pageCalls.push(images.join('+'));
+    if (images.length > 1) throw new Error('Gemini HTTP 400 (gemini-2.5-flash): invalid image');
+    if (images[0] === 'a') return { firstName: 'Titi', headline: 'Rådgiver' };
+    return { lastName: 'Georgescu', projects: [{ title: 'Bro' }] };
+  },
+});
+assert.deepEqual(pageCalls, ['a+b', 'a', 'b']);
+assert.equal(oneByOne.cv.firstName, 'Titi');
+assert.equal(oneByOne.cv.lastName, 'Georgescu');
+assert.equal(oneByOne.cv.projects[0].title, 'Bro');
+
 const source = readFileSync(new URL('./importInterpret.js', import.meta.url), 'utf8');
 assert.match(source, /imageBase64.length <= 1_500_000/);
 

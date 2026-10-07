@@ -26,6 +26,8 @@ import {
   formatNoticeText,
   noticeIsCurrent,
   noticeIsRejected,
+  noticeListFilter,
+  noticeMatchesListFilter,
   noticeNeedsReview,
   officialNoticeUrl,
   sourceLabel,
@@ -174,6 +176,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [sort, setSort] = useState({ key: 'publishedAt', dir: 'desc' });
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
+  const [mapFocusId, setMapFocusId] = useState('');
   const [pullingId, setPullingId] = useState('');
   const [ranking, setRanking] = useState(false);
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
@@ -392,15 +395,34 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     setState(next);
   }
 
-  function revealMarked(id, decision) {
-    if (decision === 'aktuell' || decision === 'tilbud') setFilter('aktuelle');
-    else if (decision === 'forkastet' || decision === 'arkiv' || decision === 'ikke') setFilter('uaktuelle');
-    setOpenId(id);
+  function scrollNoticeIntoView(id) {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const selector = `[data-notice-id="${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
     requestAnimationFrame(() => {
       document.querySelector(selector)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
+  }
+
+  function revealMarked(id, decision) {
+    if (decision === 'aktuell' || decision === 'tilbud') setFilter('aktuelle');
+    else if (decision === 'forkastet' || decision === 'arkiv' || decision === 'ikke') setFilter('uaktuelle');
+    setOpenId(id);
+    setMapFocusId(id);
+    scrollNoticeIntoView(id);
+  }
+
+  function highlightFromMap(id) {
+    const row = (stateRef.current.notices || []).find((item) => item.id === id);
+    if (!row) return;
+    setMapFocusId(id);
+    if (sourceFilter !== 'alle' && row.source !== sourceFilter) setSourceFilter('alle');
+    const area = TENDER_AREAS.find((item) => item.id === areaId) || null;
+    if (area && !noticeInArea(row, area)) setAreaId('');
+    if (!noticeMatchesListFilter(row, filter)) {
+      const next = noticeListFilter(row);
+      if (next) setFilter(next);
+    }
+    scrollNoticeIntoView(id);
   }
 
   function mark(id, decision, options = {}) {
@@ -672,6 +694,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     if (!row) return;
     setFilter(row.decision === 'aktuell' ? 'aktuelle' : 'nye');
     setOpenId(id);
+    setMapFocusId(id);
+    scrollNoticeIntoView(id);
   }
 
   const listEmpty = filter === 'utlopt'
@@ -829,6 +853,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colors={colors}
             missing={missingPlaces}
             onSelect={focusNotice}
+            onPreview={highlightFromMap}
             onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
             busyId={pullingId}
           />
@@ -843,6 +868,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             colFilter={colFilter}
             onColFilter={setColFilter}
             openId={openId}
+            focusId={mapFocusId}
             onToggle={(id) => setOpenId(openId === id ? '' : id)}
             onMark={mark}
             renderDecision={(row) => (
@@ -902,20 +928,21 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             const deadline = deadlineInfo(row.deadline);
             const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
             const open = openId === row.id;
+            const onMap = mapFocusId === row.id;
             const aktuell = row.decision === 'aktuell';
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
             const fit = scoreNoticeFit(row, matchWatch);
             return (
               <View key={row.id} dataSet={{ noticeId: row.id }} style={{
-                borderColor: colors.line,
+                borderColor: onMap ? colors.brand : colors.line,
                 borderBottomWidth: 1,
-                borderLeftWidth: fit.strong ? 4 : 0,
-                borderLeftColor: fit.strong ? colors.brand : 'transparent',
-                backgroundColor: aktuell || fit.strong ? colors.brandSoft : 'transparent',
+                borderLeftWidth: onMap || fit.strong ? 4 : 0,
+                borderLeftColor: onMap || fit.strong ? colors.brand : 'transparent',
+                backgroundColor: onMap || aktuell || fit.strong ? colors.brandSoft : 'transparent',
               }}
               >
                 <View style={styles.line}>
-                  <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.line}>
+                  <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" accessibilityState={{ selected: onMap }} style={styles.line}>
                     <Text style={[styles.td, { width: 120, color: colors.ink }]}>{day(row.publishedAt)}</Text>
                     <Text style={[styles.td, { width: 90, color: colors.ink }]}>{row.source === 'ted' ? 'TED' : 'Doffin'}</Text>
                     <View style={[styles.td, { width: 110 }]}>
@@ -927,6 +954,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                       ) : null}
                     </View>
                     <View style={[styles.td, { width: 420 }]}>
+                      {onMap ? (
+                        <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Valgt på kartet</Text>
+                      ) : null}
                       {fit.strong ? (
                         <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Godt treff</Text>
                       ) : null}
@@ -1016,6 +1046,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               missing={missingPlaces}
               mapHeight={mapHeightForSide(sideWidth)}
               onSelect={focusNotice}
+              onPreview={highlightFromMap}
               onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
               busyId={pullingId}
             />

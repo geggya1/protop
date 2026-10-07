@@ -243,12 +243,13 @@ function extractJsonText(data) {
 function normalizeUserParts(userParts) {
   return (userParts || []).map((part) => {
     if (part?.text) return { text: part.text };
-    // Støtt både snake_case og camelCase bilde-payload
+    // REST-APIet tar imot JSON-navnene inlineData og mimeType.
+    // Snake_case (inline_data) avvises med HTTP 400.
     const inline = part?.inline_data || part?.inlineData;
-    if (inline) {
+    if (inline?.data) {
       return {
-        inline_data: {
-          mime_type: inline.mime_type || inline.mimeType || 'image/jpeg',
+        inlineData: {
+          mimeType: inline.mimeType || inline.mime_type || 'image/jpeg',
           data: inline.data,
         },
       };

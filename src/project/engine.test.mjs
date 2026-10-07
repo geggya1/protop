@@ -19,6 +19,7 @@ import {
   closeDeviation,
   closeIncident,
   createProject,
+  deleteProjects,
   emptyProjectState,
   postEntry,
   progressSummary,
@@ -123,5 +124,13 @@ state = must(selectProject(other, projectId));
 state = must(archiveProject(state, projectId));
 assert.equal(state.projects.find((row) => row.id === projectId).status, 'arkivert');
 assert.notEqual(state.activeProjectId, projectId);
+
+const keptId = state.activeProjectId;
+const bulk = deleteProjects(state, [projectId, keptId]);
+assert.equal(bulk.ok, true);
+assert.equal(bulk.deletedIds.length, 2);
+assert.equal(bulk.state.projects.length, 0);
+assert.equal(bulk.state.activities.length, 0);
+assert.equal(deleteProjects(bulk.state, [projectId]).ok, false);
 
 console.log('project engine ok');

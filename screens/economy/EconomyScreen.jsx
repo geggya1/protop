@@ -153,7 +153,9 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           dueById={dueById}
           chosenContractId={chosen?.id || ''}
           title="Indeksregulering"
-          lead="Velg kunde eller prosjekt først, deretter avtalen. Indeksregulering åpnes først når avtalen er valgt, og bruker feltene som allerede er registrert."
+          lead="Velg prosjekt, avtale eller rammeavtale. Kundeforhold reguleres ikke. Indeksregulering åpnes når avtalen er valgt, og bruker feltene som allerede er registrert."
+          includeCustomers={false}
+          searchPlaceholder="Søk i prosjekt, avtaler og rammeavtaler"
           onChooseContract={setChosen}
           onOpenIndex={openIndex}
         />

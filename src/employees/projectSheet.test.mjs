@@ -57,10 +57,10 @@ assert.equal(docx.bytes[1], 0x4b);
 
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(screen, /projectSheetFile/);
-assert.match(screen, /onProjectFile/);
+assert.match(screen, /Referanseark som PDF/);
 assert.equal(screen.includes('function ReferenceSheets'), false);
 const view = readFileSync(new URL('../../screens/employees/EmployeeCvView.jsx', import.meta.url), 'utf8');
-assert.match(view, /Referanseark/);
+assert.equal(view.includes('Referanseark'), false);
 assert.equal(view.includes('Tiltaksklasse'), false);
 assert.equal(view.includes('Areal'), false);
 

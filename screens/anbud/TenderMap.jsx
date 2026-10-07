@@ -9,6 +9,7 @@ export default function TenderMap({
   selectedId = '',
   colors,
   onSelect,
+  onPreview,
   onMark,
   busyId = '',
   missing = 0,
@@ -34,7 +35,10 @@ export default function TenderMap({
       const type = event?.data?.type;
       const id = event?.data?.tenderId;
       if (!id) return;
-      if (type === 'preview') setCursorId(id);
+      if (type === 'preview') {
+        setCursorId(id);
+        onPreview?.(id);
+      }
       if (type === 'open') onSelect?.(id);
       if (type === 'mark' && (event?.data?.decision === 'aktuell' || event?.data?.decision === 'forkastet')) {
         onMark?.(id, event.data.decision);
@@ -42,7 +46,7 @@ export default function TenderMap({
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [onSelect, onMark]);
+  }, [onSelect, onPreview, onMark]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -71,6 +75,7 @@ export default function TenderMap({
     const next = pins[(index + delta + pins.length) % pins.length];
     setCursorId(next.id);
     showInMap(next.id);
+    onPreview?.(next.id);
   }
 
   const count = pins.length;

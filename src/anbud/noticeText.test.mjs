@@ -3,6 +3,8 @@ import {
   deadlineInfo,
   formatNoticeText,
   isCompetitorPortal,
+  noticeListFilter,
+  noticeMatchesListFilter,
   officialNoticeUrl,
   sourceLabel,
 } from './noticeText.js';
@@ -41,5 +43,18 @@ assert.equal(today.tone, 'danger');
 const gone = deadlineInfo('2099-01-01', new Date('2099-01-10T08:00:00'));
 assert.ok(gone.daysLeft < 0);
 assert.equal(gone.tone, 'danger');
+
+const fresh = { decision: 'ubestemt', deadline: '2099-12-01' };
+const current = { decision: 'aktuell', deadline: '2020-01-01' };
+const rejected = { decision: 'forkastet', deadline: '2099-12-01' };
+const expired = { decision: 'ubestemt', deadline: '2020-01-01' };
+assert.equal(noticeListFilter(fresh), 'nye');
+assert.equal(noticeListFilter(current), 'aktuelle');
+assert.equal(noticeListFilter(rejected), 'uaktuelle');
+assert.equal(noticeListFilter(expired), 'utlopt');
+assert.equal(noticeMatchesListFilter(fresh, 'uaktuelle'), false);
+assert.equal(noticeMatchesListFilter(fresh, 'nye'), true);
+assert.equal(noticeMatchesListFilter(fresh, 'alle'), true);
+assert.equal(noticeMatchesListFilter(rejected, 'alle'), false);
 
 console.log('noticeText.test.mjs ok');

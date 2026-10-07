@@ -31,6 +31,7 @@ export default function TenderHitCards({
   colFilter,
   onColFilter,
   openId,
+  focusId = '',
   onToggle,
   onMark,
   renderDecision,
@@ -128,6 +129,7 @@ export default function TenderHitCards({
       ) : null}
       {rows.map((row) => {
         const open = openId === row.id;
+        const onMap = focusId === row.id;
         const aktuell = row.decision === 'aktuell';
         const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
         const deadline = deadlineInfo(row.deadline);
@@ -141,9 +143,9 @@ export default function TenderHitCards({
             key={row.id}
             dataSet={{ noticeId: row.id }}
             style={[styles.card, {
-              borderColor: open || aktuell || fit.strong ? colors.brand : colors.line,
-              borderLeftWidth: fit.strong ? 4 : 1,
-              backgroundColor: aktuell || fit.strong ? colors.brandSoft : colors.card,
+              borderColor: onMap || open || aktuell || fit.strong ? colors.brand : colors.line,
+              borderLeftWidth: onMap || fit.strong ? 4 : 1,
+              backgroundColor: onMap || aktuell || fit.strong ? colors.brandSoft : colors.card,
             }]}
           >
             <View style={styles.cardRow}>
@@ -154,6 +156,9 @@ export default function TenderHitCards({
                 accessibilityLabel={`${row.title}. ${sourceName(row)}. Publisert ${day(row.publishedAt)}. Frist ${day(row.deadline)}`}
                 style={styles.cardBody}
               >
+                {onMap ? (
+                  <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '700' }}>Valgt på kartet</Text>
+                ) : null}
                 <Text style={[styles.title, { color: colors.ink }]} numberOfLines={open ? undefined : 2}>{row.title}</Text>
                 {fit.strong ? (
                   <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '700' }}>

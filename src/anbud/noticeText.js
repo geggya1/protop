@@ -1,4 +1,5 @@
 /** Tekst, frist og offisiell kunngjøringsadresse for anbudstreff. */
+import { noticeDeadlineExpired } from './model.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -188,4 +189,21 @@ export function noticeIsCurrent(notice) {
 export function noticeNeedsReview(notice) {
   const decision = notice?.decision || 'ubestemt';
   return decision === 'ubestemt';
+}
+
+/** Filteret der treffet ligger i listen. Tom streng når det ikke skal vises. */
+export function noticeListFilter(notice) {
+  if ((notice?.decision || 'ubestemt') === 'tilbud') return '';
+  if (noticeIsRejected(notice)) return 'uaktuelle';
+  if (noticeDeadlineExpired(notice) && noticeNeedsReview(notice)) return 'utlopt';
+  if (noticeIsCurrent(notice)) return 'aktuelle';
+  if (noticeNeedsReview(notice)) return 'nye';
+  return 'alle';
+}
+
+export function noticeMatchesListFilter(notice, filter) {
+  const bucket = noticeListFilter(notice);
+  if (!bucket) return false;
+  if (filter === 'alle') return bucket === 'nye' || bucket === 'aktuelle';
+  return bucket === filter;
 }

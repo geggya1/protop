@@ -43,23 +43,85 @@ const EMPTY_FORM = {
   client: '',
   customerNumber: '',
   orgnr: '',
-  place: '',
+  supplierLabel: '',
+  customerTags: '',
+  parentNumber: '',
+  parentName: '',
+  department: '',
+  inboxEmail: '',
   manager: '',
+  projectStatus: '',
+  statusComment: '',
+  openedAt: '',
+  createdBy: '',
+  start: '',
+  end: '',
+  customerSegment: '',
+  marketArea: '',
+  projectTags: '',
+  size: '',
+  street: '',
+  postalCode: '',
+  placeName: '',
+  place: '',
+  cadastralId: '',
+  pricingModel: '',
+  feeEstimate: '',
+  billedOnPricingModels: '',
+  description: '',
+  exportStatus: '',
+  hoursPeriod: '',
+  billableHours: '',
+  toInvoice: '',
+  totalCost: '',
+  invoices: '',
+  estimatedIncome: '',
+  totalPlanned: '',
+  futurePlanned: '',
+  forecast: '',
+  estimatedCosts: '',
+  expenses: '',
+  estimatedResult: '',
+  estimatedResultPct: '',
+  profitFactor: '',
+  expectedProfitFactor: '',
   agreementKind: 'oppdrag',
   contractId: '',
   frameworkAgreementId: '',
-  description: '',
 };
 
 const LIST_COLUMNS = [
-  ['Nr', 90],
-  ['Prosjekt', 280],
-  ['Kundenr', 90],
-  ['Kunde', 220],
-  ['Avtale', 260],
-  ['Leder', 160],
-  ['Sted', 160],
+  ['Nr', 100],
+  ['Prosjekt', 320],
+  ['Status', 140],
+  ['Kundenr', 100],
+  ['Kunde', 260],
+  ['Org.nr', 120],
+  ['Avdeling', 140],
+  ['Leder', 200],
+  ['Start', 110],
+  ['Slutt', 110],
+  ['Avtale', 240],
+  ['Segment', 180],
+  ['Hovedprosjekt', 160],
+  ['Sted', 240],
+  ['Honorar', 120],
+  ['Timer', 100],
 ];
+
+function textOrDash(value) {
+  const raw = value === 0 || value ? String(value) : '';
+  return raw || '—';
+}
+
+function formFromProject(project = {}) {
+  const next = { ...EMPTY_FORM };
+  for (const key of Object.keys(EMPTY_FORM)) {
+    if (project[key] === 0 || project[key]) next[key] = String(project[key]);
+  }
+  next.agreementKind = project.agreementKind || (project.frameworkAgreementId && !project.contractId ? 'avrop' : 'oppdrag');
+  return next;
+}
 
 function colWidth(index, phone) {
   if (phone) return null;
@@ -171,7 +233,12 @@ export default function ProjectWorkScreen() {
       if (gapFilter === 'missing' && !missing) return false;
       if (gapFilter === 'ok' && missing) return false;
       if (!q) return true;
-      return `${item.number} ${item.name} ${item.client} ${item.customerNumber} ${item.place} ${item.manager}`.toLowerCase().includes(q);
+      return [
+        item.number, item.name, item.client, item.customerNumber, item.orgnr,
+        item.place, item.street, item.placeName, item.manager, item.department,
+        item.projectStatus, item.customerSegment, item.marketArea, item.parentNumber,
+        item.parentName, item.projectTags, item.description,
+      ].join(' ').toLowerCase().includes(q);
     });
   }, [state.projects, query, gapFilter]);
 
@@ -246,20 +313,7 @@ export default function ProjectWorkScreen() {
 
   function openEdit(project) {
     setSelectedId(project.id);
-    setForm({
-      name: project.name || '',
-      number: project.number || '',
-      customerId: project.customerId || '',
-      client: project.client || '',
-      customerNumber: project.customerNumber || '',
-      orgnr: project.orgnr || '',
-      place: project.place || '',
-      manager: project.manager || '',
-      agreementKind: project.agreementKind || (project.frameworkAgreementId && !project.contractId ? 'avrop' : 'oppdrag'),
-      contractId: project.contractId || '',
-      frameworkAgreementId: project.frameworkAgreementId || '',
-      description: project.description || '',
-    });
+    setForm(formFromProject(project));
     setError('');
     setNote('');
     setView('edit');
@@ -492,12 +546,21 @@ export default function ProjectWorkScreen() {
 
   const formBody = (
     <View style={styles.stack}>
+      <Text style={[styles.section, { color: colors.ink }]}>Prosjekt</Text>
       <Field label="Prosjektnummer" value={form.number} onChangeText={(v) => patchForm('number', v)} colors={colors} />
       <Field label="Navn" value={form.name} onChangeText={(v) => patchForm('name', v)} colors={colors} />
-      <Field label="Sted" value={form.place} onChangeText={(v) => patchForm('place', v)} colors={colors} />
-      <Field label="Prosjektleder" value={form.manager} onChangeText={(v) => patchForm('manager', v)} colors={colors} />
+      <Field label="Prosjektstatus" value={form.projectStatus} onChangeText={(v) => patchForm('projectStatus', v)} colors={colors} />
+      <Field label="Statuskommentar" value={form.statusComment} onChangeText={(v) => patchForm('statusComment', v)} colors={colors} />
+      <Field label="Avdeling" value={form.department} onChangeText={(v) => patchForm('department', v)} colors={colors} />
+      <Field label="Prosjektleder / eier" value={form.manager} onChangeText={(v) => patchForm('manager', v)} colors={colors} />
+      <Field label="Prosjekte-post" value={form.inboxEmail} onChangeText={(v) => patchForm('inboxEmail', v)} colors={colors} />
+      <Field label="Start" value={form.start} onChangeText={(v) => patchForm('start', v)} colors={colors} />
+      <Field label="Slutt" value={form.end} onChangeText={(v) => patchForm('end', v)} colors={colors} />
+      <Field label="Hovedprosjektnr" value={form.parentNumber} onChangeText={(v) => patchForm('parentNumber', v)} colors={colors} />
+      <Field label="Hovedprosjektnavn" value={form.parentName} onChangeText={(v) => patchForm('parentName', v)} colors={colors} />
       <Field label="Beskrivelse" value={form.description} onChangeText={(v) => patchForm('description', v)} colors={colors} multiline />
 
+      <Text style={[styles.section, { color: colors.ink }]}>Kunde og sted</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Kunde</Text>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         Prosjektet skal knyttes til en kunde i kunderegisteret.
@@ -521,7 +584,33 @@ export default function ProjectWorkScreen() {
       {form.client && !form.customerId ? (
         <Text style={{ color: colors.danger || '#b42318' }}>Kundenavn er satt, men ikke koblet til kunderegisteret.</Text>
       ) : null}
+      <Field label="Kundenummer" value={form.customerNumber} onChangeText={(v) => patchForm('customerNumber', v)} colors={colors} />
+      <Field label="Kundenavn" value={form.client} onChangeText={(v) => patchForm('client', v)} colors={colors} />
+      <Field label="Org.nr" value={form.orgnr} onChangeText={(v) => patchForm('orgnr', v)} colors={colors} />
+      <Field label="Leverandør/kunde" value={form.supplierLabel} onChangeText={(v) => patchForm('supplierLabel', v)} colors={colors} />
+      <Field label="Kundetagger" value={form.customerTags} onChangeText={(v) => patchForm('customerTags', v)} colors={colors} />
+      <Field label="Kundesegment" value={form.customerSegment} onChangeText={(v) => patchForm('customerSegment', v)} colors={colors} />
+      <Field label="Markedsområde" value={form.marketArea} onChangeText={(v) => patchForm('marketArea', v)} colors={colors} />
+      <Field label="Prosjekttagger" value={form.projectTags} onChangeText={(v) => patchForm('projectTags', v)} colors={colors} />
+      <Field label="Størrelse" value={form.size} onChangeText={(v) => patchForm('size', v)} colors={colors} />
+      <Field label="Gate" value={form.street} onChangeText={(v) => patchForm('street', v)} colors={colors} />
+      <Field label="Postnr" value={form.postalCode} onChangeText={(v) => patchForm('postalCode', v)} colors={colors} />
+      <Field label="Poststed" value={form.placeName} onChangeText={(v) => patchForm('placeName', v)} colors={colors} />
+      <Field label="Matrikkel-ID" value={form.cadastralId} onChangeText={(v) => patchForm('cadastralId', v)} colors={colors} />
 
+      <Text style={[styles.section, { color: colors.ink }]}>Økonomi og prismodell</Text>
+      <Field label="Prismodell" value={form.pricingModel} onChangeText={(v) => patchForm('pricingModel', v)} colors={colors} />
+      <Field label="Honorarestimat" value={form.feeEstimate} onChangeText={(v) => patchForm('feeEstimate', v)} colors={colors} />
+      <Field label="Fakturert på prismodeller" value={form.billedOnPricingModels} onChangeText={(v) => patchForm('billedOnPricingModels', v)} colors={colors} />
+      <Field label="Timer (periode)" value={form.hoursPeriod} onChangeText={(v) => patchForm('hoursPeriod', v)} colors={colors} />
+      <Field label="Fakturerbart" value={form.billableHours} onChangeText={(v) => patchForm('billableHours', v)} colors={colors} />
+      <Field label="Å faktureres" value={form.toInvoice} onChangeText={(v) => patchForm('toInvoice', v)} colors={colors} />
+      <Field label="Total kostnad" value={form.totalCost} onChangeText={(v) => patchForm('totalCost', v)} colors={colors} />
+      <Field label="Estimert inntekt" value={form.estimatedIncome} onChangeText={(v) => patchForm('estimatedIncome', v)} colors={colors} />
+      <Field label="Estimert resultat" value={form.estimatedResult} onChangeText={(v) => patchForm('estimatedResult', v)} colors={colors} />
+      <Field label="Eksportstatus" value={form.exportStatus} onChangeText={(v) => patchForm('exportStatus', v)} colors={colors} />
+
+      <Text style={[styles.section, { color: colors.ink }]}>Avtale</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Avtaletype</Text>
       <View style={styles.rowWrap}>
         {[
@@ -706,7 +795,26 @@ export default function ProjectWorkScreen() {
                   const customer = customers.find((row) => row.id === item.customerId);
                   const customerName = customer?.name || item.client || '—';
                   const customerNumber = item.customerNumber || customer?.customerNumber || '—';
+                  const orgnr = item.orgnr || customer?.orgnr || '—';
                   const danger = colors.danger || '#b42318';
+                  const cells = [
+                    [0, item.number, `Nr ${item.number}`, true],
+                    [1, item.name, item.name, false],
+                    [2, item.projectStatus || '—', `Status ${item.projectStatus || '—'}`, false],
+                    [3, customerNumber, `Kundenr ${customerNumber}`, false],
+                    [4, customerName, `Kunde ${customerName}`, false],
+                    [5, orgnr, `Org.nr ${orgnr}`, false],
+                    [6, item.department || '—', `Avdeling ${item.department || '—'}`, false],
+                    [7, item.manager || '—', `Leder ${item.manager || '—'}`, false],
+                    [8, item.start || '—', `Start ${item.start || '—'}`, false],
+                    [9, item.end || '—', `Slutt ${item.end || '—'}`, false],
+                    null,
+                    [11, item.customerSegment || '—', `Segment ${item.customerSegment || '—'}`, false],
+                    [12, item.parentNumber || '—', `Hovedprosjekt ${item.parentNumber || '—'}`, false],
+                    [13, item.place || '—', `Sted ${item.place || '—'}`, false],
+                    [14, textOrDash(item.feeEstimate), `Honorar ${textOrDash(item.feeEstimate)}`, false],
+                    [15, textOrDash(item.hoursPeriod), `Timer ${textOrDash(item.hoursPeriod)}`, false],
+                  ];
                   return (
                     <TouchableOpacity
                       key={item.id}
@@ -715,39 +823,44 @@ export default function ProjectWorkScreen() {
                       accessibilityLabel={`${item.number} ${item.name}`}
                       style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
                     >
-                      <Text style={[styles.cell, colWidth(0, isPhone), { color: colors.ink, fontWeight: '700' }]}>
-                        {isPhone ? `Nr ${item.number}` : item.number}
-                      </Text>
-                      <View style={[styles.cell, colWidth(1, isPhone)]}>
-                        <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
-                        {isPhone ? (
-                          <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
-                            {agreementLabel(item)}
+                      {cells.map((cell, index) => {
+                        if (!cell) {
+                          return (
+                            <View key="avtale" style={[styles.cell, colWidth(10, isPhone), styles.agreeCell]}>
+                              {missing ? (
+                                <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
+                              ) : (
+                                <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
+                              )}
+                              <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
+                                {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
+                              </Text>
+                            </View>
+                          );
+                        }
+                        const [col, value, phoneLabel, bold] = cell;
+                        if (col === 1) {
+                          return (
+                            <View key={col} style={[styles.cell, colWidth(1, isPhone)]}>
+                              <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
+                              {isPhone ? (
+                                <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
+                                  {agreementLabel(item)}
+                                </Text>
+                              ) : null}
+                            </View>
+                          );
+                        }
+                        return (
+                          <Text
+                            key={col}
+                            style={[styles.cell, colWidth(col, isPhone), { color: colors.ink, fontWeight: bold ? '700' : '400' }]}
+                            numberOfLines={2}
+                          >
+                            {isPhone ? phoneLabel : value}
                           </Text>
-                        ) : null}
-                      </View>
-                      <Text style={[styles.cell, colWidth(2, isPhone), { color: colors.ink }]}>
-                        {isPhone ? `Kundenr ${customerNumber}` : customerNumber}
-                      </Text>
-                      <Text style={[styles.cell, colWidth(3, isPhone), { color: colors.ink }]} numberOfLines={2}>
-                        {isPhone ? `Kunde ${customerName}` : customerName}
-                      </Text>
-                      <View style={[styles.cell, colWidth(4, isPhone), styles.agreeCell]}>
-                        {missing ? (
-                          <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
-                        ) : (
-                          <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
-                        )}
-                        <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
-                          {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
-                        </Text>
-                      </View>
-                      <Text style={[styles.cell, colWidth(5, isPhone), { color: colors.ink }]} numberOfLines={2}>
-                        {isPhone ? `Leder ${item.manager || '—'}` : (item.manager || '—')}
-                      </Text>
-                      <Text style={[styles.cell, colWidth(6, isPhone), { color: colors.ink }]} numberOfLines={2}>
-                        {isPhone ? `Sted ${item.place || '—'}` : (item.place || '—')}
-                      </Text>
+                        );
+                      })}
                     </TouchableOpacity>
                   );
                 })}
@@ -768,6 +881,7 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerPhone: { maxWidth: '100%', minWidth: 0 },
   title: { fontSize: 22, fontWeight: '600' },
+  section: { fontSize: 16, fontWeight: '600', marginTop: 8 },
   stack: { gap: 10 },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },

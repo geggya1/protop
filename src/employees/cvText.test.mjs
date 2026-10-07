@@ -151,6 +151,38 @@ assert.equal(wrappedResponsibility.projects.length, 2);
 assert.match(wrappedResponsibility.projects[0].responsibility, /Fremdrift og LEAN/);
 assert.equal(wrappedResponsibility.projects[1].title, 'Sandnes rådhus');
 assert.equal(wrappedResponsibility.projects[1].category, 'Offentlig næring');
+
+const brokenLines = parseProtopCv(`
+Referanseprosjekter
+Riska bioenergisentral
+Riska 1, 4313 Sandnes, Norge
+Ansvar i prosjektet Byggeleder
+Ivaretatt både bygg- og teknisk ledelse, ITB koordinator, med SHA
+ansvar.
+Iglemyr Bioenergisentral
+Iglemyr 1, 4313 Sandnes, Norge
+Ansvar i prosjektet Byggeleder
+herunder prosjekterings ledelse, bygg- og teknisk ledelse med SHA
+Lura BOAS
+Lura 2, 4313 Sandnes, Norge
+Ansvar i prosjektet Diverse oppgraderinger
+Prosjektutvikling,
+Ansvar i prosjektet plan og kontrakt
+Ny brannstasjon
+[Samspill]
+Austvegen 46, 4341 Bryne, Norge
+Kategori Offentlig
+`);
+assert.equal(brokenLines.projects.length, 4);
+assert.equal(brokenLines.projects[0].title, 'Riska bioenergisentral');
+assert.match(brokenLines.projects[0].responsibility, /Ivaretatt både bygg/);
+assert.equal(brokenLines.projects[1].title, 'Iglemyr Bioenergisentral');
+assert.match(brokenLines.projects[1].responsibility, /herunder prosjekterings/);
+assert.equal(brokenLines.projects[2].title, 'Lura BOAS');
+assert.match(brokenLines.projects[2].responsibility, /Prosjektutvikling/);
+assert.equal(brokenLines.projects[3].title, 'Ny brannstasjon [Samspill]');
+assert.match(brokenLines.projects[3].address, /Austvegen/);
+assert.equal(brokenLines.projects[3].category, 'Offentlig');
 assert.equal(cv.projects[2].phone, '92 41 83 99');
 
 const merged = mergeCvReads(cv, {

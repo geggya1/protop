@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assignProjectImages, cvDocumentFits, storeCvImages, titlesMatch, withoutInlineImages } from './cvPictures.js';
+import { assignProjectImages, cvDocumentFits, slimCvDocument, storeCvImages, titlesMatch, withoutInlineImages } from './cvPictures.js';
 import { cutoffTitle, cvAttention } from './cvReview.js';
 
 assert.equal(titlesMatch(
@@ -59,5 +59,24 @@ const slim = withoutInlineImages(heavy);
 assert.equal(slim.dropped, 1);
 assert.equal(slim.employee.person.photoUrl, '');
 assert.equal(cvDocumentFits(slim.employee, 200), true);
+
+const portrait = `data:image/png;base64,${'b'.repeat(30)}`;
+const crowded = {
+  person: { photoUrl: portrait },
+  cv: { projects: [{ title: 'Bro', images: [`data:image/png;base64,${'c'.repeat(400)}`] }] },
+};
+const kept = slimCvDocument(crowded, 500);
+assert.equal(kept.keptPhoto, true);
+assert.equal(kept.employee.person.photoUrl, portrait);
+assert.deepEqual(kept.employee.cv.projects[0].images, []);
+assert.equal(kept.dropped, 1);
+const hugePortrait = {
+  person: { photoUrl: `data:image/png;base64,${'d'.repeat(800)}` },
+  cv: { projects: [{ images: [`data:image/png;base64,${'e'.repeat(40)}`] }] },
+};
+const droppedPortrait = slimCvDocument(hugePortrait, 200);
+assert.equal(droppedPortrait.keptPhoto, false);
+assert.equal(droppedPortrait.employee.person.photoUrl, '');
+assert.deepEqual(droppedPortrait.employee.cv.projects[0].images, []);
 
 console.log('cvReview.test.mjs: ok');

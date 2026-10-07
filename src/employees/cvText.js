@@ -190,7 +190,8 @@ const PROJECT_FIELDS = [
   ['email', /^e-?post\s*(.*)$/i],
   ['employer', /^arbeidsgiver i perioden\s*(.*)$/i],
   ['roles', /^roller i prosjektet\s*(.*)$/i],
-  ['responsibility', /^ansvar(?: i prosjektet)?\s*(.*)$/i],
+  ['responsibility', /^ansvar i prosjektet\s*(.*)$/i],
+  ['responsibility', /^ansvar\s+(\S.*)$/i],
 ];
 
 function projectField(line) {
@@ -251,10 +252,22 @@ function startsNewProject(rows, index) {
   for (let cursor = index + 1; cursor < Math.min(rows.length, index + 5); cursor += 1) {
     const next = rows[cursor];
     if (projectField(next) || addressLine(next)) return true;
-    if (/^[a-zæøå(/.]/.test(next)) continue;
+    if (/^[a-zæøå(/.]/.test(next) || bracketTag(next)) continue;
     return false;
   }
   return false;
+}
+
+/** En avkuttet setning eller en merkelapp i klammer er fortsettelse, ikke et nytt prosjekt. */
+function canStartProject(line) {
+  const text = String(line || '').trim();
+  if (/^[a-zæøå]/.test(text)) return false;
+  if (/[,;]$/.test(text)) return false;
+  return true;
+}
+
+function bracketTag(line) {
+  return /^\[[^\]]+\]$/.test(String(line || '').trim());
 }
 
 function parseProjects(rows) {
@@ -283,13 +296,23 @@ function parseProjects(rows) {
       current.title = line;
       continue;
     }
+    if (bracketTag(line)) {
+      current.title = `${current.title} ${line}`.replace(/\s+/g, ' ').trim();
+      continue;
+    }
     if (field) {
-      current[field[0]] = field[1];
-      lastField = field[0];
+      const [key, value] = field;
+      const prose = key === 'responsibility' || key === 'roles' || key === 'description';
+      if (prose && current[key] && value) {
+        current[key] = `${current[key]} ${value}`.replace(/\s+/g, ' ').trim();
+      } else if (!(prose && current[key] && !value)) {
+        current[key] = value;
+      }
+      lastField = key;
       started = true;
       continue;
     }
-    if (started && !startsNewProject(rows, index)) {
+    if (started && (!canStartProject(line) || !startsNewProject(rows, index))) {
       const key = ['responsibility', 'roles', 'description'].includes(lastField) ? lastField : 'responsibility';
       current[key] = `${current[key]} ${line}`.replace(/\s+/g, ' ').trim();
       continue;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pdfFromJpegs } from '../src/imports/filePayload.js';
 import { handleInterpretImport } from './importInterpret.js';
 
 const deps = {
@@ -124,7 +125,7 @@ const kept = await handleInterpretImport({
   },
 });
 assert.equal(seenImages.maxImages, 4);
-assert.equal(kept.engine, 'ocr+gemini');
+assert.equal(kept.engine, 'text');
 assert.equal(kept.cv.projects.length, 1);
 assert.equal(kept.cv.projects[0].title, 'Kraftverk');
 assert.equal(kept.cv.projects[0].email, 'kari@eksempel.no');
@@ -236,5 +237,129 @@ assert.equal(oneByOne.cv.projects[0].title, 'Bro');
 
 const source = readFileSync(new URL('./importInterpret.js', import.meta.url), 'utf8');
 assert.match(source, /imageBase64.length <= 1_500_000/);
+assert.match(source, /extractPdfLines/);
+
+function be16(value) {
+  return [(value >> 8) & 255, value & 255];
+}
+
+function jpegSegment(marker, payload) {
+  const body = Uint8Array.from(payload);
+  return Uint8Array.from([0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 255, ...body]);
+}
+
+function logoJpeg() {
+  const entropy = new Uint8Array(12_000);
+  entropy.fill(0x22);
+  return Uint8Array.from([
+    0xff, 0xd8,
+    ...jpegSegment(0xc0, [8, ...be16(40), ...be16(30), 1, 1, 0x11, 0]),
+    ...jpegSegment(0xda, [1, 0, 0]),
+    ...entropy,
+    0xff, 0xd9,
+  ]);
+}
+
+function textPdf(lines) {
+  const commands = lines.map((line, index) => {
+    const encoded = Buffer.from(line, 'latin1').toString('latin1')
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)');
+    return `BT /F1 12 Tf 40 ${760 - index * 16} Td (${encoded}) Tj ET`;
+  });
+  const stream = commands.join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+  ];
+  let body = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(body, 'latin1'));
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefAt = Buffer.byteLength(body, 'latin1');
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let id = 1; id <= objects.length; id += 1) {
+    body += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`;
+  return Buffer.from(body, 'latin1');
+}
+
+const cvLines = [
+  'CURRICULUM VITAE',
+  'Geir Ove Andersen',
+  'Partner | Prosjekt- og prosjekteringsleder',
+  'Profil',
+  'Født 29.12.1986',
+  'Sivil status Ugift',
+  'Nasjonalitet Norsk',
+  'Språk Norsk',
+  'Oppsummering og nøkkelkvalifikasjoner',
+  'Andersen leder prosjekter fra tidligfase til ferdigstillelse.',
+  'Utdanning',
+  '2020 - 2022 Høyskolen for yrkesfag - Bachelor i byggeplassledelse',
+  'Erfaringer',
+  'Consult1 AS',
+  'Svanholmen 7, 4313 Sandnes',
+  'Partner',
+  '2016 - d.d.',
+  'Arbeidsoppgaver',
+  '- Prosjekteringsledelse og prosjektledelse',
+];
+const mixedPdf = Buffer.concat([textPdf(cvLines), Buffer.from(logoJpeg())]);
+let mixedParts = null;
+const fromText = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  mime: 'application/pdf',
+  imageBase64: mixedPdf.toString('base64'),
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async (_key, _prompt, parts) => {
+    mixedParts = parts;
+    throw new Error('Gemini HTTP 404 (gemini-3.8-flash): model not found');
+  },
+});
+assert.equal(mixedParts.some((part) => part.inline_data || part.inlineData), false);
+assert.match(mixedParts.map((part) => part.text || '').join('\n'), /Nasjonalitet Norsk/);
+assert.equal(fromText.engine, 'text');
+assert.equal(fromText.cv.firstName, 'Geir');
+assert.equal(fromText.cv.lastName, 'Andersen');
+assert.equal(fromText.cv.headline, 'Partner | Prosjekt- og prosjekteringsleder');
+assert.equal(fromText.cv.birthDate, '29.12.1986');
+assert.equal(fromText.cv.maritalStatus, 'Ugift');
+assert.equal(fromText.cv.nationality, 'Norsk');
+assert.match(fromText.cv.summary, /tidligfase/);
+assert.equal(fromText.cv.education[0].school, 'Høyskolen for yrkesfag');
+assert.equal(fromText.cv.experience[0].employer, 'Consult1 AS');
+assert.equal(fromText.cv.experience[0].from, '2016');
+assert.equal(fromText.cv.experience[0].current, true);
+assert.equal(fromText.cv.experience.length, 1);
+
+const scanPdf = pdfFromJpegs([{ bytes: logoJpeg(), width: 30, height: 40 }]);
+let scanImages = 0;
+const fromScan = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  mime: 'application/pdf',
+  imageBase64: Buffer.from(scanPdf).toString('base64'),
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async (_key, _prompt, parts) => {
+    scanImages = parts.filter((part) => part.inline_data || part.inlineData).length;
+    return { firstName: 'Skann', headline: 'Rådgiver', summaryNote: 'Bilde' };
+  },
+});
+assert.equal(scanImages, 1);
+assert.equal(fromScan.engine, 'ocr+gemini');
+assert.equal(fromScan.cv.firstName, 'Skann');
 
 console.log('importInterpret.test.mjs: ok');

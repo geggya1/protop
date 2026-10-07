@@ -105,6 +105,10 @@ export function applyImportedCv(employee, cv) {
       base.cv.headline = incoming.headline;
       added.push('overskrift');
     } else if (base.cv.headline !== incoming.headline) kept.push('overskrift');
+    if (!base.company.title) {
+      base.company.title = incoming.headline;
+      added.push('tittel');
+    }
   }
   if (incoming.summary) {
     if (!base.cv.summary) {

@@ -325,7 +325,11 @@ export default function EmployeesScreen() {
       });
       const applied = applyImportedCv(draft, interpreted.cv);
       setDraft(presentEmployee(applied.employee));
-      const understood = interpreted.engine?.includes('ocr') ? ' med OCR og AI' : ' med AI';
+      const understood = interpreted.engine === 'text'
+        ? ' fra teksten i filen'
+        : interpreted.engine?.includes('ocr')
+          ? ' med OCR og AI'
+          : ' med AI';
       const found = applied.added.length ? `Lagt inn: ${applied.added.join(', ')}.` : 'Ingen nye opplysninger ble funnet.';
       const kept = applied.kept.length ? ` Det som allerede var fylt ut, ble beholdt: ${applied.kept.join(', ')}.` : '';
       setNote(`CV-en er lest${understood}. ${found}${kept} Ingenting er lagret før du trykker Lagre CV.`);

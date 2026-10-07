@@ -11,6 +11,7 @@ import {
   sanitizeCv,
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
+import { extractPdfLines } from './documentText.js';
 import { pagePartsFromPdf } from './importPages.js';
 
 const MAX_DOC_CHARS = 6_000_000;
@@ -98,10 +99,16 @@ async function documentParts(data, options = {}) {
   if (imageBase64.length < 80 || imageBase64.length > MAX_DOC_CHARS) {
     throw new Error('Send et bilde eller en PDF av listen.');
   }
-  const parts = [{ text: 'Les listen og trekk ut radene som står i dokumentet.' }];
+  const intro = clean(options.intro, 160) || 'Les listen og trekk ut radene som står i dokumentet.';
+  const parts = [{ text: intro }];
   if (mime === 'application/pdf') {
     const buffer = Buffer.from(imageBase64, 'base64');
     const maxImages = Number(options.maxImages) > 0 ? Number(options.maxImages) : 4;
+    const prose = await extractPdfLines(buffer);
+    if (prose.length >= 80) {
+      parts.push({ text: `Dokumenttekst:\n${prose}` });
+      return { parts, text: prose, usedOcr: false };
+    }
     const embedded = pagePartsFromPdf(buffer, maxImages);
     if (embedded.length) {
       parts.push(...embedded);
@@ -149,7 +156,10 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       if (prose.length >= 40) {
         parts = [{ text: `CV-tekst:\n${prose}` }];
       } else {
-        const document = await (deps.documentParts || documentParts)(data, { maxImages: 4 });
+        const document = await (deps.documentParts || documentParts)(data, {
+          maxImages: 4,
+          intro: 'Les CV-en.',
+        });
         parts = document.parts;
         usedOcr = document.usedOcr;
         sourceText = document.text || '';
@@ -201,7 +211,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       });
       return {
         ...read,
-        engine: usedOcr ? 'ocr+gemini' : 'gemini',
+        engine: parsed ? (usedOcr ? 'ocr+gemini' : 'gemini') : 'text',
       };
     }
     if (mode === 'columns') {

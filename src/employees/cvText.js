@@ -70,17 +70,21 @@ function courseOf(line) {
   return { date: `${match[1].padStart(2, '0')}.${match[2]}`, title: match[3].trim() };
 }
 
+function openEnded(value) {
+  return !value || value === '-' || /^d\.d\.$/i.test(value);
+}
+
 function dateOf(line) {
-  const match = line.match(/^(\d{4})\s*[-–]\s*(\d{4}|-)?$/);
+  const match = line.match(/^(\d{4})\s*[-–]\s*(\d{4}|d\.d\.|-)?$/i);
   if (!match) return null;
-  const open = !match[2] || match[2] === '-';
+  const open = openEnded(match[2]);
   return { from: match[1], to: open ? '' : match[2], current: open };
 }
 
 function employerDate(line) {
-  const match = line.match(/^(.*\S)\s+(\d{4})\s*[-–]\s*(\d{4}|-)?$/);
+  const match = line.match(/^(.*\S)\s+(\d{4})\s*[-–]\s*(\d{4}|d\.d\.|-)?$/i);
   if (!match || match[1].length < 2) return null;
-  const open = !match[3] || match[3] === '-';
+  const open = openEnded(match[3]);
   return { employer: match[1].trim(), from: match[2], to: open ? '' : match[3], current: open };
 }
 
@@ -238,22 +242,41 @@ function parseCourses(rows) {
   return courses;
 }
 
+function addressLine(line) {
+  if (postalLine(line)) return true;
+  return /,/.test(line) && /\b(norge|norway)\b/i.test(line);
+}
+
+function startsNewProject(rows, index) {
+  for (let cursor = index + 1; cursor < Math.min(rows.length, index + 5); cursor += 1) {
+    const next = rows[cursor];
+    if (projectField(next) || addressLine(next)) return true;
+    if (/^[a-zæøå(/.]/.test(next)) continue;
+    return false;
+  }
+  return false;
+}
+
 function parseProjects(rows) {
   const projects = [];
   let current = null;
   let started = false;
+  let lastField = '';
   function finish() {
     if (!current?.title) {
       current = null;
       started = false;
+      lastField = '';
       return;
     }
     current.email = repairEmail(current.email);
     projects.push(current);
     current = null;
     started = false;
+    lastField = '';
   }
-  for (const line of rows) {
+  for (let index = 0; index < rows.length; index += 1) {
+    const line = rows[index];
     const field = projectField(line);
     if (!current) {
       current = blankProject();
@@ -262,7 +285,13 @@ function parseProjects(rows) {
     }
     if (field) {
       current[field[0]] = field[1];
+      lastField = field[0];
       started = true;
+      continue;
+    }
+    if (started && !startsNewProject(rows, index)) {
+      const key = ['responsibility', 'roles', 'description'].includes(lastField) ? lastField : 'responsibility';
+      current[key] = `${current[key]} ${line}`.replace(/\s+/g, ' ').trim();
       continue;
     }
     if (started) {

@@ -317,6 +317,43 @@ export function archiveProject(state, projectId) {
   return ok({ ...state, projects, activeProjectId: active?.id || null });
 }
 
+const PROJECT_SCOPED_KEYS = [
+  'activities',
+  'board',
+  'sja',
+  'incidents',
+  'inspections',
+  'deviations',
+  'checklists',
+  'documents',
+  'meetings',
+  'changes',
+  'contracts',
+  'entries',
+  'crew',
+  'waste',
+  'audits',
+];
+
+/** Sletter ett eller flere prosjekter permanent, inkl. tilhørende poster. */
+export function deleteProjects(state, projectIds) {
+  const wanted = [...new Set((Array.isArray(projectIds) ? projectIds : [projectIds]).filter(Boolean))];
+  if (!wanted.length) return fail(state, 'Ingen prosjekt er valgt.');
+  const idSet = new Set(wanted);
+  const deletedIds = state.projects.filter((row) => idSet.has(row.id)).map((row) => row.id);
+  if (!deletedIds.length) return fail(state, 'Fant ingen av de valgte prosjektene.');
+  const removed = new Set(deletedIds);
+  const projects = state.projects.filter((row) => !removed.has(row.id));
+  const next = { ...state, projects };
+  for (const key of PROJECT_SCOPED_KEYS) {
+    next[key] = (state[key] || []).filter((row) => !removed.has(row.projectId));
+  }
+  if (removed.has(state.activeProjectId)) {
+    next.activeProjectId = projects.find((row) => row.status !== 'arkivert')?.id || null;
+  }
+  return { ok: true, state: next, error: null, deletedIds };
+}
+
 export function addActivity(state, input) {
   const gate = requireProject(state, input.projectId);
   if (gate.error) return fail(state, gate.error);

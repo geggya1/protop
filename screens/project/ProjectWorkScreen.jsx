@@ -22,6 +22,7 @@ import { pickDocument } from '../../src/utils/media';
 import {
   archiveProject,
   createProject,
+  deleteProjects,
   emptyProjectState,
   importProjects,
   projectMissingAgreement,
@@ -90,6 +91,8 @@ const EMPTY_FORM = {
   frameworkAgreementId: '',
 };
 
+const SELECT_COL_WIDTH = 44;
+
 const LIST_COLUMNS = [
   ['Nr', 100],
   ['Prosjekt', 320],
@@ -128,9 +131,18 @@ function colWidth(index, phone) {
   return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
 }
 
-function ProjectTable({ phone, colors, children }) {
+function ProjectTable({ phone, colors, selectCol, children }) {
+  const width = TABLE_WIDTH + (selectCol ? SELECT_COL_WIDTH + 8 : 0);
   const body = (
-    <View nativeID="project-list" style={[styles.table, phone && styles.tablePhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View
+      nativeID="project-list"
+      style={[
+        styles.table,
+        phone && styles.tablePhone,
+        !phone && { width, minWidth: width },
+        { borderColor: colors.line, backgroundColor: colors.card },
+      ]}
+    >
       {children}
     </View>
   );
@@ -190,7 +202,7 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab } = useApp();
+  const { familyId, requestShellTab, isAdmin } = useApp();
   const [state, setState] = useState(emptyProjectState());
   const [anbud, setAnbud] = useState(null);
   const [ready, setReady] = useState(false);
@@ -206,6 +218,10 @@ export default function ProjectWorkScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmEditDelete, setConfirmEditDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -241,6 +257,99 @@ export default function ProjectWorkScreen() {
       ].join(' ').toLowerCase().includes(q);
     });
   }, [state.projects, query, gapFilter]);
+
+  const allVisibleChecked = visibleProjects.length > 0
+    && visibleProjects.every((item) => checkedIds.has(item.id));
+  const checkedVisibleCount = visibleProjects.filter((item) => checkedIds.has(item.id)).length;
+
+  function toggleChecked(id) {
+    setCheckedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setConfirmBulkDelete(false);
+  }
+
+  function toggleCheckAllVisible() {
+    setCheckedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleChecked) {
+        for (const item of visibleProjects) next.delete(item.id);
+      } else {
+        for (const item of visibleProjects) next.add(item.id);
+      }
+      return next;
+    });
+    setConfirmBulkDelete(false);
+  }
+
+  async function clearAnbudProjectLinks(projectIds) {
+    if (!familyId || !projectIds?.length) return;
+    try {
+      const loaded = await loadAnbudState(familyId);
+      let changed = false;
+      const idSet = new Set(projectIds);
+      const nextContracts = (loaded.contracts || []).map((row) => {
+        if (!idSet.has(row.projectId)) return row;
+        changed = true;
+        return { ...row, projectId: '' };
+      });
+      if (!changed) return;
+      const saved = await saveAnbudState({ ...loaded, contracts: nextContracts }, familyId);
+      setAnbud(saved);
+    } catch {
+      // Prosjektene er slettet lokalt selv om avtalekoblingen ikke ble ryddet.
+    }
+  }
+
+  async function runDelete(ids, successNote) {
+    if (!isAdmin || deleting) return;
+    if (!ids.length) {
+      setError('Marker minst ett prosjekt før sletting.');
+      setConfirmBulkDelete(false);
+      setConfirmEditDelete(false);
+      return;
+    }
+    setDeleting(true);
+    setError('');
+    try {
+      const loaded = await loadProjectState();
+      const result = deleteProjects(loaded, ids);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      await saveProjectState(result.state);
+      setState(result.state);
+      await clearAnbudProjectLinks(result.deletedIds);
+      setCheckedIds((current) => {
+        const next = new Set(current);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      setConfirmBulkDelete(false);
+      setConfirmEditDelete(false);
+      setNote(successNote);
+      if (ids.includes(selectedId)) {
+        setSelectedId('');
+        setView('list');
+      }
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke slette prosjektene.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function confirmDeleteSelected() {
+    const ids = visibleProjects.filter((item) => checkedIds.has(item.id)).map((item) => item.id);
+    const noteText = ids.length === visibleProjects.length && ids.length > 1
+      ? `Prosjektlisten er slettet (${ids.length}).`
+      : (ids.length === 1 ? 'Prosjektet er slettet.' : `${ids.length} prosjekter er slettet.`);
+    return runDelete(ids, noteText);
+  }
 
   const selected = state.projects.find((item) => item.id === selectedId) || null;
 
@@ -316,6 +425,8 @@ export default function ProjectWorkScreen() {
     setForm(formFromProject(project));
     setError('');
     setNote('');
+    setConfirmEditDelete(false);
+    setConfirmBulkDelete(false);
     setView('edit');
   }
 
@@ -683,21 +794,46 @@ export default function ProjectWorkScreen() {
         <TouchableOpacity onPress={() => setView('list')} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}>
           <Text style={{ color: colors.ink }}>Avbryt</Text>
         </TouchableOpacity>
-        {view === 'edit' && selected ? (
-          <TouchableOpacity
-            onPress={() => {
-              const result = archiveProject(state, selected.id);
-              if (result.ok) {
-                setState(result.state);
-                setView('list');
-                setNote('Prosjektet er arkivert.');
-              } else setError(result.error);
-            }}
-            accessibilityRole="button"
-            style={[styles.btn, { backgroundColor: colors.danger || '#b42318' }]}
-          >
-            <Text style={{ color: '#fff' }}>Arkiver</Text>
-          </TouchableOpacity>
+        {view === 'edit' && selected && isAdmin ? (
+          <>
+            <TouchableOpacity
+              onPress={() => {
+                const result = archiveProject(state, selected.id);
+                if (result.ok) {
+                  setState(result.state);
+                  setView('list');
+                  setNote('Prosjektet er arkivert.');
+                } else setError(result.error);
+              }}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
+            >
+              <Text style={{ color: colors.ink }}>Arkiver</Text>
+            </TouchableOpacity>
+            {confirmEditDelete ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => runDelete([selected.id], 'Prosjektet er slettet.')}
+                  disabled={deleting}
+                  accessibilityRole="button"
+                  style={[styles.btn, { backgroundColor: colors.danger || '#b42318', opacity: deleting ? 0.6 : 1 }]}
+                >
+                  <Text style={{ color: '#fff' }}>{deleting ? 'Sletter…' : 'Bekreft slett'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setConfirmEditDelete(false)} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink }}>Avbryt slett</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setConfirmEditDelete(true)}
+                accessibilityRole="button"
+                style={[styles.btn, { backgroundColor: colors.danger || '#b42318' }]}
+              >
+                <Text style={{ color: '#fff' }}>Slett prosjekt</Text>
+              </TouchableOpacity>
+            )}
+          </>
         ) : null}
       </View>
     </View>
@@ -773,6 +909,72 @@ export default function ProjectWorkScreen() {
             ))}
           </View>
 
+          {isAdmin && visibleProjects.length ? (
+            <View style={styles.rowWrap}>
+              <TouchableOpacity
+                onPress={toggleCheckAllVisible}
+                accessibilityRole="button"
+                style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
+              >
+                <Text style={{ color: colors.ink }}>
+                  {allVisibleChecked ? 'Fjern merking' : 'Merk alle i listen'}
+                </Text>
+              </TouchableOpacity>
+              {confirmBulkDelete ? (
+                <>
+                  <TouchableOpacity
+                    onPress={confirmDeleteSelected}
+                    disabled={deleting || !checkedVisibleCount}
+                    accessibilityRole="button"
+                    style={[styles.btn, { backgroundColor: colors.danger || '#b42318', opacity: deleting || !checkedVisibleCount ? 0.6 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff' }}>
+                      {deleting
+                        ? 'Sletter…'
+                        : (checkedVisibleCount === visibleProjects.length
+                          ? `Bekreft slett listen (${checkedVisibleCount})`
+                          : `Bekreft slett (${checkedVisibleCount})`)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setConfirmBulkDelete(false)}
+                    accessibilityRole="button"
+                    style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Avbryt</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!checkedVisibleCount) {
+                      setError('Marker minst ett prosjekt før sletting.');
+                      return;
+                    }
+                    setError('');
+                    setConfirmBulkDelete(true);
+                  }}
+                  accessibilityRole="button"
+                  style={[styles.btn, { backgroundColor: colors.danger || '#b42318', opacity: checkedVisibleCount ? 1 : 0.6 }]}
+                >
+                  <Text style={{ color: '#fff' }}>
+                    {checkedVisibleCount ? `Slett valgte (${checkedVisibleCount})` : 'Slett valgte'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null}
+          {isAdmin && confirmBulkDelete ? (
+            <Text style={{ color: colors.danger || '#b42318' }}>
+              Sletting kan ikke angres. Tilhørende poster på prosjektet fjernes også.
+            </Text>
+          ) : null}
+          {!isAdmin && visibleProjects.length ? (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Bare administratorer kan slette prosjekter.
+            </Text>
+          ) : null}
+
           {!visibleProjects.length ? (
             <Text style={{ color: colors.muted }}>Ingen prosjekter ennå. Opprett manuelt eller importer en liste.</Text>
           ) : null}
@@ -781,10 +983,25 @@ export default function ProjectWorkScreen() {
             <>
               <Text style={{ color: colors.muted, fontSize: 13 }}>
                 {visibleProjects.length} prosjekter
+                {isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}
               </Text>
-              <ProjectTable phone={isPhone} colors={colors}>
+              <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin}>
                 {!isPhone ? (
                   <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
+                    {isAdmin ? (
+                      <TouchableOpacity
+                        onPress={toggleCheckAllVisible}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: allVisibleChecked }}
+                        style={[styles.selectCell, { width: SELECT_COL_WIDTH }]}
+                      >
+                        <Ionicons
+                          name={allVisibleChecked ? 'checkbox' : 'square-outline'}
+                          size={20}
+                          color={allVisibleChecked ? colors.brand : colors.muted}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
                     {LIST_COLUMNS.map(([label, width]) => (
                       <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
                     ))}
@@ -797,6 +1014,7 @@ export default function ProjectWorkScreen() {
                   const customerNumber = item.customerNumber || customer?.customerNumber || '—';
                   const orgnr = item.orgnr || customer?.orgnr || '—';
                   const danger = colors.danger || '#b42318';
+                  const checked = checkedIds.has(item.id);
                   const cells = [
                     [0, item.number, `Nr ${item.number}`, true],
                     [1, item.name, item.name, false],
@@ -816,52 +1034,71 @@ export default function ProjectWorkScreen() {
                     [15, textOrDash(item.hoursPeriod), `Timer ${textOrDash(item.hoursPeriod)}`, false],
                   ];
                   return (
-                    <TouchableOpacity
+                    <View
                       key={item.id}
-                      onPress={() => openEdit(item)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${item.number} ${item.name}`}
                       style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
                     >
-                      {cells.map((cell, index) => {
-                        if (!cell) {
-                          return (
-                            <View key="avtale" style={[styles.cell, colWidth(10, isPhone), styles.agreeCell]}>
-                              {missing ? (
-                                <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
-                              ) : (
-                                <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
-                              )}
-                              <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
-                                {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
-                              </Text>
-                            </View>
-                          );
-                        }
-                        const [col, value, phoneLabel, bold] = cell;
-                        if (col === 1) {
-                          return (
-                            <View key={col} style={[styles.cell, colWidth(1, isPhone)]}>
-                              <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
-                              {isPhone ? (
-                                <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
-                                  {agreementLabel(item)}
+                      {isAdmin ? (
+                        <TouchableOpacity
+                          onPress={() => toggleChecked(item.id)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked }}
+                          accessibilityLabel={`Merk ${item.number}`}
+                          style={[styles.selectCell, !isPhone && { width: SELECT_COL_WIDTH }]}
+                        >
+                          <Ionicons
+                            name={checked ? 'checkbox' : 'square-outline'}
+                            size={20}
+                            color={checked ? colors.brand : colors.muted}
+                          />
+                        </TouchableOpacity>
+                      ) : null}
+                      <TouchableOpacity
+                        onPress={() => openEdit(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.number} ${item.name}`}
+                        style={[styles.rowBody, isPhone && styles.rowBodyPhone]}
+                      >
+                        {cells.map((cell) => {
+                          if (!cell) {
+                            return (
+                              <View key="avtale" style={[styles.cell, colWidth(10, isPhone), styles.agreeCell]}>
+                                {missing ? (
+                                  <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
+                                ) : (
+                                  <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
+                                )}
+                                <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
+                                  {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
                                 </Text>
-                              ) : null}
-                            </View>
+                              </View>
+                            );
+                          }
+                          const [col, value, phoneLabel, bold] = cell;
+                          if (col === 1) {
+                            return (
+                              <View key={col} style={[styles.cell, colWidth(1, isPhone)]}>
+                                <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
+                                {isPhone ? (
+                                  <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
+                                    {agreementLabel(item)}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            );
+                          }
+                          return (
+                            <Text
+                              key={col}
+                              style={[styles.cell, colWidth(col, isPhone), { color: colors.ink, fontWeight: bold ? '700' : '400' }]}
+                              numberOfLines={2}
+                            >
+                              {isPhone ? phoneLabel : value}
+                            </Text>
                           );
-                        }
-                        return (
-                          <Text
-                            key={col}
-                            style={[styles.cell, colWidth(col, isPhone), { color: colors.ink, fontWeight: bold ? '700' : '400' }]}
-                            numberOfLines={2}
-                          >
-                            {isPhone ? phoneLabel : value}
-                          </Text>
-                        );
-                      })}
-                    </TouchableOpacity>
+                        })}
+                      </TouchableOpacity>
+                    </View>
                   );
                 })}
               </ProjectTable>
@@ -898,7 +1135,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1 },
-  table: { width: TABLE_WIDTH, minWidth: TABLE_WIDTH, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tablePhone: { width: '100%', minWidth: 0 },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableRowPhone: { flexDirection: 'column', gap: 2 },
@@ -906,4 +1143,7 @@ const styles = StyleSheet.create({
   headCell: { fontSize: 12, fontWeight: '700' },
   cell: { fontSize: 14 },
   agreeCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  selectCell: { paddingTop: 2, alignItems: 'center', justifyContent: 'flex-start' },
+  rowBody: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, flex: 1, flexWrap: 'nowrap' },
+  rowBodyPhone: { flexDirection: 'column', gap: 2, width: '100%' },
 });

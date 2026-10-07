@@ -132,6 +132,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           contract={selectedContract}
           customer={matchCustomer(customers, selectedContract)}
           company={company}
+          project={projects.find((row) => row.id === selectedContract?.projectId) || null}
           onClose={backToDesk}
           onSaveRegulations={saveRegulations}
         />

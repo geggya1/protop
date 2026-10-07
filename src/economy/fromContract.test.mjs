@@ -82,6 +82,34 @@ assert.equal(companyMustNotBecomeBuyer.orgnr, '922987106');
 assert.equal(companyMustNotBecomeBuyer.contactName, 'Øyvind Lerbrekk');
 assert.equal(companyMustNotBecomeBuyer.email, 'oyvind@igang.no');
 assert.equal(companyMustNotBecomeBuyer.supplierOrgnr, '916538804');
+assert.equal(companyMustNotBecomeBuyer.senderEmail, 'post@consult1.no');
+assert.equal(companyMustNotBecomeBuyer.senderContact, 'Geir Ove Seldal');
+assert.equal(companyMustNotBecomeBuyer.email, 'oyvind@igang.no');
+
+const companyMailOnClient = draftFromRegisteredContract({
+  ...madla,
+  oppdragId: '12',
+  fields: { ...madla.fields, email: 'post@consult1.no', phone: '51888888' },
+}, {
+  company: {
+    navn: 'CONSULT1 AS',
+    organisasjonsnummer: '916538804',
+    epostadresse: 'post@consult1.no',
+    telefon: '51888888',
+    poststed: 'Sandnes',
+    kontaktperson: 'Geir Ove Seldal',
+  },
+  customer: { name: 'Igang Totalentreprenør As', email: 'oyvind@igang.no', phone: '92082276', orgnr: '922987106' },
+  projectNumber: '01',
+});
+assert.equal(companyMailOnClient.buyer, 'Igang Totalentreprenør As');
+assert.equal(companyMailOnClient.supplier, 'Consult1 AS');
+assert.equal(companyMailOnClient.email, 'oyvind@igang.no');
+assert.equal(companyMailOnClient.phone, '92082276');
+assert.equal(companyMailOnClient.senderPlace, 'Sandnes');
+assert.equal(companyMailOnClient.place, 'Stavanger');
+assert.equal(companyMailOnClient.reference, '01');
+assert.equal(companyMailOnClient.senderContact, 'Geir Ove Seldal');
 
 const described = knownIndexFacts(draft);
 assert.ok(described.some((row) => row.label === 'Honorar' && /medgått tid/.test(row.value)));

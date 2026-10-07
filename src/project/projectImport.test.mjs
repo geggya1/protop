@@ -69,6 +69,12 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
   assert.equal(projectMissingAgreement(imported.created[0]), true);
 }
 
+{
+  const blocked = companyProjectRow({ number: 'Totalt', name: '6330912.48' });
+  assert.equal(blocked.severity, 'block');
+  assert.equal(blocked.project, null);
+}
+
 try {
   const bytes = readFileSync('/home/ubuntu/.cursor/projects/workspace/uploads/overview__3__a29a.xlsx');
   const rows = await readCompanyProjectTable(bytes, 'overview.xlsx');

@@ -118,6 +118,19 @@ export function matchAgreement(contracts, hint = {}, customerId = '') {
   return null;
 }
 
+function looksLikeProjectNumber(value) {
+  const raw = text(value);
+  if (!raw) return false;
+  const key = fold(raw);
+  if (key === 'totalt' || key === 'sum' || key === 'total') return false;
+  return /\d/.test(raw);
+}
+
+function looksLikeSummaryName(value) {
+  const raw = text(value);
+  return !!raw && /^[\d\s.,]+$/.test(raw);
+}
+
 export function companyProjectRow(input, customers = [], contracts = []) {
   const row = input && typeof input === 'object' ? input : {};
   const number = text(row.number);
@@ -152,6 +165,9 @@ export function companyProjectRow(input, customers = [], contracts = []) {
   if (!number || !name) {
     severity = 'block';
     issues.push('Mangler prosjektnummer eller navn.');
+  } else if (!looksLikeProjectNumber(number) || looksLikeSummaryName(name)) {
+    severity = 'block';
+    issues.push('Ser ut som summeringsrad, ikke et prosjekt.');
   } else {
     if (!customer) {
       severity = 'review';
@@ -164,6 +180,7 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     }
   }
 
+  const blocked = severity === 'block';
   return {
     severity,
     issues,
@@ -184,7 +201,7 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     agreementKind,
     contractId: agreement?.id || '',
     frameworkAgreementId: framework?.id || (agreement?.kind === 'rammeavtale' ? agreement.id : ''),
-    project: (!number || !name) ? null : {
+    project: blocked ? null : {
       number,
       name,
       customerNumber: customer?.customerNumber || customerNumber,

@@ -131,6 +131,10 @@ export function applyImportedCv(employee, cv) {
     base.person.birthDate = incoming.birthDate;
     added.push('fødselsdato');
   }
+  if (incoming.photo && !base.person.photoUrl) {
+    base.person.photoUrl = incoming.photo;
+    added.push('bilde');
+  }
   for (const [key, label] of [['nationality', 'nasjonalitet'], ['maritalStatus', 'sivil status']]) {
     if (!incoming[key]) continue;
     if (!base.person[key]) {
@@ -150,5 +154,13 @@ export function applyImportedCv(employee, cv) {
     base.cv[key] = merged.items;
     if (merged.count) added.push(listNote(key, merged.count));
   }
+  base.cv.projects = (base.cv.projects || []).map((row) => {
+    if ((row.images || []).length) return row;
+    const match = (incoming.projects || []).find((item) => (
+      identity([item.title, item.client, item.period]) === identity([row.title, row.client, row.period])
+    ));
+    if (!match?.images?.length) return row;
+    return { ...row, images: match.images.slice(0, 8) };
+  });
   return { employee: normalizeEmployee(base), added, kept };
 }

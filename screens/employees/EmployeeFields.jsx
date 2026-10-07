@@ -72,6 +72,38 @@ function suggestions(field) {
   ));
 }
 
+const REVIEW_PLURAL = {
+  education: ['utdanning', 'utdanninger'],
+  certifications: ['sertifisering', 'sertifiseringer'],
+  courses: ['kurs', 'kurs'],
+  experience: ['erfaring', 'erfaringer'],
+  projects: ['prosjekt', 'prosjekter'],
+};
+
+function itemLine(section, item) {
+  if (section.id === 'education') return [item.from, item.to, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
+  if (section.id === 'experience') return [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
+  if (section.id === 'courses') return [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
+  if (section.id === 'projects') return [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
+  return item.title || section.itemLabel || 'Oppføring';
+}
+
+function sectionLine(section, draft) {
+  if (section.repeatable) {
+    const items = readPath(draft, section.collection) || [];
+    if (!items.length) return 'Ingenting er lagt inn';
+    const pair = REVIEW_PLURAL[section.id] || [section.itemLabel.toLowerCase(), `${section.itemLabel.toLowerCase()}er`];
+    return `${items.length} ${items.length === 1 ? pair[0] : pair[1]}`;
+  }
+  const bits = (section.fields || []).map((field) => {
+    const value = readPath(draft, field.key);
+    if (field.type === 'photo') return value ? 'Bilde er lagt inn' : '';
+    if (field.type === 'bool') return value ? field.label : '';
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }).filter(Boolean);
+  return bits.slice(0, 3).join(' · ') || 'Ikke fylt ut';
+}
+
 export default function EmployeeFields({
   draft,
   scope,
@@ -86,9 +118,11 @@ export default function EmployeeFields({
   onProjectImage,
   sections: sectionsProp,
   showCustom = true,
+  review = false,
 }) {
   const [extraDepartment, setExtraDepartment] = useState('');
   const [custom, setCustom] = useState({ label: '', value: '', owner: 'person', purpose: 'cv' });
+  const [openId, setOpenId] = useState('');
   if (!draft) return null;
   const sections = sectionsProp || sectionsFor(scope);
 
@@ -120,26 +154,45 @@ export default function EmployeeFields({
     <View style={styles.stack}>
       {sections.map((section) => {
         const editable = canEditOwner(section.owner);
+        const open = !review || openId === section.id;
         return (
           <View key={section.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <View style={styles.cardHead}>
               <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
-              <Text style={[styles.badge, { color: colors.brand }]}>{OWNER_LABEL[section.owner]}</Text>
+              {review ? (
+                <TouchableOpacity
+                  onPress={() => setOpenId(open ? '' : section.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Rediger ${section.title}`}
+                  style={[styles.secondary, { borderColor: colors.line }]}
+                >
+                  <Text style={{ color: colors.ink }}>{open ? 'Lukk' : '✎ Rediger'}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={[styles.badge, { color: colors.brand }]}>{OWNER_LABEL[section.owner]}</Text>
+              )}
             </View>
-            <Text style={[styles.purpose, { color: colors.muted }]}>
-              {PURPOSE_LABEL[section.purpose]}
-              {section.blurb ? ` · ${section.blurb}` : ''}
-            </Text>
-            {section.repeatable ? (
+            {review && !open ? (
+              <Text style={[styles.purpose, { color: colors.muted }]}>{sectionLine(section, draft)}</Text>
+            ) : null}
+            {!review ? (
+              <Text style={[styles.purpose, { color: colors.muted }]}>
+                {PURPOSE_LABEL[section.purpose]}
+                {section.blurb ? ` · ${section.blurb}` : ''}
+              </Text>
+            ) : null}
+            {open && section.repeatable ? (
               <RepeatBlock
                 section={section}
                 items={readPath(draft, section.collection) || []}
                 colors={colors}
                 editable={editable}
+                compact={review}
                 onChange={(items) => updateItems(section.collection, items)}
                 onItemPhoto={section.id === 'projects' ? onProjectImage : undefined}
               />
-            ) : section.fields.map((field) => (
+            ) : null}
+            {open && !section.repeatable ? section.fields.map((field) => (
               <Field
                 key={field.key}
                 field={field}
@@ -155,7 +208,7 @@ export default function EmployeeFields({
                 onPhoto={onPhoto}
                 onChange={update}
               />
-            ))}
+            )) : null}
           </View>
         );
       })}
@@ -510,17 +563,31 @@ function TagsField({ label, value, editable, colors, onChange }) {
   );
 }
 
-function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto }) {
+function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, compact = false }) {
   const list = Array.isArray(items) ? items : [];
+  const [openIndex, setOpenIndex] = useState(-1);
   function patch(index, key, value) {
     onChange(list.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
   }
   return (
     <View style={styles.stackTight}>
-      {list.map((item, index) => (
+      {list.map((item, index) => {
+        const showFields = !compact || openIndex === index;
+        return (
         <View key={item.id || index} style={[styles.repeat, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-          <Text style={[styles.label, { color: colors.ink }]}>{section.itemLabel} {index + 1}</Text>
-          {section.fields.map((field) => (
+          <View style={styles.cardHead}>
+            <Text style={[styles.label, { color: colors.ink, flex: 1 }]}>{compact ? itemLine(section, item) : `${section.itemLabel} ${index + 1}`}</Text>
+            {compact ? (
+              <TouchableOpacity
+                onPress={() => setOpenIndex(showFields ? -1 : index)}
+                accessibilityRole="button"
+                accessibilityLabel={`Rediger ${section.itemLabel} ${index + 1}`}
+              >
+                <Text style={{ color: colors.ink }}>{showFields ? 'Lukk' : '✎'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {showFields ? section.fields.map((field) => (
             field.type === 'photos' ? (
               <View key={field.key} style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
@@ -605,14 +672,15 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto }
                 />
               </View>
             )
-          ))}
-          {editable ? (
+          )) : null}
+          {showFields && editable ? (
             <TouchableOpacity onPress={() => onChange(list.filter((_, rowIndex) => rowIndex !== index))} accessibilityRole="button">
               <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
             </TouchableOpacity>
           ) : null}
         </View>
-      ))}
+        );
+      })}
       {editable ? (
         <TouchableOpacity
           onPress={() => onChange([...list, blankRepeatItem(section)])}

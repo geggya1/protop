@@ -11,6 +11,7 @@ import {
   sanitizeCv,
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
+import { extractCvPictures, withCvPictures } from './cvPictures.js';
 import { extractPdfLines } from './documentText.js';
 import { pagePartsFromPdf } from './importPages.js';
 
@@ -209,8 +210,14 @@ export async function handleInterpretImport(data, auth, deps = {}) {
         ...merged,
         summaryNote: parsed?.summaryNote,
       });
+      let cv = read.cv;
+      if (clean(data?.mime, 80) === 'application/pdf' && data?.imageBase64) {
+        const pictures = await extractCvPictures(Buffer.from(String(data.imageBase64), 'base64')).catch(() => null);
+        if (pictures) cv = withCvPictures(cv, pictures);
+      }
       return {
         ...read,
+        cv,
         engine: parsed ? (usedOcr ? 'ocr+gemini' : 'gemini') : 'text',
       };
     }

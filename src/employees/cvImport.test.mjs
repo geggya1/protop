@@ -84,6 +84,13 @@ assert.equal(scanned.cv.summary, 'Fra skann');
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(screen, /Importer CV/);
 assert.match(screen, /fra teksten i filen/);
+assert.match(screen, /employee-cv-attention/);
+assert.match(screen, /Blyanten åpner/);
+assert.match(screen, /review/);
+const fields = readFileSync(new URL('../../screens/employees/EmployeeFields.jsx', import.meta.url), 'utf8');
+assert.match(fields, /Rediger/);
+const cvBlock = screen.slice(screen.indexOf('employee-cv-editor'));
+assert.ok(cvBlock.indexOf('EmployeeCvView') < cvBlock.indexOf('review'));
 assert.match(screen, /Importer prosjekter/);
 assert.match(screen, /Lagre CV/);
 assert.match(screen, /cvEditorSections/);
@@ -116,5 +123,14 @@ assert.equal(withName.employee.person.lastName, 'Georgescu');
 assert.equal(withName.employee.person.birthDate, '6.4.1980');
 assert.equal(withName.employee.cv.projects[0].address, 'Evje');
 assert.equal(withName.employee.cv.projects[0].source, 'cv');
+
+const pictured = applyImportedCv(emptyEmployee('emp-bilde'), {
+  headline: 'Partner',
+  photo: 'data:image/png;base64,aaaa',
+  projects: [{ title: 'Bro', client: 'Oslo', period: '2024', images: ['data:image/png;base64,bbbb'] }],
+});
+assert.equal(pictured.employee.person.photoUrl, 'data:image/png;base64,aaaa');
+assert.deepEqual(pictured.employee.cv.projects[0].images, ['data:image/png;base64,bbbb']);
+assert.ok(pictured.added.includes('bilde'));
 
 console.log('cvImport.test.mjs: ok');

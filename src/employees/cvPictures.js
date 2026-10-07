@@ -1,0 +1,131 @@
+/**
+ * Kobler bilder fra en CV til prosjektene de står ved.
+ * Selve utklippet fra PDF-en skjer i funksjonen. Denne delen kan testes uten fil.
+ */
+
+function norm(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9æøå]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function titlesMatch(left, right) {
+  const a = norm(left);
+  const b = norm(right);
+  if (a.length < 8 || b.length < 8) return false;
+  const size = Math.min(18, a.length, b.length);
+  if (a.slice(0, size) === b.slice(0, size)) return true;
+  const short = Math.min(12, a.length, b.length);
+  return a.startsWith(b.slice(0, short)) || b.startsWith(a.slice(0, short));
+}
+
+function isInline(url) {
+  return String(url || '').startsWith('data:');
+}
+
+async function runPool(items, limit, task) {
+  const out = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await task(items[index], index);
+    }
+  }
+  const workers = Math.max(1, Math.min(limit, items.length || 1));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return out;
+}
+
+/** Laster data-URL-er opp før lagring, så dokumentet ikke blir for stort. */
+export async function storeCvImages(employee, upload) {
+  const row = employee && typeof employee === 'object' ? employee : {};
+  const id = row.id || 'cv';
+  let photoUrl = row.person?.photoUrl || '';
+  if (isInline(photoUrl)) {
+    try {
+      const stored = await upload(`employees/${id}/photo`, photoUrl);
+      if (stored && !isInline(stored)) photoUrl = stored;
+    } catch {
+      // Bildet blir liggende i utkastet til lagringen får plass.
+    }
+  }
+  const projects = await runPool(row.cv?.projects || [], 4, async (project, index) => {
+    const images = [];
+    const source = Array.isArray(project?.images) ? project.images : [];
+    for (let imageIndex = 0; imageIndex < source.length; imageIndex += 1) {
+      const image = source[imageIndex];
+      if (!isInline(image)) {
+        if (image) images.push(image);
+        continue;
+      }
+      try {
+        const stored = await upload(`employees/${id}/projects/${project?.id || index}/${imageIndex}`, image);
+        images.push(stored && !isInline(stored) ? stored : image);
+      } catch {
+        images.push(image);
+      }
+    }
+    return { ...project, images };
+  });
+  return {
+    ...row,
+    person: { ...(row.person || {}), photoUrl },
+    cv: { ...(row.cv || {}), projects },
+  };
+}
+
+export function cvDocumentFits(employee, limit = 800000) {
+  try {
+    return JSON.stringify(employee || {}).length <= limit;
+  } catch {
+    return false;
+  }
+}
+
+/** Tar bort bilder som fortsatt ligger som data-URL, så teksten kan lagres. */
+export function withoutInlineImages(employee) {
+  const row = employee && typeof employee === 'object' ? employee : {};
+  let dropped = 0;
+  let photoUrl = row.person?.photoUrl || '';
+  if (isInline(photoUrl)) {
+    photoUrl = '';
+    dropped += 1;
+  }
+  const projects = (row.cv?.projects || []).map((project) => {
+    const images = (project.images || []).filter((image) => {
+      if (!isInline(image)) return true;
+      dropped += 1;
+      return false;
+    });
+    return { ...project, images };
+  });
+  return {
+    dropped,
+    employee: {
+      ...row,
+      person: { ...(row.person || {}), photoUrl },
+      cv: { ...(row.cv || {}), projects },
+    },
+  };
+}
+
+/** Ett bilde per prosjekt, bare når tittelen ved bildet treffer prosjektet. */
+export function assignProjectImages(projects, shots) {
+  const rows = Array.isArray(projects) ? projects : [];
+  const pictures = (Array.isArray(shots) ? shots : []).filter((shot) => shot?.dataUrl);
+  const used = new Set();
+  return rows.map((project) => {
+    const current = Array.isArray(project?.images) ? project.images.filter(Boolean) : [];
+    if (current.length) return { ...project, images: current };
+    const index = pictures.findIndex((shot, shotIndex) => (
+      !used.has(shotIndex) && titlesMatch(project?.title, shot.titleHint)
+    ));
+    if (index < 0) return { ...project, images: [] };
+    used.add(index);
+    return { ...project, images: [pictures[index].dataUrl] };
+  });
+}

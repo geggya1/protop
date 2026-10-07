@@ -48,6 +48,9 @@ deploy_entry friendListIndex.js functions:friendListHttp
 deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 deploy_entry importIndex.js functions:interpretImport
+# Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 interpretimport \
+  || echo "::warning::Klarte ikke åpne interpretImport for innloggede kall"
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

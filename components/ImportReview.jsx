@@ -14,6 +14,7 @@ export default function ImportReview({
   onToggle,
   onConfirm,
   onCancel,
+  renderRowExtra,
 }) {
   const danger = colors.danger || '#b42318';
   const sections = reviewSections(rows);
@@ -57,6 +58,7 @@ export default function ImportReview({
                     {issue}
                   </Text>
                 ))}
+                {typeof renderRowExtra === 'function' ? renderRowExtra(row) : null}
                 {row.severity === 'block' ? (
                   <Text style={{ color: danger }}>Blir ikke importert.</Text>
                 ) : (

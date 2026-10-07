@@ -4,7 +4,11 @@
  * Rammeavtale / oppdragsavtale settes ikke fra listen, men feltene ligger klare etterpå.
  */
 import { readSpreadsheetTables, CUSTOMER_IMPORT_ACCEPT } from '../anbud/customerImport.js';
-import { normalizeOrgnr } from '../anbud/customers.js';
+import {
+  namesLikelyMatch,
+  normalizeCustomerNumber,
+  normalizeOrgnr,
+} from '../anbud/customers.js';
 
 const FIELDS = [
   ['number', ['prosjektnr', 'prosjektnummer', 'projectnumber', 'projectno', 'nr']],
@@ -79,24 +83,151 @@ function phaseFromStatus(status) {
   return 'planlegging';
 }
 
+/** Stabil nøkkel for å gruppere rader som hører til samme kunde i importfilen. */
+export function customerIdentityKey(hint = {}) {
+  const number = normalizeCustomerNumber(hint.customerNumber);
+  if (number) return `nr:${number}`;
+  const orgnr = normalizeOrgnr(hint.orgnr);
+  if (orgnr) return `org:${orgnr}`;
+  const name = fold(hint.client || hint.name);
+  if (name) return `name:${name}`;
+  return '';
+}
+
+function scoreCustomer(customer, hint = {}) {
+  let score = 0;
+  const number = normalizeCustomerNumber(hint.customerNumber);
+  const orgnr = normalizeOrgnr(hint.orgnr);
+  const name = text(hint.client || hint.name);
+  if (number && normalizeCustomerNumber(customer.customerNumber) === number) score += 100;
+  if (orgnr && normalizeOrgnr(customer.orgnr) === orgnr) score += 80;
+  if (name && fold(customer.name) === fold(name)) score += 60;
+  else if (name && namesLikelyMatch(customer.name, name)) score += 40;
+  else if (name && fold(customer.name) && fold(name)) {
+    const left = fold(customer.name);
+    const right = fold(name);
+    if (left.includes(right) || right.includes(left)) score += 25;
+  }
+  return score;
+}
+
+/**
+ * Kobler prosjektkunde mot kunderegisteret.
+ * Prioritet: kundenummer → org.nr → eksakt navn → mykt navn (AS/kommune-varianter).
+ */
 export function matchCustomer(customers, hint = {}) {
   const list = Array.isArray(customers) ? customers : [];
-  const number = text(hint.customerNumber);
+  if (!list.length) return null;
+  const number = normalizeCustomerNumber(hint.customerNumber);
   if (number) {
-    const byNumber = list.find((row) => text(row.customerNumber) === number);
-    if (byNumber) return byNumber;
+    const byNumber = list.filter((row) => normalizeCustomerNumber(row.customerNumber) === number);
+    if (byNumber.length === 1) return byNumber[0];
+    if (byNumber.length > 1) {
+      const ranked = [...byNumber].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
+      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
+    }
   }
   const orgnr = normalizeOrgnr(hint.orgnr);
   if (orgnr) {
-    const byOrgnr = list.find((row) => normalizeOrgnr(row.orgnr) === orgnr);
-    if (byOrgnr) return byOrgnr;
+    const byOrgnr = list.filter((row) => normalizeOrgnr(row.orgnr) === orgnr);
+    if (byOrgnr.length === 1) return byOrgnr[0];
+    if (byOrgnr.length > 1) {
+      const ranked = [...byOrgnr].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
+      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
+      // Samme org.nr = samme virksomhet; ta første ved ellers lik score.
+      return ranked[0];
+    }
   }
-  const name = fold(hint.client || hint.name);
+  const name = text(hint.client || hint.name);
   if (name) {
-    const byName = list.find((row) => fold(row.name) === name);
-    if (byName) return byName;
+    const exact = list.filter((row) => fold(row.name) === fold(name));
+    if (exact.length === 1) return exact[0];
+    const soft = list.filter((row) => namesLikelyMatch(row.name, name));
+    if (soft.length === 1) return soft[0];
+    if (soft.length > 1) {
+      const ranked = [...soft].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
+      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
+    }
   }
   return null;
+}
+
+/** Kandidater til manuell kobling i importgjennomgangen. */
+export function suggestCustomers(customers, hint = {}, limit = 8) {
+  const list = Array.isArray(customers) ? customers : [];
+  const query = fold(hint.query || hint.client || hint.name || hint.customerNumber || hint.orgnr);
+  const ranked = list
+    .map((customer) => {
+      let score = scoreCustomer(customer, hint);
+      if (query) {
+        const hay = fold([customer.customerNumber, customer.name, customer.orgnr].filter(Boolean).join(' '));
+        if (hay.includes(query)) score += 15;
+        else score -= 5;
+      }
+      return { customer, score };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || a.customer.name.localeCompare(b.customer.name, 'nb'));
+  const out = [];
+  const seen = new Set();
+  for (const row of ranked) {
+    if (seen.has(row.customer.id)) continue;
+    seen.add(row.customer.id);
+    out.push(row.customer);
+    if (out.length >= limit) break;
+  }
+  if (out.length || !query) return out;
+  return list
+    .filter((customer) => {
+      const hay = fold([customer.customerNumber, customer.name, customer.orgnr].filter(Boolean).join(' '));
+      return hay.includes(query);
+    })
+    .slice(0, limit);
+}
+
+export function linkImportRowCustomer(row, customer) {
+  if (!row || row.severity === 'block' || !customer?.id) return row;
+  const customerNumber = normalizeCustomerNumber(customer.customerNumber) || text(row.customerNumber);
+  const client = text(customer.name) || text(row.client);
+  const orgnr = normalizeOrgnr(customer.orgnr) || text(row.orgnr);
+  const issues = (row.issues || []).filter((issue) => !/kunde/i.test(issue));
+  let severity = row.severity;
+  if (!issues.length && severity === 'review') severity = 'ok';
+  if (issues.some((issue) => /avtale/i.test(issue))) severity = 'review';
+  const project = row.project ? {
+    ...row.project,
+    customerId: customer.id,
+    customerNumber,
+    client,
+    orgnr,
+  } : null;
+  return {
+    ...row,
+    severity,
+    issues,
+    customerId: customer.id,
+    customerNumber,
+    client,
+    orgnr,
+    project,
+    linkedManually: true,
+  };
+}
+
+/** Koble valgt kunde til én rad, eller til alle rader med samme kundeidentitet i filen. */
+export function linkImportPlanCustomer(plan, rowIndex, customer, { applyGroup = true } = {}) {
+  const rows = Array.isArray(plan?.rows) ? plan.rows : [];
+  const target = rows[rowIndex];
+  if (!target || !customer?.id) return plan;
+  const key = customerIdentityKey(target);
+  const nextRows = rows.map((row, index) => {
+    if (index === rowIndex) return linkImportRowCustomer(row, customer);
+    if (applyGroup && key && customerIdentityKey(row) === key && !row.customerId) {
+      return linkImportRowCustomer(row, customer);
+    }
+    return row;
+  });
+  return { ...plan, rows: nextRows };
 }
 
 export function matchAgreement(contracts, hint = {}, customerId = '') {
@@ -135,10 +266,12 @@ export function companyProjectRow(input, customers = [], contracts = []) {
   const row = input && typeof input === 'object' ? input : {};
   const number = text(row.number);
   const name = text(row.name);
-  const customerNumber = text(row.customerNumber);
+  const customerNumber = normalizeCustomerNumber(row.customerNumber) || text(row.customerNumber);
   const client = text(row.client);
   const orgnr = normalizeOrgnr(row.orgnr);
-  const customer = matchCustomer(customers, { customerNumber, orgnr, client });
+  const customer = row.customerId
+    ? (customers || []).find((item) => item.id === row.customerId) || matchCustomer(customers, { customerNumber, orgnr, client })
+    : matchCustomer(customers, { customerNumber, orgnr, client });
   const agreementKindRaw = fold(row.agreementKind);
   let agreementKind = '';
   if (agreementKindRaw.includes('avrop')) agreementKind = 'avrop';
@@ -171,12 +304,15 @@ export function companyProjectRow(input, customers = [], contracts = []) {
   } else {
     if (!customer) {
       severity = 'review';
-      if (client || customerNumber || orgnr) issues.push('Kunden finnes ikke i kunderegisteret ennå. Prosjektet kan importeres, men må kobles senere.');
-      else issues.push('Ingen kunde i listen. Koble kunden manuelt etter import.');
+      if (client || customerNumber || orgnr) {
+        issues.push('Kunden er ikke koblet ennå. Velg kunde under før du importerer.');
+      } else {
+        issues.push('Ingen kunde i listen. Velg kunde under før du importerer.');
+      }
     }
     if (!agreement && !framework) {
       if (severity === 'ok') severity = 'review';
-      issues.push('Ingen avtale er koblet. Marker etterpå om oppdragsavtale eller rammeavtale mangler.');
+      issues.push('Ingen avtale er koblet. Den kan knyttes etter import; prosjektet markeres med varsel.');
     }
   }
 

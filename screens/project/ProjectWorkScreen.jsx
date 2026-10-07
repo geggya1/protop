@@ -28,8 +28,10 @@ import {
 } from '../../src/project/engine';
 import {
   PROJECT_REGISTER_IMPORT_ACCEPT,
+  linkImportPlanCustomer,
   planProjectImport,
   readCompanyProjectTable,
+  suggestCustomers,
 } from '../../src/project/projectImport';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 
@@ -105,6 +107,7 @@ export default function ProjectWorkScreen() {
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
+  const [linkQuery, setLinkQuery] = useState({});
 
   useEffect(() => {
     let live = true;
@@ -275,6 +278,7 @@ export default function ProjectWorkScreen() {
       setImportPlan(plan);
       setDropped(new Set());
       setImportReport(null);
+      setLinkQuery({});
       setNote('');
       setView('import');
     } catch (cause) {
@@ -294,6 +298,18 @@ export default function ProjectWorkScreen() {
       else next.add(id);
       return next;
     });
+  }
+
+  function linkImportCustomer(rowId, customer) {
+    const index = Number(rowId);
+    if (!Number.isFinite(index) || !customer?.id) return;
+    setImportPlan((current) => linkImportPlanCustomer(current, index, customer, { applyGroup: true }));
+    setLinkQuery((current) => {
+      const next = { ...current };
+      delete next[rowId];
+      return next;
+    });
+    setNote(`Koblet til ${customer.name}. Samme kunde i listen er oppdatert.`);
   }
 
   async function confirmImport() {
@@ -353,14 +369,71 @@ export default function ProjectWorkScreen() {
     severity: row.severity,
     title: [row.number, row.name].filter(Boolean).join(' · ') || 'Uten navn',
     meta: [
+      row.customerId ? 'Kunde koblet' : '',
       row.customerNumber ? `Kundenr ${row.customerNumber}` : '',
       row.client,
+      row.orgnr ? `Org.nr ${row.orgnr}` : '',
       row.manager,
       row.place,
     ].filter(Boolean).join(' · '),
     issues: row.issues || [],
     included: row.severity !== 'block' && !dropped.has(String(index)),
+    needsCustomer: !row.customerId && row.severity !== 'block',
+    customerLinked: !!row.customerId,
+    customerHint: {
+      customerNumber: row.customerNumber,
+      client: row.client,
+      orgnr: row.orgnr,
+      name: row.client,
+    },
   }));
+
+  function renderImportCustomerLink(row) {
+    if (row.customerLinked) {
+      return <Text style={{ color: colors.brand, fontSize: 13 }}>Kunde er koblet og klar for import.</Text>;
+    }
+    if (!row.needsCustomer) return null;
+    const query = linkQuery[row.id] ?? '';
+    const suggestions = suggestCustomers(customers, {
+      ...row.customerHint,
+      query: query || row.customerHint?.client || row.customerHint?.customerNumber || '',
+    }, 8);
+    return (
+      <View style={{ gap: 6 }} nativeID={`project-import-link-${row.id}`}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>Velg kunde nå</Text>
+        <TextInput
+          value={query}
+          onChangeText={(value) => setLinkQuery((current) => ({ ...current, [row.id]: value }))}
+          placeholder="Søk kundenr, navn eller org.nr"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+        />
+        <View style={styles.rowWrap}>
+          {suggestions.map((customer) => (
+            <TouchableOpacity
+              key={customer.id}
+              onPress={() => linkImportCustomer(row.id, customer)}
+              accessibilityRole="button"
+              style={[styles.chip, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.card }]}
+            >
+              <Text style={{ color: colors.ink }}>
+                {[customer.customerNumber, customer.name].filter(Boolean).join(' · ')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {!suggestions.length ? (
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Ingen treff i kunderegisteret. Søk på et annet navn, eller registrer kunden under Kunder først.
+          </Text>
+        ) : (
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Valget gjelder også andre prosjekter i listen med samme kunde.
+          </Text>
+        )}
+      </View>
+    );
+  }
 
   function agreementLabel(project) {
     const contract = contracts.find((row) => row.id === project.contractId);
@@ -519,13 +592,14 @@ export default function ProjectWorkScreen() {
         <ImportReview
           nativeID="projects-import-plan"
           colors={colors}
-          lead="Ingenting er lagret ennå. Kontroller kundekobling og bekreft importen. Avtaler kan knyttes etterpå."
+          lead="Ingenting er lagret ennå. Koble manglende kunder her før du bekrefter. Avtaler kan knyttes etterpå."
           rows={reviewRows}
           busy={importing}
           confirmLabel={(count) => `Importer ${count} prosjekter`}
           onToggle={toggleImportRow}
           onConfirm={confirmImport}
-          onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
+          onCancel={() => { setImportPlan(null); setDropped(new Set()); setLinkQuery({}); setView('list'); }}
+          renderRowExtra={renderImportCustomerLink}
         />
       ) : null}
 

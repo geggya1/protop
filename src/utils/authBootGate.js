@@ -15,3 +15,12 @@ export function shouldRedirectStartUrlToMarketing({
   if (oauthReturn) return false;
   return true;
 }
+
+/**
+ * «Laster ProTop…» while a personal workspace is created.
+ * The create call must not keep the spinner after the boot timeout.
+ * A rerun of that effect used to leave the busy flag on forever.
+ */
+export function shouldHoldFamilyBootSpinner({ bootTimedOut = false } = {}) {
+  return !bootTimedOut;
+}

@@ -158,7 +158,7 @@ import {
   shouldSkipWebBuildRefresh,
 } from './src/utils/webBuildRefresh';
 import { markPreferApp, clearPreferApp } from './src/utils/preferApp';
-import { shouldRedirectStartUrlToMarketing } from './src/utils/authBootGate';
+import { shouldHoldFamilyBootSpinner, shouldRedirectStartUrlToMarketing } from './src/utils/authBootGate';
 import {
   ensurePersonalShellForUser,
   isPersonalShell,
@@ -476,6 +476,25 @@ export default function App() {
   }, [isWeb]);
 
   useEffect(() => {
+    if (!loading) return undefined;
+    // onAuthStateChanged can fail to arrive (IndexedDB / auth iframe).
+    // The bootstrap fail-safe only flips authBootstrapped, so loading
+    // would otherwise keep «Laster ProTop…» up forever.
+    const watchdog = setTimeout(() => {
+      const current = auth.currentUser;
+      if (current) {
+        setUser((prev) => prev || current);
+        const email = (current.email || '').toLowerCase();
+        setUserRole((role) => role || (isChildEmail(email) ? 'child' : 'parent'));
+      }
+      setChildResolving(false);
+      setLoading(false);
+      console.warn('[auth] left spinner after wait');
+    }, 8000);
+    return () => clearTimeout(watchdog);
+  }, [loading]);
+
+  useEffect(() => {
     if (!authBootstrapped) return undefined;
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) {
@@ -709,12 +728,21 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     );
     if (live.length > 0) {
       shellEnsureAttemptedRef.current = null;
+      setShellEnsureBusy(false);
       return undefined;
     }
-    if (shellEnsureAttemptedRef.current === user.uid) return undefined;
+    if (shellEnsureAttemptedRef.current === user.uid) {
+      setShellEnsureBusy(false);
+      return undefined;
+    }
     shellEnsureAttemptedRef.current = user.uid;
     let alive = true;
     setShellEnsureBusy(true);
+    const shellTimeout = setTimeout(() => {
+      if (!alive) return;
+      console.warn('[RootNav] personal shell timed out');
+      setShellEnsureBusy(false);
+    }, 12000);
     (async () => {
       try {
         const result = await ensurePersonalShellForUser({
@@ -730,10 +758,17 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         // Allow one retry on next familiesReady cycle if list stays empty.
         if (alive) shellEnsureAttemptedRef.current = null;
       } finally {
+        clearTimeout(shellTimeout);
         if (alive) setShellEnsureBusy(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+      clearTimeout(shellTimeout);
+      // A new profile/family snapshot used to leave this flag true, so the
+      // boot spinner never ended even after the family list arrived.
+      setShellEnsureBusy(false);
+    };
   }, [
     user, userRole, userProfile, familiesReady, families, selectFamily, lang,
   ]);
@@ -852,7 +887,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (user && !profileOk) stage = 'profile';
     // Personal shell is created in the background; show a short boot while ensuring.
     else if (user && userRole === 'parent' && !hasGroups && !family?.id && !familyId) {
-      stage = shellEnsureBusy || !bootTimedOut ? 'boot' : 'homeSetup';
+      stage = shouldHoldFamilyBootSpinner({ bootTimedOut }) ? 'boot' : 'homeSetup';
     }
     else if (needsHomeSetup) stage = 'homeSetup';
     else stage = 'app';

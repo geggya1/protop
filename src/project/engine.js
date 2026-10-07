@@ -72,6 +72,93 @@ function requireProject(state, projectId) {
   return { project };
 }
 
+/** Generelle prosjektfelter som importeres, registreres og lagres. */
+export const PROJECT_DETAIL_KEYS = [
+  'supplierLabel',
+  'customerTags',
+  'parentNumber',
+  'parentName',
+  'department',
+  'inboxEmail',
+  'projectStatus',
+  'statusComment',
+  'openedAt',
+  'createdBy',
+  'customer',
+  'end',
+  'customerSegment',
+  'marketArea',
+  'projectTags',
+  'size',
+  'street',
+  'postalCode',
+  'placeName',
+  'place',
+  'cadastralId',
+  'pricingModel',
+  'feeEstimate',
+  'billedOnPricingModels',
+  'description',
+  'exportStatus',
+  'hoursPeriod',
+  'billableHours',
+  'toInvoice',
+  'totalCost',
+  'invoices',
+  'estimatedIncome',
+  'totalPlanned',
+  'futurePlanned',
+  'forecast',
+  'estimatedCosts',
+  'expenses',
+  'estimatedResult',
+  'estimatedResultPct',
+  'profitFactor',
+  'expectedProfitFactor',
+];
+
+const PROJECT_NUMERIC_KEYS = new Set([
+  'feeEstimate',
+  'billedOnPricingModels',
+  'hoursPeriod',
+  'billableHours',
+  'toInvoice',
+  'totalCost',
+  'invoices',
+  'estimatedIncome',
+  'totalPlanned',
+  'futurePlanned',
+  'forecast',
+  'estimatedCosts',
+  'expenses',
+  'estimatedResult',
+  'estimatedResultPct',
+  'profitFactor',
+  'expectedProfitFactor',
+]);
+
+function detailValue(key, value) {
+  if (PROJECT_NUMERIC_KEYS.has(key)) {
+    if (value === '' || value == null) return '';
+    const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : text(value);
+  }
+  return text(value);
+}
+
+function composePlace(input = {}, current = {}) {
+  const street = input.street !== undefined ? text(input.street) : text(current.street);
+  const postalCode = input.postalCode !== undefined ? text(input.postalCode) : text(current.postalCode);
+  const placeName = input.placeName !== undefined ? text(input.placeName) : text(current.placeName);
+  if (input.place !== undefined && text(input.place) && !street && !postalCode && !placeName) {
+    return text(input.place);
+  }
+  const composed = [street, [postalCode, placeName].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  if (composed) return composed;
+  if (input.place !== undefined) return text(input.place);
+  return text(current.place);
+}
+
 function projectLinks(input = {}) {
   const agreementKind = text(input.agreementKind);
   return {
@@ -83,6 +170,18 @@ function projectLinks(input = {}) {
     frameworkAgreementId: text(input.frameworkAgreementId) || null,
     agreementKind: ['oppdrag', 'avrop', 'rammeavtale', 'annet'].includes(agreementKind) ? agreementKind : '',
   };
+}
+
+export function projectDetails(input = {}, current = {}) {
+  const details = {};
+  for (const key of PROJECT_DETAIL_KEYS) {
+    if (key === 'place') continue;
+    if (input[key] !== undefined) details[key] = detailValue(key, input[key]);
+    else if (current[key] !== undefined) details[key] = current[key];
+    else details[key] = '';
+  }
+  details.place = composePlace(input, current);
+  return details;
 }
 
 /** Avtale mangler når prosjektet ikke er koblet til oppdragsavtale/avrop (eller rammeavtale ved avrop). */
@@ -104,18 +203,16 @@ export function createProject(state, input) {
   }
   const phase = PHASES.includes(input.phase) ? input.phase : 'planlegging';
   const links = projectLinks(input);
+  const details = projectDetails(input);
   const project = {
     id: createId('prj'),
     name,
     number,
     ...links,
-    place: text(input.place),
+    ...details,
+    manager: text(input.manager),
     phase,
     status: text(input.status) === 'arkivert' ? 'arkivert' : 'aktiv',
-    start: text(input.start),
-    end: text(input.end),
-    manager: text(input.manager),
-    description: text(input.description),
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
   };
   return ok({
@@ -139,17 +236,15 @@ export function updateProject(state, projectId, patch) {
     ? (PHASES.includes(patch.phase) ? patch.phase : current.phase)
     : current.phase;
   const links = projectLinks({ ...current, ...patch });
+  const details = projectDetails(patch, current);
   const projects = state.projects.map((p) => (p.id === projectId ? {
     ...p,
     ...links,
+    ...details,
     name: nextName,
     number: nextNumber,
-    place: patch.place !== undefined ? text(patch.place) : p.place,
-    phase,
-    start: patch.start !== undefined ? text(patch.start) : p.start,
-    end: patch.end !== undefined ? text(patch.end) : p.end,
     manager: patch.manager !== undefined ? text(patch.manager) : p.manager,
-    description: patch.description !== undefined ? text(patch.description) : (p.description || ''),
+    phase,
     status: patch.status === 'arkivert' ? 'arkivert' : (patch.status === 'aktiv' ? 'aktiv' : p.status),
   } : p));
   return ok({ ...state, projects });
@@ -157,7 +252,7 @@ export function updateProject(state, projectId, patch) {
 
 /**
  * Hurtigimport / upsert på prosjektnummer. Kobler mot kunder når match finnes.
- * Avtaler settes ikke fra importlisten (mangler der), men feltene tilrettelegges.
+ * Alle generelle felter fra listen lagres; avtaler kan knyttes etterpå.
  */
 export function importProjects(state, rows) {
   let next = state;
@@ -173,17 +268,14 @@ export function importProjects(state, rows) {
     }
     const existing = next.projects.find((p) => p.number === number && p.status !== 'arkivert');
     const payload = {
+      ...row,
       name,
       number,
       client: text(row.client),
       customerId: text(row.customerId) || null,
       customerNumber: text(row.customerNumber),
       orgnr: text(row.orgnr),
-      place: text(row.place),
       manager: text(row.manager),
-      start: text(row.start),
-      end: text(row.end),
-      description: text(row.description),
       phase: text(row.phase) || 'planlegging',
       contractId: text(row.contractId) || null,
       frameworkAgreementId: text(row.frameworkAgreementId) || null,

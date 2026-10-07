@@ -135,6 +135,22 @@ try {
   assert.equal(rows[0].number, '10951');
   assert.match(rows[0].name, /Nykirkebakken/);
   assert.equal(rows[0].customerNumber, '10102');
+  assert.ok(rows[0].orgnr || rows[0].manager || rows[0].pricingModel);
+  const planned = planProjectImport(
+    emptyProjectState(),
+    [{ id: 'c2', name: 'Sameiet Nytorget 6', customerNumber: '10102', orgnr: '981671155' }],
+    [],
+    rows.slice(0, 1),
+  );
+  const imported = importProjects(emptyProjectState(), planned.rows.map((row) => row.project).filter(Boolean));
+  assert.equal(imported.ok, true);
+  const project = imported.created[0];
+  assert.equal(project.number, '10951');
+  assert.equal(project.customerId, 'c2');
+  assert.equal(project.pricingModel, 'hourlyRate');
+  assert.ok(project.manager);
+  assert.ok(project.projectStatus);
+  assert.ok(project.inboxEmail);
   console.log('projectImport.test.mjs: ok (with sample xlsx)');
 } catch (cause) {
   if (cause?.code === 'ENOENT') {

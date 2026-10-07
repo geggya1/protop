@@ -10,6 +10,8 @@ import { downloadBytes } from '../../src/indeksregulering/office';
 import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
 import { projectSheetFile, projectSheetLines } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
+import { cvAttention } from '../../src/employees/cvReview';
+import { cvDocumentFits, storeCvImages, withoutInlineImages } from '../../src/employees/cvPictures';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
@@ -325,6 +327,7 @@ export default function EmployeesScreen() {
       });
       const applied = applyImportedCv(draft, interpreted.cv);
       setDraft(presentEmployee(applied.employee));
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true });
       const understood = interpreted.engine === 'text'
         ? ' fra teksten i filen'
         : interpreted.engine?.includes('ocr')
@@ -503,12 +506,20 @@ export default function EmployeesScreen() {
     setBusy(true);
     setError('');
     try {
+      const uploaded = await storeCvImages(result.employee, (path, dataUrl) => (
+        uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl)
+      ));
+      const slim = cvDocumentFits(uploaded) ? { employee: uploaded, dropped: 0 } : withoutInlineImages(uploaded);
+      const employee = slim.employee;
+      const imageNote = slim.dropped
+        ? ` ${slim.dropped} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`
+        : '';
       if (scope === 'profile') {
         const nextProfile = rememberLink({
           ...(profile || {}),
-          person: result.employee.person,
-          cv: result.employee.cv,
-          customFields: result.employee.customFields.filter((field) => field.owner === 'person'),
+          person: employee.person,
+          cv: employee.cv,
+          customFields: employee.customFields.filter((field) => field.owner === 'person'),
         }, linked ? { companyId: familyId, employeeId: linked.id, companyName } : null);
         const stored = await saveProfessionalProfile(uid, nextProfile);
         setProfile(stored);
@@ -522,12 +533,12 @@ export default function EmployeesScreen() {
           cv: stored.cv,
           customFields: stored.customFields,
         }));
-        setNote(linked
+        setNote((linked
           ? 'Profilen er lagret og ansettelsen i selskapet er oppdatert.'
-          : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
+          : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.') + imageNote);
         return;
       }
-      const saved = await saveEmployee(familyId, result.employee);
+      const saved = await saveEmployee(familyId, employee);
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
       if (saved.personUid && saved.personUid === uid) {
         const stored = await saveProfessionalProfile(uid, rememberLink({
@@ -541,12 +552,12 @@ export default function EmployeesScreen() {
       setSelectedId(saved.id);
       if (view === 'cv') {
         setDraft(presentEmployee(saved));
-        setNote('CV-en er lagret.');
+        setNote(`CV-en er lagret.${imageNote}`);
         return;
       }
       setView('detail');
       setDraft(null);
-      setNote('Medarbeideren er lagret.');
+      setNote(`Medarbeideren er lagret.${imageNote}`);
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
     } finally {
@@ -954,17 +965,20 @@ export default function EmployeesScreen() {
 
       {view === 'cv' && cv ? (
         <View nativeID="employee-cv-editor" style={styles.stack}>
-          <Text style={{ color: colors.muted }}>
-            {cv.gaps.length
-              ? `CV-en kan skrives ut, men mangler: ${cv.gaps.map((item) => item.label).join(', ')}.`
-              : 'CV-en er bygget fra profilen og ansettelsen.'}
-          </Text>
-          {canEditCv ? (
-            <Text style={{ color: colors.muted }}>
-              Fyll ut feltene under, eller importer en CV. PDF og bilde leses med OCR og AI. Prosjekter kan hentes fra Excel eller fra et referanseark. Ingenting lagres før du trykker Lagre CV.
-            </Text>
-          ) : null}
+          <CvAttention draft={cvEmployee} colors={colors} />
+          <EmployeeCvView cv={cv} colors={colors} />
           <View style={styles.row}>
+            {canEditCv ? (
+              <TouchableOpacity
+                nativeID="employee-cv-save"
+                onPress={save}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
+              </TouchableOpacity>
+            ) : null}
             {canEditCv ? (
               <TouchableOpacity
                 nativeID="employee-cv-import"
@@ -997,32 +1011,27 @@ export default function EmployeesScreen() {
             ) : null}
           </View>
           {canEditCv ? (
-            <>
-              <EmployeeFields
-                draft={draft}
-                scope="employee"
-                sections={cvEditorSections('employee')}
-                showCustom={false}
-                colors={colors}
-                canEditOwner={canEditOwner}
-                departments={departments}
-                members={people}
-                addressHits={addressHits}
-                onPickAddress={pickAddress}
-                onChange={changeDraft}
-                onPhoto={choosePhoto}
-                onProjectImage={addProjectImages}
-              />
-              <TouchableOpacity
-                nativeID="employee-cv-save"
-                onPress={save}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
-              </TouchableOpacity>
-            </>
+            <Text style={{ color: colors.muted }}>
+              Se over CV-en over før du lagrer. Blyanten åpner ett avsnitt. PDF og bilde leses med OCR og AI, og bildene i filen tas med. Ingenting lagres før du trykker Lagre CV.
+            </Text>
+          ) : null}
+          {canEditCv ? (
+            <EmployeeFields
+              draft={draft}
+              scope="employee"
+              sections={cvEditorSections('employee')}
+              showCustom={false}
+              review
+              colors={colors}
+              canEditOwner={canEditOwner}
+              departments={departments}
+              members={people}
+              addressHits={addressHits}
+              onPickAddress={pickAddress}
+              onChange={changeDraft}
+              onPhoto={choosePhoto}
+              onProjectImage={addProjectImages}
+            />
           ) : null}
           <ReferenceSheets
             projects={draft?.cv?.projects}
@@ -1032,7 +1041,6 @@ export default function EmployeesScreen() {
             onDownload={downloadSheet}
             colors={colors}
           />
-          <EmployeeCvView cv={cv} colors={colors} />
         </View>
       ) : null}
 
@@ -1102,6 +1110,26 @@ function ReferenceSheets({ projects, draft, sheetId, onToggle, onDownload, color
   );
 }
 
+function CvAttention({ draft, colors }) {
+  const attention = cvAttention(draft);
+  const warn = '#9a6700';
+  const danger = colors.danger || '#b42318';
+  if (!attention.gaps.length && !attention.issues.length) return null;
+  return (
+    <View nativeID="employee-cv-attention" style={[styles.attention, { borderColor: warn, backgroundColor: colors.card }]}>
+      <Text style={{ color: warn, fontWeight: '700' }}>Se over før du lagrer</Text>
+      {attention.gaps.length ? (
+        <Text style={{ color: danger, fontWeight: '600' }}>
+          {`Mangler: ${attention.gaps.map((item) => item.label).join(', ')}.`}
+        </Text>
+      ) : null}
+      {attention.issues.map((issue) => (
+        <Text key={issue.text} style={{ color: warn, fontWeight: '600' }}>{issue.text}</Text>
+      ))}
+    </View>
+  );
+}
+
 function GapList({ title, items, colors }) {
   return (
     <View style={styles.stackTight}>
@@ -1143,6 +1171,7 @@ const styles = StyleSheet.create({
   dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12 },
   hero: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   heroPhoto: { width: 120, height: 140, borderRadius: 12 },
+  attention: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '600' },

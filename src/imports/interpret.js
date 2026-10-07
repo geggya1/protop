@@ -324,13 +324,21 @@ function clipText(value, max, lines = false) {
   return text.slice(0, max);
 }
 
+const CV_LIST_LIMITS = {
+  education: 60,
+  certifications: 80,
+  courses: 160,
+  experience: 80,
+  projects: 200,
+};
+
 function cvItems(list, max, map) {
   return (Array.isArray(list) ? list : []).slice(0, max).map(map).filter(Boolean);
 }
 
 export function sanitizeCv(parsed) {
   const src = parsed && typeof parsed === 'object' ? parsed : {};
-  const education = cvItems(src.education, 20, (row) => {
+  const education = cvItems(src.education, CV_LIST_LIMITS.education, (row) => {
     const item = {
       from: clipText(row?.from, 20),
       to: clipText(row?.to, 20),
@@ -339,15 +347,15 @@ export function sanitizeCv(parsed) {
     };
     return item.school || item.program || item.from ? item : null;
   });
-  const certifications = cvItems(src.certifications, 40, (row) => {
+  const certifications = cvItems(src.certifications, CV_LIST_LIMITS.certifications, (row) => {
     const title = clipText(row?.title || row, 160);
     return title ? { title } : null;
   });
-  const courses = cvItems(src.courses, 40, (row) => {
+  const courses = cvItems(src.courses, CV_LIST_LIMITS.courses, (row) => {
     const item = { date: clipText(row?.date, 40), title: clipText(row?.title, 160) };
     return item.title ? item : null;
   });
-  const experience = cvItems(src.experience, 30, (row) => {
+  const experience = cvItems(src.experience, CV_LIST_LIMITS.experience, (row) => {
     const current = row?.current === true || /^(ja|true|1|nå|naa|navaerende|dd)$/i.test(clipText(row?.current, 20));
     const item = {
       employer: clipText(row?.employer, 160),
@@ -360,7 +368,7 @@ export function sanitizeCv(parsed) {
     };
     return item.employer || item.title || item.tasks ? item : null;
   });
-  const projects = cvItems(src.projects, 40, (row) => {
+  const projects = cvItems(src.projects, CV_LIST_LIMITS.projects, (row) => {
     const item = {
       title: clipText(row?.title, 160),
       address: clipText(row?.address, 200),

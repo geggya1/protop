@@ -4,6 +4,7 @@
  */
 import { PNG } from 'pngjs';
 import { assignProjectImages } from '../src/employees/cvPictures.js';
+import { CV_PDF_PAGES } from './documentText.js';
 
 const SKIP_TITLE = /^(curriculum vitae|profil|oppsummering|utdanning|sertifiseringer|kurs|erfaringer|referanseprosjekter|prosjekter|arbeidsoppgaver)$/i;
 const MAX_URL = 520000;
@@ -144,7 +145,7 @@ export async function extractCvPictures(buffer) {
   let photo = '';
   const shots = [];
   try {
-    const pages = Math.min(doc.numPages || 0, 30);
+    const pages = Math.min(doc.numPages || 0, CV_PDF_PAGES);
     for (let pageNo = 1; pageNo <= pages; pageNo += 1) {
       const page = await doc.getPage(pageNo);
       const found = await pageShots(page, OPS);

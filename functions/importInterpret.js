@@ -15,6 +15,34 @@ import { pagePartsFromPdf } from './importPages.js';
 
 const MAX_DOC_CHARS = 6_000_000;
 
+const CV_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+
+function imageParts(parts) {
+  return (parts || []).filter((part) => part?.inline_data || part?.inlineData);
+}
+
+function withFewerPages(parts) {
+  const images = imageParts(parts);
+  if (images.length <= 2) return null;
+  const text = (parts || []).filter((part) => !part?.inline_data && !part?.inlineData);
+  return [...text, ...images.slice(0, 2)];
+}
+
+async function readCvModel(call, apiKey, parts) {
+  const options = {
+    maxOutputTokens: 8192,
+    perModelTimeoutMs: 45000,
+    models: CV_MODELS,
+  };
+  try {
+    return await call(apiKey, cvPrompt(), parts, options);
+  } catch (err) {
+    const shorter = withFewerPages(parts);
+    if (!shorter) throw err;
+    return await call(apiKey, cvPrompt(), shorter, options);
+  }
+}
+
 function clean(value, max) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -88,7 +116,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       if (prose.length >= 40) {
         parts = [{ text: `CV-tekst:\n${prose}` }];
       } else {
-        const document = await (deps.documentParts || documentParts)(data, { maxImages: 8 });
+        const document = await (deps.documentParts || documentParts)(data, { maxImages: 4 });
         parts = document.parts;
         usedOcr = document.usedOcr;
         sourceText = document.text || '';
@@ -110,10 +138,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       }
       let parsed = null;
       try {
-        parsed = await call(apiKey, cvPrompt(), parts, {
-          maxOutputTokens: 16384,
-          perModelTimeoutMs: 50000,
-        });
+        parsed = await readCvModel(call, apiKey, parts);
       } catch (err) {
         if (!local.headline && !local.projects?.length && !local.experience?.length) throw err;
       }

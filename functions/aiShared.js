@@ -184,11 +184,17 @@ export function friendlyGeminiError(err) {
   const status = httpMatch ? Number(httpMatch[1]) : null;
 
   // Aldri videresend teknisk payload (JSON, model-id, generateContent, …)
-  if (status === 404 || /not found|no longer available/i.test(raw)) {
+  if (status === 413 || /too large|payload size|request size/i.test(raw)) {
+    return 'Filen er for stor for AI-lesingen. Prøv igjen.';
+  }
+  if (status === 404 || (!status && /not found|no longer available/i.test(raw))) {
     return 'AI-tjenesten er midlertidig utilgjengelig. Prøv igjen om litt.';
   }
   if (status === 429 || /resource.?exhausted|quota|rate/i.test(raw)) {
     return 'AI er midlertidig opptatt (dagsgrense). Prøv igjen om noen minutter.';
+  }
+  if (status === 400 && /image|inline|jpeg|pdf|document|invalid argument|INVALID_ARGUMENT/i.test(raw)) {
+    return 'AI klarte ikke lese sidene i filen. Prøv igjen.';
   }
   if (
     status === 400
@@ -275,7 +281,8 @@ async function callGeminiJsonOnce(apiKey, model, systemPrompt, userParts, option
     const errText = await res.text().catch(() => '');
     // Log full detalj server-side, ikke til bruker
     console.warn('[callGeminiJsonOnce] HTTP', res.status, model, errText.slice(0, 200));
-    throw new Error(`Gemini HTTP ${res.status} (${model})`);
+    const detail = String(errText || '').replace(/\s+/g, ' ').slice(0, 160);
+    throw new Error(`Gemini HTTP ${res.status} (${model})${detail ? `: ${detail}` : ''}`);
   }
   const data = await res.json();
   const blockReason = data?.promptFeedback?.blockReason;
@@ -303,6 +310,19 @@ function normalizeGeminiTimeoutError(err) {
   return err;
 }
 
+function geminiStatus(err) {
+  const match = String(err?.message || '').match(/Gemini HTTP (\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+/** En senere 404 (modellnavn som ikke finnes) skal ikke skjule en tidligere 400. */
+export function preferGeminiError(previous, next) {
+  if (!next) return previous || next;
+  if (!previous) return next;
+  if (geminiStatus(next) === 404 && geminiStatus(previous) && geminiStatus(previous) !== 404) return previous;
+  return next;
+}
+
 /**
  * JSON fra Gemini med modell-fallback.
  * options.models — egen modelliste (ellers GEMINI_MODEL_FALLBACKS)
@@ -324,8 +344,9 @@ export async function callGeminiJson(apiKey, systemPrompt, userParts, options = 
       try {
         return await callGeminiJsonOnce(apiKey, model, systemPrompt, userParts, options);
       } catch (e) {
-        lastErr = normalizeGeminiTimeoutError(e);
-        console.warn('[callGeminiJson] model failed', model, lastErr?.message || e?.message);
+        const normalized = normalizeGeminiTimeoutError(e);
+        lastErr = preferGeminiError(lastErr, normalized);
+        console.warn('[callGeminiJson] model failed', model, normalized?.message || e?.message);
       }
       continue;
     }
@@ -347,7 +368,8 @@ export async function callGeminiJson(apiKey, systemPrompt, userParts, options = 
       );
     } catch (agg) {
       const errors = Array.isArray(agg?.errors) ? agg.errors : [agg];
-      lastErr = errors[errors.length - 1] || lastErr || new Error('Gemini feilet for batch');
+      for (const error of errors) lastErr = preferGeminiError(lastErr, error);
+      lastErr = lastErr || new Error('Gemini feilet for batch');
     }
   }
   throw lastErr || new Error('Gemini feilet for alle modeller');

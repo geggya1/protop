@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
-import { callGeminiJson, TUTOR_GEMINI_MODELS } from './aiShared.js';
+import { callGeminiJson, friendlyGeminiError, preferGeminiError, TUTOR_GEMINI_MODELS } from './aiShared.js';
 
 function geminiOk(payload) {
   return {
@@ -85,5 +85,26 @@ describe('callGeminiJson race / lite-first', () => {
     assert.ok(calls.includes('gemini-flash-latest'));
     assert.ok(calls.includes('gemini-2.5-flash'));
     assert.ok(calls.includes('gemini-2.5-flash-lite'));
+  });
+
+  it('beholder 400 når en senere modell ikke finnes', async () => {
+    mock.method(globalThis, 'fetch', async (url) => {
+      const model = decodeURIComponent(String(url).match(/models\/([^:]+)/)?.[1] || '');
+      if (model.includes('3.5')) return geminiHttp(404);
+      return geminiHttp(400);
+    });
+    await assert.rejects(
+      () => callGeminiJson('fake-key', 'sys', [{ text: 'hei' }], {
+        models: ['gemini-2.5-flash', 'gemini-3.5-flash'],
+        maxModels: 2,
+      }),
+      /Gemini HTTP 400/,
+    );
+    const hidden = preferGeminiError(
+      new Error('Gemini HTTP 400 (gemini-2.5-flash): invalid image'),
+      new Error('Gemini HTTP 404 (gemini-3.5-flash)'),
+    );
+    assert.match(friendlyGeminiError(hidden), /klarte ikke lese sidene/);
+    assert.match(friendlyGeminiError(new Error('Gemini HTTP 404 (gemini-3.5-flash)')), /midlertidig utilgjengelig/);
   });
 });

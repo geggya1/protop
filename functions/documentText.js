@@ -51,6 +51,95 @@ export async function extractPdfText(buffer) {
   return { text, tokens, positionedItems };
 }
 
+function pageLines(content) {
+  const items = content?.items || [];
+  const lines = [];
+  let line = '';
+  let last = null;
+  const pushLine = () => {
+    const trimmed = line.replace(/[ \t]+$/g, '');
+    if (trimmed) lines.push(trimmed);
+    line = '';
+  };
+  for (const item of items) {
+    const str = String(item?.str || '');
+    if (last && str && !last.hasEOL) {
+      const gap = (item.transform?.[4] ?? 0) - ((last.transform?.[4] ?? 0) + (last.width || 0));
+      const sameLine = Math.abs((item.transform?.[5] ?? 0) - (last.transform?.[5] ?? 0)) < 2;
+      if (sameLine && gap > 0.4 && !/^\s/.test(str) && !/\s$/.test(line)) {
+        line += ' ';
+      }
+    }
+    line += str;
+    if (item?.hasEOL) pushLine();
+    if (str || item?.hasEOL) last = item;
+  }
+  if (line.trim()) pushLine();
+  return lines.join('\n')
+    .replace(/([A-Za-zÆØÅæøå])-\n([a-zæøå])/g, '$1$2')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Tekstlag med linjeskift, uten Tesseract.
+ * Tom streng når PDF-en er et skann. Korte side-tall tas ikke med.
+ */
+export async function extractPdfLines(buffer, { maxPages = 30, maxChars = 24000 } = {}) {
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
+  if (buf.length < 100) return '';
+  let doc;
+  try {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    doc = await getDocument({
+      data: new Uint8Array(buf),
+      useSystemFonts: true,
+      isEvalSupported: false,
+      disableFontFace: true,
+    }).promise;
+  } catch {
+    return '';
+  }
+  const pages = [];
+  let total = 0;
+  try {
+    const limit = Math.min(doc.numPages || 0, Math.max(1, maxPages));
+    for (let pageNo = 1; pageNo <= limit; pageNo += 1) {
+      const page = await doc.getPage(pageNo);
+      const text = pageLines(await page.getTextContent().catch(() => null));
+      if (!text) continue;
+      const gap = pages.length ? 1 : 0;
+      if (total + gap + text.length > maxChars) {
+        const room = maxChars - total - gap;
+        if (room > 80) {
+          const slice = text.slice(0, room);
+          const cut = slice.lastIndexOf('\n');
+          pages.push(cut > 40 ? slice.slice(0, cut) : slice);
+        }
+        break;
+      }
+      pages.push(text);
+      total += gap + text.length;
+    }
+  } catch {
+    // Delvis tekst er bedre enn å forkaste det som ble lest.
+  } finally {
+    try {
+      await doc.destroy?.();
+    } catch {
+      // ignore
+    }
+  }
+  return pages.join('\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^\d+\s*\/\s*\d+$/.test(line) && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(line))
+    .join('\n')
+    .trim();
+}
+
 function stripDocxXml(xml) {
   return String(xml || '')
     .replace(/<w:tab\/>/g, '\t')

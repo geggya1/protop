@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { zipStore } from '../indeksregulering/office.js';
 import { sanitizeCv } from '../imports/interpret.js';
-import { emptyEmployee } from './model.js';
+import { emptyEmployee, gapReport } from './model.js';
 import { applyImportedCv, readCvImport, textFromDocx } from './cvImport.js';
 
 const clean = sanitizeCv({
@@ -30,9 +30,15 @@ const first = applyImportedCv(emptyEmployee('emp-anders'), clean.cv);
 assert.equal(first.employee.cv.summary, 'Erfaring fra offentlige bygg.');
 assert.equal(first.employee.person.nationality, 'Norsk');
 assert.equal(first.employee.person.maritalStatus, 'Gift');
+assert.equal(first.employee.company.title, 'Prosjekt- og byggeleder');
 assert.equal(first.employee.cv.experience[0].employer, 'CONSULT1 AS');
 assert.ok(first.added.includes('oppsummering'));
 assert.ok(first.added.includes('nasjonalitet'));
+assert.ok(first.added.includes('tittel'));
+const filledGaps = gapReport(first.employee).cv.map((item) => item.label);
+for (const label of ['Tittel', 'Nasjonalitet', 'Sivil status', 'Oppsummering og nøkkelkvalifikasjoner', 'Utdanning', 'Erfaring']) {
+  assert.equal(filledGaps.includes(label), false, label);
+}
 
 const again = applyImportedCv(first.employee, {
   ...clean.cv,
@@ -77,6 +83,7 @@ assert.equal(scanned.cv.summary, 'Fra skann');
 
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(screen, /Importer CV/);
+assert.match(screen, /fra teksten i filen/);
 assert.match(screen, /Importer prosjekter/);
 assert.match(screen, /Lagre CV/);
 assert.match(screen, /cvEditorSections/);

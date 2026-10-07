@@ -103,6 +103,54 @@ assert.equal(cv.projects[0].link.companyProjectId, '');
 assert.equal(cv.projects[1].phone, '518000');
 assert.equal(cv.projects[1].email, 'svein.kverme@seabrokers.no');
 assert.equal(cv.projects[2].title, 'Neste prosjekt');
+
+const currentRole = parseProtopCv(`
+Geir Ove Andersen
+Partner
+Erfaringer
+Consult1 AS
+Svanholmen 7, 4313 Sandnes
+Partner
+2016 - d.d.
+Arbeidsoppgaver
+• Prosjekteringsledelse
+`);
+assert.equal(currentRole.experience.length, 1);
+assert.equal(currentRole.experience[0].employer, 'Consult1 AS');
+assert.equal(currentRole.experience[0].from, '2016');
+assert.equal(currentRole.experience[0].to, '');
+assert.equal(currentRole.experience[0].current, true);
+assert.match(currentRole.experience[0].tasks, /Prosjekteringsledelse/);
+
+const wrappedProject = parseProtopCv(`
+Referanseprosjekter
+Ny brannstasjon
+Austvegen 46, 4341 Bryne, Norge
+Ansvar i prosjektet Prosjektleder i
+gjennomføringsfasen.
+KinoKino
+Kinokino, Sandnes, Norge
+Kategori Offentlig næring
+`);
+assert.equal(wrappedProject.projects.length, 2);
+assert.equal(wrappedProject.projects[0].title, 'Ny brannstasjon');
+assert.match(wrappedProject.projects[0].responsibility, /gjennomføringsfasen/);
+assert.equal(wrappedProject.projects[1].title, 'KinoKino');
+
+const wrappedResponsibility = parseProtopCv(`
+Referanseprosjekter
+Første bygg
+Adresseveien 1, 4313 Sandnes, Norge
+Ansvar i prosjektet Assisterende prosjektleder,
+Fremdrift og LEAN i gjennomføringsfasen.
+Sandnes rådhus
+Sandnes rådhus, Sandnes, Norge
+Kategori Offentlig næring
+`);
+assert.equal(wrappedResponsibility.projects.length, 2);
+assert.match(wrappedResponsibility.projects[0].responsibility, /Fremdrift og LEAN/);
+assert.equal(wrappedResponsibility.projects[1].title, 'Sandnes rådhus');
+assert.equal(wrappedResponsibility.projects[1].category, 'Offentlig næring');
 assert.equal(cv.projects[2].phone, '92 41 83 99');
 
 const merged = mergeCvReads(cv, {

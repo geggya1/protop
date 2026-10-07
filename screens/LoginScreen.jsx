@@ -56,6 +56,15 @@ function notifyAsync(title, message) {
   Alert.alert(title, message);
 }
 
+function withDeadline(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(label)), ms);
+    }),
+  ]);
+}
+
 /**
  * Login card — Twitter-style:
  * Google & Apple → OR → username/password → Log in → forgot / sign up
@@ -274,17 +283,29 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const loginEmail = (await resolveLoginEmail(emailTrimmed)) || emailTrimmed;
-      const cred = await signInWithEmailAndPassword(auth, loginEmail, password);
-      await reload(cred.user);
+      const loginEmail = (await withDeadline(
+        resolveLoginEmail(emailTrimmed),
+        8000,
+        'login-email-timeout',
+      ).catch(() => emailTrimmed)) || emailTrimmed;
+      const cred = await withDeadline(
+        signInWithEmailAndPassword(auth, loginEmail, password),
+        20000,
+        'login-timeout',
+      );
+      await withDeadline(reload(cred.user), 8000, 'login-reload-timeout').catch(() => {});
 
       if (!cred.user.emailVerified) {
         setUnverifiedInfo(true);
         try { await sendVerificationEmailV2(cred.user.email || loginEmail); } catch {}
       }
 
-      try { await linkLooseMemberships(cred.user); } catch {}
-      try { await handlePendingInvites(cred.user); } catch {}
+      try {
+        await withDeadline(linkLooseMemberships(cred.user), 8000, 'link-timeout');
+      } catch { /* membership can finish after the screen opens */ }
+      try {
+        await withDeadline(handlePendingInvites(cred.user), 8000, 'invite-timeout');
+      } catch { /* invite lookup must not keep the button spinning */ }
 
       // Navigation is driven by onAuthStateChanged + RootNav stage.
       // Only hint-navigate if Home is already registered (avoids silent no-op).
@@ -303,6 +324,8 @@ export default function LoginScreen({ navigation }) {
         if (reset) doPasswordReset();
       } else if (err.code === 'auth/user-not-found') {
         setFormError('Bruker ikke funnet. Opprett ny bruker hvis du ikke har konto.');
+      } else if (err?.message === 'login-timeout' || err?.message === 'login-email-timeout') {
+        setFormError('Innloggingen tok for lang tid. Prøv igjen.');
       } else {
         setFormError(err?.message || 'Innlogging feilet. Prøv igjen.');
       }

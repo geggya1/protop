@@ -62,4 +62,13 @@ assert.equal(
   'truly logged-out /hjem may go to marketing',
 );
 
+import { shouldHoldFamilyBootSpinner } from './authBootGate.js';
+
+assert.equal(shouldHoldFamilyBootSpinner({ bootTimedOut: false }), true);
+assert.equal(
+  shouldHoldFamilyBootSpinner({ bootTimedOut: true }),
+  false,
+  'a shell that is still being created must not keep the spinner',
+);
+
 console.log('authBootGate tests ok');

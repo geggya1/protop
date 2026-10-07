@@ -27,7 +27,6 @@ import {
   choiceLabel,
   commitEmployee,
   contactLine,
-  cvPlainText,
   departmentLabels,
   directoryStats,
   displayName,
@@ -363,9 +362,7 @@ export default function EmployeesScreen() {
         : interpreted.engine?.includes('ocr')
           ? ' med OCR og AI'
           : ' med AI';
-      const found = applied.added.length ? `Lagt inn: ${applied.added.join(', ')}.` : 'Ingen nye opplysninger ble funnet.';
-      const kept = applied.kept.length ? ` Det som allerede var fylt ut, ble beholdt: ${applied.kept.join(', ')}.` : '';
-      setNote(`CV-en er lest${understood}. ${found}${kept} Ingenting er lagret før du trykker Lagre CV.`);
+      setNote(`CV-en er lest${understood}. Ingenting er lagret før du trykker Lagre CV.`);
     } catch (err) {
       showError(err?.message || 'Kunne ikke lese CV-en.');
     } finally {
@@ -644,20 +641,6 @@ export default function EmployeesScreen() {
       setBusy(false);
       setConfirmDelete(false);
     }
-  }
-
-  async function copyCv(cv) {
-    const text = cvPlainText(cv);
-    try {
-      if (Platform.OS === 'web' && globalThis.navigator?.clipboard?.writeText) {
-        await globalThis.navigator.clipboard.writeText(text);
-        setNote('CV-teksten er kopiert.');
-        return;
-      }
-    } catch {
-      /* fall through */
-    }
-    setError('Kopiering er ikke tilgjengelig i denne visningen.');
   }
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
@@ -1011,9 +994,51 @@ export default function EmployeesScreen() {
 
       {view === 'cv' && cv ? (
         <View nativeID="employee-cv-editor" style={styles.stack}>
+          {canEditCv ? (
+            <View style={styles.row}>
+              <TouchableOpacity
+                nativeID="employee-cv-save"
+                onPress={save}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                nativeID="employee-cv-import"
+                onPress={importCvFile}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <CvAttention draft={cvEmployee} colors={colors} />
           {canEditCv && editSection ? (
-            <View nativeID="employee-cv-section">
+            <View nativeID="employee-cv-section" style={styles.stack}>
+              {editSection === 'projects' && editItemId ? (
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'pdf')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Referanseark som PDF"
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>PDF</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'docx')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Referanseark som Word"
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Word</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <EmployeeFields
                 key={`${editSection}:${editItemId}:${editToken}`}
                 draft={draft}
@@ -1043,51 +1068,7 @@ export default function EmployeesScreen() {
             colors={colors}
             onEdit={canEditCv ? (sectionId) => beginSectionEdit(sectionId) : undefined}
             onEditProject={canEditCv ? (project) => beginSectionEdit('projects', project.id) : undefined}
-            onProjectFile={downloadSheet}
           />
-          <View style={styles.row}>
-            {canEditCv ? (
-              <TouchableOpacity
-                nativeID="employee-cv-save"
-                onPress={save}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {canEditCv ? (
-              <TouchableOpacity
-                nativeID="employee-cv-import"
-                onPress={importCvFile}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {canEditCv ? (
-              <TouchableOpacity
-                nativeID="employee-project-import-cv"
-                onPress={importProjectsFile}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: colors.ink }}>{busy && busyKind === 'projects' ? 'Leser prosjekter…' : 'Importer prosjekter'}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity onPress={() => copyCv(cv)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Kopier tekst</Text>
-            </TouchableOpacity>
-            {Platform.OS === 'web' ? (
-              <TouchableOpacity onPress={() => globalThis.print?.()} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Skriv ut</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
         </View>
       ) : null}
 
@@ -1099,7 +1080,6 @@ export default function EmployeesScreen() {
             colors={colors}
             onEdit={(sectionId) => beginSectionEdit(sectionId)}
             onEditProject={(project) => beginSectionEdit('projects', project.id)}
-            onProjectFile={downloadSheet}
           />
         </View>
       ) : null}

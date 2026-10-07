@@ -27,7 +27,7 @@ function Block({ title, colors, onEdit, children }) {
   );
 }
 
-export default function EmployeeCvView({ cv, colors, onEdit, onEditProject, onProjectFile }) {
+export default function EmployeeCvView({ cv, colors, onEdit, onEditProject }) {
   if (!cv) return null;
   return (
     <View nativeID="employee-cv" id="employee-cv" style={[styles.page, { backgroundColor: colors.card, borderColor: colors.line }]}>
@@ -91,33 +91,11 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject, onPr
           <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
             <View style={styles.projectHead}>
               <Text style={[styles.jobTitle, { color: colors.ink, flex: 1 }]}>{row.title || 'Prosjekt'}</Text>
-              <View style={styles.projectActions}>
-                <Pencil
-                  label={`Rediger ${row.title || 'prosjekt'}`}
-                  onPress={onEditProject ? () => onEditProject(row) : undefined}
-                  colors={colors}
-                />
-                {onProjectFile ? (
-                  <TouchableOpacity
-                    onPress={() => onProjectFile(row, 'pdf')}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Referanseark som PDF for ${row.title || 'prosjektet'}`}
-                    style={[styles.fileButton, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>PDF</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onProjectFile ? (
-                  <TouchableOpacity
-                    onPress={() => onProjectFile(row, 'docx')}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Referanseark som Word for ${row.title || 'prosjektet'}`}
-                    style={[styles.fileButton, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>Word</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+              <Pencil
+                label={`Rediger ${row.title || 'prosjekt'}`}
+                onPress={onEditProject ? () => onEditProject(row) : undefined}
+                colors={colors}
+              />
             </View>
             {(row.images || []).length ? (
               <View style={styles.projectImages}>
@@ -132,22 +110,9 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject, onPr
                 ))}
               </View>
             ) : null}
-            {!!row.address && <Text style={{ color: colors.muted }}>{row.address}</Text>}
-            {[
-              ['Kategori', row.category],
-              ['Kunde', row.client],
-              ['Objekt', row.object],
-              ['Periode', row.period],
-              ['Kostnad', row.cost],
-              ['Kontakt', row.contact],
-              ['Telefon', row.phone],
-              ['E-post', row.email],
-              ['Arbeidsgiver', row.employer],
-            ].filter(([, value]) => String(value || '').trim()).map(([label, value]) => (
-              <Text key={label} style={[styles.body, { color: colors.ink }]}>{`${label}: ${value}`}</Text>
-            ))}
-            {!!row.roles && <Text style={[styles.body, { color: colors.ink }]}>{`Roller: ${row.roles}`}</Text>}
-            {!!row.responsibility && <Text style={[styles.body, { color: colors.ink }]}>{row.responsibility}</Text>}
+            {!![row.client, row.period].filter(Boolean).length && (
+              <Text style={{ color: colors.muted }}>{[row.client, row.period].filter(Boolean).join(' · ')}</Text>
+            )}
           </View>
         )) : <Text style={{ color: colors.muted }}>Ingen referanseprosjekter er lagt inn.</Text>}
       </Block>
@@ -175,7 +140,6 @@ const styles = StyleSheet.create({
   blockHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   blockTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
   iconButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  fileButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   fact: { flexDirection: 'row', gap: 12 },
   factLabel: { width: 110, fontSize: 14 },
   factValue: { flex: 1, fontSize: 14 },
@@ -184,7 +148,6 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 16, fontWeight: '600' },
   project: { borderTopWidth: 1, paddingTop: 8, gap: 2 },
   projectHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  projectActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' },
   projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   projectImage: { width: 160, height: 110, borderRadius: 8 },
 });

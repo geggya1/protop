@@ -21,6 +21,7 @@ import { useColors } from '../../src/context/ThemeContext';
 export const BUILTIN_BOTTOM_CHOICES = [
   { id: 'home', label: 'Hjem', icon: 'home' },
   { id: 'projects', label: 'Prosjekt', icon: 'business' },
+  { id: 'iso', label: 'ISO', icon: 'shield-checkmark' },
   { id: 'plan', label: 'Kalender', icon: 'calendar' },
   { id: 'mail', label: 'E-post', icon: 'mail' },
   { id: 'stars', label: 'Oppgaver', icon: 'checkmark-circle' },

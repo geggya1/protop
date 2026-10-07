@@ -31,6 +31,10 @@ export function projectFromAward(projectState, contract) {
     name: contract.title,
     number: projectNumber(contract, projectState.projects),
     client: contract.buyer,
+    customerId: contract.customerId || '',
+    contractId: contract.id,
+    frameworkAgreementId: contract.kind === 'avrop' ? (contract.parentId || '') : (contract.kind === 'rammeavtale' ? contract.id : ''),
+    agreementKind: contract.kind === 'avrop' ? 'avrop' : (contract.kind === 'rammeavtale' ? 'rammeavtale' : 'oppdrag'),
     phase: 'planlegging',
   });
   if (!created.ok) return { ...created, projectId: null, created: false };

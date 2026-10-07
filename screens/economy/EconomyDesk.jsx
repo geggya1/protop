@@ -43,6 +43,8 @@ export default function EconomyDesk({
   lead = 'Velg en kunde, et prosjekt eller en avtale. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale.',
   onChooseContract,
   onOpenIndex,
+  includeCustomers = true,
+  searchPlaceholder = 'Søk i kunder, prosjekt og avtaler',
 }) {
   const colors = useColors();
   const [query, setQuery] = useState('');
@@ -56,8 +58,8 @@ export default function EconomyDesk({
   }, [chosenContractId]);
 
   const rows = useMemo(
-    () => economyTableRows(customers, contracts, query, { projects, dueById }),
-    [customers, contracts, query, projects, dueById],
+    () => economyTableRows(customers, contracts, query, { projects, dueById, includeCustomers }),
+    [customers, contracts, query, projects, dueById, includeCustomers],
   );
   const customer = customers.find((row) => row.id === customerId) || null;
   const project = projects.find((row) => row.id === projectId) || null;
@@ -112,7 +114,7 @@ export default function EconomyDesk({
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Søk i kunder, prosjekt og avtaler"
+        placeholder={searchPlaceholder}
         placeholderTextColor={colors.placeholder}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />

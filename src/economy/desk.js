@@ -49,10 +49,6 @@ function contractExtra(contract) {
   ].filter(Boolean).join(' · ');
 }
 
-function dueForCustomer(customer, contracts, dueMap) {
-  return relatedContracts(contracts, customer).some((row) => dueMap?.[row.id]?.due);
-}
-
 function dueForProject(projectId, contracts, dueMap) {
   return contractsForProject(contracts, projectId).some((row) => dueMap?.[row.id]?.due);
 }
@@ -60,10 +56,10 @@ function dueForProject(projectId, contracts, dueMap) {
 export function economyTableRows(customers = [], contracts = [], query = '', {
   projects = [],
   dueById = {},
+  includeCustomers = true,
 } = {}) {
-  const customerRows = (Array.isArray(customers) ? customers : []).map((customer) => {
+  const customerRows = includeCustomers ? (Array.isArray(customers) ? customers : []).map((customer) => {
     const related = relatedContracts(contracts, customer);
-    const due = dueForCustomer(customer, contracts, dueById);
     return {
       key: `kunde:${customer.id}`,
       kind: 'kunde',
@@ -73,11 +69,11 @@ export function economyTableRows(customers = [], contracts = [], query = '', {
       title: customer.name,
       party: customer.kind === 'person' ? 'Privatkunde' : (formatOrgnr(customer.orgnr) || 'Virksomhet'),
       extra: related.length === 1 ? '1 avtale' : `${related.length} avtaler`,
-      due,
-      dueReason: due ? 'Klar for indeksregulering' : '',
+      due: false,
+      dueReason: '',
       sort: fold(customer.name),
     };
-  });
+  }) : [];
   const contractRows = (Array.isArray(contracts) ? contracts : []).map((contract) => {
     const status = dueById?.[contract.id];
     return {

@@ -32,8 +32,16 @@ assert.equal(rows.filter((row) => row.kind === 'kunde').length, 2);
 assert.equal(rows.filter((row) => row.kind === 'avtale').length, 2);
 assert.equal(rows.filter((row) => row.kind === 'prosjekt').length, 1);
 assert.ok(rows.some((row) => row.key === 'avtale:a1' && row.party.includes('Igang') && row.due));
-assert.ok(rows.some((row) => row.key === 'kunde:c1' && row.due));
+assert.equal(rows.find((row) => row.key === 'kunde:c1').due, false);
 assert.ok(rows.some((row) => row.key === 'prosjekt:p1' && row.due));
+const indexRows = economyTableRows(customers, contracts, '', {
+  projects,
+  dueById: { a1: { due: true, reason: 'Avtalen er ikke indeksregulert ennå.' } },
+  includeCustomers: false,
+});
+assert.equal(indexRows.some((row) => row.kind === 'kunde'), false);
+assert.ok(indexRows.some((row) => row.key === 'prosjekt:p1' && row.due));
+assert.ok(indexRows.some((row) => row.key === 'avtale:a1' && row.due));
 assert.equal(economyTableRows(customers, contracts, 'madlalia', { projects }).map((row) => row.key).sort().join(), 'avtale:a1,prosjekt:p1');
 assert.equal(economyTableRows(customers, contracts, 'privatkunde').length, 1);
 assert.equal(rows.findIndex((row) => row.key === 'avtale:a1') < rows.findIndex((row) => row.key === 'avtale:a2'), true);

@@ -321,6 +321,10 @@ const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.
 assert.match(economyScreen, /EconomyWelcome/);
 assert.match(economyScreen, /EconomyDesk/);
 assert.match(economyScreen, /EconomyCustomers/);
+const economyCustomers = readFileSync(new URL('../../screens/economy/EconomyCustomers.jsx', import.meta.url), 'utf8');
+assert.match(economyCustomers, /phoneName/);
+assert.match(economyCustomers, /stackRows/);
+assert.match(economyCustomers, /minWidth: 280/);
 assert.match(economyScreen, /EconomyContracts/);
 assert.match(economyScreen, /openIndexIntentFromContract/);
 assert.match(economyScreen, /EconomyIndex/);

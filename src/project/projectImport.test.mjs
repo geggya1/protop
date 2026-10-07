@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   companyProjectRow,
+  linkImportPlanCustomer,
   matchCustomer,
   planProjectImport,
   readCompanyProjectTable,
@@ -14,6 +15,27 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
     { customerNumber: '10025' },
   );
   assert.equal(customer.id, 'c1');
+}
+
+{
+  // Kundenummer i registeret kan mangle/være annet; org.nr og mykt navn skal fortsatt treffe.
+  const byOrgnr = matchCustomer(
+    [{ id: 'c-org', name: 'Sandnes kommune', customerNumber: '12', orgnr: '964965137' }],
+    { customerNumber: '10025', client: 'Sandnes Kommune', orgnr: '964 965 137' },
+  );
+  assert.equal(byOrgnr.id, 'c-org');
+
+  const bySoftName = matchCustomer(
+    [{ id: 'c-name', name: 'Stavanger kommune', customerNumber: '9', orgnr: '' }],
+    { customerNumber: '10062', client: 'Stavanger Kommune Bymiljø Og Utbygging', orgnr: '' },
+  );
+  assert.equal(bySoftName.id, 'c-name');
+
+  const byNormalizedNumber = matchCustomer(
+    [{ id: 'c-num', name: 'Lyse Neo AS', customerNumber: '10115', orgnr: '982929733' }],
+    { customerNumber: '10115.0', client: 'Lyse Neo AS' },
+  );
+  assert.equal(byNormalizedNumber.id, 'c-num');
 }
 
 {
@@ -30,6 +52,7 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
   assert.equal(row.project.customerId, 'c2');
   assert.equal(row.project.phase, 'produksjon');
   assert.match(row.issues.join(' '), /Ingen avtale/);
+  assert.equal(row.issues.some((issue) => /kunde/i.test(issue)), false);
 }
 
 {
@@ -73,6 +96,36 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
   const blocked = companyProjectRow({ number: 'Totalt', name: '6330912.48' });
   assert.equal(blocked.severity, 'block');
   assert.equal(blocked.project, null);
+}
+
+{
+  const customers = [
+    { id: 'c-sandnes', name: 'Sandnes kommune', customerNumber: '7', orgnr: '964965137' },
+    { id: 'c-other', name: 'Annen AS', customerNumber: '8', orgnr: '999999999' },
+  ];
+  const plan = planProjectImport(
+    emptyProjectState(),
+    customers,
+    [],
+    [
+      { number: '10947', name: 'Lura Skole', customerNumber: '10025', client: 'Sandnes Kommune', orgnr: '964965137' },
+      { number: '10945', name: 'Kino Kino', customerNumber: '10025', client: 'Sandnes Kommune', orgnr: '964965137' },
+      { number: '10948', name: 'Nabokontakt', customerNumber: '10115', client: 'Lyse Neo AS', orgnr: '982929733' },
+    ],
+  );
+  assert.equal(plan.rows[0].customerId, 'c-sandnes');
+  assert.equal(plan.rows[1].customerId, 'c-sandnes');
+  assert.equal(plan.rows[2].customerId, '');
+  assert.match(plan.rows[2].issues.join(' '), /Velg kunde under/);
+
+  const linked = linkImportPlanCustomer(plan, 2, customers[1], { applyGroup: true });
+  // Feil kunde i listen over — koble Lyse-raden til en ny kunde med riktig identitet
+  const lyse = { id: 'c-lyse', name: 'Lyse Neo AS', customerNumber: '10115', orgnr: '982929733' };
+  const linkedLyse = linkImportPlanCustomer(plan, 2, lyse, { applyGroup: true });
+  assert.equal(linkedLyse.rows[2].customerId, 'c-lyse');
+  assert.equal(linkedLyse.rows[2].project.customerId, 'c-lyse');
+  assert.equal(linkedLyse.rows[2].issues.some((issue) => /kunde/i.test(issue)), false);
+  assert.equal(linked.rows[2].customerId, 'c-other');
 }
 
 try {

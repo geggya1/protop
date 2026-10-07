@@ -83,11 +83,15 @@ function pageLines(content) {
     .trim();
 }
 
+/** En lang CV med mange referanseprosjekter får plass. Grensen stopper bare urimelig store filer. */
+export const CV_PDF_PAGES = 80;
+export const CV_PDF_CHARS = 200_000;
+
 /**
  * Tekstlag med linjeskift, uten Tesseract.
  * Tom streng når PDF-en er et skann. Korte side-tall tas ikke med.
  */
-export async function extractPdfLines(buffer, { maxPages = 30, maxChars = 24000 } = {}) {
+export async function extractPdfLines(buffer, { maxPages = CV_PDF_PAGES, maxChars = CV_PDF_CHARS } = {}) {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   if (buf.length < 100) return '';
   let doc;

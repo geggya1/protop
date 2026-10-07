@@ -47,7 +47,7 @@ export async function askImportInterpret(payload) {
   };
   if (payload?.text) {
     body.mode = 'ocr';
-    body.text = String(payload.text).slice(0, 12000);
+    body.text = String(payload.text).slice(0, 200_000);
   } else if (body.mode === 'columns') {
     body.headers = payload?.headers || [];
     body.samples = payload?.samples || [];

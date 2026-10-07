@@ -12,7 +12,7 @@ import {
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
 import { extractCvPictures, withCvPictures } from './cvPictures.js';
-import { extractPdfLines } from './documentText.js';
+import { CV_PDF_CHARS, extractPdfLines } from './documentText.js';
 import { pagePartsFromPdf } from './importPages.js';
 
 const MAX_DOC_CHARS = 6_000_000;
@@ -117,7 +117,7 @@ async function documentParts(data, options = {}) {
     }
     const { ocrPdfPages } = await import('./ocrPdf.js');
     const ocr = await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));
-    if (ocr.text) parts.push({ text: `OCR-tekst:\n${ocr.text.slice(0, 24000)}` });
+    if (ocr.text) parts.push({ text: `OCR-tekst:\n${ocr.text.slice(0, CV_PDF_CHARS)}` });
     for (const image of (ocr.images || []).slice(0, maxImages)) {
       parts.push({
         inline_data: { mime_type: image.mime || 'image/png', data: image.buffer.toString('base64') },
@@ -150,7 +150,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
 
   try {
     if (kind === 'cv') {
-      const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, 24000);
+      const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, CV_PDF_CHARS);
       let parts;
       let usedOcr = false;
       let sourceText = prose;

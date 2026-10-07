@@ -123,7 +123,7 @@ const kept = await handleInterpretImport({
     throw new Error('modell nede');
   },
 });
-assert.equal(seenImages.maxImages, 8);
+assert.equal(seenImages.maxImages, 4);
 assert.equal(kept.engine, 'ocr+gemini');
 assert.equal(kept.cv.projects.length, 1);
 assert.equal(kept.cv.projects[0].title, 'Kraftverk');
@@ -169,6 +169,39 @@ assert.equal(sheetOnly.cv.projects[0].buildingClass, '3');
 assert.equal(sheetOnly.cv.projects[0].category, '');
 assert.equal(sheetOnly.cv.projects[0].object, '');
 assert.equal(sheetOnly.cv.projects[0].referenceName, '');
+
+let cvCalls = 0;
+const manyPages = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  mime: 'application/pdf',
+  imageBase64: 'a'.repeat(120),
+}, { uid: 'user' }, {
+  ...deps,
+  documentParts: async () => ({
+    usedOcr: true,
+    text: '',
+    parts: [
+      { text: 'Les CV-en.' },
+      { inline_data: { mime_type: 'image/jpeg', data: 'side1' } },
+      { inline_data: { mime_type: 'image/jpeg', data: 'side2' } },
+      { inline_data: { mime_type: 'image/jpeg', data: 'side3' } },
+      { inline_data: { mime_type: 'image/jpeg', data: 'side4' } },
+    ],
+  }),
+  callGeminiJson: async (_key, _prompt, parts, options) => {
+    cvCalls += 1;
+    assert.deepEqual(options.models, ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest']);
+    const images = parts.filter((part) => part.inline_data).length;
+    if (images > 2) throw new Error('Gemini HTTP 400 (gemini-3.8-flash): invalid image');
+    assert.equal(images, 2);
+    return { firstName: 'Geir', lastName: 'Andersen', headline: 'Rådgiver', summaryNote: 'Lest' };
+  },
+});
+assert.equal(cvCalls, 2);
+assert.equal(manyPages.cv.firstName, 'Geir');
+assert.equal(manyPages.cv.lastName, 'Andersen');
 
 const source = readFileSync(new URL('./importInterpret.js', import.meta.url), 'utf8');
 assert.match(source, /imageBase64.length <= 1_500_000/);

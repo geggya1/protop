@@ -328,6 +328,7 @@ assert.equal(economyScreen.includes('IndeksreguleringPanel'), false);
 assert.match(economyScreen, /page === 'indeks'/);
 assert.match(economyScreen, /page === 'kunder'/);
 assert.match(economyScreen, /page === 'avtaler'/);
+assert.equal(economyScreen.includes('Kunder og avtaler'), false);
 assert.match(economyScreen, /requestShellTab\?\.\('kunder'/);
 assert.match(economyScreen, /requestShellTab\?\.\('kontrakt'/);
 assert.match(economyScreen, /indexOpen/);

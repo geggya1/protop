@@ -170,19 +170,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       keyboardShouldPersistTaps="handled"
     >
       {page === 'oversikt' ? <EconomyWelcome stored={company} /> : null}
-      {page === 'oversikt' ? (
-        <EconomyDesk
-          customers={customers}
-          contracts={contracts}
-          projects={projects}
-          dueById={dueById}
-          chosenContractId={chosen?.id || ''}
-          title="Kunder og avtaler"
-          lead="Økonomisk oversikt. Full kunde- og avtaleinformasjon ligger i bedriftsmenyen under Kunder og Kontrakt / avtale."
-          onChooseContract={setChosen}
-          onOpenIndex={openIndex}
-        />
-      ) : null}
       {page === 'kunder' ? (
         <EconomyCustomers
           customers={customers}

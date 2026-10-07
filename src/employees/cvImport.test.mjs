@@ -133,4 +133,19 @@ assert.equal(pictured.employee.person.photoUrl, 'data:image/png;base64,aaaa');
 assert.deepEqual(pictured.employee.cv.projects[0].images, ['data:image/png;base64,bbbb']);
 assert.ok(pictured.added.includes('bilde'));
 
+const many = sanitizeCv({
+  projects: Array.from({ length: 76 }, (_, index) => ({
+    title: `Prosjekt ${index + 1}`,
+    client: 'Kommunen',
+    period: '2020',
+  })),
+  courses: Array.from({ length: 68 }, (_, index) => ({
+    date: `01.${2000 + (index % 20)}`,
+    title: `Kurs ${index + 1}`,
+  })),
+});
+assert.equal(many.cv.projects.length, 76);
+assert.equal(many.cv.projects[75].title, 'Prosjekt 76');
+assert.equal(many.cv.courses.length, 68);
+
 console.log('cvImport.test.mjs: ok');

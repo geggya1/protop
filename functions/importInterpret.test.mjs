@@ -362,4 +362,74 @@ assert.equal(scanImages, 1);
 assert.equal(fromScan.engine, 'ocr+gemini');
 assert.equal(fromScan.cv.firstName, 'Skann');
 
+function multiPageTextPdf(pageLines) {
+  const count = pageLines.length;
+  const fontId = 3 + count * 2;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Count ${count} /Kids [${Array.from({ length: count }, (_, index) => `${3 + index * 2} 0 R`).join(' ')}] >>`,
+  ];
+  pageLines.forEach((lines, index) => {
+    const stream = lines.map((line, lineIndex) => {
+      const encoded = line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+      return `BT /F1 11 Tf 40 ${800 - lineIndex * 18} Td (${encoded}) Tj ET`;
+    }).join('\n');
+    const pageId = 3 + index * 2;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents ${pageId + 1} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`);
+    objects.push(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`);
+  });
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let body = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(body));
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefAt = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let id = 1; id <= objects.length; id += 1) body += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`;
+  return Buffer.from(body);
+}
+
+const manyLines = [
+  'CURRICULUM VITAE',
+  'Kari Nordmann',
+  'Prosjektleder',
+  'Referanseprosjekter',
+];
+for (let index = 1; index <= 70; index += 1) {
+  manyLines.push(`Prosjekt ${String(index).padStart(3, '0')} med et langt navn`);
+  manyLines.push('Kategori Offentlig');
+  manyLines.push('Kunde Kommunen');
+  manyLines.push('Periode 2020');
+  manyLines.push('Ansvar i prosjektet Oppfolging av byggherre og prosjektering');
+  manyLines.push('sammen med de andre i teamet gjennom hele perioden');
+  manyLines.push(`Detalj ${String(index).padStart(3, '0')} ${'arbeid '.repeat(8).trim()}`);
+  manyLines.push(`Notat ${String(index).padStart(3, '0')} ${'oppfolging '.repeat(6).trim()}`);
+  manyLines.push(`Merknad ${String(index).padStart(3, '0')} ${'koordinering '.repeat(5).trim()}`);
+  manyLines.push(`Videre ${String(index).padStart(3, '0')} ${'ferdigstillelse '.repeat(4).trim()}`);
+}
+assert.ok(manyLines.join('\n').length > 30000);
+const projectPages = [];
+for (let index = 0; index < manyLines.length; index += 40) projectPages.push(manyLines.slice(index, index + 40));
+const manyPdf = multiPageTextPdf(projectPages);
+const manyCv = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'cv',
+  mode: 'ocr',
+  mime: 'application/pdf',
+  imageBase64: manyPdf.toString('base64'),
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async () => {
+    throw new Error('Gemini HTTP 404 (gemini-3.8-flash): model not found');
+  },
+});
+assert.equal(manyCv.engine, 'text');
+assert.equal(manyCv.cv.projects.length, 70);
+assert.equal(manyCv.cv.projects[0].title, 'Prosjekt 001 med et langt navn');
+assert.equal(manyCv.cv.projects[69].title, 'Prosjekt 070 med et langt navn');
+assert.equal(manyCv.cv.projects[69].client, 'Kommunen');
+
 console.log('importInterpret.test.mjs: ok');

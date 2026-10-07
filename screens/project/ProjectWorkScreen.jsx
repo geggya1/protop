@@ -132,14 +132,14 @@ function colWidth(index, phone) {
 }
 
 function ProjectTable({ phone, colors, selectCol, children }) {
-  const width = TABLE_WIDTH + (selectCol ? SELECT_COL_WIDTH + 8 : 0);
+  const minWidth = TABLE_WIDTH + (selectCol ? SELECT_COL_WIDTH + 8 : 0);
   const body = (
     <View
       nativeID="project-list"
       style={[
         styles.table,
         phone && styles.tablePhone,
-        !phone && { width, minWidth: width },
+        !phone && { width: '100%', minWidth },
         { borderColor: colors.line, backgroundColor: colors.card },
       ]}
     >
@@ -1134,8 +1134,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
-  tableContent: { flexGrow: 1 },
-  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tableContent: { flexGrow: 1, minWidth: '100%', alignSelf: 'stretch' },
+  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', alignSelf: 'stretch' },
   tablePhone: { width: '100%', minWidth: 0 },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableRowPhone: { flexDirection: 'column', gap: 2 },

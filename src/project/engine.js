@@ -72,6 +72,28 @@ function requireProject(state, projectId) {
   return { project };
 }
 
+function projectLinks(input = {}) {
+  const agreementKind = text(input.agreementKind);
+  return {
+    customerId: text(input.customerId) || null,
+    customerNumber: text(input.customerNumber),
+    orgnr: text(input.orgnr),
+    client: text(input.client),
+    contractId: text(input.contractId) || null,
+    frameworkAgreementId: text(input.frameworkAgreementId) || null,
+    agreementKind: ['oppdrag', 'avrop', 'rammeavtale', 'annet'].includes(agreementKind) ? agreementKind : '',
+  };
+}
+
+/** Avtale mangler når prosjektet ikke er koblet til oppdragsavtale/avrop (eller rammeavtale ved avrop). */
+export function projectMissingAgreement(project) {
+  if (!project || project.status === 'arkivert') return false;
+  if (project.agreementKind === 'avrop') {
+    return !project.contractId || !project.frameworkAgreementId;
+  }
+  return !project.contractId;
+}
+
 export function createProject(state, input) {
   const name = text(input.name);
   const number = text(input.number);
@@ -81,24 +103,114 @@ export function createProject(state, input) {
     return fail(state, 'Prosjektnummeret er allerede i bruk.');
   }
   const phase = PHASES.includes(input.phase) ? input.phase : 'planlegging';
+  const links = projectLinks(input);
   const project = {
     id: createId('prj'),
     name,
     number,
-    client: text(input.client),
+    ...links,
     place: text(input.place),
     phase,
-    status: 'aktiv',
+    status: text(input.status) === 'arkivert' ? 'arkivert' : 'aktiv',
     start: text(input.start),
     end: text(input.end),
     manager: text(input.manager),
+    description: text(input.description),
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
   };
   return ok({
     ...state,
     projects: [project, ...state.projects],
-    activeProjectId: project.id,
+    activeProjectId: project.status === 'arkivert' ? state.activeProjectId : project.id,
   });
+}
+
+export function updateProject(state, projectId, patch) {
+  const current = state.projects.find((p) => p.id === projectId);
+  if (!current) return fail(state, 'Prosjektet finnes ikke.');
+  const nextNumber = patch.number !== undefined ? text(patch.number) : current.number;
+  const nextName = patch.name !== undefined ? text(patch.name) : current.name;
+  if (!nextName) return fail(state, 'Prosjektnavn må fylles ut.');
+  if (!nextNumber) return fail(state, 'Prosjektnummer må fylles ut.');
+  if (state.projects.some((p) => p.id !== projectId && p.number === nextNumber && p.status !== 'arkivert')) {
+    return fail(state, 'Prosjektnummeret er allerede i bruk.');
+  }
+  const phase = patch.phase !== undefined
+    ? (PHASES.includes(patch.phase) ? patch.phase : current.phase)
+    : current.phase;
+  const links = projectLinks({ ...current, ...patch });
+  const projects = state.projects.map((p) => (p.id === projectId ? {
+    ...p,
+    ...links,
+    name: nextName,
+    number: nextNumber,
+    place: patch.place !== undefined ? text(patch.place) : p.place,
+    phase,
+    start: patch.start !== undefined ? text(patch.start) : p.start,
+    end: patch.end !== undefined ? text(patch.end) : p.end,
+    manager: patch.manager !== undefined ? text(patch.manager) : p.manager,
+    description: patch.description !== undefined ? text(patch.description) : (p.description || ''),
+    status: patch.status === 'arkivert' ? 'arkivert' : (patch.status === 'aktiv' ? 'aktiv' : p.status),
+  } : p));
+  return ok({ ...state, projects });
+}
+
+/**
+ * Hurtigimport / upsert på prosjektnummer. Kobler mot kunder når match finnes.
+ * Avtaler settes ikke fra importlisten (mangler der), men feltene tilrettelegges.
+ */
+export function importProjects(state, rows) {
+  let next = state;
+  const created = [];
+  const updated = [];
+  const skipped = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const number = text(row?.number);
+    const name = text(row?.name);
+    if (!number || !name) {
+      skipped.push({ number, name, reason: 'Mangler prosjektnummer eller navn.' });
+      continue;
+    }
+    const existing = next.projects.find((p) => p.number === number && p.status !== 'arkivert');
+    const payload = {
+      name,
+      number,
+      client: text(row.client),
+      customerId: text(row.customerId) || null,
+      customerNumber: text(row.customerNumber),
+      orgnr: text(row.orgnr),
+      place: text(row.place),
+      manager: text(row.manager),
+      start: text(row.start),
+      end: text(row.end),
+      description: text(row.description),
+      phase: text(row.phase) || 'planlegging',
+      contractId: text(row.contractId) || null,
+      frameworkAgreementId: text(row.frameworkAgreementId) || null,
+      agreementKind: text(row.agreementKind),
+    };
+    if (existing) {
+      const result = updateProject(next, existing.id, payload);
+      if (!result.ok) {
+        skipped.push({ number, name, reason: result.error });
+        continue;
+      }
+      next = result.state;
+      updated.push(next.projects.find((p) => p.id === existing.id));
+    } else {
+      const result = createProject(next, payload);
+      if (!result.ok) {
+        skipped.push({ number, name, reason: result.error });
+        continue;
+      }
+      next = result.state;
+      created.push(next.projects[0]);
+    }
+  }
+  if (!created.length && !updated.length) {
+    return fail(state, skipped[0]?.reason || 'Ingen prosjekter ble importert.');
+  }
+  return { ok: true, state: next, error: null, created, updated, skipped };
 }
 
 export function selectProject(state, projectId) {

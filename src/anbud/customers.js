@@ -378,6 +378,22 @@ export function ownerLabel(customer, people = []) {
   return text(hit?.name) || text(customer.ownerName);
 }
 
+/** Mobilrad i kundelisten: navn og org.nr, og bare utfylte tillegg. */
+export function customerPhoneLines(customer, people = []) {
+  const row = customer || {};
+  const person = row.kind === 'person';
+  const id = person ? maskPersonnummer(row.personnummer) : formatOrgnr(row.orgnr);
+  const identity = id
+    ? `${person ? 'Personnummer' : 'Org.nr'} ${id}`
+    : (person ? 'Privatkunde' : 'Virksomhet');
+  const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return {
+    name: text(row.name) || 'Kunde uten navn',
+    meta: [text(row.customerNumber) ? `Nr ${text(row.customerNumber)}` : '', identity].filter(Boolean).join(' · '),
+    extra: [address, text(row.contactName), text(row.email), text(row.phone), ownerLabel(row, people)].filter(Boolean).join(' · '),
+  };
+}
+
 export function setCustomerOwner(state, customerId, person) {
   const id = text(customerId);
   const customers = normalizeCustomers(state?.customers);

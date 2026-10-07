@@ -11,6 +11,7 @@ import {
   matchCustomer,
   namesLikelyMatch,
   normalizeCustomer,
+  customerPhoneLines,
   ownerLabel,
   setCustomerOwner,
   upsertCustomer,
@@ -178,5 +179,31 @@ const byPerson = filterCustomers([
 ], '010170');
 assert.equal(byPerson.length, 1);
 assert.equal(byPerson[0].name, 'Thor');
+
+const sparse = customerPhoneLines({
+  name: 'Novaform AS',
+  kind: 'org',
+  customerNumber: '10002',
+  orgnr: '991356959',
+});
+assert.equal(sparse.name, 'Novaform AS');
+assert.equal(sparse.meta, 'Nr 10002 · Org.nr 991 356 959');
+assert.equal(sparse.extra, '');
+const filled = customerPhoneLines({
+  name: 'Høgevollsveien Borettslag',
+  kind: 'org',
+  customerNumber: '10003',
+  orgnr: '946804150',
+  address: 'Høgevollsveien 1',
+  postalCode: '4311',
+  place: 'Hommeråk',
+  contactName: 'Kari',
+  email: 'kari@example.no',
+  phone: '90000000',
+  ownerUid: 'p1',
+}, [{ uid: 'p1', name: 'Geir' }]);
+assert.equal(filled.extra, 'Høgevollsveien 1, 4311 Hommeråk · Kari · kari@example.no · 90000000 · Geir');
+const privat = customerPhoneLines({ name: 'Anders', kind: 'person', customerNumber: '4' });
+assert.equal(privat.meta, 'Nr 4 · Privatkunde');
 
 console.log('customers.test.mjs: ok');

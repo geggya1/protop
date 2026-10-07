@@ -350,6 +350,8 @@ const customerScreen = readFileSync(new URL('../../screens/customers/CustomersSc
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);
+assert.match(customerScreen, /CustomerPhoneRow/);
+assert.equal(customerScreen.includes('Adresse ${address}'), false);
 const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
 assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);
 

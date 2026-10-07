@@ -31,6 +31,7 @@ import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
+import CustomerPhoneRow from './CustomerPhoneRow';
 
 const EMPTY = {
   name: '',
@@ -488,39 +489,40 @@ export default function CustomersScreen() {
                   ? (maskPersonnummer(row.personnummer) || '—')
                   : (formatOrgnr(row.orgnr) || '—');
                 const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
+                if (isPhone) {
+                  return (
+                    <CustomerPhoneRow
+                      key={row.id}
+                      customer={row}
+                      people={followPeople}
+                      colors={colors}
+                      onPress={() => { setSelectedId(row.id); setView('detail'); }}
+                    />
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={row.id}
                     onPress={() => { setSelectedId(row.id); setView('detail'); }}
                     accessibilityRole="button"
                     accessibilityLabel={`${row.customerNumber} ${row.name}`}
-                    style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
+                    style={[styles.tableRow, { borderColor: colors.line }]}
                   >
-                    <Text style={[styles.cell, colWidth(0, isPhone), { color: colors.ink, fontWeight: '700' }]}>
-                      {isPhone ? `Nr ${row.customerNumber}` : row.customerNumber}
+                    <Text style={[styles.cell, colWidth(0, false), { color: colors.ink, fontWeight: '700' }]}>
+                      {row.customerNumber}
                     </Text>
-                    <View style={[styles.cell, colWidth(1, isPhone)]}>
+                    <View style={[styles.cell, colWidth(1, false)]}>
                       <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
                         {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
                         {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
                       </Text>
                     </View>
-                    <Text style={[styles.cell, colWidth(2, isPhone), { color: colors.ink }]}>
-                      {isPhone ? `${row.kind === 'person' ? 'Personnummer' : 'Org.nr'} ${idLabel}` : idLabel}
-                    </Text>
-                    <Text style={[styles.cell, colWidth(3, isPhone), { color: colors.ink }]}>
-                      {isPhone ? `Adresse ${address}` : address}
-                    </Text>
-                    <Text style={[styles.cell, colWidth(4, isPhone), { color: colors.ink }]}>
-                      {isPhone ? `Kontakt ${row.contactName || '—'}` : (row.contactName || '—')}
-                    </Text>
-                    <Text style={[styles.cell, colWidth(5, isPhone), { color: colors.ink }]}>
-                      {isPhone ? `E-post ${row.email || '—'}` : (row.email || '—')}
-                    </Text>
-                    <Text style={[styles.cell, colWidth(6, isPhone), { color: colors.ink }]}>
-                      {isPhone ? `Telefon ${row.phone || '—'}` : (row.phone || '—')}
-                    </Text>
+                    <Text style={[styles.cell, colWidth(2, false), { color: colors.ink }]}>{idLabel}</Text>
+                    <Text style={[styles.cell, colWidth(3, false), { color: colors.ink }]}>{address}</Text>
+                    <Text style={[styles.cell, colWidth(4, false), { color: colors.ink }]}>{row.contactName || '—'}</Text>
+                    <Text style={[styles.cell, colWidth(5, false), { color: colors.ink }]}>{row.email || '—'}</Text>
+                    <Text style={[styles.cell, colWidth(6, false), { color: colors.ink }]}>{row.phone || '—'}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -750,7 +752,6 @@ const styles = StyleSheet.create({
   table: { width: 1320, minWidth: 1320, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tablePhone: { width: '100%', minWidth: 0 },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
-  tableRowPhone: { flexDirection: 'column', gap: 2 },
   tableHead: { borderTopWidth: 0 },
   headCell: { fontSize: 12, fontWeight: '700' },
   cell: { fontSize: 14 },

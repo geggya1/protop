@@ -76,6 +76,13 @@ function formatPhone(value) {
   return raw;
 }
 
+function otherThan(value, blocked) {
+  const next = String(value || '').trim();
+  const ban = String(blocked || '').trim().toLowerCase();
+  if (!next || (ban && next.toLowerCase() === ban)) return '';
+  return next;
+}
+
 function cell(text, span = 1, label = false) {
   return { text: text == null ? '' : String(text), span, label };
 }
@@ -109,6 +116,10 @@ export function buildLetter(draft, result, options = {}) {
   const todayIso = options.today || new Date().toISOString().slice(0, 10);
   const today = formatDate(todayIso);
   const supplier = draft.supplier || 'Avsender';
+  const client = otherThan(draft.buyer, supplier);
+  const clientEmail = otherThan(draft.email, draft.senderEmail);
+  const clientPhone = otherThan(draft.phone, draft.senderPhone);
+  const showLogo = options.includeLogo ?? !!draft.useCompanyLogo;
   const hourly = result.rows.length > 0 && result.rows.every(isHourly);
   const title = hourly ? 'Varsel om indeksregulering av timepriser' : 'Varsel om indeksregulering';
   const tableNo = result.series?.table || '';
@@ -132,9 +143,9 @@ export function buildLetter(draft, result, options = {}) {
     columns: 4,
     widths: [132, 150, 118, 115],
     rows: [
-      [cell('Oppdragsgiver', 1, true), cell(supplier), cell('Organisasjonsnr.', 1, true), cell(formatOrgnr(draft.orgnr))],
-      [cell('Kontaktperson', 1, true), cell(draft.contactName || ''), cell('Telefonnr.', 1, true), cell(formatPhone(draft.phone))],
-      [cell('E-post', 1, true), cell(draft.email || '', 3)],
+      [cell('Oppdragsgiver', 1, true), cell(client), cell('Organisasjonsnr.', 1, true), cell(formatOrgnr(draft.orgnr))],
+      [cell('Kontaktperson', 1, true), cell(draft.contactName || ''), cell('Telefonnr.', 1, true), cell(formatPhone(clientPhone))],
+      [cell('E-post', 1, true), cell(clientEmail, 3)],
     ],
   };
 
@@ -146,7 +157,8 @@ export function buildLetter(draft, result, options = {}) {
       [cell('Avtalenavn', 1, true), cell(draft.title || ''), cell('Prosjektnummer', 1, true), cell(draft.reference || '')],
       [cell('Eksternt PO-nr.', 1, true), cell(draft.poNumber || ''), cell('Kontraktsdato', 1, true), cell(contractDate)],
       [cell('Generelle bestemmelser', 1, true), cell(draft.standard || ''), cell(result.standard?.label || '', 2)],
-      ...(draft.buyer ? [[cell('Motpart', 1, true), cell(draft.buyer, 3)]] : []),
+      ...(draft.address || draft.place ? [[cell('Oppdragssted', 1, true), cell([draft.address, draft.place].filter(Boolean).join(', '), 3)]] : []),
+      [cell('Oppdragstaker', 1, true), cell(supplier), cell('Organisasjonsnr.', 1, true), cell(formatOrgnr(draft.supplierOrgnr))],
       ...(priced.description ? [[cell('Avtalt honorar', 1, true), cell(priced.description, 3)]] : []),
       [cell('Avtalt pris', 1, true), cell(priceLabel, 3)],
     ],
@@ -177,7 +189,7 @@ export function buildLetter(draft, result, options = {}) {
 
   const notice = {
     brand: supplier,
-    logo: draft.useCompanyLogo ? presentCompanyLogo(options.logo) : null,
+    logo: showLogo ? presentCompanyLogo(options.logo) : null,
     title,
     intro: `Vi varsler herved om indeksregulering av priser i tråd med foreliggende avtale. Indeksreguleringen er basert på siste kjente prisindeks fra når tilbudet ble gitt iht. Statistisk sentralbyrå (SSB) tabell ${tableNo}, som er regulert frem til den siste kjente indeksen pr. dags dato.`,
     sections: [party, agreement, ...regulationRows],
@@ -193,9 +205,9 @@ export function buildLetter(draft, result, options = {}) {
         : '',
     ].filter(Boolean),
     signoff: {
-      place: draft.place || '',
+      place: draft.senderPlace || '',
       date: today,
-      name: draft.contactName || '',
+      name: draft.senderContact || '',
       company: supplier,
     },
     footer: [supplier, hourly ? 'Indeksregulering av timesats' : 'Indeksregulering', draft.website ? `Internett: ${draft.website}` : ''].filter(Boolean),

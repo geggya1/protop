@@ -469,10 +469,12 @@ Sted: Klepp Dato: 09.10.2025
 test('varsel om timepris følger eksempelet', () => {
   const draft = {
     supplier: 'Consult1 AS',
-    orgnr: '916538804',
-    contactName: 'Anders Rolandsen',
-    phone: '99376973',
-    email: 'pr@consult1.no',
+    supplierOrgnr: '916538804',
+    buyer: 'Byggherre AS',
+    orgnr: '999888777',
+    senderContact: 'Anders Rolandsen',
+    senderPlace: 'Sandnes',
+    senderEmail: 'pr@consult1.no',
     website: 'www.consult1.no',
     place: 'Sandnes',
     title: 'Rammeavtale Prosjektaadministrasjon bygg',
@@ -522,6 +524,10 @@ test('varsel om timepris følger eksempelet', () => {
   assert.match(letter.plain, /Avtalt honorar \| Oppdraget honoreres etter medgått tid/);
   assert.match(letter.plain, /01\.08\.25/);
   assert.match(letter.plain, /916 538 804/);
+  assert.match(letter.plain, /Oppdragsgiver \| Byggherre AS/);
+  assert.match(letter.plain, /Oppdragstaker \| Consult1 AS/);
+  assert.doesNotMatch(letter.plain, /Oppdragsgiver \| Consult1/);
+  assert.match(letter.plain, /Anders Rolandsen/);
   assert.match(letter.plain, /NS 8403/);
   const pdf = new TextDecoder().decode(buildPdf(letter));
   assert.match(pdf, /Varsel om indeksregulering av timepriser/);
@@ -533,7 +539,17 @@ test('varsel om timepris følger eksempelet', () => {
 test('samme beløp med inklusiv blir én pris, og brevet lagres i tabellen', () => {
   const draft = {
     supplier: 'Consult1 AS',
+    supplierOrgnr: '916538804',
     buyer: 'Igang Totalentreprenør As',
+    orgnr: '922987106',
+    contactName: 'Øyvind Lerbrekk',
+    phone: '92082276',
+    email: 'post@consult1.no',
+    senderEmail: 'post@consult1.no',
+    senderContact: 'Geir Ove Seldal',
+    senderPlace: 'Sandnes',
+    place: 'Stavanger',
+    address: 'Haakon VIIs gate 8',
     title: 'Madlalia - Anleggsleder',
     standard: 'NS 8403',
     model: 'engang',
@@ -570,6 +586,17 @@ test('samme beløp med inklusiv blir én pris, og brevet lagres i tabellen', () 
   assert.match(letter.plain, /Avtalt pris \| kr 1 080,- inkl\. mva/);
   assert.match(letter.plain, /kr 1 111,- inkl\. mva/);
   assert.doesNotMatch(letter.plain, /Avtalt honorar \|/);
+  assert.match(letter.plain, /Oppdragsgiver \| Igang Totalentreprenør As/);
+  assert.match(letter.plain, /922 987 106/);
+  assert.match(letter.plain, /Øyvind Lerbrekk/);
+  assert.match(letter.plain, /Oppdragstaker \| Consult1 AS/);
+  assert.match(letter.plain, /916 538 804/);
+  assert.match(letter.plain, /Haakon VIIs gate 8, Stavanger/);
+  assert.doesNotMatch(letter.plain, /Oppdragsgiver \| Consult1/);
+  assert.doesNotMatch(letter.plain, /post@consult1\.no/);
+  assert.doesNotMatch(letter.plain, /Sted: Stavanger/);
+  assert.match(letter.plain, /Sted: Sandnes/);
+  assert.match(letter.plain, /Geir Ove Seldal/);
   const entry = regulationEntry(draft, result, letter);
   assert.equal(entry.before, 1080);
   assert.equal(entry.after, result.rows[0].newRate);

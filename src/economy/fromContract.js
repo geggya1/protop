@@ -19,6 +19,16 @@ function pick(...values) {
   return '';
 }
 
+function sameText(left, right) {
+  const a = text(left).toLowerCase();
+  const b = text(right).toLowerCase();
+  return !!a && a === b;
+}
+
+function except(value, blocked) {
+  return sameText(value, blocked) ? '' : text(value);
+}
+
 function standardRule(id) {
   return id && STANDARDS[id] ? STANDARDS[id] : null;
 }
@@ -61,12 +71,27 @@ export function draftFromRegisteredContract(contract, extras = {}) {
   const model = pick(stored.model, fields.model, read?.model, rule?.model);
   const buyerOrgnr = pick(cover.orgnr, customer?.orgnr, stored.orgnr, read?.orgnr);
   const supplierOrgnr = pick(cover.supplierOrgnr, company?.organisasjonsnummer, stored.supplierOrgnr, extras.supplierOrgnr);
+  const supplierName = pick(cover.supplier, contract?.supplier, company?.navn, extras.supplier, stored.supplier);
+  const companyEmail = pick(company?.epostadresse, extras.email);
+  const companyPhone = pick(company?.telefon, extras.phone);
+  const clientEmail = pick(
+    except(customer?.email, companyEmail),
+    except(cover.email, companyEmail),
+    except(stored.email, companyEmail),
+    except(read?.email, companyEmail),
+  );
+  const clientPhone = pick(
+    except(customer?.phone, companyPhone),
+    except(cover.phone, companyPhone),
+    except(stored.phone, companyPhone),
+    except(read?.phone, companyPhone),
+  );
 
   return {
     title: pick(cover.title, contract?.title, stored.title, read?.title),
-    reference: pick(cover.reference, stored.reference, read?.reference),
+    reference: pick(extras.projectNumber, cover.oppdragId, contract?.oppdragId, stored.reference, read?.reference),
     buyer: pick(cover.buyer, contract?.buyer, customer?.name, stored.buyer, read?.buyer),
-    supplier: pick(cover.supplier, contract?.supplier, company?.navn, extras.supplier, stored.supplier),
+    supplier: supplierName,
     standard,
     model,
     indexId,
@@ -87,8 +112,12 @@ export function draftFromRegisteredContract(contract, extras = {}) {
     personnummer: pick(cover.personnummer, customer?.personnummer, stored.personnummer),
     supplierOrgnr,
     contactName: pick(cover.contactName, customer?.contactName, stored.contactName, read?.contactName),
-    phone: pick(cover.phone, customer?.phone, stored.phone, read?.phone),
-    email: pick(cover.email, customer?.email, stored.email, read?.email),
+    phone: clientPhone,
+    email: clientEmail,
+    senderContact: pick(company?.kontaktperson, extras.senderContact),
+    senderEmail: companyEmail,
+    senderPhone: companyPhone,
+    senderPlace: pick(company?.poststed, company?.forretning?.poststed, extras.senderPlace),
     website: pick(company?.hjemmeside, extras.website, stored.website),
     surchargePercent: pick(cover.surchargePercent, stored.surchargePercent),
     kind: pick(cover.kind, contract?.kind),

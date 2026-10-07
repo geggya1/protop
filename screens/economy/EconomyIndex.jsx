@@ -8,6 +8,8 @@ import { regulationCells, regulationEntry, rememberRegulation } from '../../src/
 import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { seriesById } from '../../src/indeksregulering/catalog';
 import { draftFromRegisteredContract, knownIndexFacts, missingIndexFields } from '../../src/economy/fromContract';
+import { companyLogoOf } from '../../src/project/companyLogo';
+import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 
 function Fact({ label, value, colors }) {
   if (!value) return null;
@@ -93,12 +95,15 @@ export default function EconomyIndex({
   contract,
   customer = null,
   company = null,
+  project = null,
   onClose,
   onSaveRegulations,
 }) {
   const colors = useColors();
-  const extras = { customer, company };
+  const companyLogo = companyLogoOf(company);
+  const extras = { customer, company, projectNumber: project?.number || '' };
   const [draft, setDraft] = useState(() => draftFromRegisteredContract(contract, extras));
+  const [useLogo, setUseLogo] = useState(true);
   const [bundle, setBundle] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -109,10 +114,14 @@ export default function EconomyIndex({
 
   useEffect(() => {
     setOwnerId(contract?.id || '');
-    setDraft(draftFromRegisteredContract(contract, { customer, company }));
+    setDraft(draftFromRegisteredContract(contract, {
+      customer,
+      company,
+      projectNumber: project?.number || '',
+    }));
     setOpenLetterId('');
     setSaveNote('');
-  }, [contract?.id, customer?.id, company?.organisasjonsnummer, company?.navn]);
+  }, [contract?.id, customer?.id, company?.organisasjonsnummer, company?.navn, project?.number]);
 
   const facts = useMemo(() => knownIndexFacts(draft), [draft]);
   const missing = useMemo(() => missingIndexFields(draft), [draft]);
@@ -122,7 +131,10 @@ export default function EconomyIndex({
     if (!bundle?.series || missing.length) return null;
     return calculate(draft, bundle.series);
   }, [draft, bundle, missing.length]);
-  const letter = useMemo(() => (live?.ok ? buildLetter(draft, live) : null), [draft, live]);
+  const letter = useMemo(
+    () => (live?.ok ? buildLetter(draft, live, { logo: companyLogo, includeLogo: useLogo }) : null),
+    [draft, live, companyLogo, useLogo],
+  );
   const entry = useMemo(
     () => (live?.ok && letter ? regulationEntry(draft, live, letter) : null),
     [draft, live, letter],
@@ -304,6 +316,13 @@ export default function EconomyIndex({
       {letter ? (
         <View style={{ gap: 8 }}>
           <Text style={[styles.h, { color: colors.ink }]}>Brev</Text>
+          <CompanyLogoChoice
+            value={useLogo}
+            onChange={setUseLogo}
+            logo={companyLogo}
+            colors={colors}
+            subject="indeksbrevet"
+          />
           <Text style={{ color: colors.muted }}>
             Brevet er generert fra beregningen og lagres sammen med spørringen.
           </Text>

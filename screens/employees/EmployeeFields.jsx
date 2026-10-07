@@ -591,11 +591,6 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
   }
   return (
     <View style={styles.stackTight}>
-      {hideItems ? (
-        <Text style={{ color: colors.muted }}>
-          Blyanten på prosjektet i CV-en åpner det. PDF og Word lager referansearket.
-        </Text>
-      ) : null}
       {hideItems ? null : list.map((item, index) => {
         const focused = !!focusItemId && item.id === focusItemId;
         if (focusItemId && !focused) return null;

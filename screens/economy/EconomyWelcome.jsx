@@ -81,7 +81,7 @@ export default function EconomyWelcome({ stored }) {
             {name}
           </Text>
           <Text style={[styles.lead, { color: colors.muted }]}>
-            Velkommen. Her ligger bedriftens nøkkeltall, deretter velger du kunde og avtale før indeksregulering.
+            Velkommen. Her ligger bedriftens nøkkeltall.
           </Text>
         </View>
         {logo?.dataUrl ? (

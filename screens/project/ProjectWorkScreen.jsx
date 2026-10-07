@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -49,6 +50,41 @@ const EMPTY_FORM = {
   frameworkAgreementId: '',
   description: '',
 };
+
+const LIST_COLUMNS = [
+  ['Nr', 90],
+  ['Prosjekt', 280],
+  ['Kundenr', 90],
+  ['Kunde', 220],
+  ['Avtale', 260],
+  ['Leder', 160],
+  ['Sted', 160],
+];
+
+function colWidth(index, phone) {
+  if (phone) return null;
+  return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
+}
+
+function ProjectTable({ phone, colors, children }) {
+  const body = (
+    <View nativeID="project-list" style={[styles.table, phone && styles.tablePhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      {children}
+    </View>
+  );
+  if (phone) return body;
+  return (
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator
+      style={styles.tableScroll}
+      contentContainerStyle={styles.tableContent}
+    >
+      {body}
+    </ScrollView>
+  );
+}
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -446,6 +482,14 @@ export default function ProjectWorkScreen() {
     return 'Ingen avtale registrert';
   }
 
+  function agreementCell(project) {
+    const contract = contracts.find((row) => row.id === project.contractId);
+    const framework = contracts.find((row) => row.id === project.frameworkAgreementId);
+    if (contract) return contract.title || kindLabel(contract.kind) || 'Avtale';
+    if (framework) return framework.title || 'Rammeavtale';
+    return 'Mangler';
+  }
+
   const formBody = (
     <View style={styles.stack}>
       <Field label="Prosjektnummer" value={form.number} onChangeText={(v) => patchForm('number', v)} colors={colors} />
@@ -644,56 +688,86 @@ export default function ProjectWorkScreen() {
             <Text style={{ color: colors.muted }}>Ingen prosjekter ennå. Opprett manuelt eller importer en liste.</Text>
           ) : null}
 
-          {visibleProjects.map((item) => {
-            const missing = projectMissingAgreement(item);
-            const customer = customers.find((row) => row.id === item.customerId);
-            return (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => openEdit(item)}
-                accessibilityRole="button"
-                style={[styles.card, { borderColor: missing ? (colors.danger || '#b42318') : colors.line, backgroundColor: colors.card }]}
-              >
-                <View style={styles.cardTop}>
-                  <Text style={[styles.cardTitle, { color: colors.ink, flex: 1 }]}>
-                    {item.number} · {item.name}
-                  </Text>
-                  {missing ? (
-                    <Ionicons
-                      name="warning"
-                      size={20}
-                      color={colors.danger || '#b42318'}
-                      accessibilityLabel="Avtale mangler"
-                    />
-                  ) : (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.brand} accessibilityLabel="Avtale koblet" />
-                  )}
-                </View>
-                <Text style={{ color: colors.muted }}>
-                  {customer?.name || item.client || 'Uten kunde'}
-                  {item.customerNumber ? ` · Kundenr ${item.customerNumber}` : ''}
-                </Text>
-                <Text style={{ color: missing ? (colors.danger || '#b42318') : colors.muted }}>
-                  {agreementLabel(item)}
-                </Text>
-                {item.manager || item.place ? (
-                  <Text style={{ color: colors.muted }}>{[item.manager, item.place].filter(Boolean).join(' · ')}</Text>
+          {visibleProjects.length ? (
+            <>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {visibleProjects.length} prosjekter
+              </Text>
+              <ProjectTable phone={isPhone} colors={colors}>
+                {!isPhone ? (
+                  <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
+                    {LIST_COLUMNS.map(([label, width]) => (
+                      <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
+                    ))}
+                  </View>
                 ) : null}
-              </TouchableOpacity>
-            );
-          })}
+                {visibleProjects.map((item) => {
+                  const missing = projectMissingAgreement(item);
+                  const customer = customers.find((row) => row.id === item.customerId);
+                  const customerName = customer?.name || item.client || '—';
+                  const customerNumber = item.customerNumber || customer?.customerNumber || '—';
+                  const danger = colors.danger || '#b42318';
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => openEdit(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.number} ${item.name}`}
+                      style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
+                    >
+                      <Text style={[styles.cell, colWidth(0, isPhone), { color: colors.ink, fontWeight: '700' }]}>
+                        {isPhone ? `Nr ${item.number}` : item.number}
+                      </Text>
+                      <View style={[styles.cell, colWidth(1, isPhone)]}>
+                        <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
+                        {isPhone ? (
+                          <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
+                            {agreementLabel(item)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.cell, colWidth(2, isPhone), { color: colors.ink }]}>
+                        {isPhone ? `Kundenr ${customerNumber}` : customerNumber}
+                      </Text>
+                      <Text style={[styles.cell, colWidth(3, isPhone), { color: colors.ink }]} numberOfLines={2}>
+                        {isPhone ? `Kunde ${customerName}` : customerName}
+                      </Text>
+                      <View style={[styles.cell, colWidth(4, isPhone), styles.agreeCell]}>
+                        {missing ? (
+                          <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
+                        ) : (
+                          <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
+                        )}
+                        <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
+                          {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
+                        </Text>
+                      </View>
+                      <Text style={[styles.cell, colWidth(5, isPhone), { color: colors.ink }]} numberOfLines={2}>
+                        {isPhone ? `Leder ${item.manager || '—'}` : (item.manager || '—')}
+                      </Text>
+                      <Text style={[styles.cell, colWidth(6, isPhone), { color: colors.ink }]} numberOfLines={2}>
+                        {isPhone ? `Sted ${item.place || '—'}` : (item.place || '—')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ProjectTable>
+            </>
+          ) : null}
         </View>
       ) : null}
     </ScrollView>
   );
 }
 
+const TABLE_WIDTH = LIST_COLUMNS.reduce((sum, [, width]) => sum + width, 0) + 80;
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  screenPhone: {},
-  inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 860, width: '100%', alignSelf: 'flex-start' },
-  innerPhone: { maxWidth: '100%' },
-  title: { fontSize: 22, fontWeight: '400' },
+  screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
+  inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
+  innerPhone: { maxWidth: '100%', minWidth: 0 },
+  title: { fontSize: 22, fontWeight: '600' },
   stack: { gap: 10 },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },
@@ -702,8 +776,20 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 4 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '400' },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tableScroll: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+  },
+  tableContent: { flexGrow: 1 },
+  table: { width: TABLE_WIDTH, minWidth: TABLE_WIDTH, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tablePhone: { width: '100%', minWidth: 0 },
+  tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
+  tableRowPhone: { flexDirection: 'column', gap: 2 },
+  tableHead: { borderTopWidth: 0 },
+  headCell: { fontSize: 12, fontWeight: '700' },
+  cell: { fontSize: 14 },
+  agreeCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
 });

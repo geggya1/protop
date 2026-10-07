@@ -260,7 +260,7 @@ export function readableImportError(err) {
     return new Error('Lesingen tok for lang tid. Prøv en kortere PDF.');
   }
   if (/internal/i.test(code) || /^internal$/i.test(message)) {
-    return new Error('Lesingen ble avbrutt. Stor fil kan være for tung. Prøv igjen, eller lagre PDF-en med lavere oppløsning.');
+    return new Error('Lesingen ble avbrutt før den kom frem. Prøv igjen.');
   }
   if (message) return err;
   return new Error('Kunne ikke lese filen.');

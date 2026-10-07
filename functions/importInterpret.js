@@ -11,6 +11,7 @@ import {
   sanitizeCv,
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
+import { pagePartsFromPdf } from './importPages.js';
 
 const MAX_DOC_CHARS = 6_000_000;
 
@@ -39,10 +40,15 @@ async function documentParts(data, options = {}) {
   const parts = [{ text: 'Les listen og trekk ut radene som står i dokumentet.' }];
   if (mime === 'application/pdf') {
     const buffer = Buffer.from(imageBase64, 'base64');
+    const maxImages = Number(options.maxImages) > 0 ? Number(options.maxImages) : 4;
+    const embedded = pagePartsFromPdf(buffer, maxImages);
+    if (embedded.length) {
+      parts.push(...embedded);
+      return { parts, text: '', usedOcr: true };
+    }
     const { ocrPdfPages } = await import('./ocrPdf.js');
     const ocr = await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));
     if (ocr.text) parts.push({ text: `OCR-tekst:\n${ocr.text.slice(0, 24000)}` });
-    const maxImages = Number(options.maxImages) > 0 ? Number(options.maxImages) : 4;
     for (const image of (ocr.images || []).slice(0, maxImages)) {
       parts.push({
         inline_data: { mime_type: image.mime || 'image/png', data: image.buffer.toString('base64') },

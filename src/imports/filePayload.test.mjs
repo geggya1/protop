@@ -96,7 +96,7 @@ await assert.rejects(
 );
 
 const internal = readableImportError({ code: 'functions/internal', message: 'internal' });
-assert.match(internal.message, /Stor fil/);
+assert.match(internal.message, /avbrutt/);
 assert.equal(readableImportError({ code: 'functions/unavailable', message: 'unavailable' }).message.includes('ikke tilgjengelig'), true);
 
 console.log('filePayload.test.mjs: ok');

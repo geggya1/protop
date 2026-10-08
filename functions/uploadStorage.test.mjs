@@ -14,8 +14,14 @@ const cors = JSON.parse(readFileSync(join(root, 'cors.json'), 'utf8'));
 assert.match(uploadSrc, /handleUploadStorageFile/);
 assert.match(uploadSrc, /assertCanWriteObjectPath/);
 assert.match(uploadSrc, /families\/personal\//);
-assert.match(uploadSrc, /ensureStorageCors/);
 assert.match(uploadSrc, /protop-c189c\.firebasestorage\.app/);
+// CORS må ikke kjøres på opplastingsstien (Admin SDK trenger det ikke).
+const uploadStart = uploadSrc.indexOf('export async function handleUploadStorageFile');
+const applyStart = uploadSrc.indexOf('export async function handleApplyStorageCors');
+const uploadHandler = uploadSrc.slice(uploadStart, applyStart);
+assert.equal(uploadHandler.includes('ensureStorageCors'), false);
+assert.match(uploadSrc.slice(applyStart), /ensureStorageCors/);
+assert.match(uploadSrc, /replace\(\/\^data:/);
 
 assert.match(mediaSrc, /uploadStorageFile/);
 assert.match(mediaSrc, /uploadImageViaCallable/);

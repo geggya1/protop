@@ -1,5 +1,7 @@
 /**
  * Generell Storage-opplasting via Admin SDK — omgår Firebase Storage CORS i nettleseren.
+ * Bucket-CORS settes ikke her: Admin SDK trenger det ikke, og setCorsConfiguration
+ * på opplastingsstien kan henge / feile og blokkere CV-bilder.
  */
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
@@ -34,7 +36,8 @@ export async function handleUploadStorageFile(data, auth) {
 
   const objectPath = await assertCanWriteObjectPath(db, uid, data?.objectPath);
   const contentType = String(data?.contentType || 'application/octet-stream').slice(0, 120);
-  const fileBase64 = String(data?.fileBase64 || '');
+  // Klienten kan sende data-URL eller ren base64.
+  const fileBase64 = String(data?.fileBase64 || '').replace(/^data:[^;]+;base64,/i, '');
   if (!fileBase64) throw new Error('Mangler fil.');
 
   let buffer;
@@ -47,8 +50,6 @@ export async function handleUploadStorageFile(data, auth) {
   if (buffer.length > MAX_BASE64_BYTES) {
     throw new Error('Filen er for stor for reservedelopplasting (maks 15 MB).');
   }
-
-  await ensureStorageCors();
 
   const token = randomUUID();
   const bucket = getStorage().bucket(STORAGE_BUCKET);

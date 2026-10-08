@@ -1,6 +1,10 @@
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+function filled(value) {
+  return String(value ?? '').trim();
+}
+
 function Pencil({ label, onPress, colors }) {
   if (!onPress) return null;
   return (
@@ -23,6 +27,119 @@ function Block({ title, colors, onEdit, children }) {
         <Pencil label={`Rediger ${title}`} onPress={onEdit} colors={colors} />
       </View>
       {children}
+    </View>
+  );
+}
+
+function projectFacts(row) {
+  return [
+    ['Oppdragsgiver', row.client],
+    ['Periode', row.period],
+    ['Areal', row.area],
+    ['Prosjektsum', row.cost],
+    ['Tiltaksklasse', row.buildingClass],
+    ['Kategori', row.category],
+    ['Objekt', row.object],
+    ['Arbeidsgiver i perioden', row.employer],
+  ].filter(([, value]) => filled(value));
+}
+
+function projectRoles(row) {
+  return filled(row.roles)
+    .split(/\n/)
+    .map((line) => line.trim().replace(/^[-•]\s*/, ''))
+    .filter(Boolean);
+}
+
+function projectContacts(row) {
+  return [
+    ['Kontaktperson hos oppdragsgiver', row.contact],
+    ['Firma', row.contactCompany],
+    ['Telefon', row.phone],
+    ['E-post', row.email],
+  ].filter(([, value]) => filled(value));
+}
+
+function ProjectCard({ row, colors, onEditProject }) {
+  const facts = projectFacts(row);
+  const roles = projectRoles(row);
+  const contacts = projectContacts(row);
+  const images = row.images || [];
+  const referenceName = filled(row.referenceName);
+  const hasBody = images.length || facts.length || filled(row.address) || filled(row.description)
+    || referenceName || filled(row.responsibility) || roles.length || contacts.length;
+
+  return (
+    <View style={[styles.project, { borderColor: colors.line }]}>
+      <View style={styles.projectHead}>
+        <Text style={[styles.jobTitle, { color: colors.ink, flex: 1 }]}>{row.title || 'Prosjekt'}</Text>
+        <Pencil
+          label={`Rediger ${row.title || 'prosjekt'}`}
+          onPress={onEditProject ? () => onEditProject(row) : undefined}
+          colors={colors}
+        />
+      </View>
+      {hasBody ? (
+        <View style={styles.projectBody}>
+          {images.length ? (
+            <View style={styles.projectImages}>
+              {images.map((url, imageIndex) => (
+                <Image
+                  key={`${imageIndex}-${String(url).slice(0, 24)}`}
+                  source={{ uri: url }}
+                  style={styles.projectImage}
+                  resizeMode="cover"
+                  accessibilityLabel={`Bilde ${imageIndex + 1} for ${row.title || 'prosjektet'}`}
+                />
+              ))}
+            </View>
+          ) : null}
+          <View style={styles.projectMeta}>
+            {filled(row.address) ? (
+              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.address)}</Text>
+            ) : null}
+            {facts.length ? (
+              <View style={styles.factGrid}>
+                {facts.map(([label, value]) => (
+                  <View key={label} style={styles.factCell}>
+                    <Text style={[styles.factCellLabel, { color: colors.muted }]}>{label}</Text>
+                    <Text style={[styles.factCellValue, { color: colors.ink }]}>{filled(value)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {filled(row.description) ? (
+              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.description)}</Text>
+            ) : null}
+            {referenceName ? (
+              <Text style={[styles.bodyStrong, { color: colors.ink }]}>{referenceName}</Text>
+            ) : null}
+            {filled(row.responsibility) ? (
+              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.responsibility)}</Text>
+            ) : null}
+            {roles.length ? (
+              <View style={styles.stackTight}>
+                <Text style={[styles.subhead, { color: colors.muted }]}>Roller i prosjektet</Text>
+                {roles.map((role) => (
+                  <Text key={role} style={[styles.body, { color: colors.ink }]}>{`• ${role}`}</Text>
+                ))}
+              </View>
+            ) : null}
+            {contacts.length ? (
+              <View style={styles.factGrid}>
+                {contacts.map(([label, value]) => (
+                  <View key={label} style={styles.factCell}>
+                    <Text style={[styles.factCellLabel, { color: colors.muted }]}>{label}</Text>
+                    <Text style={[styles.factCellValue, { color: colors.ink }]}>{filled(value)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : (
+        <Text style={{ color: colors.muted }}>Ingen flere opplysninger er fylt ut.</Text>
+      )}
     </View>
   );
 }
@@ -88,32 +205,7 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject }) {
       </Block>
       <Block title="Referanseprosjekter" colors={colors} onEdit={onEdit ? () => onEdit('projects') : undefined}>
         {cv.projects.length ? cv.projects.map((row) => (
-          <View key={row.id} style={[styles.project, { borderColor: colors.line }]}>
-            <View style={styles.projectHead}>
-              <Text style={[styles.jobTitle, { color: colors.ink, flex: 1 }]}>{row.title || 'Prosjekt'}</Text>
-              <Pencil
-                label={`Rediger ${row.title || 'prosjekt'}`}
-                onPress={onEditProject ? () => onEditProject(row) : undefined}
-                colors={colors}
-              />
-            </View>
-            {(row.images || []).length ? (
-              <View style={styles.projectImages}>
-                {row.images.map((url, imageIndex) => (
-                  <Image
-                    key={`${imageIndex}-${String(url).slice(0, 24)}`}
-                    source={{ uri: url }}
-                    style={styles.projectImage}
-                    resizeMode="cover"
-                    accessibilityLabel={`Bilde ${imageIndex + 1} for ${row.title || 'prosjektet'}`}
-                  />
-                ))}
-              </View>
-            ) : null}
-            {!![row.client, row.period].filter(Boolean).length && (
-              <Text style={{ color: colors.muted }}>{[row.client, row.period].filter(Boolean).join(' · ')}</Text>
-            )}
-          </View>
+          <ProjectCard key={row.id} row={row} colors={colors} onEditProject={onEditProject} />
         )) : <Text style={{ color: colors.muted }}>Ingen referanseprosjekter er lagt inn.</Text>}
       </Block>
       {cv.custom?.length ? (
@@ -144,10 +236,19 @@ const styles = StyleSheet.create({
   factLabel: { width: 110, fontSize: 14 },
   factValue: { flex: 1, fontSize: 14 },
   body: { fontSize: 15, lineHeight: 22 },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  subhead: { fontSize: 13, fontWeight: '600' },
+  stackTight: { gap: 2 },
   job: { gap: 2, marginBottom: 8 },
   jobTitle: { fontSize: 16, fontWeight: '600' },
-  project: { borderTopWidth: 1, paddingTop: 8, gap: 2 },
+  project: { borderTopWidth: 1, paddingTop: 12, gap: 10 },
   projectHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  projectImage: { width: 160, height: 110, borderRadius: 8 },
+  projectBody: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' },
+  projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: 220 },
+  projectImage: { width: 220, height: 148, borderRadius: 8 },
+  projectMeta: { flex: 1, minWidth: 240, gap: 10 },
+  factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  factCell: { width: '47%', minWidth: 140, gap: 2 },
+  factCellLabel: { fontSize: 12 },
+  factCellValue: { fontSize: 15, lineHeight: 20 },
 });

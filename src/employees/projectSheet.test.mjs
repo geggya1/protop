@@ -61,7 +61,11 @@ assert.match(screen, /Referanseark som PDF/);
 assert.equal(screen.includes('function ReferenceSheets'), false);
 const view = readFileSync(new URL('../../screens/employees/EmployeeCvView.jsx', import.meta.url), 'utf8');
 assert.equal(view.includes('Referanseark'), false);
-assert.equal(view.includes('Tiltaksklasse'), false);
-assert.equal(view.includes('Areal'), false);
+assert.match(view, /Tiltaksklasse/);
+assert.match(view, /Areal/);
+assert.match(view, /Oppdragsgiver/);
+assert.match(view, /Prosjektsum/);
+assert.match(view, /projectBody/);
+assert.match(view, /factGrid/);
 
 console.log('projectSheet.test.mjs: ok');

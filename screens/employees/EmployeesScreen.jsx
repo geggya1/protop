@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -212,12 +212,21 @@ export default function EmployeesScreen() {
     setEditSection(sectionId);
     setEditItemId(itemId);
     setEditToken((current) => current + 1);
+    if (view === 'cv') return;
     if (Platform.OS === 'web') {
-      const targetId = view === 'cv' ? 'employee-cv-section' : 'employee-fields';
       setTimeout(() => {
-        globalThis.document?.getElementById(targetId)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        globalThis.document?.getElementById('employee-fields')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       }, 40);
     }
+  }
+
+  function cvEditTitle() {
+    if (editSection === 'projects' && editItemId) {
+      const project = (draft?.cv?.projects || []).find((row) => row.id === editItemId);
+      return project?.title ? `Rediger ${project.title}` : 'Rediger prosjekt';
+    }
+    const section = cvEditorSections('employee').find((row) => row.id === editSection);
+    return section?.title ? `Rediger ${section.title}` : 'Rediger';
   }
 
   function openList() {
@@ -1007,58 +1016,92 @@ export default function EmployeesScreen() {
             </View>
           ) : null}
           <CvAttention draft={cvEmployee} colors={colors} />
-          {canEditCv && editSection ? (
-            <View nativeID="employee-cv-section" style={styles.stack}>
-              {editSection === 'projects' && editItemId ? (
-                <View style={styles.row}>
-                  <TouchableOpacity
-                    onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'pdf')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Referanseark som PDF"
-                    style={[styles.secondary, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>PDF</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'docx')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Referanseark som Word"
-                    style={[styles.secondary, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>Word</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              <EmployeeFields
-                key={`${editSection}:${editItemId}:${editToken}`}
-                draft={draft}
-                scope="employee"
-                sections={cvEditorSections('employee').filter((section) => section.id === editSection)}
-                showCustom={false}
-                review
-                startOpen={editSection}
-                focusItemId={editItemId}
-                openToken={editToken}
-                hideItems={editSection === 'projects' && !editItemId}
-                onClose={clearSectionEdit}
-                colors={colors}
-                canEditOwner={canEditOwner}
-                departments={departments}
-                members={people}
-                addressHits={addressHits}
-                onPickAddress={pickAddress}
-                onChange={changeDraft}
-                onPhoto={choosePhoto}
-                onProjectImage={addProjectImages}
-              />
-            </View>
-          ) : null}
           <EmployeeCvView
             cv={cv}
             colors={colors}
             onEdit={canEditCv ? (sectionId) => beginSectionEdit(sectionId) : undefined}
             onEditProject={canEditCv ? (project) => beginSectionEdit('projects', project.id) : undefined}
           />
+          <Modal
+            visible={canEditCv && !!editSection}
+            transparent
+            animationType="fade"
+            onRequestClose={clearSectionEdit}
+          >
+            <View style={styles.modalRoot}>
+              <Pressable
+                style={styles.modalBackdrop}
+                onPress={clearSectionEdit}
+                accessibilityRole="button"
+                accessibilityLabel="Lukk redigering"
+              />
+              <View
+                nativeID="employee-cv-section"
+                accessibilityRole="dialog"
+                style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+              >
+                <View style={styles.modalHead}>
+                  <Text style={[styles.modalTitle, { color: colors.ink, flex: 1 }]}>{cvEditTitle()}</Text>
+                  <TouchableOpacity
+                    onPress={clearSectionEdit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk"
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Lukk</Text>
+                  </TouchableOpacity>
+                </View>
+                {editSection === 'projects' && editItemId ? (
+                  <View style={styles.row}>
+                    <TouchableOpacity
+                      onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'pdf')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Referanseark som PDF"
+                      style={[styles.secondary, { borderColor: colors.line }]}
+                    >
+                      <Text style={{ color: colors.ink }}>PDF</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'docx')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Referanseark som Word"
+                      style={[styles.secondary, { borderColor: colors.line }]}
+                    >
+                      <Text style={{ color: colors.ink }}>Word</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+                <ScrollView
+                  style={styles.modalScroll}
+                  contentContainerStyle={styles.stack}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <EmployeeFields
+                    key={`${editSection}:${editItemId}:${editToken}`}
+                    draft={draft}
+                    scope="employee"
+                    sections={cvEditorSections('employee').filter((section) => section.id === editSection)}
+                    showCustom={false}
+                    review
+                    startOpen={editSection}
+                    focusItemId={editItemId}
+                    openToken={editToken}
+                    hideItems={editSection === 'projects' && !editItemId}
+                    onClose={clearSectionEdit}
+                    colors={colors}
+                    canEditOwner={canEditOwner}
+                    departments={departments}
+                    members={people}
+                    addressHits={addressHits}
+                    onPickAddress={pickAddress}
+                    onChange={changeDraft}
+                    onPhoto={choosePhoto}
+                    onProjectImage={addProjectImages}
+                  />
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
         </View>
       ) : null}
 
@@ -1131,7 +1174,7 @@ function summaryNote(labels) {
 }
 
 const styles = StyleSheet.create({
-  inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 880, width: '100%', alignSelf: 'flex-start' },
+  inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   kicker: { fontSize: 12, letterSpacing: 0.4 },
   title: { fontSize: 28, fontWeight: '700' },
   lead: { fontSize: 15, lineHeight: 22 },
@@ -1160,4 +1203,28 @@ const styles = StyleSheet.create({
   fact: { flexDirection: 'row', gap: 12 },
   factLabel: { width: 160, fontSize: 14 },
   factValue: { flex: 1, fontSize: 15 },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(26, 39, 68, 0.45)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 720,
+    maxHeight: Platform.OS === 'web' ? '88vh' : '90%',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+    zIndex: 1,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 16px 40px rgba(15,23,42,0.18)' } : {}),
+  },
+  modalHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalScroll: { flexGrow: 0, flexShrink: 1 },
 });

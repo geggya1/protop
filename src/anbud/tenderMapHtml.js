@@ -161,7 +161,7 @@ function paint() {
 function tell(type, id, extra) {
   if (window.parent) window.parent.postMessage(Object.assign({ type: type, tenderId: id }, extra || {}), '*');
 }
-function show(index, { jump, pan } = {}) {
+function show(index, { jump, pan, silent } = {}) {
   if (!pins.length) return;
   current = (index + pins.length) % pins.length;
   const marker = markers[current];
@@ -169,7 +169,7 @@ function show(index, { jump, pan } = {}) {
   paint();
   if (pan !== false && marker) map.panTo(marker.getLatLng());
   if (marker) marker.openPopup();
-  tell('preview', row.id);
+  if (!silent) tell('preview', row.id);
   if (jump) tell('open', row.id);
 }
 function normalizePin(row) {
@@ -323,7 +323,7 @@ window.addEventListener('message', (event) => {
   const id = event?.data?.id || event?.data?.tenderId;
   if (event?.data?.type === 'show' && id) {
     const index = pins.findIndex((row) => row.id === id);
-    if (index >= 0) show(index, { pan: true });
+    if (index >= 0) show(index, { pan: true, silent: !!event.data.silent });
   }
 });
 if (pins.length) {

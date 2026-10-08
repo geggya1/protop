@@ -3,6 +3,7 @@ import {
   deadlineInfo,
   formatNoticeText,
   isCompetitorPortal,
+  nextRowAfterRemoval,
   noticeListFilter,
   noticeMatchesListFilter,
   officialNoticeUrl,
@@ -56,5 +57,12 @@ assert.equal(noticeMatchesListFilter(fresh, 'uaktuelle'), false);
 assert.equal(noticeMatchesListFilter(fresh, 'nye'), true);
 assert.equal(noticeMatchesListFilter(fresh, 'alle'), true);
 assert.equal(noticeMatchesListFilter(rejected, 'alle'), false);
+assert.equal(noticeMatchesListFilter({ ...fresh, decision: 'aktuell' }, 'nye'), false);
+assert.equal(noticeMatchesListFilter({ ...fresh, decision: 'forkastet' }, 'nye'), false);
+assert.equal(nextRowAfterRemoval([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'a'), 'b');
+assert.equal(nextRowAfterRemoval([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'b'), 'c');
+assert.equal(nextRowAfterRemoval([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'c'), 'b');
+assert.equal(nextRowAfterRemoval([{ id: 'a' }], 'a'), '');
+assert.equal(nextRowAfterRemoval([{ id: 'a' }], 'mangler'), '');
 
 console.log('noticeText.test.mjs ok');

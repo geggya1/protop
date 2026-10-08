@@ -3,8 +3,10 @@ import {
   addBidFile,
   addBidQuestion,
   answerBidQuestion,
+  bidDeskBucket,
   bidOverview,
   bidStatusCounts,
+  bidWorkspacePath,
   competitionDocuments,
   createBidFolder,
   deleteBidFile,
@@ -15,6 +17,7 @@ import {
   saveFormTemplate,
   setFormStatus,
   setFormValue,
+  sortBidsByDeadline,
   updateBidAssignment,
 } from './bidLibrary.js';
 import {
@@ -114,6 +117,25 @@ const overview = bidOverview(worked.bids[0]);
 assert.equal(overview.doneForms, 1);
 assert.ok(overview.documents >= 1);
 assert.equal(bidStatusCounts(worked.bids).planlegging, 1);
+assert.equal(bidStatusCounts(worked.bids, new Date('2026-10-01T12:00:00')).aktive, 1);
+assert.equal(bidDeskBucket(worked.bids[0], new Date('2026-10-01T12:00:00')), 'aktive');
+assert.equal(bidDeskBucket(worked.bids[0], new Date('2026-10-30T12:00:00')), 'utgatt');
+assert.equal(bidWorkspacePath(bidId), `/anbud/tilbud/${encodeURIComponent(bidId)}`);
+
+const ranked = sortBidsByDeadline([
+  { id: 'a', dossier: { submissionDeadline: '29.10.2026 09:00' } },
+  { id: 'b', dossier: { submissionDeadline: '26.10.2026 08:00' } },
+  { id: 'c', dossier: { submissionDeadline: '02.11.2026 12:00' } },
+  { id: 'd', dossier: {} },
+]);
+assert.deepEqual(ranked.map((row) => row.id), ['b', 'a', 'c', 'd']);
+
+const won = { ...worked.bids[0], stage: 'kontrakt' };
+const delivered = { ...worked.bids[0], stage: 'levert' };
+assert.equal(bidDeskBucket(won), 'vunnet');
+assert.equal(bidDeskBucket(delivered), 'levert');
+assert.equal(bidStatusCounts([won, delivered, worked.bids[0]], new Date('2026-10-01T12:00:00')).vunnet, 1);
+assert.equal(bidStatusCounts([won, delivered, worked.bids[0]], new Date('2026-10-01T12:00:00')).levert, 1);
 
 const assigned = updateBidAssignment(worked, bidId, {
   personId: 'u1',

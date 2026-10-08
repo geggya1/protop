@@ -502,10 +502,12 @@ function AppShellInner() {
     if (tab === 'anbud') {
       const companyUnits = Array.isArray(family?.company?.subUnits) ? family.company.subUnits : [];
       const relatedCompanies = (families || [])
-        .filter((row) => row?.id && row.id !== familyId)
+        .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
           name: row.company?.navn || row.name || 'Selskap',
+          organization: true,
+          type: row.type,
         }));
       return (
         <AnbudScreen

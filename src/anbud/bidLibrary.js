@@ -1,6 +1,7 @@
 /** Dokumentmapper, opplastede filer og bedriftsskjema i ett tilbudsarbeid. */
 
 import { coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
+import { deadlinePassedAt, parseDeadline } from './noticeText.js';
 
 export const GROUND_FOLDER_ID = 'grunnlag';
 
@@ -380,14 +381,64 @@ export function bidOverview(bid) {
   };
 }
 
-export function bidStatusCounts(bids) {
-  const counts = { alle: 0, planlegging: 0, gjennomforing: 0, kontrakt: 0, avsluttet: 0 };
+/** Statusgruppe på tilbudsdesk: aktive, levert, vunnet, utgatt, avsluttet. */
+export function bidDeskBucket(bid, now = new Date()) {
+  const stage = bid?.stage || 'planlegging';
+  if (stage === 'kontrakt') return 'vunnet';
+  if (stage === 'levert') return 'levert';
+  if (stage === 'tapt' || stage === 'trukket') return 'avsluttet';
+  const deadline = text(bid?.dossier?.submissionDeadline);
+  if (deadline && deadlinePassedAt(deadline, now)) return 'utgatt';
+  return 'aktive';
+}
+
+export function bidStatusCounts(bids, now = new Date()) {
+  const counts = {
+    alle: 0,
+    aktive: 0,
+    levert: 0,
+    vunnet: 0,
+    utgatt: 0,
+    avsluttet: 0,
+    // Eldre nøkler beholdes slik at eksisterende kall ikke knekker.
+    planlegging: 0,
+    gjennomforing: 0,
+    kontrakt: 0,
+  };
   for (const bid of Array.isArray(bids) ? bids : []) {
     counts.alle += 1;
-    if (bid?.stage === 'tapt' || bid?.stage === 'trukket') counts.avsluttet += 1;
-    else if (counts[bid?.stage] != null) counts[bid.stage] += 1;
+    const bucket = bidDeskBucket(bid, now);
+    counts[bucket] += 1;
+    const stage = bid?.stage || 'planlegging';
+    if (stage === 'planlegging') counts.planlegging += 1;
+    else if (stage === 'gjennomforing') counts.gjennomforing += 1;
+    else if (stage === 'kontrakt') counts.kontrakt += 1;
   }
   return counts;
+}
+
+/** Rangering etter tilbudsfrist (dato + klokkeslett). Mangler frist sist. */
+export function compareBidsByDeadline(a, b, direction = 'asc') {
+  const ta = parseDeadline(a?.dossier?.submissionDeadline)?.getTime();
+  const tb = parseDeadline(b?.dossier?.submissionDeadline)?.getTime();
+  const aMissing = ta == null || Number.isNaN(ta);
+  const bMissing = tb == null || Number.isNaN(tb);
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  const cmp = ta - tb;
+  return direction === 'desc' ? -cmp : cmp;
+}
+
+export function sortBidsByDeadline(bids, direction = 'asc') {
+  return [...(Array.isArray(bids) ? bids : [])].sort((a, b) => compareBidsByDeadline(a, b, direction));
+}
+
+/** Lenke for å åpne ett tilbudsarbeid i eget nettleservindu. */
+export function bidWorkspacePath(bidId) {
+  const id = text(bidId);
+  if (!id) return '';
+  return `/anbud/tilbud/${encodeURIComponent(id)}`;
 }
 
 export function childFolders(folders, parentId) {

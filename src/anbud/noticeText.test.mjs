@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import {
   deadlineInfo,
+  deadlinePassedAt,
   formatNoticeText,
   isCompetitorPortal,
   nextRowAfterRemoval,
   noticeListFilter,
   noticeMatchesListFilter,
   officialNoticeUrl,
+  parseDeadline,
   sourceLabel,
 } from './noticeText.js';
 
@@ -44,6 +46,14 @@ assert.equal(today.tone, 'danger');
 const gone = deadlineInfo('2099-01-01', new Date('2099-01-10T08:00:00'));
 assert.ok(gone.daysLeft < 0);
 assert.equal(gone.tone, 'danger');
+
+const timed = parseDeadline('26.10.2026 08:00');
+assert.equal(timed.getFullYear(), 2026);
+assert.equal(timed.getMonth(), 9);
+assert.equal(timed.getDate(), 26);
+assert.equal(timed.getHours(), 8);
+assert.equal(deadlinePassedAt('26.10.2026 08:00', new Date('2026-10-26T07:59:00')), false);
+assert.equal(deadlinePassedAt('26.10.2026 08:00', new Date('2026-10-26T08:01:00')), true);
 
 const fresh = { decision: 'ubestemt', deadline: '2099-12-01' };
 const current = { decision: 'aktuell', deadline: '2020-01-01' };

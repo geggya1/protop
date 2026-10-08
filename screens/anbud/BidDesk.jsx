@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { bidOverview, bidStatusCounts, normalizeBidWork } from '../../src/anbud/bidLibrary';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  bidDeskBucket,
+  bidOverview,
+  bidStatusCounts,
+  bidWorkspacePath,
+  normalizeBidWork,
+  sortBidsByDeadline,
+} from '../../src/anbud/bidLibrary';
 import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
@@ -11,11 +18,26 @@ import FilterMenu from '../../components/FilterMenu';
 
 const FILTERS = [
   ['alle', 'Alle'],
-  ['planlegging', 'Planlegging'],
-  ['gjennomforing', 'Gjennomføring'],
-  ['kontrakt', 'Kontrakt'],
+  ['aktive', 'Aktive'],
+  ['levert', 'Levert'],
+  ['vunnet', 'Vunnet'],
+  ['utgatt', 'Utgått'],
   ['avsluttet', 'Avsluttet'],
 ];
+
+const SORTS = [
+  ['asc', 'Frist nærmest først'],
+  ['desc', 'Frist lengst først'],
+];
+
+function openBidInOwnWindow(bidId) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const path = bidWorkspacePath(bidId);
+  if (!path) return false;
+  const url = `${window.location.origin}${path}`;
+  window.open(url, `protop_tilbud_${bidId}`, 'noopener,noreferrer');
+  return true;
+}
 
 export default function BidDesk({
   company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot,
@@ -23,7 +45,8 @@ export default function BidDesk({
 }) {
   const [state, setState] = useState(null);
   const [openId, setOpenId] = useState('');
-  const [filter, setFilter] = useState('alle');
+  const [filter, setFilter] = useState('aktive');
+  const [sortDir, setSortDir] = useState('asc');
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
   const [showForms, setShowForms] = useState(false);
@@ -93,29 +116,37 @@ export default function BidDesk({
     setBusyId('');
   }
 
+  function openBid(bidId) {
+    if (openBidInOwnWindow(bidId)) return;
+    setOpenId(bidId);
+  }
+
   const rows = state?.bids || bids || [];
   const counts = bidStatusCounts(rows);
-  const visible = rows.filter((bid) => {
-    if (filter === 'alle') return true;
-    if (filter === 'avsluttet') return bid.stage === 'tapt' || bid.stage === 'trukket';
-    return (bid.stage || 'planlegging') === filter;
-  });
-  const openBid = rows.find((row) => row.id === openId) || null;
+  const visible = sortBidsByDeadline(
+    rows.filter((bid) => {
+      if (filter === 'alle') return true;
+      return bidDeskBucket(bid) === filter;
+    }),
+    sortDir,
+  );
+  const openBidRow = rows.find((row) => row.id === openId) || null;
 
-  if (openBid && state) {
+  if (openBidRow && state) {
     return (
       <BidWorkspace
-        bid={openBid}
+        bid={openBidRow}
         state={state}
         colors={colors}
-        busy={busyId === openBid.id}
+        busy={busyId === openBidRow.id}
         note={note}
         members={members}
         units={units}
         companies={companies}
         onBack={() => { setOpenId(''); setNote(''); }}
         onCommit={commit}
-        onRefresh={() => refreshFiles(openBid)}
+        onRefresh={() => refreshFiles(openBidRow)}
+        onOpenInWindow={Platform.OS === 'web' ? () => openBidInOwnWindow(openBidRow.id) : undefined}
       />
     );
   }
@@ -124,45 +155,82 @@ export default function BidDesk({
     <View style={{ gap: 12 }}>
       {counts.alle ? (
         <Text style={{ color: colors.muted }}>
-          {`${counts.alle} tilbud · ${counts.planlegging} i planlegging · ${counts.gjennomforing} i gjennomføring · ${counts.kontrakt} kontrakt`}
+          {`${counts.alle} tilbud · ${counts.aktive} aktive · ${counts.levert} levert · ${counts.vunnet} vunnet · ${counts.utgatt} utgått`}
         </Text>
       ) : null}
       <FilterMenu
-        groups={[{
-          id: 'status',
-          label: 'Status',
-          value: filter,
-          onChange: setFilter,
-          options: FILTERS.map(([id, label]) => ({ id, label: `${label} (${counts[id] || 0})` })),
-        }]}
+        groups={[
+          {
+            id: 'status',
+            label: 'Status',
+            value: filter,
+            onChange: setFilter,
+            options: FILTERS.map(([id, label]) => ({ id, label: `${label} (${counts[id] || 0})` })),
+          },
+          {
+            id: 'sort',
+            label: 'Sortering',
+            value: sortDir,
+            onChange: setSortDir,
+            options: SORTS.map(([id, label]) => ({ id, label })),
+          },
+        ]}
       />
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {visible.map((bid) => {
         const overview = bidOverview(bid);
         const deadline = deadlineInfo(overview.deadline);
         const urgent = deadline.tone === 'danger' || deadline.tone === 'warn';
+        const bucket = bidDeskBucket(bid);
+        const statusLabel = bucket === 'utgatt'
+          ? 'Utgått'
+          : (STAGE_LABELS[overview.stage] || 'Planlegging');
         return (
-          <TouchableOpacity
+          <View
             key={bid.id}
-            onPress={() => setOpenId(bid.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Åpne tilbud ${bid.title}`}
             style={[styles.card, { borderColor: urgent ? colors.danger : colors.line, backgroundColor: colors.card }]}
           >
-            <Text style={{ color: urgent ? colors.danger : colors.brand, fontWeight: '700', fontSize: urgent ? 18 : 14 }}>
-              {deadline.headline}
-            </Text>
-            <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[overview.stage] || 'Planlegging'}</Text>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
-            <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
-            <Text style={{ color: colors.muted }}>
-              {overview.assignee ? `Tildelt ${overview.assignee} · ` : ''}
-              {`${overview.downloaded} dokumenter lastet`}
-              {` · ${overview.qa} spørsmål`}
-              {overview.forms ? ` · ${overview.doneForms}/${overview.forms} skjema ferdig` : ''}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => openBid(bid.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Åpne tilbud ${bid.title}`}
+              style={{ gap: 4 }}
+            >
+              <Text style={{ color: urgent ? colors.danger : colors.brand, fontWeight: '700', fontSize: urgent ? 18 : 14 }}>
+                {deadline.headline}
+              </Text>
+              <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
+              <Text style={{ color: colors.brand, fontWeight: '600' }}>{statusLabel}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
+              <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+              <Text style={{ color: colors.muted }}>
+                {overview.assignee ? `Ansvarlig: ${overview.assignee} · ` : 'Ikke tildelt · '}
+                {`${overview.downloaded} dokumenter lastet`}
+                {` · ${overview.qa} spørsmål`}
+                {overview.forms ? ` · ${overview.doneForms}/${overview.forms} skjema ferdig` : ''}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.actions}>
+              <TouchableOpacity
+                onPress={() => openBid(bid.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Arbeid med ${bid.title}`}
+              >
+                <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                  {Platform.OS === 'web' ? 'Åpne i eget vindu' : 'Åpne'}
+                </Text>
+              </TouchableOpacity>
+              {Platform.OS === 'web' ? (
+                <TouchableOpacity
+                  onPress={() => setOpenId(bid.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Åpne ${bid.title} her`}
+                >
+                  <Text style={{ color: colors.muted }}>Åpne her</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         );
       })}
       {!rows.length ? (
@@ -172,6 +240,9 @@ export default function BidDesk({
             <Text style={{ color: '#fff' }}>Gå til treffene</Text>
           </TouchableOpacity>
         </View>
+      ) : null}
+      {rows.length && !visible.length ? (
+        <Text style={{ color: colors.muted }}>Ingen tilbud i denne statusen.</Text>
       ) : null}
       <TouchableOpacity onPress={() => setShowForms((value) => !value)} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>{showForms ? 'Skjul skjemabygger' : 'Bygg skjema for bedriften'}</Text>
@@ -191,6 +262,7 @@ const styles = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 2 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

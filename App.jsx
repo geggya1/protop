@@ -97,6 +97,7 @@ import WeatherSettingsScreen from './screens/v2/WeatherSettingsScreen';
 import AppearanceSettingsScreen from './screens/v2/AppearanceSettingsScreen';
 import DashboardThemeSettingsScreen from './screens/v2/DashboardThemeSettingsScreen';
 import DashboardThemeGalleryScreen from './screens/v2/DashboardThemeGalleryScreen';
+import FakturaDemoScreen from './screens/economy/FakturaDemoScreen';
 import ChildDashboardThemeSettingsScreen from './screens/v2/ChildDashboardThemeSettingsScreen';
 import ChildDashboardThemeGalleryScreen from './screens/v2/ChildDashboardThemeGalleryScreen';
 import FamilyProgressScreen from './screens/v2/FamilyProgressScreen';
@@ -857,6 +858,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // /start used to mount the legacy Welcome marketing clone — redirect via /.
       if (p === '/start') return null;
       if (p === '/dashboard-themes') return 'DashboardThemeGallery';
+      if (p === '/faktura-demo') return 'FakturaDemo';
       if (p === '/child-dashboard-themes') return 'ChildDashboardThemeGallery';
       if (p === '/game-preview' || p.startsWith('/game-preview/')) {
         try {
@@ -1004,6 +1006,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="LegalDoc" component={LegalDocScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Licenses" component={LicensesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DashboardThemeGallery" component={DashboardThemeGalleryScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />
         <Stack.Screen name="GamePreview" component={GamePreviewScreen} options={{ headerShown: false }} />
         <Stack.Screen

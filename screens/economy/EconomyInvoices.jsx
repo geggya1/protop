@@ -33,11 +33,7 @@ import {
   INVOICE_STATUSES,
   statusLabel,
 } from '../../src/economy/invoices.js';
-import {
-  loadInvoice,
-  saveInvoiceImport,
-  watchInvoices,
-} from '../../src/economy/invoiceStorage.js';
+import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -159,7 +155,14 @@ export default function EconomyInvoices({
   projects = [],
   onOpenCustomer,
   onOpenProject,
+  storage = null,
 }) {
+  const store = storage || invoiceStorage;
+  const {
+    loadInvoice,
+    saveInvoiceImport,
+    watchInvoices,
+  } = store;
   const colors = useColors();
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
@@ -203,15 +206,21 @@ export default function EconomyInvoices({
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
 
+  const [pageSize, setPageSize] = useState(80);
   const visible = useMemo(
     () => filterInvoices(invoices, query, statusFilter),
     [invoices, query, statusFilter],
   );
+  const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
   const totals = useMemo(() => invoiceTotals(visible), [visible]);
   const reviewRows = useMemo(
     () => (importPlan ? reviewRowsForInvoicePlan(importPlan, { dropped }) : []),
     [importPlan, dropped],
   );
+
+  useEffect(() => {
+    setPageSize(80);
+  }, [query, statusFilter, invoices.length]);
 
   async function importFile() {
     setError('');
@@ -283,11 +292,25 @@ export default function EconomyInvoices({
           onProgress: (done, total) => setProgress(`Lagrer ${done} av ${total}…`),
         },
       );
-      const imported = chosen.map((row) => ({
-        name: row.title,
-        issues: row.issues || [],
-      }));
-      setImportReport(importResult(imported, leftOut));
+      const withIssues = chosen.filter((row) => (row.issues || []).length).length;
+      const without = chosen.length - withIssues;
+      const report = importResult(
+        [{ name: `${chosen.length} fakturaer`, issues: withIssues ? [`${withIssues} med avvik mot kunde/prosjekt`] : [] }],
+        leftOut,
+      );
+      report.saved = chosen.length;
+      report.total = chosen.length + leftOut.length;
+      report.complete = !leftOut.length && !withIssues;
+      report.attention = withIssues
+        ? [{
+          name: `${withIssues} fakturaer importert med avvik`,
+          issues: [
+            'Kunde eller prosjekt mangler kobling. Åpne fakturaen i listen for detaljer, eller importer prosjekt-/kunderegister først.',
+            without ? `${without} uten avvik.` : '',
+          ].filter(Boolean),
+        }]
+        : [];
+      setImportReport(report);
       setImportPlan(null);
       setDropped(new Set());
       setNote(`${result.saved} fakturaer er lagret.`);
@@ -304,6 +327,7 @@ export default function EconomyInvoices({
     setSelectedId(row.id);
     setView('detail');
     setError('');
+    setImportReport(null);
   }
 
   function renderListRow({ item: row, index }) {
@@ -498,7 +522,10 @@ export default function EconomyInvoices({
         <View style={styles.filters}>
           <TextInput
             value={query}
-            onChangeText={setQuery}
+            onChangeText={(value) => {
+              setQuery(value);
+              if (importReport) setImportReport(null);
+            }}
             placeholder="Søk fakturanr, kunde, prosjekt, KID…"
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { flex: 1, color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
@@ -548,10 +575,13 @@ export default function EconomyInvoices({
               </View>
             ) : null}
             <FlatList
-              data={visible}
+              data={pageRows}
               keyExtractor={(row) => row.id}
               renderItem={renderListRow}
               style={{ maxHeight: stackRows ? 640 : 720 }}
+              initialNumToRender={24}
+              maxToRenderPerBatch={24}
+              windowSize={7}
               ListEmptyComponent={(
                 <View style={{ padding: 16 }}>
                   <Text style={{ color: colors.muted }}>
@@ -559,6 +589,17 @@ export default function EconomyInvoices({
                   </Text>
                 </View>
               )}
+              ListFooterComponent={visible.length > pageRows.length ? (
+                <TouchableOpacity
+                  onPress={() => setPageSize((n) => n + 80)}
+                  accessibilityRole="button"
+                  style={{ padding: 14, alignItems: 'center' }}
+                >
+                  <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                    Vis flere ({pageRows.length} av {visible.length})
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             />
           </View>
         )}

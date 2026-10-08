@@ -184,6 +184,24 @@ export const linking = {
         return { routes: [{ name: 'Home' }] };
       }
     }
+    // Tilbudsarbeid i eget vindu: /anbud/tilbud/:bidId
+    const anbudBid = String(path || '').match(/^\/?anbud\/tilbud\/([^/?#]+)/i);
+    if (anbudBid?.[1]) {
+      let bidId = anbudBid[1];
+      try { bidId = decodeURIComponent(bidId); } catch { /* keep raw */ }
+      return {
+        routes: [{
+          name: 'Home',
+          params: {
+            openShell: {
+              tab: 'anbud',
+              subView: 'tilbud',
+              intent: { type: 'openBid', bidId },
+            },
+          },
+        }],
+      };
+    }
     // After Google/Apple/Microsoft from /signup, URL often stays on signup while
     // RootNav enters app stage. Linking must not force AuthChoice again.
     const authOverride = resolveAuthEntryLinkState(path, { signedIn: linkingSignedIn });

@@ -20,6 +20,7 @@ import {
   awardContract,
   executionBlockers,
   markOutcome,
+  markSubmitted,
   openExecution,
   regulatoryChecks,
   STAGE_LABELS,
@@ -90,7 +91,8 @@ function toneColor(tone, colors) {
 }
 
 export default function BidWorkspace({
-  bid, state, colors, busy, note, onBack, onCommit, onRefresh, members = [], units = [], companies = [],
+  bid, state, colors, busy, note, onBack, onCommit, onRefresh, onOpenInWindow,
+  members = [], units = [], companies = [],
 }) {
   const [step, setStep] = useState('grunnlag');
   const [folderId, setFolderId] = useState(null);
@@ -116,6 +118,7 @@ export default function BidWorkspace({
   const dossier = bid.dossier || {};
   const stage = bid.stage || 'planlegging';
   const locked = stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
+  const strategyLocked = locked || stage === 'levert';
   const folder = folderId ? bid.folders.find((row) => row.id === folderId) : null;
   const message = localNote || note;
   const deadline = deadlineInfo(dossier.submissionDeadline || bid.deadline);
@@ -191,9 +194,16 @@ export default function BidWorkspace({
 
   return (
     <View style={{ gap: 12 }}>
-      <TouchableOpacity onPress={onBack} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>Alle tilbud</Text>
-      </TouchableOpacity>
+      <View style={styles.row}>
+        <TouchableOpacity onPress={onBack} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Alle tilbud</Text>
+        </TouchableOpacity>
+        {onOpenInWindow ? (
+          <TouchableOpacity onPress={onOpenInWindow} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Åpne i eget vindu</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
       <DeadlineBanner deadline={deadline} colors={colors} />
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
@@ -392,6 +402,7 @@ export default function BidWorkspace({
             state={state}
             colors={colors}
             locked={locked}
+            strategyLocked={strategyLocked}
             value={value}
             start={start}
             end={end}
@@ -432,7 +443,12 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
   const assignment = bid.assignment || {};
   const people = (members || []).filter((row) => row.role !== 'child');
   const unitRows = units || [];
-  const companyRows = (companies || []).filter((row) => row.id && row.id !== state?.companyId);
+  // Bare bedrift/organisasjon — private hjem (f.eks. «Geirs hjem») er ikke alternativ.
+  const companyRows = (companies || []).filter((row) => (
+    row.id
+    && row.id !== state?.companyId
+    && row.organization !== false
+  ));
 
   function assignPerson(person) {
     onCommit(updateBidAssignment(state, bid.id, {
@@ -463,7 +479,10 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
 
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>Tildeling og interesse</Text>
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>Ansvarlig og interesse</Text>
+      <Text style={{ color: colors.muted }}>
+        Tildel tilbudet til person, avdeling eller datterselskap. Private hjem er ikke alternativ her.
+      </Text>
       <Text style={{ color: colors.muted }}>
         {interest.contactName || interest.username
           ? `Interesse meldt av ${[interest.contactName, interest.username].filter(Boolean).join(' · ')}${interest.registeredAt ? ` (${String(interest.registeredAt).slice(0, 10)})` : ''}.`
@@ -471,7 +490,7 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
       </Text>
       {assignment.personName || assignment.unitName || assignment.companyName ? (
         <Text style={{ color: colors.ink }}>
-          Tildelt:
+          Ansvarlig:
           {assignment.personName ? ` ${assignment.personName}` : ''}
           {assignment.unitName ? ` · ${assignment.unitName}` : ''}
           {assignment.companyName ? ` · ${assignment.companyName}` : ''}
@@ -503,11 +522,11 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
           ) : null}
           {unitRows.length ? (
             <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Avdeling eller underenhet</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Avdeling eller datterselskap</Text>
               <View style={styles.row}>
                 {unitRows.map((unit) => {
                   const on = assignment.unitId === unit.id;
-                  const label = unit.kind === 'underenhet' ? `${unit.name} (selskap)` : `${unit.name} (avdeling)`;
+                  const label = unit.kind === 'underenhet' ? `${unit.name} (datterselskap)` : `${unit.name} (avdeling)`;
                   return (
                     <TouchableOpacity
                       key={unit.id}
@@ -544,7 +563,7 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
           ) : null}
           {!people.length && !unitRows.length && !companyRows.length ? (
             <Text style={{ color: colors.muted }}>
-              Legg til medlemmer eller underenheter i selskapet for å tildele tilbudsarbeidet.
+              Legg til medlemmer, avdelinger eller underenheter i selskapet for å tildele tilbudsarbeidet.
             </Text>
           ) : null}
         </View>
@@ -553,10 +572,13 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
   );
 }
 
-function ExecutionPanel({ bid, state, colors, locked, value, start, end, setValue, setStart, setEnd, onCommit }) {
+function ExecutionPanel({
+  bid, state, colors, locked, strategyLocked, value, start, end, setValue, setStart, setEnd, onCommit,
+}) {
   const stage = bid.stage || 'planlegging';
   const checks = regulatoryChecks(bid);
   const blockers = stage === 'planlegging' ? executionBlockers(bid) : [];
+  const canAward = stage === 'gjennomforing' || stage === 'levert';
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Status i konkurransen</Text>
@@ -566,9 +588,9 @@ function ExecutionPanel({ bid, state, colors, locked, value, start, end, setValu
           <TouchableOpacity
             key={item.id}
             onPress={() => onCommit(toggleStrategy(state, bid.id, item.id))}
-            disabled={locked}
+            disabled={strategyLocked}
             accessibilityRole="checkbox"
-            accessibilityState={{ checked: on, disabled: locked }}
+            accessibilityState={{ checked: on, disabled: strategyLocked }}
           >
             <Text style={{ color: on ? colors.ink : colors.muted }}>{on ? '✓' : '○'} {item.label}</Text>
           </TouchableOpacity>
@@ -587,17 +609,25 @@ function ExecutionPanel({ bid, state, colors, locked, value, start, end, setValu
           </TouchableOpacity>
         </View>
       ) : null}
-      {stage === 'gjennomforing' ? (
+      {(stage === 'planlegging' || stage === 'gjennomforing') ? (
+        <TouchableOpacity onPress={() => onCommit(markSubmitted(state, bid.id))} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+          <Text style={{ color: '#fff' }}>Marker som levert</Text>
+        </TouchableOpacity>
+      ) : null}
+      {canAward ? (
         <View style={{ gap: 6 }}>
+          {stage === 'levert' ? (
+            <Text style={{ color: colors.ink }}>Tilbudet er levert. Registrer vunnet kontrakt eller marker utfallet.</Text>
+          ) : null}
           <TextInput value={value} onChangeText={setValue} placeholder="Kontraktssum" placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
           <TextInput value={start} onChangeText={setStart} placeholder="Oppstart ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
           <TextInput value={end} onChangeText={setEnd} placeholder="Overlevering ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
           <TouchableOpacity onPress={() => onCommit(awardContract(state, bid.id, { value, start, end }))} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff' }}>Registrer kontrakt</Text>
+            <Text style={{ color: '#fff' }}>Registrer vunnet kontrakt</Text>
           </TouchableOpacity>
         </View>
       ) : null}
-      {!locked && (stage === 'planlegging' || stage === 'gjennomforing') ? (
+      {!locked && (stage === 'planlegging' || stage === 'gjennomforing' || stage === 'levert') ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={() => onCommit(markOutcome(state, bid.id, 'tapt'))} accessibilityRole="button">
             <Text style={{ color: colors.danger }}>Tapt</Text>

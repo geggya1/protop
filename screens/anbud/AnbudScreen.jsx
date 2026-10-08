@@ -13,7 +13,7 @@ import WatchSettings from './WatchSettings';
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { requestShellTab } = useApp();
+  const { requestShellTab, shellIntent, clearShellIntent } = useApp();
   const [step, setStep] = useState(() => defaultAnbudSubView(subView));
   const [bids, setBids] = useState([]);
   const [focusBidId, setFocusBidId] = useState('');
@@ -22,6 +22,15 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   useEffect(() => {
     setStep(defaultAnbudSubView(subView));
   }, [subView]);
+
+  useEffect(() => {
+    if (!shellIntent || typeof shellIntent !== 'object' || shellIntent.type !== 'openBid') return;
+    const bidId = String(shellIntent.bidId || '').trim();
+    if (!bidId) return;
+    setStep('tilbud');
+    setFocusBidId(bidId);
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
 
   function go(id) {
     setStep(id);

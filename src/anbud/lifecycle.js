@@ -4,12 +4,13 @@ import { AGREEMENT_KINDS, emptyOption } from './agreementTemplate.js';
 import { normalizeOrgnr, normalizePersonnummer } from './customers.js';
 import { assignContractNumbers, claimContractNumbers, normalizeNumberId } from './numbering.js';
 
-export const STAGES = ['planlegging', 'gjennomforing', 'kontrakt', 'tapt', 'trukket'];
+export const STAGES = ['planlegging', 'gjennomforing', 'levert', 'kontrakt', 'tapt', 'trukket'];
 
 export const STAGE_LABELS = {
   planlegging: 'Planlegging',
   gjennomforing: 'Gjennomføring',
-  kontrakt: 'Kontrakt',
+  levert: 'Levert',
+  kontrakt: 'Vunnet',
   tapt: 'Tapt',
   trukket: 'Trukket',
 };
@@ -476,11 +477,32 @@ export function executionBlockers(bid, now = new Date()) {
   return missing;
 }
 
+export function markSubmitted(state, bidId) {
+  const bid = bidById(state, bidId);
+  if (!bid) return fail(state, 'Tilbudsarbeidet finnes ikke.');
+  if (bid.stage === 'levert') return fail(state, 'Tilbudet er allerede levert.');
+  if (bid.stage === 'kontrakt' || bid.stage === 'tapt' || bid.stage === 'trukket') {
+    return fail(state, 'Konkurransen er avsluttet og kan ikke markeres som levert.');
+  }
+  if (bid.stage !== 'planlegging' && bid.stage !== 'gjennomforing') {
+    return fail(state, 'Bare pågående tilbudsarbeid kan markeres som levert.');
+  }
+  return ok(record(replaceBid(state, bidId, {
+    ...bid,
+    stage: 'levert',
+    submittedAt: new Date().toISOString(),
+  }), {
+    bidId,
+    action: 'tilbud-levert',
+    detail: bid.title,
+  }));
+}
+
 export function toggleStrategy(state, bidId, itemId) {
   const bid = bidById(state, bidId);
   if (!bid) return fail(state, 'Tilbudsarbeidet finnes ikke.');
   if (!STRATEGY_IDS.has(itemId)) return fail(state, 'Ukjent punkt i tilbudsstrategien.');
-  if (bid.stage === 'kontrakt' || bid.stage === 'tapt' || bid.stage === 'trukket') {
+  if (bid.stage === 'levert' || bid.stage === 'kontrakt' || bid.stage === 'tapt' || bid.stage === 'trukket') {
     return fail(state, 'Strategien er låst fordi konkurransen er avsluttet.');
   }
   const strategy = { ...normalizeStrategy(bid.strategy), [itemId]: !normalizeStrategy(bid.strategy)[itemId] };
@@ -542,7 +564,7 @@ export function awardContract(state, bidId, input) {
   if (bid.stage === 'tapt' || bid.stage === 'trukket') {
     return fail(state, 'Konkurransen er avsluttet uten kontrakt.');
   }
-  if (bid.stage !== 'gjennomforing') {
+  if (bid.stage !== 'gjennomforing' && bid.stage !== 'levert') {
     return fail(state, 'Fullfør tilbudsstrategien og start gjennomføring før kontrakten registreres.');
   }
   if ((state.contracts || []).some((row) => row.bidId === bidId && row.status !== 'avsluttet')) {

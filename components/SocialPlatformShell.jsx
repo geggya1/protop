@@ -8,7 +8,7 @@ import { db } from '../firebase';
 import { useApp } from '../src/context/AppContext';
 import { isGroupAdmin } from '../src/utils/groups';
 import {
-  isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType,
+  isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType, isOrganizationType,
 } from '../src/utils/groupTypes';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
@@ -148,10 +148,12 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'anbud') {
       const companyUnits = Array.isArray(group?.subUnits) ? group.subUnits : (Array.isArray(family?.company?.subUnits) ? family.company.subUnits : []);
       const relatedCompanies = (families || [])
-        .filter((row) => row?.id && row.id !== familyId)
+        .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
           name: row.company?.navn || row.name || 'Selskap',
+          organization: true,
+          type: row.type,
         }));
       return (
         <AnbudScreen

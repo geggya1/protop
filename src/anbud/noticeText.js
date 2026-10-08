@@ -69,7 +69,8 @@ export function sourceLabel(notice) {
   return notice?.source === 'ted' ? 'TED' : 'Doffin';
 }
 
-function parseDeadline(value) {
+/** Parser tilbudsfrist med dato og klokkeslett (ISO eller norsk format). */
+export function parseDeadline(value) {
   const raw = text(value);
   if (!raw) return null;
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
@@ -94,6 +95,13 @@ function parseDeadline(value) {
   }
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** True når fristdato/-klokkeslett er passert. */
+export function deadlinePassedAt(value, now = new Date()) {
+  const date = parseDeadline(value);
+  if (!date) return false;
+  return date.getTime() < (now instanceof Date ? now : new Date(now)).getTime();
 }
 
 /** Pedagogisk fristoversikt for tilbudsarbeid og treff. */

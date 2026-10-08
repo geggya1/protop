@@ -70,5 +70,9 @@ if (buildJson.id === '20260923-protop-shell' || buildJson.id === '20261005-local
 if (!index.includes(buildJson.id)) {
   fail('dist/index.html must include the stamped build id');
 }
+const bust = `?v=${encodeURIComponent(buildJson.id)}`;
+if (!index.includes(`/_expo/static/js/web/index-`) || !index.includes(bust)) {
+  fail('dist/index.html must cache-bust /_expo bundles so a stale immutable file cannot reload forever');
+}
 
 console.log(`verify-web-dist: ok (ProTop SPA index.html + PWA icons, build ${buildJson.id})`);

@@ -154,6 +154,7 @@ import { consentsComplete, loadLocalConsents, persistUserConsents } from './src/
 import { APP_BUILD_ID } from './src/constants/build';
 import {
   BUILD_JSON_PATH,
+  claimBuildReload,
   shouldReloadForRemoteBuild,
   shouldSkipWebBuildRefresh,
 } from './src/utils/webBuildRefresh';
@@ -350,8 +351,12 @@ export default function App() {
     const prev = window.localStorage.getItem(key);
     if (prev && prev !== APP_BUILD_ID) {
       window.localStorage.setItem(key, APP_BUILD_ID);
-      window.location.reload();
-      return undefined;
+      // Never store the remote id here. That ping-pongs with the check below
+      // when a cached bundle cannot change its own APP_BUILD_ID.
+      if (claimBuildReload(window.sessionStorage)) {
+        window.location.reload();
+        return undefined;
+      }
     }
     window.localStorage.setItem(key, APP_BUILD_ID);
     // Local Metro (`npm run web`) skips this so hot reload is instant.
@@ -367,8 +372,7 @@ export default function App() {
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && shouldReloadForRemoteBuild(APP_BUILD_ID, data?.id)) {
-          window.localStorage.setItem(key, data.id);
-          window.location.reload();
+          if (claimBuildReload(window.sessionStorage)) window.location.reload();
         }
       } catch { /* metro / offline */ }
     };

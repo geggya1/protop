@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveBuildId } = require('./resolve-build-id');
+const { bustExpoAssetUrls, buildRefreshScript } = require('./hosting-stamp');
 
 const ICON_VERSION = '8';
 const PLACEHOLDER_BUILD_ID = '20261005-local-preview';
@@ -86,6 +87,7 @@ for (const [name, content] of pwaMeta) {
 }
 
 html = injectBuildRefreshScript(html, buildId);
+html = bustExpoAssetUrls(html, buildId);
 fs.writeFileSync(indexPath, html);
 // Hosting SPA catch-all rewrites to /app.html — keep Expo exports working without marketing merge.
 try {
@@ -112,7 +114,7 @@ console.log(`Stamped ${path.basename(indexPath)} with build id: ${buildId}`);
  * constant unchanged unless we rewrite it here.
  */
 function injectBuildRefreshScript(html, nextId) {
-  const script = `<script data-protop-build-refresh>(function(){var id=${JSON.stringify(nextId)};var k='protop_html_build';try{var p=localStorage.getItem(k);localStorage.setItem(k,id);if(p&&p!==id){location.reload();return;}}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)location.reload();}).catch(function(){})})();</script>`;
+  const script = buildRefreshScript(nextId);
   if (/data-protop-build-refresh/.test(html)) {
     return html.replace(/<script data-protop-build-refresh>[\s\S]*?<\/script>/, script);
   }

@@ -207,3 +207,12 @@ export function noticeMatchesListFilter(notice, filter) {
   if (filter === 'alle') return bucket === 'nye' || bucket === 'aktuelle';
   return bucket === filter;
 }
+
+/** Neste rad når den valgte tas ut av listen. Tom streng når listen blir tom. */
+export function nextRowAfterRemoval(rows, id) {
+  const list = Array.isArray(rows) ? rows : [];
+  const index = list.findIndex((row) => row?.id === id);
+  if (index < 0) return '';
+  const next = list[index + 1] || list[index - 1];
+  return next && next.id !== id ? next.id : '';
+}

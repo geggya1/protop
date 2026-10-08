@@ -13,7 +13,11 @@ import {
 import {
   deriveInvoiceStatus,
   formatMoney,
+  filterInvoicesByPeriod,
+  invoiceAmountGroups,
   invoiceDetailSections,
+  invoicePaymentSummary,
+  isInvoiceOverdue,
   normalizeInvoice,
   parseMoney,
 } from './invoices.js';
@@ -142,6 +146,8 @@ import {
     amountInclVat: 1250,
     vat: 250,
     amountExVat: 1000,
+    feesExMarkup: 900,
+    adminCosts: 100,
     accounts: { 3000: 1000 },
     source: { values: { Fakturanr: '100', Extra: 'beholdes' } },
   });
@@ -150,6 +156,18 @@ import {
   assert.ok(sections.some((section) => section.id === 'accounts'));
   const source = sections.find((section) => section.id === 'source');
   assert.ok(source.rows.some(([label]) => label === 'Extra'));
+  const pay = invoicePaymentSummary(invoice);
+  assert.equal(pay.amountExVat, 1000);
+  assert.equal(pay.totalDue, 1250);
+  assert.ok(invoiceAmountGroups(invoice).length >= 1);
+  assert.equal(isInvoiceOverdue({
+    dueDate: '2020-01-01', outstanding: '100', status: 'sent',
+  }), true);
+  const periodRows = filterInvoicesByPeriod([
+    { invoiceDate: '2026-09-30' },
+    { invoiceDate: '2020-01-01' },
+  ], 'year', new Date('2026-10-08'));
+  assert.equal(periodRows.length, 1);
 }
 
 // Full Excel-fil (vedlegg): parse + plan uten avvik på summeringsrad

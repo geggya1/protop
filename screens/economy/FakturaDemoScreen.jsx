@@ -24,6 +24,17 @@ function createMemoryStorage(seed = []) {
     async loadInvoice(_companyId, invoiceId) {
       return rows.find((row) => row.id === invoiceId) || null;
     },
+    async saveInvoice(_companyId, invoice) {
+      const next = normalizeInvoice({
+        ...invoice,
+        id: invoice?.id || `inv_${invoice?.invoiceNumber || Date.now()}`,
+        updatedAt: new Date().toISOString(),
+        createdAt: invoice?.createdAt || new Date().toISOString(),
+      });
+      rows = sortInvoices([...rows.filter((row) => row.id !== next.id), next]);
+      emit();
+      return next;
+    },
     async saveInvoiceImport(_companyId, invoices, { onProgress } = {}) {
       const list = [];
       const byId = new Map(rows.map((row) => [row.id, row]));

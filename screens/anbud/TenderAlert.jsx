@@ -177,6 +177,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
   const [mapFocusId, setMapFocusId] = useState('');
+  const [mapNote, setMapNote] = useState('');
   const [pullingId, setPullingId] = useState('');
   const [ranking, setRanking] = useState(false);
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
@@ -411,18 +412,32 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     scrollNoticeIntoView(id);
   }
 
-  function highlightFromMap(id) {
+  function highlightFromMap(id, options = {}) {
     const row = (stateRef.current.notices || []).find((item) => item.id === id);
     if (!row) return;
     setMapFocusId(id);
-    if (sourceFilter !== 'alle' && row.source !== sourceFilter) setSourceFilter('alle');
-    const area = TENDER_AREAS.find((item) => item.id === areaId) || null;
-    if (area && !noticeInArea(row, area)) setAreaId('');
-    if (!noticeMatchesListFilter(row, filter)) {
-      const next = noticeListFilter(row);
-      if (next) setFilter(next);
+    const followList = options.followList !== false;
+    if (followList) {
+      if (sourceFilter !== 'alle' && row.source !== sourceFilter) setSourceFilter('alle');
+      const area = TENDER_AREAS.find((item) => item.id === areaId) || null;
+      if (area && !noticeInArea(row, area)) setAreaId('');
+      if (!noticeMatchesListFilter(row, filter)) {
+        const next = noticeListFilter(row);
+        if (next) setFilter(next);
+      }
     }
-    scrollNoticeIntoView(id);
+    if (options.scroll === false) setMapNote('');
+    else scrollNoticeIntoView(id);
+  }
+
+  function markOnMap(id, decision) {
+    // Mobil blir stående på kartet. Uaktuell tas bort fra nåler og fra Nye.
+    mark(id, decision, { toggle: false, reveal: !phone });
+    if (!phone) return;
+    if (decision === 'forkastet') setMapFocusId('');
+    setMapNote(decision === 'forkastet'
+      ? 'Uaktuell er tatt bort fra kartet.'
+      : 'Merket aktuell. Treffet ligger nå i Aktuelle.');
   }
 
   function mark(id, decision, options = {}) {
@@ -735,11 +750,56 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     </View>
   );
 
+  const searchField = (
+    <TextInput
+      value={queryText}
+      onChangeText={setQueryText}
+      placeholder="Filtrer på tittel, oppdragsgiver eller CPV"
+      placeholderTextColor={colors.placeholder}
+      style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+    />
+  );
+
+  const regionBox = (
+    <View style={[styles.sourceBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <RegionCoverage
+        colors={colors}
+        picker
+        departments={alignedDepartments}
+        companyNationwide={nationwide}
+        companyAreaIds={[...areas]}
+        selectedDepartmentId={departmentId}
+        onSelectDepartment={setDepartmentId}
+        onCompanyChange={({ nationwide: nextNationwide, areaIds }) => commitCoverage({
+          nextNationwide,
+          nextAreaIds: areaIds,
+        })}
+        onDepartmentChange={(id, patch) => {
+          const next = alignedDepartments.map((row) => (
+            row.id === id
+              ? {
+                ...row,
+                nationwide: !!patch.nationwide,
+                areas: patch.nationwide ? [] : areaObjects(patch.areaIds || []),
+              }
+              : row
+          ));
+          commitCoverage({ nextDepartments: next });
+        }}
+      />
+      {departmentId && !viewCoverage.nationwide && !viewCoverage.areas.length ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          Avdelingen har ingen region. Velg fylker eller hele Norge, og trykk Oppdater nå.
+        </Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={[styles.layout, !phone && styles.layoutDesktop]}>
       <View style={styles.main}>
         {phone ? summary : null}
-        {!!savedNote && <Text style={{ color: colors.brand }}>{savedNote}</Text>}
+        {!phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
         <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
             <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
@@ -763,45 +823,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             </TouchableOpacity>
           </View>
         </View>
-        <TextInput
-          value={queryText}
-          onChangeText={setQueryText}
-          placeholder="Filtrer på tittel, oppdragsgiver eller CPV"
-          placeholderTextColor={colors.placeholder}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-        />
-        <View style={[styles.sourceBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <RegionCoverage
-            colors={colors}
-            picker
-            departments={alignedDepartments}
-            companyNationwide={nationwide}
-            companyAreaIds={[...areas]}
-            selectedDepartmentId={departmentId}
-            onSelectDepartment={setDepartmentId}
-            onCompanyChange={({ nationwide: nextNationwide, areaIds }) => commitCoverage({
-              nextNationwide,
-              nextAreaIds: areaIds,
-            })}
-            onDepartmentChange={(id, patch) => {
-              const next = alignedDepartments.map((row) => (
-                row.id === id
-                  ? {
-                    ...row,
-                    nationwide: !!patch.nationwide,
-                    areas: patch.nationwide ? [] : areaObjects(patch.areaIds || []),
-                  }
-                  : row
-              ));
-              commitCoverage({ nextDepartments: next });
-            }}
-          />
-          {departmentId && !viewCoverage.nationwide && !viewCoverage.areas.length ? (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              Avdelingen har ingen region. Velg fylker eller hele Norge, og trykk Oppdater nå.
-            </Text>
-          ) : null}
-        </View>
+        {phone ? null : searchField}
+        {phone ? null : regionBox}
         <View style={styles.row}>
           {FILTERS.map(([id, label, tone]) => (
             <Chip
@@ -845,12 +868,17 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             selectedId={openId}
             colors={colors}
             missing={missingPlaces}
+            compact
+            note={mapNote}
             onSelect={focusNotice}
-            onPreview={highlightFromMap}
-            onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
+            onPreview={(id) => highlightFromMap(id, { scroll: false, followList: false })}
+            onMark={markOnMap}
             busyId={pullingId}
           />
         ) : null}
+        {phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
+        {phone ? searchField : null}
+        {phone ? regionBox : null}
         {phone ? (
           <TenderHitCards
             rows={rows}

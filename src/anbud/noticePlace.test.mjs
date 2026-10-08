@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { locateNotice, mapPinsForNotices } from './noticePlace.js';
+import { locateNotice, mapPinsForNotices, nextMapPinIndex } from './noticePlace.js';
 import { pinPopupHtml, tenderMapDocument } from './tenderMapHtml.js';
 
 assert.equal(locateNotice({ places: ['Nordland/Nordlánnda'] }).label, 'Nordland');
@@ -72,5 +72,14 @@ const liveBubble = html.slice(html.indexOf('function popupHtml'), html.indexOf('
 assert.ok(liveBubble.indexOf('decisionRow(row)') < liveBubble.indexOf('data-open'), 'kartboblen viser merkeknappene før tittelen');
 assert.match(html, /lastMarkKey/);
 assert.match(html, /touch-action: manipulation/);
+assert.match(html, /min-height: 44px/);
+assert.match(html, /keepInView: false/);
+const lostBranch = html.slice(html.indexOf('const lost'), html.indexOf('if (wasOpen)'));
+assert.ok(lostBranch.includes('openPopup'), 'neste nål åpnes når den valgte tas bort');
+assert.equal(lostBranch.includes("tell('preview'"), false);
+assert.equal(nextMapPinIndex(0, 2), -1);
+assert.equal(nextMapPinIndex(5, 5), 4);
+assert.equal(nextMapPinIndex(5, 2), 2);
+assert.equal(nextMapPinIndex(5, -1), 0);
 
 console.log('noticePlace.test.mjs ok');

@@ -1,6 +1,8 @@
 import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
 
+const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
+
 /** Same origins as repo cors.json — applied to the Storage bucket from Admin SDK. */
 export const STORAGE_CORS = [
   {
@@ -22,6 +24,20 @@ export const STORAGE_CORS = [
       'Authorization',
       'Content-Length',
       'User-Agent',
+      'x-goog-resumable',
+      'x-firebase-storage-version',
+      'x-firebase-appcheck',
+      'x-firebase-gmpid',
+      'x-client-version',
+      'x-goog-content-sha256',
+      'x-goog-date',
+      'x-goog-upload-protocol',
+      'x-goog-upload-command',
+      'x-goog-upload-header-content-length',
+      'x-goog-upload-header-content-type',
+      'x-goog-upload-offset',
+      'x-goog-upload-status',
+      'x-goog-meta-*',
       'X-Firebase-AppCheck',
       'X-Firebase-GMPID',
       'X-Client-Version',
@@ -43,20 +59,21 @@ export const STORAGE_CORS = [
 let applied = false;
 let inflight = null;
 
-export async function ensureStorageCors() {
-  if (applied) return { ok: true, skipped: true };
+export async function ensureStorageCors({ force = false } = {}) {
+  if (applied && !force) return { ok: true, skipped: true, origins: STORAGE_CORS[0].origin.length };
   if (inflight) return inflight;
   inflight = (async () => {
-    const bucket = getStorage().bucket();
+    const bucket = getStorage().bucket(STORAGE_BUCKET);
     await bucket.setCorsConfiguration(STORAGE_CORS);
     applied = true;
     logger.info('[storageCors] bucket CORS applied', {
+      bucket: STORAGE_BUCKET,
       origins: STORAGE_CORS[0].origin.length,
     });
-    return { ok: true };
+    return { ok: true, origins: STORAGE_CORS[0].origin.length };
   })()
     .catch((err) => {
-      logger.warn('[storageCors] failed', { message: err?.message });
+      logger.warn('[storageCors] failed', { message: err?.message, bucket: STORAGE_BUCKET });
       return { ok: false, error: err?.message || String(err) };
     })
     .finally(() => {

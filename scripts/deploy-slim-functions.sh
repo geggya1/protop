@@ -52,6 +52,13 @@ deploy_entry importIndex.js functions:interpretImport
 NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 interpretimport \
   || echo "::warning::Klarte ikke åpne interpretImport for innloggede kall"
 
+# Web CV/bilde-opplasting omgår Storage CORS via Admin SDK.
+deploy_entry storageIndex.js functions:uploadStorageFile,functions:applyStorageCors
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 uploadstoragefile \
+  || echo "::warning::Klarte ikke åpne uploadStorageFile for innloggede kall"
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 applystoragecors \
+  || echo "::warning::Klarte ikke åpne applyStorageCors for innloggede kall"
+
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';
 const path = 'functions/package.json';

@@ -67,5 +67,9 @@ assert.match(view, /Oppdragsgiver/);
 assert.match(view, /Prosjektsum/);
 assert.match(view, /projectBody/);
 assert.match(view, /factGrid/);
+assert.match(view, /factLine/);
+assert.match(view, /factInlineLabel/);
+assert.match(view, /projectText/);
+assert.equal(view.includes('factCell'), false);
 
 console.log('projectSheet.test.mjs: ok');

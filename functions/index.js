@@ -1070,6 +1070,8 @@ export {
   discardAiImport,
   aiCleanupScheduled,
   uploadDocumentFile,
+  uploadStorageFile,
+  applyStorageCors,
   createAlbumUploadUrl,
   uploadAlbumFile,
   aiSupportChat,

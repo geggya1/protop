@@ -610,6 +610,22 @@ export async function uploadFile(path, picked, contentType) {
   return getDownloadURL(r);
 }
 
+async function uploadImageViaCallable(path, blob) {
+  if (blob.size > MAX_CALLABLE_DOCUMENT_BYTES) {
+    throw new Error('Filen er for stor for reservedelopplasting (maks 15 MB).');
+  }
+  const fileBase64 = await blobToBase64(blob);
+  const fn = httpsCallable(functions, 'uploadStorageFile', { timeout: 120000 });
+  const res = await fn({
+    objectPath: path,
+    contentType: blob.type || 'image/jpeg',
+    fileBase64,
+  });
+  const url = res?.data?.downloadUrl || '';
+  if (!url) throw new Error('Ingen nedlastings-URL fra server');
+  return url;
+}
+
 export async function uploadImage(path, picked) {
   const blob = (picked && picked.blob)
     || (typeof Blob !== 'undefined' && picked instanceof Blob ? picked : null)
@@ -617,8 +633,18 @@ export async function uploadImage(path, picked) {
   if (!blob) throw new Error('Kunne ikke lese bildet');
   try {
     // On web, Storage CORS can block or hang the request.
-    // We must not leave the UI stuck waiting for upload.
+    // Prefer Admin SDK callable first — same pattern as album/documents.
     if (Platform.OS === 'web') {
+      try {
+        return await withTimeout(
+          uploadImageViaCallable(path, blob),
+          CALLABLE_UPLOAD_TIMEOUT_MS,
+          'callable-timeout',
+        );
+      } catch (callableErr) {
+        console.warn('[media] uploadStorageFile failed, trying client Storage', callableErr?.message || callableErr);
+      }
+
       const timeoutMs = 4500;
       const uploadAttempt = (async () => {
         const r = ref(storage, path);
@@ -644,45 +670,6 @@ export async function uploadImage(path, picked) {
     }
     throw err;
   }
-}
-
-/**
- * Laster bilde til Storage og returnerer alltid en HTTPS-URL.
- * Brukes ved CV-lagring der data-URL-fallback blir strippet (for stort Firestore-dokument).
- */
-export async function uploadImageToStorage(path, picked) {
-  const blob = (picked && picked.blob)
-    || (typeof Blob !== 'undefined' && picked instanceof Blob ? picked : null)
-    || await uriToBlob(typeof picked === 'string' ? picked : picked?.uri);
-  if (!blob) throw new Error('Kunne ikke lese bildet');
-  const type = blob.type || 'image/jpeg';
-
-  if (Platform.OS === 'web') {
-    try {
-      return await withTimeout(
-        uploadFileViaRest(path, blob, type),
-        restUploadTimeoutMs(blob.size),
-        'storage-rest-timeout',
-      );
-    } catch {
-      // SDK som reservedel når REST feiler (CORS / midlertidig nettfeil).
-      const r = ref(storage, path);
-      await withTimeout(
-        uploadBytes(r, blob, { contentType: type }),
-        restUploadTimeoutMs(blob.size),
-        'storage-upload-timeout',
-      );
-      return getDownloadURL(r);
-    }
-  }
-
-  const r = ref(storage, path);
-  await withTimeout(
-    uploadBytes(r, blob, { contentType: type }),
-    restUploadTimeoutMs(blob.size),
-    'storage-upload-timeout',
-  );
-  return getDownloadURL(r);
 }
 
 async function blobToJpegDataUrl(blob, max = 512, quality = 0.72) {

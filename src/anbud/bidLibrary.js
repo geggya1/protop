@@ -4,12 +4,20 @@ import { coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, n
 import { deadlinePassedAt, parseDeadline } from './noticeText.js';
 
 export const GROUND_FOLDER_ID = 'grunnlag';
+export const GROUND_ATTACH_FOLDER_ID = 'grunnlag_vedlegg';
+export const QA_ATTACH_FOLDER_ID = 'qa_vedlegg';
+
+const SYSTEM_FOLDER_IDS = new Set([GROUND_FOLDER_ID, GROUND_ATTACH_FOLDER_ID, QA_ATTACH_FOLDER_ID]);
 
 export const BID_STEPS = [
   { id: 'grunnlag', label: '1 Konkurransegrunnlag' },
   { id: 'qa', label: '2 Spørsmål og svar' },
   { id: 'arbeid', label: '3 Tilbudsarbeid' },
 ];
+
+export function isSystemFolderId(id) {
+  return SYSTEM_FOLDER_IDS.has(text(id));
+}
 
 export const DEFAULT_FORM_TEMPLATES = [
   {
@@ -100,9 +108,34 @@ export function groundFolder() {
     name: 'Konkurransegrunnlag',
     parentId: null,
     locked: true,
+    system: true,
     emoji: '📄',
     color: '#1099F4',
   };
+}
+
+/** Systemmapper for egne opplastinger under grunnlag og Q&A. */
+export function attachFolders() {
+  return [
+    {
+      id: GROUND_ATTACH_FOLDER_ID,
+      name: 'Egne vedlegg til grunnlaget',
+      parentId: null,
+      locked: false,
+      system: true,
+      emoji: '📎',
+      color: '#1099F4',
+    },
+    {
+      id: QA_ATTACH_FOLDER_ID,
+      name: 'Vedlegg til spørsmål og svar',
+      parentId: null,
+      locked: false,
+      system: true,
+      emoji: '💬',
+      color: '#0ea5e9',
+    },
+  ];
 }
 
 function noticeBody(dossier) {
@@ -201,18 +234,23 @@ function normalizeFile(raw, folderIds) {
   if (!name || !id) return null;
   const folderId = folderIds.has(raw?.folderId) ? raw.folderId : GROUND_FOLDER_ID;
   const status = FILE_STATUSES.has(raw?.status) ? raw.status : 'lenke';
+  const dataUrl = cleanDataUrl(raw?.dataUrl);
+  const fileText = text(raw?.text).slice(0, 200000);
+  const url = text(raw?.url).slice(0, 500);
+  const loaded = !!(dataUrl || fileText || url);
   return {
     id,
     folderId,
     name,
     mimeType: text(raw?.mimeType).slice(0, 120),
-    text: text(raw?.text).slice(0, 200000),
-    dataUrl: cleanDataUrl(raw?.dataUrl),
-    url: text(raw?.url).slice(0, 500),
+    text: fileText,
+    dataUrl,
+    url,
+    storagePath: text(raw?.storagePath).slice(0, 500),
     size: Number(raw?.size) || 0,
     sizeLabel: text(raw?.sizeLabel).slice(0, 40),
     source: text(raw?.source).slice(0, 40) || 'egen',
-    status: cleanDataUrl(raw?.dataUrl) || text(raw?.text) ? 'lastet' : status,
+    status: loaded ? 'lastet' : status,
     kind: raw?.kind === 'egen' ? 'egen' : 'grunnlag',
     createdAt: text(raw?.createdAt),
   };
@@ -221,14 +259,53 @@ function normalizeFile(raw, folderIds) {
 function normalizeFolder(raw) {
   const id = text(raw?.id);
   const name = text(raw?.name).slice(0, 80);
-  if (!id || !name || id === GROUND_FOLDER_ID) return null;
+  if (!id || !name || isSystemFolderId(id)) return null;
+  const parentId = text(raw?.parentId) || null;
   return {
     id,
     name,
-    parentId: text(raw?.parentId) || null,
+    parentId: isSystemFolderId(parentId) && parentId !== GROUND_ATTACH_FOLDER_ID && parentId !== QA_ATTACH_FOLDER_ID
+      ? null
+      : (parentId === GROUND_FOLDER_ID ? null : parentId),
     locked: false,
+    system: false,
     emoji: text(raw?.emoji).slice(0, 4) || '📁',
     color: /^#[0-9a-fA-F]{6}$/.test(text(raw?.color)) ? text(raw.color) : '#0ea5e9',
+  };
+}
+
+function normalizeCheckItem(raw, prefix) {
+  const title = text(raw?.title || raw?.label).slice(0, 200);
+  if (!title) return null;
+  return {
+    id: text(raw?.id) || createId(prefix),
+    title,
+    detail: text(raw?.detail || raw?.summary).slice(0, 4000),
+    done: !!raw?.done,
+  };
+}
+
+function normalizeExpandItem(raw, prefix) {
+  const title = text(raw?.title || raw?.label).slice(0, 200);
+  if (!title) return null;
+  return {
+    id: text(raw?.id) || createId(prefix),
+    title,
+    summary: text(raw?.summary).slice(0, 800),
+    detail: text(raw?.detail || raw?.content).slice(0, 8000),
+    weight: text(raw?.weight).slice(0, 40),
+  };
+}
+
+export function normalizeInterpretation(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    summary: text(src.summary).slice(0, 4000),
+    checklist: (Array.isArray(src.checklist) ? src.checklist : []).map((row) => normalizeCheckItem(row, 'sjekk')).filter(Boolean).slice(0, 40),
+    qualification: (Array.isArray(src.qualification) ? src.qualification : []).map((row) => normalizeExpandItem(row, 'kval')).filter(Boolean).slice(0, 30),
+    awardCriteria: (Array.isArray(src.awardCriteria) ? src.awardCriteria : []).map((row) => normalizeExpandItem(row, 'tild')).filter(Boolean).slice(0, 30),
+    generatedAt: text(src.generatedAt),
+    engine: text(src.engine).slice(0, 40),
   };
 }
 
@@ -317,7 +394,11 @@ export function updateBidAssignment(state, bidId, input = {}) {
 
 export function normalizeBidWork(raw) {
   const bid = raw && typeof raw === 'object' ? raw : {};
-  const folders = [groundFolder(), ...(Array.isArray(bid.folders) ? bid.folders : []).map(normalizeFolder).filter(Boolean)];
+  const folders = [
+    groundFolder(),
+    ...attachFolders(),
+    ...(Array.isArray(bid.folders) ? bid.folders : []).map(normalizeFolder).filter(Boolean),
+  ];
   const seenFolders = new Set();
   const uniqueFolders = [];
   for (const folder of folders) {
@@ -345,7 +426,8 @@ export function normalizeBidWork(raw) {
       text: row.text || prev.text,
       dataUrl: row.dataUrl || prev.dataUrl,
       url: row.url || prev.url,
-      status: row.text || row.dataUrl || prev.text || prev.dataUrl ? 'lastet' : row.status,
+      storagePath: row.storagePath || prev.storagePath,
+      status: row.text || row.dataUrl || row.url || prev.text || prev.dataUrl || prev.url ? 'lastet' : row.status,
       size: row.size || prev.size,
       sizeLabel: row.sizeLabel || prev.sizeLabel,
     };
@@ -354,8 +436,9 @@ export function normalizeBidWork(raw) {
   return {
     ...bid,
     assignment: normalizeAssignment(bid.assignment),
-    folders: uniqueFolders.slice(0, 40),
-    files: [...ground, ...own].slice(0, 80),
+    interpretation: normalizeInterpretation(bid.interpretation),
+    folders: uniqueFolders.slice(0, 60),
+    files: [...ground, ...own].slice(0, 120),
     forms: (Array.isArray(bid.forms) ? bid.forms : []).map(normalizeForm).filter(Boolean).slice(0, 30),
     questions: (Array.isArray(bid.questions) ? bid.questions : []).map(normalizeQuestion).filter(Boolean).slice(0, 40),
   };
@@ -442,7 +525,15 @@ export function bidWorkspacePath(bidId) {
 }
 
 export function childFolders(folders, parentId) {
-  return (folders || []).filter((row) => (row.parentId || null) === (parentId || null) && row.id !== GROUND_FOLDER_ID);
+  return (folders || []).filter((row) => (
+    (row.parentId || null) === (parentId || null)
+    && !isSystemFolderId(row.id)
+  ));
+}
+
+/** Mapper brukeren kan jobbe i under Tilbudsarbeid (uten systemmapper). */
+export function workRootFolders(folders) {
+  return (folders || []).filter((row) => !row.parentId && !isSystemFolderId(row.id));
 }
 
 export function filesInFolder(files, folderId) {
@@ -460,15 +551,20 @@ export function createBidFolder(state, bidId, input) {
   if (!bid) return fail(state, error);
   const name = text(input?.name).slice(0, 80);
   if (!name) return fail(state, 'Mappen trenger et navn.');
-  const parentId = text(input?.parentId) || null;
+  let parentId = text(input?.parentId) || null;
   if (parentId === GROUND_FOLDER_ID) return fail(state, 'Egne mapper legges ved siden av konkurransegrunnlaget.');
-  if (parentId && !bid.folders.some((row) => row.id === parentId)) return fail(state, 'Mappen som skal ligge over, finnes ikke.');
-  if (bid.folders.length >= 40) return fail(state, 'Tilbudet har maks 40 mapper.');
+  if (parentId === GROUND_ATTACH_FOLDER_ID || parentId === QA_ATTACH_FOLDER_ID) parentId = null;
+  if (parentId && !bid.folders.some((row) => row.id === parentId && !isSystemFolderId(row.id))) {
+    return fail(state, 'Mappen som skal ligge over, finnes ikke.');
+  }
+  const userFolderCount = bid.folders.filter((row) => !isSystemFolderId(row.id)).length;
+  if (userFolderCount >= 40) return fail(state, 'Tilbudet har maks 40 egne mapper.');
   const folder = {
     id: createId('mappe'),
     name,
     parentId,
     locked: false,
+    system: false,
     emoji: text(input?.emoji).slice(0, 4) || '📁',
     color: /^#[0-9a-fA-F]{6}$/.test(text(input?.color)) ? text(input.color) : '#0ea5e9',
   };
@@ -493,7 +589,7 @@ function descendantIds(folders, id) {
 export function renameBidFolder(state, bidId, folderId, name) {
   const { bid, error } = requireBid(state, bidId);
   if (!bid) return fail(state, error);
-  if (folderId === GROUND_FOLDER_ID) return fail(state, 'Konkurransegrunnlaget kan ikke døpes om.');
+  if (isSystemFolderId(folderId)) return fail(state, 'Systemmapper kan ikke døpes om.');
   const nextName = text(name).slice(0, 80);
   if (!nextName) return fail(state, 'Mappen trenger et navn.');
   if (!bid.folders.some((row) => row.id === folderId)) return fail(state, 'Mappen finnes ikke.');
@@ -506,7 +602,7 @@ export function renameBidFolder(state, bidId, folderId, name) {
 export function deleteBidFolder(state, bidId, folderId) {
   const { bid, error } = requireBid(state, bidId);
   if (!bid) return fail(state, error);
-  if (folderId === GROUND_FOLDER_ID) return fail(state, 'Konkurransegrunnlaget kan ikke slettes.');
+  if (isSystemFolderId(folderId)) return fail(state, 'Systemmapper kan ikke slettes.');
   if (!bid.folders.some((row) => row.id === folderId)) return fail(state, 'Mappen finnes ikke.');
   const gone = descendantIds(bid.folders, folderId);
   return ok(replaceBid(state, bidId, {
@@ -521,27 +617,206 @@ export function addBidFile(state, bidId, folderId, input) {
   if (!bid) return fail(state, error);
   const folder = bid.folders.find((row) => row.id === folderId);
   if (!folder) return fail(state, 'Mappen finnes ikke.');
-  if (folder.locked) return fail(state, 'Filer i konkurransegrunnlaget hentes fra kunngjøringen.');
+  if (folder.locked || folderId === GROUND_FOLDER_ID) {
+    return fail(state, 'Filer i konkurransegrunnlaget hentes fra kunngjøringen. Last opp under Egne vedlegg.');
+  }
   const name = text(input?.name).slice(0, 180);
   if (!name) return fail(state, 'Filen trenger et navn.');
-  if (bid.files.length >= 80) return fail(state, 'Tilbudet har maks 80 filer.');
+  if (bid.files.length >= 120) return fail(state, 'Tilbudet har maks 120 filer.');
   const dataUrl = cleanDataUrl(input?.dataUrl);
+  const fileText = text(input?.text).slice(0, 200000);
+  const url = text(input?.url).slice(0, 500);
   const file = {
     id: createId('fil'),
     folderId,
     name,
     mimeType: text(input?.mimeType).slice(0, 120),
-    text: text(input?.text).slice(0, 200000),
+    text: fileText,
     dataUrl,
-    url: text(input?.url).slice(0, 500),
+    url,
+    storagePath: text(input?.storagePath).slice(0, 500),
     size: Number(input?.size) || 0,
-    sizeLabel: '',
+    sizeLabel: text(input?.sizeLabel).slice(0, 40),
     source: 'egen',
-    status: dataUrl || text(input?.text) ? 'lastet' : 'lenke',
+    status: dataUrl || fileText || url ? 'lastet' : 'lenke',
     kind: 'egen',
     createdAt: new Date().toISOString(),
   };
   return ok(replaceBid(state, bidId, { ...bid, files: [...bid.files, file] }));
+}
+
+export function renameBidFile(state, bidId, fileId, name) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  const file = bid.files.find((row) => row.id === fileId);
+  if (!file) return fail(state, 'Filen finnes ikke.');
+  if (file.kind !== 'egen') return fail(state, 'Konkurransedokumentet kan ikke døpes om her.');
+  const nextName = text(name).slice(0, 180);
+  if (!nextName) return fail(state, 'Filen trenger et navn.');
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    files: bid.files.map((row) => (row.id === fileId ? { ...row, name: nextName } : row)),
+  }));
+}
+
+export function moveBidFile(state, bidId, fileId, folderId) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  const file = bid.files.find((row) => row.id === fileId);
+  if (!file) return fail(state, 'Filen finnes ikke.');
+  if (file.kind !== 'egen') return fail(state, 'Konkurransedokumentet kan ikke flyttes.');
+  const folder = bid.folders.find((row) => row.id === folderId);
+  if (!folder) return fail(state, 'Mappen finnes ikke.');
+  if (folder.locked || folderId === GROUND_FOLDER_ID) return fail(state, 'Kan ikke flytte filer inn i konkurransegrunnlaget.');
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    files: bid.files.map((row) => (row.id === fileId ? { ...row, folderId } : row)),
+  }));
+}
+
+/** Samler tekst fra grunnlag, Q&A og egne vedlegg for AI-tolkning. */
+export function collectBidAiSource(bid) {
+  const work = normalizeBidWork(bid);
+  const dossier = work.dossier || {};
+  const chunks = [];
+  const push = (label, value) => {
+    const body = text(value);
+    if (!body) return;
+    chunks.push(`${label}:\n${body}`);
+  };
+  push('Tittel', work.title || dossier.title);
+  push('Oppdragsgiver', work.buyer || dossier.buyer);
+  push('Beskrivelse', dossier.description);
+  push('Prosedyre', dossier.procedure);
+  push('Prosedyreutkast', dossier.procedureOutline);
+  push('Tilleggsinformasjon', dossier.additionalInfo);
+  push('Tilbudsfrist', dossier.submissionDeadline || work.deadline);
+  push('Frist for spørsmål', dossier.questionDeadline);
+  push('Innlevering', dossier.electronicSubmission);
+  push('ESPD', dossier.espd === true ? 'Egenerklæring brukes' : dossier.espd);
+  for (const row of Array.isArray(dossier.qa) ? dossier.qa : []) {
+    push('Publisert spørsmål', `${text(row?.question)}\nSvar: ${text(row?.answer) || 'Ikke publisert'}`);
+  }
+  for (const row of work.questions || []) {
+    push('Eget spørsmål', `${text(row?.question)}\nSvar: ${text(row?.answer) || 'Ikke besvart'}`);
+  }
+  for (const file of work.files || []) {
+    if (file.folderId !== GROUND_FOLDER_ID && file.folderId !== GROUND_ATTACH_FOLDER_ID && file.folderId !== QA_ATTACH_FOLDER_ID) {
+      continue;
+    }
+    if (file.text) push(`Fil ${file.name}`, String(file.text).slice(0, 12000));
+    else push(`Fil ${file.name}`, `Vedlegg uten uttrekkbar tekst (${file.mimeType || 'ukjent type'}).`);
+  }
+  return chunks.join('\n\n').slice(0, 120000);
+}
+
+/** Lokal fallback når AI-proxy ikke er tilgjengelig. */
+export function buildLocalBidInterpretation(bid) {
+  const work = normalizeBidWork(bid);
+  const dossier = work.dossier || {};
+  const checklist = [
+    { id: 'frist', title: 'Bekreft tilbudsfrist og innleveringskanal', detail: dossier.submissionDeadline || 'Frist mangler i kunngjøringen.', done: false },
+    { id: 'spm', title: 'Sjekk frist for spørsmål', detail: dossier.questionDeadline || 'Ingen egen spørsmålsfrist er oppgitt.', done: false },
+    { id: 'grunnlag', title: 'Gå gjennom konkurransegrunnlaget', detail: `${filesInFolder(work.files, GROUND_FOLDER_ID).length} dokumenter i grunnlaget.`, done: false },
+    { id: 'vedlegg', title: 'Last opp egne underlag', detail: 'Legg inn nødvendige vedlegg under Konkurransegrunnlag og Spørsmål og svar.', done: false },
+    { id: 'ansvarlig', title: 'Tildel ansvarlig', detail: work.assignment?.personName || work.assignment?.unitName || 'Ingen ansvarlig er satt ennå.', done: !!(work.assignment?.personName || work.assignment?.unitName) },
+  ];
+  const qualification = [];
+  const awardCriteria = [];
+  const blob = [
+    dossier.description,
+    dossier.procedureOutline,
+    dossier.additionalInfo,
+    ...(Array.isArray(dossier.qa) ? dossier.qa.map((row) => `${row.question} ${row.answer}`) : []),
+  ].join('\n');
+  const qualHints = blob.match(/(?:kvalifikasjonskrav|egnethetskrav|krav til leverandør)[^\n.!?]{0,160}/gi) || [];
+  for (const hit of qualHints.slice(0, 6)) {
+    qualification.push({
+      id: createId('kval'),
+      title: text(hit).slice(0, 120) || 'Kvalifikasjonskrav',
+      summary: 'Funnet i konkurranseteksten. Utvid for mer kontekst.',
+      detail: text(hit),
+      weight: '',
+    });
+  }
+  if (!qualification.length) {
+    qualification.push({
+      id: 'kval_generell',
+      title: 'Generelle kvalifikasjonskrav',
+      summary: 'Se konkurransegrunnlaget for formelle krav til leverandør.',
+      detail: 'Typisk: organisasjonsform, skatt/mva, erfaring, kapasitet og eventuelle sertifikater. Bruk AI-tolkning når dokumentene er lastet inn for mer treffsikker liste.',
+      weight: '',
+    });
+  }
+  const awardHints = blob.match(/(?:tildelingskriter|evalueringskriter|pris|kvalitet|kompetanse)[^\n.!?]{0,160}/gi) || [];
+  for (const hit of awardHints.slice(0, 6)) {
+    awardCriteria.push({
+      id: createId('tild'),
+      title: text(hit).slice(0, 120) || 'Tildelingskriterium',
+      summary: 'Funnet i konkurranseteksten.',
+      detail: text(hit),
+      weight: '',
+    });
+  }
+  if (!awardCriteria.length) {
+    awardCriteria.push({
+      id: 'tild_generell',
+      title: 'Tildelingskriterier',
+      summary: 'Se konkurransegrunnlaget for vekt og evaluering.',
+      detail: 'Typisk pris og kvalitet/kompetanse. Kjør AI-tolkning for å hente konkrete kriterier og vekting fra dokumentene.',
+      weight: '',
+    });
+  }
+  const summary = [
+    work.title || dossier.title || 'Tilbud',
+    work.buyer || dossier.buyer ? `Oppdragsgiver: ${work.buyer || dossier.buyer}.` : '',
+    dossier.procedure ? `Prosedyre: ${dossier.procedure}.` : '',
+    dossier.submissionDeadline ? `Tilbudsfrist: ${dossier.submissionDeadline}.` : '',
+    'Gå gjennom sjekklisten, kvalifikasjonskrav og tildelingskriterier før innlevering.',
+  ].filter(Boolean).join(' ');
+  return normalizeInterpretation({
+    summary,
+    checklist,
+    qualification,
+    awardCriteria,
+    generatedAt: new Date().toISOString(),
+    engine: 'lokal',
+  });
+}
+
+export function saveBidInterpretation(state, bidId, input) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  const previous = normalizeInterpretation(bid.interpretation);
+  const next = normalizeInterpretation(input);
+  // Behold avkryssing når AI regenererer samme tittel.
+  const doneByTitle = new Map(previous.checklist.map((row) => [row.title.toLocaleLowerCase('nb-NO'), row.done]));
+  next.checklist = next.checklist.map((row) => ({
+    ...row,
+    done: doneByTitle.has(row.title.toLocaleLowerCase('nb-NO')) ? doneByTitle.get(row.title.toLocaleLowerCase('nb-NO')) : row.done,
+  }));
+  if (!next.summary && !next.checklist.length) return fail(state, 'AI-tolkningen ga tomt resultat.');
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    interpretation: {
+      ...next,
+      generatedAt: next.generatedAt || new Date().toISOString(),
+    },
+  }));
+}
+
+export function toggleInterpretationCheck(state, bidId, checkId) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  const interpretation = normalizeInterpretation(bid.interpretation);
+  if (!interpretation.checklist.some((row) => row.id === checkId)) return fail(state, 'Kontrollpunktet finnes ikke.');
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    interpretation: {
+      ...interpretation,
+      checklist: interpretation.checklist.map((row) => (row.id === checkId ? { ...row, done: !row.done } : row)),
+    },
+  }));
 }
 
 export function deleteBidFile(state, bidId, fileId) {

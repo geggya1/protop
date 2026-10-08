@@ -162,6 +162,18 @@ export const tenderProxy = onRequest(
         }
         return;
       }
+      if (action === 'interpret-bid') {
+        try {
+          const { interpretBid } = await import('./anbudBidAi.js');
+          const data = await interpretBid(body);
+          res.json(data);
+        } catch (err) {
+          const mod = await import('./anbudBidAi.js').catch(() => null);
+          const message = mod?.friendlyGeminiError?.(err) || err?.message || 'Kunne ikke tolke konkurransen.';
+          res.status(err?.status || 502).json({ ok: false, error: message });
+        }
+        return;
+      }
       const channels = Array.isArray(body.channels) ? body.channels : ['doffin', 'ted'];
       const hits = [];
       const errors = [];

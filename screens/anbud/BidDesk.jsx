@@ -194,21 +194,25 @@ export default function BidDesk({
               onPress={() => openBid(bid.id)}
               accessibilityRole="button"
               accessibilityLabel={`Åpne tilbud ${bid.title}`}
-              style={{ gap: 4 }}
+              style={styles.cardBody}
             >
-              <Text style={{ color: urgent ? colors.danger : colors.brand, fontWeight: '700', fontSize: urgent ? 18 : 14 }}>
-                {deadline.headline}
-              </Text>
-              <Text style={{ color: colors.ink }}>{deadline.detail}</Text>
-              <Text style={{ color: colors.brand, fontWeight: '600' }}>{statusLabel}</Text>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
-              <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
-              <Text style={{ color: colors.muted }}>
-                {overview.assignee ? `Ansvarlig: ${overview.assignee} · ` : 'Ikke tildelt · '}
-                {`${overview.downloaded} dokumenter lastet`}
-                {` · ${overview.qa} spørsmål`}
-                {overview.forms ? ` · ${overview.doneForms}/${overview.forms} skjema ferdig` : ''}
-              </Text>
+              <View style={styles.cardMain}>
+                <Text style={{ color: colors.brand, fontWeight: '600' }}>{statusLabel}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
+                <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+                <Text style={{ color: colors.muted }}>
+                  {overview.assignee ? `Ansvarlig: ${overview.assignee} · ` : 'Ikke tildelt · '}
+                  {`${overview.downloaded} dokumenter lastet`}
+                  {` · ${overview.qa} spørsmål`}
+                  {overview.forms ? ` · ${overview.doneForms}/${overview.forms} skjema ferdig` : ''}
+                </Text>
+              </View>
+              <View style={styles.deadlineSide} accessibilityRole="summary">
+                <Text style={{ color: urgent ? colors.danger : colors.brand, fontWeight: '700', fontSize: urgent ? 16 : 14, textAlign: 'right' }}>
+                  {deadline.headline}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'right' }}>{deadline.detail}</Text>
+              </View>
             </TouchableOpacity>
             <View style={styles.actions}>
               <TouchableOpacity
@@ -263,6 +267,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  cardBody: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  cardMain: { flex: 1, gap: 4, minWidth: 0 },
+  deadlineSide: { width: 140, flexShrink: 0, alignItems: 'flex-end', gap: 2 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 2 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
 });

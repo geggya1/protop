@@ -34,6 +34,7 @@ import {
 } from './aiMatcoach.js';
 import { handleAiTutor } from './aiTutor.js';
 import { handleUploadDocument } from './uploadDocument.js';
+import { handleUploadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
 import { runAiCleanup } from './aiCleanup.js';
 import { handleAiSupportChat, handleCreateSupportTicket } from './aiSupport.js';
 import { assertRateLimits, hashRateKey, requireAuth } from './security.js';
@@ -385,6 +386,42 @@ export const uploadDocumentFile = onCall(
     } catch (error) {
       logger.warn('uploadDocumentFile failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke laste opp filen.');
+    }
+  },
+);
+
+/** Generell bilde/fil-opplasting via Admin SDK (CV, profil, osv.). */
+export const uploadStorageFile = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 120,
+    memory: '512MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      return await handleUploadStorageFile(req.data, req.auth);
+    } catch (error) {
+      logger.warn('uploadStorageFile failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke laste opp filen.');
+    }
+  },
+);
+
+/** Sett GCS CORS for Firebase Storage-bucketen. */
+export const applyStorageCors = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 30,
+    memory: '256MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      return await handleApplyStorageCors(req.data, req.auth);
+    } catch (error) {
+      logger.warn('applyStorageCors failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke oppdatere Storage CORS.');
     }
   },
 );

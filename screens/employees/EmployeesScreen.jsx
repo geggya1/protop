@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -11,7 +11,7 @@ import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/util
 import { projectSheetFile } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { cvAttention } from '../../src/employees/cvReview';
-import { slimCvDocument, storeCvImages } from '../../src/employees/cvPictures';
+import { countInlineCvImages, slimCvDocument, storeCvImages } from '../../src/employees/cvPictures';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
 import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
@@ -129,6 +129,7 @@ export default function EmployeesScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState('');
+  const [saveProgress, setSaveProgress] = useState(null);
   const [editSection, setEditSection] = useState('');
   const [editItemId, setEditItemId] = useState('');
   const [editToken, setEditToken] = useState(0);
@@ -525,6 +526,19 @@ export default function EmployeesScreen() {
     return !!isAdmin || (!!draft?.personUid && draft.personUid === uid);
   }
 
+  function busyLabel(idle) {
+    if (!busy) return idle;
+    if (busyKind === 'cv') return 'Leser CV…';
+    if (busyKind === 'projects') return 'Leser prosjekter…';
+    if (busyKind === 'save') {
+      if (saveProgress?.total) {
+        return `Laster opp bilder ${saveProgress.done}/${saveProgress.total}…`;
+      }
+      return saveProgress?.label || 'Lagrer CV…';
+    }
+    return 'Jobber…';
+  }
+
   async function save() {
     if (!draft || busy) return;
     const scope = view === 'mine' ? 'profile' : 'company';
@@ -542,19 +556,50 @@ export default function EmployeesScreen() {
       showError(`${displayName(clash)} er allerede knyttet til denne personen.`);
       return;
     }
+    const pendingImages = countInlineCvImages(result.employee);
     setBusy(true);
+    setBusyKind('save');
+    setSaveProgress({
+      done: 0,
+      total: pendingImages,
+      label: pendingImages ? `Laster opp 0 av ${pendingImages} bilder…` : 'Lagrer…',
+    });
     setError('');
+    setNote(pendingImages
+      ? `Jobber med lagring. Laster opp ${pendingImages} bilder — dette kan ta litt tid.`
+      : 'Lagrer…');
     try {
-      const uploaded = await storeCvImages(result.employee, (path, dataUrl) => (
-        uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl)
-      ));
+      const uploaded = await storeCvImages(
+        result.employee,
+        (path, dataUrl) => uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl),
+        {
+          onProgress: (info) => {
+            setSaveProgress(info);
+            if (info.total) {
+              setNote(`Jobber med lagring. ${info.label}`);
+            }
+          },
+        },
+      );
+      const remaining = countInlineCvImages(uploaded);
+      if (remaining > 0) {
+        showError(
+          `Kunne ikke laste opp ${remaining} bilde${remaining === 1 ? '' : 'r'}. `
+          + 'CV-en er ikke lagret, så du kan prøve igjen uten å miste teksten i utkastet.',
+        );
+        return;
+      }
+      setSaveProgress({ done: pendingImages, total: pendingImages, label: 'Skriver CV…' });
+      setNote('Bildene er lastet opp. Skriver CV…');
       const slim = slimCvDocument(uploaded);
+      if (slim.dropped > 0) {
+        showError(
+          `${slim.dropped} bilde${slim.dropped === 1 ? '' : 'r'} ble for store til å lagres. `
+          + 'CV-en er ikke lagret. Fjern noen bilder eller prøv igjen.',
+        );
+        return;
+      }
       const employee = slim.employee;
-      const imageNote = !slim.dropped
-        ? ''
-        : slim.keptPhoto
-          ? ` Profilbildet er beholdt. ${slim.dropped} prosjektbilder ble ikke med og kan legges inn med blyanten.`
-          : ` ${slim.dropped} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`;
       if (scope === 'profile') {
         const nextProfile = rememberLink({
           ...(profile || {}),
@@ -574,9 +619,9 @@ export default function EmployeesScreen() {
           cv: stored.cv,
           customFields: stored.customFields,
         }));
-        setNote((linked
+        setNote(linked
           ? 'Profilen er lagret og ansettelsen i selskapet er oppdatert.'
-          : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.') + imageNote);
+          : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
         return;
       }
       const saved = await saveEmployee(familyId, employee);
@@ -593,16 +638,18 @@ export default function EmployeesScreen() {
       setSelectedId(saved.id);
       if (view === 'cv') {
         setDraft(presentEmployee(saved));
-        setNote(`CV-en er lagret.${imageNote}`);
+        setNote('CV-en er lagret med alle bilder.');
         return;
       }
       setView('detail');
       setDraft(null);
-      setNote(`Medarbeideren er lagret.${imageNote}`);
+      setNote('Medarbeideren er lagret.');
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
     } finally {
       setBusy(false);
+      setBusyKind('');
+      setSaveProgress(null);
     }
   }
 
@@ -986,7 +1033,7 @@ export default function EmployeesScreen() {
             accessibilityRole="button"
             style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
           >
-            <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre'}</Text>
+            <Text style={styles.primaryText}>{busyLabel('Lagre')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -1002,7 +1049,7 @@ export default function EmployeesScreen() {
                 accessibilityRole="button"
                 style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
               >
-                <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre CV'}</Text>
+                <Text style={styles.primaryText}>{busyLabel('Lagre CV')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 nativeID="employee-cv-import"
@@ -1013,6 +1060,39 @@ export default function EmployeesScreen() {
               >
                 <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
               </TouchableOpacity>
+            </View>
+          ) : null}
+          {busy && (busyKind === 'save' || busyKind === 'cv' || busyKind === 'projects') ? (
+            <View
+              nativeID="employee-cv-progress"
+              accessibilityLiveRegion="polite"
+              style={[styles.progressBanner, { backgroundColor: colors.card, borderColor: colors.brand }]}
+            >
+              <ActivityIndicator color={colors.brand} />
+              <View style={styles.grow}>
+                <Text style={[styles.progressTitle, { color: colors.ink }]}>
+                  {busyKind === 'cv' ? 'Leser CV…' : busyKind === 'projects' ? 'Leser prosjekter…' : 'Lagrer CV…'}
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  {saveProgress?.label
+                    || (busyKind === 'save'
+                      ? 'Jobber med bilder og lagring. Ikke lukk fanen.'
+                      : 'Dette kan ta litt tid på store filer.')}
+                </Text>
+                {saveProgress?.total ? (
+                  <View style={[styles.progressTrack, { backgroundColor: colors.line }]}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          backgroundColor: colors.brand,
+                          width: `${Math.max(4, Math.round((saveProgress.done / Math.max(saveProgress.total, 1)) * 100))}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                ) : null}
+              </View>
             </View>
           ) : null}
           <CvAttention draft={cvEmployee} colors={colors} />
@@ -1197,6 +1277,17 @@ const styles = StyleSheet.create({
   hero: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   heroPhoto: { width: 120, height: 140, borderRadius: 12 },
   attention: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
+  progressBanner: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  progressTitle: { fontSize: 16, fontWeight: '700' },
+  progressTrack: { marginTop: 8, height: 6, borderRadius: 999, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 999 },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '600' },

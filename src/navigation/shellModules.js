@@ -46,6 +46,7 @@ export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'kunder', icon: 'people', label: 'Kunder' },
   { id: 'avtaler', icon: 'cash', label: 'Avtaler' },
+  { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
@@ -59,6 +60,7 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
   if (subView === 'kunder') return 'Økonomi · kunder';
   if (subView === 'avtaler') return 'Økonomi · avtaler';
+  if (subView === 'faktura') return 'Faktura';
   return 'Økonomi';
 }
 
@@ -96,6 +98,7 @@ export function companyNavItems() {
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+    { id: 'arbeid', icon: 'time', label: 'Arbeid', action: { type: 'tab', tab: 'arbeid' } },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'okonomi',

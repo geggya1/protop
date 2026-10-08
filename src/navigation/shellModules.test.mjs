@@ -99,7 +99,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kunder', 'Avtaler', 'Indeksregulering'],
+    ['Oversikt', 'Kunder', 'Avtaler', 'Faktura', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');

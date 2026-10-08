@@ -97,6 +97,7 @@ import WeatherSettingsScreen from './screens/v2/WeatherSettingsScreen';
 import AppearanceSettingsScreen from './screens/v2/AppearanceSettingsScreen';
 import DashboardThemeSettingsScreen from './screens/v2/DashboardThemeSettingsScreen';
 import DashboardThemeGalleryScreen from './screens/v2/DashboardThemeGalleryScreen';
+import FakturaDemoScreen from './screens/economy/FakturaDemoScreen';
 import ChildDashboardThemeSettingsScreen from './screens/v2/ChildDashboardThemeSettingsScreen';
 import ChildDashboardThemeGalleryScreen from './screens/v2/ChildDashboardThemeGalleryScreen';
 import FamilyProgressScreen from './screens/v2/FamilyProgressScreen';
@@ -123,6 +124,7 @@ import LocalPlayScreen from './screens/v2/LocalPlayScreen';
 import ChessScreen from './screens/v2/ChessScreen';
 import MemoryScreen from './screens/v2/MemoryScreen';
 import GamePreviewScreen from './screens/v2/GamePreviewScreen';
+import EmployeeDetailPreview from './screens/employees/EmployeeDetailPreview';
 import AiImportReviewScreen from './screens/AiImportReviewScreen';
 import BookshelfScreen from './screens/v2/BookshelfScreen';
 import AddBookScreen from './screens/v2/AddBookScreen';
@@ -857,6 +859,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // /start used to mount the legacy Welcome marketing clone — redirect via /.
       if (p === '/start') return null;
       if (p === '/dashboard-themes') return 'DashboardThemeGallery';
+      if (p === '/faktura-demo') return 'FakturaDemo';
       if (p === '/child-dashboard-themes') return 'ChildDashboardThemeGallery';
       if (p === '/game-preview' || p.startsWith('/game-preview/')) {
         try {
@@ -868,6 +871,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         return 'GamePreview';
       }
       if (p === '/family-games-preview') return 'FamilyGamesPreview';
+      if (p === '/employee-detail-preview') return 'EmployeeDetailPreview';
       return null;
     } catch {
       return null;
@@ -1004,8 +1008,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="LegalDoc" component={LegalDocScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Licenses" component={LicensesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DashboardThemeGallery" component={DashboardThemeGalleryScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />
         <Stack.Screen name="GamePreview" component={GamePreviewScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="EmployeeDetailPreview" component={EmployeeDetailPreview} options={{ headerShown: false }} />
         <Stack.Screen
           name="FamilyGamesPreview"
           options={{ headerShown: false }}

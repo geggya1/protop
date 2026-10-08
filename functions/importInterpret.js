@@ -136,7 +136,13 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const uid = auth?.uid;
   if (!uid) throw new Error('Ikke innlogget');
   const familyId = clean(data?.familyId, 80);
-  const kind = data?.kind === 'employees' ? 'employees' : data?.kind === 'cv' ? 'cv' : 'customers';
+  const kind = data?.kind === 'employees'
+    ? 'employees'
+    : data?.kind === 'cv'
+      ? 'cv'
+      : data?.kind === 'invoices'
+        ? 'invoices'
+        : 'customers';
   const mode = data?.mode === 'ocr' ? 'ocr' : 'columns';
   if (!familyId) throw new Error('Åpne selskapet før du importerer.');
 

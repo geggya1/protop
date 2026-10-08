@@ -26,7 +26,6 @@ import {
   buildCv,
   canSeeSensitive,
   cardSubtitle,
-  choiceLabel,
   commitEmployee,
   contactLine,
   departmentLabels,
@@ -34,21 +33,16 @@ import {
   displayName,
   emptyEmployee,
   filterEmployees,
-  formatNbDate,
   gapReport,
   hasPersonContent,
   initials,
   linkClash,
-  maskNationalId,
   newId,
-  periodLabel,
   presentEmployee,
-  readPath,
   rememberLink,
   sortEmployees,
-  statusLabel,
 } from '../../src/employees/model';
-import { FORM_SECTIONS, OWNER_LABEL, cvEditorSections } from '../../src/employees/schema';
+import { cvEditorSections } from '../../src/employees/schema';
 import {
   loadProfessionalProfile,
   removeEmployee,
@@ -57,6 +51,7 @@ import {
   watchEmployees,
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
+import EmployeeDetailView from './EmployeeDetailView';
 import EmployeeFields from './EmployeeFields';
 
 async function bytesFromFile(file) {
@@ -77,25 +72,6 @@ const FILTERS = [
   ['former', 'Sluttet'],
   ['all', 'Alle'],
 ];
-
-function showDetailValue(employee, field, reveal) {
-  if (field.sensitive && !reveal) return '';
-  if (field.type === 'photo' || field.type === 'departments' || field.type === 'member') return '';
-  const raw = readPath(employee, field.key);
-  if (field.type === 'tags') return Array.isArray(raw) ? raw.filter(Boolean).join(', ') : '';
-  if (field.type === 'bool') return raw ? 'Ja' : '';
-  if (field.key === 'person.nationalId') return reveal ? raw : maskNationalId(raw);
-  if (field.type === 'date') return formatNbDate(raw);
-  if (field.type === 'choice') return choiceLabel(field.options, raw);
-  if (field.type === 'percent') return raw ? `${raw} %` : '';
-  return clipDetail(raw);
-}
-
-function clipDetail(value, limit = 220) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
-  if (text.length <= limit) return text;
-  return `${text.slice(0, limit - 1).trimEnd()}…`;
-}
 
 export default function EmployeesScreen() {
   const colors = useColors();
@@ -722,14 +698,15 @@ export default function EmployeesScreen() {
       nativeID="employees-page"
       id="employees-page"
       style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={styles.inner}
+      contentContainerStyle={[styles.inner, view === 'detail' && styles.innerWide]}
       keyboardShouldPersistTaps="handled"
     >
-      {view !== 'list' ? (
+      {view !== 'list' && view !== 'detail' ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
-      ) : (
+      ) : null}
+      {view === 'list' ? (
         <CreateMenu
           label={isAdmin ? 'Ny medarbeider' : 'Min side'}
           title="Ny medarbeider"
@@ -742,7 +719,7 @@ export default function EmployeesScreen() {
             { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },
           ]}
         />
-      )}
+      ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
@@ -807,19 +784,19 @@ export default function EmployeesScreen() {
         </>
       ) : null}
 
-      {view !== 'list' ? (
+      {view !== 'list' && view !== 'detail' ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {view === 'detail' && selected && (isAdmin || selected.personUid === uid) ? (
+          {view === 'cv' && selected && (isAdmin || selected.personUid === uid) ? (
             <TouchableOpacity onPress={() => openEdit(selected)} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
               <Text style={styles.primaryText}>Rediger</Text>
             </TouchableOpacity>
           ) : null}
-          {view === 'detail' && selected && (isAdmin || selected.personUid === uid) ? (
-            <TouchableOpacity onPress={() => openCv(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>CV</Text>
+          {view === 'cv' && selected ? (
+            <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Hovedside</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -866,129 +843,28 @@ export default function EmployeesScreen() {
       ) : null}
 
       {view === 'detail' && selected ? (
-        <View style={styles.stack}>
-          <View style={styles.hero}>
-            {selected.person.photoUrl ? (
-              <Image source={{ uri: selected.person.photoUrl }} style={styles.heroPhoto} />
-            ) : (
-              <View style={[styles.heroPhoto, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
-                <Text style={{ color: colors.ink, fontSize: 28, fontWeight: '700' }}>{initials(selected)}</Text>
-              </View>
-            )}
-            <View style={styles.grow}>
-              <Text style={{ color: colors.muted }}>{statusLabel(selected.company.status)}</Text>
-              <Text style={{ color: colors.ink }}>{cardSubtitle(selected, companyName)}</Text>
-              {!!periodLabel(selected) && (
-                <Text style={{ color: colors.ink }}>
-                  {`${selected.company.workPercent ? `${selected.company.workPercent} % · ` : ''}${periodLabel(selected)}`}
-                </Text>
-              )}
-              <Text style={{ color: colors.muted }}>
-                {selected.linkStatus === 'linked'
-                  ? 'Knyttet til en person. Personopplysninger og CV kan følge hen videre.'
-                  : 'Ikke knyttet til en personprofil ennå.'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.chips}>
-            {departmentLabels(selected, departments).map((name) => (
-              <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
-            ))}
-          </View>
-          {selected.personUid === uid ? (
-            <View style={styles.row}>
-              <TouchableOpacity onPress={pushProfile} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Bruk min profil her</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={pullToProfile} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Hent til min profil</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          {FORM_SECTIONS.filter((section) => !section.repeatable && section.id !== 'link').map((section) => {
-            const entries = section.fields
-              .map((field) => ({ field, value: showDetailValue(selected, field, reveal) }))
-              .filter((entry) => entry.value);
-            if (!entries.length) return null;
-            return (
-              <View key={section.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <View style={styles.cardHead}>
-                  <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
-                  <Text style={{ color: colors.brand, fontSize: 12 }}>{OWNER_LABEL[section.owner]}</Text>
-                </View>
-                {entries.map(({ field, value }) => (
-                  <View key={field.key} style={styles.fact}>
-                    <Text style={[styles.factLabel, { color: colors.muted }]}>{field.label}</Text>
-                    <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-          {FORM_SECTIONS.filter((section) => section.repeatable).map((section) => {
-            const items = readPath(selected, section.collection) || [];
-            if (!items.length) return null;
-            const shown = items.slice(0, 3);
-            const more = items.length - shown.length;
-            return (
-              <View key={section.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <View style={styles.cardHead}>
-                  <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
-                  <Text style={{ color: colors.brand, fontSize: 12 }}>{`${items.length}`}</Text>
-                </View>
-                {shown.map((item) => (
-                  <Text key={item.id} style={{ color: colors.ink }}>{repeatSummary(section.id, item)}</Text>
-                ))}
-                {more > 0 ? (
-                  <TouchableOpacity onPress={() => openCv(selected)} accessibilityRole="button">
-                    <Text style={{ color: colors.brand }}>{`og ${more} til i CV-en`}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          })}
-          {selected.customFields?.some((field) => field.value && (isAdmin || (field.owner === 'person' && selected.personUid === uid))) ? (
-            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <View style={styles.cardHead}>
-                <Text style={[styles.sectionTitle, { color: colors.ink }]}>Egne felt</Text>
-                <Text style={{ color: colors.brand, fontSize: 12 }}>Fra listen eller skjemaet</Text>
-              </View>
-              {selected.customFields.filter((field) => field.value && (isAdmin || (field.owner === 'person' && selected.personUid === uid))).map((field) => (
-                <View key={field.id} style={styles.fact}>
-                  <Text style={[styles.factLabel, { color: colors.muted }]}>{field.label}</Text>
-                  <Text style={[styles.factValue, { color: colors.ink }]}>{field.value}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          {gaps ? (
-            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.ink }]}>Mangler</Text>
-              {!gaps.register.length && !gaps.person.length && !gaps.cv.length ? (
-                <Text style={{ color: colors.muted }}>Påkrevde felt og CV-grunnlag er fylt ut.</Text>
-              ) : null}
-              {!!gaps.register.length && <GapList title="Må fylles ut" items={gaps.register} colors={colors} />}
-              {!!gaps.person.length && <GapList title="Den ansatte fyller ut" items={gaps.person} colors={colors} />}
-              {!!gaps.cv.length && <GapList title="Trengs til CV" items={gaps.cv} colors={colors} />}
-            </View>
-          ) : null}
-          {isAdmin ? (
-            confirmDelete ? (
-              <View style={styles.row}>
-                <TouchableOpacity onPress={destroy} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.danger || '#b42318' }]}>
-                  <Text style={styles.primaryText}>Slett medarbeider</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setConfirmDelete(false)} accessibilityRole="button">
-                  <Text style={{ color: colors.ink }}>Avbryt</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={() => setConfirmDelete(true)} accessibilityRole="button">
-                <Text style={{ color: colors.danger || '#b42318' }}>Slett medarbeider</Text>
-              </TouchableOpacity>
-            )
-          ) : null}
-        </View>
+        <EmployeeDetailView
+          employee={selected}
+          colors={colors}
+          companyName={companyName}
+          departments={departments}
+          reveal={reveal}
+          gaps={gaps}
+          canEdit={isAdmin || selected.personUid === uid}
+          isAdmin={isAdmin}
+          isSelf={selected.personUid === uid}
+          siblings={visible}
+          confirmDelete={confirmDelete}
+          onBack={openList}
+          onEdit={() => openEdit(selected)}
+          onCv={() => openCv(selected)}
+          onSelect={openDetail}
+          onPushProfile={pushProfile}
+          onPullToProfile={pullToProfile}
+          onConfirmDelete={() => setConfirmDelete(true)}
+          onCancelDelete={() => setConfirmDelete(false)}
+          onDestroy={destroy}
+        />
       ) : null}
 
       {(view === 'edit' || view === 'mine') && draft ? (
@@ -1203,21 +1079,6 @@ export default function EmployeesScreen() {
   );
 }
 
-function repeatSummary(sectionId, item) {
-  let line = item.title || 'Oppføring';
-  if (sectionId === 'education') {
-    const when = [item.from, item.to].filter(Boolean).join('–');
-    line = [when, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
-  } else if (sectionId === 'experience') {
-    line = [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
-  } else if (sectionId === 'courses') {
-    line = [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
-  } else if (sectionId === 'projects') {
-    line = [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
-  }
-  return clipDetail(line, 90);
-}
-
 function CvAttention({ draft, colors }) {
   const attention = cvAttention(draft);
   const warn = '#9a6700';
@@ -1238,17 +1099,6 @@ function CvAttention({ draft, colors }) {
   );
 }
 
-function GapList({ title, items, colors }) {
-  return (
-    <View style={styles.stackTight}>
-      <Text style={{ color: colors.muted }}>{title}</Text>
-      {items.map((item) => (
-        <Text key={item.key} style={{ color: colors.ink }}>{`• ${item.label}`}</Text>
-      ))}
-    </View>
-  );
-}
-
 function summaryNote(labels) {
   const list = (Array.isArray(labels) ? labels : []).map((label) => String(label || '').trim()).filter(Boolean);
   if (!list.length) return '';
@@ -1258,18 +1108,15 @@ function summaryNote(labels) {
 
 const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
-  kicker: { fontSize: 12, letterSpacing: 0.4 },
+  innerWide: { maxWidth: 1220 },
   title: { fontSize: 28, fontWeight: '700' },
-  lead: { fontSize: 15, lineHeight: 22 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },
-  stackTight: { gap: 4 },
   primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
   primaryText: { color: '#fff', fontWeight: '600' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   stats: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   person: { borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', gap: 12 },
   avatar: { width: 56, height: 56, borderRadius: 10 },
@@ -1277,8 +1124,6 @@ const styles = StyleSheet.create({
   personName: { fontSize: 16, fontWeight: '700' },
   grow: { flex: 1, gap: 2 },
   dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12 },
-  hero: { flexDirection: 'row', gap: 14, alignItems: 'center' },
-  heroPhoto: { width: 120, height: 140, borderRadius: 12 },
   attention: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
   progressBanner: {
     borderWidth: 1,
@@ -1291,12 +1136,7 @@ const styles = StyleSheet.create({
   progressTitle: { fontSize: 16, fontWeight: '700' },
   progressTrack: { marginTop: 8, height: 6, borderRadius: 999, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 999 },
-  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '600' },
-  fact: { flexDirection: 'row', gap: 12 },
-  factLabel: { width: 160, fontSize: 14 },
-  factValue: { flex: 1, fontSize: 15 },
   modalRoot: {
     flex: 1,
     justifyContent: 'center',

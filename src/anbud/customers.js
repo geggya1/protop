@@ -398,8 +398,78 @@ export function ownerLabel(customer, people = []) {
   return text(hit?.name) || text(customer.ownerName);
 }
 
+/**
+ * Avtaler knyttet til kunden: customerId, eller kjøpernavn når customerId mangler.
+ * Slettede avtaler utelates.
+ */
+export function relatedContractsForCustomer(contracts, customer) {
+  const rows = Array.isArray(contracts) ? contracts : [];
+  if (!customer?.id) return [];
+  const name = fold(customer.name);
+  return rows.filter((row) => {
+    if (row?.deletedAt) return false;
+    if (row.customerId === customer.id) return true;
+    if (row.customerId) return false;
+    return name && fold(row.buyer) === name;
+  });
+}
+
+/**
+ * Matcher prosjektets oppførte kunde mot kunderegisteret.
+ * Prioritet: customerId → kundenummer → org.nr → kundenavn (client).
+ */
+export function projectBelongsToCustomer(project, customer) {
+  if (!project || !customer?.id) return false;
+  if (project.status === 'arkivert') return false;
+  if (text(project.customerId) === customer.id) return true;
+  if (text(project.customerId)) return false;
+  const number = normalizeCustomerNumber(customer.customerNumber);
+  if (number && normalizeCustomerNumber(project.customerNumber) === number) return true;
+  const orgnr = normalizeOrgnr(customer.orgnr);
+  if (orgnr && normalizeOrgnr(project.orgnr) === orgnr) return true;
+  const client = fold(project.client);
+  const name = fold(customer.name);
+  // Samme regel som avtaler: eksakt navn når customerId mangler (ikke myk matching).
+  if (client && name && client === name) return true;
+  return false;
+}
+
+/** Aktive prosjekt som hører til kunden via prosjektets kundefelt. */
+export function relatedProjectsForCustomer(projects, customer) {
+  const rows = Array.isArray(projects) ? projects : [];
+  if (!customer?.id) return [];
+  return rows
+    .filter((row) => projectBelongsToCustomer(row, customer))
+    .sort((left, right) => (
+      String(left.number || '').localeCompare(String(right.number || ''), 'nb', { numeric: true })
+      || String(left.name || '').localeCompare(String(right.name || ''), 'nb')
+    ));
+}
+
+/**
+ * Antall aktive prosjekt per kunde-id.
+ * Prosjekt uten customerId fordeles via kundenummer, org.nr eller navn.
+ */
+export function projectCountsByCustomer(projects, customers) {
+  const counts = new Map();
+  const list = Array.isArray(customers) ? customers : [];
+  for (const customer of list) counts.set(customer.id, 0);
+  for (const project of Array.isArray(projects) ? projects : []) {
+    if (!project || project.status === 'arkivert') continue;
+    let matched = null;
+    if (text(project.customerId)) {
+      matched = list.find((row) => row.id === project.customerId) || null;
+    } else {
+      matched = list.find((row) => projectBelongsToCustomer(project, row)) || null;
+    }
+    if (!matched) continue;
+    counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
+  }
+  return counts;
+}
+
 /** Mobilrad i kundelisten: navn og org.nr, og bare utfylte tillegg. */
-export function customerPhoneLines(customer, people = []) {
+export function customerPhoneLines(customer, people = [], { projectCount } = {}) {
   const row = customer || {};
   const person = row.kind === 'person';
   const id = person ? maskPersonnummer(row.personnummer) : formatOrgnr(row.orgnr);
@@ -407,9 +477,12 @@ export function customerPhoneLines(customer, people = []) {
     ? `${person ? 'Personnummer' : 'Org.nr'} ${id}`
     : (person ? 'Privatkunde' : 'Virksomhet');
   const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const projects = Number.isFinite(projectCount) && projectCount > 0
+    ? `${projectCount} prosjekt${projectCount === 1 ? '' : 'er'}`
+    : '';
   return {
     name: text(row.name) || 'Kunde uten navn',
-    meta: [text(row.customerNumber) ? `Nr ${text(row.customerNumber)}` : '', identity].filter(Boolean).join(' · '),
+    meta: [text(row.customerNumber) ? `Nr ${text(row.customerNumber)}` : '', identity, projects].filter(Boolean).join(' · '),
     extra: [address, text(row.contactName), text(row.email), text(row.phone), ownerLabel(row, people)].filter(Boolean).join(' · '),
   };
 }

@@ -67,11 +67,34 @@ export const EMPLOYEE_AI_FIELDS = {
   competence: 'Kompetanse',
 };
 
+export const INVOICE_AI_FIELDS = {
+  invoiceNumber: 'Fakturanummer',
+  invoiceDate: 'Fakturadato',
+  dueDate: 'Forfallsdato',
+  customerNumber: 'Kundenummer',
+  customerName: 'Kundenavn',
+  orgnr: 'Organisasjonsnummer',
+  projectNumber: 'Prosjektnummer',
+  projectName: 'Prosjektnavn',
+  amountExVat: 'Beløp eksklusive mva',
+  vat: 'MVA-beløp',
+  amountInclVat: 'Beløp inklusive mva',
+  outstanding: 'Utestående beløp eller Paid',
+  kid: 'KID-nummer',
+  currency: 'Valuta',
+  department: 'Avdeling',
+  paidAt: 'Betalingsdato',
+  sentAt: 'Sendt-dato',
+  deliveryMethod: 'Forsendelsesmåte',
+};
+
 const YES = new Set(['ja', 'yes', 'j', 'y', 'true', 'sant', 'sann', 'x', '1', 'ok', 'on']);
 const NO = new Set(['nei', 'no', 'n', 'false', 'usann', '0', 'av', 'off']);
 
 export function fieldsFor(kind) {
-  return kind === 'employees' ? EMPLOYEE_AI_FIELDS : CUSTOMER_AI_FIELDS;
+  if (kind === 'employees') return EMPLOYEE_AI_FIELDS;
+  if (kind === 'invoices') return INVOICE_AI_FIELDS;
+  return CUSTOMER_AI_FIELDS;
 }
 
 export function foldToken(value) {
@@ -255,7 +278,9 @@ export function sanitizeOcrRows(parsed, kind) {
   }).filter((row) => (
     kind === 'employees'
       ? (row.firstName || row.lastName || row.fullName)
-      : row.name
+      : kind === 'invoices'
+        ? (row.invoiceNumber || row.customerName)
+        : row.name
   ));
   return {
     rows,
@@ -286,7 +311,11 @@ export function tableToCsv(table) {
 
 export function columnPrompt(kind) {
   const fields = Object.entries(fieldsFor(kind)).map(([field, label]) => `${field}: ${label}`).join('\n');
-  const subject = kind === 'employees' ? 'en medarbeiderliste' : 'en kundeliste';
+  const subject = kind === 'employees'
+    ? 'en medarbeiderliste'
+    : kind === 'invoices'
+      ? 'en fakturaliste'
+      : 'en kundeliste';
   return `Du tolker kolonneoverskrifter i ${subject}.
 Returner KUN gyldig JSON:
 {"columns":[{"header":"overskrift slik den står","field":"feltnavn eller tom streng"}],"summary":"én kort setning"}
@@ -301,7 +330,7 @@ Regler:
 
 export function ocrPrompt(kind) {
   const fields = Object.keys(fieldsFor(kind)).join(', ');
-  const subject = kind === 'employees' ? 'medarbeidere' : 'kunder';
+  const subject = kind === 'employees' ? 'medarbeidere' : kind === 'invoices' ? 'fakturaer' : 'kunder';
   return `Du leser et skannet dokument eller bilde med OCR og trekker ut ${subject}.
 Returner KUN gyldig JSON:
 {"rows":[{${Object.keys(fieldsFor(kind)).slice(0, 4).map((field) => `"${field}":""`).join(',')}}],"summary":"én kort setning"}

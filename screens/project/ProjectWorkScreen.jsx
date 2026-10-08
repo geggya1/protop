@@ -69,6 +69,8 @@ import {
 } from '../../src/project/storage';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
+import ProjectDetail from '../../components/project/ProjectDetail';
+import { watchEmployees } from '../../src/employees/storage';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 
 const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
@@ -228,11 +230,12 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, isAdmin, uid } = useApp();
-  const cachedProjects = peekProjectState();
+  const { familyId, requestShellTab, isAdmin, uid, shellIntent, clearShellIntent } = useApp();
+  const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
+  const [employees, setEmployees] = useState([]);
   const [ready, setReady] = useState(() => !!(cachedProjects && cachedAnbud));
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -256,11 +259,12 @@ export default function ProjectWorkScreen() {
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
   const skipNextSave = useRef(true);
+  const pendingProjectId = useRef('');
   const skipColumnSave = useRef(true);
 
   useEffect(() => {
     let live = true;
-    const warmProjects = peekProjectState();
+    const warmProjects = peekProjectState(familyId);
     const warmAnbud = peekAnbudState(familyId);
     if (warmProjects && warmAnbud) {
       setState(warmProjects);
@@ -269,7 +273,7 @@ export default function ProjectWorkScreen() {
       skipNextSave.current = true;
       return () => { live = false; };
     }
-    Promise.all([loadProjectState(), loadAnbudState(familyId)]).then(([projects, anbudState]) => {
+    Promise.all([loadProjectState(familyId), loadAnbudState(familyId)]).then(([projects, anbudState]) => {
       if (!live) return;
       setState(projects);
       setAnbud(anbudState);
@@ -278,6 +282,39 @@ export default function ProjectWorkScreen() {
     });
     return () => { live = false; };
   }, [familyId]);
+
+  useEffect(() => {
+    if (!familyId) {
+      setEmployees([]);
+      return undefined;
+    }
+    return watchEmployees(familyId, setEmployees, () => setEmployees([]));
+  }, [familyId]);
+
+  useEffect(() => {
+    if (shellIntent?.type === 'openProject' && shellIntent.projectId) {
+      pendingProjectId.current = shellIntent.projectId;
+      clearShellIntent?.();
+    }
+  }, [shellIntent, clearShellIntent]);
+
+  useEffect(() => {
+    const projectId = pendingProjectId.current;
+    if (!ready || !projectId) return;
+    const project = (state.projects || []).find((row) => row.id === projectId && row.status !== 'arkivert');
+    pendingProjectId.current = '';
+    if (!project) {
+      setNote('Prosjektet ble ikke funnet.');
+      return;
+    }
+    setSelectedId(project.id);
+    setForm(formFromProject(project));
+    setError('');
+    setNote('');
+    setConfirmEditDelete(false);
+    setConfirmBulkDelete(false);
+    setView('detail');
+  }, [ready, state.projects]);
 
   useEffect(() => {
     let live = true;
@@ -296,13 +333,13 @@ export default function ProjectWorkScreen() {
 
   useEffect(() => {
     if (!ready) return;
-    putProjectState(state);
+    putProjectState(state, familyId);
     if (skipNextSave.current) {
       skipNextSave.current = false;
       return;
     }
-    saveProjectState(state).catch(() => setError('Kunne ikke lagre lokalt.'));
-  }, [state, ready]);
+    saveProjectState(state, familyId).catch(() => setError('Kunne ikke lagre lokalt.'));
+  }, [state, ready, familyId]);
 
   useEffect(() => {
     if (skipColumnSave.current) {
@@ -418,13 +455,13 @@ export default function ProjectWorkScreen() {
     setDeleting(true);
     setError('');
     try {
-      const loaded = await loadProjectState();
+      const loaded = await loadProjectState(familyId);
       const result = deleteProjects(loaded, ids);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      await saveProjectState(result.state);
+      await saveProjectState(result.state, familyId);
       setState(result.state);
       await clearAnbudProjectLinks(result.deletedIds);
       setCheckedIds((current) => {
@@ -640,6 +677,16 @@ export default function ProjectWorkScreen() {
     setView('create');
   }
 
+  function openDetail(project) {
+    setSelectedId(project.id);
+    setForm(formFromProject(project));
+    setError('');
+    setNote('');
+    setConfirmEditDelete(false);
+    setConfirmBulkDelete(false);
+    setView('detail');
+  }
+
   function openEdit(project) {
     setSelectedId(project.id);
     setForm(formFromProject(project));
@@ -711,7 +758,7 @@ export default function ProjectWorkScreen() {
     try {
       const bytes = await bytesFromFile(file);
       const rows = await readCompanyProjectTable(bytes, file.name);
-      const loadedProjects = await loadProjectState();
+      const loadedProjects = await loadProjectState(familyId);
       const loadedAnbud = await loadAnbudState(familyId);
       const plan = planProjectImport(loadedProjects, loadedAnbud.customers || [], loadedAnbud.contracts || [], rows);
       if (!plan.rows.length) {
@@ -777,13 +824,13 @@ export default function ProjectWorkScreen() {
     setImporting(true);
     setError('');
     try {
-      const loaded = await loadProjectState();
+      const loaded = await loadProjectState(familyId);
       const result = importProjects(loaded, chosen.map((row) => row.project));
       if (!result.ok) {
         setError(result.error || 'Ingen prosjekter ble lagret.');
         return;
       }
-      await saveProjectState(result.state);
+      await saveProjectState(result.state, familyId);
       setState(result.state);
       for (const project of [...(result.created || []), ...(result.updated || [])]) {
         if (project.contractId) await syncContractLink(project.id, project.contractId, '');
@@ -1492,7 +1539,7 @@ export default function ProjectWorkScreen() {
                     </TouchableOpacity>
                   ) : null}
                   <TouchableOpacity
-                    onPress={() => openEdit(item)}
+                    onPress={() => openDetail(item)}
                     accessibilityRole="button"
                     accessibilityLabel={`${item.number} ${item.name}`}
                     style={[styles.rowBody, isPhone && styles.rowBodyPhone]}
@@ -1550,6 +1597,30 @@ export default function ProjectWorkScreen() {
       ) : null}
     </View>
   ) : null;
+
+  if (view === 'detail' && selected) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg, padding: 16 }]}>
+        <ProjectDetail
+          state={state}
+          project={selected}
+          employees={employees}
+          colors={colors}
+          isAdmin={isAdmin}
+          uid={uid}
+          onChangeState={(next) => {
+            setState(next);
+            setNote('');
+          }}
+          onEditForm={() => openEdit(selected)}
+          onBack={() => {
+            setView('list');
+            setSelectedId('');
+          }}
+        />
+      </View>
+    );
+  }
 
   if (listDesk) {
     return (

@@ -94,7 +94,7 @@ export default function ContractFollowUp({
       setState(loaded);
       onSnapshot?.(loaded);
     });
-    loadProjectState().then((loaded) => {
+    loadProjectState(companyId).then((loaded) => {
       setProjects((loaded.projects || []).filter((row) => row.status !== 'arkivert'));
     });
   }, [companyId]);
@@ -194,13 +194,13 @@ export default function ContractFollowUp({
   }
 
   async function openProject(contract) {
-    const projectState = await loadProjectState();
+    const projectState = await loadProjectState(companyId);
     const handed = projectFromAward(projectState, contract);
     if (!handed.ok) {
       setNote(handed.error);
       return;
     }
-    if (handed.created) await saveProjectState(handed.state);
+    if (handed.created) await saveProjectState(handed.state, companyId);
     setProjects((handed.state.projects || []).filter((row) => row.status !== 'arkivert'));
     if (contract.projectId && contract.projectId === handed.projectId) {
       setNote('Prosjektet er allerede koblet.');

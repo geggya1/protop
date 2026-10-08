@@ -2,8 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { customerPhoneLines } from '../../src/anbud/customers';
 
-export default function CustomerPhoneRow({ customer, people, colors, onPress }) {
-  const lines = customerPhoneLines(customer, people);
+export default function CustomerPhoneRow({ customer, people, projectCount, colors, onPress }) {
+  const lines = customerPhoneLines(customer, people, { projectCount });
   return (
     <TouchableOpacity
       onPress={onPress}

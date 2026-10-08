@@ -96,42 +96,42 @@ function ProjectCard({ row, colors, onEditProject }) {
           ) : null}
           <View style={styles.projectMeta}>
             {filled(row.address) ? (
-              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.address)}</Text>
+              <Text style={[styles.projectText, { color: colors.ink }]}>{filled(row.address)}</Text>
             ) : null}
             {facts.length ? (
               <View style={styles.factGrid}>
                 {facts.map(([label, value]) => (
-                  <View key={label} style={styles.factCell}>
-                    <Text style={[styles.factCellLabel, { color: colors.muted }]}>{label}</Text>
-                    <Text style={[styles.factCellValue, { color: colors.ink }]}>{filled(value)}</Text>
-                  </View>
+                  <Text key={label} style={styles.factLine}>
+                    <Text style={[styles.factInlineLabel, { color: colors.muted }]}>{`${label}: `}</Text>
+                    <Text style={[styles.factInlineValue, { color: colors.ink }]}>{filled(value)}</Text>
+                  </Text>
                 ))}
               </View>
             ) : null}
             {filled(row.description) ? (
-              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.description)}</Text>
+              <Text style={[styles.projectText, { color: colors.ink }]}>{filled(row.description)}</Text>
             ) : null}
             {referenceName ? (
-              <Text style={[styles.bodyStrong, { color: colors.ink }]}>{referenceName}</Text>
+              <Text style={[styles.projectTextStrong, { color: colors.ink }]}>{referenceName}</Text>
             ) : null}
             {filled(row.responsibility) ? (
-              <Text style={[styles.body, { color: colors.ink }]}>{filled(row.responsibility)}</Text>
+              <Text style={[styles.projectText, { color: colors.ink }]}>{filled(row.responsibility)}</Text>
             ) : null}
             {roles.length ? (
               <View style={styles.stackTight}>
                 <Text style={[styles.subhead, { color: colors.muted }]}>Roller i prosjektet</Text>
                 {roles.map((role) => (
-                  <Text key={role} style={[styles.body, { color: colors.ink }]}>{`• ${role}`}</Text>
+                  <Text key={role} style={[styles.projectText, { color: colors.ink }]}>{`• ${role}`}</Text>
                 ))}
               </View>
             ) : null}
             {contacts.length ? (
               <View style={styles.factGrid}>
                 {contacts.map(([label, value]) => (
-                  <View key={label} style={styles.factCell}>
-                    <Text style={[styles.factCellLabel, { color: colors.muted }]}>{label}</Text>
-                    <Text style={[styles.factCellValue, { color: colors.ink }]}>{filled(value)}</Text>
-                  </View>
+                  <Text key={label} style={styles.factLine}>
+                    <Text style={[styles.factInlineLabel, { color: colors.muted }]}>{`${label}: `}</Text>
+                    <Text style={[styles.factInlineValue, { color: colors.ink }]}>{filled(value)}</Text>
+                  </Text>
                 ))}
               </View>
             ) : null}
@@ -241,14 +241,16 @@ const styles = StyleSheet.create({
   stackTight: { gap: 2 },
   job: { gap: 2, marginBottom: 8 },
   jobTitle: { fontSize: 16, fontWeight: '600' },
-  project: { borderTopWidth: 1, paddingTop: 12, gap: 10 },
+  project: { borderTopWidth: 1, paddingTop: 12, gap: 8 },
   projectHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  projectBody: { flexDirection: 'row', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' },
-  projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: 240 },
-  projectImage: { width: 240, height: 160, borderRadius: 8 },
-  projectMeta: { flexGrow: 1, flexShrink: 1, flexBasis: 320, gap: 10 },
-  factGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 10 },
-  factCell: { flexGrow: 1, flexBasis: 200, maxWidth: '100%', gap: 2 },
-  factCellLabel: { fontSize: 12 },
-  factCellValue: { fontSize: 15, lineHeight: 20 },
+  projectBody: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' },
+  projectImages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: 220 },
+  projectImage: { width: 220, height: 146, borderRadius: 8 },
+  projectMeta: { flexGrow: 1, flexShrink: 1, flexBasis: 280, gap: 5 },
+  projectText: { fontSize: 13, lineHeight: 18 },
+  projectTextStrong: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  factGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 3 },
+  factLine: { flexGrow: 1, flexBasis: 160, maxWidth: '100%' },
+  factInlineLabel: { fontSize: 12, lineHeight: 17 },
+  factInlineValue: { fontSize: 13, lineHeight: 17 },
 });

@@ -15,6 +15,8 @@ import {
   normalizePricingSettings,
   scrubProjectState,
 } from './projectFields.js';
+import { defaultWorkSettings } from '../arbeid/roles.js';
+import { parseHours, roundHours } from '../arbeid/hours.js';
 
 export function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -33,6 +35,9 @@ export function emptyProjectState() {
     projects: [],
     activeProjectId: null,
     activities: [],
+    members: [],
+    timeEntries: [],
+    absences: [],
     board: [],
     sja: [],
     incidents: [],
@@ -48,22 +53,133 @@ export function emptyProjectState() {
     waste: [],
     procedures: defaultProcedures(),
     audits: [],
+    syncedAt: '',
   };
 }
 
 export function normalizeProjectState(raw) {
   const base = emptyProjectState();
   const src = raw && typeof raw === 'object' ? raw : {};
-  const next = { ...base, ...src, procedures: src.procedures?.length ? src.procedures : base.procedures };
+  const next = {
+    ...base,
+    ...src,
+    procedures: src.procedures?.length ? src.procedures : base.procedures,
+    syncedAt: text(src.syncedAt),
+  };
   for (const key of Object.keys(base)) {
-    if (key === 'activeProjectId') continue;
+    if (key === 'activeProjectId' || key === 'syncedAt') continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
   if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {
     next.activeProjectId = next.projects[0]?.id || null;
   }
+  next.projects = next.projects.map((project) => ({
+    ...project,
+    workSettings: defaultWorkSettings(project?.workSettings),
+  }));
+  next.activities = next.activities.map((row) => normalizeActivityRow(row));
+  next.members = next.members.map((row) => normalizeMemberRow(row)).filter(Boolean);
+  next.timeEntries = next.timeEntries.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
+  next.absences = next.absences.map((row) => normalizeAbsenceRow(row)).filter(Boolean);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
   return scrubProjectState(next);
+}
+
+function normalizeActivityRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    ...row,
+    name: text(row.name) || 'Aktivitet',
+    status: ['under_arbeid', 'avsluttet', 'planlagt'].includes(row.status) ? row.status : 'under_arbeid',
+    estimatedHours: roundHours(row.estimatedHours),
+    priceModelName: text(row.priceModelName),
+    billable: row.billable !== false,
+  };
+}
+
+function normalizeMemberRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const employeeId = text(row.employeeId);
+  const projectId = text(row.projectId);
+  if (!employeeId || !projectId) return null;
+  return {
+    id: text(row.id) || createId('mem'),
+    projectId,
+    employeeId,
+    employeeName: text(row.employeeName),
+    photoUrl: text(row.photoUrl),
+    role: text(row.role) || 'Prosjektmedlem',
+    active: row.active !== false,
+    starred: !!row.starred,
+    addedAt: text(row.addedAt) || '',
+    addedByUid: text(row.addedByUid),
+  };
+}
+
+function normalizeTimeEntryRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const projectId = text(row.projectId);
+  const employeeId = text(row.employeeId);
+  const date = text(row.date);
+  if (!projectId || !employeeId || !date) return null;
+  const hours = roundHours(row.hours);
+  const billableHours = row.billableHours == null ? hours : roundHours(row.billableHours);
+  return {
+    id: text(row.id) || createId('tid'),
+    projectId,
+    employeeId,
+    employeeName: text(row.employeeName),
+    activityId: text(row.activityId) || null,
+    activityName: text(row.activityName) || 'Hovedaktivitet',
+    date,
+    hours,
+    billableHours,
+    description: text(row.description),
+    internalNote: text(row.internalNote),
+    status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
+    createdAt: text(row.createdAt) || '',
+    updatedAt: text(row.updatedAt) || '',
+    createdByUid: text(row.createdByUid),
+  };
+}
+
+function normalizeAbsenceRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const employeeId = text(row.employeeId);
+  const date = text(row.date);
+  if (!employeeId || !date) return null;
+  return {
+    id: text(row.id) || createId('fra'),
+    employeeId,
+    employeeName: text(row.employeeName),
+    date,
+    hours: roundHours(row.hours),
+    type: text(row.type) || 'ferie',
+    description: text(row.description),
+    createdAt: text(row.createdAt) || '',
+    createdByUid: text(row.createdByUid),
+  };
+}
+
+function stamp() {
+  return new Date().toISOString();
+}
+
+/** Oppdater prosjektets auto-felter for timer fra timeEntries. */
+export function syncProjectHourRollups(state, projectId) {
+  const id = projectId || state.activeProjectId;
+  if (!id) return state;
+  const rows = (state.timeEntries || []).filter((row) => row.projectId === id);
+  const hoursPeriod = roundHours(rows.reduce((sum, row) => sum + parseHours(row.hours), 0));
+  const billableHours = roundHours(rows.reduce((sum, row) => sum + parseHours(row.billableHours), 0));
+  return {
+    ...state,
+    projects: state.projects.map((project) => (
+      project.id === id
+        ? { ...project, hoursPeriod, billableHours }
+        : project
+    )),
+  };
 }
 
 function fail(state, error) {
@@ -325,11 +441,28 @@ export function createProject(state, input) {
     phase,
     status: text(input.status) === 'arkivert' ? 'arkivert' : 'aktiv',
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
+    workSettings: defaultWorkSettings(input.workSettings),
   };
   return ok({
     ...state,
     projects: [project, ...state.projects],
     activeProjectId: project.status === 'arkivert' ? state.activeProjectId : project.id,
+  });
+}
+
+/** Sikrer at prosjektet har minst én aktivitet (Hovedaktivitet). */
+export function ensureMainActivity(state, projectId) {
+  const gate = requireProject(state, projectId);
+  if (gate.error) return fail(state, gate.error);
+  const existing = state.activities.find((row) => (
+    row.projectId === gate.project.id && row.name === 'Hovedaktivitet'
+  )) || state.activities.find((row) => row.projectId === gate.project.id);
+  if (existing) return ok(state);
+  return addActivity(state, {
+    projectId: gate.project.id,
+    name: 'Hovedaktivitet',
+    owner: gate.project.manager,
+    billable: gate.project.pricingModel !== 'not_billable',
   });
 }
 
@@ -357,6 +490,9 @@ export function updateProject(state, projectId, patch) {
     manager: patch.manager !== undefined ? text(patch.manager) : p.manager,
     phase,
     status: patch.status === 'arkivert' ? 'arkivert' : (patch.status === 'aktiv' ? 'aktiv' : p.status),
+    workSettings: patch.workSettings !== undefined
+      ? defaultWorkSettings(patch.workSettings)
+      : defaultWorkSettings(p.workSettings),
   } : p));
   return ok({ ...state, projects });
 }
@@ -430,6 +566,8 @@ export function archiveProject(state, projectId) {
 
 const PROJECT_SCOPED_KEYS = [
   'activities',
+  'members',
+  'timeEntries',
   'board',
   'sja',
   'incidents',
@@ -484,8 +622,42 @@ export function addActivity(state, input) {
     progress: 0,
     milestone: !!input.milestone,
     predecessorId: input.predecessorId || null,
+    status: ['under_arbeid', 'avsluttet', 'planlagt'].includes(input.status) ? input.status : 'under_arbeid',
+    estimatedHours: roundHours(input.estimatedHours),
+    priceModelName: text(input.priceModelName),
+    billable: input.billable !== false,
   };
   return ok({ ...state, activities: [...state.activities, row] });
+}
+
+export function updateActivity(state, activityId, patch = {}) {
+  const current = state.activities.find((a) => a.id === activityId);
+  if (!current) return fail(state, 'Aktiviteten finnes ikke.');
+  const name = patch.name !== undefined ? text(patch.name) : current.name;
+  if (!name) return fail(state, 'Aktiviteten trenger et navn.');
+  return ok({
+    ...state,
+    activities: state.activities.map((row) => (
+      row.id === activityId
+        ? {
+          ...row,
+          name,
+          owner: patch.owner !== undefined ? text(patch.owner) : row.owner,
+          start: patch.start !== undefined ? text(patch.start) : row.start,
+          end: patch.end !== undefined ? text(patch.end) : row.end,
+          status: patch.status !== undefined
+            ? (['under_arbeid', 'avsluttet', 'planlagt'].includes(patch.status) ? patch.status : row.status)
+            : row.status,
+          estimatedHours: patch.estimatedHours !== undefined ? roundHours(patch.estimatedHours) : row.estimatedHours,
+          priceModelName: patch.priceModelName !== undefined ? text(patch.priceModelName) : row.priceModelName,
+          billable: patch.billable !== undefined ? !!patch.billable : row.billable,
+          progress: patch.progress !== undefined
+            ? Math.max(0, Math.min(100, Math.round(Number(patch.progress) || 0)))
+            : row.progress,
+        }
+        : row
+    )),
+  });
 }
 
 export function setActivityProgress(state, activityId, progress) {
@@ -899,4 +1071,295 @@ export function accounts() {
 export function removeRecord(state, key, id) {
   if (!Array.isArray(state[key])) return fail(state, 'Listen finnes ikke.');
   return ok({ ...state, [key]: state[key].filter((row) => row.id !== id) });
+}
+
+/** Legg til ansatt som deltaker på prosjekt. */
+export function addProjectMember(state, input) {
+  const gate = requireProject(state, input.projectId);
+  if (gate.error) return fail(state, gate.error);
+  const employeeId = text(input.employeeId);
+  if (!employeeId) return fail(state, 'Velg en medarbeider.');
+  const exists = state.members.some((row) => (
+    row.projectId === gate.project.id && row.employeeId === employeeId && row.active !== false
+  ));
+  if (exists) return fail(state, 'Medarbeideren er allerede deltaker.');
+  const row = normalizeMemberRow({
+    id: createId('mem'),
+    projectId: gate.project.id,
+    employeeId,
+    employeeName: text(input.employeeName),
+    photoUrl: text(input.photoUrl),
+    role: text(input.role) || 'Prosjektmedlem',
+    active: true,
+    starred: !!input.starred,
+    addedAt: stamp(),
+    addedByUid: text(input.addedByUid),
+  });
+  return ok({ ...state, members: [row, ...state.members] });
+}
+
+export function updateProjectMember(state, memberId, patch = {}) {
+  const current = state.members.find((row) => row.id === memberId);
+  if (!current) return fail(state, 'Deltakeren finnes ikke.');
+  return ok({
+    ...state,
+    members: state.members.map((row) => (
+      row.id === memberId
+        ? {
+          ...row,
+          role: patch.role !== undefined ? (text(patch.role) || row.role) : row.role,
+          active: patch.active !== undefined ? !!patch.active : row.active,
+          starred: patch.starred !== undefined ? !!patch.starred : row.starred,
+          employeeName: patch.employeeName !== undefined ? text(patch.employeeName) : row.employeeName,
+          photoUrl: patch.photoUrl !== undefined ? text(patch.photoUrl) : row.photoUrl,
+        }
+        : row
+    )),
+  });
+}
+
+export function removeProjectMember(state, memberId) {
+  if (!state.members.some((row) => row.id === memberId)) {
+    return fail(state, 'Deltakeren finnes ikke.');
+  }
+  return ok({
+    ...state,
+    members: state.members.map((row) => (
+      row.id === memberId ? { ...row, active: false } : row
+    )),
+  });
+}
+
+export function toggleMemberStar(state, memberId) {
+  const current = state.members.find((row) => row.id === memberId);
+  if (!current) return fail(state, 'Deltakeren finnes ikke.');
+  return updateProjectMember(state, memberId, { starred: !current.starred });
+}
+
+/**
+ * Prosjekter synlige i timesheet for en ansatt:
+ * medlemskap, showInAllTimesheets, eller allowSelfJoin (kan legges til).
+ */
+export function projectsForEmployee(state, employeeId, { includeJoinable = false } = {}) {
+  const id = text(employeeId);
+  const memberIds = new Set(
+    state.members
+      .filter((row) => row.employeeId === id && row.active !== false)
+      .map((row) => row.projectId),
+  );
+  return state.projects.filter((project) => {
+    if (project.status === 'arkivert') return false;
+    if (memberIds.has(project.id)) return true;
+    const settings = defaultWorkSettings(project.workSettings);
+    if (settings.showInAllTimesheets) return true;
+    if (includeJoinable && settings.allowSelfJoin) return true;
+    return false;
+  });
+}
+
+/** Registrer / oppdater timeføring på prosjekt+dag. */
+export function upsertTimeEntry(state, input) {
+  const gate = requireProject(state, input.projectId);
+  if (gate.error) return fail(state, gate.error);
+  const employeeId = text(input.employeeId);
+  const date = text(input.date);
+  if (!employeeId) return fail(state, 'Velg medarbeider.');
+  if (!date) return fail(state, 'Velg dato.');
+  const hours = roundHours(input.hours);
+  if (hours < 0) return fail(state, 'Timer kan ikke være negative.');
+  const settings = defaultWorkSettings(gate.project.workSettings);
+  const description = text(input.description);
+  if (settings.requireDescription && hours > 0 && !description && !input.id) {
+    return fail(state, 'Beskrivelse av utført arbeid er påkrevd.');
+  }
+  let working = state;
+  const ensured = ensureMainActivity(working, gate.project.id);
+  if (!ensured.ok) return ensured;
+  working = ensured.state;
+
+  let activityId = text(input.activityId) || null;
+  let activityName = text(input.activityName);
+  if (!activityId) {
+    const main = working.activities.find((row) => (
+      row.projectId === gate.project.id && row.name === 'Hovedaktivitet'
+    )) || working.activities.find((row) => row.projectId === gate.project.id);
+    activityId = main?.id || null;
+    activityName = activityName || main?.name || 'Hovedaktivitet';
+  } else if (!activityName) {
+    activityName = working.activities.find((row) => row.id === activityId)?.name || 'Aktivitet';
+  }
+  const now = stamp();
+  const existingId = text(input.id);
+  const existing = existingId
+    ? working.timeEntries.find((row) => row.id === existingId)
+    : null;
+  if (existing?.status === 'låst') return fail(working, 'Føringen er låst og kan ikke endres.');
+
+  // Slett når timer settes til 0 uten beskrivelse
+  if (existing && hours === 0 && !description) {
+    const next = {
+      ...working,
+      timeEntries: working.timeEntries.filter((row) => row.id !== existing.id),
+    };
+    return ok(syncProjectHourRollups(next, gate.project.id));
+  }
+
+  const billableHours = input.billableHours == null ? hours : roundHours(input.billableHours);
+  const row = normalizeTimeEntryRow({
+    id: existing?.id || createId('tid'),
+    projectId: gate.project.id,
+    employeeId,
+    employeeName: text(input.employeeName) || existing?.employeeName,
+    activityId,
+    activityName,
+    date,
+    hours,
+    billableHours,
+    description,
+    internalNote: text(input.internalNote !== undefined ? input.internalNote : existing?.internalNote),
+    status: ['registrert', 'godkjent', 'låst'].includes(input.status)
+      ? input.status
+      : (existing?.status || 'registrert'),
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    createdByUid: text(input.createdByUid) || existing?.createdByUid,
+  });
+
+  const timeEntries = existing
+    ? working.timeEntries.map((item) => (item.id === existing.id ? row : item))
+    : [row, ...working.timeEntries];
+  return ok(syncProjectHourRollups({ ...working, timeEntries }, gate.project.id));
+}
+
+export function deleteTimeEntry(state, entryId) {
+  const current = state.timeEntries.find((row) => row.id === entryId);
+  if (!current) return fail(state, 'Føringen finnes ikke.');
+  if (current.status === 'låst') return fail(state, 'Føringen er låst og kan ikke slettes.');
+  const next = {
+    ...state,
+    timeEntries: state.timeEntries.filter((row) => row.id !== entryId),
+  };
+  return ok(syncProjectHourRollups(next, current.projectId));
+}
+
+export function setTimeEntryStatus(state, entryId, status) {
+  if (!['registrert', 'godkjent', 'låst'].includes(status)) {
+    return fail(state, 'Ugyldig status.');
+  }
+  const current = state.timeEntries.find((row) => row.id === entryId);
+  if (!current) return fail(state, 'Føringen finnes ikke.');
+  return ok({
+    ...state,
+    timeEntries: state.timeEntries.map((row) => (
+      row.id === entryId ? { ...row, status, updatedAt: stamp() } : row
+    )),
+  });
+}
+
+export function addAbsence(state, input) {
+  const employeeId = text(input.employeeId);
+  const date = text(input.date);
+  if (!employeeId) return fail(state, 'Velg medarbeider.');
+  if (!date) return fail(state, 'Velg dato.');
+  const hours = roundHours(input.hours);
+  if (!(hours > 0)) return fail(state, 'Fravær må ha timer.');
+  const row = normalizeAbsenceRow({
+    id: createId('fra'),
+    employeeId,
+    employeeName: text(input.employeeName),
+    date,
+    hours,
+    type: text(input.type) || 'ferie',
+    description: text(input.description),
+    createdAt: stamp(),
+    createdByUid: text(input.createdByUid),
+  });
+  return ok({ ...state, absences: [row, ...state.absences] });
+}
+
+export function deleteAbsence(state, absenceId) {
+  if (!state.absences.some((row) => row.id === absenceId)) {
+    return fail(state, 'Fraværet finnes ikke.');
+  }
+  return ok({
+    ...state,
+    absences: state.absences.filter((row) => row.id !== absenceId),
+  });
+}
+
+/** Summer timer for prosjekt (timeEntries). */
+export function projectTimeSummary(state, projectId) {
+  const rows = state.timeEntries.filter((row) => row.projectId === projectId);
+  const hours = roundHours(rows.reduce((sum, row) => sum + parseHours(row.hours), 0));
+  const billable = roundHours(rows.reduce((sum, row) => sum + parseHours(row.billableHours), 0));
+  const toBill = roundHours(rows
+    .filter((row) => row.status === 'registrert' || row.status === 'godkjent')
+    .reduce((sum, row) => sum + parseHours(row.billableHours), 0));
+  return {
+    hours,
+    billable,
+    nonBillable: roundHours(hours - billable),
+    toBill,
+    count: rows.length,
+  };
+}
+
+export function activityTimeSummary(state, activityId) {
+  const activity = state.activities.find((row) => row.id === activityId);
+  const rows = state.timeEntries.filter((row) => row.activityId === activityId);
+  const registered = roundHours(rows.reduce((sum, row) => sum + parseHours(row.hours), 0));
+  const billable = roundHours(rows.reduce((sum, row) => sum + parseHours(row.billableHours), 0));
+  const estimated = roundHours(activity?.estimatedHours);
+  return {
+    registered,
+    remaining: roundHours(estimated - registered),
+    billable,
+    nonBillable: roundHours(registered - billable),
+    estimated,
+  };
+}
+
+/** Merg lokal og remote prosjektstate (by-id, nyeste vinner). */
+export function mergeProjectStates(left, right) {
+  const a = normalizeProjectState(left);
+  const b = normalizeProjectState(right);
+  const aSync = Date.parse(a.syncedAt || '') || 0;
+  const bSync = Date.parse(b.syncedAt || '') || 0;
+
+  function mergeRows(listA, listB) {
+    const map = new Map();
+    for (const row of listA) {
+      if (row?.id) map.set(row.id, row);
+    }
+    for (const row of listB) {
+      if (!row?.id) continue;
+      const prev = map.get(row.id);
+      if (!prev) {
+        map.set(row.id, row);
+        continue;
+      }
+      const tA = Date.parse(prev.updatedAt || prev.addedAt || prev.createdAt || '') || 0;
+      const tB = Date.parse(row.updatedAt || row.addedAt || row.createdAt || '') || 0;
+      map.set(row.id, tB >= tA ? { ...prev, ...row } : { ...row, ...prev });
+    }
+    return [...map.values()];
+  }
+
+  const keys = Object.keys(emptyProjectState()).filter((key) => (
+    key !== 'activeProjectId' && key !== 'syncedAt' && key !== 'procedures'
+  ));
+  const next = emptyProjectState();
+  for (const key of keys) {
+    next[key] = mergeRows(a[key] || [], b[key] || []);
+  }
+  next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
+  next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
+  next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)
+    || a.activeProjectId
+    || b.activeProjectId
+    || null;
+  if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {
+    next.activeProjectId = next.projects[0]?.id || null;
+  }
+  return normalizeProjectState(next);
 }

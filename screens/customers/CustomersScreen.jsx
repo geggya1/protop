@@ -121,7 +121,7 @@ export default function CustomersScreen() {
 
   useEffect(() => {
     loadAnbudState(familyId).then(setState);
-    loadProjectState().then((loaded) => {
+    loadProjectState(familyId).then((loaded) => {
       setProjects(loaded?.projects || []);
     }).catch(() => setProjects([]));
   }, [familyId]);

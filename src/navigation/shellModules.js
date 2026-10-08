@@ -98,6 +98,7 @@ export function companyNavItems() {
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+    { id: 'arbeid', icon: 'time', label: 'Arbeid', action: { type: 'tab', tab: 'arbeid' } },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'okonomi',

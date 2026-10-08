@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { ISO_STANDARDS } from '../../src/project/catalog';
 import {
@@ -32,6 +33,7 @@ function Field({ label, value, onChangeText, colors }) {
 
 export default function IsoScreen() {
   const colors = useColors();
+  const { familyId } = useApp();
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -40,17 +42,17 @@ export default function IsoScreen() {
 
   useEffect(() => {
     let live = true;
-    loadProjectState().then((loaded) => {
+    loadProjectState(familyId).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
     });
     return () => { live = false; };
-  }, []);
+  }, [familyId]);
 
   useEffect(() => {
-    if (ready) saveProjectState(state).catch(() => setError('Kunne ikke lagre lokalt.'));
-  }, [state, ready]);
+    if (ready) saveProjectState(state, familyId).catch(() => setError('Kunne ikke lagre lokalt.'));
+  }, [state, ready, familyId]);
 
   const project = state.projects.find((item) => item.id === state.activeProjectId && item.status !== 'arkivert') || null;
   const activeProjects = state.projects.filter((item) => item.status !== 'arkivert');

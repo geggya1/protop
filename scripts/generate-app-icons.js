@@ -221,7 +221,15 @@ async function main() {
   await write(path.join(ROOT, 'icons/icon-512-maskable.png'), maskable);
 
   const ico16 = await opaqueIcon(16);
-  const ico = await toIco([ico16, bySize.get(32), bySize.get(48)]);
+  // to-ico writes 4 bytes per pixel but steps by the PNG channel count.
+  // RGB (no alpha) therefore overlaps into rainbow noise in favicon.ico,
+  // which is the icon Chrome shows in the address-bar heading.
+  const rgba = (png) => sharp(png).ensureAlpha().png().toBuffer();
+  const ico = await toIco([
+    await rgba(ico16),
+    await rgba(bySize.get(32)),
+    await rgba(bySize.get(48)),
+  ]);
   await write(path.join(ROOT, 'public/favicon.ico'), ico);
   await write(path.join(ROOT, 'favicon.ico'), ico);
   await write(path.join(ROOT, 'icons/favicon.ico'), ico);

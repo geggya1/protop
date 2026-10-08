@@ -103,8 +103,8 @@ export default function EconomyDesk({
 
   return (
     <View nativeID="economy-desk" id="economy-desk" style={styles.stack}>
-      <Text style={[styles.h, { color: colors.ink }]}>{title}</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>{lead}</Text>
+      {title ? <Text style={[styles.h, { color: colors.ink }]}>{title}</Text> : null}
+      {lead ? <Text style={{ color: colors.muted, lineHeight: 20 }}>{lead}</Text> : null}
       {dueCount ? (
         <Text style={{ color: colors.danger || '#b45309' }}>
           {dueCount} avtale{dueCount === 1 ? '' : 'r'} er klar for ny indeksregulering.

@@ -290,9 +290,6 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
   return (
     <View style={styles.page}>
       <Text style={[styles.h, { color: colors.ink }]}>Søkekriterier</Text>
-      <Text style={{ color: colors.muted }}>
-        CPV-koder, næringskoder og område for anbudsvarsling. Listen er lang, derfor står den her og ikke i margen på treffene.
-      </Text>
 
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={[styles.h, { color: colors.ink }]}>CPV fra offentlige tildelinger</Text>

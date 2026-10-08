@@ -35,10 +35,6 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       ]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      <Text style={[styles.h, { color: colors.ink }]}>Anbud</Text>
-      <Text style={{ color: colors.muted }}>
-        Varsle om konkurranser, registrer innkommende forespørsler, og arbeid med hvert tilbud for seg.
-      </Text>
       <View style={styles.row}>
         {ANBUD_MENU.map((item) => {
           const on = step === item.id;
@@ -92,7 +88,6 @@ const styles = StyleSheet.create({
   screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerPhone: { maxWidth: '100%', minWidth: 0 },
-  h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
 });

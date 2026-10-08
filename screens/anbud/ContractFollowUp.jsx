@@ -16,6 +16,7 @@ import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
+import CreateMenu from '../../components/CreateMenu';
 
 const PAGE = 50;
 const COLUMNS = [
@@ -216,20 +217,19 @@ export default function ContractFollowUp({
 
   return (
     <View style={{ gap: 12 }}>
+      {view === 'list' ? (
+        <CreateMenu
+          label="Ny avtale"
+          title="Ny avtale"
+          info="Inngåtte avtaler med dokumenter, varighet og underavtaler. Standardfeltene følger NS 8403-fremsiden."
+          actions={[
+            { id: 'new', label: 'Registrer avtale', primary: true, onPress: () => { setComposeParent(''); setComposeKind(''); setView('compose'); } },
+            { id: 'work', label: 'Tilbudsarbeid', onPress: onOpenWork },
+          ]}
+        />
+      ) : null}
       {view !== 'detail' ? (
         <>
-          <Text style={[styles.h, { color: colors.ink }]}>Avtaler</Text>
-          <Text style={{ color: colors.muted }}>
-            Søkbar oversikt over inngåtte avtaler. Åpne en rad for opplysninger, dokumenter, varighet og underavtaler.
-          </Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => { setComposeParent(''); setComposeKind(''); setView('compose'); }} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff' }}>Ny avtale</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onOpenWork} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Tilbudsarbeid</Text>
-            </TouchableOpacity>
-          </View>
           <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <TextInput value={filters.query} onChangeText={(query) => { setFilters((current) => ({ ...current, query })); setPage(0); }} placeholder="Søk i avtale, kunde, nummer, dokument" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
             <View style={styles.row}>

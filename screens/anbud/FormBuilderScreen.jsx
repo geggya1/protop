@@ -16,6 +16,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import FormStudio from './FormStudio';
+import CreateMenu from '../../components/CreateMenu';
 
 const IMPORT_ACCEPT = 'image/*,.pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -223,33 +224,15 @@ export default function FormBuilderScreen({
 
   return (
     <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
-      <Text style={[styles.h, { color: colors.ink }]}>Mine skjemaer</Text>
-      <Text style={{ color: colors.muted }}>
-        Bygg spørsmålene slik de skal fylles ut. AI-scan og import lager en mal fra bilde, PDF, Word eller tekst.
-      </Text>
-      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Lag mal fra dokument</Text>
-        <View style={styles.row}>
-          <TouchableOpacity
-            onPress={() => readDocument('scan')}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="AI-scan av skjema"
-            style={[styles.btn, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-          >
-            <Text style={{ color: '#fff' }}>{busy ? 'Leser …' : 'AI-scan'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => readDocument('import')}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="Importer dokument som mal"
-            style={[styles.btn, { backgroundColor: colors.ink, opacity: busy ? 0.6 : 1 }]}
-          >
-            <Text style={{ color: colors.bg }}>{busy ? 'Leser …' : 'Importer'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <CreateMenu
+        label="Nytt skjema"
+        title="Nytt skjema"
+        info="AI-scan og import lager en mal fra bilde, PDF, Word eller tekst. Ferdige utgangspunkt ligger under."
+        actions={[
+          { id: 'scan', label: busy ? 'Leser …' : 'AI-scan', primary: true, onPress: () => readDocument('scan'), disabled: busy },
+          { id: 'import', label: busy ? 'Leser …' : 'Importer', onPress: () => readDocument('import'), disabled: busy },
+        ]}
+      />
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -312,13 +295,11 @@ export default function FormBuilderScreen({
 
 const styles = StyleSheet.create({
   list: { gap: 12, padding: 12, paddingBottom: 32 },
-  h: { fontSize: 22, fontWeight: '600' },
   kicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   starter: { width: 168, flexGrow: 1, borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
-  btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

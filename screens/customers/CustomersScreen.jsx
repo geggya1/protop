@@ -24,6 +24,7 @@ import { readCustomerImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { importResult } from '../../src/imports/review';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
+import CreateMenu from '../../components/CreateMenu';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
@@ -372,13 +373,24 @@ export default function CustomersScreen() {
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.title, { color: colors.ink }]}>
-        {view === 'import' ? 'Kontroller import' : view === 'detail' && selected ? selected.name : 'Kunder'}
-      </Text>
-      {view === 'list' ? (
-        <Text style={{ color: colors.muted }}>
-          Hurtig registrering med org.nr og Brønnøysund. Privatkunder bruker personnummer, ikke organisasjonsnummer.
+      {(view === 'import' || (view === 'detail' && selected)) ? (
+        <Text style={[styles.title, { color: colors.ink }]}>
+          {view === 'import' ? 'Kontroller import' : selected.name}
         </Text>
+      ) : null}
+      {view === 'list' ? (
+        <CreateMenu
+          label="Ny kunde"
+          title="Ny kunde"
+          info={[
+            'Org.nr hentes fra Brønnøysund. Privatkunder bruker personnummer.',
+            'Import fra CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.',
+          ]}
+          actions={[
+            { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
+            { id: 'import', label: importing ? 'Tolker filen…' : 'Importer fil', onPress: importFile, disabled: importing },
+          ]}
+        />
       ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
@@ -400,22 +412,6 @@ export default function CustomersScreen() {
 
       {view === 'list' ? (
         <>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={startNew} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff' }}>Ny kunde</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={importFile}
-              disabled={importing}
-              accessibilityRole="button"
-              style={[styles.save, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
-            >
-              <Text style={{ color: colors.ink }}>{importing ? 'Tolker filen…' : 'Importer fil'}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.
-          </Text>
           <TextInput
             nativeID="customer-search"
             value={query}

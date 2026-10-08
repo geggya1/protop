@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { assignProjectImages, cvDocumentFits, slimCvDocument, storeCvImages, titlesMatch, withoutInlineImages } from './cvPictures.js';
+import {
+  assignProjectImages,
+  countInlineCvImages,
+  cvDocumentFits,
+  slimCvDocument,
+  storeCvImages,
+  titlesMatch,
+  withoutInlineImages,
+} from './cvPictures.js';
 import { cutoffTitle, cvAttention } from './cvReview.js';
 
 assert.equal(titlesMatch(
@@ -40,16 +48,24 @@ assert.ok(attention.issues.some((issue) => issue.text === 'Profilbildet mangler.
 assert.ok(attention.issues.some((issue) => /mangler bilde/.test(issue.text)));
 assert.ok(attention.issues.some((issue) => /Avkuttet tittel/.test(issue.text)));
 
-const stored = await storeCvImages({
+const pending = {
   id: 'emp',
   person: { photoUrl: 'data:image/png;base64,aaaa' },
   cv: { projects: [{ id: 'p1', title: 'Bro', images: ['data:image/png;base64,bbbb', 'https://cdn.example/ute.jpg'] }] },
-}, async (path) => `https://cdn.example/${path}`);
+};
+assert.equal(countInlineCvImages(pending), 2);
+const ticks = [];
+const stored = await storeCvImages(pending, async (path) => `https://cdn.example/${path}`, {
+  onProgress: (info) => ticks.push({ ...info }),
+});
 assert.equal(stored.person.photoUrl, 'https://cdn.example/employees/emp/photo');
 assert.deepEqual(stored.cv.projects[0].images, [
   'https://cdn.example/employees/emp/projects/p1/0',
   'https://cdn.example/ute.jpg',
 ]);
+assert.ok(ticks.length >= 2);
+assert.equal(ticks[ticks.length - 1].done, 2);
+assert.equal(ticks[ticks.length - 1].total, 2);
 const heavy = {
   person: { photoUrl: `data:image/png;base64,${'a'.repeat(20)}` },
   cv: { projects: [] },

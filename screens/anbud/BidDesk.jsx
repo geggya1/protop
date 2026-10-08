@@ -7,6 +7,7 @@ import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
+import FilterMenu from '../../components/FilterMenu';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -126,22 +127,15 @@ export default function BidDesk({
           {`${counts.alle} tilbud · ${counts.planlegging} i planlegging · ${counts.gjennomforing} i gjennomføring · ${counts.kontrakt} kontrakt`}
         </Text>
       ) : null}
-      <View style={styles.row}>
-        {FILTERS.map(([id, label]) => {
-          const on = filter === id;
-          const count = counts[id] || 0;
-          return (
-            <TouchableOpacity
-              key={id}
-              onPress={() => setFilter(id)}
-              accessibilityRole="button"
-              style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-            >
-              <Text style={{ color: colors.ink }}>{label} ({count})</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <FilterMenu
+        groups={[{
+          id: 'status',
+          label: 'Status',
+          value: filter,
+          onChange: setFilter,
+          options: FILTERS.map(([id, label]) => ({ id, label: `${label} (${counts[id] || 0})` })),
+        }]}
+      />
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {visible.map((bid) => {
         const overview = bidOverview(bid);

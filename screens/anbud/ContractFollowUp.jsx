@@ -17,6 +17,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
 import CreateMenu from '../../components/CreateMenu';
+import FilterMenu from '../../components/FilterMenu';
 
 const PAGE = 50;
 const COLUMNS = [
@@ -232,11 +233,13 @@ export default function ContractFollowUp({
         <>
           <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <TextInput value={filters.query} onChangeText={(query) => { setFilters((current) => ({ ...current, query })); setPage(0); }} placeholder="Søk i avtale, kunde, nummer, dokument" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-            <View style={styles.row}>
-              <TextInput value={filters.buyer} onChangeText={(buyer) => { setFilters((current) => ({ ...current, buyer })); setPage(0); }} placeholder="Kunde" placeholderTextColor={colors.placeholder} style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-              <TextInput value={filters.from} onChangeText={(from) => setFilters((current) => ({ ...current, from }))} placeholder="Fra" placeholderTextColor={colors.placeholder} style={[styles.input, styles.date, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-              <TextInput value={filters.to} onChangeText={(to) => setFilters((current) => ({ ...current, to }))} placeholder="Til" placeholderTextColor={colors.placeholder} style={[styles.input, styles.date, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
-            </View>
+            <FilterMenu marked={!!(filters.buyer || filters.from || filters.to)}>
+              <View style={styles.row}>
+                <TextInput value={filters.buyer} onChangeText={(buyer) => { setFilters((current) => ({ ...current, buyer })); setPage(0); }} placeholder="Kunde" placeholderTextColor={colors.placeholder} style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
+                <TextInput value={filters.from} onChangeText={(from) => setFilters((current) => ({ ...current, from }))} placeholder="Fra" placeholderTextColor={colors.placeholder} style={[styles.input, styles.date, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
+                <TextInput value={filters.to} onChangeText={(to) => setFilters((current) => ({ ...current, to }))} placeholder="Til" placeholderTextColor={colors.placeholder} style={[styles.input, styles.date, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
+              </View>
+            </FilterMenu>
           </View>
         </>
       ) : null}

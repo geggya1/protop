@@ -10,6 +10,7 @@ import { colors, useLayout } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Screen, Title, Mute } from '../../components/ui';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import {
   listenMeals, createMeal, familyMealHeadcount,
@@ -566,37 +567,16 @@ export default function MealsHubScreen({ inShell = false }) {
               value={search}
               onChangeText={setSearch}
             />
-            <View style={styles.catRowWrap}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.catScroll}
-                contentContainerStyle={styles.catRow}
-              >
-                {RECIPE_CATEGORIES.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[
-                      styles.catBtn,
-                      isDesktop && styles.catBtnDesk,
-                      category === c.id && styles.catBtnOn,
-                    ]}
-                    onPress={() => setCategory(c.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.catTxt,
-                        isDesktop && styles.catTxtDesk,
-                        category === c.id && styles.catTxtOn,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {c.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            <FilterMenu
+              groups={[{
+                id: 'category',
+                label: 'Kategori',
+                value: category,
+                idle: 'all',
+                onChange: setCategory,
+                options: RECIPE_CATEGORIES.map((row) => ({ id: row.id, label: row.label })),
+              }]}
+            />
 
             <View style={[styles.panel, isDesktop && styles.panelDesk]}>
               <Text style={[styles.listSection, isDesktop && styles.listSectionDesk]}>

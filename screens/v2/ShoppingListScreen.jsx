@@ -11,6 +11,7 @@ import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Screen, Mute } from '../../components/ui';
 import ConfirmDialog, { InfoDialog } from '../../components/ConfirmDialog';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import HelpTarget from '../../components/HelpTarget';
 import OverlayHost from '../../components/OverlayHost';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
@@ -951,34 +952,20 @@ export default function ShoppingListScreen({
           </TouchableOpacity>
         ) : null}
 
-        <View style={[styles.filterRow, isDesktop && styles.filterRowDesk]}>
-          {[
-            ['open', 'Gjenstår'],
-            ['all', 'Alle'],
-            ['done', 'Kvittert'],
-            ['trash', trashCount > 0 ? `Papirkurv (${trashCount})` : 'Papirkurv'],
-          ].map(([k, l]) => (
-            <TouchableOpacity
-              key={k}
-              style={[
-                styles.filterBtn,
-                isDesktop && styles.filterBtnDesk,
-                filter === k && styles.filterOn,
-              ]}
-              onPress={() => setFilter(k)}
-            >
-              <Text
-                style={[
-                  styles.filterTxt,
-                  isDesktop && styles.filterTxtDesk,
-                  filter === k && styles.filterTxtOn,
-                ]}
-              >
-                {l}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <FilterMenu
+          groups={[{
+            id: 'items',
+            label: 'Vis',
+            value: filter,
+            onChange: setFilter,
+            options: [
+              { id: 'open', label: 'Gjenstår' },
+              { id: 'all', label: 'Alle' },
+              { id: 'done', label: 'Kvittert' },
+              { id: 'trash', label: trashCount > 0 ? `Papirkurv (${trashCount})` : 'Papirkurv' },
+            ],
+          }]}
+        />
 
         <ScrollView
           style={styles.list}

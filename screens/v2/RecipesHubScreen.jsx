@@ -7,6 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { colors, useLayout } from '../../src/theme';
 import { Screen, Title, Mute } from '../../components/ui';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
@@ -148,45 +149,28 @@ export default function RecipesHubScreen({ inShell = false }) {
             onChangeText={setSearch}
           />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tagRow}
-          >
-            <TouchableOpacity
-              style={[styles.tagChip, !tagFilter && styles.tagChipOn]}
-              onPress={() => setTagFilter(null)}
-            >
-              <Text style={[styles.tagChipTxt, !tagFilter && styles.tagChipTxtOn]}>Alle måltid</Text>
-            </TouchableOpacity>
-            {MEAL_TYPES.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.tagChip, tagFilter === t && styles.tagChipOn]}
-                onPress={() => setTagFilter(t)}
-              >
-                <Text style={[styles.tagChipTxt, tagFilter === t && styles.tagChipTxtOn]}>{t}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.catRow}
-          >
-            {RECIPE_CATEGORIES.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.catBtn, category === c.id && styles.catBtnOn]}
-                onPress={() => setCategory(c.id)}
-              >
-                <Text style={[styles.catTxt, category === c.id && styles.catTxtOn]} numberOfLines={1}>
-                  {c.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <FilterMenu
+            groups={[
+              {
+                id: 'meal',
+                label: 'Måltid',
+                value: tagFilter || '',
+                onChange: (id) => setTagFilter(id || null),
+                options: [
+                  { id: '', label: 'Alle måltid' },
+                  ...MEAL_TYPES.map((name) => ({ id: name, label: name })),
+                ],
+              },
+              {
+                id: 'category',
+                label: 'Kategori',
+                value: category,
+                idle: 'all',
+                onChange: setCategory,
+                options: RECIPE_CATEGORIES.map((row) => ({ id: row.id, label: row.label })),
+              },
+            ]}
+          />
 
           {loading ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />

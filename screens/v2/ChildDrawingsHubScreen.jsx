@@ -12,6 +12,7 @@ import { colors, radius } from '../../src/theme';
 import { Screen, Mute } from '../../components/ui';
 import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
@@ -386,27 +387,19 @@ export default function ChildDrawingsHubScreen({ inShell = false }) {
             </View>
           </View>
 
-          <View style={styles.filterRow}>
-            <TouchableOpacity
-              style={[styles.chip, filterChildId === 'all' && styles.chipOn]}
-              onPress={() => setFilterChildId('all')}
-            >
-              <Text style={[styles.chipTxt, filterChildId === 'all' && styles.chipTxtOn]}>Alle</Text>
-            </TouchableOpacity>
-            {childMembers.map((c) => {
-              const id = c.id || c.docId;
-              const on = filterChildId === id;
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.chip, on && styles.chipOn]}
-                  onPress={() => setFilterChildId(id)}
-                >
-                  <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{c.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <FilterMenu
+            groups={[{
+              id: 'child',
+              label: 'Barn',
+              value: filterChildId,
+              idle: 'all',
+              onChange: setFilterChildId,
+              options: [
+                { id: 'all', label: 'Alle' },
+                ...childMembers.map((child) => ({ id: child.id || child.docId, label: child.name })),
+              ],
+            }]}
+          />
 
           {!inShell ? (
             <TouchableOpacity style={styles.addBtn} onPress={openCreate} disabled={busy}>

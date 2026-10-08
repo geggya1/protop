@@ -19,6 +19,7 @@ import { askImportInterpret } from '../../src/imports/interpretClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import FilterMenu from '../../components/FilterMenu';
 import {
   absorbCompanyIntoProfile,
   applyProfessionalProfile,
@@ -697,21 +698,15 @@ export default function EmployeesScreen() {
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          <View style={styles.chips}>
-            {FILTERS.map(([id, label]) => {
-              const on = filter === id;
-              return (
-                <TouchableOpacity
-                  key={id}
-                  onPress={() => setFilter(id)}
-                  accessibilityRole="button"
-                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-                >
-                  <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <FilterMenu
+            groups={[{
+              id: 'status',
+              label: 'Status',
+              value: filter,
+              onChange: setFilter,
+              options: FILTERS.map(([id, label]) => ({ id, label })),
+            }]}
+          />
           <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>
               {`Medarbeidere som kan logge inn  ${stats.login} (+${stats.external} eksterne)`}

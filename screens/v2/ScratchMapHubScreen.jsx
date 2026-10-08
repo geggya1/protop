@@ -15,6 +15,7 @@ import ConfirmActionModal from '../../components/ConfirmActionModal';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import { DeskBtn } from '../../components/DeskBtn';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import ScratchWorldMap from '../../components/ScratchWorldMap';
 import { useApp } from '../../src/context/AppContext';
@@ -383,28 +384,18 @@ export default function ScratchMapHubScreen({
             />
           )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            <TouchableOpacity
-              style={[styles.filterPill, !memberFilter && styles.filterPillOn]}
-              onPress={() => setMemberFilter(null)}
-            >
-              <Text style={[styles.filterTxt, !memberFilter && styles.filterTxtOn]}>Hele familien</Text>
-            </TouchableOpacity>
-            {members.map((m) => {
-              const on = memberFilter === m.id;
-              return (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[styles.filterPill, on && styles.filterPillOn]}
-                  onPress={() => setMemberFilter(on ? null : m.id)}
-                >
-                  <Text style={[styles.filterTxt, on && styles.filterTxtOn]}>
-                    {m.name?.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <FilterMenu
+            groups={[{
+              id: 'member',
+              label: 'Hvem',
+              value: memberFilter || '',
+              onChange: (id) => setMemberFilter(id || null),
+              options: [
+                { id: '', label: 'Hele familien' },
+                ...members.map((member) => ({ id: member.id, label: member.name?.split(' ')[0] || member.name })),
+              ],
+            }]}
+          />
 
           <View style={styles.searchRow}>
             <Ionicons name="search" size={16} color={colors.muted} />
@@ -425,35 +416,33 @@ export default function ScratchMapHubScreen({
             ) : null}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            <TouchableOpacity
-              style={[styles.filterPill, !region && styles.filterPillOn]}
-              onPress={() => setRegion(null)}
-            >
-              <Text style={[styles.filterTxt, !region && styles.filterTxtOn]}>Alle regioner</Text>
-            </TouchableOpacity>
-            {REGIONS.map((r) => {
-              const on = region === r;
-              const reg = stats.byRegion[r];
-              return (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.filterPill, on && styles.filterPillOn]}
-                  onPress={() => setRegion(on ? null : r)}
-                >
-                  <Text style={[styles.filterTxt, on && styles.filterTxtOn]}>
-                    {r}{reg ? ` ${reg.visited}/${reg.total}` : ''}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            <TouchableOpacity
-              style={[styles.filterPill, onlyVisited && styles.filterPillOn]}
-              onPress={() => setOnlyVisited((v) => !v)}
-            >
-              <Text style={[styles.filterTxt, onlyVisited && styles.filterTxtOn]}>Kun besøkte</Text>
-            </TouchableOpacity>
-          </ScrollView>
+          <FilterMenu
+            groups={[
+              {
+                id: 'region',
+                label: 'Region',
+                value: region || '',
+                onChange: (id) => setRegion(id || null),
+                options: [
+                  { id: '', label: 'Alle regioner' },
+                  ...REGIONS.map((name) => {
+                    const reg = stats.byRegion[name];
+                    return { id: name, label: reg ? `${name} ${reg.visited}/${reg.total}` : name };
+                  }),
+                ],
+              },
+              {
+                id: 'visited',
+                label: 'Visning',
+                value: onlyVisited ? 'visited' : '',
+                onChange: (id) => setOnlyVisited(id === 'visited'),
+                options: [
+                  { id: '', label: 'Alle land' },
+                  { id: 'visited', label: 'Kun besøkte' },
+                ],
+              },
+            ]}
+          />
 
           <View style={styles.listHead}>
             <Text style={styles.sectionTitle}>{countries.length} land</Text>

@@ -16,6 +16,7 @@ import { AvatarBubble } from '../../components/AvatarPicker';
 import ChildArt from '../../components/ChildArt';
 import { DeskBtn } from '../../components/DeskBtn';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useModuleAsideSlot } from '../../src/hooks/useModuleAsideSlot';
 import { useApp } from '../../src/context/AppContext';
@@ -357,17 +358,15 @@ export default function RememberDatesHubScreen({
           </View>
         ) : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f.id}
-              style={[styles.filterChip, filter === f.id && styles.filterChipOn]}
-              onPress={() => setFilter(f.id)}
-            >
-              <Text style={[styles.filterTxt, filter === f.id && styles.filterTxtOn]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <FilterMenu
+          groups={[{
+            id: 'kind',
+            label: 'Type',
+            value: filter,
+            onChange: setFilter,
+            options: FILTERS.map((row) => ({ id: row.id, label: row.label })),
+          }]}
+        />
 
         {loading ? (
           <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />

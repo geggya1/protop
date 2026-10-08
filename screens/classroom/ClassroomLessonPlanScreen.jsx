@@ -12,6 +12,7 @@ import {
 } from '../../src/utils/classroom';
 import { dateKey, getISOWeek } from '../../src/utils/dates';
 import { useApp } from '../../src/context/AppContext';
+import FilterMenu from '../../components/FilterMenu';
 
 export default function ClassroomLessonPlanScreen({ classroomId, classroom }) {
   const { uid, activeProfile } = useApp();
@@ -77,22 +78,18 @@ export default function ClassroomLessonPlanScreen({ classroomId, classroom }) {
       <Text style={styles.lead}>
         Undervisningsplan er et eget modul — knyttet til fag, økter og læringsmål. Timeplanen viser når; planen viser hva og hvorfor.
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-        <View style={styles.chips}>
-          <TouchableOpacity style={[styles.chip, !filter && styles.chipOn]} onPress={() => setFilter('')}>
-            <Text style={[styles.chipTxt, !filter && styles.chipTxtOn]}>Alle fag</Text>
-          </TouchableOpacity>
-          {subjects.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              style={[styles.chip, filter === s.id && styles.chipOn]}
-              onPress={() => setFilter(s.id)}
-            >
-              <Text style={[styles.chipTxt, filter === s.id && styles.chipTxtOn]}>{s.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+      <FilterMenu
+        groups={[{
+          id: 'subject',
+          label: 'Fag',
+          value: filter,
+          onChange: setFilter,
+          options: [
+            { id: '', label: 'Alle fag' },
+            ...subjects.map((subject) => ({ id: subject.id, label: subject.name })),
+          ],
+        }]}
+      />
       {isAdmin && (
         <TouchableOpacity style={styles.cta} onPress={() => setOpen(true)}>
           <Ionicons name="add" size={18} color="#fff" />

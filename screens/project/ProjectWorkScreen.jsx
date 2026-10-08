@@ -18,6 +18,7 @@ import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { linkProject } from '../../src/anbud/lifecycle';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -891,15 +892,19 @@ export default function ProjectWorkScreen() {
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          <View style={styles.rowWrap}>
-            {[
-              ['', 'Alle'],
-              ['missing', 'Mangler avtale'],
-              ['ok', 'Med avtale'],
-            ].map(([id, label]) => (
-              <Chip key={id || 'all'} label={label} on={gapFilter === id} onPress={() => setGapFilter(id)} colors={colors} />
-            ))}
-          </View>
+          <FilterMenu
+            groups={[{
+              id: 'agreement',
+              label: 'Avtale',
+              value: gapFilter,
+              onChange: setGapFilter,
+              options: [
+                { id: '', label: 'Alle' },
+                { id: 'missing', label: 'Mangler avtale' },
+                { id: 'ok', label: 'Med avtale' },
+              ],
+            }]}
+          />
 
           {isAdmin && visibleProjects.length ? (
             <View style={styles.rowWrap}>

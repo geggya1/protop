@@ -21,6 +21,7 @@ import TenderHitCards from './TenderHitCards';
 import TenderMap from './TenderMap';
 import BidDecision from './BidDecision';
 import RegionCoverage from './RegionCoverage';
+import FilterMenu from '../../components/FilterMenu';
 import {
   deadlineInfo,
   formatNoticeText,
@@ -803,26 +804,52 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           ) : null}
         </View>
         <View style={styles.row}>
-          {FILTERS.map(([id, label, tone]) => (
-            <Chip
-              key={id}
-              label={label}
-              colors={colors}
-              count={filterCounts[id] || 0}
-              emphasis={tone === 'emphasis'}
-              on={filter === id}
-              onPress={() => setFilter(id)}
-            />
-          ))}
-          <Chip
-            label={sourceOpen || sourceFilter !== 'alle' || areaId ? 'Kilde og område' : 'Kilde og område'}
-            colors={colors}
-            on={sourceOpen || sourceFilter !== 'alle' || !!areaId}
-            onPress={() => setSourceOpen((value) => !value)}
-            hint="Vis filter for Doffin, TED og område"
+          <FilterMenu
+            groups={[
+              {
+                id: 'status',
+                label: 'Treff',
+                value: filter,
+                onChange: setFilter,
+                options: FILTERS.map(([id, label]) => ({ id, label: `${label} (${filterCounts[id] || 0})` })),
+              },
+              ...(phone ? [
+                {
+                  id: 'channel',
+                  label: 'Kanal',
+                  value: sourceFilter,
+                  idle: 'alle',
+                  onChange: setSourceFilter,
+                  options: [
+                    { id: 'alle', label: 'Alle kanaler' },
+                    { id: 'doffin', label: 'Doffin' },
+                    { id: 'ted', label: 'TED' },
+                  ],
+                },
+                {
+                  id: 'area',
+                  label: 'Område',
+                  value: areaId,
+                  onChange: setAreaId,
+                  options: [
+                    { id: '', label: 'Alle områder' },
+                    ...TENDER_AREAS.map((area) => ({ id: area.id, label: area.name })),
+                  ],
+                },
+              ] : []),
+            ]}
           />
+          {!phone ? (
+            <Chip
+              label="Kilde og område"
+              colors={colors}
+              on={sourceOpen || sourceFilter !== 'alle' || !!areaId}
+              onPress={() => setSourceOpen((value) => !value)}
+              hint="Vis filter for Doffin, TED og område"
+            />
+          ) : null}
         </View>
-        {sourceOpen ? (
+        {!phone && sourceOpen ? (
           <View style={[styles.sourceBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Kanal og område</Text>
             <View style={styles.row}>

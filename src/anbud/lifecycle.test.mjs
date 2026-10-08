@@ -7,6 +7,7 @@ import {
   awardContract,
   closeContract,
   contractAlerts,
+  deleteContract,
   executionBlockers,
   markOutcome,
   markSubmitted,
@@ -268,5 +269,36 @@ assert.equal(made.ok, true);
 assert.equal(made.state.bids[0].phase, 'trinn2');
 assert.equal(made.state.bids[0].stage, 'planlegging');
 assert.equal(made.state.bids[0].strategy.fag, false);
+
+const coverEdit = updateContractDetails(direct.state, direct.state.contracts[0].id, {
+  title: 'Madlalia · Oppdatert',
+  value: '2500',
+  start: '2025-12-01',
+  end: '2029-01-01',
+  buyer: 'Igang Totalentreprenør As',
+  fields: {
+    ...direct.state.contracts[0].fields,
+    place: 'Sandnes',
+    orgnr: '922987106',
+    contractDate: '2025-10-09',
+  },
+});
+assert.equal(coverEdit.ok, true, coverEdit.error);
+assert.equal(coverEdit.state.contracts[0].title, 'Madlalia · Oppdatert');
+assert.equal(coverEdit.state.contracts[0].value, 2500);
+assert.equal(coverEdit.state.contracts[0].fields.place, 'Sandnes');
+
+const withChild = registerDirectContract(frame.state, {
+  title: 'Avrop som skal slettes',
+  kind: 'avrop',
+  parentId: frame.state.contracts[0].id,
+  value: '100',
+});
+assert.equal(withChild.ok, true, withChild.error);
+const deleted = deleteContract(withChild.state, frame.state.contracts[0].id);
+assert.equal(deleted.ok, true, deleted.error);
+assert.equal(deleted.state.contracts.some((row) => row.id === frame.state.contracts[0].id), false);
+assert.equal(deleted.state.contracts.some((row) => row.parentId === frame.state.contracts[0].id), false);
+assert.equal(deleteContract(deleted.state, 'mangler').ok, false);
 
 console.log('lifecycle ok');

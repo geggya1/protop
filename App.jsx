@@ -123,6 +123,7 @@ import LocalPlayScreen from './screens/v2/LocalPlayScreen';
 import ChessScreen from './screens/v2/ChessScreen';
 import MemoryScreen from './screens/v2/MemoryScreen';
 import GamePreviewScreen from './screens/v2/GamePreviewScreen';
+import EmployeeDetailPreview from './screens/employees/EmployeeDetailPreview';
 import AiImportReviewScreen from './screens/AiImportReviewScreen';
 import BookshelfScreen from './screens/v2/BookshelfScreen';
 import AddBookScreen from './screens/v2/AddBookScreen';
@@ -868,6 +869,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         return 'GamePreview';
       }
       if (p === '/family-games-preview') return 'FamilyGamesPreview';
+      if (p === '/employee-detail-preview') return 'EmployeeDetailPreview';
       return null;
     } catch {
       return null;
@@ -1006,6 +1008,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="DashboardThemeGallery" component={DashboardThemeGalleryScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />
         <Stack.Screen name="GamePreview" component={GamePreviewScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="EmployeeDetailPreview" component={EmployeeDetailPreview} options={{ headerShown: false }} />
         <Stack.Screen
           name="FamilyGamesPreview"
           options={{ headerShown: false }}

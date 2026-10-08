@@ -499,26 +499,25 @@ export default function EmployeeDetailView({
                 </View>
               </View>
             </View>
+            {isSelf ? (
+              <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
+                <TouchableOpacity
+                  onPress={onPushProfile}
+                  accessibilityRole="button"
+                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>Bruk min profil her</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onPullToProfile}
+                  accessibilityRole="button"
+                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>Hent til min profil</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
-
-          {isSelf ? (
-            <View style={styles.inlineActions}>
-              <TouchableOpacity
-                onPress={onPushProfile}
-                accessibilityRole="button"
-                style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                <Text style={{ color: colors.ink }}>Bruk min profil her</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onPullToProfile}
-                accessibilityRole="button"
-                style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                <Text style={{ color: colors.ink }}>Hent til min profil</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
 
           {personalRows.length ? (
             <SectionCard
@@ -790,8 +789,21 @@ const styles = StyleSheet.create({
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   columnsPhone: { flexDirection: 'column' },
   mainCol: { flex: 1.65, gap: 12, minWidth: 0 },
-  sideCol: { flex: 1, gap: 12, minWidth: 260, maxWidth: 380 },
-  fullCol: { maxWidth: '100%', width: '100%', minWidth: 0 },
+  sideCol: {
+    flex: 1,
+    gap: 12,
+    minWidth: 260,
+    maxWidth: 380,
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 12, alignSelf: 'flex-start' } : {}),
+  },
+  fullCol: { maxWidth: '100%', width: '100%', minWidth: 0, position: 'relative', top: 0 },
+  heroFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 12,
+  },
   panel: {
     borderWidth: 1,
     borderRadius: 14,

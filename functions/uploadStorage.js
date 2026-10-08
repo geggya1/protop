@@ -1,5 +1,7 @@
 /**
  * Generell Storage-opplasting via Admin SDK — omgår Firebase Storage CORS i nettleseren.
+ * Bucket-CORS settes ikke her: Admin SDK trenger det ikke, og setCorsConfiguration
+ * på opplastingsstien kan henge / feile og blokkere CV-bilder.
  */
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
@@ -8,7 +10,6 @@ import { assertFamilyMember } from './security.js';
 import { ensureStorageCors } from './storageCors.js';
 
 const MAX_BASE64_BYTES = 15 * 1024 * 1024;
-const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
 
 export async function assertCanWriteObjectPath(db, uid, objectPath) {
   const path = String(objectPath || '').trim();
@@ -34,7 +35,8 @@ export async function handleUploadStorageFile(data, auth) {
 
   const objectPath = await assertCanWriteObjectPath(db, uid, data?.objectPath);
   const contentType = String(data?.contentType || 'application/octet-stream').slice(0, 120);
-  const fileBase64 = String(data?.fileBase64 || '');
+  // Klienten kan sende data-URL eller ren base64.
+  const fileBase64 = String(data?.fileBase64 || '').replace(/^data:[^;]+;base64,/i, '');
   if (!fileBase64) throw new Error('Mangler fil.');
 
   let buffer;
@@ -48,21 +50,29 @@ export async function handleUploadStorageFile(data, auth) {
     throw new Error('Filen er for stor for reservedelopplasting (maks 15 MB).');
   }
 
-  await ensureStorageCors();
-
   const token = randomUUID();
-  const bucket = getStorage().bucket(STORAGE_BUCKET);
+  // Samme default-bucket som album/dokument-opplasting — ikke hardkod
+  // *.firebasestorage.app (den bucketen finnes ikke i dette prosjektet).
+  const bucket = getStorage().bucket();
   const file = bucket.file(objectPath);
-  await file.save(buffer, {
-    metadata: {
-      contentType,
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
-  });
+  try {
+    await file.save(buffer, {
+      metadata: {
+        contentType,
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    if (/bucket does not exist|No such object|Not Found/i.test(msg)) {
+      throw new Error(`Lagringsbucket mangler (${bucket.name}).`);
+    }
+    throw err;
+  }
 
   const encoded = encodeURIComponent(objectPath);
   const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
-  return { downloadUrl, storagePath: objectPath, size: buffer.length };
+  return { downloadUrl, storagePath: objectPath, size: buffer.length, bucket: bucket.name };
 }
 
 /** Engangs/periodisk: sett bucket-CORS fra Admin SDK. */

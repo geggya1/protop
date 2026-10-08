@@ -60,16 +60,17 @@ async function runPool(items, limit, task) {
 /**
  * Laster data-URL-er opp før lagring, så dokumentet ikke blir for stort.
  * @param {(path: string, dataUrl: string) => Promise<string>} upload
- * @param {{ onProgress?: (info: { done: number, total: number, label: string }) => void }} [options]
+ * @param {{ onProgress?: (info: { done: number, total: number, label: string, lastError?: string }) => void }} [options]
  */
 export async function storeCvImages(employee, upload, options = {}) {
   const row = employee && typeof employee === 'object' ? employee : {};
   const id = row.id || 'cv';
   const total = countInlineCvImages(row);
   let done = 0;
+  let lastError = '';
   const report = (label) => {
     if (typeof options.onProgress === 'function') {
-      options.onProgress({ done, total, label });
+      options.onProgress({ done, total, label, lastError });
     }
   };
   report(total ? 'Laster opp bilder…' : 'Ingen bilder å laste opp');
@@ -86,8 +87,8 @@ export async function storeCvImages(employee, upload, options = {}) {
     try {
       const stored = await bump(`employees/${id}/photo`, photoUrl);
       if (stored && !isInline(stored)) photoUrl = stored;
-    } catch {
-      // Bildet blir liggende i utkastet til lagringen får plass.
+    } catch (err) {
+      lastError = String(err?.message || err || lastError);
       done += 1;
       report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
     }
@@ -104,7 +105,8 @@ export async function storeCvImages(employee, upload, options = {}) {
       try {
         const stored = await bump(`employees/${id}/projects/${project?.id || index}/${imageIndex}`, image);
         images.push(stored && !isInline(stored) ? stored : image);
-      } catch {
+      } catch (err) {
+        lastError = String(err?.message || err || lastError);
         done += 1;
         report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
         images.push(image);

@@ -62,7 +62,7 @@ export default function FormBuilderScreen({
 }) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
-  const { family } = useApp();
+  const { family, familyId } = useApp();
   const companyLogo = companyLogoOf(family?.company);
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
@@ -70,15 +70,16 @@ export default function FormBuilderScreen({
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState('');
 
   useEffect(() => {
     if (externalState) return undefined;
     let live = true;
-    loadAnbudState().then((loaded) => {
+    loadAnbudState(familyId).then((loaded) => {
       if (live) setLocalState(loaded);
     });
     return () => { live = false; };
-  }, [externalState]);
+  }, [externalState, familyId]);
 
   const state = externalState || localState;
   const templates = state?.formTemplates || [];
@@ -97,7 +98,7 @@ export default function FormBuilderScreen({
     }
     if (externalCommit) await externalCommit(result);
     else {
-      await saveAnbudState(result.state);
+      await saveAnbudState(result.state, familyId);
       setLocalState(result.state);
     }
     return result;
@@ -280,9 +281,27 @@ export default function FormBuilderScreen({
             <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template, { copy: true })); say(`Kopi av ${template.title}.`); }} accessibilityRole="button">
               <Text style={{ color: colors.brand }}>Kopier</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => commit(deleteFormTemplate(state, template.id))} accessibilityRole="button">
-              <Text style={{ color: colors.danger }}>Slett</Text>
-            </TouchableOpacity>
+            {pendingDelete === template.id ? (
+              <>
+                <Text style={{ color: colors.ink }}>Slette «{template.title}»?</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setPendingDelete('');
+                    commit(deleteFormTemplate(state, template.id));
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: colors.danger }}>Slett</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setPendingDelete('')} accessibilityRole="button">
+                  <Text style={{ color: colors.muted }}>Avbryt</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => setPendingDelete(template.id)} accessibilityRole="button">
+                <Text style={{ color: colors.danger }}>Slett</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       ))}

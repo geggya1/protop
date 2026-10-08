@@ -615,6 +615,17 @@ export default function CustomersScreen() {
         </View>
       ) : null}
 
+      {view === 'detail' && !state ? (
+        <Text style={{ color: colors.muted }}>Laster kunde…</Text>
+      ) : null}
+      {view === 'detail' && state && !selected ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.ink }}>Kunden finnes ikke i registeret.</Text>
+          <TouchableOpacity onPress={() => { setView('list'); setSelectedId(''); }} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Til kundelisten</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {view === 'detail' && selected ? (
         <View style={{ gap: 12 }}>
           <TouchableOpacity onPress={() => setView('list')} accessibilityRole="button">

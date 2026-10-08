@@ -355,6 +355,29 @@ export default function ArbeidScreen() {
     );
   }
 
+  if (!linked && !manager) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+        <Text style={[styles.title, { color: colors.ink }]}>Arbeid</Text>
+        <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480 }}>
+          Kontoen din er ikke koblet til en medarbeider. En administrator kan knytte brukeren din under Ansatte, så timeføringen vises her.
+        </Text>
+        <TouchableOpacity
+          onPress={() => requestShellTab?.('ansatte')}
+          style={[styles.cta, { backgroundColor: colors.brand, marginTop: 16 }]}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Gå til Ansatte</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const activeDay = days.find((day) => day.key === selectedDay)
+    || days.find((day) => day.key === todayKey)
+    || days[0];
+  const activeKey = activeDay?.key || selectedDay;
+  const activeBalance = balanceCells[Math.max(0, days.findIndex((day) => day.key === activeKey))] || 0;
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="arbeid-screen">
       <View style={styles.topBar}>
@@ -402,11 +425,88 @@ export default function ArbeidScreen() {
         />
       </View>
 
+      {isPhone ? (
+        <ScrollView
+          style={[styles.gridScroll, { borderColor: colors.line, backgroundColor: colors.card }]}
+          contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 20 }}
+        >
+          <ScrollView horizontal showsHorizontalScrollIndicator>
+            <View style={styles.dayStrip}>
+              {days.map((day) => {
+                const on = day.key === activeKey;
+                return (
+                  <TouchableOpacity
+                    key={day.key}
+                    onPress={() => setSelectedDay(day.key)}
+                    accessibilityRole="button"
+                    style={[
+                      styles.dayChip,
+                      {
+                        borderColor: on ? colors.brand : colors.line,
+                        backgroundColor: on ? `${colors.brand}18` : colors.bg,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: day.weekend ? (colors.danger || '#dc2626') : colors.ink, fontSize: 12 }}>
+                      {dayLabel(day)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+          <Text style={{ color: colors.ink }}>
+            Avtalte timer {formatHours(agreedByDay.get(activeKey) || 0)}
+            {' · '}
+            Ført {formatHours(workedByDay.get(activeKey) || 0)}
+            {' · '}
+            Balanse {formatHours(activeBalance, { signed: true })}
+          </Text>
+          {myProjects.map(({ project, member, starred }) => {
+            const cell = entriesByCell.get(entryKey(project.id, activeKey));
+            const hours = cell ? parseHours(cell.hours) : 0;
+            return (
+              <TouchableOpacity
+                key={project.id}
+                onPress={() => openCell(project, activeDay)}
+                accessibilityRole="button"
+                accessibilityLabel={`Registrer timer ${project.name} ${activeKey}`}
+                style={[styles.phoneProject, { borderColor: colors.line, backgroundColor: colors.bg }]}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>
+                    #{project.number} {project.name}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                    {project.client || '—'} · {member?.role || 'Deltaker'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => starProject(member?.id)} hitSlop={8} accessibilityRole="button">
+                  <Ionicons
+                    name={starred ? 'star' : 'star-outline'}
+                    size={18}
+                    color={starred ? (colors.star || '#e2a325') : colors.muted}
+                  />
+                </TouchableOpacity>
+                <Text style={{ color: hours ? colors.ink : colors.placeholder, fontWeight: '700', minWidth: 48, textAlign: 'right' }}>
+                  {hours ? formatHours(hours) : '0:00'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          {!myProjects.length ? (
+            <Text style={{ color: colors.muted }}>
+              Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet.
+            </Text>
+          ) : null}
+        </ScrollView>
+      ) : null}
+      {!isPhone ? (
       <ScrollView
-        horizontal={!isPhone}
+        horizontal
         nestedScrollEnabled
         style={[styles.gridScroll, { borderColor: colors.line, backgroundColor: colors.card }]}
-        contentContainerStyle={!isPhone ? { minWidth: gridMinWidth } : undefined}
+        contentContainerStyle={{ minWidth: gridMinWidth }}
       >
         <ScrollView nestedScrollEnabled>
           {/* Uker */}
@@ -563,11 +663,12 @@ export default function ArbeidScreen() {
           ) : null}
         </ScrollView>
       </ScrollView>
+      ) : null}
 
       <View style={styles.footer}>
         <TouchableOpacity
           onPress={() => setAddProjectOpen(true)}
-          style={[styles.cta, { backgroundColor: '#0d9488' }]}
+          style={[styles.cta, { backgroundColor: '#0d9488' }, isPhone && styles.ctaPhone]}
           accessibilityRole="button"
         >
           <Ionicons name="add" size={18} color="#fff" />
@@ -578,7 +679,7 @@ export default function ArbeidScreen() {
             setAbsenceForm({ type: 'ferie', hours: '7:30', description: '', date: selectedDay || todayKey });
             setAbsenceOpen(true);
           }}
-          style={[styles.cta, { backgroundColor: '#0f766e' }]}
+          style={[styles.cta, { backgroundColor: '#0f766e' }, isPhone && styles.ctaPhone]}
           accessibilityRole="button"
         >
           <Ionicons name="add" size={18} color="#fff" />
@@ -586,7 +687,7 @@ export default function ArbeidScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => requestShellTab?.('projects')}
-          style={[styles.ctaGhost, { borderColor: colors.line }]}
+          style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
         >
           <Text style={{ color: colors.ink }}>Åpne prosjekt</Text>
         </TouchableOpacity>
@@ -803,6 +904,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   ctaText: { color: '#fff', fontWeight: '600' },
+  ctaPhone: { alignSelf: 'stretch', justifyContent: 'center' },
+  dayStrip: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
+  dayChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, minWidth: 64, alignItems: 'center' },
+  phoneProject: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
   ctaGhost: {
     borderWidth: 1,
     borderRadius: 8,

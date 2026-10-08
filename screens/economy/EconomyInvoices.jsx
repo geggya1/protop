@@ -290,8 +290,8 @@ function InvoiceDetail({
         <View key={section.id} style={[styles.section, { borderColor: colors.line }]}>
           <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
           {section.rows.map(([label, value]) => (
-            <View key={`${section.id}-${label}`} style={[styles.detailRow, { borderBottomColor: colors.line }]}>
-              <Text style={[styles.detailLabel, { color: colors.muted }]}>{label}</Text>
+            <View key={`${section.id}-${label}`} style={[styles.detailRow, !wide && styles.detailRowStack, { borderBottomColor: colors.line }]}>
+              <Text style={[styles.detailLabel, !wide && styles.detailLabelStack, { color: colors.muted }]}>{label}</Text>
               <Text style={[styles.detailValue, { color: colors.ink }]}>{value}</Text>
             </View>
           ))}
@@ -1036,7 +1036,9 @@ const styles = StyleSheet.create({
   section: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   sectionTitle: { fontWeight: '700', paddingHorizontal: 12, paddingVertical: 10 },
   detailRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  detailRowStack: { flexDirection: 'column', gap: 2 },
   detailLabel: { width: 180, flexShrink: 0, fontSize: 13 },
+  detailLabelStack: { width: 'auto' },
   detailValue: { flex: 1, fontSize: 13 },
   lineHead: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
   lineRow: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },

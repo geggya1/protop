@@ -7,7 +7,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
-import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
+import { photoErrorMessage, pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
 import { projectSheetFile } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { cvAttention } from '../../src/employees/cvReview';
@@ -75,7 +75,7 @@ const FILTERS = [
 
 export default function EmployeesScreen() {
   const colors = useColors();
-  const { familyId, family, members, uid, user, userProfile, isAdmin } = useApp();
+  const { familyId, family, members, uid, user, userProfile, isAdmin, requestShellTab } = useApp();
   const companyName = family?.company?.navn || family?.name || '';
   const departments = useMemo(
     () => departmentsOf(family?.company?.subUnits || []),
@@ -492,7 +492,7 @@ export default function EmployeesScreen() {
       const url = await uploadImage(`families/${familyId || 'personal'}/employees/${id}/photo`, picked);
       setDraft((current) => ({ ...current, id, person: { ...current.person, photoUrl: url } }));
     } catch (err) {
-      setError(err?.message || 'Kunne ikke laste opp bildet.');
+      setError(photoErrorMessage(err));
     }
   }
 
@@ -858,6 +858,10 @@ export default function EmployeesScreen() {
           onBack={openList}
           onEdit={() => openEdit(selected)}
           onCv={() => openCv(selected)}
+          onOpenProject={(project) => {
+            if (!project?.id) return;
+            requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
+          }}
           onSelect={openDetail}
           onPushProfile={pushProfile}
           onPullToProfile={pullToProfile}

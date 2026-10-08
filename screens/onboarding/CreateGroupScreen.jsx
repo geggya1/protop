@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform,
   Image, ScrollView, Animated, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../../firebase';
 import { useI18n } from '../../src/i18n';
+import { notifyUser } from '../../src/utils/dialog';
 import { useApp } from '../../src/context/AppContext';
 import { colors, radius } from '../../src/theme';
 import { GROUP_TYPES } from '../../src/data/avatars';
@@ -193,7 +194,7 @@ export default function CreateGroupScreen({ navigation, route }) {
       openPlatformHome(navigation, 'organization');
     } catch (err) {
       setSaving(false);
-      Alert.alert(t('common.error'));
+      notifyUser(t('common.error'), err?.message || t('common.error'));
     }
   };
 

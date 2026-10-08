@@ -125,6 +125,15 @@ function companyAllowIds() {
   return ids;
 }
 
+/**
+ * Tablet-rail bruker id `friends` direkte. Venner ligger som Mer-underside,
+ * samme vei som skuff og bunnmeny.
+ */
+export function normalizeShellSelection(id, subView = null) {
+  if (id === 'friends') return { tab: 'more', subView: 'friends' };
+  return { tab: id, subView: subView || null };
+}
+
 export function isNavItemActive(item, activeTab, activeSubView) {
   const action = item?.action;
   if (!action || action.type !== 'tab') return false;

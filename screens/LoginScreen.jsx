@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator,
-  Platform, useWindowDimensions,
+  Platform, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -66,8 +66,9 @@ function withDeadline(promise, ms, label) {
 }
 
 /**
- * Login card — Twitter-style:
- * Google & Apple → OR → username/password → Log in → forgot / sign up
+ * Login card:
+ * Google, Microsoft & Apple → OR → username/password → Log in → sign up
+ * Privacy and terms sit last, under the sign-in action.
  */
 export default function LoginScreen({ navigation }) {
   const { t, lang } = useI18n();
@@ -371,20 +372,16 @@ export default function LoginScreen({ navigation }) {
           <View style={{ height: 12 }} />
         )}
 
+        <ScrollView
+          contentContainerStyle={styles.scrollBody}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={[styles.card, wide && styles.cardWide]}>
           <BrandLogo variant="full" height={56} maxWidth={320} style={styles.logoImg} />
           <Text style={styles.heading}>{t('auth.loginTitle')}</Text>
           <Text style={styles.sub}>{t('auth.loginSocialHint')}</Text>
           <PendingAddFriendBanner />
-
-          <SignInLegalConsent
-            accepted={legalOk}
-            showError={legalError}
-            onAcceptedChange={(next) => {
-              setLegalOk(next);
-              if (next) setLegalError(false);
-            }}
-          />
 
           <SocialAuthButtons
             busy={busy}
@@ -440,24 +437,16 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.infoText}>E-posten er ikke bekreftet (sjekk e-post/spam).</Text>
           )}
 
-          {loading ? (
-            <ActivityIndicator size="large" style={{ marginVertical: 14 }} color={colors.brand} />
-          ) : (
-            <TouchableOpacity
-              style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
-              onPress={handleLogin}
-              disabled={busy}
-            >
-              <Text style={styles.primaryBtnText}>{t('auth.loginTitle')}</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.signupRow}>
-            <Text style={styles.signupMuted}>{t('auth.noAccount')} </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={busy}>
-              <Text style={styles.linkInline}>{t('auth.signUpLink')}</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.primaryBtn, busy && styles.primaryBtnDisabled]}
+            onPress={handleLogin}
+            disabled={busy}
+            accessibilityRole="button"
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.primaryBtnText}>{t('auth.loginTitle')}</Text>}
+          </TouchableOpacity>
 
           {unverifiedInfo && (
             <TouchableOpacity
@@ -470,7 +459,25 @@ export default function LoginScreen({ navigation }) {
                 : <Text style={styles.secondaryBtnText}>Send bekreftelsesmail på nytt</Text>}
             </TouchableOpacity>
           )}
+
+          <View style={styles.signupRow}>
+            <Text style={styles.signupMuted}>{t('auth.noAccount')} </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={busy}>
+              <Text style={styles.linkInline}>{t('auth.signUpLink')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <SignInLegalConsent
+            footer
+            accepted={legalOk}
+            showError={legalError}
+            onAcceptedChange={(next) => {
+              setLegalOk(next);
+              if (next) setLegalError(false);
+            }}
+          />
         </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -482,6 +489,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   safe: { flex: 1, paddingHorizontal: 16 },
+  scrollBody: { flexGrow: 1, paddingBottom: 24 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
   backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
   card: {
@@ -537,16 +545,21 @@ const styles = StyleSheet.create({
   errorText: { color: colors.danger, marginBottom: 10, fontSize: 13, fontWeight: '400' },
   infoText: { color: colors.brand, marginBottom: 10, fontSize: 12, fontWeight: '400' },
   primaryBtn: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
+    width: '100%',
     backgroundColor: colors.brand,
-    paddingVertical: 15,
+    paddingVertical: 16,
+    paddingHorizontal: 22,
     borderRadius: radius.pill,
     alignItems: 'center',
-    minHeight: 50,
+    minHeight: 52,
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.brand,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '400', fontSize: 16 },
+  primaryBtnDisabled: { opacity: 0.6 },
+  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16, letterSpacing: 0.2 },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },

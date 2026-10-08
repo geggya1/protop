@@ -9,15 +9,16 @@ import { acceptLegalConsents } from '../src/utils/consents';
 /**
  * Privacy and terms on the sign-in card (Google / Microsoft / Apple / email).
  * Replaces the standalone «Før vi starter» screen.
+ * `footer` pins the block under the sign-in action, as the last thing on the card.
  */
-export default function SignInLegalConsent({ accepted, onAcceptedChange, showError }) {
+export default function SignInLegalConsent({ accepted, onAcceptedChange, showError, footer = false }) {
   const { t } = useI18n();
   const [docOpen, setDocOpen] = useState(false);
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, footer && styles.wrapFooter]}>
       <TouchableOpacity
-        style={styles.linkBtn}
+        style={[styles.linkBtn, footer && styles.linkBtnFooter]}
         onPress={() => setDocOpen(true)}
         accessibilityRole="button"
       >
@@ -44,6 +45,13 @@ export async function persistSignInConsent(lang) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 16, gap: 10 },
+  wrapFooter: {
+    marginTop: 8,
+    marginBottom: 0,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
   linkBtn: {
     alignSelf: 'flex-start',
     backgroundColor: colors.sunken,
@@ -53,6 +61,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.brandSoft,
   },
+  linkBtnFooter: { alignSelf: 'stretch' },
   linkTxt: { fontWeight: '400', fontSize: 15, color: colors.brand },
   linkHint: { marginTop: 2, color: colors.muted, fontWeight: '400', fontSize: 13 },
   check: { minHeight: 40, alignItems: 'flex-start' },

@@ -6,6 +6,7 @@ import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { colors, useLayout } from '../../src/theme';
+import FilterMenu from '../../components/FilterMenu';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth,
   WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
@@ -776,33 +777,19 @@ export default function RewardsScreen({ variant = 'auto' }) {
               </Text>
             )}
 
-            <View style={[styles.filterRow, isDesktop && styles.filterRowDesk]}>
-              {[
-                ['open', 'Åpne'],
-                ['done', doneCount > 0 ? `Ferdig (${doneCount})` : 'Ferdig'],
-                ['trash', trashCount > 0 ? `Papirkurv (${trashCount})` : 'Papirkurv'],
-              ].map(([k, label]) => (
-                <TouchableOpacity
-                  key={k}
-                  style={[
-                    styles.filterBtn,
-                    isDesktop && styles.filterBtnDesk,
-                    taskFilter === k && styles.filterOn,
-                  ]}
-                  onPress={() => setTaskFilter(k)}
-                >
-                  <Text
-                    style={[
-                      styles.filterTxt,
-                      isDesktop && styles.filterTxtDesk,
-                      taskFilter === k && styles.filterTxtOn,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <FilterMenu
+              groups={[{
+                id: 'tasks',
+                label: 'Vis',
+                value: taskFilter,
+                onChange: setTaskFilter,
+                options: [
+                  { id: 'open', label: 'Åpne' },
+                  { id: 'done', label: doneCount > 0 ? `Ferdig (${doneCount})` : 'Ferdig' },
+                  { id: 'trash', label: trashCount > 0 ? `Papirkurv (${trashCount})` : 'Papirkurv' },
+                ],
+              }]}
+            />
 
             <View style={[styles.listCard, isDesktop && styles.listCardDesk]}>
               <Text style={[styles.listSection, isDesktop && styles.listSectionDesk]}>

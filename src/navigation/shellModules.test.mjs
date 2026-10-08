@@ -350,7 +350,11 @@ const economyIndex = readFileSync(new URL('../../screens/economy/EconomyIndex.js
 assert.match(economyIndex, /draftFromRegisteredContract/);
 assert.match(economyIndex, /fetchSeriesById/);
 assert.match(economyIndex, /Påkrevd for beregningen/);
+const filterMenu = readFileSync(new URL('../../components/FilterMenu.jsx', import.meta.url), 'utf8');
+assert.match(filterMenu, /Filter og sortering/);
+assert.match(filterMenu, /nativeID="filter-menu"/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
+assert.match(customerScreen, /FilterMenu/);
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);

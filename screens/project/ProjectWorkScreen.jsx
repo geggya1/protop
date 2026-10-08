@@ -1396,23 +1396,21 @@ export default function ProjectWorkScreen() {
         </Text>
       ) : null}
 
-      {!visibleProjects.length ? (
-        <Text style={{ color: colors.muted }}>Ingen prosjekter ennå.</Text>
-      ) : null}
+      <View style={styles.tableToolbar}>
+        <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
+          {!visibleProjects.length
+            ? 'Ingen prosjekter ennå.'
+            : `${visibleProjects.length} prosjekter${isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
+        </Text>
+        <ColumnSettingsMenu
+          visibleKeys={visibleKeys}
+          onChange={saveVisibleColumns}
+          onReset={resetVisibleColumns}
+        />
+      </View>
 
       {visibleProjects.length ? (
         <View style={listDesk ? styles.tableGrow : null}>
-          <View style={styles.tableToolbar}>
-            <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
-              {visibleProjects.length} prosjekter
-              {isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}
-            </Text>
-            <ColumnSettingsMenu
-              visibleKeys={visibleKeys}
-              onChange={saveVisibleColumns}
-              onReset={resetVisibleColumns}
-            />
-          </View>
           <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin} columns={listColumns}>
             {!isPhone ? (
               <View

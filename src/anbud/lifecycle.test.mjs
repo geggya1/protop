@@ -14,6 +14,7 @@ import {
   normalizeBidRecord,
   openExecution,
   registerDirectContract,
+  restoreContract,
   regulatoryChecks,
   updateContractDetails,
   setMilestoneStatus,
@@ -297,8 +298,17 @@ const withChild = registerDirectContract(frame.state, {
 assert.equal(withChild.ok, true, withChild.error);
 const deleted = deleteContract(withChild.state, frame.state.contracts[0].id);
 assert.equal(deleted.ok, true, deleted.error);
-assert.equal(deleted.state.contracts.some((row) => row.id === frame.state.contracts[0].id), false);
-assert.equal(deleted.state.contracts.some((row) => row.parentId === frame.state.contracts[0].id), false);
+const trashedParent = deleted.state.contracts.find((row) => row.id === frame.state.contracts[0].id);
+const trashedChild = deleted.state.contracts.find((row) => row.parentId === frame.state.contracts[0].id);
+assert.ok(trashedParent?.deletedAt, 'forelder skal ligge i papirkurven');
+assert.ok(trashedChild?.deletedAt, 'underavtale skal følge med til papirkurven');
+assert.equal(deleteContract(deleted.state, frame.state.contracts[0].id).ok, false);
 assert.equal(deleteContract(deleted.state, 'mangler').ok, false);
+
+const fromTrash = restoreContract(deleted.state, frame.state.contracts[0].id);
+assert.equal(fromTrash.ok, true, fromTrash.error);
+assert.equal(fromTrash.state.contracts.find((row) => row.id === frame.state.contracts[0].id)?.deletedAt || '', '');
+assert.equal(fromTrash.state.contracts.find((row) => row.parentId === frame.state.contracts[0].id)?.deletedAt || '', '');
+assert.equal(restoreContract(fromTrash.state, frame.state.contracts[0].id).ok, false);
 
 console.log('lifecycle ok');

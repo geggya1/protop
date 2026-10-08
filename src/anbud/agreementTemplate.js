@@ -184,6 +184,7 @@ export function parentOptions(contracts, currentId = '') {
     row?.id
     && row.id !== currentId
     && row.status !== 'avsluttet'
+    && !row.deletedAt
     && (row.kind === 'rammeavtale' || row.kind === 'oppdrag')
   ));
 }
@@ -191,5 +192,5 @@ export function parentOptions(contracts, currentId = '') {
 export function childAgreements(contracts, parentId) {
   const id = String(parentId || '');
   if (!id) return [];
-  return (Array.isArray(contracts) ? contracts : []).filter((row) => row?.parentId === id);
+  return (Array.isArray(contracts) ? contracts : []).filter((row) => row?.parentId === id && !row.deletedAt);
 }

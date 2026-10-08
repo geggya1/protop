@@ -228,7 +228,11 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
+<<<<<<< HEAD
   const { familyId, requestShellTab, isAdmin, uid, shellIntent, clearShellIntent } = useApp();
+=======
+  const { familyId, requestShellTab, isAdmin, shellIntent, clearShellIntent } = useApp();
+>>>>>>> e211718 (Legg til Faktura-modul under Økonomi med Excel-import)
   const cachedProjects = peekProjectState();
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -331,6 +335,7 @@ export default function ProjectWorkScreen() {
   }, [state, ready]);
 
   useEffect(() => {
+<<<<<<< HEAD
     if (skipColumnSave.current) {
       skipColumnSave.current = false;
       return;
@@ -340,6 +345,13 @@ export default function ProjectWorkScreen() {
       JSON.stringify({ visible: visibleKeys }),
     ).catch(() => { /* lagring er valgfri */ });
   }, [uid, visibleKeys]);
+=======
+    if (shellIntent?.type !== 'openProject' || !shellIntent.projectId) return;
+    setSelectedId(shellIntent.projectId);
+    setView('edit');
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
+>>>>>>> e211718 (Legg til Faktura-modul under Økonomi med Excel-import)
 
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];

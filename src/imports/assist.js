@@ -13,6 +13,11 @@ import {
   previewEmployeeTable,
 } from '../employees/import.js';
 import {
+  invoiceColumnField,
+  planInvoiceImport,
+  readInvoiceTable,
+} from '../economy/invoiceImport.js';
+import {
   assignmentMap,
   claimAssignments,
   columnsNeedingHelp,
@@ -24,7 +29,7 @@ import {
   tableToCsv,
 } from './interpret.js';
 
-const MAX_BYTES = 4_000_000;
+const MAX_BYTES = 8_000_000;
 
 function asBytes(bytes) {
   const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
@@ -162,6 +167,95 @@ export async function readEmployeeImport(bytes, filename, options = {}, ask) {
     return { ...next, interpretation: { engine: result?.engine || 'gemini', summary: result?.summary || '' } };
   } catch (err) {
     if (plan) return plan;
+    throw localError || err;
+  }
+}
+
+function invoiceHeaderSlice(table) {
+  let best = 0;
+  let score = -1;
+  for (let index = 0; index < Math.min((table || []).length, 8); index += 1) {
+    const rank = (table[index] || []).filter((cell) => invoiceColumnField(cell)).length;
+    if (rank > score) {
+      score = rank;
+      best = index;
+    }
+  }
+  return (table || []).slice(best);
+}
+
+/**
+ * Leser fakturaliste lokalt, og spør OCR/AI ved ukjente kolonner eller skannet PDF/bilde.
+ * options: { existingInvoices, customers, projects, familyId }
+ */
+export async function readInvoiceImport(bytes, filename, options = {}, ask) {
+  const raw = asBytes(bytes);
+  const media = fileMedia(raw, filename);
+  const {
+    familyId,
+    existingInvoices = [],
+    customers = [],
+    projects = [],
+  } = options;
+
+  if (media.kind !== 'table') {
+    if (!ask || !familyId) {
+      throw new Error('Skannede fakturaer leses med OCR og AI. Åpne selskapet og prøv igjen — eller bruk Excel.');
+    }
+    const result = await ask({
+      mode: 'ocr', kind: 'invoices', familyId, filename, media, bytes: raw,
+    });
+    const clean = sanitizeOcrRows(result, 'invoices');
+    const table = objectsToTable(clean.rows);
+    if (!table[0]?.length) throw new Error(result?.summary || 'AI fant ingen fakturaer i dokumentet.');
+    const mapped = [];
+    const headers = table[0] || [];
+    for (const cells of table.slice(1)) {
+      const row = { accounts: {}, _filename: filename, _importedAt: new Date().toISOString(), _sourceValues: {} };
+      headers.forEach((header, index) => {
+        const value = String(cells?.[index] ?? '').trim();
+        const field = invoiceColumnField(header) || header;
+        row._sourceValues[header] = value;
+        if (field && value) row[field] = value;
+      });
+      if (row.invoiceNumber || row.customerName) mapped.push(row);
+    }
+    if (!mapped.length) throw new Error(result?.summary || 'AI fant ingen fakturaer i dokumentet.');
+    const plan = planInvoiceImport(existingInvoices, customers, projects, mapped);
+    return { ...plan, interpretation: { engine: result?.engine || 'ocr+gemini', summary: result?.summary || '' } };
+  }
+
+  let rows = null;
+  let localError = null;
+  try {
+    rows = await readInvoiceTable(raw, filename);
+  } catch (err) {
+    localError = err;
+  }
+
+  const tables = await readSpreadsheetTables(raw, filename).catch(() => []);
+  const table = invoiceHeaderSlice(tables[0]?.table || []);
+  const gaps = columnsNeedingHelp(table, invoiceColumnField);
+  if (!gaps.length || !ask || !familyId) {
+    if (!rows?.length) throw localError || new Error('Fant ingen fakturaliste.');
+    return planInvoiceImport(existingInvoices, customers, projects, rows);
+  }
+  try {
+    const preview = tablePreview(table);
+    const result = await ask({
+      mode: 'columns',
+      kind: 'invoices',
+      familyId,
+      filename,
+      headers: preview.headers,
+      samples: preview.samples,
+    });
+    const claimed = claimedFrom(table, invoiceColumnField, result?.columns);
+    const assisted = await readInvoiceTable(raw, filename, { columnFields: claimed });
+    const plan = planInvoiceImport(existingInvoices, customers, projects, assisted);
+    return { ...plan, interpretation: { engine: result?.engine || 'gemini', summary: result?.summary || '' } };
+  } catch (err) {
+    if (rows?.length) return planInvoiceImport(existingInvoices, customers, projects, rows);
     throw localError || err;
   }
 }

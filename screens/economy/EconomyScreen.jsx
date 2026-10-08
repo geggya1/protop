@@ -17,6 +17,7 @@ import EconomyContracts from './EconomyContracts';
 import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
+import EconomyInvoices from './EconomyInvoices';
 import EconomyWelcome from './EconomyWelcome';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
@@ -161,6 +162,18 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           onOpenIndex={openIndex}
         />
       </ScrollView>
+    );
+  }
+
+  if (page === 'faktura') {
+    return (
+      <EconomyInvoices
+        familyId={familyId}
+        customers={customers}
+        projects={projects}
+        onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+        onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
+      />
     );
   }
 

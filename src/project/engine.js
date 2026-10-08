@@ -7,6 +7,14 @@ import {
   costCode,
   defaultProcedures,
 } from './catalog.js';
+import {
+  PROJECT_AUTO_KEYS,
+  PROJECT_LEGACY_KEYS,
+  feeEstimateFromSettings,
+  normalizePricingModel,
+  normalizePricingSettings,
+  scrubProjectState,
+} from './projectFields.js';
 
 export function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -54,7 +62,8 @@ export function normalizeProjectState(raw) {
   if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {
     next.activeProjectId = next.projects[0]?.id || null;
   }
-  return next;
+  // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
+  return scrubProjectState(next);
 }
 
 function fail(state, error) {
@@ -76,6 +85,7 @@ function requireProject(state, projectId) {
 export const PROJECT_DETAIL_KEYS = [
   'supplierLabel',
   'customerTags',
+  'parentProjectId',
   'parentNumber',
   'parentName',
   'department',
@@ -84,7 +94,7 @@ export const PROJECT_DETAIL_KEYS = [
   'statusComment',
   'openedAt',
   'createdBy',
-  'customer',
+  'start',
   'end',
   'customerSegment',
   'marketArea',
@@ -137,9 +147,14 @@ const PROJECT_NUMERIC_KEYS = new Set([
   'expectedProfitFactor',
 ]);
 
+const PROJECT_NULL_ON_SAVE = new Set([...PROJECT_AUTO_KEYS, ...PROJECT_LEGACY_KEYS]);
+
 function detailValue(key, value) {
+  if (PROJECT_NULL_ON_SAVE.has(key)) return null;
+  if (key === 'parentProjectId') return text(value) || null;
+  if (key === 'pricingModel') return normalizePricingModel(value);
   if (PROJECT_NUMERIC_KEYS.has(key)) {
-    if (value === '' || value == null) return '';
+    if (value === '' || value == null) return null;
     const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
     return Number.isFinite(n) ? n : text(value);
   }
@@ -172,16 +187,112 @@ function projectLinks(input = {}) {
   };
 }
 
+function normalizeDocRows(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((doc) => {
+      if (!doc || typeof doc !== 'object') return null;
+      const name = text(doc.name) || text(doc.title) || 'Dokument';
+      return {
+        id: text(doc.id) || createId('pdoc'),
+        name,
+        title: text(doc.title) || name,
+        url: text(doc.url),
+        storagePath: text(doc.storagePath),
+        mimeType: text(doc.mimeType),
+        size: Number(doc.size) || 0,
+        source: text(doc.source) || 'upload',
+        sourceId: text(doc.sourceId),
+        uploadedAt: text(doc.uploadedAt) || '',
+      };
+    })
+    .filter(Boolean);
+}
+
 export function projectDetails(input = {}, current = {}) {
   const details = {};
   for (const key of PROJECT_DETAIL_KEYS) {
     if (key === 'place') continue;
+    if (PROJECT_NULL_ON_SAVE.has(key)) {
+      details[key] = null;
+      continue;
+    }
     if (input[key] !== undefined) details[key] = detailValue(key, input[key]);
-    else if (current[key] !== undefined) details[key] = current[key];
-    else details[key] = '';
+    else if (current[key] !== undefined) details[key] = detailValue(key, current[key]);
+    else details[key] = key === 'parentProjectId' || PROJECT_NUMERIC_KEYS.has(key) ? null : '';
   }
   details.place = composePlace(input, current);
+  details.pricingModel = normalizePricingModel(
+    input.pricingModel !== undefined ? input.pricingModel : current.pricingModel,
+  );
+  const settingsInput = input.pricingSettings !== undefined
+    ? input.pricingSettings
+    : (current.pricingSettings || {});
+  details.pricingSettings = normalizePricingSettings(
+    { ...settingsInput, feeEstimate: input.feeEstimate ?? current.feeEstimate },
+    details.pricingModel,
+  );
+  const fee = feeEstimateFromSettings(details.pricingModel, details.pricingSettings);
+  details.feeEstimate = fee === '' ? null : fee;
+  if (input.agreementDocuments !== undefined) {
+    details.agreementDocuments = normalizeDocRows(input.agreementDocuments);
+  } else if (current.agreementDocuments !== undefined) {
+    details.agreementDocuments = normalizeDocRows(current.agreementDocuments);
+  } else {
+    details.agreementDocuments = [];
+  }
+  if (input.offerDocuments !== undefined) {
+    details.offerDocuments = normalizeDocRows(input.offerDocuments);
+  } else if (current.offerDocuments !== undefined) {
+    details.offerDocuments = normalizeDocRows(current.offerDocuments);
+  } else {
+    details.offerDocuments = [];
+  }
   return details;
+}
+
+/** Legg til avtaledokumenter på prosjektet. */
+export function addProjectAgreementDocuments(state, projectId, files = []) {
+  const current = state.projects.find((p) => p.id === projectId);
+  if (!current) return fail(state, 'Prosjektet finnes ikke.');
+  const rows = normalizeDocRows(files).map((doc) => ({
+    ...doc,
+    source: doc.source || 'upload',
+    uploadedAt: doc.uploadedAt || new Date().toISOString(),
+  }));
+  if (!rows.length) return fail(state, 'Ingen dokumenter å legge til.');
+  const agreementDocuments = [...normalizeDocRows(current.agreementDocuments), ...rows];
+  return updateProject(state, projectId, { agreementDocuments });
+}
+
+/** Overfør tilbudsdokumenter til prosjektet (rød tråd fra tilbudsmodulen). */
+export function attachOfferDocuments(state, projectId, files = []) {
+  const current = state.projects.find((p) => p.id === projectId);
+  if (!current) return fail(state, 'Prosjektet finnes ikke.');
+  const rows = normalizeDocRows(files).map((doc) => ({
+    ...doc,
+    source: doc.source || 'tilbud',
+    uploadedAt: doc.uploadedAt || new Date().toISOString(),
+  }));
+  if (!rows.length) return fail(state, 'Ingen tilbudsdokumenter å overføre.');
+  const existing = normalizeDocRows(current.offerDocuments);
+  const seen = new Set(existing.map((doc) => `${doc.sourceId}|${doc.url}|${doc.name}`));
+  const merged = [...existing];
+  for (const row of rows) {
+    const key = `${row.sourceId}|${row.url}|${row.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+  return updateProject(state, projectId, { offerDocuments: merged });
+}
+
+export function removeProjectDocument(state, projectId, docId, kind = 'agreement') {
+  const current = state.projects.find((p) => p.id === projectId);
+  if (!current) return fail(state, 'Prosjektet finnes ikke.');
+  const key = kind === 'offer' ? 'offerDocuments' : 'agreementDocuments';
+  const list = normalizeDocRows(current[key]).filter((doc) => doc.id !== docId);
+  return updateProject(state, projectId, { [key]: list });
 }
 
 /** Avtale mangler når prosjektet ikke er koblet til oppdragsavtale/avrop (eller rammeavtale ved avrop). */

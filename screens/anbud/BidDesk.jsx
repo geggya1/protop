@@ -187,7 +187,7 @@ export default function BidDesk({
         <Text style={{ color: colors.muted }}>Kontrakter og avtaler ligger i kontraktsoppfølgingen, også uten tilbudsarbeid.</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
-        <Text style={{ color: colors.muted }}>Innloggingsportalen endres under Innstillinger.</Text>
+        <Text style={{ color: colors.brand }}>Innloggingsportal</Text>
       </TouchableOpacity>
     </View>
   );

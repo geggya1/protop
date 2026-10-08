@@ -88,7 +88,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
-    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud', 'Innstillinger'],
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Tilbud'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
   assert.equal(companyItems.find((i) => i.id === 'ansatte').label, 'Ansatte');
@@ -228,7 +228,7 @@ assert.equal(landing.includes('Underenheter i Enhetsregisteret'), false);
 assert.equal(landing.includes('Arbeidsflaten'), false);
 assert.equal(landing.includes('Offentlige tildelinger på Doffin'), false);
 assert.equal(landing.includes('Egne koder til anbudsvarsling'), false);
-assert.match(landing, /Anbud · Innstillinger/);
+assert.match(landing, /tannhjulet på anbudsvarslingen/);
 assert.equal(landing.includes('primaryTxt'), false);
 assert.equal(landing.includes('AccountHistoryCard'), false);
 assert.equal(landing.includes('account-history'), false);
@@ -248,6 +248,8 @@ assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', import.meta.url), 'utf8');
 assert.match(anbudScreen, /TenderInquiry/);
 assert.match(anbudScreen, /WatchSettings/);
+assert.match(anbudScreen, /ScrollSheet/);
+assert.equal(anbudScreen.includes("go('innstillinger')"), false);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 assert.equal(anbudScreen.includes('motta eller send'), false);
@@ -262,7 +264,8 @@ assert.match(watchSettings, /Hjemmeside/);
 
 const tenderAlert = readFileSync(new URL('../../screens/anbud/TenderAlert.jsx', import.meta.url), 'utf8');
 assert.equal(tenderAlert.includes('CPV som søkes'), false);
-assert.match(tenderAlert, /Se og endre kodene under Innstillinger/);
+assert.match(tenderAlert, /Åpne innstillinger for CPV og søk/);
+assert.equal(tenderAlert.includes('Se og endre kodene under Innstillinger'), false);
 assert.equal(tenderAlert.includes("label: 'Matcher'"), false);
 assert.match(tenderAlert, /padStart\(2, '0'\)/);
 assert.match(tenderAlert, /#64748b/);
@@ -296,7 +299,8 @@ assert.match(anbudScreen, /units=\{units\}/);
 const inquirySrc = readFileSync(new URL('../../screens/anbud/TenderInquiry.jsx', import.meta.url), 'utf8');
 assert.equal(inquirySrc.includes('Send i ProTop'), false);
 assert.equal(inquirySrc.includes('sendDirectAnbud'), false);
-assert.match(inquirySrc, /Registrer forespørsler dere mottar/);
+assert.match(inquirySrc, /IntakePanel/);
+assert.equal(inquirySrc.includes('Registrer forespørsler dere mottar'), false);
 
 const intakeSrc = readFileSync(new URL('../../screens/anbud/IntakePanel.jsx', import.meta.url), 'utf8');
 assert.equal(intakeSrc.includes('sendDirectAnbud'), false);

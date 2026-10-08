@@ -396,7 +396,7 @@ export default function CompanyLanding({
 
           {live?.brregUrl ? (
             <TouchableOpacity onPress={() => openUrl(live.brregUrl)}>
-              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Registerdetaljene ligger på forsiden. CPV-koder til anbudsvarsling ligger under Anbud · Innstillinger.</Text>
+              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Registerdetaljene ligger på forsiden. CPV-koder til anbudsvarsling endres med tannhjulet på anbudsvarslingen.</Text>
             </TouchableOpacity>
           ) : null}
         </View>

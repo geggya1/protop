@@ -732,9 +732,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       <Text style={{ color: colors.muted }}>
         {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
       </Text>
-      <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>Se og endre kodene under Innstillinger</Text>
-      </TouchableOpacity>
     </View>
   );
 

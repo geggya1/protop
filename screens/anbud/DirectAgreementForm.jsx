@@ -535,11 +535,14 @@ export default function DirectAgreementForm({
   }
 
   async function submit() {
+    const title = String(form.title || '').trim();
+    const buyer = String(form.buyer || '').trim();
+    const projectName = String(form.projectName || '').trim() || title;
     const input = {
       ...form,
-      title: form.title.trim(),
-      buyer: form.buyer.trim(),
-      projectName: form.projectName.trim() || form.title.trim(),
+      title,
+      buyer,
+      projectName,
       fields: {
         ...(payload?.fields || {}),
         standard: form.standard,
@@ -558,7 +561,7 @@ export default function DirectAgreementForm({
         reference: form.oppdragId || form.reference,
         surchargePercent: form.surchargePercent,
         contractDate: form.contractDate,
-        projectName: form.projectName.trim() || form.title.trim(),
+        projectName,
       },
       systemId: form.systemId,
       oppdragId: form.oppdragId,
@@ -575,14 +578,14 @@ export default function DirectAgreementForm({
       indexDraft: payload?.indexDraft
         ? {
           ...payload.indexDraft,
-          title: form.title.trim(),
-          buyer: form.buyer.trim(),
+          title,
+          buyer,
           startDate: form.start,
           endDate: form.end,
         }
         : indexDraftFromInterpretation(emptyDraft({
-          title: form.title.trim(),
-          buyer: form.buyer.trim(),
+          title,
+          buyer,
           startDate: form.start,
           endDate: form.end,
         }), form),

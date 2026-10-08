@@ -94,6 +94,7 @@ export function emptyCoverForm() {
   form.kind = '';
   form.renewalType = 'ingen';
   form.projectId = '';
+  form.projectName = '';
   form.customerId = '';
   form.createCustomer = false;
   form.ownerUid = '';

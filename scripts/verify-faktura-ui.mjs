@@ -53,7 +53,7 @@ async function clickText(re) {
 async function runCycle(cycle) {
   console.log(`--- syklus ${cycle} ---`);
   await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 180000 });
-  await waitText(/Faktura/);
+  await waitText(/Fakturaer|Faktura/);
   await waitText(/Importer Excel/);
   await shot(`faktura-cycle${cycle}-list`);
 
@@ -116,14 +116,16 @@ async function runCycle(cycle) {
   if (!opened) throw new Error('Fant ikke fakturarad 16713 å klikke');
   await page.waitForFunction(
     () => /Fakturafremvisning/i.test(document.body?.innerText || '')
-      && /Tilbake til listen/i.test(document.body?.innerText || ''),
+      && (/Økonomi \/ Fakturaer/i.test(document.body?.innerText || '')
+        || /Tilbake til listen/i.test(document.body?.innerText || '')
+        || /Fakturaoversikt/i.test(document.body?.innerText || '')),
     { timeout: 60000 },
   );
   await shot(`faktura-cycle${cycle}-detail`);
 
   await page.evaluate(() => {
     const hit = [...document.querySelectorAll('button,[role="button"],div,span')].find((el) => (
-      (el.innerText || '').trim() === '← Tilbake til listen'
+      /Økonomi \/ Fakturaer/.test(el.innerText || '')
       || /Tilbake til listen/.test(el.innerText || '')
     ));
     hit?.click();

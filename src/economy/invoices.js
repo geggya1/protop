@@ -337,6 +337,109 @@ export function invoiceTotals(rows) {
   return { amountExVat: ex, vat, amountInclVat: incl, outstanding };
 }
 
+export function isInvoiceOverdue(invoice, today = new Date().toISOString().slice(0, 10)) {
+  const row = invoice || {};
+  if (row.status === 'paid' || row.status === 'credited' || row.status === 'written_off') return false;
+  const due = parseDate(row.dueDate);
+  if (!due) return false;
+  const outstanding = parseMoney(row.outstandingAmount ?? row.outstanding);
+  if (outstanding === 0 || /^paid$/i.test(text(row.outstanding))) return false;
+  return due < today;
+}
+
+export function isInvoiceSent(invoice) {
+  const sent = fold(invoice?.sent);
+  return sent === 'sent' || !!text(invoice?.sentAt) || invoice?.status === 'sent' || invoice?.status === 'overdue' || invoice?.status === 'paid';
+}
+
+/** Summeringslinje som i Moment-detalj: eks. mva → øreavrunding → å betale. */
+export function invoicePaymentSummary(invoice) {
+  const row = normalizeInvoice(invoice);
+  const ex = parseMoney(row.amountExVat) || 0;
+  const vat = parseMoney(row.vat) || 0;
+  const inclRaw = parseMoney(row.amountInclVat);
+  const incl = inclRaw != null ? inclRaw : ex + vat;
+  const rounded = Math.round(incl);
+  const rounding = Number((rounded - incl).toFixed(2));
+  const outstanding = parseMoney(row.outstandingAmount ?? row.outstanding);
+  const paid = parseMoney(row.paidAt ? (incl - (outstanding ?? 0)) : null);
+  const remaining = outstanding != null
+    ? outstanding
+    : (row.status === 'paid' ? 0 : rounded);
+  return {
+    currency: row.currency || 'NOK',
+    amountExVat: ex,
+    vat,
+    amountInclVat: incl,
+    rounding,
+    totalDue: rounded,
+    paid: paid != null && paid > 0 ? paid : null,
+    remaining,
+  };
+}
+
+/**
+ * Aggregerte beløpsgrupper fra Excel (før detaljerte fakturalinjer finnes).
+ * Speiler Moment: Timer / Utlegg / Adm. kostnader / Produkter.
+ */
+export function invoiceAmountGroups(invoice) {
+  const row = normalizeInvoice(invoice);
+  const period = [formatDate(row.periodStart), formatDate(row.periodEnd)]
+    .filter((value) => value && value !== '—')
+    .join(' – ');
+  const groups = [];
+  const push = (id, title, amount, label) => {
+    const value = parseMoney(amount);
+    if (value == null || value === 0) return;
+    groups.push({
+      id,
+      title,
+      lines: [{
+        period: period || '—',
+        text: label,
+        qty: 1,
+        unitPrice: value,
+        totalExVat: value,
+        vatPct: row.vat != null && row.amountExVat ? 25 : null,
+      }],
+    });
+  };
+  push('fees', 'Timer / honorarer', row.feesInclMarkup ?? row.feesExMarkup, 'Honorarer');
+  push('expenses', 'Utlegg', row.expensesInclMarkup ?? row.expensesExMarkup, 'Utlegg');
+  push('products', 'Produkter', row.products, 'Produkter');
+  push('admin', 'Adm. kostnader', row.adminCosts, 'Adm. kostnader');
+  if (!groups.length && (parseMoney(row.amountExVat) || 0) > 0) {
+    push('total', 'Fakturagrunnlag', row.amountExVat, 'Beløp eks. mva');
+  }
+  return groups;
+}
+
+export function filterInvoicesByPeriod(rows, period = 'all', today = new Date()) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!period || period === 'all') return list;
+  const end = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  let start = null;
+  if (period === '7') {
+    start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 7);
+  } else if (period === '30') {
+    start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 30);
+  } else if (period === '100') {
+    start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 100);
+  } else if (period === 'year') {
+    start = new Date(Date.UTC(today.getFullYear(), 0, 1));
+  }
+  if (!start) return list;
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+  return list.filter((row) => {
+    const date = parseDate(row.invoiceDate);
+    return date && date >= from && date <= to;
+  });
+}
+
 /** Feltgrupper for detaljvisning — alle lagrede verdier. */
 export function invoiceDetailSections(invoice) {
   const row = normalizeInvoice(invoice);

@@ -22,12 +22,15 @@ import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
+  addProjectAgreementDocuments,
   archiveProject,
+  attachOfferDocuments,
   createProject,
   deleteProjects,
   emptyProjectState,
   importProjects,
   projectMissingAgreement,
+  removeProjectDocument,
   updateProject,
 } from '../../src/project/engine';
 import {
@@ -37,7 +40,17 @@ import {
   readCompanyProjectTable,
   suggestCustomers,
 } from '../../src/project/projectImport';
+import {
+  PRICING_MODELS,
+  emptyPricingSettings,
+  normalizePricingModel,
+  pricingModelLabel,
+} from '../../src/project/projectFields';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { uploadAgreementFile } from '../../src/anbud/contractFiles';
+import SearchSelect from '../../components/project/SearchSelect';
+
+const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
 
 const EMPTY_FORM = {
   name: '',
@@ -46,51 +59,29 @@ const EMPTY_FORM = {
   client: '',
   customerNumber: '',
   orgnr: '',
-  supplierLabel: '',
-  customerTags: '',
+  parentProjectId: '',
   parentNumber: '',
   parentName: '',
   department: '',
-  inboxEmail: '',
   manager: '',
   projectStatus: '',
   statusComment: '',
-  openedAt: '',
-  createdBy: '',
   start: '',
   end: '',
-  customerSegment: '',
-  marketArea: '',
-  projectTags: '',
-  size: '',
   street: '',
   postalCode: '',
   placeName: '',
   place: '',
   cadastralId: '',
   pricingModel: '',
+  pricingSettings: emptyPricingSettings(),
   feeEstimate: '',
-  billedOnPricingModels: '',
   description: '',
-  exportStatus: '',
-  hoursPeriod: '',
-  billableHours: '',
-  toInvoice: '',
-  totalCost: '',
-  invoices: '',
-  estimatedIncome: '',
-  totalPlanned: '',
-  futurePlanned: '',
-  forecast: '',
-  estimatedCosts: '',
-  expenses: '',
-  estimatedResult: '',
-  estimatedResultPct: '',
-  profitFactor: '',
-  expectedProfitFactor: '',
   agreementKind: 'oppdrag',
   contractId: '',
   frameworkAgreementId: '',
+  agreementDocuments: [],
+  offerDocuments: [],
 };
 
 const SELECT_COL_WIDTH = 44;
@@ -107,11 +98,10 @@ const LIST_COLUMNS = [
   ['Start', 110],
   ['Slutt', 110],
   ['Avtale', 240],
-  ['Segment', 180],
+  ['Prismodell', 160],
   ['Hovedprosjekt', 160],
   ['Sted', 240],
   ['Honorar', 120],
-  ['Timer', 100],
 ];
 
 function textOrDash(value) {
@@ -122,9 +112,18 @@ function textOrDash(value) {
 function formFromProject(project = {}) {
   const next = { ...EMPTY_FORM };
   for (const key of Object.keys(EMPTY_FORM)) {
+    if (key === 'pricingSettings' || key === 'agreementDocuments' || key === 'offerDocuments') continue;
     if (project[key] === 0 || project[key]) next[key] = String(project[key]);
   }
+  next.pricingModel = normalizePricingModel(project.pricingModel);
+  next.pricingSettings = {
+    ...emptyPricingSettings(),
+    ...(project.pricingSettings && typeof project.pricingSettings === 'object' ? project.pricingSettings : {}),
+  };
+  next.agreementDocuments = Array.isArray(project.agreementDocuments) ? [...project.agreementDocuments] : [];
+  next.offerDocuments = Array.isArray(project.offerDocuments) ? [...project.offerDocuments] : [];
   next.agreementKind = project.agreementKind || (project.frameworkAgreementId && !project.contractId ? 'avrop' : 'oppdrag');
+  next.parentProjectId = project.parentProjectId || '';
   return next;
 }
 
@@ -224,6 +223,7 @@ export default function ProjectWorkScreen() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmEditDelete, setConfirmEditDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [docBusy, setDocBusy] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -372,6 +372,18 @@ export default function ProjectWorkScreen() {
   }
 
   function chooseCustomer(customer) {
+    if (!customer) {
+      setForm((current) => ({
+        ...current,
+        customerId: '',
+        client: '',
+        customerNumber: '',
+        orgnr: '',
+        contractId: '',
+        frameworkAgreementId: '',
+      }));
+      return;
+    }
     setForm((current) => ({
       ...current,
       customerId: customer.id,
@@ -382,6 +394,111 @@ export default function ProjectWorkScreen() {
       frameworkAgreementId: '',
     }));
   }
+
+  function chooseParentProject(project) {
+    if (!project) {
+      setForm((current) => ({
+        ...current,
+        parentProjectId: '',
+        parentNumber: '',
+        parentName: '',
+      }));
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      parentProjectId: project.id,
+      parentNumber: project.number || '',
+      parentName: project.name || '',
+    }));
+  }
+
+  function patchPricingSetting(key, value) {
+    setForm((current) => ({
+      ...current,
+      pricingSettings: { ...emptyPricingSettings(), ...current.pricingSettings, [key]: value },
+    }));
+  }
+
+  const customerOptions = useMemo(
+    () => customers.map((row) => ({
+      id: row.id,
+      label: [row.customerNumber, row.name].filter(Boolean).join(' · ') || row.name || row.id,
+      search: `${row.customerNumber || ''} ${row.name || ''} ${row.orgnr || ''}`,
+    })),
+    [customers],
+  );
+
+  const parentProjectOptions = useMemo(
+    () => state.projects
+      .filter((row) => row.status !== 'arkivert' && row.id !== selectedId)
+      .map((row) => ({
+        id: row.id,
+        label: `${row.number} · ${row.name}`,
+        search: `${row.number} ${row.name} ${row.client || ''}`,
+      })),
+    [state.projects, selectedId],
+  );
+
+  const pricingOptions = useMemo(
+    () => PRICING_MODELS.map((row) => ({ id: row.id, label: row.label, search: row.label })),
+    [],
+  );
+
+  const agreementSelectOptions = useMemo(
+    () => agreementOptions.map((row) => ({
+      id: row.id,
+      label: row.title || kindLabel(row.kind) || 'Avtale',
+      search: `${row.title || ''} ${row.oppdragId || ''} ${row.systemId || ''}`,
+    })),
+    [agreementOptions],
+  );
+
+  const frameworkSelectOptions = useMemo(
+    () => frameworkOptions.map((row) => ({
+      id: row.id,
+      label: row.title || 'Rammeavtale',
+      search: row.title || '',
+    })),
+    [frameworkOptions],
+  );
+
+  /** Tilbudsdokumenter som kan overføres fra koblet avtale / tilbudsarbeid. */
+  const transferableOfferDocs = useMemo(() => {
+    if (!anbud) return [];
+    const contract = contracts.find((row) => row.id === form.contractId);
+    const rows = [];
+    if (contract?.documents?.length) {
+      for (const doc of contract.documents) {
+        rows.push({
+          id: `contract-${doc.id}`,
+          name: doc.name || doc.title || 'Avtaledokument',
+          url: doc.url || '',
+          storagePath: doc.storagePath || '',
+          mimeType: doc.mimeType || '',
+          size: doc.size || 0,
+          source: 'avtale',
+          sourceId: doc.id,
+        });
+      }
+    }
+    const bidId = contract?.bidId;
+    const bid = bidId ? (anbud.bids || []).find((row) => row.id === bidId) : null;
+    for (const file of bid?.files || []) {
+      rows.push({
+        id: `bid-${file.id}`,
+        name: file.name || 'Tilbudsdokument',
+        url: file.url || file.dataUrl || '',
+        storagePath: file.storagePath || '',
+        mimeType: file.mimeType || '',
+        size: file.size || 0,
+        source: 'tilbud',
+        sourceId: file.id,
+      });
+    }
+    const already = new Set((form.offerDocuments || []).map((doc) => `${doc.sourceId}|${doc.name}`));
+    return rows.filter((row) => !already.has(`${row.sourceId}|${row.name}`));
+  }, [anbud, contracts, form.contractId, form.offerDocuments]);
 
   function chooseAgreement(contract) {
     if (!contract) {
@@ -437,6 +554,28 @@ export default function ProjectWorkScreen() {
     const payload = {
       ...form,
       client: form.client || customers.find((row) => row.id === form.customerId)?.name || '',
+      pricingModel: normalizePricingModel(form.pricingModel),
+      pricingSettings: form.pricingSettings || emptyPricingSettings(),
+      agreementDocuments: form.agreementDocuments || [],
+      offerDocuments: form.offerDocuments || [],
+      // Timer/økonomi og Moment-restfelter nullstilles i motoren.
+      hoursPeriod: null,
+      billableHours: null,
+      toInvoice: null,
+      totalCost: null,
+      estimatedIncome: null,
+      estimatedResult: null,
+      exportStatus: null,
+      billedOnPricingModels: null,
+      supplierLabel: null,
+      customerTags: null,
+      inboxEmail: null,
+      customerSegment: null,
+      marketArea: null,
+      projectTags: null,
+      size: null,
+      openedAt: null,
+      createdBy: null,
     };
     if (view === 'create') {
       const result = createProject(state, payload);
@@ -657,6 +796,112 @@ export default function ProjectWorkScreen() {
     return 'Mangler';
   }
 
+  async function uploadAgreementDocs() {
+    setError('');
+    setDocBusy('upload');
+    try {
+      const picked = await pickDocument({ accept: DOC_ACCEPT, multiple: true });
+      const list = (Array.isArray(picked) ? picked : [picked]).filter(Boolean);
+      if (!list.length) return;
+      if (!familyId) {
+        setError('Mangler bedrift for fillagring.');
+        return;
+      }
+      const uploaded = [];
+      for (let index = 0; index < list.length; index += 1) {
+        uploaded.push(await uploadAgreementFile(familyId, list[index], { salt: `prj-${Date.now()}-${index}` }));
+      }
+      const rows = uploaded.map((file) => ({
+        id: `pdoc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name,
+        title: file.name,
+        url: file.url,
+        storagePath: file.storagePath,
+        mimeType: file.mimeType,
+        size: file.size,
+        source: 'upload',
+        uploadedAt: new Date().toISOString(),
+      }));
+      if (view === 'edit' && selectedId) {
+        const result = addProjectAgreementDocuments(state, selectedId, rows);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setState(result.state);
+        setForm((current) => ({
+          ...current,
+          agreementDocuments: result.state.projects.find((row) => row.id === selectedId)?.agreementDocuments || [],
+        }));
+      } else {
+        setForm((current) => ({
+          ...current,
+          agreementDocuments: [...(current.agreementDocuments || []), ...rows],
+        }));
+      }
+      setNote(`${rows.length} avtaledokument${rows.length === 1 ? '' : 'er'} lastet opp.`);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke laste opp dokumentene.');
+    } finally {
+      setDocBusy('');
+    }
+  }
+
+  function transferOfferDocs() {
+    if (!transferableOfferDocs.length) {
+      setError('Ingen tilbudsdokumenter å overføre ennå. Koble en avtale som stammer fra tilbudsmodulen.');
+      return;
+    }
+    setError('');
+    if (view === 'edit' && selectedId) {
+      const result = attachOfferDocuments(state, selectedId, transferableOfferDocs);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setState(result.state);
+      setForm((current) => ({
+        ...current,
+        offerDocuments: result.state.projects.find((row) => row.id === selectedId)?.offerDocuments || [],
+      }));
+    } else {
+      setForm((current) => ({
+        ...current,
+        offerDocuments: [...(current.offerDocuments || []), ...transferableOfferDocs],
+      }));
+    }
+    setNote('Tilbudsdokumenter er overført til prosjektet.');
+  }
+
+  function removeDoc(docId, kind) {
+    if (view === 'edit' && selectedId) {
+      const result = removeProjectDocument(state, selectedId, docId, kind);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setState(result.state);
+      const project = result.state.projects.find((row) => row.id === selectedId);
+      setForm((current) => ({
+        ...current,
+        agreementDocuments: project?.agreementDocuments || [],
+        offerDocuments: project?.offerDocuments || [],
+      }));
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      agreementDocuments: kind === 'agreement'
+        ? (current.agreementDocuments || []).filter((doc) => doc.id !== docId)
+        : current.agreementDocuments,
+      offerDocuments: kind === 'offer'
+        ? (current.offerDocuments || []).filter((doc) => doc.id !== docId)
+        : current.offerDocuments,
+    }));
+  }
+
+  const pricing = form.pricingSettings || emptyPricingSettings();
+
   const formBody = (
     <View style={styles.stack}>
       <Text style={[styles.section, { color: colors.ink }]}>Prosjekt</Text>
@@ -666,61 +911,116 @@ export default function ProjectWorkScreen() {
       <Field label="Statuskommentar" value={form.statusComment} onChangeText={(v) => patchForm('statusComment', v)} colors={colors} />
       <Field label="Avdeling" value={form.department} onChangeText={(v) => patchForm('department', v)} colors={colors} />
       <Field label="Prosjektleder / eier" value={form.manager} onChangeText={(v) => patchForm('manager', v)} colors={colors} />
-      <Field label="Prosjekte-post" value={form.inboxEmail} onChangeText={(v) => patchForm('inboxEmail', v)} colors={colors} />
       <Field label="Start" value={form.start} onChangeText={(v) => patchForm('start', v)} colors={colors} />
       <Field label="Slutt" value={form.end} onChangeText={(v) => patchForm('end', v)} colors={colors} />
-      <Field label="Hovedprosjektnr" value={form.parentNumber} onChangeText={(v) => patchForm('parentNumber', v)} colors={colors} />
-      <Field label="Hovedprosjektnavn" value={form.parentName} onChangeText={(v) => patchForm('parentName', v)} colors={colors} />
+      <SearchSelect
+        colors={colors}
+        label="Hovedprosjekt"
+        value={form.parentProjectId}
+        options={parentProjectOptions}
+        placeholder="Ikke underprosjekt"
+        noneLabel="Ikke underprosjekt"
+        onChange={(id) => chooseParentProject(state.projects.find((row) => row.id === id) || null)}
+        helper="Velg hovedprosjektet hvis dette er et underprosjekt."
+      />
       <Field label="Beskrivelse" value={form.description} onChangeText={(v) => patchForm('description', v)} colors={colors} multiline />
 
       <Text style={[styles.section, { color: colors.ink }]}>Kunde og sted</Text>
-      <Text style={[styles.label, { color: colors.muted }]}>Kunde</Text>
-      <View style={styles.rowWrap}>
-        {customers.slice(0, 40).map((customer) => (
-          <Chip
-            key={customer.id}
-            label={`${customer.customerNumber ? `${customer.customerNumber} · ` : ''}${customer.name}`}
-            on={form.customerId === customer.id}
-            onPress={() => chooseCustomer(customer)}
-            colors={colors}
-          />
-        ))}
-      </View>
+      <SearchSelect
+        colors={colors}
+        label="Kunde"
+        value={form.customerId}
+        options={customerOptions}
+        placeholder="Velg kunde"
+        noneLabel="Ingen kunde"
+        onChange={(id) => chooseCustomer(customers.find((row) => row.id === id) || null)}
+      />
       {!customers.length ? (
         <TouchableOpacity onPress={() => requestShellTab('kunder')} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Ingen kunder ennå. Gå til Kunder for å registrere.</Text>
         </TouchableOpacity>
       ) : null}
+      {form.customerId ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          {[form.customerNumber && `Kundenr ${form.customerNumber}`, form.client, form.orgnr && `Org.nr ${form.orgnr}`]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      ) : null}
       {form.client && !form.customerId ? (
         <Text style={{ color: colors.danger || '#b42318' }}>Kundenavn er satt, men ikke koblet til kunderegisteret.</Text>
       ) : null}
-      <Field label="Kundenummer" value={form.customerNumber} onChangeText={(v) => patchForm('customerNumber', v)} colors={colors} />
-      <Field label="Kundenavn" value={form.client} onChangeText={(v) => patchForm('client', v)} colors={colors} />
-      <Field label="Org.nr" value={form.orgnr} onChangeText={(v) => patchForm('orgnr', v)} colors={colors} />
-      <Field label="Leverandør/kunde" value={form.supplierLabel} onChangeText={(v) => patchForm('supplierLabel', v)} colors={colors} />
-      <Field label="Kundetagger" value={form.customerTags} onChangeText={(v) => patchForm('customerTags', v)} colors={colors} />
-      <Field label="Kundesegment" value={form.customerSegment} onChangeText={(v) => patchForm('customerSegment', v)} colors={colors} />
-      <Field label="Markedsområde" value={form.marketArea} onChangeText={(v) => patchForm('marketArea', v)} colors={colors} />
-      <Field label="Prosjekttagger" value={form.projectTags} onChangeText={(v) => patchForm('projectTags', v)} colors={colors} />
-      <Field label="Størrelse" value={form.size} onChangeText={(v) => patchForm('size', v)} colors={colors} />
       <Field label="Gate" value={form.street} onChangeText={(v) => patchForm('street', v)} colors={colors} />
       <Field label="Postnr" value={form.postalCode} onChangeText={(v) => patchForm('postalCode', v)} colors={colors} />
       <Field label="Poststed" value={form.placeName} onChangeText={(v) => patchForm('placeName', v)} colors={colors} />
       <Field label="Matrikkel-ID" value={form.cadastralId} onChangeText={(v) => patchForm('cadastralId', v)} colors={colors} />
 
-      <Text style={[styles.section, { color: colors.ink }]}>Økonomi og prismodell</Text>
-      <Field label="Prismodell" value={form.pricingModel} onChangeText={(v) => patchForm('pricingModel', v)} colors={colors} />
-      <Field label="Honorarestimat" value={form.feeEstimate} onChangeText={(v) => patchForm('feeEstimate', v)} colors={colors} />
-      <Field label="Fakturert på prismodeller" value={form.billedOnPricingModels} onChangeText={(v) => patchForm('billedOnPricingModels', v)} colors={colors} />
-      <Field label="Timer (periode)" value={form.hoursPeriod} onChangeText={(v) => patchForm('hoursPeriod', v)} colors={colors} />
-      <Field label="Fakturerbart" value={form.billableHours} onChangeText={(v) => patchForm('billableHours', v)} colors={colors} />
-      <Field label="Å faktureres" value={form.toInvoice} onChangeText={(v) => patchForm('toInvoice', v)} colors={colors} />
-      <Field label="Total kostnad" value={form.totalCost} onChangeText={(v) => patchForm('totalCost', v)} colors={colors} />
-      <Field label="Estimert inntekt" value={form.estimatedIncome} onChangeText={(v) => patchForm('estimatedIncome', v)} colors={colors} />
-      <Field label="Estimert resultat" value={form.estimatedResult} onChangeText={(v) => patchForm('estimatedResult', v)} colors={colors} />
-      <Field label="Eksportstatus" value={form.exportStatus} onChangeText={(v) => patchForm('exportStatus', v)} colors={colors} />
+      <Text style={[styles.section, { color: colors.ink }]}>Prismodell</Text>
+      <SearchSelect
+        colors={colors}
+        label="Prismodell"
+        value={form.pricingModel}
+        options={pricingOptions}
+        placeholder="Velg prismodell"
+        noneLabel="Ikke valgt"
+        allowNone
+        onChange={(id) => patchForm('pricingModel', id)}
+      />
+      {form.pricingModel === 'hourly' ? (
+        <Field
+          label="Timepris (kr)"
+          value={pricing.hourlyRate == null ? '' : String(pricing.hourlyRate)}
+          onChangeText={(v) => patchPricingSetting('hourlyRate', v)}
+          colors={colors}
+        />
+      ) : null}
+      {form.pricingModel === 'fixed' ? (
+        <Field
+          label="Fastpris / honorar (kr)"
+          value={pricing.fixedFee == null ? '' : String(pricing.fixedFee)}
+          onChangeText={(v) => patchPricingSetting('fixedFee', v)}
+          colors={colors}
+        />
+      ) : null}
+      {form.pricingModel === 'retainer' ? (
+        <Field
+          label="Retainer (kr)"
+          value={pricing.retainerFee == null ? '' : String(pricing.retainerFee)}
+          onChangeText={(v) => patchPricingSetting('retainerFee', v)}
+          colors={colors}
+        />
+      ) : null}
+      {form.pricingModel === 'unit' ? (
+        <>
+          <Field
+            label="Enhetspris (kr)"
+            value={pricing.unitPrice == null ? '' : String(pricing.unitPrice)}
+            onChangeText={(v) => patchPricingSetting('unitPrice', v)}
+            colors={colors}
+          />
+          <Field
+            label="Enhet"
+            value={pricing.unitLabel || ''}
+            onChangeText={(v) => patchPricingSetting('unitLabel', v)}
+            placeholder="f.eks. m², time, stk"
+            colors={colors}
+          />
+        </>
+      ) : null}
+      {form.pricingModel && form.pricingModel !== 'not_billable' ? (
+        <Field
+          label="Merknad til prismodell"
+          value={pricing.note || ''}
+          onChangeText={(v) => patchPricingSetting('note', v)}
+          colors={colors}
+          multiline
+        />
+      ) : null}
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Timer, fakturert beløp og resultat hentes automatisk fra andre moduler og redigeres ikke her.
+      </Text>
 
-      <Text style={[styles.section, { color: colors.ink }]}>Avtale</Text>
+      <Text style={[styles.section, { color: colors.ink }]}>Avtale og dokumenter</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Avtaletype</Text>
       <View style={styles.rowWrap}>
         {[
@@ -743,40 +1043,27 @@ export default function ProjectWorkScreen() {
       </View>
 
       {form.agreementKind === 'avrop' ? (
-        <>
-          <Text style={[styles.label, { color: colors.muted }]}>Rammeavtale</Text>
-          <View style={styles.rowWrap}>
-            {frameworkOptions.map((row) => (
-              <Chip
-                key={row.id}
-                label={row.title || 'Rammeavtale'}
-                on={form.frameworkAgreementId === row.id}
-                onPress={() => patchForm('frameworkAgreementId', row.id)}
-                colors={colors}
-              />
-            ))}
-          </View>
-          {!frameworkOptions.length ? (
-            <Text style={{ color: colors.muted }}>Ingen rammeavtale på kunden. Opprett den under Kontrakt / avtale.</Text>
-          ) : null}
-        </>
+        <SearchSelect
+          colors={colors}
+          label="Rammeavtale"
+          value={form.frameworkAgreementId}
+          options={frameworkSelectOptions}
+          placeholder="Velg rammeavtale"
+          noneLabel="Ingen rammeavtale"
+          onChange={(id) => patchForm('frameworkAgreementId', id)}
+          helper={!frameworkOptions.length ? 'Ingen rammeavtale på kunden. Opprett den under Kontrakt / avtale.' : undefined}
+        />
       ) : null}
 
-      <Text style={[styles.label, { color: colors.muted }]}>
-        {form.agreementKind === 'avrop' ? 'Avrop / oppdragsavtale' : 'Oppdragsavtale'}
-      </Text>
-      <View style={styles.rowWrap}>
-        <Chip label="Ingen avtale" on={!form.contractId} onPress={() => chooseAgreement(null)} colors={colors} />
-        {agreementOptions.map((row) => (
-          <Chip
-            key={row.id}
-            label={row.title || kindLabel(row.kind)}
-            on={form.contractId === row.id}
-            onPress={() => chooseAgreement(row)}
-            colors={colors}
-          />
-        ))}
-      </View>
+      <SearchSelect
+        colors={colors}
+        label={form.agreementKind === 'avrop' ? 'Avrop / oppdragsavtale' : 'Oppdragsavtale'}
+        value={form.contractId}
+        options={agreementSelectOptions}
+        placeholder="Ingen avtale"
+        noneLabel="Ingen avtale"
+        onChange={(id) => chooseAgreement(contracts.find((row) => row.id === id) || null)}
+      />
       {!form.contractId ? (
         <View style={styles.warnRow}>
           <Ionicons name="warning" size={18} color={colors.danger || '#b42318'} />
@@ -785,6 +1072,55 @@ export default function ProjectWorkScreen() {
           </Text>
         </View>
       ) : null}
+
+      <Text style={[styles.label, { color: colors.muted }]}>
+        Avtaledokumenter ({(form.agreementDocuments || []).length})
+      </Text>
+      {(form.agreementDocuments || []).map((doc) => (
+        <View key={doc.id} style={styles.docRow}>
+          <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={2}>{doc.name || doc.title}</Text>
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'agreement')} accessibilityRole="button">
+            <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      <TouchableOpacity
+        onPress={uploadAgreementDocs}
+        disabled={!!docBusy}
+        accessibilityRole="button"
+        style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line, opacity: docBusy ? 0.6 : 1 }]}
+      >
+        <Text style={{ color: colors.ink }}>{docBusy === 'upload' ? 'Laster opp…' : 'Last opp avtaledokument'}</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.label, { color: colors.muted }]}>
+        Tilbudsdokumenter ({(form.offerDocuments || []).length})
+      </Text>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Overfør dokumenter fra tilbudsmodulen slik at de følger prosjektet som en rød tråd.
+      </Text>
+      {(form.offerDocuments || []).map((doc) => (
+        <View key={doc.id} style={styles.docRow}>
+          <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={2}>
+            {doc.name || doc.title}
+            {doc.source === 'tilbud' ? ' · fra tilbud' : ''}
+          </Text>
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'offer')} accessibilityRole="button">
+            <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      <TouchableOpacity
+        onPress={transferOfferDocs}
+        accessibilityRole="button"
+        style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
+      >
+        <Text style={{ color: colors.ink }}>
+          {transferableOfferDocs.length
+            ? `Overfør ${transferableOfferDocs.length} dokument${transferableOfferDocs.length === 1 ? '' : 'er'} fra tilbud`
+            : 'Ingen tilbudsdokumenter å overføre'}
+        </Text>
+      </TouchableOpacity>
 
       <View style={styles.rowWrap}>
         <TouchableOpacity onPress={saveForm} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
@@ -1024,11 +1360,10 @@ export default function ProjectWorkScreen() {
                     [8, item.start || '—', `Start ${item.start || '—'}`, false],
                     [9, item.end || '—', `Slutt ${item.end || '—'}`, false],
                     null,
-                    [11, item.customerSegment || '—', `Segment ${item.customerSegment || '—'}`, false],
+                    [11, pricingModelLabel(item.pricingModel) || '—', `Prismodell ${pricingModelLabel(item.pricingModel) || '—'}`, false],
                     [12, item.parentNumber || '—', `Hovedprosjekt ${item.parentNumber || '—'}`, false],
                     [13, item.place || '—', `Sted ${item.place || '—'}`, false],
                     [14, textOrDash(item.feeEstimate), `Honorar ${textOrDash(item.feeEstimate)}`, false],
-                    [15, textOrDash(item.hoursPeriod), `Timer ${textOrDash(item.hoursPeriod)}`, false],
                   ];
                   return (
                     <View
@@ -1125,6 +1460,7 @@ const styles = StyleSheet.create({
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tableScroll: {
     width: '100%',
     maxWidth: '100%',

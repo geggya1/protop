@@ -9,6 +9,7 @@ import {
   normalizeCustomerNumber,
   normalizeOrgnr,
 } from '../anbud/customers.js';
+import { normalizePricingModel } from './projectFields.js';
 
 const FIELDS = [
   ['number', ['prosjektnr', 'prosjektnummer', 'projectnumber', 'projectno']],
@@ -348,6 +349,8 @@ export function companyProjectRow(input, customers = [], contracts = []) {
 
   const blocked = severity === 'block';
   const place = placeOf(row);
+  const pricingModel = normalizePricingModel(row.pricingModel);
+  const feeEstimate = text(row.feeEstimate);
   const project = blocked ? null : {
     number,
     name,
@@ -355,48 +358,28 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     client: customer?.name || client,
     orgnr: customer?.orgnr || orgnr,
     customerId: customer?.id || '',
-    supplierLabel: text(row.supplierLabel),
-    customerTags: text(row.customerTags),
     parentNumber: text(row.parentNumber),
     parentName: text(row.parentName),
     department: text(row.department),
-    inboxEmail: text(row.inboxEmail),
     manager: text(row.manager),
     projectStatus: text(row.status),
     statusComment: text(row.statusComment),
-    openedAt: text(row.openedAt),
-    createdBy: text(row.createdBy),
     start: text(row.start),
     end: text(row.end),
-    customerSegment: text(row.customerSegment),
-    marketArea: text(row.marketArea),
-    projectTags: text(row.projectTags),
-    size: text(row.size),
     street: text(row.street),
     postalCode: text(row.postalCode),
     placeName: text(row.placeName),
     place,
     cadastralId: text(row.cadastralId),
-    pricingModel: text(row.pricingModel),
-    feeEstimate: text(row.feeEstimate),
-    billedOnPricingModels: text(row.billedOnPricingModels),
+    pricingModel,
+    pricingSettings: pricingModel === 'hourly' && feeEstimate
+      ? { hourlyRate: feeEstimate }
+      : (pricingModel === 'fixed' && feeEstimate
+        ? { fixedFee: feeEstimate }
+        : {}),
+    feeEstimate,
     description: text(row.description),
-    exportStatus: text(row.exportStatus),
-    hoursPeriod: text(row.hoursPeriod),
-    billableHours: text(row.billableHours),
-    toInvoice: text(row.toInvoice),
-    totalCost: text(row.totalCost),
-    invoices: text(row.invoices),
-    estimatedIncome: text(row.estimatedIncome),
-    totalPlanned: text(row.totalPlanned),
-    futurePlanned: text(row.futurePlanned),
-    forecast: text(row.forecast),
-    estimatedCosts: text(row.estimatedCosts),
-    expenses: text(row.expenses),
-    estimatedResult: text(row.estimatedResult),
-    estimatedResultPct: text(row.estimatedResultPct),
-    profitFactor: text(row.profitFactor),
-    expectedProfitFactor: text(row.expectedProfitFactor),
+    // Timer/økonomi og Moment-restfelter nullstilles ved lagring — fylles av andre moduler.
     phase: phaseFromStatus(row.status),
     agreementKind,
     contractId: agreement?.id || '',

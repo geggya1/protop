@@ -147,10 +147,11 @@ try {
   const project = imported.created[0];
   assert.equal(project.number, '10951');
   assert.equal(project.customerId, 'c2');
-  assert.equal(project.pricingModel, 'hourlyRate');
+  assert.equal(project.pricingModel, 'hourly');
   assert.ok(project.manager);
   assert.ok(project.projectStatus);
-  assert.ok(project.inboxEmail);
+  assert.equal(project.inboxEmail, null);
+  assert.equal(project.hoursPeriod, null);
   console.log('projectImport.test.mjs: ok (with sample xlsx)');
 } catch (cause) {
   if (cause?.code === 'ENOENT') {

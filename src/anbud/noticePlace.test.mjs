@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { locateNotice, mapPinsForNotices, nextMapPinIndex } from './noticePlace.js';
+import { locateNotice, mapFollowsList, mapPinsForNotices, nextMapPinIndex } from './noticePlace.js';
 import { pinPopupHtml, tenderMapDocument } from './tenderMapHtml.js';
 
 assert.equal(locateNotice({ places: ['Nordland/Nordlánnda'] }).label, 'Nordland');
@@ -20,6 +20,22 @@ const pins = mapPinsForNotices([
 assert.equal(pins.length, 2);
 assert.equal(pins.filter((row) => row.kind === 'aktuell').length, 1);
 assert.notEqual(pins[0].lat, pins[1].lat);
+
+const shown = mapPinsForNotices([
+  { id: '1', title: 'Bro', places: ['Oslo'], decision: 'ubestemt' },
+  { id: '2', title: 'Kai', places: ['Bergen'], decision: 'aktuell' },
+  { id: '3', title: 'Papir', places: ['Tromsø'], decision: 'forkastet' },
+  { id: '4', title: 'Tilbud', places: ['Oslo'], decision: 'tilbud' },
+], { asShown: true });
+assert.deepEqual(shown.map((row) => row.kind).sort(), ['aktuell', 'ny', 'uaktuell']);
+assert.equal(mapPinsForNotices([
+  { id: '2', title: 'Kai', places: ['Bergen'], decision: 'aktuell' },
+], { asShown: true }).length, 1);
+assert.equal(mapFollowsList('nye'), true);
+assert.equal(mapFollowsList('aktuelle'), true);
+assert.equal(mapFollowsList('uaktuelle'), true);
+assert.equal(mapFollowsList('alle'), false);
+assert.equal(mapFollowsList('utlopt'), false);
 
 const html = tenderMapDocument(pins, { selectedId: '2' });
 assert.match(html, /openstreetmap\.org/);

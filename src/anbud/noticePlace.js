@@ -331,6 +331,17 @@ export function nextMapPinIndex(count, previousIndex) {
   return Math.min(safe, total - 1);
 }
 
+export function mapFollowsList(filter) {
+  return filter === 'nye' || filter === 'aktuelle' || filter === 'uaktuelle';
+}
+
+export function mapPinKind(decision) {
+  const value = decision || 'ubestemt';
+  if (value === 'aktuell') return 'aktuell';
+  if (value === 'forkastet' || value === 'arkiv' || value === 'ikke') return 'uaktuell';
+  return 'ny';
+}
+
 export function mapCandidateNotices(notices, expired) {
   return (Array.isArray(notices) ? notices : []).filter((row) => {
     const decision = row?.decision || 'ubestemt';
@@ -347,8 +358,10 @@ function dayLabel(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-export function mapPinsForNotices(notices, { expired } = {}) {
-  const rows = mapCandidateNotices(notices, expired);
+export function mapPinsForNotices(notices, { expired, asShown = false } = {}) {
+  const rows = asShown
+    ? (Array.isArray(notices) ? notices : []).filter((row) => (row?.decision || 'ubestemt') !== 'tilbud')
+    : mapCandidateNotices(notices, expired);
   const counts = new Map();
   const pins = [];
   for (const row of rows) {
@@ -368,7 +381,7 @@ export function mapPinsForNotices(notices, { expired } = {}) {
       lat: point.lat,
       lng: point.lng,
       precision: hit.precision,
-      kind: (row.decision || 'ubestemt') === 'aktuell' ? 'aktuell' : 'ny',
+      kind: mapPinKind(row.decision),
     });
   }
   pins.sort((a, b) => b.lat - a.lat || a.lng - b.lng);

@@ -19,12 +19,13 @@ export default function TenderMap({
   note = '',
   followId = '',
   followAt = 0,
+  view = 'nye',
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
   const [cursorId, setCursorId] = useState(selectedId);
   const pinKey = pins.map((row) => row.id).join(',');
-  const kindKey = pins.map((row) => `${row.id}:${row.kind === 'aktuell' ? 'aktuell' : 'ny'}`).join(',');
+  const kindKey = pins.map((row) => `${row.id}:${row.kind || 'ny'}`).join(',');
   const html = useMemo(
     () => tenderMapDocument(pins, {
       brand: colors?.brand || '#3D6B8A',
@@ -80,7 +81,7 @@ export default function TenderMap({
         label: row.label,
         lat: row.lat,
         lng: row.lng,
-        kind: row.kind === 'aktuell' ? 'aktuell' : 'ny',
+        kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
       })),
       busyId: busyId || '',
       focusId: focusId || '',
@@ -110,6 +111,16 @@ export default function TenderMap({
   }
 
   const count = pins.length;
+  const legend = view === 'aktuelle'
+    ? [{ label: 'Aktuelle', color: colors.brand }]
+    : view === 'uaktuelle'
+      ? [{ label: 'Uaktuelle', color: colors.danger || '#dc2626' }]
+      : view === 'nye'
+        ? [{ label: 'Nye', color: '#64748b' }]
+        : [];
+  const emptyMap = view === 'nye' || view === 'aktuelle' || view === 'uaktuelle'
+    ? 'Ingen treff å vise på kartet i denne visningen.'
+    : 'Kartet viser Nye, Aktuelle og Uaktuelle.';
 
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -117,18 +128,23 @@ export default function TenderMap({
         <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{count} nål{count === 1 ? '' : 'er'}</Text>
       </View>
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.dot, { backgroundColor: '#64748b' }]} />
-          <Text style={{ color: colors.ink, fontSize: 12 }}>Nye</Text>
+      {legend.length ? (
+        <View style={styles.legend}>
+          {legend.map((item) => (
+            <View key={item.label} style={styles.legendItem}>
+              <View style={[styles.dot, { backgroundColor: item.color }]} />
+              <Text style={{ color: colors.ink, fontSize: 12 }}>{item.label}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.dot, { backgroundColor: colors.brand }]} />
-          <Text style={{ color: colors.ink, fontSize: 12 }}>Aktuelle</Text>
-        </View>
-      </View>
+      ) : (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{emptyMap}</Text>
+      )}
       {note ? (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.brand, fontSize: 13 }}>{note}</Text>
+      ) : null}
+      {!count && legend.length ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{emptyMap}</Text>
       ) : null}
       {Platform.OS === 'web' ? (
         <View style={[styles.map, { height: mapHeight }]}>

@@ -21,7 +21,7 @@ function decisionButtonsHtml(row) {
 export function pinPopupHtml(row, index, total) {
   const n = Number(index) || 0;
   const of = Math.max(1, Number(total) || 1);
-  const kind = row?.kind === 'aktuell' ? 'Aktuell' : 'Ny';
+  const kind = row?.kind === 'aktuell' ? 'Aktuell' : row?.kind === 'uaktuell' ? 'Uaktuell' : 'Ny';
   const meta = [
     row?.buyer ? escapeHtml(row.buyer) : '',
     row?.deadline ? `Frist ${escapeHtml(row.deadline)}` : '',
@@ -54,7 +54,7 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
     label: String(row.label || ''),
     lat: Number(row.lat),
     lng: Number(row.lng),
-    kind: row.kind === 'aktuell' ? 'aktuell' : 'ny',
+    kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
   }))).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="nb">
@@ -68,6 +68,7 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
   .pin { width: 14px; height: 14px; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,.35); }
   .pin.ny { background: #64748b; }
   .pin.aktuell { background: ${escapeHtml(brand)}; }
+  .pin.uaktuell { background: ${escapeHtml(danger)}; }
   .pin.on { width: 18px; height: 18px; box-shadow: 0 0 0 3px rgba(61,107,138,.35); }
   .bar {
     position: absolute; left: 44px; right: 8px; top: 8px; z-index: 1000;
@@ -126,7 +127,7 @@ function decisionRow(row) {
     + '</div>';
 }
 function popupHtml(row, index) {
-  const kind = row.kind === 'aktuell' ? 'Aktuell' : 'Ny';
+  const kind = row.kind === 'aktuell' ? 'Aktuell' : row.kind === 'uaktuell' ? 'Uaktuell' : 'Ny';
   const meta = [row.buyer, row.deadline ? ('Frist ' + row.deadline) : '', row.source].filter(Boolean).join(' · ');
   return '<div class="bubble">'
     + '<div class="kicker">' + kind + ' · ' + esc(row.label || 'Sted') + '</div>'
@@ -182,7 +183,7 @@ function normalizePin(row) {
     label: String((row && row.label) || ''),
     lat: Number(row && row.lat),
     lng: Number(row && row.lng),
-    kind: row && row.kind === 'aktuell' ? 'aktuell' : 'ny',
+    kind: row && (row.kind === 'aktuell' || row.kind === 'uaktuell') ? row.kind : 'ny',
     busy: !!(row && row.busy),
   };
 }
@@ -213,6 +214,10 @@ function rebuild(next, focusId) {
   const prevId = pins[current] ? pins[current].id : '';
   const wasOpen = !!(markers[current] && markers[current].isPopupOpen && markers[current].isPopupOpen());
   const growing = next.length > pins.length;
+  const prevIds = pins.map((row) => row.id);
+  let shared = 0;
+  next.forEach((row) => { if (prevIds.indexOf(row.id) >= 0) shared += 1; });
+  const viewChanged = prevIds.length > 0 && shared === 0;
   markers.forEach((marker) => layer.removeLayer(marker));
   markers.length = 0;
   pins.length = 0;
@@ -226,7 +231,7 @@ function rebuild(next, focusId) {
     markers.push(marker);
   });
   if (pins.length && !layer._map) layer.addTo(map);
-  if (pins.length && (!fitted || growing)) {
+  if (pins.length && (!fitted || growing || viewChanged)) {
     map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
     fitted = true;
   }
@@ -234,6 +239,10 @@ function rebuild(next, focusId) {
     current = 0;
     map.closePopup();
     paint();
+    if (prevIds.length) {
+      map.setView([64.5, 11.5], 4);
+      fitted = false;
+    }
     return;
   }
   let index = focusId ? pins.findIndex((row) => row.id === focusId) : -1;
@@ -294,7 +303,7 @@ window.addEventListener('message', (event) => {
     let changed = false;
     pins.forEach((row, i) => {
       const src = next[i] || row;
-      const kind = src.kind === 'aktuell' ? 'aktuell' : 'ny';
+      const kind = src.kind === 'aktuell' || src.kind === 'uaktuell' ? src.kind : 'ny';
       const busy = row.id === busyId;
       if (row.lat !== src.lat || row.lng !== src.lng) {
         row.lat = src.lat;

@@ -11,7 +11,7 @@ import {
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
-import { locateNotice, mapCandidateNotices, mapPinsForNotices } from '../../src/anbud/noticePlace';
+import { locateNotice, mapFollowsList, mapPinsForNotices } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
@@ -691,11 +691,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   }, [scopedNotices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
 
   const mapRows = useMemo(
-    () => mapCandidateNotices(scopedNotices, noticeDeadlineExpired),
-    [scopedNotices],
+    () => (mapFollowsList(filter) ? rows : []),
+    [filter, rows],
   );
   const pins = useMemo(
-    () => mapPinsForNotices(mapRows),
+    () => mapPinsForNotices(mapRows, { asShown: true }),
     [mapRows],
   );
   const missingPlaces = mapRows.filter((row) => !locateNotice(row)).length;
@@ -910,6 +910,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             note={mapNote}
             followId={mapFollow.id}
             followAt={mapFollow.at}
+            view={mapFollowsList(filter) ? filter : ''}
             onSelect={focusNotice}
             onPreview={(id) => highlightFromMap(id, { scroll: false, followList: false })}
             onMark={markOnMap}
@@ -1111,6 +1112,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               onMark={markOnMap}
               followId={mapFollow.id}
               followAt={mapFollow.at}
+              view={mapFollowsList(filter) ? filter : ''}
               busyId={pullingId}
             />
           </View>

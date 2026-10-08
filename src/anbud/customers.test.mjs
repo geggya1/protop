@@ -13,6 +13,10 @@ import {
   normalizeCustomer,
   customerPhoneLines,
   ownerLabel,
+  projectBelongsToCustomer,
+  projectCountsByCustomer,
+  relatedContractsForCustomer,
+  relatedProjectsForCustomer,
   setCustomerOwner,
   upsertCustomer,
 } from './customers.js';
@@ -205,5 +209,52 @@ const filled = customerPhoneLines({
 assert.equal(filled.extra, 'Høgevollsveien 1, 4311 Hommeråk · Kari · kari@example.no · 90000000 · Geir');
 const privat = customerPhoneLines({ name: 'Anders', kind: 'person', customerNumber: '4' });
 assert.equal(privat.meta, 'Nr 4 · Privatkunde');
+const withProjects = customerPhoneLines(
+  { name: 'Anders', kind: 'person', customerNumber: '4' },
+  [],
+  { projectCount: 2 },
+);
+assert.equal(withProjects.meta, 'Nr 4 · Privatkunde · 2 prosjekter');
+
+const kundeA = created.customer;
+const kundeB = upsertCustomer(emptyAnbudState(), {
+  name: 'Sola kommune',
+  orgnr: '964967668',
+  customerNumber: '42',
+}).customer;
+
+const avtaler = relatedContractsForCustomer([
+  { id: 'c1', customerId: kundeA.id, title: 'Ramme', buyer: 'Annen' },
+  { id: 'c2', customerId: '', title: 'Navn', buyer: kundeA.name },
+  { id: 'c3', customerId: '', title: 'Feil', buyer: 'Sola kommune' },
+  { id: 'c4', customerId: kundeA.id, title: 'Slettet', deletedAt: '2024-01-01' },
+], kundeA);
+assert.equal(avtaler.length, 2);
+assert.deepEqual(avtaler.map((row) => row.id).sort(), ['c1', 'c2']);
+
+const prosjektListe = [
+  { id: 'p1', number: '100', name: 'Skole', customerId: kundeA.id, client: 'Annen' },
+  { id: 'p2', number: '101', name: 'Vei', customerId: '', client: kundeA.name },
+  { id: 'p3', number: '102', name: 'Park', customerId: '', client: 'Sola kommune', orgnr: '964967668' },
+  { id: 'p4', number: '103', name: 'Bro', customerId: '', customerNumber: '42', client: 'Annet' },
+  { id: 'p5', number: '104', name: 'Arkiv', customerId: kundeA.id, status: 'arkivert' },
+  { id: 'p6', number: '105', name: 'Fremmed', customerId: 'annen-kunde', client: kundeA.name },
+];
+
+assert.equal(projectBelongsToCustomer(prosjektListe[0], kundeA), true);
+assert.equal(projectBelongsToCustomer(prosjektListe[1], kundeA), true);
+assert.equal(projectBelongsToCustomer(prosjektListe[2], kundeB), true);
+assert.equal(projectBelongsToCustomer(prosjektListe[3], kundeB), true);
+assert.equal(projectBelongsToCustomer(prosjektListe[4], kundeA), false);
+assert.equal(projectBelongsToCustomer(prosjektListe[5], kundeA), false);
+
+const forA = relatedProjectsForCustomer(prosjektListe, kundeA);
+assert.deepEqual(forA.map((row) => row.id), ['p1', 'p2']);
+const forB = relatedProjectsForCustomer(prosjektListe, kundeB);
+assert.deepEqual(forB.map((row) => row.id), ['p3', 'p4']);
+
+const counts = projectCountsByCustomer(prosjektListe, [kundeA, kundeB]);
+assert.equal(counts.get(kundeA.id), 2);
+assert.equal(counts.get(kundeB.id), 2);
 
 console.log('customers.test.mjs: ok');

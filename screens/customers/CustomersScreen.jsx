@@ -16,6 +16,9 @@ import {
   planCustomerImport,
   normalizeOrgnr,
   ownerLabel,
+  projectCountsByCustomer,
+  relatedContractsForCustomer,
+  relatedProjectsForCustomer,
   upsertCustomer,
   withCustomerNumbers,
 } from '../../src/anbud/customers';
@@ -30,6 +33,7 @@ import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadProjectState } from '../../src/project/storage';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
@@ -97,6 +101,7 @@ export default function CustomersScreen() {
   const { isPhone } = useLayout();
   const { familyId, requestShellTab, shellIntent, clearShellIntent, members } = useApp();
   const [state, setState] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
@@ -116,6 +121,9 @@ export default function CustomersScreen() {
 
   useEffect(() => {
     loadAnbudState(familyId).then(setState);
+    loadProjectState().then((loaded) => {
+      setProjects(loaded?.projects || []);
+    }).catch(() => setProjects([]));
   }, [familyId]);
 
   useEffect(() => {
@@ -173,6 +181,10 @@ export default function CustomersScreen() {
     () => filterCustomers(numbered, query, { kind: kindFilter, gap: gapFilter }),
     [numbered, query, kindFilter, gapFilter],
   );
+  const projectCounts = useMemo(
+    () => projectCountsByCustomer(projects, numbered),
+    [projects, numbered],
+  );
   const upcomingNumber = nextCustomerNumber(numbered);
 
   useEffect(() => {
@@ -193,9 +205,8 @@ export default function CustomersScreen() {
     };
   }, [state, familyId]);
   const selected = numbered.find((row) => row.id === selectedId) || null;
-  const related = selected
-    ? contracts.filter((row) => !row.deletedAt && (row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase())))
-    : [];
+  const related = selected ? relatedContractsForCustomer(contracts, selected) : [];
+  const relatedProjects = selected ? relatedProjectsForCustomer(projects, selected) : [];
   const identity = identityFieldsForKind(form.kind);
 
   function patch(part) {
@@ -472,12 +483,14 @@ export default function CustomersScreen() {
                   ? (maskPersonnummer(row.personnummer) || '—')
                   : (formatOrgnr(row.orgnr) || '—');
                 const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
+                const projectCount = projectCounts.get(row.id) || 0;
                 if (isPhone) {
                   return (
                     <CustomerPhoneRow
                       key={row.id}
                       customer={row}
                       people={followPeople}
+                      projectCount={projectCount}
                       colors={colors}
                       onPress={() => { setSelectedId(row.id); setView('detail'); }}
                     />
@@ -502,10 +515,13 @@ export default function CustomersScreen() {
                       </Text>
                     </View>
                     <Text style={[styles.cell, colWidth(2, false), { color: colors.ink }]}>{idLabel}</Text>
-                    <Text style={[styles.cell, colWidth(3, false), { color: colors.ink }]}>{address}</Text>
-                    <Text style={[styles.cell, colWidth(4, false), { color: colors.ink }]}>{row.contactName || '—'}</Text>
-                    <Text style={[styles.cell, colWidth(5, false), { color: colors.ink }]}>{row.email || '—'}</Text>
-                    <Text style={[styles.cell, colWidth(6, false), { color: colors.ink }]}>{row.phone || '—'}</Text>
+                    <Text style={[styles.cell, colWidth(3, false), { color: colors.ink, fontWeight: projectCount ? '600' : '400' }]}>
+                      {projectCount || '—'}
+                    </Text>
+                    <Text style={[styles.cell, colWidth(4, false), { color: colors.ink }]}>{address}</Text>
+                    <Text style={[styles.cell, colWidth(5, false), { color: colors.ink }]}>{row.contactName || '—'}</Text>
+                    <Text style={[styles.cell, colWidth(6, false), { color: colors.ink }]}>{row.email || '—'}</Text>
+                    <Text style={[styles.cell, colWidth(7, false), { color: colors.ink }]}>{row.phone || '—'}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -647,7 +663,9 @@ export default function CustomersScreen() {
             </TouchableOpacity>
           </View>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>Avtaler</Text>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>
+              Avtaler{related.length ? ` (${related.length})` : ''}
+            </Text>
             {related.length ? related.map((row) => (
               <TouchableOpacity
                 key={row.id}
@@ -671,6 +689,33 @@ export default function CustomersScreen() {
               <Text style={{ color: colors.brand }}>Registrer avtale</Text>
             </TouchableOpacity>
           </View>
+          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>
+              Prosjekt{relatedProjects.length ? ` (${relatedProjects.length})` : ''}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Prosjekt der kunden er oppført som oppdragsgiver, vises her automatisk.
+            </Text>
+            {relatedProjects.length ? relatedProjects.map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => requestShellTab?.('projects', null, { type: 'openProject', projectId: row.id })}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.ink }}>
+                  {[row.number, row.name || 'Prosjekt uten navn'].filter(Boolean).join(' · ')}
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  {[
+                    row.projectStatus || row.phase,
+                    [row.start, row.end].filter(Boolean).join(' – '),
+                    row.place || [row.street, row.placeName].filter(Boolean).join(', '),
+                    row.manager,
+                  ].filter(Boolean).join(' · ') || 'Uten status'}
+                </Text>
+              </TouchableOpacity>
+            )) : <Text style={{ color: colors.muted }}>Ingen prosjekt er knyttet til kunden ennå.</Text>}
+          </View>
         </View>
       ) : null}
     </ScrollView>
@@ -681,11 +726,14 @@ const LIST_COLUMNS = [
   ['Nr', 72],
   ['Kunde', 240],
   ['Org.nr', 140],
+  ['Prosjekt', 88],
   ['Adresse', 260],
   ['Kontakt', 170],
   ['E-post', 220],
   ['Telefon', 130],
 ];
+
+const TABLE_WIDTH = LIST_COLUMNS.reduce((sum, [, width]) => sum + width + 8, 20);
 
 function colWidth(index, phone) {
   if (phone) return null;
@@ -732,7 +780,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1 },
-  table: { width: 1320, minWidth: 1320, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  table: { width: TABLE_WIDTH, minWidth: TABLE_WIDTH, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tablePhone: { width: '100%', minWidth: 0 },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableHead: { borderTopWidth: 0 },

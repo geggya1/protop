@@ -228,7 +228,7 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, isAdmin, uid } = useApp();
+  const { familyId, requestShellTab, isAdmin, uid, shellIntent, clearShellIntent } = useApp();
   const cachedProjects = peekProjectState();
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -256,6 +256,7 @@ export default function ProjectWorkScreen() {
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
   const skipNextSave = useRef(true);
+  const pendingProjectId = useRef('');
   const skipColumnSave = useRef(true);
 
   useEffect(() => {
@@ -278,6 +279,31 @@ export default function ProjectWorkScreen() {
     });
     return () => { live = false; };
   }, [familyId]);
+
+  useEffect(() => {
+    if (shellIntent?.type === 'openProject' && shellIntent.projectId) {
+      pendingProjectId.current = shellIntent.projectId;
+      clearShellIntent?.();
+    }
+  }, [shellIntent, clearShellIntent]);
+
+  useEffect(() => {
+    const projectId = pendingProjectId.current;
+    if (!ready || !projectId) return;
+    const project = (state.projects || []).find((row) => row.id === projectId && row.status !== 'arkivert');
+    pendingProjectId.current = '';
+    if (!project) {
+      setNote('Prosjektet ble ikke funnet.');
+      return;
+    }
+    setSelectedId(project.id);
+    setForm(formFromProject(project));
+    setError('');
+    setNote('');
+    setConfirmEditDelete(false);
+    setConfirmBulkDelete(false);
+    setView('edit');
+  }, [ready, state.projects]);
 
   useEffect(() => {
     let live = true;

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Linking, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import FilterMenu from '../../components/FilterMenu';
 import { formatWhen } from '../../src/anbud/model';
 import { scoreNoticeFit } from '../../src/anbud/matchFit';
 import {
@@ -39,9 +40,6 @@ export default function TenderHitCards({
   syncing,
   emptyText = '',
 }) {
-  const [sortOpen, setSortOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeSort = columns.find((col) => col.key === sort.key) || columns[0];
   const sortArrow = sort.dir === 'asc' ? '↑' : '↓';
   const activeFilters = columns.filter((col) => String(colFilter[col.key] || '').trim()).length;
 
@@ -56,62 +54,23 @@ export default function TenderHitCards({
   return (
     <View style={styles.list}>
       <View style={styles.tools}>
-        <TouchableOpacity
-          onPress={() => setSortOpen((value) => !value)}
-          accessibilityRole="button"
-          accessibilityLabel={`Sorter på ${activeSort?.label || 'Publisert'}`}
-          style={[styles.tool, { backgroundColor: sortOpen ? colors.brand : colors.sunken }]}
+        <FilterMenu
+          marked={activeFilters > 0}
+          groups={[{
+            id: 'sort',
+            label: 'Sortering',
+            value: sort.key,
+            onChange: (key) => {
+              const col = columns.find((row) => row.key === key);
+              if (col) pressSort(col);
+            },
+            options: columns.map((col) => ({
+              id: col.key,
+              label: col.key === sort.key ? `${col.label} ${sortArrow}` : col.label,
+            })),
+          }]}
         >
-          <Text style={{ color: sortOpen ? '#fff' : colors.ink, fontSize: 13 }}>
-            Sorter: {activeSort?.label} {sortArrow}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setFiltersOpen((value) => !value)}
-          accessibilityRole="button"
-          accessibilityLabel="Kolonnefilter"
-          style={[styles.tool, { backgroundColor: filtersOpen || activeFilters ? colors.brand : colors.sunken }]}
-        >
-          <Text style={{ color: filtersOpen || activeFilters ? '#fff' : colors.ink, fontSize: 13 }}>
-            Kolonnefilter{activeFilters ? ` (${activeFilters})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>{rows.length} treff</Text>
-      </View>
-      {sortOpen ? (
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.toolScroll}
-          contentContainerStyle={styles.toolScrollContent}
-        >
-          {columns.map((col) => {
-            const on = sort.key === col.key;
-            return (
-              <TouchableOpacity
-                key={col.key}
-                onPress={() => pressSort(col)}
-                accessibilityRole="button"
-                accessibilityLabel={`Sorter på ${col.label}`}
-                style={[styles.tool, { backgroundColor: on ? colors.brand : colors.sunken }]}
-              >
-                <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>
-                  {col.label}{on ? ` ${sortArrow}` : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      ) : null}
-      {filtersOpen ? (
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.toolScroll}
-          contentContainerStyle={styles.toolScrollContent}
-        >
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>Kolonnefilter</Text>
           {columns.map((col) => (
             <View key={col.key} style={styles.filterField}>
               <Text style={[styles.filterLabel, { color: colors.muted }]}>{col.label}</Text>
@@ -125,8 +84,9 @@ export default function TenderHitCards({
               />
             </View>
           ))}
-        </ScrollView>
-      ) : null}
+        </FilterMenu>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{rows.length} treff</Text>
+      </View>
       {rows.map((row) => {
         const open = openId === row.id;
         const onMap = focusId === row.id;

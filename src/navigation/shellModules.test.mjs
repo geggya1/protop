@@ -355,6 +355,16 @@ assert.match(filterMenu, /Filter og sortering/);
 assert.match(filterMenu, /nativeID="filter-menu"/);
 const customerScreen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 assert.match(customerScreen, /FilterMenu/);
+for (const file of [
+  '../../screens/v2/RecipesHubScreen.jsx',
+  '../../screens/v2/MealsHubScreen.jsx',
+  '../../screens/v2/MailHubScreen.jsx',
+  '../../screens/v2/BoligmappaHubScreen.jsx',
+  '../../screens/ActivitiesScreen.jsx',
+  '../../screens/anbud/TenderHitCards.jsx',
+]) {
+  assert.match(readFileSync(new URL(file, import.meta.url), 'utf8'), /FilterMenu/);
+}
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);

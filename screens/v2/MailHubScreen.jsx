@@ -9,6 +9,7 @@ import { Screen } from '../../components/ui';
 import { useApp } from '../../src/context/AppContext';
 import { DeskBtn } from '../../components/DeskBtn';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { MailPaneResizeHandle } from '../../components/MailPaneResizeHandle';
 import MailSettingsModal from '../../components/MailSettingsModal';
@@ -1080,12 +1081,18 @@ export default function MailHubScreen() {
                 </View>
               ) : null}
               <View style={styles.listTabs}>
-                <TouchableOpacity onPress={() => setUnreadOnly(false)} style={[styles.pill, !unreadOnly && styles.pillOn]}>
-                  <Text style={[styles.pillTxt, !unreadOnly && styles.pillTxtOn]}>Alle</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setUnreadOnly(true)} style={[styles.pill, unreadOnly && styles.pillOn]}>
-                  <Text style={[styles.pillTxt, unreadOnly && styles.pillTxtOn]}>Ulest</Text>
-                </TouchableOpacity>
+                <FilterMenu
+                  groups={[{
+                    id: 'read',
+                    label: 'Vis',
+                    value: unreadOnly ? 'unread' : 'all',
+                    onChange: (id) => setUnreadOnly(id === 'unread'),
+                    options: [
+                      { id: 'all', label: 'Alle' },
+                      { id: 'unread', label: 'Ulest' },
+                    ],
+                  }]}
+                />
                 {listBusy ? <ActivityIndicator size="small" color={colors.brand} /> : null}
               </View>
               {error ? (
@@ -1176,12 +1183,18 @@ export default function MailHubScreen() {
 
           <View style={[styles.listPane, { width: listW }]}>
             <View style={styles.listTabs}>
-              <TouchableOpacity onPress={() => setUnreadOnly(false)} style={[styles.tab, !unreadOnly && styles.tabOn]}>
-                <Text style={[styles.tabTxt, !unreadOnly && styles.tabTxtOn]}>Alle</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setUnreadOnly(true)} style={[styles.tab, unreadOnly && styles.tabOn]}>
-                <Text style={[styles.tabTxt, unreadOnly && styles.tabTxtOn]}>Ulest</Text>
-              </TouchableOpacity>
+              <FilterMenu
+                groups={[{
+                  id: 'read',
+                  label: 'Vis',
+                  value: unreadOnly ? 'unread' : 'all',
+                  onChange: (id) => setUnreadOnly(id === 'unread'),
+                  options: [
+                    { id: 'all', label: 'Alle' },
+                    { id: 'unread', label: 'Ulest' },
+                  ],
+                }]}
+              />
               {listBusy ? <ActivityIndicator size="small" color={colors.brand} /> : null}
             </View>
             <HelpTarget id="content" style={{ flex: 1, minHeight: 0, width: '100%' }}>

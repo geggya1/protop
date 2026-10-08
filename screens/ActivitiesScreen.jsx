@@ -17,6 +17,7 @@ import {
 import { collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import FilterMenu from '../components/FilterMenu';
 import Svg, { Polyline } from 'react-native-svg';
 import { Screen, Mute } from '../components/ui';
 import { ModulePageFrame, ModuleBgSpacer, ModuleHubIntro } from '../components/ModulePageBg';
@@ -570,24 +571,21 @@ export default function ActivitiesScreen({ compactHeader = false, inShell = fals
         </View>
       </View>
 
-      <Text style={[styles.sectionLbl, isDesktop && styles.sectionLblDesk]}>Underkategori</Text>
-      <View style={styles.chipWrap}>
-        {subcategories.map((s) => {
-          const on = subcategoryId === s.id;
-          return (
-            <TouchableOpacity
-              key={s.id}
-              style={[styles.chip, on && { backgroundColor: browseMeta.color, borderColor: browseMeta.color }]}
-              onPress={() => {
-                setSubcategoryId(s.id);
-                setProgramId(null);
-              }}
-            >
-              <Text style={[styles.chipTxt, on && { color: '#fff' }]}>{s.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <FilterMenu
+        groups={[{
+          id: 'subcategory',
+          label: 'Underkategori',
+          value: subcategoryId || '',
+          onChange: (id) => {
+            setSubcategoryId(id || null);
+            setProgramId(null);
+          },
+          options: [
+            { id: '', label: 'Alle' },
+            ...subcategories.map((row) => ({ id: row.id, label: row.label })),
+          ],
+        }]}
+      />
       {!!subcategoryId && (
         <Text style={styles.chipHint}>
           {subcategories.find((s) => s.id === subcategoryId)?.blurb}

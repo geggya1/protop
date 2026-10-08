@@ -15,6 +15,7 @@ import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Screen, Mute } from '../../components/ui';
 import { ModulePageFrame, ModuleBgSpacer } from '../../components/ModulePageBg';
 import ShellAddButton from '../../components/ShellAddButton';
+import FilterMenu from '../../components/FilterMenu';
 import PlusActionMenu from '../../components/PlusActionMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useModuleAsideSlot } from '../../src/hooks/useModuleAsideSlot';
@@ -123,28 +124,35 @@ function CollectedPapers({ items, paperKindFilter, setPaperKindFilter, paperFilt
     <View style={styles.card}>
       <SectionTitle>Samlede papirer</SectionTitle>
       <Mute>Tilbud, faktura og bilag fra alle boliger — filtrer på type og firma.</Mute>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        <Chip label="Alle typer" active={paperKindFilter === 'all'} onPress={() => setPaperKindFilter('all')} />
-        {BOLIG_DOC_KINDS.map((k) => (
-          <Chip
-            key={k.id}
-            label={k.label}
-            active={paperKindFilter === k.id}
-            onPress={() => setPaperKindFilter(k.id)}
-          />
-        ))}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        <Chip label="Alle firma" active={paperFilter === 'all'} onPress={() => setPaperFilter('all')} />
-        {vendors.map((v) => (
-          <Chip
-            key={v.id}
-            label={items.length > 1 ? `${v.name} · ${v.home}` : v.name}
-            active={paperFilter === v.id}
-            onPress={() => setPaperFilter(v.id)}
-          />
-        ))}
-      </ScrollView>
+      <FilterMenu
+        groups={[
+          {
+            id: 'kind',
+            label: 'Type',
+            value: paperKindFilter,
+            idle: 'all',
+            onChange: setPaperKindFilter,
+            options: [
+              { id: 'all', label: 'Alle typer' },
+              ...BOLIG_DOC_KINDS.map((kind) => ({ id: kind.id, label: kind.label })),
+            ],
+          },
+          {
+            id: 'vendor',
+            label: 'Firma',
+            value: paperFilter,
+            idle: 'all',
+            onChange: setPaperFilter,
+            options: [
+              { id: 'all', label: 'Alle firma' },
+              ...vendors.map((vendor) => ({
+                id: vendor.id,
+                label: items.length > 1 ? `${vendor.name} · ${vendor.home}` : vendor.name,
+              })),
+            ],
+          },
+        ]}
+      />
       {rows.map((e) => {
         const label = formatBoligPaperLine(e, {
           vendorName: e.vendorName,
@@ -919,10 +927,18 @@ export default function BoligmappaHubScreen({ inShell = false }) {
         ) : null}
 
         {ready && items.length ? (
-          <View style={styles.chipRow}>
-            <Chip label="Boligen" active={hubView === 'home'} onPress={() => setHubView('home')} />
-            <Chip label="Alle papirer" active={hubView === 'papers'} onPress={() => setHubView('papers')} />
-          </View>
+          <FilterMenu
+            groups={[{
+              id: 'view',
+              label: 'Vis',
+              value: hubView,
+              onChange: setHubView,
+              options: [
+                { id: 'home', label: 'Boligen' },
+                { id: 'papers', label: 'Alle papirer' },
+              ],
+            }]}
+          />
         ) : null}
 
         {ready && hubView === 'papers' && items.length ? (
@@ -1103,21 +1119,19 @@ export default function BoligmappaHubScreen({ inShell = false }) {
               <SectionTitle>Papirer</SectionTitle>
               {(selected.entries || []).length ? (
                 <>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                    <Chip
-                      label="Alle papirer"
-                      active={paperKindFilter === 'all'}
-                      onPress={() => setPaperKindFilter('all')}
-                    />
-                    {BOLIG_DOC_KINDS.map((k) => (
-                      <Chip
-                        key={`f-${k.id}`}
-                        label={k.label}
-                        active={paperKindFilter === k.id}
-                        onPress={() => setPaperKindFilter(k.id)}
-                      />
-                    ))}
-                  </ScrollView>
+                  <FilterMenu
+                    groups={[{
+                      id: 'kind',
+                      label: 'Type',
+                      value: paperKindFilter,
+                      idle: 'all',
+                      onChange: setPaperKindFilter,
+                      options: [
+                        { id: 'all', label: 'Alle papirer' },
+                        ...BOLIG_DOC_KINDS.map((kind) => ({ id: kind.id, label: kind.label })),
+                      ],
+                    }]}
+                  />
                   {(selected.entries || [])
                     .filter((e) => paperFilter === 'all' || e.contractorId === paperFilter)
                     .filter((e) => paperKindFilter === 'all' || e.kind === paperKindFilter)

@@ -6,13 +6,13 @@ export default function OwnerPicker({
   people = [],
   value = '',
   onChange,
-  label = 'Ansvarlig for oppfølging',
+  label = 'Ansvarlig for avtalen',
 }) {
   if (!people.length) {
     return (
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-        <Text style={{ color: colors.muted }}>Ingen personer er registrert i bedriften ennå.</Text>
+        <Text style={{ color: colors.muted }}>Ingen ansatte eller medlemmer er registrert ennå.</Text>
       </View>
     );
   }
@@ -20,7 +20,7 @@ export default function OwnerPicker({
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
       <Text style={{ color: colors.muted, fontSize: 12 }}>
-        Én person i bedriften har ansvaret for kunden.
+        Velg blant ansatte og medlemmer i bedriften.
       </Text>
       <View style={styles.row}>
         <TouchableOpacity onPress={() => onChange(null)} accessibilityRole="button">

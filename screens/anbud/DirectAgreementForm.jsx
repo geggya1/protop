@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import DateField from '../../components/DateField';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
@@ -21,7 +22,16 @@ import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import { documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
+import { dateKey } from '../../src/utils/dates';
 import OwnerPicker from './OwnerPicker';
+
+const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
+
+function isoFromDate(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  return dateKey(value) || '';
+}
 
 const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
 const MAX_REMOTE_BYTES = 2500000;
@@ -30,10 +40,11 @@ function yieldUi() {
   return new Promise((resolve) => setTimeout(resolve, 40));
 }
 
-const MULTILINE = new Set(['description', 'honorar']);
+const MULTILINE = new Set(['description']);
 const NUMBER_PLACEHOLDERS = {
   systemId: 'Neste ledige i systemet',
   oppdragId: 'Neste ledige for kunden',
+  value: 'Beløp eks. mva',
 };
 
 function emptyForm() {
@@ -154,6 +165,27 @@ function Field({ colors, field, value, onChange, warning }) {
       </View>
     );
   }
+  if (DATE_FIELD_KEYS.has(field.key)) {
+    return (
+      <View style={{ gap: 4, flexGrow: 1, flexBasis: 220, minWidth: 180 }}>
+        <View style={styles.labelRow}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+          {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
+        </View>
+        <View style={[styles.dateBox, { borderColor: warning ? warnColor : colors.line, backgroundColor: colors.bg }]}>
+          <DateField
+            value={value || null}
+            onChange={(date) => onChange(isoFromDate(date))}
+            placeholder="Velg dato"
+            iconColor={colors.brand}
+            style={styles.dateField}
+            textStyle={{ color: value ? colors.ink : colors.placeholder, fontSize: 15 }}
+          />
+        </View>
+        {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 220, minWidth: 180 }}>
       <View style={styles.labelRow}>
@@ -166,12 +198,14 @@ function Field({ colors, field, value, onChange, warning }) {
         placeholder={NUMBER_PLACEHOLDERS[field.key] || ''}
         placeholderTextColor={colors.placeholder}
         multiline={MULTILINE.has(field.key)}
+        keyboardType={field.key === 'value' || field.key === 'surchargePercent' || field.key === 'orgnr' || field.key === 'supplierOrgnr' ? 'decimal-pad' : 'default'}
         style={[
           styles.input,
           MULTILINE.has(field.key) && styles.inputMulti,
           { color: colors.ink, borderColor: warning ? warnColor : colors.line, backgroundColor: colors.bg },
         ]}
       />
+      {field.key === 'value' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Eks. mva</Text> : null}
       {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
     </View>
   );
@@ -212,6 +246,8 @@ export default function DirectAgreementForm({
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState([]);
   const [registerHit, setRegisterHit] = useState(null);
+  const [brregHits, setBrregHits] = useState([]);
+  const [brregSearching, setBrregSearching] = useState(false);
   const [open, setOpen] = useState({
     dokumenter: true,
     avtalen: true,
@@ -246,36 +282,55 @@ export default function DirectAgreementForm({
 
   const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
   useEffect(() => {
-    if (orgnrDigits.length !== 9) {
+    const q = orgnrDigits.length === 9 ? orgnrDigits : String(form.buyer || '').trim();
+    if (q.length < 2) {
       setRegisterHit(null);
+      setBrregHits([]);
       return undefined;
     }
-    if (brregRef.current === orgnrDigits && registerHit?.orgnr === orgnrDigits) return undefined;
     let live = true;
-    searchBrregCompanies(orgnrDigits, { size: 1 }).then((res) => {
-      if (!live) return;
-      brregRef.current = orgnrDigits;
-      const draft = customerDraftFromBrreg(res.results?.[0]);
-      if (!draft) {
-        setRegisterHit(null);
-        return;
-      }
-      setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
-      setForm((current) => ({
-        ...current,
-        orgnr: draft.orgnr || current.orgnr,
-        personnummer: '',
-        address: current.address || draft.address,
-        place: current.place || draft.place,
-      }));
-    }).catch(() => {
-      if (live) {
-        brregRef.current = orgnrDigits;
-        setRegisterHit(null);
-      }
-    });
-    return () => { live = false; };
-  }, [orgnrDigits]);
+    const timer = setTimeout(() => {
+      setBrregSearching(true);
+      searchBrregCompanies(q, { size: 8 }).then((res) => {
+        if (!live) return;
+        const results = res.results || [];
+        setBrregHits(results);
+        const exact = results.find((row) => row.organisasjonsnummer === orgnrDigits) || (orgnrDigits.length === 9 ? results[0] : null);
+        if (!exact) {
+          if (orgnrDigits.length !== 9) setRegisterHit(null);
+          return;
+        }
+        if (brregRef.current === exact.organisasjonsnummer && registerHit?.orgnr === exact.organisasjonsnummer) return;
+        brregRef.current = exact.organisasjonsnummer;
+        const draft = customerDraftFromBrreg(exact);
+        if (!draft) {
+          setRegisterHit(null);
+          return;
+        }
+        setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
+        if (orgnrDigits.length === 9) {
+          setForm((current) => ({
+            ...current,
+            orgnr: draft.orgnr || current.orgnr,
+            personnummer: '',
+            address: current.address || draft.address,
+            place: current.place || draft.place,
+          }));
+        }
+      }).catch(() => {
+        if (live) {
+          setBrregHits([]);
+          if (orgnrDigits.length === 9) setRegisterHit(null);
+        }
+      }).finally(() => {
+        if (live) setBrregSearching(false);
+      });
+    }, 280);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [orgnrDigits, form.buyer]);
 
   const customerHint = matchCustomer(customers, {
     name: form.buyer,
@@ -292,7 +347,12 @@ export default function DirectAgreementForm({
   const summary = agreementSummary(form);
   const confirmText = registerConfirmText(form, customerHint, registerHit);
   const parents = parentOptions(contracts);
-  const followPeople = companyFollowUpPeople(people);
+  const followPeople = useMemo(() => {
+    const rows = Array.isArray(people) ? people : [];
+    const prepared = rows.filter((row) => row && (row.uid || row.id) && row.name && (row.source || !row.role));
+    if (prepared.length) return prepared;
+    return companyFollowUpPeople(rows);
+  }, [people]);
   const previewSystem = form.systemId || nextSystemId(contracts);
   const previewOppdrag = form.oppdragId || nextOppdragId(contracts, form.customerId, form.buyer);
 
@@ -484,7 +544,7 @@ export default function DirectAgreementForm({
         ...(payload?.fields || {}),
         standard: form.standard,
         indexId: form.indexId,
-        honorar: form.honorar,
+        honorar: '',
         place: form.place,
         address: form.address,
         description: form.description,
@@ -681,6 +741,35 @@ export default function DirectAgreementForm({
 
       <View style={[styles.hint, { borderColor: flags.buyer || flags.orgnr ? (colors.warn || '#d97706') : colors.line, backgroundColor: colors.bg }]}>
         <Text style={{ color: colors.ink, fontWeight: '700' }}>Kunde</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Søk i Enhetsregisteret med org.nr eller firmanavn.</Text>
+        {brregSearching ? <Text style={{ color: colors.muted }}>Søker…</Text> : null}
+        {brregHits.length ? (
+          <View style={{ gap: 6 }}>
+            {brregHits.slice(0, 6).map((hit) => (
+              <TouchableOpacity
+                key={hit.organisasjonsnummer}
+                onPress={() => {
+                  const draft = customerDraftFromBrreg(hit);
+                  if (!draft) return;
+                  brregRef.current = draft.orgnr;
+                  setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
+                  patch({
+                    buyer: draft.name,
+                    orgnr: draft.orgnr,
+                    personnummer: '',
+                    address: form.address || draft.address,
+                    place: form.place || draft.place,
+                  });
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.brand }}>
+                  {hit.navn} · {formatOrgnr(hit.organisasjonsnummer)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
         {confirmText ? <Text style={{ color: colors.ink }}>{confirmText}</Text> : null}
         {registerHit?.name && !namesLikelyMatch(form.buyer, registerHit.name) ? (
           <TouchableOpacity onPress={() => patch({ buyer: registerHit.name })} accessibilityRole="button">
@@ -720,6 +809,7 @@ export default function DirectAgreementForm({
           colors={colors}
           people={followPeople}
           value={form.ownerUid}
+          label="Ansvarlig for avtalen"
           onChange={(person) => patch({
             ownerUid: person ? (person.uid || person.id) : '',
             ownerName: person ? person.name : '',
@@ -808,4 +898,6 @@ const styles = StyleSheet.create({
   drawerBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chip: { borderWidth: 1, borderColor: 'transparent', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  dateBox: { borderWidth: 1, borderRadius: 10, justifyContent: 'center' },
+  dateField: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 42 },
 });

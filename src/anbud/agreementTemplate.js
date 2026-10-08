@@ -64,8 +64,7 @@ export const COVER_FIELD_GROUPS = [
     id: 'honorar',
     title: 'Honorar og regulering',
     fields: [
-      { key: 'honorar', label: 'Avtalte honorar' },
-      { key: 'value', label: 'Avtalt honorar pris' },
+      { key: 'value', label: 'Avtalt honorar (eks. mva)' },
       { key: 'surchargePercent', label: 'Påslagsprosent' },
       { key: 'indexId', label: 'Prisregulering / indeks' },
     ],
@@ -90,6 +89,8 @@ export function kindLabel(kind) {
 export function emptyCoverForm() {
   const form = {};
   for (const key of COVER_FIELD_KEYS) form[key] = '';
+  // Legacy OCR-tekst; vises ikke i UI — beløp ligger i `value` (eks. mva).
+  form.honorar = '';
   form.kind = '';
   form.renewalType = 'ingen';
   form.projectId = '';
@@ -118,6 +119,9 @@ export function coverFromRecord(record = {}) {
     else if (record[key] != null && record[key] !== '') form[key] = String(record[key]);
     else if (fields[key] != null && fields[key] !== '') form[key] = String(fields[key]);
   }
+  form.honorar = fields.honorar != null && fields.honorar !== ''
+    ? String(fields.honorar)
+    : (record.honorar != null && record.honorar !== '' ? String(record.honorar) : '');
   form.projectId = record.projectId || '';
   form.customerId = record.customerId || '';
   form.ownerUid = '';

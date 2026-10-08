@@ -370,6 +370,26 @@ export function companyFollowUpPeople(members) {
   ));
 }
 
+/** Medlemmer og ansatte som kan velges som ansvarlig for avtale/kunde. */
+export function agreementResponsiblePeople(members = [], employees = []) {
+  const fromMembers = companyFollowUpPeople(members).map((row) => ({
+    uid: row.uid || row.id,
+    id: row.uid || row.id,
+    name: text(row.name),
+    source: 'member',
+  }));
+  const seen = new Set(fromMembers.map((row) => row.uid));
+  const fromEmployees = (Array.isArray(employees) ? employees : []).map((row) => {
+    const person = row?.person || {};
+    const name = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean).join(' ');
+    const id = text(row?.id);
+    if (!id || !name || seen.has(id)) return null;
+    seen.add(id);
+    return { uid: id, id, name, source: 'employee' };
+  }).filter(Boolean);
+  return [...fromMembers, ...fromEmployees].sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+}
+
 export function ownerLabel(customer, people = []) {
   if (!customer?.ownerUid) return '';
   const hit = (Array.isArray(people) ? people : []).find((row) => (

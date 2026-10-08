@@ -700,6 +700,23 @@ export function closeContract(state, contractId) {
   }));
 }
 
+/** Sletter avtalen og eventuelle underavtaler (avrop/endring) permanent. */
+export function deleteContract(state, contractId) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  const removeIds = new Set([contract.id]);
+  for (const row of state.contracts || []) {
+    if (row?.parentId === contract.id) removeIds.add(row.id);
+  }
+  const contracts = (state.contracts || []).filter((row) => !removeIds.has(row.id));
+  return ok(record({ ...state, contracts }, {
+    bidId: contract.bidId,
+    contractId: contract.id,
+    action: 'avtale-slettet',
+    detail: contract.title,
+  }));
+}
+
 export function registerDirectContract(state, input) {
   const title = text(input?.title);
   if (!title) return fail(state, 'Avtalen trenger en tittel.');

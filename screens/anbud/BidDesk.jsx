@@ -184,7 +184,7 @@ export default function BidDesk({
       </TouchableOpacity>
       {showForms && state ? <FormBuilderScreen state={state} colors={colors} commit={commit} /> : null}
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
-        <Text style={{ color: colors.muted }}>Kontrakter og avtaler ligger i kontraktsoppfølgingen, også uten tilbudsarbeid.</Text>
+        <Text style={{ color: colors.brand }}>Kontrakter og avtaler</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Innloggingsportal</Text>

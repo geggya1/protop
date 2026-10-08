@@ -278,7 +278,7 @@ export default function ContractFollowUp({
       {view === 'list' ? (
         <>
           {!contracts.length ? (
-            <Text style={{ color: colors.muted }}>Ingen avtale er registrert. Last opp oppdragsavtalen og eventuelle vedlegg, eller opprett den for hånd.</Text>
+            <Text style={{ color: colors.muted }}>Ingen avtaler er registrert ennå.</Text>
           ) : null}
           {contracts.length && !visible.length ? (
             <Text style={{ color: colors.muted }}>Ingen avtaler matcher søket.</Text>

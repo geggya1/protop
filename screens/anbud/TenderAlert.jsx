@@ -730,7 +730,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>
       ) : null}
       <Text style={{ color: colors.muted }}>
-        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`} Listen oppdateres automatisk kl. 23:55.
+        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`}
       </Text>
     </View>
   );
@@ -743,9 +743,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
         <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
             <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}. ` : ''}Nye treff legges til. Vurderinger beholdes.
-            </Text>
+            {state.syncedAt ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {`Oppdatert ${formatWhen(state.syncedAt)}.`}
+              </Text>
+            ) : null}
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <TouchableOpacity onPress={() => refresh(stateRef.current, true)} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
@@ -798,13 +800,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               Avdelingen har ingen region. Velg fylker eller hele Norge, og trykk Oppdater nå.
             </Text>
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {alignedDepartments.length
-                ? 'Oppdater nå henter treff for avdelingenes regioner. Velg en avdeling for å se bare den.'
-                : 'Oppdater nå henter treff for fylkene som er valgt.'}
-            </Text>
-          )}
+          ) : null}
         </View>
         <View style={styles.row}>
           {FILTERS.map(([id, label, tone]) => (

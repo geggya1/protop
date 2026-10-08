@@ -221,14 +221,6 @@ export default function CompanyStructureSettings({
 
   return (
     <View style={styles.block} nativeID="company-structure" id="company-structure">
-      <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.heading, { color: colors.ink }]}>
-        Underenheter og avdelinger
-      </Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Underenheter, for eksempel datterselskap, får eget selskap og eget abonnement.
-        Opplysninger deles ikke automatisk. Avdelinger uten org.nr. ligger på dette selskapet.
-      </Text>
-
       {children.map((row) => (
         <View key={row.id} style={[styles.row, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View style={{ flex: 1 }}>
@@ -275,9 +267,6 @@ export default function CompanyStructureSettings({
           {publicUnitsNotRegistered(publicUnits, units).length ? (
             <>
               <Text style={[styles.label, { color: colors.muted }]}>Fra Enhetsregisteret</Text>
-              <Text style={[styles.lead, { color: colors.muted }]}>
-                Disse underenhetene er registrert på org.nr. i Brønnøysund. Registrer dem i ProTop for eget abonnement.
-              </Text>
               {publicUnitsNotRegistered(publicUnits, units).map((hit) => (
                 <TouchableOpacity
                   key={hit.organisasjonsnummer}
@@ -349,7 +338,6 @@ export default function CompanyStructureSettings({
 
 const styles = StyleSheet.create({
   block: { gap: 10 },
-  heading: { fontSize: 18, fontWeight: '600' },
   lead: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },

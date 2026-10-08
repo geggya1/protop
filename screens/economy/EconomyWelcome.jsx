@@ -76,12 +76,8 @@ export default function EconomyWelcome({ stored }) {
     <View nativeID="economy-welcome" id="economy-welcome" style={styles.page}>
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.kicker, { color: colors.muted }]}>Økonomi</Text>
           <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]}>
             {name}
-          </Text>
-          <Text style={[styles.lead, { color: colors.muted }]}>
-            Velkommen. Her ligger bedriftens nøkkeltall.
           </Text>
         </View>
         {logo?.dataUrl ? (
@@ -139,9 +135,7 @@ const webShadow = Platform.OS === 'web'
 const styles = StyleSheet.create({
   page: { gap: 14 },
   hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  kicker: { fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' },
   hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4, marginTop: 2 },
-  lead: { fontSize: 15, lineHeight: 21, marginTop: 8 },
   logoPlate: {
     borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
     alignSelf: 'flex-start', marginLeft: 'auto', minWidth: 88, minHeight: 64,

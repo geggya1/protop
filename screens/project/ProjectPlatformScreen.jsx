@@ -126,7 +126,6 @@ export default function ProjectPlatformScreen() {
   if (!company) {
     return (
       <ScrollView contentContainerStyle={styles.body}>
-        <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Prosjekt</Text>
         <Text style={[styles.lead, { color: colors.muted }]}>
           Prosjekt og anbud hører til en bedrift. Du er ikke i en bedrift nå.
           Be om innpass eller opprett bedrift fra organisasjonssiden. Det er gratis.
@@ -215,10 +214,11 @@ export default function ProjectPlatformScreen() {
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.lead, { color: colors.muted }]}>
-            Egne CPV-koder og næringskoder brukes i anbudsvarsling, i tillegg til det som er offentlig kjent.
-            {canEdit ? '' : ' Bare superadministrator kan endre dette.'}
-          </Text>
+          {!canEdit ? (
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              Bare superadministrator kan endre dette.
+            </Text>
+          ) : null}
           <CompanyLogoSettings
             company={company}
             canEdit={canEdit}
@@ -290,9 +290,6 @@ export default function ProjectPlatformScreen() {
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.label, { color: colors.muted }]}>Egne næringskoder</Text>
-          <Text style={[styles.lead, { color: colors.muted }]}>
-            Offentlige koder fra Enhetsregisteret vises på forsiden. Her legger du til koder bedriften selv vil varsles på.
-          </Text>
           {ownTrades.map((row) => (
             <View key={row} style={styles.tradeRow}>
               <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row}</Text>

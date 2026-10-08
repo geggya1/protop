@@ -21,10 +21,10 @@ import CreateMenu from '../../components/CreateMenu';
 const IMPORT_ACCEPT = 'image/*,.pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const STARTERS = [
-  { id: 'blank', title: 'Tomt skjema', text: 'Ett flervalgsspørsmål, klart til å bygges.', icon: 'document-outline', kind: 'blank' },
-  { id: 'copy', title: 'Kopier skjemaet ditt', text: 'Lag en kopi av et skjema du allerede har.', icon: 'copy-outline', kind: 'copy' },
-  { id: 'kontakt', title: 'Kontakt', text: 'Navn, e-post, telefon og melding.', icon: 'person-outline', kind: 'kontakt' },
-  { id: 'befaring', title: 'Befaring', text: 'Dato, tid, adresse, tilstand og bilde.', icon: 'map-outline', kind: 'befaring' },
+  { id: 'blank', title: 'Tomt skjema', icon: 'document-outline', kind: 'blank' },
+  { id: 'copy', title: 'Kopier skjemaet ditt', icon: 'copy-outline', kind: 'copy' },
+  { id: 'kontakt', title: 'Kontakt', icon: 'person-outline', kind: 'kontakt' },
+  { id: 'befaring', title: 'Befaring', icon: 'map-outline', kind: 'befaring' },
 ];
 
 function plainTextFromDataUrl(dataUrl, mimeType) {
@@ -240,7 +240,6 @@ export default function FormBuilderScreen({
         placeholderTextColor={colors.placeholder}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />
-      <Text style={[styles.kicker, { color: colors.muted }]}>Nytt skjema</Text>
       <View style={styles.grid}>
         {STARTERS.map((item) => (
           <TouchableOpacity
@@ -254,7 +253,6 @@ export default function FormBuilderScreen({
               <Ionicons name={item.icon} size={22} color={colors.brand} />
             </View>
             <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>{item.text}</Text>
           </TouchableOpacity>
         ))}
       </View>

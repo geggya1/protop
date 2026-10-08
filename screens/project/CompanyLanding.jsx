@@ -244,7 +244,6 @@ export default function CompanyLanding({
     <View style={styles.page}>
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.kicker, { color: colors.muted }]}>Selskap</Text>
           <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
           <View style={styles.heroSub}>
             <Text style={[styles.heroMeta, { color: colors.muted }]}>{dateLabel}</Text>
@@ -423,7 +422,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', marginLeft: 'auto',
   },
   companyLogo: { width: 148, height: 56 },
-  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
   hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4 },
   heroSub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
   heroMeta: { fontSize: 13, fontWeight: '400', textTransform: 'capitalize' },

@@ -674,9 +674,6 @@ export default function ProjectWorkScreen() {
 
       <Text style={[styles.section, { color: colors.ink }]}>Kunde og sted</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Kunde</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Prosjektet skal knyttes til en kunde i kunderegisteret.
-      </Text>
       <View style={styles.rowWrap}>
         {customers.slice(0, 40).map((customer) => (
           <Chip
@@ -971,7 +968,7 @@ export default function ProjectWorkScreen() {
           ) : null}
 
           {!visibleProjects.length ? (
-            <Text style={{ color: colors.muted }}>Ingen prosjekter ennå. Opprett manuelt eller importer en liste.</Text>
+            <Text style={{ color: colors.muted }}>Ingen prosjekter ennå.</Text>
           ) : null}
 
           {visibleProjects.length ? (

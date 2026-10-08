@@ -5,7 +5,7 @@ import { getAuth } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { storage, functions } from '../../firebase';
 
-const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
+const STORAGE_BUCKET = 'protop-c189c.appspot.com';
 const FILE_UPLOAD_TIMEOUT_MS = 25000;
 const REST_UPLOAD_TIMEOUT_MS = 12000;
 const CALLABLE_UPLOAD_TIMEOUT_MS = 90000;
@@ -639,6 +639,9 @@ function callableUploadErrorMessage(err) {
   }
   if (/for stor|too large|payload|resource-exhausted/i.test(raw)) {
     return 'Bildet er for stort til å lastes opp.';
+  }
+  if (/bucket does not exist|Lagringsbucket mangler/i.test(raw)) {
+    return 'Bildelageret er feil konfigurert. Prøv igjen etter oppdatering, eller kontakt support.';
   }
   if (/not-found|404|NOT_FOUND|unimplemented/i.test(raw)) {
     return 'Opplastingstjenesten er ikke klar ennå. Vent litt og prøv igjen.';

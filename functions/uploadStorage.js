@@ -10,7 +10,6 @@ import { assertFamilyMember } from './security.js';
 import { ensureStorageCors } from './storageCors.js';
 
 const MAX_BASE64_BYTES = 15 * 1024 * 1024;
-const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
 
 export async function assertCanWriteObjectPath(db, uid, objectPath) {
   const path = String(objectPath || '').trim();
@@ -52,18 +51,28 @@ export async function handleUploadStorageFile(data, auth) {
   }
 
   const token = randomUUID();
-  const bucket = getStorage().bucket(STORAGE_BUCKET);
+  // Samme default-bucket som album/dokument-opplasting — ikke hardkod
+  // *.firebasestorage.app (den bucketen finnes ikke i dette prosjektet).
+  const bucket = getStorage().bucket();
   const file = bucket.file(objectPath);
-  await file.save(buffer, {
-    metadata: {
-      contentType,
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
-  });
+  try {
+    await file.save(buffer, {
+      metadata: {
+        contentType,
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    if (/bucket does not exist|No such object|Not Found/i.test(msg)) {
+      throw new Error(`Lagringsbucket mangler (${bucket.name}).`);
+    }
+    throw err;
+  }
 
   const encoded = encodeURIComponent(objectPath);
   const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
-  return { downloadUrl, storagePath: objectPath, size: buffer.length };
+  return { downloadUrl, storagePath: objectPath, size: buffer.length, bucket: bucket.name };
 }
 
 /** Engangs/periodisk: sett bucket-CORS fra Admin SDK. */

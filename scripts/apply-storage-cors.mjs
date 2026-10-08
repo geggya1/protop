@@ -14,9 +14,28 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(root, 'functions', 'package.json'));
 const { Storage } = require('@google-cloud/storage');
 
-const bucketName = process.env.STORAGE_BUCKET || 'protop-c189c.firebasestorage.app';
+const projectId = process.env.GCLOUD_PROJECT || 'protop-c189c';
 const cors = JSON.parse(readFileSync(join(root, 'cors.json'), 'utf8'));
+const storage = new Storage({ projectId });
 
-const storage = new Storage({ projectId: process.env.GCLOUD_PROJECT || 'protop-c189c' });
+/** Prefer explicit env, else the project's default GCS bucket (usually *.appspot.com). */
+async function resolveBucketName() {
+  if (process.env.STORAGE_BUCKET) return process.env.STORAGE_BUCKET;
+  const candidates = [
+    `${projectId}.appspot.com`,
+    `${projectId}.firebasestorage.app`,
+  ];
+  for (const name of candidates) {
+    try {
+      const [exists] = await storage.bucket(name).exists();
+      if (exists) return name;
+    } catch {
+      // try next
+    }
+  }
+  return candidates[0];
+}
+
+const bucketName = await resolveBucketName();
 await storage.bucket(bucketName).setCorsConfiguration(cors);
 console.log(`Storage CORS applied on gs://${bucketName} (${cors[0]?.origin?.length || 0} origins)`);

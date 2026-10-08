@@ -1,8 +1,6 @@
 import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
 
-const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
-
 /** Same origins as repo cors.json — applied to the Storage bucket from Admin SDK. */
 export const STORAGE_CORS = [
   {
@@ -63,17 +61,17 @@ export async function ensureStorageCors({ force = false } = {}) {
   if (applied && !force) return { ok: true, skipped: true, origins: STORAGE_CORS[0].origin.length };
   if (inflight) return inflight;
   inflight = (async () => {
-    const bucket = getStorage().bucket(STORAGE_BUCKET);
+    const bucket = getStorage().bucket();
     await bucket.setCorsConfiguration(STORAGE_CORS);
     applied = true;
     logger.info('[storageCors] bucket CORS applied', {
-      bucket: STORAGE_BUCKET,
+      bucket: bucket.name,
       origins: STORAGE_CORS[0].origin.length,
     });
-    return { ok: true, origins: STORAGE_CORS[0].origin.length };
+    return { ok: true, origins: STORAGE_CORS[0].origin.length, bucket: bucket.name };
   })()
     .catch((err) => {
-      logger.warn('[storageCors] failed', { message: err?.message, bucket: STORAGE_BUCKET });
+      logger.warn('[storageCors] failed', { message: err?.message });
       return { ok: false, error: err?.message || String(err) };
     })
     .finally(() => {

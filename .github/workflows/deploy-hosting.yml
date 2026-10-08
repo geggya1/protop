@@ -64,6 +64,14 @@ jobs:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
+      - name: Apply Firebase Storage CORS
+        continue-on-error: true
+        # Krever storage.buckets.update på github-hosting-deploy.
+        # Uten CORS feiler web-opplasting mot firebasestorage.googleapis.com (preflight).
+        run: |
+          npm ci --prefix functions
+          NODE_PATH="$PWD/functions/node_modules" node scripts/apply-storage-cors.mjs
+
       - name: Deploy slim Cloud Functions
         continue-on-error: true
         # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.

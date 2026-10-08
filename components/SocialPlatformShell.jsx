@@ -20,6 +20,7 @@ import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
+import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -75,6 +76,7 @@ const TITLES = {
   selskap: 'Selskap',
   ansatte: 'Ansatte',
   projects: 'Prosjekt',
+  arbeid: 'Arbeid',
   iso: 'ISO',
   okonomi: 'Økonomi',
   underenheter: 'Underenheter',
@@ -175,6 +177,7 @@ export default function SocialPlatformShell({ platformType }) {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
+    if (tab === 'arbeid') return <ArbeidScreen />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'selskap' && route.params?.subView !== 'underenheter') return <ProjectPlatformScreen />;
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
@@ -238,7 +241,7 @@ export default function SocialPlatformShell({ platformType }) {
       <HelpTarget id="tabs">
         <View style={[styles.tabBar, { backgroundColor: c.tabBar, borderTopColor: c.line }]}>
           {config.tabs.map((item) => {
-            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'kunder' || tab === 'kontrakt' || tab === 'skjema' || tab === 'projects' || tab === 'iso' || tab === 'okonomi')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
+            const on = tab === item.id || (item.id === 'apps' && (tab === 'anbud' || tab === 'kunder' || tab === 'kontrakt' || tab === 'skjema' || tab === 'projects' || tab === 'arbeid' || tab === 'iso' || tab === 'okonomi')) || (item.id === 'more' && ['polls', 'expenses', 'ministry', 'volunteer', 'rhythm', 'absence', 'pickup', 'announcements', 'members', 'invite', 'approvals', 'wall'].includes(tab));
             return (
               <TouchableOpacity
                 key={item.id}

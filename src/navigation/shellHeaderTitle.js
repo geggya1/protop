@@ -79,6 +79,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'kontrakt') return 'Kontrakt / avtale';
   if (tab === 'skjema') return 'Skjema';
   if (tab === 'projects') return 'Prosjekt';
+  if (tab === 'arbeid') return 'Arbeid';
   if (tab === 'iso') return 'ISO';
   if (tab === 'okonomi') return okonomiMenuTitle(moreSubView);
   if (tab === 'plan') return t('tabs.plan');

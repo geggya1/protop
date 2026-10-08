@@ -18,7 +18,11 @@ export function titlesMatch(left, right) {
   const size = Math.min(18, a.length, b.length);
   if (a.slice(0, size) === b.slice(0, size)) return true;
   const short = Math.min(12, a.length, b.length);
-  return a.startsWith(b.slice(0, short)) || b.startsWith(a.slice(0, short));
+  if (a.startsWith(b.slice(0, short)) || b.startsWith(a.slice(0, short))) return true;
+  // Avkuttet PDF-hint midt i tittelen skal fortsatt treffe prosjektet.
+  const needle = a.length <= b.length ? a.slice(0, Math.min(20, a.length)) : b.slice(0, Math.min(20, b.length));
+  const hay = a.length <= b.length ? b : a;
+  return needle.length >= 10 && hay.includes(needle);
 }
 
 function isInline(url) {

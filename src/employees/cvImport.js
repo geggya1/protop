@@ -5,6 +5,7 @@
  */
 import { zipEntries } from '../anbud/customerImport.js';
 import { fileMedia } from '../imports/interpret.js';
+import { stitchProjectTitles } from './cvText.js';
 import { normalizeEmployee } from './model.js';
 
 export const CV_IMPORT_ACCEPT = [
@@ -162,5 +163,7 @@ export function applyImportedCv(employee, cv) {
     if (!match?.images?.length) return row;
     return { ...row, images: match.images.slice(0, 8) };
   });
+  // Avkuttede titler (f.eks. «... kontor og» + «[Nybygg], *Breeam») limes sammen før lagring.
+  base.cv.projects = stitchProjectTitles(base.cv.projects);
   return { employee: normalizeEmployee(base), added, kept };
 }

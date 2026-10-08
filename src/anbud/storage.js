@@ -6,6 +6,23 @@ import { compactAnbudState, emptyAnbudState, mergeAnbudStates, normalizeAnbudSta
 const KEY = 'protop.anbud.v1';
 const remoteTimers = new Map();
 const remotePending = new Map();
+/** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
+const MEMORY = new Map();
+const inflight = new Map();
+
+function memoryKey(companyId) {
+  return String(companyId || '').trim() || '_';
+}
+
+export function peekAnbudState(companyId) {
+  return MEMORY.get(memoryKey(companyId)) || null;
+}
+
+function putAnbudMemory(companyId, state) {
+  const next = normalizeAnbudState(state);
+  MEMORY.set(memoryKey(companyId), next);
+  return next;
+}
 
 function localKey(companyId) {
   const id = String(companyId || '').trim();
@@ -76,17 +93,28 @@ function queueRemote(companyId, state) {
   }, 400));
 }
 
-export async function loadAnbudState(companyId) {
-  const local = await readLocal(companyId);
-  const remote = await readRemote(companyId);
-  return mergeAnbudStates(local, remote);
+export async function loadAnbudState(companyId, { force = false } = {}) {
+  const key = memoryKey(companyId);
+  if (!force && MEMORY.has(key)) return MEMORY.get(key);
+  if (!force && inflight.has(key)) return inflight.get(key);
+  const pending = (async () => {
+    const local = await readLocal(companyId);
+    const remote = await readRemote(companyId);
+    return putAnbudMemory(companyId, mergeAnbudStates(local, remote));
+  })();
+  inflight.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inflight.get(key) === pending) inflight.delete(key);
+  }
 }
 
 export async function saveAnbudState(state, companyId) {
   const next = mergeAnbudStates(await readLocal(companyId), state);
   await writeLocal(companyId, next);
   queueRemote(companyId, compactAnbudState(next));
-  return next;
+  return putAnbudMemory(companyId, next);
 }
 
 /** Lagrer med en gang og venter på Firestore, slik at «Lagre» ikke later som det gikk bra. */
@@ -101,5 +129,5 @@ export async function persistAnbudState(state, companyId) {
     remotePending.delete(id);
   }
   await writeRemote(companyId, compactAnbudState(next));
-  return next;
+  return putAnbudMemory(companyId, next);
 }

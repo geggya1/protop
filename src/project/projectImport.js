@@ -10,6 +10,7 @@ import {
   normalizeOrgnr,
 } from '../anbud/customers.js';
 import { normalizePricingModel } from './projectFields.js';
+import { phaseFromProjectStatus } from './statusFilter.js';
 
 const FIELDS = [
   ['number', ['prosjektnr', 'prosjektnummer', 'projectnumber', 'projectno']],
@@ -101,17 +102,6 @@ function headerIndex(table) {
 
 function placeOf(row) {
   return [text(row.street), [text(row.postalCode), text(row.placeName)].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-}
-
-function phaseFromStatus(status) {
-  const key = fold(status);
-  if (!key) return 'planlegging';
-  if (key.includes('avslutt') || key.includes('ferdig') || key.includes('arkiv')) return 'avsluttet';
-  if (key.includes('garanti')) return 'garanti';
-  if (key.includes('overlever')) return 'overlevering';
-  if (key.includes('produksjon') || key.includes('arbeid') || key.includes('aktiv')) return 'produksjon';
-  if (key.includes('tilbud')) return 'tilbud';
-  return 'planlegging';
 }
 
 /** Stabil nøkkel for å gruppere rader som hører til samme kunde i importfilen. */
@@ -380,7 +370,7 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     feeEstimate,
     description: text(row.description),
     // Timer/økonomi og Moment-restfelter nullstilles ved lagring — fylles av andre moduler.
-    phase: phaseFromStatus(row.status),
+    phase: phaseFromProjectStatus(row.status),
     agreementKind,
     contractId: agreement?.id || '',
     frameworkAgreementId: framework?.id || (agreement?.kind === 'rammeavtale' ? agreement.id : ''),
@@ -399,7 +389,7 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     start: text(row.start),
     end: text(row.end),
     description: text(row.description),
-    phase: phaseFromStatus(row.status),
+    phase: phaseFromProjectStatus(row.status),
     department: text(row.department),
     parentNumber: text(row.parentNumber),
     projectStatus: text(row.status),

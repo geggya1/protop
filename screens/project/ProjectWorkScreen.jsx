@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,7 +13,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { linkProject } from '../../src/anbud/lifecycle';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
@@ -46,7 +45,16 @@ import {
   normalizePricingModel,
   pricingModelLabel,
 } from '../../src/project/projectFields';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import {
+  matchesStatusFilter,
+  PROJECT_STATUS_FILTERS,
+} from '../../src/project/statusFilter';
+import {
+  loadProjectState,
+  peekProjectState,
+  putProjectState,
+  saveProjectState,
+} from '../../src/project/storage';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
 
@@ -148,15 +156,37 @@ function ProjectTable({ phone, colors, selectCol, children }) {
     </View>
   );
   if (phone) return body;
+  // Én viewport-bundet scroller (x+y) slik at sidelengs scrollbar er synlig uten å gå til bunnen.
+  if (Platform.OS === 'web') {
+    return (
+      <View
+        nativeID="project-table-viewport"
+        style={[
+          styles.tableViewport,
+          styles.tableViewportWeb,
+          { borderColor: colors.line },
+        ]}
+      >
+        {body}
+      </View>
+    );
+  }
   return (
     <ScrollView
-      horizontal
       nestedScrollEnabled
-      showsHorizontalScrollIndicator
-      style={styles.tableScroll}
+      showsVerticalScrollIndicator
+      style={styles.tableViewport}
       contentContainerStyle={styles.tableContent}
     >
-      {body}
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator
+        style={styles.tableScroll}
+        contentContainerStyle={styles.tableContent}
+      >
+        {body}
+      </ScrollView>
     </ScrollView>
   );
 }
@@ -204,9 +234,11 @@ export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { familyId, requestShellTab, isAdmin } = useApp();
-  const [state, setState] = useState(emptyProjectState());
-  const [anbud, setAnbud] = useState(null);
-  const [ready, setReady] = useState(false);
+  const cachedProjects = peekProjectState();
+  const cachedAnbud = peekAnbudState(familyId);
+  const [state, setState] = useState(() => cachedProjects || emptyProjectState());
+  const [anbud, setAnbud] = useState(() => cachedAnbud);
+  const [ready, setReady] = useState(() => !!(cachedProjects && cachedAnbud));
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [query, setQuery] = useState('');
@@ -214,6 +246,7 @@ export default function ProjectWorkScreen() {
   const [selectedId, setSelectedId] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [gapFilter, setGapFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [importing, setImporting] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
@@ -224,20 +257,37 @@ export default function ProjectWorkScreen() {
   const [confirmEditDelete, setConfirmEditDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
+  const skipNextSave = useRef(true);
 
   useEffect(() => {
     let live = true;
+    const warmProjects = peekProjectState();
+    const warmAnbud = peekAnbudState(familyId);
+    if (warmProjects && warmAnbud) {
+      setState(warmProjects);
+      setAnbud(warmAnbud);
+      setReady(true);
+      skipNextSave.current = true;
+      return () => { live = false; };
+    }
     Promise.all([loadProjectState(), loadAnbudState(familyId)]).then(([projects, anbudState]) => {
       if (!live) return;
       setState(projects);
       setAnbud(anbudState);
       setReady(true);
+      skipNextSave.current = true;
     });
     return () => { live = false; };
   }, [familyId]);
 
   useEffect(() => {
-    if (ready) saveProjectState(state).catch(() => setError('Kunne ikke lagre lokalt.'));
+    if (!ready) return;
+    putProjectState(state);
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    saveProjectState(state).catch(() => setError('Kunne ikke lagre lokalt.'));
   }, [state, ready]);
 
   const customers = anbud?.customers || [];
@@ -250,6 +300,7 @@ export default function ProjectWorkScreen() {
       const missing = projectMissingAgreement(item);
       if (gapFilter === 'missing' && !missing) return false;
       if (gapFilter === 'ok' && missing) return false;
+      if (!matchesStatusFilter(item, statusFilter)) return false;
       if (!q) return true;
       return [
         item.number, item.name, item.client, item.customerNumber, item.orgnr,
@@ -258,7 +309,7 @@ export default function ProjectWorkScreen() {
         item.parentName, item.projectTags, item.description,
       ].join(' ').toLowerCase().includes(q);
     });
-  }, [state.projects, query, gapFilter]);
+  }, [state.projects, query, gapFilter, statusFilter]);
 
   const allVisibleChecked = visibleProjects.length > 0
     && visibleProjects.every((item) => checkedIds.has(item.id));
@@ -1229,17 +1280,26 @@ export default function ProjectWorkScreen() {
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
           <FilterMenu
-            groups={[{
-              id: 'agreement',
-              label: 'Avtale',
-              value: gapFilter,
-              onChange: setGapFilter,
-              options: [
-                { id: '', label: 'Alle' },
-                { id: 'missing', label: 'Mangler avtale' },
-                { id: 'ok', label: 'Med avtale' },
-              ],
-            }]}
+            groups={[
+              {
+                id: 'status',
+                label: 'Status',
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: PROJECT_STATUS_FILTERS,
+              },
+              {
+                id: 'agreement',
+                label: 'Avtale',
+                value: gapFilter,
+                onChange: setGapFilter,
+                options: [
+                  { id: '', label: 'Alle avtaler' },
+                  { id: 'missing', label: 'Mangler avtale' },
+                  { id: 'ok', label: 'Med avtale' },
+                ],
+              },
+            ]}
           />
 
           {isAdmin && visibleProjects.length ? (
@@ -1320,7 +1380,14 @@ export default function ProjectWorkScreen() {
               </Text>
               <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin}>
                 {!isPhone ? (
-                  <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
+                  <View
+                    style={[
+                      styles.tableRow,
+                      styles.tableHead,
+                      { borderColor: colors.line, backgroundColor: colors.card },
+                      Platform.OS === 'web' && styles.tableHeadSticky,
+                    ]}
+                  >
                     {isAdmin ? (
                       <TouchableOpacity
                         onPress={toggleCheckAllVisible}
@@ -1461,11 +1528,21 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tableViewport: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    maxHeight: 560,
+    borderRadius: 12,
+  },
+  tableViewportWeb: {
+    maxHeight: 'calc(100vh - 260px)',
+    overflow: 'auto',
+  },
   tableScroll: {
     width: '100%',
     maxWidth: '100%',
     alignSelf: 'stretch',
-    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
   },
   tableContent: { flexGrow: 1, minWidth: '100%', alignSelf: 'stretch' },
   table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', alignSelf: 'stretch' },
@@ -1473,6 +1550,11 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableRowPhone: { flexDirection: 'column', gap: 2 },
   tableHead: { borderTopWidth: 0 },
+  tableHeadSticky: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
+  },
   headCell: { fontSize: 12, fontWeight: '700' },
   cell: { fontSize: 14 },
   agreeCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },

@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const uploadSrc = readFileSync(join(root, 'functions/uploadStorage.js'), 'utf8');
 const mediaSrc = readFileSync(join(root, 'src/utils/media.js'), 'utf8');
+const corsScript = readFileSync(join(root, 'scripts/apply-storage-cors.mjs'), 'utf8');
 const deploySrc = readFileSync(join(root, 'scripts/deploy-slim-functions.sh'), 'utf8');
 const workflowSrc = readFileSync(join(root, '.github/workflows/deploy-hosting.yml'), 'utf8');
 const cors = JSON.parse(readFileSync(join(root, 'cors.json'), 'utf8'));
@@ -18,13 +19,14 @@ assert.match(uploadSrc, /protop-c189c\.firebasestorage\.app/);
 
 assert.match(mediaSrc, /uploadStorageFile/);
 assert.match(mediaSrc, /uploadImageViaCallable/);
+assert.match(mediaSrc, /callableUploadErrorMessage/);
 const uploadImageBlock = mediaSrc.slice(mediaSrc.indexOf('export async function uploadImage'));
 assert.match(uploadImageBlock, /uploadImageViaCallable/);
-assert.ok(
-  uploadImageBlock.indexOf('uploadImageViaCallable') < uploadImageBlock.indexOf('uploadBytes'),
-  'web uploadImage should try callable before client Storage',
-);
+assert.equal(uploadImageBlock.includes('trying client Storage'), false);
+assert.match(uploadImageBlock, /throw new Error\(callableUploadErrorMessage/);
 
+assert.match(corsScript, /createRequire/);
+assert.match(corsScript, /@google-cloud\/storage/);
 assert.match(deploySrc, /storageIndex\.js/);
 assert.match(deploySrc, /uploadStorageFile/);
 assert.match(workflowSrc, /apply-storage-cors\.mjs/);

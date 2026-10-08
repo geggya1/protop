@@ -626,14 +626,34 @@ async function uploadImageViaCallable(path, blob) {
   return url;
 }
 
+function callableUploadErrorMessage(err) {
+  const raw = String(err?.message || err?.code || err || '');
+  if (/callable-timeout|deadline|timeout/i.test(raw)) {
+    return 'Opplasting tok for lang tid. Prøv igjen.';
+  }
+  if (/unauthenticated|not-authenticated|Ikke innlogget/i.test(raw)) {
+    return 'Du må være innlogget for å laste opp bilder.';
+  }
+  if (/permission|unauthorized|Ugyldig lagringssti|Ingen tilgang/i.test(raw)) {
+    return 'Ingen tilgang til å laste opp bildet.';
+  }
+  if (/for stor|too large|payload|resource-exhausted/i.test(raw)) {
+    return 'Bildet er for stort til å lastes opp.';
+  }
+  if (/not-found|404|NOT_FOUND|unimplemented/i.test(raw)) {
+    return 'Opplastingstjenesten er ikke klar ennå. Vent litt og prøv igjen.';
+  }
+  return raw.slice(0, 180) || 'Kunne ikke laste opp bildet.';
+}
+
 export async function uploadImage(path, picked) {
   const blob = (picked && picked.blob)
     || (typeof Blob !== 'undefined' && picked instanceof Blob ? picked : null)
     || await uriToBlob(typeof picked === 'string' ? picked : picked?.uri);
   if (!blob) throw new Error('Kunne ikke lese bildet');
   try {
-    // On web, Storage CORS can block or hang the request.
-    // Prefer Admin SDK callable first — same pattern as album/documents.
+    // Web: always use Admin SDK callable. Direct Storage uploads hit a broken
+    // firebasestorage.googleapis.com preflight (404) from protop.no.
     if (Platform.OS === 'web') {
       try {
         return await withTimeout(
@@ -642,33 +662,16 @@ export async function uploadImage(path, picked) {
           'callable-timeout',
         );
       } catch (callableErr) {
-        console.warn('[media] uploadStorageFile failed, trying client Storage', callableErr?.message || callableErr);
+        console.warn('[media] uploadStorageFile failed', callableErr?.message || callableErr);
+        throw new Error(callableUploadErrorMessage(callableErr));
       }
-
-      const timeoutMs = 4500;
-      const uploadAttempt = (async () => {
-        const r = ref(storage, path);
-        await uploadBytes(r, blob, { contentType: blob.type || 'image/jpeg' });
-        return getDownloadURL(r);
-      })();
-
-      const timeoutP = new Promise((resolve) => {
-        setTimeout(() => resolve('TIMEOUT'), timeoutMs);
-      });
-
-      const res = await Promise.race([uploadAttempt, timeoutP]);
-      if (res === 'TIMEOUT') return blobToJpegDataUrl(blob);
-      return res;
     }
 
     const r = ref(storage, path);
     await uploadBytes(r, blob, { contentType: blob.type || 'image/jpeg' });
     return getDownloadURL(r);
   } catch (err) {
-    if (Platform.OS === 'web') {
-      return blobToJpegDataUrl(blob);
-    }
-    throw err;
+    throw err instanceof Error ? err : new Error(String(err || 'Kunne ikke laste opp bildet.'));
   }
 }
 

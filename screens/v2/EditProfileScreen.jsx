@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, Switch,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { updateProfile } from 'firebase/auth';
@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
+import { notifyUser } from '../../src/utils/dialog';
 import { colors, radius } from '../../src/theme';
 import { claimUsername, isValidUsername, suggestUsername, usernameTaken } from '../../src/utils/usernames';
 import { hasContactAccount, uniqueUsername } from '../../src/utils/account';
@@ -231,7 +232,7 @@ export default function EditProfileScreen() {
   const toggleBiometric = async (next) => {
     if (!uid || biometricBusy) return;
     if (next && !biometricAvailable) {
-      Alert.alert(t('common.error'), t('security.biometricUnavailable'));
+      notifyUser(t('common.error'), t('security.biometricUnavailable'));
       return;
     }
     if (next) {
@@ -299,31 +300,31 @@ export default function EditProfileScreen() {
   const sendReset = async () => {
     const email = (authUser?.email || initial.email || '').trim();
     if (!email) {
-      Alert.alert(t('common.error'), t('auth.identifier'));
+      notifyUser(t('common.error'), t('auth.identifier'));
       return;
     }
     setResetBusy(true);
     try {
       await sendPasswordResetV2(email);
-      Alert.alert(t('auth.resetSentTitle'), t('auth.resetSentBody'));
+      notifyUser(t('auth.resetSentTitle'), t('auth.resetSentBody'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setResetBusy(false);
     }
   };
 
   const saveLocalPassword = async () => {
-    if (password.length < 6) return Alert.alert(t('common.error'), t('member.passwordSet'));
-    if (password !== password2) return Alert.alert(t('common.error'), t('auth.passwordMismatch'));
+    if (password.length < 6) return notifyUser(t('common.error'), t('member.passwordSet'));
+    if (password !== password2) return notifyUser(t('common.error'), t('auth.passwordMismatch'));
     setPwdBusy(true);
     try {
       await setMemberPassword({ uid, password, familyId });
       setPassword('');
       setPassword2('');
-      Alert.alert(t('common.ok'), t('auth.passwordChanged'));
+      notifyUser(t('common.ok'), t('auth.passwordChanged'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setPwdBusy(false);
     }
@@ -445,10 +446,10 @@ export default function EditProfileScreen() {
         );
       }
 
-      Alert.alert(t('common.ok'), t('profile.saved'));
+      notifyUser(t('common.ok'), t('profile.saved'));
       nav.goBack();
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
       setTaken(true);
     } finally {
       setSaving(false);

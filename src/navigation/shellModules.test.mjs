@@ -6,6 +6,7 @@ import {
   buildChildDashboardApps,
   companyNavItems,
   isNavItemActive,
+  normalizeShellSelection,
 } from './shellModules.js';
 import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
 import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
@@ -76,7 +77,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'ansatte', 'kunder', 'anbud', 'kontrakt', 'skjema', 'projects', 'iso', 'okonomi'],
+    ['selskap', 'ansatte', 'kunder', 'anbud', 'kontrakt', 'skjema', 'projects', 'arbeid', 'iso', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -151,6 +152,10 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);
   assert.equal(isNavItemActive(units, 'selskap', null), false);
   assert.equal(isNavItemActive(selskap, 'selskap', 'underenheter'), true);
+  assert.deepEqual(normalizeShellSelection('friends'), { tab: 'more', subView: 'friends' });
+  assert.deepEqual(normalizeShellSelection('friends', 'ignored'), { tab: 'more', subView: 'friends' });
+  assert.deepEqual(normalizeShellSelection('anbud', 'tilbud'), { tab: 'anbud', subView: 'tilbud' });
+  assert.deepEqual(normalizeShellSelection('projects'), { tab: 'projects', subView: null });
 }
 
 {

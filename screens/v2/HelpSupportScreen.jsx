@@ -7,10 +7,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
   ScrollView, ActivityIndicator, Image, KeyboardAvoidingView, Platform,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { confirmUser, notifyUser } from '../../src/utils/dialog';
 import { useHelp } from '../../src/context/HelpContext';
 import { useI18n } from '../../src/i18n';
 import { colors, deskType, useLayout } from '../../src/theme';
@@ -294,7 +294,7 @@ export default function HelpSupportScreen() {
       if (!picked) return;
       setFormAttachment(picked);
     } catch {
-      Alert.alert(t('common.error'), t('help.attachFail'));
+      notifyUser(t('common.error'), t('help.attachFail'));
     }
   };
 
@@ -334,26 +334,24 @@ export default function HelpSupportScreen() {
           setView(VIEWS.tickets);
         }
         const num = data?.ticketNumber || '';
-        Alert.alert(
+        notifyUser(
           t('help.ticketCreatedTitle'),
           t('help.ticketCreatedBody').replace('{number}', num),
         );
       } catch (err) {
-        Alert.alert(t('common.error'), err?.message || t('help.ticketFail'));
+        notifyUser(t('common.error'), err?.message || t('help.ticketFail'));
       } finally {
         setFormBusy(false);
       }
     };
 
     if (needsContactEmail && !formEmail.trim()) {
-      Alert.alert(
+      const useInternal = await confirmUser(
         t('help.emailRequiredTitle'),
-        t('help.emailRequiredBody'),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: t('help.channelInternal'), onPress: () => doCreate({ allowInternalOnly: true }) },
-        ],
+        `${t('help.emailRequiredBody')}\n\nOK: ${t('help.channelInternal')}`,
+        { ok: t('help.channelInternal'), cancel: t('common.cancel') },
       );
+      if (useInternal) await doCreate({ allowInternalOnly: true });
       return;
     }
     await doCreate({ allowInternalOnly: !needsContactEmail });
@@ -367,7 +365,7 @@ export default function HelpSupportScreen() {
       await appendTicketUserMessage(uid, ticketId, { text });
       setReplyText('');
     } catch (err) {
-      Alert.alert(t('common.error'), err?.message || t('common.error'));
+      notifyUser(t('common.error'), err?.message || t('common.error'));
     } finally {
       setReplyBusy(false);
     }

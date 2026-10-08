@@ -31,7 +31,7 @@ import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultOkonomiSubView } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -418,6 +418,12 @@ function AppShellInner() {
         return;
       }
     }
+    const picked = normalizeShellSelection(id, subView);
+    if (picked.tab !== id || (picked.subView || null) !== (subView || null)) {
+      setMoreSubView(picked.subView);
+      setTab(picked.tab);
+      return;
+    }
     if (id === 'mail' || (id === 'more' && subView === 'mail')) {
       setMoreSubView(null);
       setTab('mail');
@@ -767,7 +773,13 @@ function AppShellInner() {
                     <RailTabItem
                       key={item.id}
                       tab={item}
-                      active={item.id === 'more' ? (tab === 'more' && !moreSubView) : tab === item.id}
+                      active={
+                        item.id === 'friends'
+                          ? (tab === 'more' && moreSubView === 'friends')
+                          : item.id === 'more'
+                            ? (tab === 'more' && !moreSubView)
+                            : tab === item.id
+                      }
                       onPress={() => selectTab(item.id)}
                       desktop={false}
                       colors={colors}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ActivityIndicator, Alert, Platform,
+  View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { signOut } from 'firebase/auth';
@@ -12,6 +12,7 @@ import ProfileSwitcherModal from './ProfileSwitcherModal';
 import FriendQrModal from './FriendQrModal';
 import { useProfileNavigation } from '../src/hooks/useProfileNavigation';
 import { useApp } from '../src/context/AppContext';
+import { notifyUser } from '../src/utils/dialog';
 import { goPlatformOverview } from '../src/utils/platformNav';
 import { openNotifications } from '../src/navigation/openNotifications';
 import { desktopMenu } from '../src/desktop';
@@ -53,7 +54,7 @@ export default function ProfileMenuModal({ visible, onClose }) {
       await signOut(auth);
       nav.reset({ index: 0, routes: [{ name: 'Login' }] });
     } catch (e) {
-      Alert.alert('Kunne ikke logge ut', e?.message || 'Ukjent feil');
+      notifyUser('Kunne ikke logge ut', e?.message || 'Ukjent feil');
     } finally {
       setSigningOut(false);
       onClose?.();

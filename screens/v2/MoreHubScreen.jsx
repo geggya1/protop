@@ -52,7 +52,8 @@ import {
 } from '../settings/GroupSettingsScreen';
 import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
 import AiImportChildPicker from '../../components/AiImportChildPicker';
-import { buildChildDashboardApps, buildParentDashboardApps, buildShellModules } from '../../src/navigation/shellModules';
+import { buildChildDashboardApps, buildParentDashboardApps, buildShellModules, companyNavItems } from '../../src/navigation/shellModules';
+import { isOrganizationType } from '../../src/utils/groupTypes';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
 import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
 import IconBadge from '../../components/IconBadge';
@@ -345,6 +346,31 @@ export default function MoreHubScreen({ subView, setSubView }) {
           onPress={(app) => runAction(app.action, app.id)}
           title={t('moreHub.modulesTitle')}
           subtitle={t('moreHub.modulesSub')}
+          footer={isOrganizationType(family?.type) ? (
+            <View style={styles.companyBlock}>
+              <Text style={styles.companyHeading}>{t('shell.company')}</Text>
+              {companyNavItems().map((item) => (
+                <View key={item.id}>
+                  <Row
+                    icon={item.icon}
+                    label={item.label}
+                    moduleId={item.id}
+                    onPress={() => runAction(item.action, item.id)}
+                  />
+                  {(item.children || []).map((child) => (
+                    <Row
+                      key={child.id}
+                      icon={child.icon}
+                      label={child.label}
+                      moduleId={child.id}
+                      compact
+                      onPress={() => runAction(child.action, child.id)}
+                    />
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
         />
         <AiImportChildPicker
           visible={childPickerOpen}
@@ -525,6 +551,8 @@ const styles = StyleSheet.create({
   deskList: {
     gap: 1,
   },
+  companyBlock: { marginTop: 18, paddingHorizontal: 6 },
+  companyHeading: { fontSize: 13, fontWeight: '600', color: colors.muted, marginBottom: 8, marginLeft: 4 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card,
     borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.line, minHeight: 58,

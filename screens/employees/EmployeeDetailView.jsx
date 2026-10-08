@@ -216,6 +216,7 @@ export default function EmployeeDetailView({
   onBack,
   onEdit,
   onCv,
+  onOpenProject,
   onSelect,
   onPushProfile,
   onPullToProfile,
@@ -718,7 +719,7 @@ export default function EmployeeDetailView({
                   {group.items.map((project) => (
                     <TouchableOpacity
                       key={`${group.role}:${project.id}`}
-                      onPress={onCv}
+                      onPress={() => (onOpenProject ? onOpenProject(project) : onCv?.())}
                       accessibilityRole="button"
                       style={[styles.projectRow, { borderTopColor: colors.line }]}
                     >

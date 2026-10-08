@@ -1,9 +1,10 @@
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { storage, functions } from '../../firebase';
+import { notifyUser } from './dialog';
 
 const STORAGE_BUCKET = 'protop-c189c.appspot.com';
 const FILE_UPLOAD_TIMEOUT_MS = 25000;
@@ -713,5 +714,5 @@ export function photoErrorMessage(err, t) {
 }
 
 export function alertPhotoError(err, t) {
-  Alert.alert(t ? t('common.error') : 'Feil', photoErrorMessage(err, t));
+  notifyUser(t ? t('common.error') : 'Feil', photoErrorMessage(err, t));
 }

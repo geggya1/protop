@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   grip: { width: 28, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', cursor: 'grab', touchAction: 'none' },
   gap: { borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  fab: { position: 'absolute', right: 18, bottom: 74, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
+  fab: { position: 'absolute', right: 18, bottom: 120, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   tabs: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 8 },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
   sheetWrap: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 10, justifyContent: 'flex-end' },

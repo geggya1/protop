@@ -22,6 +22,7 @@ export default function HomeModulesBoard({
   subtitle,
   backLabel = 'Tilbake',
   embedded = false,
+  footer = null,
 }) {
   const immersive = useHomeImmersive();
   const { contentPaddingBottom } = useBottomChromeInset();
@@ -61,6 +62,7 @@ export default function HomeModulesBoard({
           </View>
         ))}
       </View>
+      {footer}
     </>
   );
 

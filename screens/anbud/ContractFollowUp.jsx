@@ -29,6 +29,8 @@ import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { useApp } from '../../src/context/AppContext';
+import { useLayout } from '../../src/theme';
 import { watchEmployees } from '../../src/employees/storage';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
@@ -74,6 +76,8 @@ export default function ContractFollowUp({
   intent = null,
   onClearIntent,
 }) {
+  const { requestShellTab } = useApp();
+  const { isPhone } = useLayout();
   const [state, setState] = useState(null);
   const [note, setNote] = useState('');
   const [projects, setProjects] = useState([]);
@@ -202,14 +206,18 @@ export default function ContractFollowUp({
     }
     if (handed.created) await saveProjectState(handed.state, companyId);
     setProjects((handed.state.projects || []).filter((row) => row.status !== 'arkivert'));
-    if (contract.projectId && contract.projectId === handed.projectId) {
-      setNote('Prosjektet er allerede koblet.');
-      return;
+    const projectId = handed.projectId;
+    if (!(contract.projectId && contract.projectId === projectId)) {
+      const loaded = await loadAnbudState(companyId);
+      const linked = linkProject(loaded, contract.id, projectId);
+      await commit(linked);
+      if (!linked.ok) {
+        setNote(linked.error || 'Kunne ikke koble prosjektet.');
+        return;
+      }
     }
-    const loaded = await loadAnbudState(companyId);
-    const linked = linkProject(loaded, contract.id, handed.projectId);
-    await commit(linked);
-    if (linked.ok) setNote(handed.created ? 'Prosjektet er opprettet med kontraktssummen.' : 'Prosjektet er koblet.');
+    setNote(handed.created ? 'Prosjektet er opprettet med kontraktssummen.' : 'Prosjektet er koblet.');
+    requestShellTab?.('projects', null, { type: 'openProject', projectId });
   }
 
   function openIndex(contract) {
@@ -412,7 +420,40 @@ export default function ContractFollowUp({
               {inTrash ? 'Papirkurven er tom.' : 'Ingen avtaler matcher filteret.'}
             </Text>
           ) : null}
-          {visible.length ? (
+          {visible.length && isPhone ? (
+            <View style={{ gap: 8 }}>
+              {paged.map((row) => {
+                const tone = badgeTone(row, colors);
+                return (
+                  <View key={row.id} style={[styles.phoneCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                    <TouchableOpacity
+                      onPress={() => { setSelectedId(row.id); setView('detail'); }}
+                      accessibilityRole="button"
+                      style={{ gap: 4 }}
+                    >
+                      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{cell(row, 'title')}</Text>
+                      <Text style={{ color: colors.muted }}>{cell(row, 'buyer')} · {cell(row, 'kind')}</Text>
+                      <Text style={{ color: colors.ink }}>{cell(row, 'period')}</Text>
+                      <Text style={{ color: colors.ink }}>{cell(row, 'value')}</Text>
+                      <View style={[styles.badge, { backgroundColor: tone.bg, alignSelf: 'flex-start' }]}>
+                        <Text style={{ color: tone.ink, fontSize: 12, fontWeight: '700' }}>{cell(row, 'status')}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    {row.deletedAt ? (
+                      <TouchableOpacity onPress={() => restoreRow(row)} accessibilityRole="button">
+                        <Text style={{ color: colors.brand, fontWeight: '600' }}>Gjenopprett</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity onPress={() => setDeleteTarget(row)} accessibilityRole="button">
+                        <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+          {visible.length && !isPhone ? (
             <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <View>
                 <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
@@ -546,6 +587,7 @@ const styles = StyleSheet.create({
   dateBox: { borderWidth: 1, borderRadius: 10, minWidth: 148, justifyContent: 'center' },
   dateField: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 40 },
   tableWrap: { borderWidth: 1, borderRadius: 14 },
+  phoneCard: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   tr: { flexDirection: 'row', borderBottomWidth: 1, minHeight: 52, alignItems: 'center' },
   head: { minHeight: 44 },
   th: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 11, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },

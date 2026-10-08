@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
+import { useLayout } from '../../src/theme';
 import { coverFromRecord, coverGroups, kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatOrgnr, maskPersonnummer } from '../../src/anbud/customers';
 import { formatNok } from '../../src/anbud/model';
@@ -47,6 +48,7 @@ export default function EconomyDesk({
   searchPlaceholder = 'Søk i kunder, prosjekt og avtaler',
 }) {
   const colors = useColors();
+  const { isPhone } = useLayout();
   const [query, setQuery] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -123,7 +125,34 @@ export default function EconomyDesk({
           Ingen kunder, prosjekt eller avtaler er registrert ennå. Registrer dem under Kunder eller Kontrakt / avtale i bedriftsmenyen.
         </Text>
       ) : null}
-      {rows.length ? (
+      {rows.length && isPhone ? (
+        <View style={{ gap: 8 }}>
+          {rows.map((row) => {
+            const on = row.kind === 'kunde'
+              ? row.customerId === customerId && !focusedId
+              : row.kind === 'prosjekt'
+                ? row.projectId === projectId && !focusedId
+                : row.contractId === focusedId;
+            return (
+              <TouchableOpacity
+                key={row.key}
+                onPress={() => pickRow(row)}
+                accessibilityRole="button"
+                style={[styles.card, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {row.kind === 'kunde' ? 'Kunde' : row.kind === 'prosjekt' ? 'Prosjekt' : 'Avtale'}
+                </Text>
+                <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{row.title}</Text>
+                {row.party ? <Text style={{ color: colors.ink }}>{row.party}</Text> : null}
+                {row.extra ? <Text style={{ color: colors.muted }}>{row.extra}</Text> : null}
+                <DueMark due={row.due} reason={row.dueReason} colors={colors} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+      {rows.length && !isPhone ? (
         <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View>
             <View style={[styles.tr, styles.head, { borderBottomColor: colors.line }]}>

@@ -323,6 +323,14 @@ function offset(lat, lng, index) {
   };
 }
 
+export function nextMapPinIndex(count, previousIndex) {
+  const total = Number(count) || 0;
+  if (total <= 0) return -1;
+  const index = Number(previousIndex);
+  const safe = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+  return Math.min(safe, total - 1);
+}
+
 export function mapCandidateNotices(notices, expired) {
   return (Array.isArray(notices) ? notices : []).filter((row) => {
     const decision = row?.decision || 'ubestemt';

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mapsUrl } from '../../src/utils/locationMaps';
+import { nextMapPinIndex } from '../../src/anbud/noticePlace';
 import { tenderMapDocument } from '../../src/anbud/tenderMapHtml';
 
 export default function TenderMap({
@@ -14,8 +15,11 @@ export default function TenderMap({
   busyId = '',
   missing = 0,
   mapHeight = 440,
+  compact = false,
+  note = '',
 }) {
   const iframeRef = useRef(null);
+  const indexRef = useRef(0);
   const [cursorId, setCursorId] = useState(selectedId);
   const pinKey = pins.map((row) => row.id).join(',');
   const kindKey = pins.map((row) => `${row.id}:${row.kind === 'aktuell' ? 'aktuell' : 'ny'}`).join(',');
@@ -23,11 +27,15 @@ export default function TenderMap({
     () => tenderMapDocument(pins, {
       brand: colors?.brand || '#3D6B8A',
       danger: colors?.danger || '#dc2626',
+      compact,
     }),
-    [pinKey, colors?.brand, colors?.danger],
+    // Nåler synkes med postMessage. Nytt srcDoc laster kartet på nytt og flytter siden på mobil.
+    [colors?.brand, colors?.danger, compact],
   );
-  const index = Math.max(0, pins.findIndex((row) => row.id === (cursorId || selectedId)));
-  const current = pins[index] || pins[0];
+  const found = pins.findIndex((row) => row.id === (cursorId || selectedId));
+  if (found >= 0) indexRef.current = found;
+  const index = found >= 0 ? found : nextMapPinIndex(pins.length, indexRef.current);
+  const current = index >= 0 ? pins[index] : null;
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -58,17 +66,32 @@ export default function TenderMap({
     iframeRef.current?.contentWindow?.postMessage({ type: 'show', id }, '*');
   }
 
-  function syncMap() {
+  function syncMap(focusId = '') {
     iframeRef.current?.contentWindow?.postMessage({
       type: 'sync',
-      rows: pins.map((row) => ({ id: row.id, kind: row.kind === 'aktuell' ? 'aktuell' : 'ny' })),
+      pins: pins.map((row) => ({
+        id: row.id,
+        title: row.title,
+        buyer: row.buyer,
+        deadline: row.deadline,
+        source: row.source,
+        label: row.label,
+        lat: row.lat,
+        lng: row.lng,
+        kind: row.kind === 'aktuell' ? 'aktuell' : 'ny',
+      })),
       busyId: busyId || '',
+      focusId: focusId || '',
     }, '*');
   }
 
   useEffect(() => {
-    syncMap();
-  }, [kindKey, busyId]);
+    const still = !cursorId || pins.some((row) => row.id === cursorId);
+    const nextAt = still ? -1 : nextMapPinIndex(pins.length, indexRef.current);
+    const focusId = nextAt >= 0 ? (pins[nextAt]?.id || '') : '';
+    if (focusId && focusId !== cursorId) setCursorId(focusId);
+    syncMap(focusId);
+  }, [pinKey, kindKey, busyId]);
 
   function step(delta) {
     if (!pins.length) return;
@@ -96,6 +119,9 @@ export default function TenderMap({
           <Text style={{ color: colors.ink, fontSize: 12 }}>Aktuelle</Text>
         </View>
       </View>
+      {note ? (
+        <Text accessibilityLiveRegion="polite" style={{ color: colors.brand, fontSize: 13 }}>{note}</Text>
+      ) : null}
       {Platform.OS === 'web' ? (
         <View style={[styles.map, { height: mapHeight }]}>
           {React.createElement('iframe', {
@@ -133,12 +159,12 @@ export default function TenderMap({
               accessibilityRole="button"
               accessibilityLabel={`Merk ${current.title} som aktuell`}
               accessibilityState={{ selected: current.kind === 'aktuell' }}
-              style={[styles.markBtn, {
+              style={[styles.markBtn, compact && styles.markBtnCompact, {
                 backgroundColor: current.kind === 'aktuell' ? colors.brand : colors.card,
                 borderColor: current.kind === 'aktuell' ? colors.brand : colors.line,
               }]}
             >
-              <Text style={{ color: current.kind === 'aktuell' ? '#fff' : colors.ink, fontSize: 13, fontWeight: '600' }}>
+              <Text style={{ color: current.kind === 'aktuell' ? '#fff' : colors.ink, fontSize: compact ? 15 : 13, fontWeight: '600' }}>
                 {busyId === current.id ? 'Henter …' : 'Aktuell'}
               </Text>
             </TouchableOpacity>
@@ -146,13 +172,13 @@ export default function TenderMap({
               onPress={() => onMark?.(current.id, 'forkastet')}
               accessibilityRole="button"
               accessibilityLabel={`Merk ${current.title} som uaktuell`}
-              style={[styles.markBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+              style={[styles.markBtn, compact && styles.markBtnCompact, { backgroundColor: colors.card, borderColor: colors.line }]}
             >
-              <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Uaktuell</Text>
+              <Text style={{ color: colors.ink, fontSize: compact ? 15 : 13, fontWeight: '600' }}>Uaktuell</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button">
-            <Text style={{ color: colors.brand, fontWeight: '700' }}>{current.title}</Text>
+            <Text style={{ color: colors.brand, fontWeight: '700' }} numberOfLines={compact ? 2 : undefined}>{current.title}</Text>
           </TouchableOpacity>
           {current.buyer ? <Text style={{ color: colors.ink, fontSize: 12 }}>{current.buyer}</Text> : null}
           {current.deadline ? <Text style={{ color: colors.muted, fontSize: 12 }}>Frist {current.deadline}</Text> : null}
@@ -193,6 +219,7 @@ const styles = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 },
   navBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   decisions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  markBtn: { flex: 1, alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  markBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  markBtnCompact: { minHeight: 44, paddingVertical: 12 },
   jump: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', marginTop: 4 },
 });

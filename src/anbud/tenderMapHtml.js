@@ -41,7 +41,7 @@ export function pinPopupHtml(row, index, total) {
   </div>`;
 }
 
-export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', danger = '#dc2626' } = {}) {
+export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', danger = '#dc2626', compact = false } = {}) {
   const rows = (Array.isArray(pins) ? pins : []).filter((row) => (
     Number.isFinite(Number(row?.lat)) && Number.isFinite(Number(row?.lng))
   ));
@@ -90,10 +90,12 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
   .row { display: flex; gap: 6px; align-items: center; }
   .count { font-size: 12px; color: #5b6b82; flex: 1; text-align: center; }
   .decisions { display: flex; gap: 6px; }
-  .decisions .mark { flex: 1; font-weight: 600; }
+  .decisions .mark { flex: 1; font-weight: 600; min-height: 44px; font-size: 14px; padding: 10px 8px; }
+  .bubble .nav, .bubble .open { min-height: 40px; }
   .mark.aktuell.on { background: ${escapeHtml(brand)} !important; color: #fff !important; }
   .mark.uaktuell.on { background: ${escapeHtml(danger)} !important; color: #fff !important; }
   .open { background: ${escapeHtml(brand)} !important; color: #fff !important; font-weight: 600; }
+  ${compact ? '.bar { display: none; }' : ''}
 </style>
 </head>
 <body>
@@ -139,7 +141,9 @@ function popupHtml(row, index) {
 }
 const layer = L.featureGroup();
 const markers = [];
-let current = Math.max(0, pins.findIndex((row) => row.id === selected));
+let current = 0;
+let fitted = false;
+const popupPad = ${compact ? '[8, 12]' : '[12, 64]'};
 const icon = (kind, on) => L.divIcon({
   className: '',
   html: '<div class="pin ' + kind + (on ? ' on' : '') + '"></div>',
@@ -168,18 +172,85 @@ function show(index, { jump, pan } = {}) {
   tell('preview', row.id);
   if (jump) tell('open', row.id);
 }
-pins.forEach((row, index) => {
-  const marker = L.marker([row.lat, row.lng], { icon: icon(row.kind, index === current), title: row.title });
-  marker.bindPopup(() => popupHtml(row, index), { maxWidth: 260, maxHeight: 280, autoPanPadding: [12, 64], keepInView: true });
+function normalizePin(row) {
+  return {
+    id: String((row && row.id) || ''),
+    title: String((row && row.title) || '').slice(0, 120),
+    buyer: String((row && row.buyer) || '').slice(0, 80),
+    deadline: String((row && row.deadline) || ''),
+    source: String((row && row.source) || ''),
+    label: String((row && row.label) || ''),
+    lat: Number(row && row.lat),
+    lng: Number(row && row.lng),
+    kind: row && row.kind === 'aktuell' ? 'aktuell' : 'ny',
+    busy: !!(row && row.busy),
+  };
+}
+function sameIds(next) {
+  if (next.length !== pins.length) return false;
+  for (let i = 0; i < next.length; i += 1) {
+    if (pins[i].id !== next[i].id) return false;
+  }
+  return true;
+}
+function bindMarker(row) {
+  const marker = L.marker([row.lat, row.lng], { icon: icon(row.kind, false), title: row.title });
+  marker.bindPopup(() => {
+    const index = Math.max(0, pins.findIndex((item) => item.id === row.id));
+    return popupHtml(pins[index] || row, index);
+  }, { maxWidth: 280, maxHeight: 300, autoPanPadding: popupPad, keepInView: false });
   marker.on('click', () => {
-    current = index;
+    const at = pins.findIndex((item) => item.id === row.id);
+    if (at < 0) return;
+    current = at;
     paint();
     marker.openPopup();
     tell('preview', row.id);
   });
-  marker.addTo(layer);
-  markers.push(marker);
-});
+  return marker;
+}
+function rebuild(next, focusId) {
+  const prevId = pins[current] ? pins[current].id : '';
+  const wasOpen = !!(markers[current] && markers[current].isPopupOpen && markers[current].isPopupOpen());
+  const growing = next.length > pins.length;
+  markers.forEach((marker) => layer.removeLayer(marker));
+  markers.length = 0;
+  pins.length = 0;
+  next.forEach((row) => {
+    if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng) || !row.id) return;
+    pins.push(row);
+  });
+  pins.forEach((row) => {
+    const marker = bindMarker(row);
+    marker.addTo(layer);
+    markers.push(marker);
+  });
+  if (pins.length && !layer._map) layer.addTo(map);
+  if (pins.length && (!fitted || growing)) {
+    map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
+    fitted = true;
+  }
+  if (!pins.length) {
+    current = 0;
+    map.closePopup();
+    paint();
+    return;
+  }
+  let index = focusId ? pins.findIndex((row) => row.id === focusId) : -1;
+  if (index < 0 && prevId) index = pins.findIndex((row) => row.id === prevId);
+  const lost = !!(prevId && index < 0);
+  if (index < 0) index = Math.min(Math.max(current, 0), pins.length - 1);
+  current = index;
+  paint();
+  const marker = markers[current];
+  if (!marker) return;
+  if (lost || (focusId && pins[current] && pins[current].id === focusId)) {
+    map.panTo(marker.getLatLng());
+    marker.openPopup();
+    return;
+  }
+  if (wasOpen) marker.openPopup();
+}
 let lastMarkKey = '';
 let lastMarkAt = 0;
 document.addEventListener('click', (event) => {
@@ -198,6 +269,7 @@ document.addEventListener('click', (event) => {
         tell('mark', id, { decision: decision });
       }
     }
+    if (mark.blur) mark.blur();
     return;
   }
   const open = event.target.closest('[data-open]');
@@ -212,16 +284,32 @@ document.addEventListener('click', (event) => {
   show(current + (act.getAttribute('data-act') === 'next' ? 1 : -1), { pan: true });
 });
 window.addEventListener('message', (event) => {
-  if (event?.data?.type === 'sync' && Array.isArray(event.data.rows)) {
-    const byId = new Map(event.data.rows.map((row) => [row.id, row.kind === 'aktuell' ? 'aktuell' : 'ny']));
+  if (event?.data?.type === 'sync' && Array.isArray(event.data.pins)) {
+    const next = event.data.pins.map(normalizePin);
+    if (!sameIds(next)) {
+      rebuild(next, String(event.data.focusId || ''));
+      return;
+    }
     const busyId = String(event.data.busyId || '');
     let changed = false;
-    pins.forEach((row) => {
-      const kind = byId.has(row.id) ? byId.get(row.id) : row.kind;
+    pins.forEach((row, i) => {
+      const src = next[i] || row;
+      const kind = src.kind === 'aktuell' ? 'aktuell' : 'ny';
       const busy = row.id === busyId;
-      if (row.kind !== kind || !!row.busy !== busy) {
+      if (row.lat !== src.lat || row.lng !== src.lng) {
+        row.lat = src.lat;
+        row.lng = src.lng;
+        markers[i].setLatLng([src.lat, src.lng]);
+        changed = true;
+      }
+      if (row.kind !== kind || !!row.busy !== busy || row.title !== src.title) {
         row.kind = kind;
         row.busy = busy;
+        row.title = src.title;
+        row.buyer = src.buyer;
+        row.deadline = src.deadline;
+        row.source = src.source;
+        row.label = src.label;
         changed = true;
       }
     });
@@ -239,10 +327,8 @@ window.addEventListener('message', (event) => {
   }
 });
 if (pins.length) {
-  layer.addTo(map);
-  map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
-  paint();
-  if (selected) show(current, { pan: true });
+  const initial = pins.slice();
+  rebuild(initial, selected || '');
 } else {
   map.setView([64.5, 11.5], 4);
 }

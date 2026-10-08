@@ -261,13 +261,71 @@ function startsNewProject(rows, index) {
 /** En avkuttet setning eller en merkelapp i klammer er fortsettelse, ikke et nytt prosjekt. */
 function canStartProject(line) {
   const text = String(line || '').trim();
-  if (/^[a-zæøå]/.test(text)) return false;
+  if (/^[a-zæøå*]/.test(text)) return false;
   if (/[,;]$/.test(text)) return false;
+  if (titleFragment(text)) return false;
   return true;
 }
 
 function bracketTag(line) {
-  return /^\[[^\]]+\]$/.test(String(line || '').trim());
+  const text = String(line || '').trim();
+  // Ren [Tag], eller OCR-rest som "[Nybygg], *Breeam".
+  return /^\[[^\]]+\]/.test(text) && text.length < 100 && !projectField(text);
+}
+
+function titleNeedsMore(title) {
+  const value = String(title || '').trim();
+  if (!value) return false;
+  if (/[(/–-]$/.test(value)) return true;
+  if (/\b(og|for|til|med|av|i|på|samt)$/i.test(value)) return true;
+  return false;
+}
+
+function titleFragment(line) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  if (bracketTag(text)) return true;
+  if (/^[[*]/.test(text) && text.length < 80) return true;
+  if (/^[a-zæøå*]/.test(text) && text.length < 80) return true;
+  return false;
+}
+
+function projectHasBody(project) {
+  if (!project) return false;
+  return Boolean(
+    project.client || project.period || project.address || project.cost
+    || project.roles || project.responsibility || project.contact || project.object
+    || project.category || project.employer || project.email || project.phone,
+  );
+}
+
+/** Lim sammen titler som ble kuttet over linjeskift eller ble egne «prosjekter». */
+export function stitchProjectTitles(projects) {
+  const out = [];
+  for (const project of Array.isArray(projects) ? projects : []) {
+    const row = project && typeof project === 'object' ? { ...project } : null;
+    if (!row) continue;
+    const prev = out[out.length - 1];
+    const title = String(row.title || '').trim();
+    if (
+      prev
+      && title
+      && (
+        (titleNeedsMore(prev.title) && !projectField(title) && !addressLine(title))
+        || (titleFragment(title) && !projectHasBody(row))
+      )
+    ) {
+      prev.title = `${String(prev.title || '').trim()} ${title}`.replace(/\s+/g, ' ').trim();
+      for (const [key, value] of Object.entries(row)) {
+        if (key === 'title' || key === 'id' || key === 'images' || key === 'source' || key === 'link') continue;
+        if (!String(prev[key] || '').trim() && String(value || '').trim()) prev[key] = value;
+      }
+      if ((row.images || []).length && !(prev.images || []).length) prev.images = row.images;
+      continue;
+    }
+    out.push(row);
+  }
+  return out;
 }
 
 function parseProjects(rows) {
@@ -296,7 +354,11 @@ function parseProjects(rows) {
       current.title = line;
       continue;
     }
-    if (bracketTag(line)) {
+    if (bracketTag(line) || (titleNeedsMore(current.title) && titleFragment(line))) {
+      current.title = `${current.title} ${line}`.replace(/\s+/g, ' ').trim();
+      continue;
+    }
+    if (!started && titleNeedsMore(current.title) && !field && !addressLine(line) && !canStartProject(line)) {
       current.title = `${current.title} ${line}`.replace(/\s+/g, ' ').trim();
       continue;
     }
@@ -326,7 +388,7 @@ function parseProjects(rows) {
     current.address = current.address ? `${current.address}, ${line}` : line;
   }
   finish();
-  return projects;
+  return stitchProjectTitles(projects);
 }
 
 export function parseProtopCv(text) {
@@ -562,6 +624,6 @@ export function mergeCvReads(local, assisted) {
     certifications: union(left.certifications, right.certifications, ['title']),
     courses: union(left.courses, right.courses, ['date', 'title']),
     experience: union(left.experience, right.experience, ['employer', 'from']),
-    projects: union(left.projects, right.projects, ['title', 'period']),
+    projects: stitchProjectTitles(union(left.projects, right.projects, ['title', 'period'])),
   };
 }

@@ -18,7 +18,11 @@ export function titlesMatch(left, right) {
   const size = Math.min(18, a.length, b.length);
   if (a.slice(0, size) === b.slice(0, size)) return true;
   const short = Math.min(12, a.length, b.length);
-  return a.startsWith(b.slice(0, short)) || b.startsWith(a.slice(0, short));
+  if (a.startsWith(b.slice(0, short)) || b.startsWith(a.slice(0, short))) return true;
+  // Avkuttet PDF-hint midt i tittelen skal fortsatt treffe prosjektet.
+  const needle = a.length <= b.length ? a.slice(0, Math.min(20, a.length)) : b.slice(0, Math.min(20, b.length));
+  const hay = a.length <= b.length ? b : a;
+  return needle.length >= 10 && hay.includes(needle);
 }
 
 function isInline(url) {
@@ -44,16 +48,19 @@ async function runPool(items, limit, task) {
 export async function storeCvImages(employee, upload) {
   const row = employee && typeof employee === 'object' ? employee : {};
   const id = row.id || 'cv';
+  let failed = 0;
   let photoUrl = row.person?.photoUrl || '';
   if (isInline(photoUrl)) {
     try {
       const stored = await upload(`employees/${id}/photo`, photoUrl);
       if (stored && !isInline(stored)) photoUrl = stored;
+      else failed += 1;
     } catch {
-      // Bildet blir liggende i utkastet til lagringen får plass.
+      failed += 1;
     }
   }
-  const projects = await runPool(row.cv?.projects || [], 4, async (project, index) => {
+  // Færre samtidige opplastinger: mange store data-URL-er på web trenger tid til REST.
+  const projects = await runPool(row.cv?.projects || [], 2, async (project, index) => {
     const images = [];
     const source = Array.isArray(project?.images) ? project.images : [];
     for (let imageIndex = 0; imageIndex < source.length; imageIndex += 1) {
@@ -64,17 +71,21 @@ export async function storeCvImages(employee, upload) {
       }
       try {
         const stored = await upload(`employees/${id}/projects/${project?.id || index}/${imageIndex}`, image);
-        images.push(stored && !isInline(stored) ? stored : image);
+        if (stored && !isInline(stored)) images.push(stored);
+        else failed += 1;
       } catch {
-        images.push(image);
+        failed += 1;
       }
     }
     return { ...project, images };
   });
   return {
-    ...row,
-    person: { ...(row.person || {}), photoUrl },
-    cv: { ...(row.cv || {}), projects },
+    employee: {
+      ...row,
+      person: { ...(row.person || {}), photoUrl },
+      cv: { ...(row.cv || {}), projects },
+    },
+    failed,
   };
 }
 

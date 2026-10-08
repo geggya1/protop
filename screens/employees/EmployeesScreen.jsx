@@ -7,7 +7,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
-import { pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
+import { pickDocument, pickImage, pickImages, uploadImage, uploadImageToStorage } from '../../src/utils/media';
 import { projectSheetFile } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { cvAttention } from '../../src/employees/cvReview';
@@ -545,16 +545,17 @@ export default function EmployeesScreen() {
     setBusy(true);
     setError('');
     try {
-      const uploaded = await storeCvImages(result.employee, (path, dataUrl) => (
-        uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl)
+      const stored = await storeCvImages(result.employee, (path, dataUrl) => (
+        uploadImageToStorage(`families/${familyId || 'personal'}/${path}`, dataUrl)
       ));
-      const slim = slimCvDocument(uploaded);
+      const slim = slimCvDocument(stored.employee);
       const employee = slim.employee;
-      const imageNote = !slim.dropped
+      const lost = (slim.dropped || 0) + (stored.failed || 0);
+      const imageNote = !lost
         ? ''
         : slim.keptPhoto
-          ? ` Profilbildet er beholdt. ${slim.dropped} prosjektbilder ble ikke med og kan legges inn med blyanten.`
-          : ` ${slim.dropped} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`;
+          ? ` Profilbildet er beholdt. ${lost} prosjektbilder ble ikke med og kan legges inn med blyanten.`
+          : ` ${lost} bilder ble ikke med, fordi opplastingen ikke svarte. De kan legges inn med blyanten.`;
       if (scope === 'profile') {
         const nextProfile = rememberLink({
           ...(profile || {}),

@@ -3,6 +3,7 @@
  * Regneark leses lokalt. Ukjente kolonner og skannede filer sendes til OCR/AI.
  * Verdiene i cellene beholdes. Modellen får bare lov til å si hvilken kolonne som er hvilket felt.
  */
+import { stitchProjectTitles } from '../employees/cvText.js';
 
 export const CUSTOMER_AI_FIELDS = {
   name: 'Kundenavn eller firmanavn',
@@ -411,7 +412,7 @@ export function sanitizeCv(parsed) {
       certifications,
       courses,
       experience,
-      projects,
+      projects: stitchProjectTitles(projects),
     },
     summary: clipText(src.summaryNote, 240),
   };

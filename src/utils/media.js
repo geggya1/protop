@@ -646,6 +646,45 @@ export async function uploadImage(path, picked) {
   }
 }
 
+/**
+ * Laster bilde til Storage og returnerer alltid en HTTPS-URL.
+ * Brukes ved CV-lagring der data-URL-fallback blir strippet (for stort Firestore-dokument).
+ */
+export async function uploadImageToStorage(path, picked) {
+  const blob = (picked && picked.blob)
+    || (typeof Blob !== 'undefined' && picked instanceof Blob ? picked : null)
+    || await uriToBlob(typeof picked === 'string' ? picked : picked?.uri);
+  if (!blob) throw new Error('Kunne ikke lese bildet');
+  const type = blob.type || 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    try {
+      return await withTimeout(
+        uploadFileViaRest(path, blob, type),
+        restUploadTimeoutMs(blob.size),
+        'storage-rest-timeout',
+      );
+    } catch {
+      // SDK som reservedel når REST feiler (CORS / midlertidig nettfeil).
+      const r = ref(storage, path);
+      await withTimeout(
+        uploadBytes(r, blob, { contentType: type }),
+        restUploadTimeoutMs(blob.size),
+        'storage-upload-timeout',
+      );
+      return getDownloadURL(r);
+    }
+  }
+
+  const r = ref(storage, path);
+  await withTimeout(
+    uploadBytes(r, blob, { contentType: type }),
+    restUploadTimeoutMs(blob.size),
+    'storage-upload-timeout',
+  );
+  return getDownloadURL(r);
+}
+
 async function blobToJpegDataUrl(blob, max = 512, quality = 0.72) {
   // Best-effort: try fast canvas path first, but always fall back to FileReader.
   try {

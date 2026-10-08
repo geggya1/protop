@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { normalizeEmployee } from './model.js';
-import { mergeCvReads, parseProjectSheet, parseProtopCv } from './cvText.js';
+import { mergeCvReads, parseProjectSheet, parseProtopCv, stitchProjectTitles } from './cvText.js';
 
 const sample = `
 CURRICULUM VITAE
@@ -227,6 +227,38 @@ assert.equal(withImage.cv.projects[0].imageUrl, undefined);
 assert.deepEqual(withImage.cv.projects[1].images, []);
 assert.deepEqual(withImage.cv.projects[2].images, ['data:image/jpeg;base64,aaaa']);
 assert.equal(withImage.cv.projects[2].title, '');
+
+const stitched = stitchProjectTitles([
+  { title: 'Lagårdsveien 80 Næringsbygg (Sykehus, kontor og', client: 'Jærentreprenør' },
+  { title: '[Nybygg], *Breeam' },
+  { title: 'KinoKino', client: 'Aller' },
+]);
+assert.equal(stitched.length, 2);
+assert.match(stitched[0].title, /Lagårdsveien 80/);
+assert.match(stitched[0].title, /Breeam/);
+assert.equal(stitched[0].client, 'Jærentreprenør');
+assert.equal(stitched[1].title, 'KinoKino');
+
+const cutCv = parseProtopCv(`
+CURRICULUM VITAE
+Ola Nordmann
+Partner
+Referanseprosjekter
+Lagårdsveien 80 Næringsbygg (Sykehus, kontor og
+[Nybygg], *Breeam
+Lagårdsveien 80, Stavanger, Norge
+Oppdragsgiver Jærentreprenør
+Periode jan. 20 - des. 22
+KinoKino
+Oslo, Norge
+Oppdragsgiver Aller
+Periode 2019 - 2020
+`);
+assert.equal(cutCv.projects.length, 2);
+assert.match(cutCv.projects[0].title, /Lagårdsveien 80/);
+assert.match(cutCv.projects[0].title, /Breeam/);
+assert.equal(cutCv.projects[0].client, 'Jærentreprenør');
+assert.equal(cutCv.projects[1].title, 'KinoKino');
 
 const sheet = parseProjectSheet(`
 Næringsbygg 7 etasjer - Eksempelfjorden (Nybygg

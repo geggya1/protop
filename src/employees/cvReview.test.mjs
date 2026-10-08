@@ -45,11 +45,19 @@ const stored = await storeCvImages({
   person: { photoUrl: 'data:image/png;base64,aaaa' },
   cv: { projects: [{ id: 'p1', title: 'Bro', images: ['data:image/png;base64,bbbb', 'https://cdn.example/ute.jpg'] }] },
 }, async (path) => `https://cdn.example/${path}`);
-assert.equal(stored.person.photoUrl, 'https://cdn.example/employees/emp/photo');
-assert.deepEqual(stored.cv.projects[0].images, [
+assert.equal(stored.failed, 0);
+assert.equal(stored.employee.person.photoUrl, 'https://cdn.example/employees/emp/photo');
+assert.deepEqual(stored.employee.cv.projects[0].images, [
   'https://cdn.example/employees/emp/projects/p1/0',
   'https://cdn.example/ute.jpg',
 ]);
+const keptInline = await storeCvImages({
+  id: 'emp',
+  person: { photoUrl: '' },
+  cv: { projects: [{ id: 'p1', title: 'Bro', images: ['data:image/png;base64,bbbb'] }] },
+}, async () => 'data:image/png;base64,zzzz');
+assert.equal(keptInline.failed, 1);
+assert.deepEqual(keptInline.employee.cv.projects[0].images, []);
 const heavy = {
   person: { photoUrl: `data:image/png;base64,${'a'.repeat(20)}` },
   cv: { projects: [] },

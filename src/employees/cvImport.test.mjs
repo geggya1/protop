@@ -91,6 +91,7 @@ assert.equal(screen.includes('function ReferenceSheets'), false);
 assert.match(screen, /editSection/);
 assert.match(screen, /Referanseark som PDF/);
 assert.match(screen, /slimCvDocument/);
+assert.match(screen, /uploadImageToStorage/);
 assert.match(screen, /review/);
 const fields = readFileSync(new URL('../../screens/employees/EmployeeFields.jsx', import.meta.url), 'utf8');
 assert.match(fields, /Rediger/);

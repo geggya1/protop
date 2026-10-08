@@ -179,7 +179,7 @@ const attached = attachContractDocumentFile(
   textOnly.state.contracts[0].id,
   'dok-text',
   {
-    url: 'https://firebasestorage.googleapis.com/v0/b/protop-c189c.firebasestorage.app/o/families%2Fx%2Fanbud%2Fcontracts%2Favtale.pdf?alt=media&token=abc',
+    url: 'https://firebasestorage.googleapis.com/v0/b/protop-c189c.appspot.com/o/families%2Fx%2Fanbud%2Fcontracts%2Favtale.pdf?alt=media&token=abc',
     storagePath: 'families/x/anbud/contracts/avtale.pdf',
     name: 'C1-H-03-001 Oppdragsavtale NS8403.pdf',
     mimeType: 'application/pdf',

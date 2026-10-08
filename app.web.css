@@ -213,6 +213,14 @@ select,
     box-shadow: none;
   }
 
+  /* Prosjekttabell: sidelengs + vertikal scroll i viewport, ikke først nederst på siden */
+  #project-table-viewport {
+    flex: 1 1 auto;
+    min-height: 240px;
+    max-height: 100%;
+    overflow: auto !important;
+  }
+
   /* Tettere, mer «app-aktig» scrollbar */
   * {
     scrollbar-width: thin;

@@ -17,6 +17,8 @@ export default function TenderMap({
   mapHeight = 440,
   compact = false,
   note = '',
+  followId = '',
+  followAt = 0,
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
@@ -62,8 +64,8 @@ export default function TenderMap({
     showInMap(selectedId);
   }, [selectedId]);
 
-  function showInMap(id) {
-    iframeRef.current?.contentWindow?.postMessage({ type: 'show', id }, '*');
+  function showInMap(id, { silent = false } = {}) {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'show', id, silent }, '*');
   }
 
   function syncMap(focusId = '') {
@@ -92,6 +94,12 @@ export default function TenderMap({
     if (focusId && focusId !== cursorId) setCursorId(focusId);
     syncMap(focusId);
   }, [pinKey, kindKey, busyId]);
+
+  useEffect(() => {
+    if (!followId) return;
+    setCursorId(followId);
+    showInMap(followId, { silent: true });
+  }, [followId, followAt]);
 
   function step(delta) {
     if (!pins.length) return;

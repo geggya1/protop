@@ -26,6 +26,7 @@ import {
   formatNoticeText,
   noticeIsCurrent,
   noticeIsRejected,
+  nextRowAfterRemoval,
   noticeListFilter,
   noticeMatchesListFilter,
   noticeNeedsReview,
@@ -177,6 +178,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   const [colFilter, setColFilter] = useState({});
   const [openId, setOpenId] = useState('');
   const [mapFocusId, setMapFocusId] = useState('');
+  const [mapFollow, setMapFollow] = useState({ id: '', at: 0 });
   const [mapNote, setMapNote] = useState('');
   const [pullingId, setPullingId] = useState('');
   const [ranking, setRanking] = useState(false);
@@ -430,14 +432,22 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     else scrollNoticeIntoView(id);
   }
 
+  function continueAfterChoice(notice, nextDecision) {
+    if (!notice || noticeMatchesListFilter({ ...notice, decision: nextDecision }, filter)) return;
+    if (!noticeMatchesListFilter(notice, filter)) return;
+    const nextId = nextRowAfterRemoval(rows, notice.id);
+    if (openId === notice.id) setOpenId('');
+    setMapFocusId(nextId);
+    setMapFollow({ id: nextId, at: Date.now() });
+    if (nextId && !phone) scrollNoticeIntoView(nextId);
+  }
+
   function markOnMap(id, decision) {
-    // Mobil blir stående på kartet. Uaktuell tas bort fra nåler og fra Nye.
-    mark(id, decision, { toggle: false, reveal: !phone });
+    mark(id, decision, { toggle: false, reveal: false });
     if (!phone) return;
-    if (decision === 'forkastet') setMapFocusId('');
     setMapNote(decision === 'forkastet'
-      ? 'Uaktuell er tatt bort fra kartet.'
-      : 'Merket aktuell. Treffet ligger nå i Aktuelle.');
+      ? 'Uaktuell er tatt ut av listen.'
+      : 'Merket aktuell og tatt ut av nye treff.');
   }
 
   function mark(id, decision, options = {}) {
@@ -467,6 +477,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     setError('');
     commitState(released.state);
     if (reveal) revealMarked(id, nextDecision);
+    else continueAfterChoice(current, nextDecision);
     if (nextDecision === 'aktuell') pullCurrent(id, current);
   }
 
@@ -870,6 +881,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             missing={missingPlaces}
             compact
             note={mapNote}
+            followId={mapFollow.id}
+            followAt={mapFollow.at}
             onSelect={focusNotice}
             onPreview={(id) => highlightFromMap(id, { scroll: false, followList: false })}
             onMark={markOnMap}
@@ -1068,7 +1081,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
               mapHeight={mapHeightForSide(sideWidth)}
               onSelect={focusNotice}
               onPreview={highlightFromMap}
-              onMark={(id, decision) => mark(id, decision, { toggle: false, reveal: true })}
+              onMark={markOnMap}
+              followId={mapFollow.id}
+              followAt={mapFollow.at}
               busyId={pullingId}
             />
           </View>

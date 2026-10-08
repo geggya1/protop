@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import {
+  contractListBucket,
+  contractStatusCounts,
+  contractStatusLabel,
   filterContracts,
   inputFromInterpretation,
   contractValueFromDraft,
@@ -84,6 +87,35 @@ assert.equal(filterContracts(rows, { buyer: 'igang' }).map((row) => row.id).join
 assert.equal(filterContracts(rows, { project: 'skole' }).map((row) => row.id).join(), 'b');
 assert.equal(filterContracts(rows, { from: '2026-01-01' }).map((row) => row.id).join(), 'b');
 assert.equal(filterContracts(rows, { query: '8403' }).map((row) => row.id).join(), 'a');
+
+const now = new Date('2026-06-15T12:00:00');
+const statusRows = [
+  { id: 'future', title: 'Kommende', start: '2026-09-01', end: '2027-01-01', status: 'aktiv' },
+  { id: 'running', title: 'Pågår', start: '2025-01-01', end: '2027-01-01', status: 'aktiv' },
+  { id: 'expired', title: 'Ferdig periode', start: '2024-01-01', end: '2025-12-31', status: 'aktiv' },
+  { id: 'closed', title: 'Avsluttet manuelt', start: '2025-01-01', end: '2027-01-01', status: 'avsluttet' },
+  { id: 'trashed', title: 'Slettet', start: '2025-01-01', end: '2027-01-01', status: 'aktiv', deletedAt: '2026-06-01T10:00:00.000Z' },
+];
+assert.equal(contractListBucket(statusRows[0], now), 'aktiv');
+assert.equal(contractListBucket(statusRows[1], now), 'pagaaende');
+assert.equal(contractListBucket(statusRows[2], now), 'utlopt');
+assert.equal(contractListBucket(statusRows[3], now), 'utlopt');
+assert.equal(contractListBucket(statusRows[4], now), 'papirkurv');
+assert.equal(contractStatusLabel(statusRows[1], now), 'Pågående');
+assert.equal(contractStatusLabel(statusRows[2], now), 'Utløpt');
+assert.equal(contractStatusLabel(statusRows[3], now), 'Avsluttet');
+assert.equal(contractStatusLabel(statusRows[4], now), 'Slettet');
+assert.equal(filterContracts(statusRows, { status: 'aktiv' }, now).map((row) => row.id).join(), 'future');
+assert.equal(filterContracts(statusRows, { status: 'pagaaende' }, now).map((row) => row.id).join(), 'running');
+assert.equal(filterContracts(statusRows, { status: 'utlopt' }, now).map((row) => row.id).sort().join(), 'closed,expired');
+assert.equal(filterContracts(statusRows, { status: 'papirkurv' }, now).map((row) => row.id).join(), 'trashed');
+assert.equal(filterContracts(statusRows, { status: 'alle' }, now).some((row) => row.id === 'trashed'), false);
+const counts = contractStatusCounts(statusRows, now);
+assert.equal(counts.alle, 4);
+assert.equal(counts.aktiv, 1);
+assert.equal(counts.pagaaende, 1);
+assert.equal(counts.utlopt, 2);
+assert.equal(counts.papirkurv, 1);
 
 const contract = {
   id: 'ctr-1',

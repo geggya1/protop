@@ -7,9 +7,16 @@ import {
   deleteContract,
   linkProject,
   registerDirectContract,
+  restoreContract,
   updateContractDetails,
 } from '../../src/anbud/lifecycle';
-import { filterContracts, indeksCaseFromContract } from '../../src/anbud/directContract';
+import {
+  contractListBucket,
+  contractStatusCounts,
+  contractStatusLabel,
+  filterContracts,
+  indeksCaseFromContract,
+} from '../../src/anbud/directContract';
 import { formatNok } from '../../src/anbud/model';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import {
@@ -27,8 +34,16 @@ import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
 import CreateMenu from '../../components/CreateMenu';
+import FilterMenu from '../../components/FilterMenu';
 
 const PAGE = 50;
+const STATUS_FILTERS = [
+  ['alle', 'Alle'],
+  ['aktiv', 'Aktiv'],
+  ['pagaaende', 'Pågående'],
+  ['utlopt', 'Utløpt'],
+  ['papirkurv', 'Papirkurv'],
+];
 const COLUMNS = [
   { key: 'oppdragId', label: 'Oppdrags-ID', width: 100 },
   { key: 'title', label: 'Oppdrag', width: 240 },
@@ -39,7 +54,7 @@ const COLUMNS = [
   { key: 'value', label: 'Honorar eks. mva', width: 130 },
   { key: 'owner', label: 'Ansvarlig', width: 150 },
   { key: 'status', label: 'Status', width: 96 },
-  { key: 'actions', label: '', width: 72 },
+  { key: 'actions', label: '', width: 96 },
 ];
 
 function isoFromDate(value) {
@@ -69,7 +84,9 @@ export default function ContractFollowUp({
   const [composeKind, setComposeKind] = useState('');
   const [composeCustomer, setComposeCustomer] = useState('');
   const [page, setPage] = useState(0);
-  const [filters, setFilters] = useState({ buyer: '', project: '', from: '', to: '', query: '' });
+  const [filters, setFilters] = useState({
+    buyer: '', project: '', from: '', to: '', query: '', status: 'alle',
+  });
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
@@ -210,6 +227,7 @@ export default function ContractFollowUp({
     () => agreementResponsiblePeople(people, employees),
     [people, employees],
   );
+  const statusCounts = useMemo(() => contractStatusCounts(contracts), [contracts]);
   const visible = useMemo(() => filterContracts(contracts, filters), [contracts, filters]);
   const paged = visible.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(visible.length / PAGE));
@@ -217,8 +235,9 @@ export default function ContractFollowUp({
   const selectedCustomer = selected
     ? customers.find((row) => row.id === selected.customerId) || null
     : null;
+  const inTrash = filters.status === 'papirkurv';
   const childCount = deleteTarget
-    ? contracts.filter((row) => row.parentId === deleteTarget.id).length
+    ? contracts.filter((row) => row.parentId === deleteTarget.id && !row.deletedAt).length
     : 0;
 
   function cell(row, key) {
@@ -231,8 +250,16 @@ export default function ContractFollowUp({
     if (key === 'period') return [row.start, row.end].filter(Boolean).join(' – ') || '—';
     if (key === 'value') return row.value != null && row.value !== '' ? formatNok(row.value) : '—';
     if (key === 'owner') return ownerLabel(customer, followPeople) || '—';
-    if (key === 'status') return row.status === 'avsluttet' ? 'Avsluttet' : 'Aktiv';
+    if (key === 'status') return contractStatusLabel(row);
     return '—';
+  }
+
+  function badgeTone(row, colors) {
+    const bucket = contractListBucket(row);
+    if (bucket === 'papirkurv') return { bg: colors.sunken || colors.bg, ink: colors.muted };
+    if (bucket === 'utlopt') return { bg: colors.sunken || colors.bg, ink: colors.muted };
+    if (bucket === 'pagaaende') return { bg: colors.brandSoft || colors.bg, ink: colors.brand };
+    return { bg: colors.brandSoft || colors.bg, ink: colors.brand };
   }
 
   async function assignOwner(person) {
@@ -255,7 +282,14 @@ export default function ContractFollowUp({
       setView('list');
       setSelectedId('');
     }
-    setNote(`«${target.title || 'Avtalen'}» er slettet.`);
+    setNote(`«${target.title || 'Avtalen'}» er flyttet til papirkurven.`);
+  }
+
+  async function restoreRow(row) {
+    const loaded = await loadAnbudState(companyId);
+    const result = await commit(restoreContract(loaded, row.id));
+    if (!result?.ok) return;
+    setNote(`«${row.title || 'Avtalen'}» er gjenopprettet.`);
   }
 
   if (!state) return null;
@@ -311,6 +345,19 @@ export default function ContractFollowUp({
               />
             </View>
           </View>
+          <FilterMenu
+            groups={[{
+              id: 'status',
+              label: 'Status',
+              value: filters.status || 'alle',
+              idle: 'alle',
+              onChange: (status) => { setFilters((current) => ({ ...current, status })); setPage(0); },
+              options: STATUS_FILTERS.map(([id, label]) => ({
+                id,
+                label: `${label} (${statusCounts[id] || 0})`,
+              })),
+            }]}
+          />
           <Text style={{ color: colors.muted, fontSize: 12 }}>Alle beløp er eks. mva.</Text>
         </View>
       ) : null}
@@ -347,7 +394,12 @@ export default function ContractFollowUp({
           onAssignOwner={assignOwner}
           onOpenAgreement={(id) => { setSelectedId(id); setView('detail'); }}
           onNewChild={(kind) => { setComposeKind(kind); setComposeParent(selected.id); setView('compose'); }}
-          onDeleted={() => { setView('list'); setSelectedId(''); setNote('Avtalen er slettet.'); }}
+          onDeleted={() => {
+            setView('list');
+            setSelectedId('');
+            setNote('Avtalen er flyttet til papirkurven.');
+            setFilters((current) => ({ ...current, status: 'alle' }));
+          }}
         />
       ) : null}
       {view === 'list' ? (
@@ -356,7 +408,9 @@ export default function ContractFollowUp({
             <Text style={{ color: colors.muted }}>Ingen avtaler er registrert ennå.</Text>
           ) : null}
           {contracts.length && !visible.length ? (
-            <Text style={{ color: colors.muted }}>Ingen avtaler matcher søket.</Text>
+            <Text style={{ color: colors.muted }}>
+              {inTrash ? 'Papirkurven er tom.' : 'Ingen avtaler matcher filteret.'}
+            </Text>
           ) : null}
           {visible.length ? (
             <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -369,7 +423,7 @@ export default function ContractFollowUp({
                   ))}
                 </View>
                 {paged.map((row, index) => {
-                  const active = row.status !== 'avsluttet';
+                  const tone = badgeTone(row, colors);
                   return (
                     <View
                       key={row.id}
@@ -379,14 +433,25 @@ export default function ContractFollowUp({
                         if (column.key === 'actions') {
                           return (
                             <View key="actions" style={[styles.actions, { width: column.width }]}>
-                              <TouchableOpacity
-                                onPress={() => setDeleteTarget(row)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Slett ${row.title || 'avtale'}`}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                              >
-                                <Text style={{ color: colors.danger || '#b42318', fontSize: 13, fontWeight: '600' }}>Slett</Text>
-                              </TouchableOpacity>
+                              {row.deletedAt ? (
+                                <TouchableOpacity
+                                  onPress={() => restoreRow(row)}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Gjenopprett ${row.title || 'avtale'}`}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Gjenopprett</Text>
+                                </TouchableOpacity>
+                              ) : (
+                                <TouchableOpacity
+                                  onPress={() => setDeleteTarget(row)}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Slett ${row.title || 'avtale'}`}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <Text style={{ color: colors.danger || '#b42318', fontSize: 13, fontWeight: '600' }}>Slett</Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
                           );
                         }
@@ -398,8 +463,8 @@ export default function ContractFollowUp({
                               accessibilityRole="button"
                               style={{ width: column.width, paddingHorizontal: 12, paddingVertical: 12 }}
                             >
-                              <View style={[styles.badge, { backgroundColor: active ? (colors.brandSoft || colors.bg) : (colors.sunken || colors.bg) }]}>
-                                <Text style={{ color: active ? colors.brand : colors.muted, fontSize: 12, fontWeight: '700' }}>
+                              <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+                                <Text style={{ color: tone.ink, fontSize: 12, fontWeight: '700' }}>
                                   {cell(row, column.key)}
                                 </Text>
                               </View>
@@ -444,20 +509,24 @@ export default function ContractFollowUp({
               </TouchableOpacity>
             </View>
           ) : (
-            <Text style={{ color: colors.muted }}>{visible.length} av {contracts.length} avtaler</Text>
+            <Text style={{ color: colors.muted }}>
+              {inTrash
+                ? `${visible.length} i papirkurven`
+                : `${visible.length} av ${statusCounts.alle} avtaler`}
+            </Text>
           )}
         </>
       ) : null}
 
       <ConfirmDialog
         visible={!!deleteTarget}
-        title="Slett avtale?"
+        title="Flytt til papirkurv?"
         message={deleteTarget
           ? (childCount
-            ? `«${deleteTarget.title || 'Avtalen'}» og ${childCount} underavtale${childCount === 1 ? '' : 'r'} slettes permanent.`
-            : `«${deleteTarget.title || 'Avtalen'}» slettes permanent.`)
+            ? `«${deleteTarget.title || 'Avtalen'}» og ${childCount} underavtale${childCount === 1 ? '' : 'r'} flyttes til papirkurven.`
+            : `«${deleteTarget.title || 'Avtalen'}» flyttes til papirkurven.`)
           : ''}
-        confirmText="Slett"
+        confirmText="Flytt"
         cancelText="Avbryt"
         danger
         onCancel={() => setDeleteTarget(null)}

@@ -356,8 +356,8 @@ export default function ProjectWorkScreen() {
   const selected = state.projects.find((item) => item.id === selectedId) || null;
 
   const customerContracts = useMemo(() => {
-    if (!form.customerId) return contracts.filter((row) => row.status !== 'avsluttet');
-    return contracts.filter((row) => row.status !== 'avsluttet' && row.customerId === form.customerId);
+    if (!form.customerId) return contracts.filter((row) => row.status !== 'avsluttet' && !row.deletedAt);
+    return contracts.filter((row) => row.status !== 'avsluttet' && !row.deletedAt && row.customerId === form.customerId);
   }, [contracts, form.customerId]);
 
   const frameworkOptions = customerContracts.filter((row) => row.kind === 'rammeavtale');

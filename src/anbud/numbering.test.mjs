@@ -120,9 +120,13 @@ assert.equal(owned.customer.ownerName, 'Kari Konsulent');
 
 const followSrc = readFileSync(new URL('../../screens/anbud/ContractFollowUp.jsx', import.meta.url), 'utf8');
 assert.doesNotMatch(followSrc, /Frist passert/);
-assert.match(followSrc, /System-ID/);
+assert.doesNotMatch(followSrc, /System-ID/);
 assert.match(followSrc, /Oppdrags-ID/);
 assert.match(followSrc, /Ansvarlig/);
+assert.match(followSrc, /Papirkurv/);
+assert.match(followSrc, /Pågående/);
+assert.match(followSrc, /Utløpt/);
+assert.match(followSrc, /restoreContract/);
 
 assert.equal(nextSystemId(transferred.state.contracts), '89');
 assert.equal(nextOppdragId(transferred.state.contracts, kunde.customer.id, 'Igang'), '2');

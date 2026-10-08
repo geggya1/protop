@@ -194,7 +194,7 @@ export default function CustomersScreen() {
   }, [state, familyId]);
   const selected = numbered.find((row) => row.id === selectedId) || null;
   const related = selected
-    ? contracts.filter((row) => row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase()))
+    ? contracts.filter((row) => !row.deletedAt && (row.customerId === selected.id || (!row.customerId && row.buyer && row.buyer.toLowerCase() === selected.name.toLowerCase())))
     : [];
   const identity = identityFieldsForKind(form.kind);
 

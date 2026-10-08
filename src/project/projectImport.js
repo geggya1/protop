@@ -262,7 +262,7 @@ export function linkImportPlanCustomer(plan, rowIndex, customer, { applyGroup = 
 }
 
 export function matchAgreement(contracts, hint = {}, customerId = '') {
-  const list = (Array.isArray(contracts) ? contracts : []).filter((row) => row && row.status !== 'avsluttet');
+  const list = (Array.isArray(contracts) ? contracts : []).filter((row) => row && row.status !== 'avsluttet' && !row.deletedAt);
   const forCustomer = customerId
     ? list.filter((row) => row.customerId === customerId)
     : list;

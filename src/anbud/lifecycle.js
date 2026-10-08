@@ -341,6 +341,7 @@ function normalizeContract(raw) {
     start: isoDate(raw.start),
     end: isoDate(raw.end),
     status: raw.status === 'avsluttet' ? 'avsluttet' : 'aktiv',
+    deletedAt: text(raw.deletedAt),
     projectId: text(raw.projectId),
     milestones: normalizeMilestones(raw.milestones),
     deliveries: normalizeDeliveries(raw.deliveries),
@@ -567,7 +568,7 @@ export function awardContract(state, bidId, input) {
   if (bid.stage !== 'gjennomforing' && bid.stage !== 'levert') {
     return fail(state, 'Fullfør tilbudsstrategien og start gjennomføring før kontrakten registreres.');
   }
-  if ((state.contracts || []).some((row) => row.bidId === bidId && row.status !== 'avsluttet')) {
+  if ((state.contracts || []).some((row) => row.bidId === bidId && row.status !== 'avsluttet' && !row.deletedAt)) {
     return fail(state, 'Kontrakten er allerede registrert.');
   }
   const value = parseAmount(input?.value);
@@ -707,6 +708,7 @@ export function setDeliveryStatus(state, contractId, deliveryId, status) {
 export function closeContract(state, contractId) {
   const contract = contractById(state, contractId);
   if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (contract.deletedAt) return fail(state, 'Avtalen ligger i papirkurven.');
   if (contract.status === 'avsluttet') return fail(state, 'Kontrakten er allerede avsluttet.');
   if (contract.milestones.some((row) => row.status !== 'utfort')) {
     return fail(state, 'Alle milepæler må være utført før kontrakten avsluttes.');
@@ -722,19 +724,43 @@ export function closeContract(state, contractId) {
   }));
 }
 
-/** Sletter avtalen og eventuelle underavtaler (avrop/endring) permanent. */
+/** Flytter avtalen og eventuelle underavtaler til papirkurven. */
 export function deleteContract(state, contractId) {
   const contract = contractById(state, contractId);
   if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (contract.deletedAt) return fail(state, 'Avtalen ligger allerede i papirkurven.');
   const removeIds = new Set([contract.id]);
   for (const row of state.contracts || []) {
-    if (row?.parentId === contract.id) removeIds.add(row.id);
+    if (row?.parentId === contract.id && !row.deletedAt) removeIds.add(row.id);
   }
-  const contracts = (state.contracts || []).filter((row) => !removeIds.has(row.id));
+  const at = new Date().toISOString();
+  const contracts = (state.contracts || []).map((row) => (
+    removeIds.has(row.id) ? { ...row, deletedAt: at } : row
+  ));
   return ok(record({ ...state, contracts }, {
     bidId: contract.bidId,
     contractId: contract.id,
     action: 'avtale-slettet',
+    detail: contract.title,
+  }));
+}
+
+/** Henter avtalen (og underavtaler) tilbake fra papirkurven. */
+export function restoreContract(state, contractId) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (!contract.deletedAt) return fail(state, 'Avtalen er ikke i papirkurven.');
+  const restoreIds = new Set([contract.id]);
+  for (const row of state.contracts || []) {
+    if (row?.parentId === contract.id && row.deletedAt) restoreIds.add(row.id);
+  }
+  const contracts = (state.contracts || []).map((row) => (
+    restoreIds.has(row.id) ? { ...row, deletedAt: '' } : row
+  ));
+  return ok(record({ ...state, contracts }, {
+    bidId: contract.bidId,
+    contractId: contract.id,
+    action: 'avtale-gjenopprettet',
     detail: contract.title,
   }));
 }
@@ -836,6 +862,7 @@ export function registerDirectContract(state, input) {
 export function updateContractDetails(state, contractId, input) {
   const contract = contractById(state, contractId);
   if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (contract.deletedAt) return fail(state, 'Avtalen ligger i papirkurven.');
   if (contract.status === 'avsluttet') return fail(state, 'Kontrakten er avsluttet.');
   const title = text(input?.title) || contract.title;
   const start = input?.start != null ? (text(input.start) ? isoDate(input.start) : '') : contract.start;
@@ -1000,7 +1027,7 @@ export function contractAlerts(contracts, now = new Date()) {
   const today = dayNumber(todayIso(now));
   const rows = [];
   for (const contract of Array.isArray(contracts) ? contracts : []) {
-    if (!contract || contract.status === 'avsluttet') continue;
+    if (!contract || contract.status === 'avsluttet' || contract.deletedAt) continue;
     const items = [
       ...(contract.milestones || []).map((row) => ({ ...row, kind: 'milepæl' })),
       ...(contract.deliveries || []).map((row) => ({ ...row, kind: 'leveranse' })),

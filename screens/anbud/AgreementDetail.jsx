@@ -11,6 +11,7 @@ import {
   exerciseOption,
   setDeliveryStatus,
   setMilestoneDue,
+  restoreContract,
   setMilestoneStatus,
   updateContractDetails,
 } from '../../src/anbud/lifecycle';
@@ -22,6 +23,7 @@ import {
   kindLabel,
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
+import { contractStatusLabel } from '../../src/anbud/directContract';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import { formatNok } from '../../src/anbud/model';
 import {
@@ -361,6 +363,11 @@ export default function AgreementDetail({
     if (result?.ok) onDeleted?.();
   }
 
+  async function reviveAgreement() {
+    const result = await apply((loaded) => restoreContract(loaded, contract.id));
+    if (result?.ok) setSaveNote('Avtalen er gjenopprettet fra papirkurven.');
+  }
+
   function toggle(id) {
     setOpen((current) => ({ ...current, [id]: !current[id] }));
   }
@@ -368,6 +375,9 @@ export default function AgreementDetail({
   const period = [contract.start, contract.end].filter(Boolean).join(' – ');
   const honorar = contract.value != null && contract.value !== '' ? formatNok(contract.value) : '';
   const closed = contract.status === 'avsluttet';
+  const trashed = !!contract.deletedAt;
+  const statusLabel = contractStatusLabel(contract);
+  const statusMuted = trashed || closed || statusLabel === 'Utløpt';
 
   return (
     <View style={{ gap: 14 }}>
@@ -376,7 +386,16 @@ export default function AgreementDetail({
           <Text style={{ color: colors.brand }}>Til oversikten</Text>
         </TouchableOpacity>
         <View style={styles.row}>
-          {!closed ? (
+          {trashed ? (
+            <TouchableOpacity
+              onPress={reviveAgreement}
+              accessibilityRole="button"
+              style={[styles.btn, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}
+            >
+              <Text style={{ color: colors.brand, fontWeight: '600' }}>Gjenopprett</Text>
+            </TouchableOpacity>
+          ) : null}
+          {!closed && !trashed ? (
             <TouchableOpacity
               onPress={() => {
                 if (editing) {
@@ -398,22 +417,24 @@ export default function AgreementDetail({
               <Text style={{ color: colors.brand, fontWeight: '600' }}>{editing ? 'Avbryt redigering' : 'Rediger'}</Text>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity
-            onPress={() => setAskDelete(true)}
-            accessibilityRole="button"
-            style={[styles.btn, { borderColor: colors.danger || '#b42318' }]}
-          >
-            <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett</Text>
-          </TouchableOpacity>
+          {!trashed ? (
+            <TouchableOpacity
+              onPress={() => setAskDelete(true)}
+              accessibilityRole="button"
+              style={[styles.btn, { borderColor: colors.danger || '#b42318' }]}
+            >
+              <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
       <View style={[styles.hero, { borderColor: colors.brand, backgroundColor: colors.card }]}>
         <View style={styles.heroTop}>
           <Text style={styles.kicker}>{kindLabel(contract.kind) || 'Avtale'}</Text>
-          <View style={[styles.badge, { backgroundColor: closed ? (colors.sunken || colors.bg) : (colors.brandSoft || colors.bg) }]}>
-            <Text style={{ color: closed ? colors.muted : colors.brand, fontWeight: '700', fontSize: 12 }}>
-              {closed ? 'Avsluttet' : 'Aktiv'}
+          <View style={[styles.badge, { backgroundColor: statusMuted ? (colors.sunken || colors.bg) : (colors.brandSoft || colors.bg) }]}>
+            <Text style={{ color: statusMuted ? colors.muted : colors.brand, fontWeight: '700', fontSize: 12 }}>
+              {statusLabel}
             </Text>
           </View>
         </View>
@@ -855,7 +876,7 @@ export default function AgreementDetail({
             <Text style={{ color: colors.brand }}>Åpne i indeksarbeid</Text>
           </TouchableOpacity>
         ) : null}
-        {!closed ? (
+        {!closed && !trashed ? (
           <TouchableOpacity onPress={() => apply((loaded) => closeContract(loaded, contract.id))} accessibilityRole="button">
             <Text style={{ color: colors.muted }}>Avslutt avtale</Text>
           </TouchableOpacity>
@@ -864,11 +885,11 @@ export default function AgreementDetail({
 
       <ConfirmDialog
         visible={askDelete}
-        title="Slett avtale?"
+        title="Flytt til papirkurv?"
         message={children.length
-          ? `«${contract.title || 'Avtalen'}» og ${children.length} underavtale${children.length === 1 ? '' : 'r'} slettes permanent.`
-          : `«${contract.title || 'Avtalen'}» slettes permanent.`}
-        confirmText="Slett"
+          ? `«${contract.title || 'Avtalen'}» og ${children.length} underavtale${children.length === 1 ? '' : 'r'} flyttes til papirkurven.`
+          : `«${contract.title || 'Avtalen'}» flyttes til papirkurven.`}
+        confirmText="Flytt"
         cancelText="Avbryt"
         danger
         onCancel={() => setAskDelete(false)}

@@ -117,14 +117,50 @@ export function inputFromInterpretation(draft, extras = {}) {
   };
 }
 
-export function filterContracts(contracts, filters = {}) {
+/** Listebucket: aktiv | pagaaende | utlopt | papirkurv. */
+export function contractListBucket(row, now = new Date()) {
+  if (!row) return 'aktiv';
+  if (row.deletedAt) return 'papirkurv';
+  const today = todayIso(now);
+  if (row.status === 'avsluttet') return 'utlopt';
+  if (row.end && row.end < today) return 'utlopt';
+  if (row.start && row.start <= today) return 'pagaaende';
+  return 'aktiv';
+}
+
+export function contractStatusLabel(row, now = new Date()) {
+  const bucket = contractListBucket(row, now);
+  if (bucket === 'papirkurv') return 'Slettet';
+  if (bucket === 'utlopt') return row?.status === 'avsluttet' ? 'Avsluttet' : 'Utløpt';
+  if (bucket === 'pagaaende') return 'Pågående';
+  return 'Aktiv';
+}
+
+export function contractStatusCounts(contracts, now = new Date()) {
+  const counts = { alle: 0, aktiv: 0, pagaaende: 0, utlopt: 0, papirkurv: 0 };
+  for (const row of Array.isArray(contracts) ? contracts : []) {
+    const bucket = contractListBucket(row, now);
+    counts[bucket] = (counts[bucket] || 0) + 1;
+    if (bucket !== 'papirkurv') counts.alle += 1;
+  }
+  return counts;
+}
+
+export function filterContracts(contracts, filters = {}, now = new Date()) {
   const rows = Array.isArray(contracts) ? contracts : [];
   const buyer = fold(filters.buyer);
   const project = fold(filters.project);
   const query = fold(filters.query);
   const from = parseIsoDate(filters.from);
   const to = parseIsoDate(filters.to);
+  const status = text(filters.status) || 'alle';
   const matched = rows.filter((row) => {
+    const bucket = contractListBucket(row, now);
+    if (status === 'alle' || status === '') {
+      if (bucket === 'papirkurv') return false;
+    } else if (bucket !== status) {
+      return false;
+    }
     if (buyer && !fold(row.buyer).includes(buyer)) return false;
     const projectText = `${row.projectName || ''} ${row.title || ''}`;
     if (project && !fold(projectText).includes(project)) return false;

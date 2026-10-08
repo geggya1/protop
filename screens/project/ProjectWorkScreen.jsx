@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -50,6 +51,17 @@ import {
   PROJECT_STATUS_FILTERS,
 } from '../../src/project/statusFilter';
 import {
+  DEFAULT_VISIBLE_COLUMN_KEYS,
+  columnPrefsKey,
+  compareProjectsByColumn,
+  nextColumnSort,
+  parseStoredVisibleColumns,
+  projectColumnValue,
+  projectMatchesColumnFilters,
+  tableMinWidth,
+  visibleColumnsOf,
+} from '../../src/project/listColumns';
+import {
   loadProjectState,
   peekProjectState,
   putProjectState,
@@ -57,6 +69,7 @@ import {
 } from '../../src/project/storage';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
+import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 
 const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -94,24 +107,6 @@ const EMPTY_FORM = {
 
 const SELECT_COL_WIDTH = 44;
 
-const LIST_COLUMNS = [
-  ['Nr', 100],
-  ['Prosjekt', 320],
-  ['Status', 140],
-  ['Kundenr', 100],
-  ['Kunde', 260],
-  ['Org.nr', 120],
-  ['Avdeling', 140],
-  ['Leder', 200],
-  ['Start', 110],
-  ['Slutt', 110],
-  ['Avtale', 240],
-  ['Prismodell', 160],
-  ['Hovedprosjekt', 160],
-  ['Sted', 240],
-  ['Honorar', 120],
-];
-
 function textOrDash(value) {
   const raw = value === 0 || value ? String(value) : '';
   return raw || '—';
@@ -135,13 +130,13 @@ function formFromProject(project = {}) {
   return next;
 }
 
-function colWidth(index, phone) {
-  if (phone) return null;
-  return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
+function colWidth(column, phone) {
+  if (phone || !column) return null;
+  return { width: column.width, flexGrow: 0, flexShrink: 0 };
 }
 
-function ProjectTable({ phone, colors, selectCol, children }) {
-  const minWidth = TABLE_WIDTH + (selectCol ? SELECT_COL_WIDTH + 8 : 0);
+function ProjectTable({ phone, colors, selectCol, columns, children }) {
+  const minWidth = tableMinWidth(columns, selectCol, SELECT_COL_WIDTH);
   const body = (
     <View
       nativeID="project-list"
@@ -233,7 +228,7 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, isAdmin, shellIntent, clearShellIntent } = useApp();
+  const { familyId, requestShellTab, isAdmin, uid, shellIntent, clearShellIntent } = useApp();
   const cachedProjects = peekProjectState();
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -247,6 +242,9 @@ export default function ProjectWorkScreen() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [gapFilter, setGapFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sort, setSort] = useState({ key: 'number', dir: 'asc' });
+  const [colFilter, setColFilter] = useState({});
+  const [visibleKeys, setVisibleKeys] = useState(() => [...DEFAULT_VISIBLE_COLUMN_KEYS]);
   const [importing, setImporting] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
@@ -259,6 +257,7 @@ export default function ProjectWorkScreen() {
   const [docBusy, setDocBusy] = useState('');
   const skipNextSave = useRef(true);
   const pendingProjectId = useRef('');
+  const skipColumnSave = useRef(true);
 
   useEffect(() => {
     let live = true;
@@ -307,6 +306,21 @@ export default function ProjectWorkScreen() {
   }, [ready, state.projects]);
 
   useEffect(() => {
+    let live = true;
+    skipColumnSave.current = true;
+    AsyncStorage.getItem(columnPrefsKey(uid)).then((raw) => {
+      if (!live) return;
+      setVisibleKeys(parseStoredVisibleColumns(raw));
+      skipColumnSave.current = true;
+    }).catch(() => {
+      if (!live) return;
+      setVisibleKeys([...DEFAULT_VISIBLE_COLUMN_KEYS]);
+      skipColumnSave.current = true;
+    });
+    return () => { live = false; };
+  }, [uid]);
+
+  useEffect(() => {
     if (!ready) return;
     putProjectState(state);
     if (skipNextSave.current) {
@@ -316,17 +330,42 @@ export default function ProjectWorkScreen() {
     saveProjectState(state).catch(() => setError('Kunne ikke lagre lokalt.'));
   }, [state, ready]);
 
+  useEffect(() => {
+    if (skipColumnSave.current) {
+      skipColumnSave.current = false;
+      return;
+    }
+    AsyncStorage.setItem(
+      columnPrefsKey(uid),
+      JSON.stringify({ visible: visibleKeys }),
+    ).catch(() => { /* lagring er valgfri */ });
+  }, [uid, visibleKeys]);
+
   const customers = anbud?.customers || [];
   const contracts = anbud?.contracts || [];
+  const listColumns = useMemo(() => visibleColumnsOf(visibleKeys), [visibleKeys]);
+
+  const columnHelpers = useMemo(() => ({
+    customerOf: (project) => customers.find((row) => row.id === project.customerId) || null,
+    pricingLabel: (project) => pricingModelLabel(project.pricingModel) || '',
+    agreementText: (project) => {
+      const contract = contracts.find((row) => row.id === project.contractId);
+      const framework = contracts.find((row) => row.id === project.frameworkAgreementId);
+      if (contract) return contract.title || kindLabel(contract.kind) || 'Avtale';
+      if (framework) return framework.title || 'Rammeavtale';
+      return projectMissingAgreement(project) ? 'Mangler' : '';
+    },
+  }), [customers, contracts]);
 
   const visibleProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return state.projects.filter((item) => {
+    const filtered = state.projects.filter((item) => {
       if (item.status === 'arkivert') return false;
       const missing = projectMissingAgreement(item);
       if (gapFilter === 'missing' && !missing) return false;
       if (gapFilter === 'ok' && missing) return false;
       if (!matchesStatusFilter(item, statusFilter)) return false;
+      if (!projectMatchesColumnFilters(item, colFilter, columnHelpers)) return false;
       if (!q) return true;
       return [
         item.number, item.name, item.client, item.customerNumber, item.orgnr,
@@ -335,7 +374,18 @@ export default function ProjectWorkScreen() {
         item.parentName, item.projectTags, item.description,
       ].join(' ').toLowerCase().includes(q);
     });
-  }, [state.projects, query, gapFilter, statusFilter]);
+    return [...filtered].sort((a, b) => compareProjectsByColumn(a, b, sort, columnHelpers));
+  }, [state.projects, query, gapFilter, statusFilter, colFilter, sort, columnHelpers]);
+
+  function saveVisibleColumns(keys) {
+    skipColumnSave.current = false;
+    setVisibleKeys(keys);
+  }
+
+  function resetVisibleColumns() {
+    skipColumnSave.current = false;
+    setVisibleKeys([...DEFAULT_VISIBLE_COLUMN_KEYS]);
+  }
 
   const allVisibleChecked = visibleProjects.length > 0
     && visibleProjects.every((item) => checkedIds.has(item.id));
@@ -865,14 +915,6 @@ export default function ProjectWorkScreen() {
     return 'Ingen avtale registrert';
   }
 
-  function agreementCell(project) {
-    const contract = contracts.find((row) => row.id === project.contractId);
-    const framework = contracts.find((row) => row.id === project.frameworkAgreementId);
-    if (contract) return contract.title || kindLabel(contract.kind) || 'Avtale';
-    if (framework) return framework.title || 'Rammeavtale';
-    return 'Mangler';
-  }
-
   async function uploadAgreementDocs() {
     setError('');
     setDocBusy('upload');
@@ -1297,6 +1339,20 @@ export default function ProjectWorkScreen() {
               { id: 'ok', label: 'Med avtale' },
             ],
           },
+          ...(isPhone ? [{
+            id: 'sort',
+            label: 'Sortering',
+            value: `${sort.key}:${sort.dir}`,
+            idle: 'number:asc',
+            onChange: (value) => {
+              const [key, dir] = String(value || 'number:asc').split(':');
+              setSort({ key: key || 'number', dir: dir === 'desc' ? 'desc' : 'asc' });
+            },
+            options: listColumns.flatMap((col) => ([
+              { id: `${col.key}:asc`, label: `${col.label} ↑` },
+              { id: `${col.key}:desc`, label: `${col.label} ↓` },
+            ])),
+          }] : []),
         ]}
       />
 
@@ -1366,19 +1422,25 @@ export default function ProjectWorkScreen() {
         </Text>
       ) : null}
 
-      {!visibleProjects.length ? (
-        <Text style={{ color: colors.muted }}>Ingen prosjekter ennå.</Text>
-      ) : null}
+      <View style={styles.tableToolbar}>
+        <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
+          {!visibleProjects.length
+            ? 'Ingen prosjekter ennå.'
+            : `${visibleProjects.length} prosjekter${isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
+        </Text>
+        <ColumnSettingsMenu
+          visibleKeys={visibleKeys}
+          onChange={saveVisibleColumns}
+          onReset={resetVisibleColumns}
+        />
+      </View>
 
       {visibleProjects.length ? (
         <View style={listDesk ? styles.tableGrow : null}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            {visibleProjects.length} prosjekter
-            {isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}
-          </Text>
-          <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin}>
+          <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin} columns={listColumns}>
             {!isPhone ? (
               <View
+                nativeID="project-table-head"
                 style={[
                   styles.tableRow,
                   styles.tableHead,
@@ -1387,49 +1449,54 @@ export default function ProjectWorkScreen() {
                 ]}
               >
                 {isAdmin ? (
-                  <TouchableOpacity
-                    onPress={toggleCheckAllVisible}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: allVisibleChecked }}
-                    style={[styles.selectCell, { width: SELECT_COL_WIDTH }]}
-                  >
-                    <Ionicons
-                      name={allVisibleChecked ? 'checkbox' : 'square-outline'}
-                      size={20}
-                      color={allVisibleChecked ? colors.brand : colors.muted}
-                    />
-                  </TouchableOpacity>
+                  <View style={[styles.selectCell, styles.headSelect, { width: SELECT_COL_WIDTH }]}>
+                    <TouchableOpacity
+                      onPress={toggleCheckAllVisible}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: allVisibleChecked }}
+                    >
+                      <Ionicons
+                        name={allVisibleChecked ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={allVisibleChecked ? colors.brand : colors.muted}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
-                {LIST_COLUMNS.map(([label, width]) => (
-                  <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
-                ))}
+                {listColumns.map((col) => {
+                  const active = sort.key === col.key;
+                  const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+                  return (
+                    <View key={col.key} style={[styles.headCol, { width: col.width }]}>
+                      <TouchableOpacity
+                        onPress={() => setSort((current) => nextColumnSort(current, col))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Sorter på ${col.label}`}
+                      >
+                        <Text style={[styles.headCell, { color: active ? colors.brand : colors.muted }]}>
+                          {col.label}{arrow}
+                        </Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        value={colFilter[col.key] || ''}
+                        onChangeText={(value) => setColFilter((current) => ({ ...current, [col.key]: value }))}
+                        placeholder="Filtrer"
+                        placeholderTextColor={colors.placeholder}
+                        accessibilityLabel={`Filtrer ${col.label}`}
+                        style={[
+                          styles.colFilterInput,
+                          { color: colors.ink, borderColor: colors.line, backgroundColor: colors.sunken || colors.card },
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
               </View>
             ) : null}
             {visibleProjects.map((item) => {
               const missing = projectMissingAgreement(item);
-              const customer = customers.find((row) => row.id === item.customerId);
-              const customerName = customer?.name || item.client || '—';
-              const customerNumber = item.customerNumber || customer?.customerNumber || '—';
-              const orgnr = item.orgnr || customer?.orgnr || '—';
               const danger = colors.danger || '#b42318';
               const checked = checkedIds.has(item.id);
-              const cells = [
-                [0, item.number, `Nr ${item.number}`, true],
-                [1, item.name, item.name, false],
-                [2, item.projectStatus || '—', `Status ${item.projectStatus || '—'}`, false],
-                [3, customerNumber, `Kundenr ${customerNumber}`, false],
-                [4, customerName, `Kunde ${customerName}`, false],
-                [5, orgnr, `Org.nr ${orgnr}`, false],
-                [6, item.department || '—', `Avdeling ${item.department || '—'}`, false],
-                [7, item.manager || '—', `Leder ${item.manager || '—'}`, false],
-                [8, item.start || '—', `Start ${item.start || '—'}`, false],
-                [9, item.end || '—', `Slutt ${item.end || '—'}`, false],
-                null,
-                [11, pricingModelLabel(item.pricingModel) || '—', `Prismodell ${pricingModelLabel(item.pricingModel) || '—'}`, false],
-                [12, item.parentNumber || '—', `Hovedprosjekt ${item.parentNumber || '—'}`, false],
-                [13, item.place || '—', `Sted ${item.place || '—'}`, false],
-                [14, textOrDash(item.feeEstimate), `Honorar ${textOrDash(item.feeEstimate)}`, false],
-              ];
               return (
                 <View
                   key={item.id}
@@ -1456,25 +1523,26 @@ export default function ProjectWorkScreen() {
                     accessibilityLabel={`${item.number} ${item.name}`}
                     style={[styles.rowBody, isPhone && styles.rowBodyPhone]}
                   >
-                    {cells.map((cell) => {
-                      if (!cell) {
+                    {listColumns.map((col) => {
+                      const raw = projectColumnValue(item, col.key, columnHelpers);
+                      const value = textOrDash(raw);
+                      if (col.key === 'agreement') {
                         return (
-                          <View key="avtale" style={[styles.cell, colWidth(10, isPhone), styles.agreeCell]}>
+                          <View key={col.key} style={[styles.cell, colWidth(col, isPhone), styles.agreeCell]}>
                             {missing ? (
                               <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
                             ) : (
                               <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
                             )}
                             <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
-                              {isPhone ? `Avtale ${agreementCell(item)}` : agreementCell(item)}
+                              {isPhone ? `Avtale ${value}` : value}
                             </Text>
                           </View>
                         );
                       }
-                      const [col, value, phoneLabel, bold] = cell;
-                      if (col === 1) {
+                      if (col.key === 'name') {
                         return (
-                          <View key={col} style={[styles.cell, colWidth(1, isPhone)]}>
+                          <View key={col.key} style={[styles.cell, colWidth(col, isPhone)]}>
                             <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
                             {isPhone ? (
                               <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
@@ -1484,10 +1552,15 @@ export default function ProjectWorkScreen() {
                           </View>
                         );
                       }
+                      const phoneLabel = `${col.label} ${value}`;
                       return (
                         <Text
-                          key={col}
-                          style={[styles.cell, colWidth(col, isPhone), { color: colors.ink, fontWeight: bold ? '700' : '400' }]}
+                          key={col.key}
+                          style={[
+                            styles.cell,
+                            colWidth(col, isPhone),
+                            { color: colors.ink, fontWeight: col.key === 'number' ? '700' : '400' },
+                          ]}
                           numberOfLines={2}
                         >
                           {isPhone ? phoneLabel : value}
@@ -1549,8 +1622,6 @@ export default function ProjectWorkScreen() {
   );
 }
 
-const TABLE_WIDTH = LIST_COLUMNS.reduce((sum, [, width]) => sum + width, 0) + 80;
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
@@ -1563,6 +1634,7 @@ const styles = StyleSheet.create({
   stack: { gap: 10 },
   stackDesk: { flex: 1, minHeight: 0 },
   tableGrow: { flex: 1, minHeight: 0, gap: 10 },
+  tableToolbar: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
@@ -1577,6 +1649,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     alignSelf: 'stretch',
     maxHeight: 560,
+    borderWidth: 1,
     borderRadius: 12,
   },
   tableViewportWeb: {
@@ -1591,17 +1664,28 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   tableContent: { flexGrow: 1, minWidth: '100%', alignSelf: 'stretch' },
-  table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', alignSelf: 'stretch' },
-  tablePhone: { width: '100%', minWidth: 0 },
+  // overflow visible: sticky header krever at ingen mellom-ancestor klipper.
+  table: { borderWidth: 0, alignSelf: 'stretch' },
+  tablePhone: { width: '100%', minWidth: 0, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
   tableRowPhone: { flexDirection: 'column', gap: 2 },
-  tableHead: { borderTopWidth: 0 },
+  tableHead: { borderTopWidth: 0, borderBottomWidth: 1, alignItems: 'stretch', paddingVertical: 8 },
   tableHeadSticky: {
     position: 'sticky',
     top: 0,
-    zIndex: 2,
+    zIndex: 5,
   },
+  headCol: { flexGrow: 0, flexShrink: 0, gap: 4 },
+  headSelect: { paddingTop: 4 },
   headCell: { fontSize: 12, fontWeight: '700' },
+  colFilterInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 12,
+    width: '100%',
+  },
   cell: { fontSize: 14 },
   agreeCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   selectCell: { paddingTop: 2, alignItems: 'center', justifyContent: 'flex-start' },

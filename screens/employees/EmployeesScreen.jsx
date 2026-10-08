@@ -569,11 +569,13 @@ export default function EmployeesScreen() {
       ? `Jobber med lagring. Laster opp ${pendingImages} bilder — dette kan ta litt tid.`
       : 'Lagrer…');
     try {
+      let uploadLastError = '';
       const uploaded = await storeCvImages(
         result.employee,
         (path, dataUrl) => uploadImage(`families/${familyId || 'personal'}/${path}`, dataUrl),
         {
           onProgress: (info) => {
+            if (info.lastError) uploadLastError = info.lastError;
             setSaveProgress(info);
             if (info.total) {
               setNote(`Jobber med lagring. ${info.label}`);
@@ -583,8 +585,9 @@ export default function EmployeesScreen() {
       );
       const remaining = countInlineCvImages(uploaded);
       if (remaining > 0) {
+        const detail = uploadLastError ? ` ${uploadLastError}` : '';
         showError(
-          `Kunne ikke laste opp ${remaining} bilde${remaining === 1 ? '' : 'r'}. `
+          `Kunne ikke laste opp ${remaining} bilde${remaining === 1 ? '' : 'r'}.${detail} `
           + 'CV-en er ikke lagret, så du kan prøve igjen uten å miste teksten i utkastet.',
         );
         return;

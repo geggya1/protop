@@ -221,6 +221,20 @@ select,
     overflow: auto !important;
   }
 
+  /* Sticky overskrift: overflow:hidden på tabellen bryter position:sticky */
+  #project-list {
+    overflow: visible !important;
+  }
+  #project-table-head {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+    background: var(--wp-c-card, #fff) !important;
+  }
+  html[data-wp-appearance="dark"] #project-table-head {
+    background: var(--wp-c-card, #1c1c1e) !important;
+  }
+
   /* Tettere, mer «app-aktig» scrollbar */
   * {
     scrollbar-width: thin;

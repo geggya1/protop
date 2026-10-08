@@ -212,7 +212,8 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       });
       let cv = read.cv;
       if (clean(data?.mime, 80) === 'application/pdf' && data?.imageBase64) {
-        const pictures = await extractCvPictures(Buffer.from(String(data.imageBase64), 'base64')).catch(() => null);
+        const pdfBase64 = String(data.imageBase64).replace(/^data:[^;]+;base64,/i, '');
+        const pictures = await extractCvPictures(Buffer.from(pdfBase64, 'base64')).catch(() => null);
         if (pictures) cv = withCvPictures(cv, pictures);
       }
       return {

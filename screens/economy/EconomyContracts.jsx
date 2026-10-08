@@ -133,10 +133,6 @@ export default function EconomyContracts({
 
   return (
     <View nativeID="economy-contracts" style={styles.stack}>
-      <Text style={[styles.h, { color: colors.ink }]}>Avtaler · økonomi</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Økonomisk oversikt over avtaler: oppdrag, kunde, periode, sum og status. Full avtaleinformasjon og dokumenter ligger under Kontrakt / avtale i bedriftsmenyen.
-      </Text>
       <View style={styles.row}>
         <TouchableOpacity onPress={onOpenRegister} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Åpne avtaleregister</Text>

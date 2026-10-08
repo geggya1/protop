@@ -17,6 +17,7 @@ import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { linkProject } from '../../src/anbud/lifecycle';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
+import CreateMenu from '../../components/CreateMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -673,9 +674,6 @@ export default function ProjectWorkScreen() {
 
       <Text style={[styles.section, { color: colors.ink }]}>Kunde og sted</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Kunde</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Prosjektet skal knyttes til en kunde i kunderegisteret.
-      </Text>
       <View style={styles.rowWrap}>
         {customers.slice(0, 40).map((customer) => (
           <Chip
@@ -845,14 +843,24 @@ export default function ProjectWorkScreen() {
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.title, { color: colors.ink }]}>
-        {view === 'import' ? 'Kontroller import' : view === 'create' ? 'Nytt prosjekt' : view === 'edit' ? (selected?.name || 'Prosjekt') : 'Prosjekt'}
-      </Text>
-      {view === 'list' ? (
-        <Text style={{ color: colors.muted }}>
-          Prosjektlisten knyttes til kunder og avtaler. Avrop skal også knyttes til rammeavtale på kunden.
+      {view !== 'list' ? (
+        <Text style={[styles.title, { color: colors.ink }]}>
+          {view === 'import' ? 'Kontroller import' : view === 'create' ? 'Nytt prosjekt' : (selected?.name || 'Prosjekt')}
         </Text>
-      ) : null}
+      ) : (
+        <CreateMenu
+          label="Nytt prosjekt"
+          title="Nytt prosjekt"
+          info={[
+            'Prosjektlisten knyttes til kunder og avtaler. Avrop knyttes til rammeavtalen.',
+            'Excel eller CSV med prosjektnr, prosjektnavn, kundenr og kundenavn.',
+          ]}
+          actions={[
+            { id: 'new', label: 'Opprett prosjekt', primary: true, onPress: startNew },
+            { id: 'import', label: importing ? 'Tolker filen…' : 'Importer liste', onPress: importFile, disabled: importing },
+          ]}
+        />
+      )}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
@@ -876,22 +884,6 @@ export default function ProjectWorkScreen() {
 
       {view === 'list' ? (
         <View style={styles.stack}>
-          <View style={styles.rowWrap}>
-            <TouchableOpacity onPress={startNew} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff' }}>Nytt prosjekt</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={importFile}
-              disabled={importing}
-              accessibilityRole="button"
-              style={[styles.btn, { backgroundColor: colors.sunken || colors.card, borderWidth: 1, borderColor: colors.line }]}
-            >
-              {importing ? <ActivityIndicator color={colors.ink} /> : <Text style={{ color: colors.ink }}>Importer liste</Text>}
-            </TouchableOpacity>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Excel eller CSV med prosjektnr, prosjektnavn, kundenr og kundenavn. Eksempel: Moment-oversikt.
-          </Text>
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -976,7 +968,7 @@ export default function ProjectWorkScreen() {
           ) : null}
 
           {!visibleProjects.length ? (
-            <Text style={{ color: colors.muted }}>Ingen prosjekter ennå. Opprett manuelt eller importer en liste.</Text>
+            <Text style={{ color: colors.muted }}>Ingen prosjekter ennå.</Text>
           ) : null}
 
           {visibleProjects.length ? (

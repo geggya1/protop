@@ -117,9 +117,6 @@ export default function IntakePanel({ colors, company }) {
     <View style={{ gap: 10 }}>
       {error ? <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
-      <Text style={{ color: colors.muted }}>
-        Registrer henvendelsen. Slipp brev, e-post eller bilder her, så leser AI og OCR feltene og legger ved filene.
-      </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {INTAKE_CHANNELS.map((row) => (
           <TouchableOpacity key={row.id} onPress={() => setChannel(row.id)} style={{ backgroundColor: channel === row.id ? colors.brand : colors.sunken, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>

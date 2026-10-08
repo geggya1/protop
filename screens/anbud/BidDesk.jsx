@@ -121,12 +121,11 @@ export default function BidDesk({
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[styles.h, { color: colors.ink }]}>Tilbud</Text>
-      <Text style={{ color: colors.muted }}>
-        {counts.alle
-          ? `${counts.alle} tilbud · ${counts.planlegging} i planlegging · ${counts.gjennomforing} i gjennomføring · ${counts.kontrakt} kontrakt`
-          : 'Gi tilbud på en aktuell konkurranse, så åpnes tilbudsarbeidet her.'}
-      </Text>
+      {counts.alle ? (
+        <Text style={{ color: colors.muted }}>
+          {`${counts.alle} tilbud · ${counts.planlegging} i planlegging · ${counts.gjennomforing} i gjennomføring · ${counts.kontrakt} kontrakt`}
+        </Text>
+      ) : null}
       <View style={styles.row}>
         {FILTERS.map(([id, label]) => {
           const on = filter === id;
@@ -185,10 +184,10 @@ export default function BidDesk({
       </TouchableOpacity>
       {showForms && state ? <FormBuilderScreen state={state} colors={colors} commit={commit} /> : null}
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
-        <Text style={{ color: colors.muted }}>Kontrakter og avtaler ligger i kontraktsoppfølgingen, også uten tilbudsarbeid.</Text>
+        <Text style={{ color: colors.brand }}>Kontrakter og avtaler</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
-        <Text style={{ color: colors.muted }}>Innloggingsportalen endres under Innstillinger.</Text>
+        <Text style={{ color: colors.brand }}>Innloggingsportal</Text>
       </TouchableOpacity>
     </View>
   );

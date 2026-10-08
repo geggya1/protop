@@ -55,9 +55,6 @@ export default function RegionCoverage({
   return (
     <View style={{ gap: 8 }}>
       <Text style={[styles.h, { color: colors.ink }]}>Regioner</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Velg hvilke deler av landet som skal gi treff. Hver avdeling kan dekke sine fylker, så treffene blir forskjellige.
-      </Text>
       {picker && departments.length ? (
         <View style={styles.row}>
           <Chip
@@ -81,9 +78,6 @@ export default function RegionCoverage({
       ) : null}
       {!departments.length ? (
         <>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Ingen avdelinger er registrert. Området gjelder hele bedriften. Avdelinger legges inn under Underenheter.
-          </Text>
           <AreaChips
             nationwide={companyNationwide}
             areaIds={companyIds}

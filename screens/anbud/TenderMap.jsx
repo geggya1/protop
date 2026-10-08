@@ -86,9 +86,6 @@ export default function TenderMap({
         <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{count} nål{count === 1 ? '' : 'er'}</Text>
       </View>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>
-        Trykk en nål for infoboble. Aktuell og uaktuell merker treffet. Forrige og neste går mellom stedene. Åpne i listen hopper til treffet.
-      </Text>
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: '#64748b' }]} />

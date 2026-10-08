@@ -73,10 +73,6 @@ export default function IsoScreen() {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.title, { color: colors.ink }]}>ISO</Text>
-      <Text style={{ color: colors.muted }}>
-        Prosedyrer og revisjoner for kvalitets- og styringssystemet. Velg et prosjekt for å registrere revisjonsfunn.
-      </Text>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
 
       <Text style={[styles.h2, { color: colors.ink }]}>Prosedyrer</Text>

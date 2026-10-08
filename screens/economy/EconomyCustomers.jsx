@@ -98,10 +98,6 @@ export default function EconomyCustomers({
 
   return (
     <View nativeID="economy-customers" style={styles.stack}>
-      <Text style={[styles.h, { color: colors.ink }]}>Kunder · økonomi</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Økonomisk oversikt over kunder: antall avtaler, kontraktsum og ansvarlig. Full kunderegistrering ligger under Kunder i bedriftsmenyen.
-      </Text>
       <View style={styles.row}>
         <TouchableOpacity onPress={onOpenRegister} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Åpne kunderegister</Text>

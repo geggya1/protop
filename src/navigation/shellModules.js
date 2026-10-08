@@ -13,7 +13,6 @@ export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
   { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
   { id: 'tilbud', icon: 'document-text', label: '2. Tilbud' },
-  { id: 'innstillinger', icon: 'settings', label: 'Innstillinger' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);

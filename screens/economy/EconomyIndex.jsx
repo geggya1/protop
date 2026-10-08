@@ -226,11 +226,6 @@ export default function EconomyIndex({
       <TouchableOpacity onPress={onClose} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Tilbake til avtalen</Text>
       </TouchableOpacity>
-      <Text style={[styles.h, { color: colors.ink }]}>Indeksregulering</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Dette er feltene som allerede er registrert på avtalen. Modulen henter siste gjeldende SSB-indeks og ber bare om det som mangler for beregningen.
-      </Text>
-
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={[styles.h, { color: colors.ink }]}>{draft.title || 'Avtale'}</Text>
         <View style={styles.grid}>

@@ -18,6 +18,7 @@ import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
+import CreateMenu from '../../components/CreateMenu';
 import {
   absorbCompanyIntoProfile,
   applyProfessionalProfile,
@@ -664,36 +665,30 @@ export default function EmployeesScreen() {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.kicker, { color: colors.muted }]}>Bedrift</Text>
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : view !== 'list' && selected ? displayName(selected) : 'Ansatte'}
-      </Text>
-      {view === 'list' ? (
-        <Text style={[styles.lead, { color: colors.muted }]}>
-          Registrer medarbeidere her. Det som følger personen, som kontakt, utdanning og CV, fyller den ansatte ut på sin side. Ansettelse, avdeling og tilgang fyller bedriften ut.
+      {view !== 'list' ? (
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+          {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
-      ) : null}
+      ) : (
+        <CreateMenu
+          label={isAdmin ? 'Ny medarbeider' : 'Min side'}
+          title="Ny medarbeider"
+          info={isAdmin ? 'Kontakt, utdanning og CV fyller den ansatte ut selv. Ansettelse, avdeling og tilgang fyller bedriften ut.' : ''}
+          actions={isAdmin ? [
+            { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },
+            { id: 'import', nativeID: 'employees-import', label: busy ? 'Tolker filen…' : 'Importer liste', onPress: openImport, disabled: busy },
+            { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },
+          ] : [
+            { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },
+          ]}
+        />
+      )}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
 
       {view === 'list' ? (
         <>
-          <View style={styles.row}>
-            {isAdmin ? (
-              <TouchableOpacity nativeID="employees-new" onPress={openNew} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-                <Text style={styles.primaryText}>Ny medarbeider</Text>
-              </TouchableOpacity>
-            ) : null}
-            {isAdmin ? (
-              <TouchableOpacity nativeID="employees-import" onPress={openImport} disabled={busy} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}>
-                <Text style={{ color: colors.ink }}>{busy ? 'Tolker filen…' : 'Importer liste'}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity nativeID="employees-mine" onPress={openMine} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Min side</Text>
-            </TouchableOpacity>
-          </View>
           <TextInput
             nativeID="employees-search"
             value={query}

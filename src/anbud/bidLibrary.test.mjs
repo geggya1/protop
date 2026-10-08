@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {
+  GROUND_ATTACH_FOLDER_ID,
+  QA_ATTACH_FOLDER_ID,
   addBidFile,
   addBidQuestion,
   answerBidQuestion,
@@ -7,6 +9,8 @@ import {
   bidOverview,
   bidStatusCounts,
   bidWorkspacePath,
+  buildLocalBidInterpretation,
+  collectBidAiSource,
   competitionDocuments,
   createBidFolder,
   deleteBidFile,
@@ -14,11 +18,15 @@ import {
   deleteFormTemplate,
   normalizeBidWork,
   pullFormTemplate,
+  renameBidFolder,
+  saveBidInterpretation,
   saveFormTemplate,
   setFormStatus,
   setFormValue,
   sortBidsByDeadline,
+  toggleInterpretationCheck,
   updateBidAssignment,
+  workRootFolders,
 } from './bidLibrary.js';
 import {
   createBidWork,
@@ -156,5 +164,35 @@ const restored = normalizeAnbudState({
 assert.equal(restored.notices[0].consideration.strategy.fag, true);
 assert.equal(normalizeBidWork(restored.bids[0]).files.some((row) => row.name === 'Kunngjøring.txt'), true);
 assert.equal(restored.formTemplates.length >= 5, true);
+
+const withAttach = normalizeBidWork(made.state.bids[0]);
+assert.equal(withAttach.folders.some((row) => row.id === GROUND_ATTACH_FOLDER_ID), true);
+assert.equal(withAttach.folders.some((row) => row.id === QA_ATTACH_FOLDER_ID), true);
+assert.equal(workRootFolders(withAttach.folders).every((row) => row.id !== GROUND_ATTACH_FOLDER_ID), true);
+let attachState = addBidFile(made.state, bidId, GROUND_ATTACH_FOLDER_ID, {
+  name: 'Lokalt.pdf',
+  mimeType: 'application/pdf',
+  url: 'https://example.com/lokalt.pdf',
+  size: 1200,
+}).state;
+assert.equal(attachState.bids[0].files.some((row) => row.name === 'Lokalt.pdf' && row.folderId === GROUND_ATTACH_FOLDER_ID), true);
+attachState = addBidFile(attachState, bidId, QA_ATTACH_FOLDER_ID, {
+  name: 'Svar.pdf',
+  mimeType: 'application/pdf',
+  dataUrl: 'data:application/pdf;base64,QQ==',
+  size: 2,
+}).state;
+assert.equal(renameBidFolder(attachState, bidId, GROUND_ATTACH_FOLDER_ID, 'X').ok, false);
+const workFolder = createBidFolder(attachState, bidId, { name: 'Kalkyle' }).state;
+const workFolderId = workFolder.bids[0].folders.find((row) => row.name === 'Kalkyle').id;
+assert.equal(renameBidFolder(workFolder, bidId, workFolderId, 'Prisgrunnlag').state.bids[0].folders.some((row) => row.name === 'Prisgrunnlag'), true);
+const localAi = buildLocalBidInterpretation(attachState.bids[0]);
+assert.ok(localAi.summary.length > 10);
+assert.ok(localAi.checklist.length >= 3);
+assert.ok(collectBidAiSource(attachState.bids[0]).includes('Skole'));
+const savedAi = saveBidInterpretation(attachState, bidId, localAi);
+assert.equal(savedAi.ok, true);
+const toggled = toggleInterpretationCheck(savedAi.state, bidId, savedAi.state.bids[0].interpretation.checklist[0].id);
+assert.equal(toggled.state.bids[0].interpretation.checklist[0].done, true);
 
 console.log('bid library ok');

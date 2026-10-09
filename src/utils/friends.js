@@ -17,12 +17,21 @@ import { notifyUsers } from './notifications';
 import { listenAfterAccess, warnPermissionOnce } from './firestoreAccess';
 
 async function callFriendHttp(name, data) {
-  const action = name === 'listMyFriends' || name === 'listFriendsForUid' ? 'friends' : 'requests';
+  const action = name === 'listMyFriends' || name === 'listFriendsForUid'
+    ? 'friends'
+    : name === 'listOutgoingFriendRequests'
+      ? 'outgoing'
+      : 'requests';
   return postSameOrigin('/api/friends', { action, ...(data || {}) });
 }
 
 async function callFriendFn(name, data) {
-  if (name === 'listMyFriends' || name === 'listFriendRequests' || name === 'listFriendsForUid') {
+  if (
+    name === 'listMyFriends'
+    || name === 'listFriendRequests'
+    || name === 'listFriendsForUid'
+    || name === 'listOutgoingFriendRequests'
+  ) {
     return callFriendHttp(name, data);
   }
   const fn = httpsCallable(functions, name);

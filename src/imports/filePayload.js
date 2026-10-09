@@ -11,6 +11,8 @@ const MAX_SOURCE_BYTES = 80 * 1024 * 1024;
 const MAX_PAGES = 12;
 const MIN_EMBEDDED_BYTES = 20_000;
 
+export const FILE_TOO_LARGE_MESSAGE = 'Filen er for stor til å lastes inn. Komprimer den (lavere oppløsning eller færre sider) før du laster opp, og prøv igjen.';
+
 function ascii(value) {
   return Uint8Array.from(String(value), (char) => char.charCodeAt(0));
 }
@@ -201,7 +203,7 @@ export async function prepareImportBody({ bytes, filename = '', mime = '' } = {}
   const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
   if (!raw.length) throw new Error('Kunne ikke lese filen.');
   if (raw.length > MAX_SOURCE_BYTES) {
-    throw new Error('Filen er for stor. Lagre den som en mindre PDF, eller del den opp.');
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
   const pdf = isPdf(filename, mime);
   const large = raw.length > 3_500_000 || !fits(raw);
@@ -244,7 +246,7 @@ export async function prepareImportBody({ bytes, filename = '', mime = '' } = {}
     }
   }
   if (!fits(outgoing)) {
-    throw new Error('Filen er for stor til å sendes. Lagre PDF-en med lavere oppløsning, eller del den opp.');
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
   return { mime: outMime, imageBase64: bytesToBase64(outgoing) };
 }
@@ -253,14 +255,11 @@ export function readableImportError(err) {
   const code = String(err?.code || '');
   const message = String(err?.message || '');
   const blob = `${code} ${message}`;
-  if (/not-found|unavailable/i.test(blob)) {
-    return new Error('AI-tolking er ikke tilgjengelig akkurat nå.');
-  }
   if (/deadline-exceeded|timeout/i.test(blob)) {
-    return new Error('Lesingen tok for lang tid. Prøv en kortere PDF.');
+    return new Error('Lesingen tok for lang tid. Komprimer PDF-en eller del den opp, og prøv igjen.');
   }
-  if (/internal/i.test(code) || /^internal$/i.test(message)) {
-    return new Error('Lesingen ble avbrutt før den kom frem. Prøv igjen.');
+  if (/for stor|too large|payload|413|invalid-argument|resource-exhausted|Failed to fetch|Load failed|CORS|internal|not-found|unavailable/i.test(blob)) {
+    return new Error(FILE_TOO_LARGE_MESSAGE);
   }
   if (message) return err;
   return new Error('Kunne ikke lese filen.');

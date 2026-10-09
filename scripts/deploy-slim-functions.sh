@@ -45,7 +45,7 @@ deploy_entry anbudFormIndex.js functions:generateCompanyForm
 deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
 deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 deploy_entry friendListIndex.js functions:friendListHttp
-deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests
+deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests,functions:listOutgoingFriendRequests
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 deploy_entry importIndex.js functions:interpretImport
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.

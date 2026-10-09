@@ -1,6 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { randomUUID } from 'crypto';
+import { mediaBucket } from './storageBucket.js';
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -65,7 +65,7 @@ export async function handleUploadDocument(data, auth) {
   const safeName = fileName.replace(/[^\w.\-()+ ]/g, '_').slice(0, 120) || 'dokument';
   const storagePath = `families/${familyId}/documents/${folderId}/${Date.now()}-${safeName}`;
   const token = randomUUID();
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const file = bucket.file(storagePath);
 
   await file.save(buffer, {

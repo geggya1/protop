@@ -3,8 +3,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import * as logger from 'firebase-functions/logger';
 import { handleUploadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
+import { STORAGE_BUCKET } from './storageBucket.js';
 
-if (!getApps().length) initializeApp();
+if (!getApps().length) initializeApp({ storageBucket: STORAGE_BUCKET });
 
 function rethrowCallable(error, fallback) {
   if (error instanceof HttpsError) throw error;

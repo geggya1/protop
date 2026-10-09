@@ -43,6 +43,23 @@ async function listRequests(uid) {
   return { ok: true, requests, actorUid: uid };
 }
 
+async function listOutgoing(uid) {
+  const snap = await db.collection(`users/${uid}/outgoingFriendRequests`).limit(60).get();
+  const requests = snap.docs
+    .map((d) => jsonValue({ id: d.id, requestId: d.id, ...d.data() }))
+    .filter((row) => {
+      const status = String(row.status || 'pending');
+      return status === 'pending' || status === 'declined' || status === 'withdrawn';
+    })
+    .sort((a, b) => {
+      const left = Date.parse(a.createdAt) || 0;
+      const right = Date.parse(b.createdAt) || 0;
+      return right - left;
+    })
+    .slice(0, 40);
+  return { ok: true, requests, actorUid: uid };
+}
+
 export const friendListHttp = onRequest(
   { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 20, memory: '256MiB' },
   async (req, res) => {
@@ -78,6 +95,14 @@ export const friendListHttp = onRequest(
           familyId: body.familyId,
         });
         res.json(await listRequests(uid));
+        return;
+      }
+      if (action === 'outgoing') {
+        const uid = await resolveFriendActorUid(callerUid, {
+          asUid: body.asUid || body.targetUid,
+          familyId: body.familyId,
+        });
+        res.json(await listOutgoing(uid));
         return;
       }
       res.status(400).json({ ok: false, error: 'Ukjent handling.' });

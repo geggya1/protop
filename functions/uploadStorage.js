@@ -4,10 +4,10 @@
  * på opplastingsstien kan henge / feile og blokkere CV-bilder.
  */
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { randomUUID } from 'crypto';
 import { assertFamilyMember } from './security.js';
 import { ensureStorageCors } from './storageCors.js';
+import { mediaBucket } from './storageBucket.js';
 
 const MAX_BASE64_BYTES = 15 * 1024 * 1024;
 
@@ -51,9 +51,7 @@ export async function handleUploadStorageFile(data, auth) {
   }
 
   const token = randomUUID();
-  // Samme default-bucket som album/dokument-opplasting — ikke hardkod
-  // *.firebasestorage.app (den bucketen finnes ikke i dette prosjektet).
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const file = bucket.file(objectPath);
   try {
     await file.save(buffer, {

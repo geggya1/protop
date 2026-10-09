@@ -66,6 +66,23 @@ assert.deepEqual(stored.cv.projects[0].images, [
 assert.ok(ticks.length >= 2);
 assert.equal(ticks[ticks.length - 1].done, 2);
 assert.equal(ticks[ticks.length - 1].total, 2);
+
+let uploadCalls = 0;
+const blocked = await storeCvImages({
+  id: 'emp',
+  person: { photoUrl: 'data:image/png;base64,aaaa' },
+  cv: {
+    projects: [
+      { id: 'p1', images: ['data:image/png;base64,bbbb', 'data:image/png;base64,cccc'] },
+      { id: 'p2', images: ['data:image/png;base64,dddd'] },
+    ],
+  },
+}, async () => {
+  uploadCalls += 1;
+  throw new Error('Bildelageret er feil konfigurert. Prøv igjen etter oppdatering, eller kontakt support.');
+});
+assert.equal(uploadCalls, 1);
+assert.equal(countInlineCvImages(blocked), 4);
 const heavy = {
   person: { photoUrl: `data:image/png;base64,${'a'.repeat(20)}` },
   cv: { projects: [] },

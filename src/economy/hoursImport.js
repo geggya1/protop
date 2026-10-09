@@ -252,10 +252,10 @@ export function companyHourRow(input, {
     entry.employeeName = displayName(employee) || entry.employeeName;
     entry.employeeNumber = text(employee.company?.externalEmployeeNumber) || entry.employeeNumber;
   } else if (entry.employeeName || entry.employeeNumber) {
-    severity = 'block';
+    severity = 'review';
     issues.push('Medarbeideren er ikke funnet i Ansatte. Importer/opprett personen først, eller koble manuelt.');
   } else {
-    severity = 'block';
+    severity = 'review';
     issues.push('Mangler medarbeider — raden kan ikke lagres uten ansatt.');
   }
 
@@ -291,10 +291,10 @@ export function companyHourRow(input, {
       entry.customerId = project.customerId;
     }
   } else if (entry.projectNumber || entry.projectName) {
-    severity = 'block';
+    if (severity === 'ok') severity = 'review';
     issues.push('Prosjektet er ikke funnet. Importer prosjektlisten først, eller koble manuelt.');
   } else {
-    severity = 'block';
+    if (severity === 'ok') severity = 'review';
     issues.push('Mangler prosjekt — timer må fordeles på et prosjekt.');
   }
 
@@ -370,17 +370,16 @@ export function linkImportRowEmployee(row, employee) {
   const employeeName = displayName(employee) || text(row.employeeName);
   const employeeNumber = text(employee.company?.externalEmployeeNumber) || text(row.employeeNumber);
   const issues = (row.issues || []).filter((issue) => !/medarbeider|ansatt/i.test(issue));
-  let severity = row.severity === 'block' ? 'ok' : row.severity;
-  if (!row.projectId && (row.projectNumber || row.projectName)) {
-    severity = 'block';
+  let severity = 'ok';
+  if (!row.projectId) {
+    severity = 'review';
     if (!issues.some((issue) => /prosjekt/i.test(issue))) {
       issues.push('Prosjektet er ikke funnet. Importer prosjektlisten først, eller koble manuelt.');
     }
   } else if (issues.some((issue) => /kunde/i.test(issue))) {
     severity = 'review';
-  } else if (!issues.length) {
-    severity = row.duplicate ? 'existing' : 'ok';
   }
+  if (row.duplicate) severity = 'existing';
   const entry = {
     ...row.entry,
     employeeId: employee.id,
@@ -424,17 +423,16 @@ export function linkImportPlanEmployee(plan, rowIndex, employee, { applyGroup = 
 export function linkImportRowProject(row, project) {
   if (!row || row.severity === 'existing' || !project?.id || !row.entry) return row;
   const issues = (row.issues || []).filter((issue) => !/prosjekt/i.test(issue));
-  let severity = row.severity === 'block' && row.employeeId ? 'ok' : row.severity;
+  let severity = 'ok';
   if (!row.employeeId) {
-    severity = 'block';
+    severity = 'review';
     if (!issues.some((issue) => /medarbeider|ansatt/i.test(issue))) {
       issues.push('Mangler medarbeider — raden kan ikke lagres uten ansatt.');
     }
   } else if (issues.some((issue) => /kunde/i.test(issue))) {
     severity = 'review';
-  } else if (!issues.length) {
-    severity = row.duplicate ? 'existing' : 'ok';
   }
+  if (row.duplicate) severity = 'existing';
   const entry = {
     ...row.entry,
     projectId: project.id,

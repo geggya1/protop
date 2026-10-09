@@ -201,14 +201,23 @@ export default function EconomyHours({
     const leftOut = [];
     importPlan.rows.forEach((row, index) => {
       const id = String(index);
-      if (row.severity === 'block' || row.severity === 'existing' || dropped.has(id) || !row.entry) {
+      const missingLink = !row.entry?.employeeId || !row.entry?.projectId;
+      if (
+        row.severity === 'block'
+        || row.severity === 'existing'
+        || dropped.has(id)
+        || !row.entry
+        || missingLink
+      ) {
         leftOut.push({
           name: row.title || 'Uten dato',
           reason: row.severity === 'existing'
             ? (row.issues?.[0] || 'Duplikat — hoppet over.')
             : row.severity === 'block'
               ? (row.issues?.[0] || 'Kan ikke importeres.')
-              : 'Valgt bort før lagring.',
+              : missingLink
+                ? 'Mangler kobling til medarbeider eller prosjekt.'
+                : 'Valgt bort før lagring.',
         });
         return;
       }
@@ -329,9 +338,9 @@ export default function EconomyHours({
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}
           renderRowExtra={(row) => {
-            if (row.severity === 'block' || row.severity === 'ok' || row.severity === 'existing') return null;
+            if (row.severity === 'ok' || row.severity === 'existing') return null;
             const planRow = importPlan.rows[row.rowIndex];
-            if (!planRow) return null;
+            if (!planRow?.entry) return null;
             const q = linkQuery[row.id] || '';
             return (
               <View style={{ gap: 6, marginTop: 4 }}>

@@ -119,7 +119,7 @@ import {
     projectName: 'X',
     hours: '4',
   }]);
-  assert.equal(plan.rows[0].severity, 'block');
+  assert.equal(plan.rows[0].severity, 'review');
   const linked = linkImportPlanEmployee(plan, 0, {
     id: 'emp9',
     person: { firstName: 'Ukjent', lastName: 'Person' },
@@ -127,7 +127,7 @@ import {
   });
   // Prosjekt mangler fortsatt i registeret
   assert.equal(linked.rows[0].employeeId, 'emp9');
-  assert.equal(linked.rows[0].severity, 'block');
+  assert.equal(linked.rows[0].severity, 'review');
   assert.match(linked.rows[0].issues.join(' '), /Prosjekt/);
 }
 

@@ -98,6 +98,12 @@ assert.match(raw, /\/Photo Do/);
 assert.match(raw, /\/Prjp0 Do/);
 assert.match(raw, /\/Prjp1 Do/);
 assert.ok(file.bytes.length > 20000, `PDF for liten (${file.bytes.length})`);
+const pageCount = (raw.match(/\/Type \/Page[^s]/g) || []).length;
+assert.match(raw, new RegExp(`side 1 av ${pageCount}`));
+assert.match(raw, new RegExp(`side ${pageCount} av ${pageCount}`));
+// Fast prosjekt-ramme (cover) — samme 168×112 for alle prosjektbilder
+const projectFrames = [...raw.matchAll(/168\.00 112\.00 re/g)];
+assert.ok(projectFrames.length >= 6, `forventet clipping+kant per bilde, fikk ${projectFrames.length}`);
 
 const out = '/opt/cursor/artifacts/e2e-cv-with-images.pdf';
 writeFileSync(out, file.bytes);
@@ -138,6 +144,11 @@ if non2 < 500:
   non2=sum(c for c,px in left.getcolors(250000) if not (px[0]>245 and px[1]>245 and px[2]>245))
   print('project_nonwhite_p2', non2)
 assert non2 > 500, non2
+# footer «side X av Y» — nederst høyre skal ha mørke piksler (tekst)
+footer=p1.crop((p1.width-200, p1.height-50, p1.width-40, p1.height-10))
+fnon=sum(c for c,px in footer.getcolors(250000) if not (px[0]>245 and px[1]>245 and px[2]>245))
+print('footer_nonwhite', fnon)
+assert fnon > 20, fnon
 print('pages', len(pdf))
 print('ok')
 `;

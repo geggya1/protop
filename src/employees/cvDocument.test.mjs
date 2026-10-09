@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { cvDocumentFileSync, cvDocumentLines, cvPdf } from './cvDocument.js';
+import { cvDocumentFileSync, cvDocumentLines, cvPdf, pageFooterLabel } from './cvDocument.js';
 
 /** Minimal 1x1 JPEG (FF D8 … FF D9). */
 const TINY_JPEG = Uint8Array.from([
@@ -103,12 +103,19 @@ assert.match(raw, /\/Prjp1 Do/);
 assert.match(raw, /CURRICULUM VITAE/);
 assert.match(raw, /Oppsummering/);
 assert.equal(raw.includes('•'), false, 'bullet-tegn skal ikke ligge som Unicode i PDF');
+assert.equal(pageFooterLabel(0, 11), 'side 1 av 11');
+assert.equal(pageFooterLabel(10, 11), 'side 11 av 11');
+assert.match(raw, /side 1 av \d+/);
+// Cover-crop: clipping-rektangel før bilde (W n) for fast ramme
+assert.match(raw, /168\.00 112\.00 re[\s\S]*?W n[\s\S]*?\/Prjp1 Do/);
+assert.match(raw, /90\.00 110\.00 re[\s\S]*?W n[\s\S]*?\/Photo Do/);
 
 const outPath = new URL('../../.tmp-cv-export-test.pdf', import.meta.url);
 writeFileSync(outPath, file.bytes);
 
 const pageCount = (raw.match(/\/Type \/Page[^s]/g) || []).length;
 assert.ok(pageCount >= 1 && pageCount <= 8, `forventet få sider uten masse prosjekter, fikk ${pageCount}`);
+assert.match(raw, new RegExp(`side 1 av ${pageCount}`));
 
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(screen, /cvDocumentFile/);

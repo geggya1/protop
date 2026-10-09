@@ -111,3 +111,37 @@ Sluttmål: timeføring → godkjenning → fakturagrunnlag → faktura → KID/M
 | Pipeline-test | `src/economy/billingPipeline.test.mjs` |
 
 P2 fortsatt åpent: Peppol Access Point (ekte sending), SAF-T, lønnseksport.
+
+## 8. Syklus 3–6
+
+### Syklus 3 — P0-verifisering (2026-10-09)
+
+Gjennomgang av P0 mot kode på `cursor/arbeid-faktura-komplett-6c84`:
+
+| # | P0 | Status | Gap |
+|---|-----|--------|-----|
+| 1 | Fakturagrunnlag fra godkjente timer | OK | `buildBillingProposals` + UI Økonomi · Fakturagrunnlag |
+| 2 | Faktura med linjer | Delvis | Linjer bygges i `createInvoiceFromProposal`; **AsyncStorage-cache (`toSummary`) stripper `lines`** → offline/detalj kan miste linjer |
+| 3 | Opprett faktura / kreditnota i UI | Delvis | Faktura-knapp OK; **ingen `createCreditNoteFromInvoice` / UI** (kun speilet bilag `creditVoucherFromInvoice`) |
+| 4 | Momskoder + MVA | OK | `vat.js` HIGH/MID/LOW/ZERO/EXEMPT + tester |
+| 5 | KID MOD10/11 | OK | Generering + validering i pipeline-test |
+| 6 | EHF XML eksport | OK | Generering + nedlasting; AP-sending = P2 |
+| 7 | Bilag ved faktura | Delvis | Bilag bygges og `voucherId` settes på faktura; **egen voucher-persistens mangler**; cache kan strippe `voucherId` |
+| 8 | Overtid / timeart | OK | `TIME_TYPES` i TimeEntryModal + sats i fakturalinjer |
+| 9 | Timerapporter | Delvis | `src/arbeid/reports.js` + CSV; **ingen egen rapport-UI** under Arbeid (kun Prosjekt → Timerapport) |
+
+Neste i syklus 5–6: kreditnota-hjelper, lagring av `lines`/`kid`/`vatCode`/`ehfXml`/`voucherId`.
+
+### Syklus 4 — Tester
+
+- `node src/economy/billingPipeline.test.mjs` → **ok**
+- `node src/project/engine.test.mjs` → **ok**
+- Ingen feil å fikse i denne runden.
+
+### Syklus 5 — Kreditnota
+
+- Mål: `createCreditNoteFromInvoice` i `billingFromHours.js` + unit-test; valgfri knapp i `EconomyBilling`.
+
+### Syklus 6 — Persistens
+
+- Mål: `invoiceStorage.toSummary` / lokal cache må beholde `lines`, `kid`, `vatCode`, `ehfXml`, `voucherId` (ikke strippe ved `writeLocal`).

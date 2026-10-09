@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   normalizePricingModel,
   pricingModelLabel,
+  projectNumberKey,
   scrubProjectFields,
   scrubProjectState,
   normalizePricingSettings,
@@ -14,6 +15,12 @@ import {
   attachOfferDocuments,
   addProjectAgreementDocuments,
 } from './engine.js';
+
+assert.equal(projectNumberKey('10951.0'), '10951');
+assert.equal(projectNumberKey('10951,00'), '10951');
+assert.equal(projectNumberKey(' 10951 '), '10951');
+assert.equal(projectNumberKey('A-123'), 'A-123');
+assert.equal(projectNumberKey('1.5'), '1.5');
 
 assert.equal(normalizePricingModel('notbillable'), 'not_billable');
 assert.equal(normalizePricingModel('hourlyRate'), 'hourly');

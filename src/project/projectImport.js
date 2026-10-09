@@ -9,7 +9,7 @@ import {
   normalizeCustomerNumber,
   normalizeOrgnr,
 } from '../anbud/customers.js';
-import { normalizePricingModel } from './projectFields.js';
+import { normalizePricingModel, projectNumberKey } from './projectFields.js';
 import { phaseFromProjectStatus } from './statusFilter.js';
 
 const FIELDS = [
@@ -400,19 +400,33 @@ export function companyProjectRow(input, customers = [], contracts = []) {
   };
 }
 
+function blockImportRow(row, reason) {
+  row.severity = 'block';
+  row.reason = reason;
+  row.issues = [reason];
+  row.project = null;
+  return row;
+}
+
 export function planProjectImport(projectState, customers, contracts, rows) {
   const existing = new Set(
     (projectState?.projects || [])
-      .filter((row) => row.status !== 'arkivert')
-      .map((row) => text(row.number)),
+      .map((row) => projectNumberKey(row.number))
+      .filter(Boolean),
   );
+  const seen = new Set();
   const planned = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
     const row = companyProjectRow(raw, customers, contracts);
-    if (row.severity !== 'block' && existing.has(row.number)) {
-      row.issues = [...(row.issues || []), 'Prosjektnummeret finnes fra før og blir oppdatert.'];
-      if (row.severity === 'ok') row.severity = 'review';
-      row.update = true;
+    const key = projectNumberKey(row.number);
+    if (row.severity !== 'block' && key) {
+      if (existing.has(key)) {
+        blockImportRow(row, 'Prosjektnummeret finnes allerede.');
+      } else if (seen.has(key)) {
+        blockImportRow(row, 'Prosjektnummeret står flere ganger i listen. Bare den første raden kan importeres.');
+      } else {
+        seen.add(key);
+      }
     }
     planned.push(row);
   }

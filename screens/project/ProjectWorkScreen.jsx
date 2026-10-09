@@ -869,7 +869,9 @@ export default function ProjectWorkScreen() {
       setImportReport(importResult(imported, leftOut));
       setImportPlan(null);
       setDropped(new Set());
-      setNote(`${result.created.length} nye, ${result.updated.length} oppdatert.`);
+      setNote(result.skipped?.length
+        ? `${result.created.length} nye. ${result.skipped.length} fantes allerede og ble hoppet over.`
+        : `${result.created.length} nye prosjekter importert.`);
       setView('list');
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke lagre prosjektlisten.');
@@ -1689,7 +1691,7 @@ export default function ProjectWorkScreen() {
         <ImportReview
           nativeID="projects-import-plan"
           colors={colors}
-          lead="Ingenting er lagret ennå. Koble manglende kunder her før du bekrefter. Avtaler kan knyttes etterpå."
+          lead="Ingenting er lagret ennå. Prosjektnummer som finnes fra før importeres ikke på nytt. Koble manglende kunder her før du bekrefter. Avtaler kan knyttes etterpå."
           rows={reviewRows}
           busy={importing}
           confirmLabel={(count) => `Importer ${count} prosjekter`}

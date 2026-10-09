@@ -7,6 +7,17 @@ function text(value) {
   return String(value || '').trim();
 }
 
+/**
+ * Nøkkel for å kjenne igjen prosjektnummer. Trim, og Excel-heltall som 10951.0
+ * blir 10951. Bokstaver og bindestreker (f.eks. A-123) beholdes uendret.
+ */
+export function projectNumberKey(value) {
+  const raw = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  if (/^\d+[.,]0+$/.test(raw)) return raw.replace(/[.,]0+$/, '');
+  return raw;
+}
+
 /** Prismodeller i ProTop (ikke Moment-råverdier som "notbillable"). */
 export const PRICING_MODELS = [
   { id: 'not_billable', label: 'Ikke fakturerbar' },
@@ -191,12 +202,12 @@ export function scrubProjectState(state) {
     : [];
   const byNumber = new Map(
     projects
-      .filter((row) => row.status !== 'arkivert' && text(row.number))
-      .map((row) => [text(row.number), row]),
+      .filter((row) => row.status !== 'arkivert' && projectNumberKey(row.number))
+      .map((row) => [projectNumberKey(row.number), row]),
   );
   const linked = projects.map((row) => {
-    if (row.parentProjectId || !text(row.parentNumber)) return row;
-    const parent = byNumber.get(text(row.parentNumber));
+    if (row.parentProjectId || !projectNumberKey(row.parentNumber)) return row;
+    const parent = byNumber.get(projectNumberKey(row.parentNumber));
     if (!parent || parent.id === row.id) return row;
     return {
       ...row,

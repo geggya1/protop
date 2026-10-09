@@ -13,6 +13,7 @@ import {
   feeEstimateFromSettings,
   normalizePricingModel,
   normalizePricingSettings,
+  projectNumberKey,
   scrubProjectState,
 } from './projectFields.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
@@ -28,6 +29,19 @@ function round2(n) {
 
 function text(value) {
   return String(value || '').trim();
+}
+
+function canonicalProjectNumber(value) {
+  return projectNumberKey(value) || text(value);
+}
+
+function findProjectByNumber(projects, number, { includeArchived = false } = {}) {
+  const key = projectNumberKey(number);
+  if (!key) return null;
+  return (Array.isArray(projects) ? projects : []).find((project) => (
+    projectNumberKey(project.number) === key
+    && (includeArchived || project.status !== 'arkivert')
+  )) || null;
 }
 
 export function emptyProjectState() {
@@ -422,10 +436,10 @@ export function projectMissingAgreement(project) {
 
 export function createProject(state, input) {
   const name = text(input.name);
-  const number = text(input.number);
+  const number = canonicalProjectNumber(input.number);
   if (!name) return fail(state, 'Prosjektnavn må fylles ut.');
   if (!number) return fail(state, 'Prosjektnummer må fylles ut.');
-  if (state.projects.some((p) => p.number === number && p.status !== 'arkivert')) {
+  if (findProjectByNumber(state.projects, number)) {
     return fail(state, 'Prosjektnummeret er allerede i bruk.');
   }
   const phase = PHASES.includes(input.phase) ? input.phase : 'planlegging';
@@ -469,11 +483,12 @@ export function ensureMainActivity(state, projectId) {
 export function updateProject(state, projectId, patch) {
   const current = state.projects.find((p) => p.id === projectId);
   if (!current) return fail(state, 'Prosjektet finnes ikke.');
-  const nextNumber = patch.number !== undefined ? text(patch.number) : current.number;
+  const nextNumber = patch.number !== undefined ? canonicalProjectNumber(patch.number) : current.number;
   const nextName = patch.name !== undefined ? text(patch.name) : current.name;
   if (!nextName) return fail(state, 'Prosjektnavn må fylles ut.');
   if (!nextNumber) return fail(state, 'Prosjektnummer må fylles ut.');
-  if (state.projects.some((p) => p.id !== projectId && p.number === nextNumber && p.status !== 'arkivert')) {
+  const clash = findProjectByNumber(state.projects, nextNumber);
+  if (clash && clash.id !== projectId) {
     return fail(state, 'Prosjektnummeret er allerede i bruk.');
   }
   const phase = patch.phase !== undefined
@@ -498,8 +513,8 @@ export function updateProject(state, projectId, patch) {
 }
 
 /**
- * Hurtigimport / upsert på prosjektnummer. Kobler mot kunder når match finnes.
- * Alle generelle felter fra listen lagres; avtaler kan knyttes etterpå.
+ * Hurtigimport av nye prosjekt. Eksisterende prosjektnummer hoppes over,
+ * slik at listen ikke overskriver det som allerede er lagret.
  */
 export function importProjects(state, rows) {
   let next = state;
@@ -507,13 +522,16 @@ export function importProjects(state, rows) {
   const updated = [];
   const skipped = [];
   for (const row of Array.isArray(rows) ? rows : []) {
-    const number = text(row?.number);
+    const number = canonicalProjectNumber(row?.number);
     const name = text(row?.name);
     if (!number || !name) {
       skipped.push({ number, name, reason: 'Mangler prosjektnummer eller navn.' });
       continue;
     }
-    const existing = next.projects.find((p) => p.number === number && p.status !== 'arkivert');
+    if (findProjectByNumber(next.projects, number, { includeArchived: true })) {
+      skipped.push({ number, name, reason: 'Prosjektnummeret finnes allerede.' });
+      continue;
+    }
     const payload = {
       ...row,
       name,
@@ -528,25 +546,15 @@ export function importProjects(state, rows) {
       frameworkAgreementId: text(row.frameworkAgreementId) || null,
       agreementKind: text(row.agreementKind),
     };
-    if (existing) {
-      const result = updateProject(next, existing.id, payload);
-      if (!result.ok) {
-        skipped.push({ number, name, reason: result.error });
-        continue;
-      }
-      next = result.state;
-      updated.push(next.projects.find((p) => p.id === existing.id));
-    } else {
-      const result = createProject(next, payload);
-      if (!result.ok) {
-        skipped.push({ number, name, reason: result.error });
-        continue;
-      }
-      next = result.state;
-      created.push(next.projects[0]);
+    const result = createProject(next, payload);
+    if (!result.ok) {
+      skipped.push({ number, name, reason: result.error });
+      continue;
     }
+    next = result.state;
+    created.push(next.projects[0]);
   }
-  if (!created.length && !updated.length) {
+  if (!created.length) {
     return fail(state, skipped[0]?.reason || 'Ingen prosjekter ble importert.');
   }
   return { ok: true, state: next, error: null, created, updated, skipped };

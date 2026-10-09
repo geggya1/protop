@@ -589,12 +589,17 @@ export function importProjects(state, rows) {
       skipped.push({ number, name, reason: 'Prosjektnummeret finnes allerede.' });
       continue;
     }
+    const customerId = text(row.customerId);
+    if (!customerId) {
+      skipped.push({ number, name, reason: 'Kunden er ikke koblet.' });
+      continue;
+    }
     const payload = {
       ...row,
       name,
       number,
       client: text(row.client),
-      customerId: text(row.customerId) || null,
+      customerId,
       customerNumber: text(row.customerNumber),
       orgnr: text(row.orgnr),
       manager: text(row.manager),

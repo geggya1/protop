@@ -48,7 +48,7 @@ export function issueTally(rows) {
 }
 
 export function issueNeedsAction(issue) {
-  return /blir ikke lagret|ble ikke importert|ikke gyldig|må være|finnes allerede|flere ganger|mangler navn/i.test(String(issue || ''));
+  return /blir ikke lagret|ble ikke importert|ikke gyldig|må være|finnes allerede|flere ganger|mangler navn|ikke koblet|velg kunde/i.test(String(issue || ''));
 }
 
 /**

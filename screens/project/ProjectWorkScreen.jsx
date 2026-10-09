@@ -36,6 +36,7 @@ import {
 import {
   PROJECT_REGISTER_IMPORT_ACCEPT,
   linkImportPlanCustomer,
+  linkProjectsToCustomers,
   planProjectImport,
   readCompanyProjectTable,
   suggestCustomers,
@@ -315,6 +316,29 @@ export default function ProjectWorkScreen() {
     }
     return watchEmployees(familyId, setEmployees, () => setEmployees([]));
   }, [familyId]);
+
+  const unlinkedProjectKey = useMemo(() => (
+    (state.projects || [])
+      .filter((row) => (
+        row.status !== 'arkivert'
+        && !row.customerId
+        && (row.customerNumber || row.orgnr || row.client)
+      ))
+      .map((row) => row.id)
+      .sort()
+      .join('|')
+  ), [state.projects]);
+
+  // Koble lagrede prosjekt som mangler customerId når kunderegisteret er klart.
+  useEffect(() => {
+    if (!ready || !allowSave.current || !familyId || !unlinkedProjectKey) return;
+    const customers = anbud?.customers || [];
+    if (!customers.length) return;
+    const result = linkProjectsToCustomers(state, customers);
+    if (!result.linked) return;
+    setState(result.state);
+    setNote(`${result.linked} prosjekt koblet til kunde automatisk.`);
+  }, [ready, familyId, anbud?.customers, unlinkedProjectKey]);
 
   useEffect(() => {
     if (shellIntent?.type === 'openProject' && shellIntent.projectId) {
@@ -844,10 +868,27 @@ export default function ProjectWorkScreen() {
         });
         return;
       }
+      if (!row.customerId) {
+        leftOut.push({
+          name: [row.number, row.name].filter(Boolean).join(' ') || 'Uten navn',
+          reason: 'Kunden er ikke koblet.',
+        });
+        return;
+      }
       chosen.push(row);
     });
     if (!chosen.length) {
-      setError('Ingen prosjekter er valgt for import.');
+      setError('Ingen prosjekter er valgt for import. Koble kunde på alle rader først.');
+      return;
+    }
+    const missingCustomer = importPlan.rows.filter((row, index) => (
+      row.severity !== 'block'
+      && !dropped.has(String(index))
+      && row.project
+      && !row.customerId
+    ));
+    if (missingCustomer.length) {
+      setError(`${missingCustomer.length} prosjekt mangler kundekobling. Koble alle før du importerer.`);
       return;
     }
     setImporting(true);
@@ -899,6 +940,7 @@ export default function ProjectWorkScreen() {
     ].filter(Boolean).join(' · '),
     issues: row.issues || [],
     included: row.severity !== 'block' && !dropped.has(String(index)),
+    ready: !!row.customerId,
     needsCustomer: !row.customerId && row.severity !== 'block',
     customerLinked: !!row.customerId,
     customerHint: {
@@ -1696,10 +1738,10 @@ export default function ProjectWorkScreen() {
         <ImportReview
           nativeID="projects-import-plan"
           colors={colors}
-          lead="Ingenting er lagret ennå. Prosjektnummer som finnes fra før importeres ikke på nytt. Koble manglende kunder her før du bekrefter. Avtaler kan knyttes etterpå."
+          lead="Ingenting er lagret ennå. Alle prosjekt må kobles til en kunde før import. Prosjektnummer som finnes fra før importeres ikke på nytt. Avtaler kan knyttes etterpå."
           rows={reviewRows}
           busy={importing}
-          confirmLabel={(count) => `Importer ${count} prosjekter`}
+          confirmLabel={(count) => `Importer ${count} prosjekter med kundekobling`}
           onToggle={toggleImportRow}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setDropped(new Set()); setLinkQuery({}); setView('list'); }}

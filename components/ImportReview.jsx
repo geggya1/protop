@@ -19,7 +19,11 @@ export default function ImportReview({
 }) {
   const danger = colors.danger || '#b42318';
   const sections = reviewSections(rows);
-  const ready = (rows || []).filter((row) => row.severity !== 'block' && row.included).length;
+  const ready = (rows || []).filter((row) => (
+    row.severity !== 'block'
+    && row.included
+    && row.ready !== false
+  )).length;
   return (
     <View nativeID={nativeID} style={{ gap: 12 }}>
       <Text style={{ color: colors.ink }}>{reviewHeadline(rows)}</Text>

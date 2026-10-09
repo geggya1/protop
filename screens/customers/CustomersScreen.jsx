@@ -142,7 +142,7 @@ export default function CustomersScreen() {
   const numberSave = useRef('');
 
   useEffect(() => {
-    loadAnbudState(familyId).then(setState);
+    loadAnbudState(familyId, { force: true }).then(setState);
     loadProjectState(familyId).then((loaded) => {
       setProjects(loaded?.projects || []);
     }).catch(() => setProjects([]));
@@ -333,7 +333,7 @@ export default function CustomersScreen() {
         familyId,
         ask: (payload) => askImportInterpret(payload),
       });
-      const loaded = await loadAnbudState(familyId);
+      const loaded = await loadAnbudState(familyId, { force: true });
       const planned = planCustomerImport(loaded, interpreted.rows);
       if (!planned.rows.length) {
         setError('Fant ingen kunder i filen.');
@@ -466,6 +466,16 @@ export default function CustomersScreen() {
           confirmLabel={(count) => `Importer ${count} kunder`}
           onToggle={toggleCustomer}
           onConfirm={confirmCustomerImport}
+          onOpenExisting={(customerId) => {
+            setImportPlan(null);
+            setDropped(new Set());
+            setQuery('');
+            setKindFilter('');
+            setGapFilter('');
+            setSelectedId(customerId);
+            setView('detail');
+            setNote('Kunden finnes allerede i registeret — her er kortet.');
+          }}
           onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
         />
       ) : null}

@@ -650,7 +650,9 @@ export function planCustomerImport(state, rows) {
     const label = name || requestedNumber || text(row?.orgnr) || text(row?.email) || 'Uten navn';
     let severity = '';
     let reason = '';
+    let matchId = '';
     let matchName = '';
+    let matchCustomerNumber = '';
     if (!name) {
       severity = 'block';
       reason = 'Mangler navn.';
@@ -658,7 +660,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.customerNumber === requestedNumber);
       severity = 'existing';
       reason = 'Kundenummeret finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (requestedNumber && seenNumbers.has(requestedNumber)) {
       severity = 'block';
       reason = 'Kundenummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -666,7 +670,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.orgnr === orgnr);
       severity = 'existing';
       reason = 'En kunde med samme organisasjonsnummer finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (orgnr && seenOrgnr.has(orgnr)) {
       severity = 'block';
       reason = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -674,7 +680,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.personnummer === personnummer);
       severity = 'existing';
       reason = 'En kunde med samme personnummer finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (personnummer && seenPerson.has(personnummer)) {
       severity = 'block';
       reason = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -715,7 +723,9 @@ export function planCustomerImport(state, rows) {
       email: email.value,
       phone: phone.value,
       reason,
+      matchId,
       matchName,
+      matchCustomerNumber,
       issues: severity === 'ok' || severity === 'review' ? issues : [reason].filter(Boolean),
       customer,
     });
@@ -816,27 +826,53 @@ export async function enrichCustomerFromBrreg(customer, { lookup } = {}) {
   return { customer: next, changed };
 }
 
-/** Kompakt visning: eksisterende og blokkerte rader grupperes på årsak. */
+/** Kompakt visning: eksisterende kunder vises én og én med registerets kundenummer. */
 export function customerImportReviewRows(planned, dropped = new Set()) {
   const blocked = new Map();
+  const existing = [];
   const rows = [];
   (Array.isArray(planned) ? planned : []).forEach((row, index) => {
     const id = String(index);
-    if (row.severity === 'existing' || row.severity === 'block') {
-      const key = `${row.severity}:${row.reason || ''}`;
+    if (row.severity === 'existing') {
+      const registerLabel = [
+        row.matchCustomerNumber ? `Nr ${row.matchCustomerNumber}` : '',
+        row.matchName || row.name,
+      ].filter(Boolean).join(' · ');
+      const fileLabel = [
+        row.customerNumber && row.customerNumber !== row.matchCustomerNumber ? `fil ${row.customerNumber}` : '',
+        row.name && row.name !== row.matchName ? row.name : '',
+      ].filter(Boolean).join(' · ');
+      existing.push({
+        id,
+        severity: 'existing',
+        count: 1,
+        locked: true,
+        included: false,
+        matchId: row.matchId || '',
+        matchCustomerNumber: row.matchCustomerNumber || '',
+        title: registerLabel || row.name,
+        meta: [
+          formatOrgnr(row.orgnr),
+          fileLabel ? `I importfila: ${fileLabel}` : '',
+        ].filter(Boolean).join(' · '),
+        issues: [row.reason || 'Finnes allerede.'],
+      });
+      return;
+    }
+    if (row.severity === 'block') {
+      const key = `block:${row.reason || ''}`;
       if (!blocked.has(key)) {
         blocked.set(key, {
           id: `group:${key}`,
-          severity: row.severity,
-          reason: row.reason || (row.severity === 'existing' ? 'Finnes allerede.' : 'Kan ikke importeres.'),
+          severity: 'block',
+          reason: row.reason || 'Kan ikke importeres.',
           names: [],
           count: 0,
         });
       }
       const group = blocked.get(key);
       group.count += 1;
-      const label = [row.customerNumber, row.name].filter(Boolean).join(' · ');
-      group.names.push(row.matchName && row.matchName !== row.name ? `${label} (${row.matchName})` : label);
+      group.names.push([row.customerNumber, row.name].filter(Boolean).join(' · '));
       return;
     }
     rows.push({
@@ -849,15 +885,14 @@ export function customerImportReviewRows(planned, dropped = new Set()) {
     });
   });
   return [
+    ...existing,
     ...[...blocked.values()].map((group) => ({
       id: group.id,
-      severity: group.severity,
+      severity: 'block',
       count: group.count,
       locked: true,
       included: false,
-      title: group.count === 1
-        ? group.names[0]
-        : `${group.count} kunder ${group.severity === 'existing' ? 'finnes allerede' : 'blir ikke importert'}`,
+      title: group.count === 1 ? group.names[0] : `${group.count} kunder blir ikke importert`,
       meta: sampleNames(group.names),
       issues: [group.reason],
     })),

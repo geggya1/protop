@@ -184,7 +184,7 @@ export const linking = {
         return { routes: [{ name: 'Home' }] };
       }
     }
-    // Tilbudsarbeid i eget vindu: /anbud/tilbud/:bidId
+    // Tilbudsarbeid: /anbud/tilbud/:bidId
     const anbudBid = String(path || '').match(/^\/?anbud\/tilbud\/([^/?#]+)/i);
     if (anbudBid?.[1]) {
       let bidId = anbudBid[1];

@@ -970,6 +970,40 @@ export function createBidWork(state, id) {
   return ok({ ...decided.state, bids: [freshBid(notice, notice.dossier), ...(decided.state.bids || [])] });
 }
 
+/** Manuelt tilbudsarbeid uten kunngjøring fra Doffin/TED. */
+export function createManualBidWork(state, input = {}) {
+  const title = text(input?.title).slice(0, 200);
+  if (!title) return fail(state, 'Gi tilbudet et navn.');
+  const buyer = text(input?.buyer).slice(0, 160);
+  const deadline = text(input?.deadline).slice(0, 80);
+  const questionDeadline = text(input?.questionDeadline).slice(0, 80);
+  const description = text(input?.description).slice(0, 8000);
+  const bid = normalizeBidWork({
+    id: `bid_manuell_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    noticeId: '',
+    source: 'manuell',
+    title,
+    buyer,
+    phase: 'trinn2',
+    stage: 'planlegging',
+    createdAt: new Date().toISOString(),
+    dossier: {
+      title,
+      buyer,
+      description,
+      submissionDeadline: deadline,
+      questionDeadline,
+    },
+    folders: [],
+    files: [],
+    forms: [],
+    questions: [],
+  });
+  const bids = Array.isArray(state?.bids) ? state.bids : [];
+  if (bids.length >= 80) return fail(state, 'Bedriften har maks 80 tilbudsarbeid.');
+  return ok({ ...state, bids: [bid, ...bids] });
+}
+
 export function formatNok(amount) {
   if (amount == null || !Number.isFinite(Number(amount))) return '';
   return `${new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 0 }).format(Number(amount))} kr`;

@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   bidDeskBucket,
   bidOverview,
   bidStatusCounts,
-  bidWorkspacePath,
   normalizeBidWork,
   sortBidsByDeadline,
 } from '../../src/anbud/bidLibrary';
+import { createManualBidWork } from '../../src/anbud/model';
 import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
@@ -30,15 +30,6 @@ const SORTS = [
   ['desc', 'Frist lengst først'],
 ];
 
-function openBidInOwnWindow(bidId) {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  const path = bidWorkspacePath(bidId);
-  if (!path) return false;
-  const url = `${window.location.origin}${path}`;
-  window.open(url, `protop_tilbud_${bidId}`, 'noopener,noreferrer');
-  return true;
-}
-
 export default function BidDesk({
   company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot,
   members = [], units = [], companies = [],
@@ -50,6 +41,10 @@ export default function BidDesk({
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
   const [showForms, setShowForms] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftBuyer, setDraftBuyer] = useState('');
+  const [draftDeadline, setDraftDeadline] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -72,12 +67,13 @@ export default function BidDesk({
   async function commit(result) {
     if (!result?.ok) {
       setNote(result?.error || 'Kunne ikke lagre.');
-      return;
+      return result;
     }
     setState(result.state);
     setNote('');
     onSnapshot?.(result.state);
     await saveAnbudState(result.state, company?.id);
+    return result;
   }
 
   async function refreshFiles(bid) {
@@ -116,9 +112,20 @@ export default function BidDesk({
     setBusyId('');
   }
 
-  function openBid(bidId) {
-    if (openBidInOwnWindow(bidId)) return;
-    setOpenId(bidId);
+  async function createManual() {
+    const loaded = state || await loadAnbudState(company?.id);
+    const result = await commit(createManualBidWork(loaded, {
+      title: draftTitle,
+      buyer: draftBuyer,
+      deadline: draftDeadline,
+    }));
+    if (!result?.ok) return;
+    const created = result.state.bids[0];
+    setDraftTitle('');
+    setDraftBuyer('');
+    setDraftDeadline('');
+    setCreating(false);
+    setOpenId(created.id);
   }
 
   const rows = state?.bids || bids || [];
@@ -146,13 +153,53 @@ export default function BidDesk({
         onBack={() => { setOpenId(''); setNote(''); }}
         onCommit={commit}
         onRefresh={() => refreshFiles(openBidRow)}
-        onOpenInWindow={Platform.OS === 'web' ? () => openBidInOwnWindow(openBidRow.id) : undefined}
       />
     );
   }
 
   return (
     <View style={{ gap: 12 }}>
+      <View style={styles.toolbar}>
+        <TouchableOpacity
+          onPress={() => { setCreating((value) => !value); setNote(''); }}
+          accessibilityRole="button"
+          style={[styles.btn, { backgroundColor: colors.brand }]}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>{creating ? 'Avbryt' : 'Ny'}</Text>
+        </TouchableOpacity>
+      </View>
+      {creating ? (
+        <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card, gap: 8 }]}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt tilbudsarbeid</Text>
+          <Text style={{ color: colors.muted }}>
+            Opprett et tilbud manuelt når konkurransen ikke kommer fra varslingen.
+          </Text>
+          <TextInput
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            placeholder="Tittel"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TextInput
+            value={draftBuyer}
+            onChangeText={setDraftBuyer}
+            placeholder="Oppdragsgiver"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TextInput
+            value={draftDeadline}
+            onChangeText={setDraftDeadline}
+            placeholder="Tilbudsfrist, f.eks. 02.11.2026 12:00"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TouchableOpacity onPress={createManual} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff' }}>Opprett og åpne</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {counts.alle ? (
         <Text style={{ color: colors.muted }}>
           {`${counts.alle} tilbud · ${counts.aktive} aktive · ${counts.levert} levert · ${counts.vunnet} vunnet · ${counts.utgatt} utgått`}
@@ -191,7 +238,7 @@ export default function BidDesk({
             style={[styles.card, { borderColor: urgent ? colors.danger : colors.line, backgroundColor: colors.card }]}
           >
             <TouchableOpacity
-              onPress={() => openBid(bid.id)}
+              onPress={() => setOpenId(bid.id)}
               accessibilityRole="button"
               accessibilityLabel={`Åpne tilbud ${bid.title}`}
               style={styles.cardBody}
@@ -216,30 +263,21 @@ export default function BidDesk({
             </TouchableOpacity>
             <View style={styles.actions}>
               <TouchableOpacity
-                onPress={() => openBid(bid.id)}
+                onPress={() => setOpenId(bid.id)}
                 accessibilityRole="button"
-                accessibilityLabel={`Arbeid med ${bid.title}`}
+                accessibilityLabel={`Åpne ${bid.title} her`}
               >
-                <Text style={{ color: colors.brand, fontWeight: '600' }}>
-                  {Platform.OS === 'web' ? 'Åpne i eget vindu' : 'Åpne'}
-                </Text>
+                <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne</Text>
               </TouchableOpacity>
-              {Platform.OS === 'web' ? (
-                <TouchableOpacity
-                  onPress={() => setOpenId(bid.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Åpne ${bid.title} her`}
-                >
-                  <Text style={{ color: colors.muted }}>Åpne her</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
         );
       })}
       {!rows.length ? (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.muted }}>Ingen tilbud er opprettet. Merk konkurransen som aktuell, og velg Gi tilbud.</Text>
+          <Text style={{ color: colors.muted }}>
+            Ingen tilbud er opprettet. Bruk Ny, eller merk en konkurranse som aktuell og velg Gi tilbud.
+          </Text>
           <TouchableOpacity onPress={onOpenAlerts} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff' }}>Gå til treffene</Text>
           </TouchableOpacity>
@@ -263,13 +301,12 @@ export default function BidDesk({
 }
 
 const styles = StyleSheet.create({
-  h: { fontSize: 16, fontWeight: '600' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   cardBody: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   cardMain: { flex: 1, gap: 4, minWidth: 0 },
   deadlineSide: { width: 140, flexShrink: 0, alignItems: 'flex-end', gap: 2 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 2 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
 });

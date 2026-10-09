@@ -12,16 +12,29 @@ function fold(value) {
   return text(value).toLowerCase();
 }
 
+const NAME_NOISE = /\b(as|asa|ans|da|sa|nuf|ba|kf|iks|sf|avd|asf|kommune|sameiet|sameie|borettslaget|borettslag|bbl|avdeling|seksjon|enhet|foretak)\b/g;
+
 export function namesLikelyMatch(left, right) {
   const tidy = (value) => fold(value)
-    .replace(/\b(as|asa|ans|da|sa|nuf|ba|kf|iks|sf|avd|asf)\b/g, '')
+    .replace(NAME_NOISE, '')
     .replace(/[^a-z0-9æøå]+/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const a = tidy(left);
   const b = tidy(right);
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const tokens = (value) => value.split(' ').filter((part) => part.length >= 3);
+  const leftTokens = tokens(a);
+  const rightTokens = tokens(b);
+  if (!leftTokens.length || !rightTokens.length) return false;
+  const rightSet = new Set(rightTokens);
+  const overlap = leftTokens.filter((part) => rightSet.has(part)).length;
+  if (!overlap) return false;
+  // Én unik treff når et av navnene er kort (f.eks. «Lyse» ↔ «Lyse Neo»).
+  if (overlap === 1 && (leftTokens.length === 1 || rightTokens.length === 1)) return true;
+  // Flere felles ord = samme virksomhet med ekstra avdelingsnavn.
+  return overlap >= 2;
 }
 
 function createId(prefix) {

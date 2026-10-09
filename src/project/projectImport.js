@@ -142,44 +142,80 @@ function customerNumberOf(row) {
   return normalizeCustomerNumber(row?.customerNumber) || customerNumberFromNotes(row?.notes);
 }
 
+function pickBestCustomer(candidates, hint) {
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+  const ranked = [...candidates].sort((a, b) => (
+    scoreCustomer(b, hint) - scoreCustomer(a, hint)
+    || text(a.name).length - text(b.name).length
+    || a.name.localeCompare(b.name, 'nb')
+  ));
+  return ranked[0];
+}
+
 export function matchCustomer(customers, hint = {}) {
   const list = Array.isArray(customers) ? customers : [];
   if (!list.length) return null;
   const number = normalizeCustomerNumber(hint.customerNumber);
   if (number) {
     const byNumber = list.filter((row) => customerNumberOf(row) === number);
-    if (byNumber.length === 1) return byNumber[0];
-    if (byNumber.length > 1) {
-      const ranked = [...byNumber].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
-      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
-    }
+    const hit = pickBestCustomer(byNumber, hint);
+    if (hit) return hit;
   }
   const orgnr = normalizeOrgnr(hint.orgnr);
   if (orgnr) {
     const byOrgnr = list.filter((row) => normalizeOrgnr(row.orgnr) === orgnr);
-    if (byOrgnr.length === 1) return byOrgnr[0];
-    if (byOrgnr.length > 1) {
-      const ranked = [...byOrgnr].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
-      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
-      // Samme org.nr = samme virksomhet; ta første ved ellers lik score.
-      return ranked[0];
-    }
+    const hit = pickBestCustomer(byOrgnr, hint);
+    if (hit) return hit;
   }
   const name = text(hint.client || hint.name);
   if (name) {
     const exact = list.filter((row) => fold(row.name) === fold(name));
-    if (exact.length === 1) return exact[0];
+    const exactHit = pickBestCustomer(exact, hint);
+    if (exactHit) return exactHit;
     const soft = list.filter((row) => namesLikelyMatch(row.name, name));
-    if (soft.length === 1) return soft[0];
-    if (soft.length > 1) {
-      const ranked = [...soft].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
-      if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
-      // Flere myke treff: velg korteste navn (ofte juridisk enhet uten avdelingsnavn).
-      ranked.sort((a, b) => text(a.name).length - text(b.name).length || a.name.localeCompare(b.name, 'nb'));
-      return ranked[0];
-    }
+    const softHit = pickBestCustomer(soft, hint);
+    if (softHit) return softHit;
   }
   return null;
+}
+
+/** Fyller inn customerId på lagrede prosjekt som mangler kundekobling. */
+export function linkProjectsToCustomers(projectState, customers) {
+  const registry = withCustomerNumbers(customers);
+  const projects = Array.isArray(projectState?.projects) ? projectState.projects : [];
+  if (!registry.length || !projects.length) {
+    return { state: projectState, linked: 0, projects: [] };
+  }
+  let linked = 0;
+  const linkedProjects = [];
+  const nextProjects = projects.map((project) => {
+    if (!project?.id || project.status === 'arkivert' || text(project.customerId)) return project;
+    if (!text(project.customerNumber) && !text(project.orgnr) && !text(project.client)) return project;
+    const hit = matchCustomer(registry, {
+      customerNumber: project.customerNumber,
+      orgnr: project.orgnr,
+      client: project.client,
+      name: project.client,
+    });
+    if (!hit?.id) return project;
+    linked += 1;
+    const next = {
+      ...project,
+      customerId: hit.id,
+      customerNumber: customerNumberOf(hit) || text(project.customerNumber),
+      client: text(hit.name) || text(project.client),
+      orgnr: normalizeOrgnr(hit.orgnr) || text(project.orgnr),
+    };
+    linkedProjects.push(next);
+    return next;
+  });
+  if (!linked) return { state: projectState, linked: 0, projects: [] };
+  return {
+    state: { ...projectState, projects: nextProjects },
+    linked,
+    projects: linkedProjects,
+  };
 }
 
 /** Kandidater til manuell kobling i importgjennomgangen. */
@@ -335,9 +371,9 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     if (!customer) {
       severity = 'review';
       if (client || customerNumber || orgnr) {
-        issues.push('Kunden er ikke koblet ennå. Velg kunde under før du importerer.');
+        issues.push('Kunden er ikke koblet. Velg kunde under — prosjektet importeres ikke uten kundekobling.');
       } else {
-        issues.push('Ingen kunde i listen. Velg kunde under før du importerer.');
+        issues.push('Ingen kunde i listen. Velg kunde under — prosjektet importeres ikke uten kundekobling.');
       }
     }
     if (!agreement && !framework) {

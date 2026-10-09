@@ -76,7 +76,30 @@ async function runCycle(cycle) {
 
   await waitText(/Kontroller fakturaimport|Kontroller/, 180000);
   await waitText(/Importer \d+ fakturaer/);
+  await waitText(/Klare uten avvik|Må kontrolleres|finnes allerede/);
+  // Knapper skal finnes øverst (før lange tabeller)
+  const topButtons = await page.evaluate(() => {
+    const root = document.querySelector('[id="invoice-import-review"], [data-testid="invoice-import-review"]')
+      || document.body;
+    const text = (root.innerText || '').slice(0, 800);
+    return /Avbryt/.test(text) && /Importer \d+ fakturaer/.test(text);
+  });
+  if (!topButtons) throw new Error('Avbryt/Importer mangler øverst i gjennomgangen');
   await shot(`faktura-cycle${cycle}-review`);
+
+  if (cycle > 1) {
+    // Etter første import skal eksisterende fjernes fra importlisten
+    await waitText(/finnes allerede|fjernet fra importen/i);
+    await shot(`faktura-cycle${cycle}-existing-filtered`);
+    // Avbryt — ikke importer på nytt
+    await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+      const btn = nodes.find((el) => /^(Avbryt)$/.test((el.innerText || '').trim()));
+      if (btn) btn.click();
+    });
+    await waitText(/Importer Excel|registrerte fakturaer/i);
+    return;
+  }
 
   const imported = await page.evaluate(() => {
     const nodes = [...document.querySelectorAll('div,span,p,button,a')];

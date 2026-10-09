@@ -21,6 +21,7 @@ import {
   createProject,
   deleteProjects,
   emptyProjectState,
+  mergeProjectStates,
   postEntry,
   progressSummary,
   projectEconomy,
@@ -131,6 +132,32 @@ assert.equal(bulk.ok, true);
 assert.equal(bulk.deletedIds.length, 2);
 assert.equal(bulk.state.projects.length, 0);
 assert.equal(bulk.state.activities.length, 0);
+assert.equal(bulk.state.deletedProjects.length, 2);
 assert.equal(deleteProjects(bulk.state, [projectId]).ok, false);
+
+{
+  let alive = emptyProjectState();
+  alive = must(createProject(alive, { name: 'A', number: '10' }));
+  alive = must(createProject(alive, { name: 'B', number: '20' }));
+  const before = { ...alive, syncedAt: '2026-01-01T00:00:00.000Z' };
+  const removed = deleteProjects(alive, [alive.projects.find((row) => row.number === '10').id]);
+  assert.equal(removed.ok, true);
+  const afterDelete = { ...removed.state, syncedAt: '2026-01-02T00:00:00.000Z' };
+  const resurrected = mergeProjectStates(before, afterDelete);
+  assert.equal(resurrected.projects.length, 1);
+  assert.equal(resurrected.projects[0].number, '20');
+  assert.ok(resurrected.deletedProjects.some((row) => row.number === '10'));
+
+  const duplicateNumber = mergeProjectStates(afterDelete, {
+    ...emptyProjectState(),
+    syncedAt: '2026-01-03T00:00:00.000Z',
+    projects: [
+      { id: 'old', number: '20', name: 'Gammel B', status: 'aktiv', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'new', number: '20.0', name: 'Ny B', status: 'aktiv', updatedAt: '2026-01-03T00:00:00.000Z' },
+    ],
+  });
+  assert.equal(duplicateNumber.projects.filter((row) => row.number === '20' || row.number === '20.0').length, 1);
+  assert.equal(duplicateNumber.projects[0].name, 'Ny B');
+}
 
 console.log('project engine ok');

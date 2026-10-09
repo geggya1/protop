@@ -7,7 +7,12 @@ import {
   upsertTimeEntry,
   updateProject,
 } from '../project/engine.js';
-import { buildBillingProposals, createInvoiceFromProposal, markEntriesInvoiced } from './billingFromHours.js';
+import {
+  buildBillingProposals,
+  createInvoiceFromProposal,
+  createCreditNoteFromInvoice,
+  markEntriesInvoiced,
+} from './billingFromHours.js';
 import { buildKid, validateKid, mod10CheckDigit, mod11CheckDigit, appendCheckDigit } from './kid.js';
 import { calcLineVat, invoiceVatTotals, VAT_CODES, vatCodeById, roundMoney } from './vat.js';
 import { voucherFromInvoice, creditVoucherFromInvoice, voucherBalances } from './vouchers.js';
@@ -178,6 +183,25 @@ assert.ok(credit.voucher.text.includes('Kreditnota'));
 // Første linje på original er debet fordring → kreditnota har kredit fordring
 assert.equal(credit.voucher.lines[0].credit, voucher.voucher.lines[0].debit);
 assert.equal(credit.voucher.lines[0].debit, 0);
+
+// Kreditnota-dokument fra faktura (negative linjer)
+const creditDoc = createCreditNoteFromInvoice(created.invoice, {
+  existingInvoices: [created.invoice],
+  reason: 'Feil timegrunnlag',
+});
+assert.equal(creditDoc.ok, true, creditDoc.error);
+assert.equal(creditDoc.invoice.status, 'credited');
+assert.equal(creditDoc.invoice.creditNoteForId, created.invoice.id);
+assert.equal(creditDoc.invoice.lines.length, created.invoice.lines.length);
+assert.ok(creditDoc.invoice.amountInclVat < 0);
+assert.equal(
+  roundMoney(creditDoc.invoice.amountInclVat + created.invoice.amountInclVat),
+  0,
+);
+assert.equal(validateKid(creditDoc.invoice.kid).ok, true);
+assert.match(creditDoc.invoice.notes || '', /Feil timegrunnlag/);
+assert.equal(createCreditNoteFromInvoice(creditDoc.invoice).ok, false);
+assert.equal(createCreditNoteFromInvoice(null).ok, false);
 
 // ZERO/EXEMPT bilag uten MVA-linje, fortsatt i balanse
 for (const code of ['ZERO', 'EXEMPT']) {

@@ -225,6 +225,143 @@ export function createInvoiceFromProposal(proposal, {
 }
 
 /**
+ * Opprett kreditnota fra en eksisterende faktura (speilede linjer, nytt nummer).
+ * Timeposter låses ikke opp — det er et separat valg i UI ved behov.
+ */
+export function createCreditNoteFromInvoice(invoice, {
+  existingInvoices = [],
+  creditDate = '',
+  reason = '',
+  kidMethod = 'mod10',
+  bankAccount = '',
+} = {}) {
+  if (!invoice?.id && !invoice?.invoiceNumber) {
+    return { ok: false, error: 'Faktura mangler.', invoice: null };
+  }
+  if (invoice.status === 'credited' || invoice.creditNoteForId) {
+    return { ok: false, error: 'Kan ikke kreditere en kreditnota.', invoice: null };
+  }
+  const sourceLines = Array.isArray(invoice.lines) ? invoice.lines : [];
+  if (!sourceLines.length && !(Number(invoice.amountExVat) > 0 || Number(invoice.amountInclVat) > 0)) {
+    return { ok: false, error: 'Faktura har ingen linjer eller beløp å kreditere.', invoice: null };
+  }
+
+  const date = parseDate(creditDate) || new Date().toISOString().slice(0, 10);
+  const invoiceNumber = nextInvoiceNumber(existingInvoices);
+  const vatCode = text(invoice.vatCode) || 'HIGH';
+
+  let lines;
+  if (sourceLines.length) {
+    // Speil lagrede beløp (ikke re-kalkuler) — unngår øreavvik mot original.
+    lines = sourceLines.map((line, index) => {
+      const qty = Number(line.quantity) || 0;
+      const ex = Number(line.amountExVat);
+      const vatAmt = Number(line.vatAmount);
+      const incl = Number(line.amountInclVat);
+      const amountExVat = Number.isFinite(ex) ? roundMoney(-Math.abs(ex)) : roundMoney(-(Math.abs(qty) * (Number(line.unitPrice) || 0)));
+      const vatAmount = Number.isFinite(vatAmt)
+        ? roundMoney(-Math.abs(vatAmt))
+        : roundMoney(amountExVat * ((Number(line.vatPercent) || 0) / 100));
+      const amountInclVat = Number.isFinite(incl)
+        ? roundMoney(-Math.abs(incl))
+        : roundMoney(amountExVat + vatAmount);
+      return {
+        id: `cn_${line.id || index + 1}`,
+        description: text(line.description) || 'Kreditert linje',
+        quantity: qty === 0 ? 0 : -Math.abs(qty),
+        unit: text(line.unit) || 't',
+        unitPrice: Number(line.unitPrice) || 0,
+        vatCode: text(line.vatCode) || vatCode,
+        vatPercent: line.vatPercent != null ? Number(line.vatPercent) : undefined,
+        amountExVat,
+        vatAmount,
+        amountInclVat,
+        account: text(line.account) || incomeAccountForHours(),
+        timeEntryIds: [],
+      };
+    });
+  } else {
+    // Fallback: én negativ linje fra aggregatbeløp
+    const ex = roundMoney(-(Math.abs(Number(invoice.amountExVat) || 0)));
+    const vatAmount = roundMoney(-(Math.abs(Number(invoice.vat) || 0)));
+    const amountInclVat = roundMoney(-(Math.abs(Number(invoice.amountInclVat) || 0)));
+    lines = [{
+      id: 'cn_total',
+      description: `Kreditnota faktura ${invoice.invoiceNumber}`,
+      quantity: -1,
+      unit: 'stk',
+      unitPrice: Math.abs(Number(invoice.amountExVat) || 0),
+      vatCode,
+      amountExVat: ex,
+      vatAmount,
+      amountInclVat,
+      account: incomeAccountForHours(),
+      timeEntryIds: [],
+    }];
+  }
+
+  const totals = invoiceVatTotals(lines);
+  const kid = buildKid({
+    customerNumber: invoice.customerNumber || '0',
+    invoiceNumber,
+    method: kidMethod,
+  });
+  const noteBits = [
+    `Kreditnota for faktura ${invoice.invoiceNumber || invoice.id}.`,
+    reason ? text(reason) : '',
+  ].filter(Boolean);
+
+  const creditNote = emptyInvoice({
+    id: newInvoiceId(invoiceNumber),
+    invoiceNumber,
+    invoiceDate: date,
+    dueDate: date,
+    periodStart: invoice.periodStart || '',
+    periodEnd: invoice.periodEnd || '',
+    customerId: invoice.customerId,
+    customerNumber: invoice.customerNumber,
+    customerName: invoice.customerName,
+    orgnr: invoice.orgnr,
+    projectId: invoice.projectId,
+    projectNumber: invoice.projectNumber,
+    projectName: invoice.projectName,
+    kid,
+    deliveryMethod: invoice.deliveryMethod || 'ehf',
+    currency: invoice.currency || 'NOK',
+    creditDays: 0,
+    bankAccount: text(bankAccount || invoice.bankAccount),
+    vatCode,
+    lines,
+    amountExVat: totals.amountExVat,
+    vat: totals.vat,
+    amountInclVat: totals.amountInclVat,
+    outstanding: String(totals.amountInclVat),
+    outstandingAmount: totals.amountInclVat,
+    feesInclMarkup: totals.amountExVat,
+    status: 'credited',
+    exportStatus: 'kreditnota',
+    creditNoteForId: invoice.id || '',
+    creditNoteForNumber: text(invoice.invoiceNumber),
+    timeEntryIds: [],
+    accounts: { [incomeAccountForHours()]: totals.amountExVat },
+    notes: noteBits.join(' '),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    source: {
+      filename: 'kreditnota',
+      importedAt: new Date().toISOString(),
+      values: {
+        origin: 'createCreditNoteFromInvoice',
+        originalInvoiceId: invoice.id || '',
+        originalInvoiceNumber: text(invoice.invoiceNumber),
+      },
+    },
+  });
+
+  return { ok: true, error: null, invoice: creditNote, lines, totals, originalId: invoice.id || '' };
+}
+
+/**
  * Marker timeEntries som fakturert (invoiceId + status låst).
  */
 export function markEntriesInvoiced(state, entryIds, invoiceId) {

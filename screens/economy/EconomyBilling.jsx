@@ -15,10 +15,11 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 import {
   buildBillingProposals,
+  createCreditNoteFromInvoice,
   createInvoiceFromProposal,
   markEntriesInvoiced,
 } from '../../src/economy/billingFromHours.js';
-import { voucherFromInvoice } from '../../src/economy/vouchers.js';
+import { creditVoucherFromInvoice, voucherFromInvoice } from '../../src/economy/vouchers.js';
 import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { formatMoney } from '../../src/economy/invoices.js';
@@ -40,6 +41,7 @@ export default function EconomyBilling() {
   const [busyKey, setBusyKey] = useState('');
   const [lastEhf, setLastEhf] = useState('');
   const [lastVoucher, setLastVoucher] = useState(null);
+  const [lastInvoice, setLastInvoice] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -104,6 +106,7 @@ export default function EconomyBilling() {
       await saveProjectState(nextState, familyId);
       setProjectState(nextState);
       setInvoices(await invoiceStorage.loadInvoices(familyId));
+      setLastInvoice(invoice);
       const parts = [
         `Faktura ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}).`,
         `KID ${invoice.kid || '—'}.`,
@@ -115,6 +118,49 @@ export default function EconomyBilling() {
       setNote(parts.join(' '));
     } catch (cause) {
       setError(String(cause?.message || cause) || 'Kunne ikke opprette faktura.');
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function createCreditNote() {
+    if (!lastInvoice?.id) return;
+    setBusyKey('credit');
+    setError('');
+    setNote('');
+    try {
+      const created = createCreditNoteFromInvoice(lastInvoice, {
+        existingInvoices: invoices,
+        bankAccount: supplier.bankAccount,
+        reason: 'Kreditnota fra fakturagrunnlag',
+      });
+      if (!created.ok) {
+        setError(created.error);
+        return;
+      }
+      let invoice = created.invoice;
+      const voucher = creditVoucherFromInvoice(lastInvoice);
+      if (voucher.ok) {
+        invoice = { ...invoice, voucherId: voucher.voucher.id };
+        setLastVoucher(voucher.voucher);
+      }
+      const ehf = buildEhfXml(invoice, { supplier });
+      if (ehf.ok) {
+        invoice = { ...invoice, ehfXml: ehf.xml };
+        setLastEhf(ehf.xml);
+      }
+      await invoiceStorage.saveInvoice(familyId, invoice);
+      // Merk original som kreditert (status) uten å låse opp timer
+      await invoiceStorage.saveInvoice(familyId, {
+        ...lastInvoice,
+        status: 'credited',
+        updatedAt: new Date().toISOString(),
+      });
+      setInvoices(await invoiceStorage.loadInvoices(familyId));
+      setLastInvoice(null);
+      setNote(`Kreditnota ${invoice.invoiceNumber} opprettet for faktura ${lastInvoice.invoiceNumber}.`);
+    } catch (cause) {
+      setError(String(cause?.message || cause) || 'Kunne ikke opprette kreditnota.');
     } finally {
       setBusyKey('');
     }
@@ -171,6 +217,27 @@ export default function EconomyBilling() {
 
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+
+      {lastInvoice?.id ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>
+            Siste faktura {lastInvoice.invoiceNumber}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>
+            Opprett kreditnota med speilede linjer, bilag og ny KID.
+          </Text>
+          <TouchableOpacity
+            onPress={createCreditNote}
+            disabled={busyKey === 'credit'}
+            style={[styles.btnGhost, { borderColor: colors.line, marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', gap: 6, alignItems: 'center' }]}
+          >
+            <Ionicons name="return-down-back-outline" size={16} color={colors.ink} />
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>
+              {busyKey === 'credit' ? 'Krediterer…' : 'Opprett kreditnota'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {!proposals.length ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>

@@ -14,6 +14,7 @@ export default function ImportReview({
   onToggle,
   onConfirm,
   onCancel,
+  onOpenExisting,
   renderRowExtra,
 }) {
   const danger = colors.danger || '#b42318';
@@ -61,9 +62,20 @@ export default function ImportReview({
                 ))}
                 {typeof renderRowExtra === 'function' ? renderRowExtra(row) : null}
                 {locked ? (
-                  <Text style={{ color: row.severity === 'existing' ? (colors.brand || '#175cd3') : danger }}>
-                    {row.severity === 'existing' ? 'Finnes allerede og blir ikke importert.' : 'Blir ikke importert.'}
-                  </Text>
+                  <>
+                    <Text style={{ color: row.severity === 'existing' ? (colors.brand || '#175cd3') : danger }}>
+                      {row.severity === 'existing' ? 'Finnes allerede og blir ikke importert.' : 'Blir ikke importert.'}
+                    </Text>
+                    {row.severity === 'existing' && row.matchId && typeof onOpenExisting === 'function' ? (
+                      <TouchableOpacity onPress={() => onOpenExisting(row.matchId)} accessibilityRole="button">
+                        <Text style={{ color: colors.brand }}>
+                          {row.matchCustomerNumber
+                            ? `Åpne Nr ${row.matchCustomerNumber} i kunderegisteret`
+                            : 'Åpne i kunderegisteret'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
                 ) : (
                   <TouchableOpacity onPress={() => onToggle(row.id)} accessibilityRole="button">
                     <Text style={{ color: colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>

@@ -78,9 +78,26 @@ export function customerDraftFromBrreg(hit) {
   const street = text(hit.street)
     || text(Array.isArray(hit.raw?.forretningsadresse?.adresse)
       ? hit.raw.forretningsadresse.adresse.filter(Boolean).join(', ')
-      : hit.raw?.forretningsadresse?.adresse);
-  const postalCode = digits(hit.postnummer || hit.raw?.forretningsadresse?.postnummer || hit.raw?.beliggenhetsadresse?.postnummer, 4);
-  const place = text(hit.poststed || hit.raw?.forretningsadresse?.poststed || hit.raw?.beliggenhetsadresse?.poststed);
+      : hit.raw?.forretningsadresse?.adresse)
+    || text(Array.isArray(hit.raw?.beliggenhetsadresse?.adresse)
+      ? hit.raw.beliggenhetsadresse.adresse.filter(Boolean).join(', ')
+      : hit.raw?.beliggenhetsadresse?.adresse)
+    || text(Array.isArray(hit.raw?.postadresse?.adresse)
+      ? hit.raw.postadresse.adresse.filter(Boolean).join(', ')
+      : hit.raw?.postadresse?.adresse);
+  const postalCode = digits(
+    hit.postnummer
+    || hit.raw?.forretningsadresse?.postnummer
+    || hit.raw?.beliggenhetsadresse?.postnummer
+    || hit.raw?.postadresse?.postnummer,
+    4,
+  );
+  const place = text(
+    hit.poststed
+    || hit.raw?.forretningsadresse?.poststed
+    || hit.raw?.beliggenhetsadresse?.poststed
+    || hit.raw?.postadresse?.poststed,
+  );
   return emptyCustomer({
     kind: 'org',
     name: text(hit.navn).slice(0, 160),
@@ -90,9 +107,37 @@ export function customerDraftFromBrreg(hit) {
     postalCode,
     place: place.slice(0, 80),
     email: text(hit.epostadresse).slice(0, 80),
-    phone: text(hit.telefon || hit.raw?.telefon).slice(0, 40),
+    phone: text(hit.telefon || hit.raw?.telefon || hit.raw?.mobil).slice(0, 40),
     notes: [text(hit.organisasjonsform), text(hit.naeringsbeskrivelse)].filter(Boolean).join(' · ').slice(0, 400),
   });
+}
+
+/** Fyller tomme kundefelt fra Brønnøysund. Eksisterende verdier beholdes. */
+export function fillCustomerFromBrreg(customer, hit) {
+  const draft = customerDraftFromBrreg(hit);
+  if (!draft) return customer || emptyCustomer();
+  const take = (key) => text(customer?.[key]) || draft[key] || '';
+  return {
+    ...(customer || emptyCustomer()),
+    kind: 'org',
+    name: text(customer?.name) || draft.name,
+    orgnr: normalizeOrgnr(customer?.orgnr) || draft.orgnr,
+    personnummer: '',
+    address: take('address'),
+    postalCode: take('postalCode'),
+    place: take('place'),
+    email: take('email'),
+    phone: take('phone'),
+    notes: text(customer?.notes) || draft.notes,
+  };
+}
+
+function customerNeedsBrreg(customer) {
+  const row = customer || {};
+  if (row.kind === 'person') return false;
+  if (!normalizeOrgnr(row.orgnr)) return false;
+  return !text(row.address) || !text(row.postalCode) || !text(row.place)
+    || (!text(row.email) && !text(row.phone));
 }
 
 export function emptyCustomer(partial = {}) {
@@ -229,16 +274,24 @@ export function normalizeCustomers(input) {
   return input.map(normalizeCustomer).filter(Boolean);
 }
 
+/**
+ * Felt som må rettes før fakturering.
+ * Virksomheter med org.nr henter adresse/kontakt fra Brønnøysund — ikke advarsel der.
+ */
 export function customerInvoiceGaps(customer) {
   const row = customer || {};
   const issues = [];
+  const orgnr = normalizeOrgnr(row.orgnr);
+  if (row.kind !== 'person') {
+    if (!orgnr) issues.push('Mangler organisasjonsnummer.');
+    return issues;
+  }
   if (!text(row.address)) issues.push('Mangler adresse.');
   else {
     if (!text(row.postalCode)) issues.push('Mangler postnummer.');
     if (!text(row.place)) issues.push('Mangler poststed.');
   }
   if (!text(row.email) && !text(row.phone)) issues.push('Mangler e-post og telefon.');
-  if (row.kind !== 'person' && !normalizeOrgnr(row.orgnr)) issues.push('Mangler organisasjonsnummer.');
   return issues;
 }
 
@@ -597,7 +650,9 @@ export function planCustomerImport(state, rows) {
     const label = name || requestedNumber || text(row?.orgnr) || text(row?.email) || 'Uten navn';
     let severity = '';
     let reason = '';
+    let matchId = '';
     let matchName = '';
+    let matchCustomerNumber = '';
     if (!name) {
       severity = 'block';
       reason = 'Mangler navn.';
@@ -605,7 +660,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.customerNumber === requestedNumber);
       severity = 'existing';
       reason = 'Kundenummeret finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (requestedNumber && seenNumbers.has(requestedNumber)) {
       severity = 'block';
       reason = 'Kundenummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -613,7 +670,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.orgnr === orgnr);
       severity = 'existing';
       reason = 'En kunde med samme organisasjonsnummer finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (orgnr && seenOrgnr.has(orgnr)) {
       severity = 'block';
       reason = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -621,7 +680,9 @@ export function planCustomerImport(state, rows) {
       const hit = existing.find((item) => item.personnummer === personnummer);
       severity = 'existing';
       reason = 'En kunde med samme personnummer finnes allerede.';
+      matchId = text(hit?.id);
       matchName = text(hit?.name);
+      matchCustomerNumber = text(hit?.customerNumber);
     } else if (personnummer && seenPerson.has(personnummer)) {
       severity = 'block';
       reason = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
@@ -662,7 +723,9 @@ export function planCustomerImport(state, rows) {
       email: email.value,
       phone: phone.value,
       reason,
+      matchId,
       matchName,
+      matchCustomerNumber,
       issues: severity === 'ok' || severity === 'review' ? issues : [reason].filter(Boolean),
       customer,
     });
@@ -678,27 +741,138 @@ function sampleNames(names, limit = 20) {
   return `${list.slice(0, limit).join(' · ')} · +${list.length - limit}`;
 }
 
-/** Kompakt visning: eksisterende og blokkerte rader grupperes på årsak. */
+function keepImportIssues(issues, customer) {
+  const next = [];
+  for (const issue of Array.isArray(issues) ? issues : []) {
+    if (/^Mangler (adresse|postnummer|poststed|e-post og telefon|organisasjonsnummer)\.?$/i.test(issue)) continue;
+    next.push(issue);
+  }
+  for (const issue of customerInvoiceGaps(customer)) {
+    if (!next.includes(issue)) next.push(issue);
+  }
+  return next;
+}
+
+async function mapPool(items, concurrency, worker) {
+  const list = Array.isArray(items) ? items : [];
+  const out = new Array(list.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await worker(list[index], index);
+    }
+  }
+  const workers = Array.from({ length: Math.min(Math.max(concurrency, 1), list.length || 1) }, () => run());
+  await Promise.all(workers);
+  return out;
+}
+
+/**
+ * Henter adresse og kontakt fra Brønnøysund for nye virksomheter i importplanen.
+ * lookup(orgnr) skal returnere et Brreg-treff eller null.
+ */
+export async function enrichCustomerImportPlan(plan, { lookup, concurrency = 6 } = {}) {
+  const rows = Array.isArray(plan?.rows) ? plan.rows.map((row) => ({ ...row })) : [];
+  if (typeof lookup !== 'function') return { ...(plan || {}), rows };
+  const targets = rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.action === 'create' && customerNeedsBrreg(row.customer));
+  if (!targets.length) return { ...(plan || {}), rows };
+  await mapPool(targets, concurrency, async ({ row, index }) => {
+    const orgnr = normalizeOrgnr(row.customer.orgnr);
+    let hit = null;
+    try {
+      hit = await lookup(orgnr);
+    } catch {
+      hit = null;
+    }
+    if (!hit) return;
+    const customer = fillCustomerFromBrreg(row.customer, hit);
+    const issues = keepImportIssues(row.issues, customer);
+    rows[index] = {
+      ...row,
+      customer,
+      orgnr: customer.orgnr,
+      address: customer.address,
+      place: customer.place,
+      email: customer.email,
+      phone: customer.phone,
+      issues,
+      severity: issues.length ? 'review' : 'ok',
+    };
+  });
+  const rank = { block: 0, existing: 1, review: 2, ok: 3 };
+  rows.sort((left, right) => rank[left.severity] - rank[right.severity]);
+  return { ...(plan || {}), rows };
+}
+
+/** Fyller én kunde fra Brønnøysund når org.nr finnes og felt mangler. */
+export async function enrichCustomerFromBrreg(customer, { lookup } = {}) {
+  if (!customerNeedsBrreg(customer) || typeof lookup !== 'function') {
+    return { customer, changed: false };
+  }
+  let hit = null;
+  try {
+    hit = await lookup(normalizeOrgnr(customer.orgnr));
+  } catch {
+    hit = null;
+  }
+  if (!hit) return { customer, changed: false };
+  const next = fillCustomerFromBrreg(customer, hit);
+  const changed = ['address', 'postalCode', 'place', 'email', 'phone', 'name']
+    .some((key) => text(next[key]) !== text(customer[key]));
+  return { customer: next, changed };
+}
+
+/** Kompakt visning: eksisterende kunder vises én og én med registerets kundenummer. */
 export function customerImportReviewRows(planned, dropped = new Set()) {
   const blocked = new Map();
+  const existing = [];
   const rows = [];
   (Array.isArray(planned) ? planned : []).forEach((row, index) => {
     const id = String(index);
-    if (row.severity === 'existing' || row.severity === 'block') {
-      const key = `${row.severity}:${row.reason || ''}`;
+    if (row.severity === 'existing') {
+      const registerLabel = [
+        row.matchCustomerNumber ? `Nr ${row.matchCustomerNumber}` : '',
+        row.matchName || row.name,
+      ].filter(Boolean).join(' · ');
+      const fileLabel = [
+        row.customerNumber && row.customerNumber !== row.matchCustomerNumber ? `fil ${row.customerNumber}` : '',
+        row.name && row.name !== row.matchName ? row.name : '',
+      ].filter(Boolean).join(' · ');
+      existing.push({
+        id,
+        severity: 'existing',
+        count: 1,
+        locked: true,
+        included: false,
+        matchId: row.matchId || '',
+        matchCustomerNumber: row.matchCustomerNumber || '',
+        title: registerLabel || row.name,
+        meta: [
+          formatOrgnr(row.orgnr),
+          fileLabel ? `I importfila: ${fileLabel}` : '',
+        ].filter(Boolean).join(' · '),
+        issues: [row.reason || 'Finnes allerede.'],
+      });
+      return;
+    }
+    if (row.severity === 'block') {
+      const key = `block:${row.reason || ''}`;
       if (!blocked.has(key)) {
         blocked.set(key, {
           id: `group:${key}`,
-          severity: row.severity,
-          reason: row.reason || (row.severity === 'existing' ? 'Finnes allerede.' : 'Kan ikke importeres.'),
+          severity: 'block',
+          reason: row.reason || 'Kan ikke importeres.',
           names: [],
           count: 0,
         });
       }
       const group = blocked.get(key);
       group.count += 1;
-      const label = [row.customerNumber, row.name].filter(Boolean).join(' · ');
-      group.names.push(row.matchName && row.matchName !== row.name ? `${label} (${row.matchName})` : label);
+      group.names.push([row.customerNumber, row.name].filter(Boolean).join(' · '));
       return;
     }
     rows.push({
@@ -711,15 +885,14 @@ export function customerImportReviewRows(planned, dropped = new Set()) {
     });
   });
   return [
+    ...existing,
     ...[...blocked.values()].map((group) => ({
       id: group.id,
-      severity: group.severity,
+      severity: 'block',
       count: group.count,
       locked: true,
       included: false,
-      title: group.count === 1
-        ? group.names[0]
-        : `${group.count} kunder ${group.severity === 'existing' ? 'finnes allerede' : 'blir ikke importert'}`,
+      title: group.count === 1 ? group.names[0] : `${group.count} kunder blir ikke importert`,
       meta: sampleNames(group.names),
       issues: [group.reason],
     })),

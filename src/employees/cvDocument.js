@@ -9,6 +9,13 @@ const PAGE_W = 595;
 const PAGE_H = 842;
 const MARGIN = 40;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+const FOOTER_Y = 28;
+const PHOTO_W = 90;
+const PHOTO_H = 110;
+/** Felles ramme for alle prosjektbilder — samme bredde/høyde uansett kildeformat. */
+const PROJECT_IMG_W = 168;
+const PROJECT_IMG_H = 112;
+const PROJECT_IMG_GAP = 14;
 const BRAND = { r: 0.30, g: 0.38, b: 0.50 }; // blågrå overskrifter
 const INK = { r: 0.15, g: 0.18, b: 0.22 };
 const MUTED = { r: 0.45, g: 0.48, b: 0.52 };
@@ -116,6 +123,35 @@ function drawImage(ops, name, x, y, w, h) {
   ops.push(`${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm`);
   ops.push(`/${name} Do`);
   ops.push('Q');
+}
+
+/**
+ * Tegner bilde i fast ramme (cover): fyller hele boksen, sentrert crop.
+ * Alle prosjektbilder får dermed samme synlige størrelse.
+ */
+function drawCoverImage(ops, name, x, y, boxW, boxH, imgW, imgH) {
+  const iw = Math.max(1, Number(imgW) || boxW);
+  const ih = Math.max(1, Number(imgH) || boxH);
+  const scale = Math.max(boxW / iw, boxH / ih);
+  const drawW = iw * scale;
+  const drawH = ih * scale;
+  const dx = x + (boxW - drawW) / 2;
+  const dy = y + (boxH - drawH) / 2;
+  ops.push('q');
+  ops.push(`${x.toFixed(2)} ${y.toFixed(2)} ${boxW.toFixed(2)} ${boxH.toFixed(2)} re`);
+  ops.push('W n');
+  ops.push(`${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${dx.toFixed(2)} ${dy.toFixed(2)} cm`);
+  ops.push(`/${name} Do`);
+  ops.push('Q');
+  // Lett kant rundt rammen
+  rgb(ops, LINE, false);
+  ops.push('0.5 w');
+  ops.push(`${x.toFixed(2)} ${y.toFixed(2)} ${boxW.toFixed(2)} ${boxH.toFixed(2)} re`);
+  ops.push('S');
+}
+
+export function pageFooterLabel(pageIndex, pageCount) {
+  return `side ${pageIndex + 1} av ${pageCount}`;
 }
 
 function rule(ops, x, y, w) {
@@ -345,7 +381,7 @@ function renderCvPdf(cv, assets = {}) {
   }
 
   function ensure(height) {
-    if (y - height < MARGIN + 28) newPage();
+    if (y - height < MARGIN + FOOTER_Y + 8) newPage();
   }
 
   function gap(amount) {
@@ -377,10 +413,8 @@ function renderCvPdf(cv, assets = {}) {
   // --- Profil + foto ---
   sectionTitle('Profil');
   const facts = (cv?.facts || []).filter(([, v]) => filled(v));
-  const photoBox = images.Photo
-    ? fitBox(assets.photo.width, assets.photo.height, 92, 112)
-    : null;
-  const factBlockH = Math.max(facts.length * 14, photoBox ? photoBox.height : 0);
+  const hasPhoto = !!images.Photo && assets.photo;
+  const factBlockH = Math.max(facts.length * 14, hasPhoto ? PHOTO_H : 0);
   ensure(factBlockH + 8);
   const factTop = y;
   facts.forEach(([label, value], index) => {
@@ -388,8 +422,17 @@ function renderCvPdf(cv, assets = {}) {
     paintText(ops(), label, MARGIN, rowY, 9, 'F1', MUTED);
     paintText(ops(), filled(value), MARGIN + 100, rowY, 9, 'F1', INK);
   });
-  if (photoBox) {
-    drawImage(ops(), 'Photo', PAGE_W - MARGIN - photoBox.width, factTop - photoBox.height, photoBox.width, photoBox.height);
+  if (hasPhoto) {
+    drawCoverImage(
+      ops(),
+      'Photo',
+      PAGE_W - MARGIN - PHOTO_W,
+      factTop - PHOTO_H,
+      PHOTO_W,
+      PHOTO_H,
+      assets.photo.width,
+      assets.photo.height,
+    );
   }
   y = factTop - factBlockH - 10;
 
@@ -491,15 +534,22 @@ function renderCvPdf(cv, assets = {}) {
   // --- Referanseprosjekter ---
   sectionTitle('Referanseprosjekter');
   const projects = Array.isArray(cv?.projects) ? cv.projects : [];
+  const anyProjectImage = projects.some((row, index) => {
+    const key = row.id || `p${index}`;
+    return !!images[`Prj${key}`];
+  });
   projects.forEach((row, index) => {
     const key = row.id || `p${index}`;
     const image = images[`Prj${key}`] ? assets.projects[key] : null;
-    const imgBox = image ? fitBox(image.width, image.height, 168, 112) : null;
+    const showImg = !!image;
+    // Fast tekstkolonne når noen prosjekter har bilde — jevn linjeføring
+    const textWidthPt = anyProjectImage
+      ? CONTENT_W - PROJECT_IMG_W - PROJECT_IMG_GAP
+      : CONTENT_W;
+    const textX = anyProjectImage ? MARGIN + PROJECT_IMG_W + PROJECT_IMG_GAP : MARGIN;
     const { left, right } = projectFactPairs(row);
     const roles = filled(row.roles).split(/\n/).map((s) => s.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
     const responsibility = plainFormatted(row.responsibility);
-    const textWidthPt = imgBox ? CONTENT_W - imgBox.width - 14 : CONTENT_W;
-    const textX = imgBox ? MARGIN + imgBox.width + 14 : MARGIN;
 
     const titleLines = wrapLine(filled(row.title) || 'Prosjekt', charsFor(textWidthPt, 11));
     const addrLines = filled(row.address) ? wrapLine(filled(row.address), charsFor(textWidthPt, 8)) : [];
@@ -513,12 +563,21 @@ function renderCvPdf(cv, assets = {}) {
     const textH = titleLines.length * 13 + addrLines.length * 10 + factRows * 11
       + (filled(row.employer) ? 12 : 0) + (roleLines.length ? 4 + roleLines.length * 10 : 0)
       + (respLines.length ? 4 + respLines.length * 10 : 0) + 8;
-    const blockH = Math.max(imgBox ? imgBox.height : 0, textH);
+    const blockH = Math.max(showImg || anyProjectImage ? PROJECT_IMG_H : 0, textH);
 
-    ensure(blockH + 14);
+    ensure(blockH + 18);
     const top = y;
-    if (imgBox) {
-      drawImage(ops(), `Prj${key}`, MARGIN, top - imgBox.height, imgBox.width, imgBox.height);
+    if (showImg) {
+      drawCoverImage(
+        ops(),
+        `Prj${key}`,
+        MARGIN,
+        top - PROJECT_IMG_H,
+        PROJECT_IMG_W,
+        PROJECT_IMG_H,
+        image.width,
+        image.height,
+      );
     }
     let ty = top;
     titleLines.forEach((line) => {
@@ -529,10 +588,9 @@ function renderCvPdf(cv, assets = {}) {
       paintText(ops(), line, textX, ty - 9, 8, 'F1', MUTED);
       ty -= 10;
     });
-    gap(2);
-    ty -= 2;
+    ty -= 4;
     const col2 = textX + Math.floor(textWidthPt / 2);
-    const labelW = 48;
+    const labelW = 52;
     for (let i = 0; i < factRows; i += 1) {
       if (left[i]) {
         paintText(ops(), left[i][0], textX, ty - 9, 8, 'F2', MUTED);
@@ -563,17 +621,17 @@ function renderCvPdf(cv, assets = {}) {
         ty -= 10;
       });
     }
-    y = top - blockH - 16;
+    y = top - blockH - 18;
     if (index < projects.length - 1) {
-      rule(ops(), MARGIN, y + 8, CONTENT_W);
+      rule(ops(), MARGIN, y + 10, CONTENT_W);
     }
   });
 
-  // Page numbers
+  // Sidetall nederst: «side 1 av 11»
   const streams = pages.map((commands, index) => {
     const all = [...commands];
-    const label = `${index + 1} / ${pages.length}`;
-    paintText(all, label, PAGE_W - MARGIN - textWidth(label, 8), 22, 8, 'F1', MUTED);
+    const label = pageFooterLabel(index, pages.length);
+    paintText(all, label, PAGE_W - MARGIN - textWidth(label, 8), FOOTER_Y - 6, 8, 'F1', MUTED);
     return all.join('\n');
   });
 

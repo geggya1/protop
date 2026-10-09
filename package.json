@@ -16,7 +16,7 @@
     "stamp:web": "node scripts/stamp-build.js",
     "bump:major": "node scripts/bump-app-version.js --major",
     "verify:updates": "node scripts/verify-app-updates.mjs",
-    "verify:web": "node scripts/resolve-build-id.test.mjs && node scripts/hosting-stamp.test.mjs && node scripts/stage-function-src.test.mjs && node scripts/open-callable-invoker.test.mjs && node functions/importPages.test.mjs && node functions/uploadStorage.test.mjs && node src/imports/filePayload.test.mjs && node src/employees/projectSheet.test.mjs && node src/employees/cvFormat.test.mjs && node src/employees/cvDocument.test.mjs && node src/utils/webBuildRefresh.test.mjs && node src/utils/googleLocalAuth.test.mjs && node scripts/verify-app-updates.mjs",
+    "verify:web": "node scripts/resolve-build-id.test.mjs && node scripts/hosting-stamp.test.mjs && node scripts/stage-function-src.test.mjs && node scripts/open-callable-invoker.test.mjs && node functions/importPages.test.mjs && node functions/uploadStorage.test.mjs && node src/imports/filePayload.test.mjs && node src/employees/projectSheet.test.mjs && node src/employees/cvFormat.test.mjs && node src/employees/cvDocument.test.mjs && node src/employees/cvPdfImages.test.mjs && node src/utils/webBuildRefresh.test.mjs && node src/utils/googleLocalAuth.test.mjs && node scripts/verify-app-updates.mjs",
     "export:modultekster": "node src/modules/export-modultekster.mjs",
     "merge:marketing": "node scripts/merge-marketing.js",
     "generate:icons": "node scripts/generate-app-icons.js",

@@ -982,6 +982,7 @@ export default function EmployeeDetailView({
                 <TouchableOpacity
                   onPress={onRestore}
                   accessibilityRole="button"
+                  accessibilityLabel="Gjenopprett"
                   style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
                 >
                   <Text style={{ color: colors.ink, fontSize: 13 }}>Gjenopprett</Text>

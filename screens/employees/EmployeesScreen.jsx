@@ -8,6 +8,7 @@ import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
 import { photoErrorMessage, pickDocument, pickImage, pickImages, uploadImage } from '../../src/utils/media';
+import { cvDocumentFile } from '../../src/employees/cvDocument';
 import { projectSheetFile } from '../../src/employees/projectSheet';
 import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/employees/cvImport';
 import { cvAttention } from '../../src/employees/cvReview';
@@ -114,6 +115,7 @@ export default function EmployeesScreen() {
   const [editSection, setEditSection] = useState('');
   const [editItemId, setEditItemId] = useState('');
   const [editToken, setEditToken] = useState(0);
+  const [editExpanded, setEditExpanded] = useState(false);
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
@@ -186,6 +188,7 @@ export default function EmployeesScreen() {
   function clearSectionEdit() {
     setEditSection('');
     setEditItemId('');
+    setEditExpanded(false);
   }
 
   function beginSectionEdit(sectionId, itemId = '') {
@@ -197,6 +200,24 @@ export default function EmployeesScreen() {
       setTimeout(() => {
         globalThis.document?.getElementById('employee-fields')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       }, 40);
+    }
+  }
+
+  function focusAddedItem(itemId, sectionId = editSection) {
+    if (!itemId) return;
+    beginSectionEdit(sectionId || editSection, itemId);
+  }
+
+  function downloadCvPdf() {
+    try {
+      const employee = (draft && selectedId && draft.id === selectedId) ? draft : selected;
+      const current = employee ? buildCv(employee, { companyName }) : null;
+      if (!current) throw new Error('Ingen CV å eksportere.');
+      const file = cvDocumentFile(current);
+      downloadBytes(file.filename, file.bytes, file.mime);
+      setNote('CV-en er lastet ned som PDF.');
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lage PDF.');
     }
   }
 
@@ -1000,6 +1021,16 @@ export default function EmployeesScreen() {
               >
                 <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                nativeID="employee-cv-export-pdf"
+                onPress={downloadCvPdf}
+                disabled={busy || !cv}
+                accessibilityRole="button"
+                accessibilityLabel="Eksporter CV som PDF"
+                style={[styles.secondary, { borderColor: colors.line, opacity: busy || !cv ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.ink }}>Eksporter PDF</Text>
+              </TouchableOpacity>
             </View>
           ) : null}
           {busy && (busyKind === 'save' || busyKind === 'cv' || busyKind === 'projects') ? (
@@ -1058,10 +1089,30 @@ export default function EmployeesScreen() {
               <View
                 nativeID="employee-cv-section"
                 accessibilityRole="dialog"
-                style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+                style={[
+                  styles.modalCard,
+                  editExpanded && styles.modalCardExpanded,
+                  { backgroundColor: colors.card, borderColor: colors.line },
+                ]}
               >
                 <View style={styles.modalHead}>
                   <Text style={[styles.modalTitle, { color: colors.ink, flex: 1 }]}>{cvEditTitle()}</Text>
+                  <TouchableOpacity
+                    onPress={() => setEditExpanded((on) => !on)}
+                    accessibilityRole="button"
+                    accessibilityLabel={editExpanded ? 'Mindre vindu' : 'Utvid vindu'}
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>{editExpanded ? 'Mindre' : 'Utvid'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={clearSectionEdit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lagre og lukk"
+                    style={[styles.primary, { backgroundColor: colors.brand }]}
+                  >
+                    <Text style={styles.primaryText}>Lagre</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={clearSectionEdit}
                     accessibilityRole="button"
@@ -1106,8 +1157,10 @@ export default function EmployeesScreen() {
                     startOpen={editSection}
                     focusItemId={editItemId}
                     openToken={editToken}
-                    hideItems={editSection === 'projects' && !editItemId}
+                    hideItems={false}
                     onClose={clearSectionEdit}
+                    onSave={clearSectionEdit}
+                    onAddedItem={focusAddedItem}
                     colors={colors}
                     canEditOwner={canEditOwner}
                     departments={departments}
@@ -1219,7 +1272,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
     ...(Platform.OS === 'web' ? { boxShadow: '0 16px 40px rgba(15,23,42,0.18)' } : {}),
   },
-  modalHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalCardExpanded: {
+    maxWidth: 1040,
+    maxHeight: Platform.OS === 'web' ? '96vh' : '96%',
+    minHeight: Platform.OS === 'web' ? '70vh' : undefined,
+  },
+  modalHead: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   modalTitle: { fontSize: 18, fontWeight: '700' },
-  modalScroll: { flexGrow: 0, flexShrink: 1 },
+  modalScroll: { flexGrow: 1, flexShrink: 1 },
 });

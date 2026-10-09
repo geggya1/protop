@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { insertBullet, moveItem, sortByStartDesc, sortCoursesDesc, wrapSelection } from '../../src/employees/cvFormat';
 import { blankRepeatItem, readPath, setEmployeePath } from '../../src/employees/model';
 import { OWNER_LABEL, PURPOSE_LABEL, sectionsFor } from '../../src/employees/schema';
 import { PHONE_COUNTRIES, parsePhoneInput, splitPhone } from '../../src/utils/phone';
@@ -131,6 +132,8 @@ export default function EmployeeFields({
   openToken = 0,
   hideItems = false,
   onClose,
+  onAddedItem,
+  onSave,
 }) {
   const [extraDepartment, setExtraDepartment] = useState('');
   const [custom, setCustom] = useState({ label: '', value: '', owner: 'person', purpose: 'cv' });
@@ -175,17 +178,33 @@ export default function EmployeeFields({
             <View style={styles.cardHead}>
               <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
               {review ? (
-                <TouchableOpacity
-                  onPress={() => {
-                    if (open && onClose) onClose();
-                    else setOpenId(open ? '' : section.id);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Rediger ${section.title}`}
-                  style={[styles.secondary, { borderColor: colors.line }]}
-                >
-                  <Text style={{ color: colors.ink }}>{open ? 'Lukk' : '✎ Rediger'}</Text>
-                </TouchableOpacity>
+                <View style={styles.inline}>
+                  {open ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (onSave) onSave();
+                        else if (onClose) onClose();
+                        else setOpenId('');
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Lagre ${section.title}`}
+                      style={[styles.primaryBtn, { backgroundColor: colors.brand }]}
+                    >
+                      <Text style={styles.primaryBtnText}>Lagre</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (open && onClose) onClose();
+                      else setOpenId(open ? '' : section.id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={open ? `Lukk ${section.title}` : `Rediger ${section.title}`}
+                    style={[styles.secondary, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>{open ? 'Lukk' : '✎ Rediger'}</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <Text style={[styles.badge, { color: colors.brand }]}>{OWNER_LABEL[section.owner]}</Text>
               )}
@@ -210,6 +229,8 @@ export default function EmployeeFields({
                 hideItems={hideItems}
                 onChange={(items) => updateItems(section.collection, items)}
                 onItemPhoto={section.id === 'projects' ? onProjectImage : undefined}
+                onAddedItem={onAddedItem}
+                onSave={onSave || onClose}
               />
             ) : null}
             {open && !section.repeatable ? section.fields.map((field) => (
@@ -505,7 +526,21 @@ export function EmployeeField({
     );
   }
 
-  const multiline = field.type === 'textarea';
+  if (field.type === 'textarea') {
+    return (
+      <View style={styles.field}>
+        {label}
+        <RichTextField
+          value={String(value || '')}
+          onChangeText={(next) => onChange(field.key, next)}
+          editable={editable}
+          placeholder={field.placeholder || ''}
+          colors={colors}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.field}>
       {label}
@@ -513,16 +548,11 @@ export function EmployeeField({
         value={String(value || '')}
         onChangeText={(next) => onChange(field.key, next)}
         editable={editable}
-        multiline={multiline}
         placeholder={field.placeholder || ''}
         placeholderTextColor={colors.placeholder}
         keyboardType={field.type === 'percent' ? 'number-pad' : field.type === 'email' ? 'email-address' : 'default'}
         autoCapitalize={field.type === 'email' ? 'none' : 'sentences'}
-        style={[
-          styles.input,
-          multiline && styles.area,
-          { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg },
-        ]}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
       />
       {field.type === 'address' && addressHits?.length ? (
         <View style={styles.hits}>
@@ -533,6 +563,79 @@ export function EmployeeField({
           ))}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function FormatChip({ label, onPress, colors, disabled }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[styles.formatChip, { borderColor: colors.line, opacity: disabled ? 0.45 : 1 }]}
+    >
+      <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function RichTextField({ value, onChangeText, editable, placeholder, colors }) {
+  const [expanded, setExpanded] = useState(false);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const inputRef = useRef(null);
+
+  function applyWrap(prefix, suffix) {
+    if (!editable) return;
+    const next = wrapSelection(value, selection.start, selection.end, prefix, suffix);
+    onChangeText(next.text);
+    const sel = { start: next.start, end: next.end };
+    setSelection(sel);
+    if (Platform.OS === 'web') {
+      setTimeout(() => inputRef.current?.setNativeProps?.({ selection: sel }), 0);
+    }
+  }
+
+  function applyBullet() {
+    if (!editable) return;
+    const next = insertBullet(value, selection.start);
+    onChangeText(next.text);
+    const sel = { start: next.caret, end: next.caret };
+    setSelection(sel);
+  }
+
+  return (
+    <View style={styles.richWrap}>
+      {editable ? (
+        <View style={styles.formatRow}>
+          <FormatChip label="Fet" onPress={() => applyWrap('**')} colors={colors} />
+          <FormatChip label="Kursiv" onPress={() => applyWrap('_')} colors={colors} />
+          <FormatChip label="Understrek" onPress={() => applyWrap('__')} colors={colors} />
+          <FormatChip label="• Liste" onPress={applyBullet} colors={colors} />
+          <FormatChip
+            label={expanded ? 'Mindre' : 'Utvid'}
+            onPress={() => setExpanded((on) => !on)}
+            colors={colors}
+          />
+        </View>
+      ) : null}
+      <TextInput
+        ref={inputRef}
+        value={String(value || '')}
+        onChangeText={onChangeText}
+        editable={editable}
+        multiline
+        placeholder={placeholder || ''}
+        placeholderTextColor={colors.placeholder}
+        onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+        style={[
+          styles.input,
+          styles.area,
+          expanded && styles.areaExpanded,
+          { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg },
+        ]}
+      />
     </View>
   );
 }
@@ -583,31 +686,102 @@ function TagsField({ label, value, editable, colors, onChange }) {
   );
 }
 
-function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, compact = false, focusItemId = '', hideItems = false }) {
+function sortedRepeatList(section, items) {
+  const list = Array.isArray(items) ? items : [];
+  if (section.id === 'education' || section.id === 'experience') return sortByStartDesc(list, (row) => row?.from);
+  if (section.id === 'courses') return sortCoursesDesc(list);
+  return list;
+}
+
+function RepeatBlock({
+  section, items, colors, editable, onChange, onItemPhoto,
+  compact = false, focusItemId = '', hideItems = false, onAddedItem, onSave,
+}) {
   const list = Array.isArray(items) ? items : [];
   const [openIndex, setOpenIndex] = useState(-1);
+  const [manualOrder, setManualOrder] = useState(false);
+  const display = (!manualOrder && !focusItemId && (section.id === 'education' || section.id === 'experience' || section.id === 'courses'))
+    ? sortedRepeatList(section, list)
+    : list;
+
+  useEffect(() => {
+    if (!focusItemId) return;
+    const index = list.findIndex((row) => row.id === focusItemId);
+    if (index >= 0) setOpenIndex(index);
+  // Bare når fokususet bytter oppføring.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusItemId]);
+
   function patch(index, key, value) {
-    onChange(list.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
+    const target = display[index];
+    if (!target) return;
+    onChange(list.map((row) => (row.id === target.id ? { ...row, [key]: value } : row)));
   }
+
+  function indexInSource(item) {
+    return list.findIndex((row) => row.id === item.id);
+  }
+
+  function addItem() {
+    const item = blankRepeatItem(section);
+    const next = [...list, item];
+    onChange(next);
+    setOpenIndex(next.length - 1);
+    setManualOrder(true);
+    onAddedItem?.(item.id, section.id);
+  }
+
+  function move(index, delta) {
+    const item = display[index];
+    if (!item) return;
+    const sourceIndex = indexInSource(item);
+    if (sourceIndex < 0) return;
+    setManualOrder(true);
+    const reordered = moveItem(manualOrder ? list : display, manualOrder ? sourceIndex : index, delta);
+    onChange(reordered);
+  }
+
   return (
     <View style={styles.stackTight}>
-      {hideItems ? null : list.map((item, index) => {
+      {hideItems ? null : display.map((item, index) => {
         const focused = !!focusItemId && item.id === focusItemId;
         if (focusItemId && !focused) return null;
-        const showFields = focused || !compact || openIndex === index;
+        const showFields = focused || !compact || openIndex === index || openIndex === indexInSource(item);
         return (
         <View key={item.id || index} style={[styles.repeat, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <View style={styles.cardHead}>
             <Text style={[styles.label, { color: colors.ink, flex: 1 }]}>{compact ? itemLine(section, item) : `${section.itemLabel} ${index + 1}`}</Text>
-            {compact && !focused ? (
-              <TouchableOpacity
-                onPress={() => setOpenIndex(showFields ? -1 : index)}
-                accessibilityRole="button"
-                accessibilityLabel={`Rediger ${section.itemLabel} ${index + 1}`}
-              >
-                <Text style={{ color: colors.ink }}>{showFields ? 'Lukk' : '✎'}</Text>
-              </TouchableOpacity>
-            ) : null}
+            <View style={styles.inline}>
+              {editable && !focusItemId ? (
+                <>
+                  <TouchableOpacity
+                    onPress={() => move(index, -1)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Flytt ${section.itemLabel} opp`}
+                    style={[styles.iconBtn, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>↑</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => move(index, 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Flytt ${section.itemLabel} ned`}
+                    style={[styles.iconBtn, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink }}>↓</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+              {compact && !focused ? (
+                <TouchableOpacity
+                  onPress={() => setOpenIndex(showFields ? -1 : index)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Rediger ${section.itemLabel} ${index + 1}`}
+                >
+                  <Text style={{ color: colors.ink }}>{showFields ? 'Lukk' : '✎'}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
           {showFields ? section.fields.map((field) => (
             field.type === 'photos' ? (
@@ -630,7 +804,7 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
                 </View>
                 {editable ? (
                   <TouchableOpacity
-                    onPress={() => onItemPhoto?.(index)}
+                    onPress={() => onItemPhoto?.(indexInSource(item))}
                     accessibilityRole="button"
                     style={[styles.secondary, { borderColor: colors.line }]}
                   >
@@ -652,7 +826,7 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
                   {editable ? (
                     <View style={styles.stackTight}>
                       <TouchableOpacity
-                        onPress={() => onItemPhoto?.(index)}
+                        onPress={() => onItemPhoto?.(indexInSource(item))}
                         accessibilityRole="button"
                         style={[styles.secondary, { borderColor: colors.line }]}
                       >
@@ -676,6 +850,17 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
                 colors={colors}
                 onPress={() => patch(index, field.key, !item[field.key])}
               />
+            ) : field.type === 'textarea' ? (
+              <View key={field.key} style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
+                <RichTextField
+                  value={String(item[field.key] || '')}
+                  onChangeText={(value) => patch(index, field.key, value)}
+                  editable={editable}
+                  placeholder={field.placeholder || ''}
+                  colors={colors}
+                />
+              </View>
             ) : (
               <View key={field.key} style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
@@ -683,30 +868,42 @@ function RepeatBlock({ section, items, colors, editable, onChange, onItemPhoto, 
                   value={String(item[field.key] || '')}
                   onChangeText={(value) => patch(index, field.key, value)}
                   editable={editable}
-                  multiline={field.type === 'textarea'}
                   placeholder={field.placeholder || ''}
                   placeholderTextColor={colors.placeholder}
-                  style={[
-                    styles.input,
-                    field.type === 'textarea' && styles.area,
-                    { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card },
-                  ]}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                 />
               </View>
             )
           )) : null}
           {showFields && editable ? (
-            <TouchableOpacity onPress={() => onChange(list.filter((_, rowIndex) => rowIndex !== index))} accessibilityRole="button">
-              <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
-            </TouchableOpacity>
+            <View style={styles.inline}>
+              <TouchableOpacity
+                onPress={() => {
+                  setOpenIndex(-1);
+                  if (focusItemId && onSave) onSave();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Lagre ${section.itemLabel}`}
+                style={[styles.primaryBtn, { backgroundColor: colors.brand }]}
+              >
+                <Text style={styles.primaryBtnText}>Lagre</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onChange(list.filter((row) => row.id !== item.id))}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
         );
       })}
       {editable ? (
         <TouchableOpacity
-          onPress={() => onChange([...list, blankRepeatItem(section)])}
+          onPress={addItem}
           accessibilityRole="button"
+          accessibilityLabel={`Legg til ${section.itemLabel.toLowerCase()}`}
           style={[styles.secondary, { borderColor: colors.line }]}
         >
           <Text style={{ color: colors.ink }}>Legg til {section.itemLabel.toLowerCase()}</Text>
@@ -728,6 +925,10 @@ const styles = StyleSheet.create({
   label: { fontSize: 13 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   area: { minHeight: 96, textAlignVertical: 'top' },
+  areaExpanded: { minHeight: 280 },
+  richWrap: { gap: 8 },
+  formatRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  formatChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   phoneRow: { gap: 8 },
@@ -738,7 +939,10 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoEmpty: { alignItems: 'center', justifyContent: 'center' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
-  inline: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  primaryBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  primaryBtnText: { color: '#fff', fontWeight: '600' },
+  iconBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  inline: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   grow: { flex: 1 },
   hits: { gap: 6 },
   repeat: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },

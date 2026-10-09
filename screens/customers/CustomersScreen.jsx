@@ -377,12 +377,17 @@ export default function CustomersScreen() {
     const leftOut = [];
     importPlan.rows.forEach((row, index) => {
       const id = String(index);
-      if (row.severity === 'block' || row.severity === 'existing' || dropped.has(id) || !row.customer) {
+      if (row.action !== 'create' && row.action !== 'update') {
         leftOut.push({
           name: row.name,
-          reason: row.severity === 'block' || row.severity === 'existing'
-            ? (row.reason || 'Kan ikke importeres.')
-            : 'Valgt bort før lagring.',
+          reason: row.reason || 'Kan ikke importeres.',
+        });
+        return;
+      }
+      if (dropped.has(id) || !row.customer) {
+        leftOut.push({
+          name: row.name,
+          reason: dropped.has(id) ? 'Valgt bort før lagring.' : 'Kan ikke importeres.',
         });
         return;
       }
@@ -403,13 +408,20 @@ export default function CustomersScreen() {
       }
       const saved = await saveAnbudState(result.state, familyId);
       setState(saved);
-      let cursor = 0;
+      const remaining = [...result.created];
       const imported = [];
       for (const row of chosen) {
-        const customer = result.created[cursor];
-        if (customer && customer.name === row.name) {
+        const index = remaining.findIndex((customer) => (
+          (row.customer?.id && customer.id === row.customer.id)
+          || customer.name === row.name
+          || (
+            row.customer?.customerNumber
+            && customer.customerNumber === row.customer.customerNumber
+          )
+        ));
+        if (index >= 0) {
+          const [customer] = remaining.splice(index, 1);
           imported.push({ name: customer.name, issues: row.issues || [] });
-          cursor += 1;
         } else {
           leftOut.push({ name: row.name, reason: 'Ble ikke lagret.' });
         }

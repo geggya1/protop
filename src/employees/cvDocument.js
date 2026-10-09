@@ -2,7 +2,7 @@
  * Eksporter hele CV-en som PDF i samme stil som papir-CV-en:
  * logo, profilbilde, blå overskrifter, kursiv oppsummering, prosjektbilder.
  */
-import { decodeBase64, fitLogoBox, jpegSize, logoForDocument } from '../project/companyLogo.js';
+import { fitLogoBox, logoForDocument } from '../project/companyLogo.js';
 import { plainFormatted, sortByStartDesc, sortCoursesDesc } from './cvFormat.js';
 
 const PAGE_W = 595;
@@ -243,95 +243,28 @@ export function cvDocumentLines(cv) {
   return lines.filter((line, index, all) => !(line === '' && all[index - 1] === ''));
 }
 
-function jpegFromDataUrl(dataUrl) {
-  const raw = String(dataUrl || '');
-  const match = raw.match(/^data:image\/(?:jpeg|jpg);base64,([A-Za-z0-9+/=]+)$/i);
-  if (!match) return null;
-  const bytes = decodeBase64(match[1]);
-  const size = jpegSize(bytes);
-  if (!bytes || !size) return null;
-  return { bytes, width: size.width, height: size.height };
-}
-
-async function fetchAsJpeg(url) {
-  if (!url) return null;
-  const src = String(url);
-  if (src.startsWith('data:image/jpeg') || src.startsWith('data:image/jpg')) {
-    return jpegFromDataUrl(src);
-  }
-  if (typeof fetch !== 'function') return null;
-  try {
-    if (src.startsWith('data:image/') && typeof document !== 'undefined') {
-      return await rasterToJpeg(src);
-    }
-    const res = await fetch(src, { mode: 'cors' });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const type = String(blob.type || '').toLowerCase();
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    if (type.includes('jpeg') || type.includes('jpg') || (buf[0] === 0xff && buf[1] === 0xd8)) {
-      const size = jpegSize(buf);
-      if (!size) return null;
-      return { bytes: buf, width: size.width, height: size.height };
-    }
-    if (typeof document !== 'undefined') {
-      const objectUrl = URL.createObjectURL(blob);
-      try {
-        return await rasterToJpeg(objectUrl);
-      } finally {
-        URL.revokeObjectURL(objectUrl);
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function rasterToJpeg(src, maxEdge = 1200) {
-  return new Promise((resolve) => {
-    if (typeof document === 'undefined' || typeof Image === 'undefined') {
-      resolve(null);
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
-        resolve(jpegFromDataUrl(dataUrl));
-      } catch {
-        resolve(null);
-      }
-    };
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
+async function defaultLoadImage(url) {
+  const { loadImageAsJpeg } = await import('./cvPdfImages.js');
+  return loadImageAsJpeg(url);
 }
 
 export async function loadCvAssets(cv, options = {}) {
+  const loadImage = options.loadImage || defaultLoadImage;
   const logo = options.logo ? logoForDocument(options.logo) : null;
-  const photo = await fetchAsJpeg(cv?.photoUrl || options.photoUrl || '');
+  const photoUrl = cv?.photoUrl || options.photoUrl || '';
+  const photo = photoUrl ? await loadImage(photoUrl) : null;
   const projects = {};
   const rows = Array.isArray(cv?.projects) ? cv.projects : [];
   await Promise.all(rows.map(async (row, index) => {
     const key = row.id || `p${index}`;
     const url = (row.images || []).find((item) => filled(item));
     if (!url) return;
-    const image = await fetchAsJpeg(url);
+    const image = await loadImage(url);
     if (image) projects[key] = image;
   }));
-  return { logo, photo, projects };
+  const wanted = (photoUrl ? 1 : 0) + rows.filter((row) => (row.images || []).some((item) => filled(item))).length;
+  const got = (photo ? 1 : 0) + Object.keys(projects).length;
+  return { logo, photo, projects, wanted, got };
 }
 
 function fitBox(width, height, maxW, maxH) {
@@ -656,6 +589,8 @@ export async function cvDocumentFile(cv, options = {}) {
     filename: `${filenameBase(cv)}.pdf`,
     mime: 'application/pdf',
     bytes: renderCvPdf(cv, assets),
+    wanted: assets.wanted ?? 0,
+    got: assets.got ?? 0,
   };
 }
 

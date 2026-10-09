@@ -224,7 +224,13 @@ export default function EmployeesScreen() {
         photoUrl: current.photoUrl,
       });
       downloadBytes(file.filename, file.bytes, file.mime);
-      setNote('CV-en er lastet ned som PDF med layout, logo og bilder.');
+      if (file.wanted && file.got < file.wanted) {
+        setNote(`CV-en er lastet ned som PDF. ${file.got} av ${file.wanted} bilder kom med (profil/prosjekt).`);
+      } else if (file.got) {
+        setNote(`CV-en er lastet ned som PDF med ${file.got} bilde${file.got === 1 ? '' : 'r'}.`);
+      } else {
+        setNote('CV-en er lastet ned som PDF.');
+      }
     } catch (err) {
       showError(err?.message || 'Kunne ikke lage PDF.');
     } finally {

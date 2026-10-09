@@ -499,7 +499,12 @@ export function departmentLabels(employee, departments = []) {
 }
 
 export function statusLabel(status) {
-  return STATUS_OPTIONS.find((row) => row.value === status)?.label || 'Nåværende';
+  return STATUS_OPTIONS.find((row) => row.value === status)?.label || 'Aktiv';
+}
+
+export function employeeNumberLabel(employee) {
+  const number = text(employee?.company?.externalEmployeeNumber);
+  return number ? `Ansattnr ${number}` : '';
 }
 
 export function isInnleidEmployee(employee) {
@@ -545,8 +550,10 @@ function haystack(employee, departments) {
 
 export function filterEmployees(list, { query = '', status = 'current', departments = [] } = {}) {
   const q = text(query).toLowerCase();
-  return (list || []).filter((row) => {
-    if (status === 'external') {
+  const filtered = (list || []).filter((row) => {
+    if (status === 'active' || status === 'current') {
+      if (row.company?.status !== 'current') return false;
+    } else if (status === 'external') {
       if (!row.company?.external) return false;
     } else if (status === 'innleid') {
       if (!isInnleidEmployee(row)) return false;
@@ -556,10 +563,19 @@ export function filterEmployees(list, { query = '', status = 'current', departme
     if (!q) return true;
     return haystack(row, departments).includes(q);
   });
+  return sortEmployees(filtered);
 }
 
 export function sortEmployees(list) {
-  return [...(list || [])].sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
+  return [...(list || [])].sort((a, b) => {
+    const byName = displayName(a).localeCompare(displayName(b), 'nb');
+    if (byName) return byName;
+    return text(a?.company?.externalEmployeeNumber).localeCompare(
+      text(b?.company?.externalEmployeeNumber),
+      'nb',
+      { numeric: true },
+    );
+  });
 }
 
 export function directoryStats(list) {

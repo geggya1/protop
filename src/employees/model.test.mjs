@@ -14,6 +14,7 @@ import {
   departmentLabels,
   directoryStats,
   displayName,
+  employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
   formatNbDate,
@@ -27,6 +28,7 @@ import {
   profileFromEmployee,
   rememberLink,
   sortEmployees,
+  statusLabel,
   validNationalId,
 } from './model.js';
 
@@ -151,6 +153,7 @@ const FNR = sampleNationalId();
   ];
   const current = filterEmployees(rows, { status: 'current' });
   assert.deepEqual(current.map((row) => row.id), ['a', 'c']);
+  assert.deepEqual(filterEmployees(rows, { status: 'active' }).map((row) => row.id), ['a', 'c']);
   const found = filterEmployees(rows, { status: 'all', query: 'prosjekt' });
   assert.deepEqual(found.map((row) => row.id), ['c']);
   const external = filterEmployees(rows, { status: 'external' });
@@ -159,6 +162,14 @@ const FNR = sampleNationalId();
   assert.deepEqual(innleid.map((row) => row.id), ['a']);
   const former = filterEmployees(rows, { status: 'former' });
   assert.deepEqual(former.map((row) => row.id), ['b']);
+  assert.equal(statusLabel('current'), 'Aktiv');
+  assert.equal(statusLabel('former'), 'Tidligere (sluttet)');
+  const withNumber = normalizeEmployee({
+    id: 'n',
+    person: { firstName: 'Nils', lastName: 'Holm' },
+    company: { status: 'current', externalEmployeeNumber: '1042' },
+  });
+  assert.equal(employeeNumberLabel(withNumber), 'Ansattnr 1042');
   const stats = directoryStats(current);
   assert.equal(stats.login, 1);
   assert.equal(stats.external, 1);
@@ -176,6 +187,7 @@ const FNR = sampleNationalId();
   assert.equal(cardSubtitle(rows[1], 'Consult AS'), 'Eksterne / Consult AS');
   assert.equal(cardSubtitle(rows[2], 'Consult AS'), 'Prosjektleder');
   assert.deepEqual(sortEmployees(rows).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia']);
+  assert.deepEqual(filterEmployees(rows, { status: 'all' }).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia']);
 }
 
 {

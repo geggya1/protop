@@ -186,7 +186,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         projects={projects}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
-        onOpenEmployee={(employeeId) => requestShellTab?.('ansatte', null, { type: 'openEmployee', employeeId })}
       />
     );
   }

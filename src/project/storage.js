@@ -11,6 +11,11 @@ const remotePending = new Map();
 /** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
 const MEMORY = new Map();
 const inflight = new Map();
+/** 'ok' når siste lesing mot Firestore lyktes, 'error' når den feilet. */
+const loadMeta = new Map();
+
+const REMOTE_AUTH_MS = 8000;
+const REMOTE_READ_MS = 12000;
 
 function memoryKey(companyId) {
   return String(companyId || '').trim() || '_';
@@ -51,18 +56,75 @@ async function readLocal(companyId) {
   }
 }
 
+/**
+ * Vent til Auth kan tilfredsstille reglene. getDoc før token er klar
+ * gir permission-denied, som ellers ble tolket som en tom prosjektliste.
+ */
+async function ensureRemoteAuth() {
+  const [{ onAuthStateChanged }, { auth }, { waitForFirestoreAccess }] = await Promise.all([
+    import('firebase/auth'),
+    import('../../firebase.js'),
+    import('../utils/firestoreAccess.js'),
+  ]);
+  if (auth.currentUser?.uid) return waitForFirestoreAccess(auth.currentUser.uid, REMOTE_AUTH_MS);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { unsub(); } catch { /* ignore */ }
+      resolve(!!ok);
+    };
+    const timer = setTimeout(() => finish(false), REMOTE_AUTH_MS);
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user?.uid) return;
+      waitForFirestoreAccess(user.uid, REMOTE_AUTH_MS).then(finish);
+    });
+  });
+}
+
 async function readRemote(companyId) {
   const id = String(companyId || '').trim();
-  if (!id) return emptyProjectState();
+  if (!id) return { ok: true, state: emptyProjectState() };
   try {
+    const authed = await ensureRemoteAuth();
+    if (!authed) return { ok: false, state: emptyProjectState() };
     const { doc, getDoc, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return emptyProjectState();
-    return normalizeProjectState(snap.data()?.state || snap.data() || {});
+    const snap = await Promise.race([
+      getDoc(ref),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('project-read-timeout')), REMOTE_READ_MS);
+      }),
+    ]);
+    if (!snap.exists()) return { ok: true, state: emptyProjectState() };
+    return {
+      ok: true,
+      state: normalizeProjectState(snap.data()?.state || snap.data() || {}),
+    };
   } catch {
-    return emptyProjectState();
+    return { ok: false, state: emptyProjectState() };
   }
+}
+
+/**
+ * Vellykket fjernlesing slås sammen og kan mellomlagres.
+ * Feilet lesing beholdes som lokal kopi og skal ikke caches som «tomt».
+ */
+export function applyRemoteProjectRead(local, remote) {
+  const base = normalizeProjectState(local);
+  if (!remote?.ok) {
+    return { cache: false, upload: false, state: base, meta: 'error' };
+  }
+  const remoteState = normalizeProjectState(remote.state);
+  const merged = mergeProjectStates(base, remoteState);
+  const upload = !!((base.projects?.length || base.timeEntries?.length) && !remoteState.projects?.length);
+  return { cache: true, upload, state: merged, meta: 'ok' };
+}
+
+export function projectLoadMeta(companyId) {
+  return loadMeta.get(memoryKey(companyId)) || '';
 }
 
 async function writeLocal(companyId, state) {
@@ -80,6 +142,11 @@ async function writeLocal(companyId, state) {
   }
 }
 
+function firestorePayload(state) {
+  // JSON fjerner undefined, som Firestore avviser og som ellers stopper synk til mobil.
+  return JSON.parse(JSON.stringify(state));
+}
+
 async function writeRemote(companyId, state) {
   const id = String(companyId || '').trim();
   if (!id) return;
@@ -87,7 +154,7 @@ async function writeRemote(companyId, state) {
     const { doc, setDoc, serverTimestamp, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
     await setDoc(ref, {
-      state,
+      state: firestorePayload(state),
       updatedAt: serverTimestamp(),
     }, { merge: true });
   } catch {
@@ -125,20 +192,25 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
   }
   const { force = false } = opts;
   const key = memoryKey(companyId);
-  if (!force && MEMORY.has(key)) return MEMORY.get(key);
+  if (!force && MEMORY.has(key)) {
+    loadMeta.set(key, 'ok');
+    return MEMORY.get(key);
+  }
   if (!force && inflight.has(key)) return inflight.get(key);
 
   const pending = (async () => {
     const local = await readLocal(companyId);
     if (!companyId) {
+      loadMeta.set(key, 'ok');
       return putProjectState(local, companyId);
     }
-    const remote = await readRemote(companyId);
-    const merged = mergeProjectStates(local, remote);
-    if ((local.projects?.length || local.timeEntries?.length) && !remote.projects?.length) {
-      queueRemote(companyId, { ...merged, syncedAt: new Date().toISOString() });
+    const applied = applyRemoteProjectRead(local, await readRemote(companyId));
+    loadMeta.set(key, applied.meta);
+    if (!applied.cache) return applied.state;
+    if (applied.upload) {
+      queueRemote(companyId, { ...applied.state, syncedAt: new Date().toISOString() });
     }
-    return putProjectState(merged, companyId);
+    return putProjectState(applied.state, companyId);
   })();
 
   inflight.set(key, pending);
@@ -186,10 +258,13 @@ export async function persistProjectState(state, companyId) {
 /** Test/hjelper: tøm minne mellom tester. */
 export function clearProjectStateMemory(companyId) {
   if (companyId !== undefined) {
-    MEMORY.delete(memoryKey(companyId));
-    inflight.delete(memoryKey(companyId));
+    const key = memoryKey(companyId);
+    MEMORY.delete(key);
+    inflight.delete(key);
+    loadMeta.delete(key);
     return;
   }
   MEMORY.clear();
   inflight.clear();
+  loadMeta.clear();
 }

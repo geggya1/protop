@@ -52,6 +52,23 @@ function bucketNameFromDefault(payload) {
   return String(raw).split('/').pop() || '';
 }
 
+async function createGcsBucket(name) {
+  const { Storage } = await import('@google-cloud/storage');
+  const storage = new Storage({ projectId: PROJECT_ID });
+  try {
+    await storage.createBucket(name, {
+      location: DEFAULT_LOCATION,
+      storageClass: 'STANDARD',
+    });
+    return name;
+  } catch (err) {
+    const code = Number(err?.code || 0);
+    const message = String(err?.message || err);
+    if (code === 409 || /already exists/i.test(message)) return name;
+    throw err;
+  }
+}
+
 async function createDefaultFirebaseBucket() {
   const token = await googleAccessToken();
   const headers = {
@@ -74,6 +91,14 @@ async function createDefaultFirebaseBucket() {
   if (created.status === 409) {
     const again = await fetch(getUrl, { headers });
     if (again.ok) return bucketNameFromDefault(await again.json());
+  }
+  for (const name of STORAGE_BUCKET_CANDIDATES) {
+    try {
+      const createdName = await createGcsBucket(name);
+      if (createdName && await bucketExists(createdName)) return createdName;
+    } catch {
+      // neste kandidat — CI-kontoen mangler ofte firebasestorage.defaultBucket.create
+    }
   }
   throw new Error(body?.error?.message || `Klarte ikke opprette bildelager (${created.status}).`);
 }

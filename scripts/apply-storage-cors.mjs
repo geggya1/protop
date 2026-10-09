@@ -91,8 +91,32 @@ async function ensureDefaultBucket() {
   const fallback = await existingGcsBucket();
   if (fallback) return fallback;
 
+  const gcsErrors = [];
+  for (const name of CANDIDATES) {
+    try {
+      await storage.createBucket(name, {
+        location: 'europe-west1',
+        storageClass: 'STANDARD',
+      });
+      console.log(`Opprettet GCS-bucket gs://${name}`);
+      return name;
+    } catch (err) {
+      const code = Number(err?.code || 0);
+      const message = String(err?.message || err);
+      if (code === 409 || /already exists/i.test(message)) return name;
+      gcsErrors.push(`${name}: ${message.split('\n')[0]}`);
+    }
+  }
+
+  const again = await existingGcsBucket();
+  if (again) return again;
+
   const detail = created.data?.error?.message || JSON.stringify(created.data || {}).slice(0, 400);
-  throw new Error(`Firebase Storage-bucket mangler og kunne ikke opprettes (${created.status}): ${detail}`);
+  throw new Error(
+    `Firebase Storage-bucket mangler og kunne ikke opprettes `
+    + `(defaultBucket ${created.status}: ${detail}; GCS: ${gcsErrors.join(' | ') || 'ingen'}). `
+    + 'Gi github-hosting-deploy Storage Admin, eller trykk Get started under Storage i Firebase Console.',
+  );
 }
 
 const bucketName = await ensureDefaultBucket();

@@ -1,5 +1,6 @@
 /**
  * Tre UI-sykluser: åpne /faktura-demo → last Excel → kontroller → importer → åpne detalj.
+ * Syklus 2–3 gjenbruker samme side (uten reload) for å verifisere filtrering av eksisterende.
  */
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
@@ -50,33 +51,108 @@ async function clickText(re) {
   await el.click();
 }
 
-async function runCycle(cycle) {
-  console.log(`--- syklus ${cycle} ---`);
-  await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 180000 });
-  await waitText(/Fakturaer|Faktura/);
-  await waitText(/Importer Excel/);
-  await shot(`faktura-cycle${cycle}-list`);
+async function onInvoiceList() {
+  return page.evaluate(() => {
+    const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+    return nodes.some((el) => /^(Importer Excel)$/.test((el.innerText || '').trim()));
+  });
+}
 
-  // Skjul file input finnes ikke alltid synlig — trigger via knappen og sett fil på input
+async function ensureList() {
+  if (await onInvoiceList()) return;
+  await page.evaluate(() => {
+    const hit = [...document.querySelectorAll('button,[role="button"],div,span,a')].find((el) => {
+      const text = (el.innerText || '').trim();
+      return text === 'Økonomi / Fakturaer'
+        || text === '← Økonomi / Fakturaer'
+        || /Tilbake til listen/.test(text)
+        || text === 'Avbryt';
+    });
+    hit?.click();
+  });
+  await page.waitForFunction(() => {
+    const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+    return nodes.some((el) => /^(Importer Excel)$/.test((el.innerText || '').trim()));
+  }, { timeout: 60000 });
+}
+
+async function uploadExcel() {
+  await ensureList();
   const [fileChooser] = await Promise.all([
     page.waitForFileChooser({ timeout: 30000 }).catch(() => null),
     clickText(/^Importer Excel$/).catch(() => clickText(/Importer Excel/)),
   ]);
   if (fileChooser) {
     await fileChooser.accept([EXCEL]);
-  } else {
-    // fallback: finn input[type=file]
-    const input = await page.$('input[type="file"]');
-    if (!input) throw new Error('Ingen filvelger');
+    return;
+  }
+  // Skjult input kan finnes uten synlig file chooser (web)
+  const input = await page.$('input[type="file"]');
+  if (input) {
     await input.uploadFile(EXCEL);
     await input.evaluate((el) => {
       el.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    return;
   }
+  // Siste utvei: opprett midlertidig input og trigg pickDocument-fallback via DOM
+  throw new Error('Ingen filvelger');
+}
 
+async function assertTopButtons() {
+  const topButtons = await page.evaluate(() => {
+    const root = document.getElementById('invoice-import-review') || document.body;
+    const text = (root.innerText || '').slice(0, 900);
+    return /Avbryt/.test(text) && /Importer \d+ fakturaer/.test(text);
+  });
+  if (!topButtons) throw new Error('Avbryt/Importer mangler øverst i gjennomgangen');
+}
+
+async function openDemo() {
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 180000 });
+    const ready = await page.waitForFunction(() => {
+      const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+      if (nodes.some((el) => /^(Importer Excel)$/.test((el.innerText || '').trim()))) return 'demo';
+      const text = document.body?.innerText || '';
+      if (/Log in|Logg inn/i.test(text) && !/Faktura-demo/i.test(text)) return 'login';
+      if (/Faktura-demo/i.test(text)) return 'demo-shell';
+      return false;
+    }, { timeout: 90000 }).then((h) => h.jsonValue()).catch(() => 'timeout');
+    if (ready === 'demo' || ready === 'demo-shell') {
+      if (ready === 'demo-shell') {
+        await page.waitForFunction(() => {
+          const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+          return nodes.some((el) => /^(Importer Excel)$/.test((el.innerText || '').trim()));
+        }, { timeout: 60000 }).catch(() => null);
+      }
+      if (await onInvoiceList()) return;
+    }
+    console.log(`demo ikke klar (attempt ${attempt}: ${ready}), prøver igjen…`);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  throw new Error('Klarte ikke å åpne /faktura-demo');
+}
+
+try {
+  await openDemo();
+  await page.evaluate(() => {
+    try {
+      sessionStorage.removeItem('protop.fakturaDemo.invoiceIndex');
+      sessionStorage.removeItem('protop.fakturaDemo.invoices');
+    } catch {}
+  });
+  await ensureList();
+  await shot('faktura-cycle1-list');
+
+  // --- Syklus 1: import ---
+  console.log('--- syklus 1 ---');
+  await uploadExcel();
   await waitText(/Kontroller fakturaimport|Kontroller/, 180000);
   await waitText(/Importer \d+ fakturaer/);
-  await shot(`faktura-cycle${cycle}-review`);
+  await waitText(/Klare uten avvik|Må kontrolleres/);
+  await assertTopButtons();
+  await shot('faktura-cycle1-review');
 
   const imported = await page.evaluate(() => {
     const nodes = [...document.querySelectorAll('div,span,p,button,a')];
@@ -94,15 +170,13 @@ async function runCycle(cycle) {
       || (/registrerte fakturaer/i.test(text) && !/0 registrerte/.test(text) && /Viser \d+/i.test(text));
   }, { timeout: 180000 });
   await page.waitForFunction(() => /16713|RYFYLKE|Sandnes/i.test(document.body?.innerText || ''), { timeout: 60000 });
-  await shot(`faktura-cycle${cycle}-imported`);
+  await shot('faktura-cycle1-imported');
 
-  // Søk og åpne detalj
   const search = await page.$('input[placeholder*="Søk"]');
   if (!search) throw new Error('Mangler søkefelt');
   await search.click({ clickCount: 3 });
   await search.type('16713');
   await page.waitForFunction(() => /Viser 1/i.test(document.body?.innerText || ''), { timeout: 30000 });
-  await page.waitForSelector('button');
   const opened = await page.evaluate(() => {
     const row = [...document.querySelectorAll('button')].find((el) => {
       const text = (el.innerText || '').replace(/\s+/g, ' ').trim();
@@ -121,23 +195,36 @@ async function runCycle(cycle) {
         || /Fakturaoversikt/i.test(document.body?.innerText || '')),
     { timeout: 60000 },
   );
-  await shot(`faktura-cycle${cycle}-detail`);
+  await shot('faktura-cycle1-detail');
+  await ensureList();
+  console.log('syklus 1: ok');
 
-  await page.evaluate(() => {
-    const hit = [...document.querySelectorAll('button,[role="button"],div,span')].find((el) => (
-      /Økonomi \/ Fakturaer/.test(el.innerText || '')
-      || /Tilbake til listen/.test(el.innerText || '')
-    ));
-    hit?.click();
-  });
-  await waitText(/Importer Excel/);
-  console.log(`syklus ${cycle}: ok`);
-}
-
-try {
-  for (let cycle = 1; cycle <= 3; cycle += 1) {
-    await runCycle(cycle);
+  // --- Syklus 2 og 3: samme fil skal filtrere bort eksisterende ---
+  for (const cycle of [2, 3]) {
+    console.log(`--- syklus ${cycle} ---`);
+    await uploadExcel();
+    await waitText(/Kontroller fakturaimport/, 180000);
+    await waitText(/finnes allerede|fjernet fra importen/i, 180000);
+    await assertTopButtons();
+    // Skal ikke tilby import av alle 6713 på nytt
+    const importLabel = await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+      const btn = nodes.find((el) => /^Importer \d+ fakturaer$/.test((el.innerText || '').trim()));
+      return (btn?.innerText || '').trim();
+    });
+    if (/Importer 6713/.test(importLabel)) {
+      throw new Error(`Syklus ${cycle}: eksisterende ble ikke filtrert (${importLabel})`);
+    }
+    await shot(`faktura-cycle${cycle}-existing-filtered`);
+    await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('div,span,p,button,a')];
+      const btn = nodes.find((el) => /^(Avbryt)$/.test((el.innerText || '').trim()));
+      if (btn) btn.click();
+    });
+    await ensureList();
+    console.log(`syklus ${cycle}: ok`);
   }
+
   console.log('verify-faktura-ui: 3 sykluser ok');
 } catch (err) {
   await shot('faktura-ui-error');

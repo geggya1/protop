@@ -8,11 +8,52 @@ import { useColors } from '../../src/context/ThemeContext';
 import { normalizeInvoice, sortInvoices } from '../../src/economy/invoices.js';
 import EconomyInvoices from './EconomyInvoices';
 
+const DEMO_STORE_KEY = 'protop.fakturaDemo.invoiceIndex';
+
+/** Kun id + fakturanr — full dump sprenger sessionStorage-kvoten. */
+function loadDemoSeed(seed = []) {
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const raw = sessionStorage.getItem(DEMO_STORE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          return parsed.map((row) => ({
+            id: row.id || `inv_${row.invoiceNumber}`,
+            invoiceNumber: String(row.invoiceNumber || ''),
+            customerName: row.customerName || '',
+            amountInclVat: row.amountInclVat ?? 0,
+          })).filter((row) => row.invoiceNumber);
+        }
+      }
+    } catch {
+      // ignore corrupt cache
+    }
+  }
+  return seed || [];
+}
+
+function persistDemoRows(rows) {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const light = (rows || []).map((row) => ({
+      id: row.id,
+      invoiceNumber: row.invoiceNumber,
+      customerName: row.customerName || '',
+      amountInclVat: row.amountInclVat ?? 0,
+    }));
+    sessionStorage.setItem(DEMO_STORE_KEY, JSON.stringify(light));
+  } catch {
+    // ignore quota
+  }
+}
+
 function createMemoryStorage(seed = []) {
-  let rows = sortInvoices((seed || []).map((row) => normalizeInvoice(row)));
+  let rows = sortInvoices(loadDemoSeed(seed).map((row) => normalizeInvoice(row)));
   const listeners = new Set();
   const emit = () => {
     const snapshot = sortInvoices(rows);
+    persistDemoRows(snapshot);
     listeners.forEach((fn) => fn(snapshot));
   };
   return {

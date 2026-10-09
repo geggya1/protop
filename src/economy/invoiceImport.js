@@ -110,12 +110,19 @@ function looksLikeInvoiceNumber(value) {
   return /\d/.test(raw);
 }
 
+export function normalizeProjectNumber(value) {
+  let raw = text(value);
+  if (!raw) return '';
+  if (/^\d+\.0+$/.test(raw)) raw = raw.replace(/\.0+$/, '');
+  return raw;
+}
+
 export function matchProject(projects, hint = {}) {
   const list = Array.isArray(projects) ? projects : [];
-  const number = text(hint.projectNumber);
+  const number = normalizeProjectNumber(hint.projectNumber);
   const name = text(hint.projectName);
   if (number) {
-    const byNumber = list.filter((row) => text(row.number) === number);
+    const byNumber = list.filter((row) => normalizeProjectNumber(row.number) === number);
     if (byNumber.length === 1) return byNumber[0];
     if (byNumber.length > 1 && name) {
       const named = byNumber.filter((row) => fold(row.name) === fold(name) || namesLikelyMatch(row.name, name));
@@ -130,6 +137,39 @@ export function matchProject(projects, hint = {}) {
     if (soft.length === 1) return soft[0];
   }
   return null;
+}
+
+/** Kandidater til manuell prosjektkobling i importgjennomgangen. */
+export function suggestProjects(projects, hint = {}, limit = 8) {
+  const list = Array.isArray(projects) ? projects : [];
+  const number = normalizeProjectNumber(hint.projectNumber || hint.query);
+  const query = fold(hint.query || hint.projectName || hint.projectNumber || '');
+  const ranked = list.map((project) => {
+    let score = 0;
+    const projectNumber = normalizeProjectNumber(project.number);
+    if (number && projectNumber === number) score += 100;
+    if (query) {
+      const hay = fold([project.number, project.name, project.client].filter(Boolean).join(' '));
+      if (hay.includes(query)) score += 20;
+      if (fold(project.name) === fold(hint.projectName)) score += 40;
+      else if (hint.projectName && namesLikelyMatch(project.name, hint.projectName)) score += 25;
+    }
+    return { project, score };
+  }).filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || text(a.project.number).localeCompare(text(b.project.number), 'nb', { numeric: true }));
+  const out = [];
+  const seen = new Set();
+  for (const row of ranked) {
+    if (seen.has(row.project.id)) continue;
+    seen.add(row.project.id);
+    out.push(row.project);
+    if (out.length >= limit) break;
+  }
+  if (out.length || !query) return out;
+  return list.filter((project) => {
+    const hay = fold([project.number, project.name].filter(Boolean).join(' '));
+    return hay.includes(query);
+  }).slice(0, limit);
 }
 
 export function invoiceFromMappedRow(mapped, originalValues = {}, meta = {}) {
@@ -270,13 +310,34 @@ export function companyInvoiceRow(input, customers = [], projects = [], existing
     if (project.contractId) invoice.contractId = project.contractId;
   } else if (invoice.projectNumber || invoice.projectName) {
     if (severity === 'ok') severity = 'review';
-    issues.push('Prosjektet er ikke koblet. Fordeles ikke automatisk — kan knyttes etter import.');
+    issues.push('Prosjektet er ikke koblet. Velg prosjekt under for å koble alle fakturaer med samme prosjektnummer.');
   }
 
   const update = existingNumbers.has(invoice.invoiceNumber);
   if (update) {
-    if (severity === 'ok') severity = 'review';
-    issues.push('Fakturanummeret finnes fra før og blir oppdatert.');
+    return {
+      severity: 'existing',
+      locked: true,
+      issues: ['Fakturanummeret finnes allerede og er fjernet fra importen.'],
+      title: `Faktura ${invoice.invoiceNumber}`,
+      meta: [
+        invoice.customerName,
+        invoice.projectNumber && invoice.projectName
+          ? `${invoice.projectNumber} · ${invoice.projectName}`
+          : (invoice.projectName || invoice.projectNumber),
+      ].filter(Boolean).join(' · '),
+      invoice: null,
+      customerId: invoice.customerId,
+      projectId: invoice.projectId,
+      customerNumber: invoice.customerNumber,
+      customerName: invoice.customerName,
+      orgnr: invoice.orgnr,
+      projectNumber: invoice.projectNumber,
+      projectName: invoice.projectName,
+      amountInclVat: invoice.amountInclVat,
+      currency: invoice.currency,
+      update: true,
+    };
   }
 
   invoice.id = invoice.id || `inv_${invoice.invoiceNumber}`;
@@ -300,7 +361,9 @@ export function companyInvoiceRow(input, customers = [], projects = [], existing
     orgnr: invoice.orgnr,
     projectNumber: invoice.projectNumber,
     projectName: invoice.projectName,
-    update,
+    amountInclVat: invoice.amountInclVat,
+    currency: invoice.currency,
+    update: false,
   };
 }
 
@@ -318,7 +381,7 @@ export function planInvoiceImport(existingInvoices, customers, projects, rows) {
 }
 
 export function linkImportRowCustomer(row, customer) {
-  if (!row || row.severity === 'block' || !customer?.id || !row.invoice) return row;
+  if (!row || row.severity === 'block' || row.severity === 'existing' || !customer?.id || !row.invoice) return row;
   const customerNumber = normalizeCustomerNumber(customer.customerNumber) || text(row.customerNumber);
   const customerName = text(customer.name) || text(row.customerName);
   const orgnr = normalizeOrgnr(customer.orgnr) || text(row.orgnr);
@@ -382,7 +445,7 @@ export function linkImportPlanCustomer(plan, rowIndex, customer, { applyGroup = 
 }
 
 export function linkImportRowProject(row, project) {
-  if (!row || row.severity === 'block' || !project?.id || !row.invoice) return row;
+  if (!row || row.severity === 'block' || row.severity === 'existing' || !project?.id || !row.invoice) return row;
   const issues = (row.issues || []).filter((issue) => !/prosjekt/i.test(issue));
   let severity = row.severity;
   if (!issues.length && severity === 'review') severity = 'ok';
@@ -410,10 +473,25 @@ export function linkImportRowProject(row, project) {
   };
 }
 
-export function linkImportPlanProject(plan, rowIndex, project) {
+export function linkImportPlanProject(plan, rowIndex, project, { applyGroup = true } = {}) {
   const rows = Array.isArray(plan?.rows) ? plan.rows : [];
-  if (!rows[rowIndex] || !project?.id) return plan;
-  const nextRows = rows.map((row, index) => (index === rowIndex ? linkImportRowProject(row, project) : row));
+  const target = rows[rowIndex];
+  if (!target || !project?.id) return plan;
+  const key = normalizeProjectNumber(target.projectNumber);
+  const nextRows = rows.map((row, index) => {
+    if (index === rowIndex) return linkImportRowProject(row, project);
+    if (
+      applyGroup
+      && key
+      && normalizeProjectNumber(row.projectNumber) === key
+      && !row.projectId
+      && row.severity !== 'block'
+      && row.severity !== 'existing'
+    ) {
+      return linkImportRowProject(row, project);
+    }
+    return row;
+  });
   return { ...plan, rows: nextRows };
 }
 
@@ -464,52 +542,101 @@ export async function readInvoiceTable(bytes, filename = '', { columnFields } = 
   return rows;
 }
 
-/** Kompakt gjennomgang for store filer: grupperte avvik + «klare». */
-export function reviewRowsForInvoicePlan(plan, { dropped = new Set(), okSample = 12 } = {}) {
+/**
+ * Gjennomgang for fakturaimport.
+ * - existing/block: sammendrag
+ * - review: gruppert på prosjektnr (eller kunde) så man kan koble én gang
+ * - ok: egen tabelliste (ikke minimert gruppe)
+ */
+export function buildInvoiceImportReview(plan, { dropped = new Set() } = {}) {
   const rows = Array.isArray(plan?.rows) ? plan.rows : [];
-  const out = [];
-  const okIndexes = [];
+  const existingIndexes = [];
   const blockIndexes = [];
+  const okIndexes = [];
   const reviewGroups = new Map();
 
   rows.forEach((row, index) => {
-    const id = String(index);
+    if (row.severity === 'existing') {
+      existingIndexes.push(index);
+      return;
+    }
     if (row.severity === 'block') {
       blockIndexes.push(index);
       return;
     }
     if (row.severity === 'review') {
-      // Grupper på avvikstekst (ikke kunde/prosjekt) — store Moment-exporter må holde UI-et lett.
-      const issueKey = (row.issues || []).slice().sort().join(' | ') || 'Avvik';
-      if (!reviewGroups.has(issueKey)) {
-        reviewGroups.set(issueKey, {
-          id: `review:${fold(issueKey).slice(0, 80)}`,
+      const projectKey = normalizeProjectNumber(row.projectNumber);
+      let groupKey;
+      if (projectKey) {
+        // Samle på prosjektnr — én kobling løser alle fakturaer på prosjektet.
+        groupKey = `project:${projectKey}`;
+      } else {
+        groupKey = `customer:${customerIdentityKey({
+          customerNumber: row.customerNumber,
+          orgnr: row.orgnr,
+          client: row.customerName,
+        }) || fold(row.customerName) || index}`;
+      }
+      if (!reviewGroups.has(groupKey)) {
+        reviewGroups.set(groupKey, {
+          id: `review:${groupKey}`,
           severity: 'review',
           included: true,
           title: row.title,
           meta: row.meta,
-          issues: row.issues || [],
+          issues: [],
           indexes: [],
           sampleTitles: [],
           customers: new Set(),
+          projectNumber: row.projectNumber || '',
+          projectName: row.projectName || '',
+          customerName: row.customerName || '',
+          customerNumber: row.customerNumber || '',
+          orgnr: row.orgnr || '',
+          needsCustomer: false,
+          needsProject: false,
+          rowIndex: index,
         });
       }
-      const group = reviewGroups.get(issueKey);
+      const group = reviewGroups.get(groupKey);
       group.indexes.push(index);
+      for (const issue of row.issues || []) {
+        if (!group.issues.includes(issue)) group.issues.push(issue);
+      }
+      group.needsCustomer = group.needsCustomer || (row.issues || []).some((issue) => /kunde/i.test(issue));
+      group.needsProject = group.needsProject || (row.issues || []).some((issue) => /prosjekt/i.test(issue));
       if (row.customerName) group.customers.add(row.customerName);
-      if (group.sampleTitles.length < 4) group.sampleTitles.push(row.title);
-      if (dropped.has(id)) group.included = false;
+      if (!group.projectName && row.projectName) group.projectName = row.projectName;
+      if (group.sampleTitles.length < 5) group.sampleTitles.push(row.title);
+      if (dropped.has(String(index))) group.included = false;
       return;
     }
     okIndexes.push(index);
   });
 
+  const cards = [];
+  if (existingIndexes.length) {
+    cards.push({
+      id: 'existing-group',
+      severity: 'existing',
+      locked: true,
+      included: false,
+      count: existingIndexes.length,
+      title: `${existingIndexes.length} fakturaer finnes allerede`,
+      meta: 'Kontrollert mot registeret og fjernet fra importen.',
+      issues: ['Fakturanummeret finnes allerede og er fjernet fra importen.'],
+      indexes: existingIndexes,
+      rowIndex: existingIndexes[0],
+    });
+  }
   if (blockIndexes.length) {
     const sample = blockIndexes.slice(0, 5).map((index) => rows[index]?.title).filter(Boolean);
-    out.push({
+    cards.push({
       id: 'block-group',
       severity: 'block',
+      locked: true,
       included: false,
+      count: blockIndexes.length,
       title: blockIndexes.length === 1
         ? (rows[blockIndexes[0]]?.title || 'Blokkert rad')
         : `${blockIndexes.length} rader blir ikke importert`,
@@ -520,36 +647,68 @@ export function reviewRowsForInvoicePlan(plan, { dropped = new Set(), okSample =
     });
   }
 
-  for (const group of reviewGroups.values()) {
+  const reviewCards = [...reviewGroups.values()].map((group) => {
     const count = group.indexes.length;
+    const projectLabel = [group.projectNumber, group.projectName].filter(Boolean).join(' · ');
     const customerHint = [...group.customers].slice(0, 3).join(', ');
-    out.push({
-      id: group.id,
-      severity: 'review',
-      included: group.included && group.indexes.some((index) => !dropped.has(String(index))),
-      title: count === 1 ? group.title : `${count} fakturaer med samme avvik`,
+    return {
+      ...group,
+      count,
+      included: group.indexes.some((index) => !dropped.has(String(index))),
+      title: count === 1
+        ? group.title
+        : (group.needsProject && group.projectNumber
+          ? `${count} fakturaer · prosjekt ${projectLabel || group.projectNumber}`
+          : `${count} fakturaer med samme avvik`),
       meta: [customerHint, group.sampleTitles.join(', ')].filter(Boolean).join(' · '),
-      issues: group.issues,
-      indexes: group.indexes,
-      rowIndex: group.indexes[0],
-    });
-  }
+    };
+  }).sort((a, b) => b.count - a.count || text(a.projectNumber).localeCompare(text(b.projectNumber), 'nb', { numeric: true }));
+
+  cards.push(...reviewCards);
+
+  const okRows = okIndexes.map((index) => {
+    const row = rows[index];
+    return {
+      id: String(index),
+      index,
+      included: !dropped.has(String(index)),
+      title: row.title,
+      invoiceNumber: row.invoice?.invoiceNumber || row.title,
+      customerName: row.customerName || '',
+      customerNumber: row.customerNumber || '',
+      projectNumber: row.projectNumber || '',
+      projectName: row.projectName || '',
+      amountInclVat: row.amountInclVat ?? row.invoice?.amountInclVat,
+      currency: row.currency || row.invoice?.currency || 'NOK',
+    };
+  });
 
   if (okIndexes.length) {
-    const included = okIndexes.some((index) => !dropped.has(String(index)));
-    const sample = okIndexes.slice(0, okSample).map((index) => rows[index]?.title).filter(Boolean);
-    out.push({
+    cards.push({
       id: 'ok-group',
       severity: 'ok',
-      included,
+      included: okIndexes.some((index) => !dropped.has(String(index))),
+      count: okIndexes.length,
       title: `${okIndexes.length} fakturaer klare uten avvik`,
-      meta: sample.join(', ') + (okIndexes.length > okSample ? ' …' : ''),
+      meta: '',
       issues: [],
       indexes: okIndexes,
+      list: true,
     });
   }
 
-  return out;
+  return {
+    cards,
+    okRows,
+    reviewCards,
+    existingCount: existingIndexes.length,
+    blockCount: blockIndexes.length,
+  };
+}
+
+/** Bakoverkompatibel wrapper for tester/eldre kall. */
+export function reviewRowsForInvoicePlan(plan, options = {}) {
+  return buildInvoiceImportReview(plan, options).cards;
 }
 
 export function toggleInvoiceReviewRow(dropped, reviewRow, plan) {

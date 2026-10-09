@@ -14,15 +14,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
-import ImportReview, { ImportResult } from '../../components/ImportReview';
+import { ImportResult } from '../../components/ImportReview';
+import InvoiceImportReview from '../../components/InvoiceImportReview';
 import { importResult } from '../../src/imports/review';
 import { pickDocument, uploadFile } from '../../src/utils/media';
 import {
   INVOICE_IMPORT_ACCEPT,
+  buildInvoiceImportReview,
   linkImportPlanCustomer,
   linkImportPlanProject,
-  reviewRowsForInvoicePlan,
-  suggestCustomers,
   toggleInvoiceReviewRow,
 } from '../../src/economy/invoiceImport.js';
 import { readInvoiceImport } from '../../src/imports/assist';
@@ -479,10 +479,19 @@ export default function EconomyInvoices({
   }, [invoices, query, statusFilter, period]);
   const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
   const totals = useMemo(() => invoiceTotals(visible), [visible]);
-  const reviewRows = useMemo(
-    () => (importPlan ? reviewRowsForInvoicePlan(importPlan, { dropped }) : []),
+  const importReview = useMemo(
+    () => (importPlan ? buildInvoiceImportReview(importPlan, { dropped }) : null),
     [importPlan, dropped],
   );
+  const importReadyCount = useMemo(() => {
+    if (!importPlan) return 0;
+    return importPlan.rows.filter((row, index) => (
+      row.severity !== 'block'
+      && row.severity !== 'existing'
+      && !dropped.has(String(index))
+      && row.invoice
+    )).length;
+  }, [importPlan, dropped]);
 
   useEffect(() => {
     setPageSize(80);
@@ -533,12 +542,14 @@ export default function EconomyInvoices({
     const leftOut = [];
     importPlan.rows.forEach((row, index) => {
       const id = String(index);
-      if (row.severity === 'block' || dropped.has(id) || !row.invoice) {
+      if (row.severity === 'existing' || row.severity === 'block' || dropped.has(id) || !row.invoice) {
         leftOut.push({
           name: row.title || 'Uten fakturanr',
-          reason: row.severity === 'block'
-            ? (row.issues?.[0] || 'Kan ikke importeres.')
-            : 'Valgt bort før lagring.',
+          reason: row.severity === 'existing'
+            ? (row.issues?.[0] || 'Finnes allerede.')
+            : row.severity === 'block'
+              ? (row.issues?.[0] || 'Kan ikke importeres.')
+              : 'Valgt bort før lagring.',
         });
         return;
       }
@@ -746,7 +757,7 @@ export default function EconomyInvoices({
     );
   }
 
-  if (view === 'import' && importPlan) {
+  if (view === 'import' && importPlan && importReview) {
     return (
       <ScrollView
         nativeID="economy-invoices-import"
@@ -754,88 +765,38 @@ export default function EconomyInvoices({
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.heading, { color: colors.ink }]}>Kontroller fakturaimport</Text>
-        <Text style={{ color: colors.muted }}>
-          Sjekk kobling til kunde og prosjekt før lagring. Summeringsrader importeres ikke.
-          PDF-vedlegg kan knyttes på hver faktura etter import.
-        </Text>
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
-        <ImportReview
+        <InvoiceImportReview
           colors={colors}
-          nativeID="invoice-import-review"
-          lead="Fjern rader du ikke vil ha med. Grupper med samme avvik kan tas ut samlet."
-          rows={reviewRows}
+          review={importReview}
+          customers={customers}
+          projects={projects}
           busy={busy}
-          confirmLabel={() => {
-            const count = importPlan.rows.filter((row, index) => (
-              row.severity !== 'block' && !dropped.has(String(index)) && row.invoice
-            )).length;
-            return `Importer ${count} fakturaer`;
+          readyCount={importReadyCount}
+          linkQuery={linkQuery}
+          setLinkQuery={setLinkQuery}
+          title="Kontroller fakturaimport"
+          lead="Sjekk kobling til kunde og prosjekt før lagring. Summeringsrader importeres ikke. PDF-vedlegg kan knyttes på hver faktura etter import."
+          confirmLabel={(count) => `Importer ${count} fakturaer`}
+          onToggleCard={(card) => {
+            setDropped((current) => toggleInvoiceReviewRow(current, card, importPlan));
           }}
-          onToggle={(id) => {
-            const row = reviewRows.find((item) => item.id === id);
-            if (!row) return;
-            setDropped((current) => toggleInvoiceReviewRow(current, row, importPlan));
+          onToggleOkRow={(id) => {
+            setDropped((current) => toggleInvoiceReviewRow(current, { id }, importPlan));
+          }}
+          onLinkCustomer={(rowIndex, customer) => {
+            setImportPlan((current) => linkImportPlanCustomer(current, rowIndex, customer, { applyGroup: true }));
+            setNote(`Koblet til ${customer.name}.`);
+            setError('');
+          }}
+          onLinkProject={(rowIndex, project) => {
+            setImportPlan((current) => linkImportPlanProject(current, rowIndex, project, { applyGroup: true }));
+            setNote(`Koblet prosjekt ${project.number || project.name}.`);
+            setError('');
           }}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}
-          renderRowExtra={(row) => {
-            if (row.severity === 'block' || row.severity === 'ok') return null;
-            const planRow = importPlan.rows[row.rowIndex];
-            if (!planRow || planRow.customerId) return null;
-            const q = linkQuery[row.id] || '';
-            const suggestions = suggestCustomers(customers, {
-              ...planRow,
-              client: planRow.customerName,
-              query: q,
-            }, 6);
-            return (
-              <View style={{ gap: 6, marginTop: 4 }}>
-                <TextInput
-                  value={q}
-                  onChangeText={(value) => setLinkQuery((current) => ({ ...current, [row.id]: value }))}
-                  placeholder="Søk kunde for å koble…"
-                  placeholderTextColor={colors.placeholder}
-                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-                />
-                {suggestions.map((customer) => (
-                  <TouchableOpacity
-                    key={customer.id}
-                    onPress={() => {
-                      setImportPlan((current) => linkImportPlanCustomer(current, row.rowIndex, customer, { applyGroup: true }));
-                      setNote(`Koblet til ${customer.name}.`);
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ color: colors.brand }}>
-                      {customer.name}
-                      {customer.customerNumber ? ` · ${customer.customerNumber}` : ''}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {projects.length && planRow && !planRow.projectId ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const hit = projects.find((project) => (
-                        String(project.number) === String(planRow.projectNumber)
-                        || (planRow.projectName && project.name === planRow.projectName)
-                      ));
-                      if (hit) {
-                        setImportPlan((current) => linkImportPlanProject(current, row.rowIndex, hit));
-                        setNote(`Koblet prosjekt ${hit.number}.`);
-                      } else {
-                        setError('Fant ikke prosjektet i registeret. Importer prosjektlisten først, eller knytt etterpå.');
-                      }
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ color: colors.brand }}>Prøv å koble prosjekt fra registeret</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          }}
         />
       </ScrollView>
     );

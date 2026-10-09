@@ -8,6 +8,7 @@ import { sortByStartDesc, sortCoursesDesc } from './cvFormat.js';
 import {
   EMPLOYEE_VERSION,
   FORM_SECTIONS,
+  PERSONNEL_KIND_OPTIONS,
   STATUS_OPTIONS,
   scalarFields,
 } from './schema.js';
@@ -91,7 +92,8 @@ export function emptyPerson() {
 
 export function emptyCompany() {
   return {
-    status: 'current',
+    personnelKind: 'staff',
+    status: 'active',
     external: false,
     canLogin: false,
     hasLicense: false,
@@ -379,7 +381,29 @@ function normalizePerson(raw) {
 
 function statusOf(value) {
   const raw = text(value);
-  return STATUS_OPTIONS.some((row) => row.value === raw) ? raw : 'current';
+  if (raw === 'current') return 'active';
+  if (raw === 'former') return 'inactive';
+  return STATUS_OPTIONS.some((row) => row.value === raw) ? raw : 'active';
+}
+
+function personnelKindOf(source = {}) {
+  const raw = text(source.personnelKind);
+  if (PERSONNEL_KIND_OPTIONS.some((row) => row.value === raw)) return raw;
+  const employment = text(source.employmentType).toLowerCase();
+  if (/innleid|innleie/.test(employment)) return 'innleid';
+  if (bool(source.external) || /ekstern/.test(employment)) return 'external';
+  return 'staff';
+}
+
+export function personnelKind(employee) {
+  return personnelKindOf(employee?.company || {});
+}
+
+export function personnelKindLabel(kind, companyName = '') {
+  if (kind === 'innleid') return 'Innleid personell';
+  if (kind === 'external') return 'Eksternt personell';
+  const name = text(companyName);
+  return name ? `${name}-personell` : 'Eget personell';
 }
 
 function percentOf(value) {
@@ -394,8 +418,9 @@ function percentOf(value) {
 function normalizeCompany(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const company = emptyCompany();
+  company.personnelKind = personnelKindOf(source);
   company.status = statusOf(source.status);
-  company.external = bool(source.external);
+  company.external = company.personnelKind === 'external';
   company.canLogin = bool(source.canLogin);
   company.hasLicense = bool(source.hasLicense);
   company.departmentIds = stringList(source.departmentIds);
@@ -405,6 +430,9 @@ function normalizeCompany(raw) {
   company.permissions = stringList(source.permissions);
   company.canHandleLegal = bool(source.canHandleLegal);
   company.employmentType = text(source.employmentType);
+  if (company.personnelKind === 'innleid' && !/innleid|innleie/.test(company.employmentType.toLowerCase())) {
+    company.employmentType = company.employmentType || 'Innleid';
+  }
   company.compensationType = text(source.compensationType);
   company.projectRole = text(source.projectRole);
   company.email = text(source.email).toLowerCase();
@@ -477,10 +505,10 @@ export function contactLine(employee) {
 }
 
 export function cardSubtitle(employee, companyName = '') {
-  if (employee?.company?.external) {
-    return `Eksterne / ${text(companyName) || 'Selskapet'}`;
-  }
-  return text(employee?.company?.title) || 'Ansatt';
+  const kind = personnelKind(employee);
+  if (kind === 'external') return `Eksternt personell · ${text(companyName) || 'Selskapet'}`;
+  if (kind === 'innleid') return 'Innleid personell';
+  return text(employee?.company?.title) || personnelKindLabel('staff', companyName);
 }
 
 export function periodLabel(employee) {
@@ -500,7 +528,7 @@ export function departmentLabels(employee, departments = []) {
 }
 
 export function statusLabel(status) {
-  return STATUS_OPTIONS.find((row) => row.value === status)?.label || 'Aktiv';
+  return STATUS_OPTIONS.find((row) => row.value === statusOf(status))?.label || 'Aktiv';
 }
 
 export function employeeNumberLabel(employee) {
@@ -509,28 +537,50 @@ export function employeeNumberLabel(employee) {
 }
 
 export function isInnleidEmployee(employee) {
-  return /innleid|innleie/.test(text(employee?.company?.employmentType).toLowerCase());
+  return personnelKind(employee) === 'innleid';
+}
+
+export function isDeletedEmployee(employee) {
+  return statusOf(employee?.company?.status) === 'deleted';
 }
 
 export function applyEmployeeClassification(employee, patch = {}) {
   const next = normalizeEmployee(employee);
   const company = { ...next.company };
-  if (Object.prototype.hasOwnProperty.call(patch, 'status') && patch.status) {
-    const allowed = STATUS_OPTIONS.some((row) => row.value === patch.status);
-    if (allowed) company.status = patch.status;
+  if (Object.prototype.hasOwnProperty.call(patch, 'personnelKind') && patch.personnelKind) {
+    const allowed = PERSONNEL_KIND_OPTIONS.some((row) => row.value === patch.personnelKind);
+    if (allowed) {
+      company.personnelKind = patch.personnelKind;
+      company.external = patch.personnelKind === 'external';
+      if (patch.personnelKind === 'innleid') {
+        if (!/innleid|innleie/.test(text(company.employmentType).toLowerCase())) {
+          company.employmentType = 'Innleid';
+        }
+      } else if (/innleid|innleie/.test(text(company.employmentType).toLowerCase())) {
+        company.employmentType = patch.personnelKind === 'staff' ? 'Fast ansatt' : '';
+      }
+    }
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'external')) {
-    company.external = bool(patch.external);
+  if (Object.prototype.hasOwnProperty.call(patch, 'status') && patch.status) {
+    const mapped = statusOf(patch.status);
+    if (STATUS_OPTIONS.some((row) => row.value === mapped)) company.status = mapped;
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'canLogin')) {
     company.canLogin = bool(patch.canLogin);
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'innleid')) {
-    if (patch.innleid) company.employmentType = 'Innleid';
-    else if (isInnleidEmployee({ company })) company.employmentType = 'Fast ansatt';
+  // Bakoverkompatibilitet for eldre kall som bruker innleid/external.
+  if (Object.prototype.hasOwnProperty.call(patch, 'innleid') && !Object.prototype.hasOwnProperty.call(patch, 'personnelKind')) {
+    company.personnelKind = patch.innleid ? 'innleid' : (company.personnelKind === 'innleid' ? 'staff' : company.personnelKind);
+    if (company.personnelKind === 'innleid') company.employmentType = 'Innleid';
+    else if (/innleid|innleie/.test(text(company.employmentType).toLowerCase())) company.employmentType = 'Fast ansatt';
+    company.external = company.personnelKind === 'external';
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'external') && !Object.prototype.hasOwnProperty.call(patch, 'personnelKind')) {
+    company.personnelKind = patch.external ? 'external' : (company.personnelKind === 'external' ? 'staff' : company.personnelKind);
+    company.external = company.personnelKind === 'external';
   }
   next.company = company;
-  return next;
+  return normalizeEmployee(next);
 }
 
 function haystack(employee, departments) {
@@ -549,18 +599,29 @@ function haystack(employee, departments) {
   ].map(text).join(' ').toLowerCase();
 }
 
-export function filterEmployees(list, { query = '', status = 'current', departments = [] } = {}) {
+export function filterEmployees(list, {
+  query = '',
+  kind = 'all',
+  status = 'active',
+  departments = [],
+} = {}) {
   const q = text(query).toLowerCase();
+  // Eldre kall brukte status=innleid/external som kategori.
+  let kindFilter = kind;
+  let statusFilter = status;
+  if (status === 'innleid' || status === 'external') {
+    kindFilter = status;
+    statusFilter = 'all';
+  } else if (status === 'current') {
+    statusFilter = 'active';
+  } else if (status === 'former') {
+    statusFilter = 'inactive';
+  }
   const filtered = (list || []).filter((row) => {
-    if (status === 'active' || status === 'current') {
-      if (row.company?.status !== 'current') return false;
-    } else if (status === 'external') {
-      if (!row.company?.external) return false;
-    } else if (status === 'innleid') {
-      if (!isInnleidEmployee(row)) return false;
-    } else if (status && status !== 'all') {
-      if (row.company?.status !== status) return false;
-    }
+    const rowKind = personnelKind(row);
+    const rowStatus = statusOf(row.company?.status);
+    if (kindFilter && kindFilter !== 'all' && rowKind !== kindFilter) return false;
+    if (statusFilter && statusFilter !== 'all' && rowStatus !== statusFilter) return false;
     if (!q) return true;
     return haystack(row, departments).includes(q);
   });
@@ -583,9 +644,14 @@ export function directoryStats(list) {
   const rows = list || [];
   return {
     total: rows.length,
-    login: rows.filter((row) => row.company?.canLogin && !row.company?.external).length,
-    external: rows.filter((row) => row.company?.external).length,
-    innleid: rows.filter((row) => isInnleidEmployee(row)).length,
+    login: rows.filter((row) => row.company?.canLogin && personnelKind(row) !== 'external').length,
+    staff: rows.filter((row) => personnelKind(row) === 'staff').length,
+    external: rows.filter((row) => personnelKind(row) === 'external').length,
+    innleid: rows.filter((row) => personnelKind(row) === 'innleid').length,
+    active: rows.filter((row) => statusOf(row.company?.status) === 'active').length,
+    inactive: rows.filter((row) => statusOf(row.company?.status) === 'inactive').length,
+    leave: rows.filter((row) => statusOf(row.company?.status) === 'leave').length,
+    deleted: rows.filter((row) => statusOf(row.company?.status) === 'deleted').length,
     licenses: rows.filter((row) => row.company?.hasLicense).length,
   };
 }

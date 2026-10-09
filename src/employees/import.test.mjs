@@ -159,7 +159,8 @@ assert.equal(adaRow.employee.company.workPercent, '80');
 assert.equal(adaRow.employee.cv.summary, 'Beholdes.');
 
 const kari = byName['Kari Moen'].employee;
-assert.equal(kari.company.status, 'former');
+assert.equal(kari.company.status, 'inactive');
+assert.equal(kari.company.personnelKind, 'external');
 assert.equal(kari.company.accessRole, 'Lesetilgang');
 assert.equal(kari.company.external, true);
 assert.equal(kari.company.canLogin, true);

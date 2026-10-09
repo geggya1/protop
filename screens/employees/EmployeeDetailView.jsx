@@ -12,13 +12,17 @@ import {
   formatNbDate,
   initials,
   setEmployeePath,
-  isInnleidEmployee,
+  isDeletedEmployee,
   maskNationalId,
   periodLabel,
+  personnelKind,
+  personnelKindLabel,
   readPath,
   statusLabel,
 } from '../../src/employees/model';
-import { FORM_SECTIONS, OWNER_LABEL, STATUS_OPTIONS } from '../../src/employees/schema';
+import {
+  FORM_SECTIONS, OWNER_LABEL, PERSONNEL_KIND_OPTIONS, STATUS_OPTIONS,
+} from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
 import { useLayout } from '../../src/theme';
 
@@ -334,6 +338,7 @@ export default function EmployeeDetailView({
   onConfirmDelete,
   onCancelDelete,
   onDestroy,
+  onRestore,
 }) {
   const { isPhone } = useLayout();
   const [editingKey, setEditingKey] = useState('');
@@ -425,14 +430,14 @@ export default function EmployeeDetailView({
 
   const employmentRows = useMemo(() => {
     const rows = [
-      { key: 'company.status', label: 'Ansettelsesstatus', value: status },
+      { key: 'company.personnelKind', label: 'Personell', value: personnelKindLabel(personnelKind(employee), companyName) },
+      { key: 'company.status', label: 'Status', value: status },
       { key: 'company.employmentType', label: 'Type ansatt', value: employee.company?.employmentType },
       { key: 'company.compensationType', label: 'Type lønnskompensasjon', value: employee.company?.compensationType },
-      { key: 'company.external', label: 'Ekstern tilgang', value: employee.company?.external ? 'Ja' : (canEdit ? 'Nei' : '') },
       { key: 'company.canLogin', label: 'Kan logge inn', value: employee.company?.canLogin ? 'Ja' : (canEdit ? 'Nei' : '') },
     ];
     return canEdit ? rows : rows.filter((row) => row.value);
-  }, [employee, status, canEdit]);
+  }, [employee, status, canEdit, companyName]);
 
   const workRows = useMemo(() => {
     const rows = [
@@ -700,13 +705,26 @@ export default function EmployeeDetailView({
                   ))}
                 </View>
                 <View nativeID="employee-classification" style={styles.classify}>
-                  <Text style={[styles.classifyLabel, { color: colors.muted }]}>Tilknytning</Text>
+                  <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
+                  <View style={styles.chipRow}>
+                    {PERSONNEL_KIND_OPTIONS.map((option) => (
+                      <FlagChip
+                        key={option.value}
+                        label={personnelKindLabel(option.value, companyName)}
+                        on={personnelKind(employee) === option.value}
+                        disabled={!canEdit || busy || !isAdmin}
+                        onPress={canEdit && isAdmin ? () => onClassify?.({ personnelKind: option.value }) : undefined}
+                        colors={colors}
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.classifyLabel, { color: colors.muted }]}>Status</Text>
                   <View style={styles.chipRow}>
                     {STATUS_OPTIONS.map((option) => (
                       <FlagChip
                         key={option.value}
-                        label={option.label}
-                        on={employee.company?.status === option.value || (!employee.company?.status && option.value === 'current')}
+                        label={option.value === 'deleted' ? 'Papirkurv' : option.label}
+                        on={(employee.company?.status || 'active') === option.value}
                         disabled={!canEdit || busy || !isAdmin}
                         onPress={canEdit && isAdmin ? () => onClassify?.({ status: option.value }) : undefined}
                         colors={colors}
@@ -714,20 +732,6 @@ export default function EmployeeDetailView({
                     ))}
                   </View>
                   <View style={styles.chipRow}>
-                    <FlagChip
-                      label="Innleid"
-                      on={isInnleidEmployee(employee)}
-                      disabled={!canEdit || busy || !isAdmin}
-                      onPress={canEdit && isAdmin ? () => onClassify?.({ innleid: !isInnleidEmployee(employee) }) : undefined}
-                      colors={colors}
-                    />
-                    <FlagChip
-                      label="Ekstern tilgang"
-                      on={!!employee.company?.external}
-                      disabled={!canEdit || busy || !isAdmin}
-                      onPress={canEdit && isAdmin ? () => onClassify?.({ external: !employee.company?.external }) : undefined}
-                      colors={colors}
-                    />
                     <FlagChip
                       label="Kan logge inn"
                       on={!!employee.company?.canLogin}
@@ -973,14 +977,43 @@ export default function EmployeeDetailView({
           ) : null}
 
           {isAdmin ? (
-            confirmDelete ? (
+            isDeletedEmployee(employee) ? (
+              <View style={styles.inlineActions}>
+                <TouchableOpacity
+                  onPress={onRestore}
+                  accessibilityRole="button"
+                  accessibilityLabel="Gjenopprett"
+                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>Gjenopprett</Text>
+                </TouchableOpacity>
+                {confirmDelete ? (
+                  <>
+                    <TouchableOpacity
+                      onPress={onDestroy}
+                      accessibilityRole="button"
+                      style={[styles.dangerBtn, { backgroundColor: colors.danger || '#b42318' }]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Slett permanent</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
+                      <Text style={{ color: colors.ink }}>Avbryt</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
+                    <Text style={{ color: colors.danger || '#b42318' }}>Slett permanent</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : confirmDelete ? (
               <View style={styles.inlineActions}>
                 <TouchableOpacity
                   onPress={onDestroy}
                   accessibilityRole="button"
                   style={[styles.dangerBtn, { backgroundColor: colors.danger || '#b42318' }]}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Slett medarbeider</Text>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Flytt til papirkurv</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
                   <Text style={{ color: colors.ink }}>Avbryt</Text>
@@ -988,7 +1021,7 @@ export default function EmployeeDetailView({
               </View>
             ) : (
               <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
-                <Text style={{ color: colors.danger || '#b42318' }}>Slett medarbeider</Text>
+                <Text style={{ color: colors.danger || '#b42318' }}>Flytt til papirkurv</Text>
               </TouchableOpacity>
             )
           ) : null}

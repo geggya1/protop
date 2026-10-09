@@ -25,6 +25,18 @@ export function monthLabel(year, monthIndex) {
   return `${MONTHS[monthIndex] || ''} ${year}`.trim();
 }
 
+const MONTH_SHORT = [
+  'jan', 'feb', 'mar', 'apr', 'mai', 'jun',
+  'jul', 'aug', 'sep', 'okt', 'nov', 'des',
+];
+
+/** Kort dagetikett som i Moment-timeliste: «9 okt». */
+export function shortDayLabel(dateOrKey) {
+  const date = dateOrKey instanceof Date ? dateOrKey : parseDateKey(dateOrKey);
+  if (!date) return '';
+  return `${date.getDate()} ${MONTH_SHORT[date.getMonth()] || ''}`;
+}
+
 export function shiftMonth(year, monthIndex, delta) {
   const d = new Date(year, monthIndex + delta, 1);
   return { year: d.getFullYear(), monthIndex: d.getMonth() };

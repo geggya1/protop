@@ -11,6 +11,7 @@ import {
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
+import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -24,11 +25,13 @@ import {
 } from '../../src/economy/hoursImport.js';
 import { suggestCustomers } from '../../src/economy/invoiceImport.js';
 import {
+  dayTimesheetRows,
   employeeHourOptions,
   filterHours,
   formatDate,
   formatHours,
   hourTotals,
+  shiftDateKey,
 } from '../../src/economy/hoursList.js';
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
@@ -36,6 +39,7 @@ import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName } from '../../src/employees/model.js';
+import { toDateKey } from '../../src/arbeid/calendar.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -104,6 +108,7 @@ export default function EconomyHours({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(80);
+  const [selectedDay, setSelectedDay] = useState(() => toDateKey(new Date()));
   const saveChain = useRef(Promise.resolve());
 
   useEffect(() => {
@@ -143,6 +148,21 @@ export default function EconomyHours({
     () => (importPlan ? reviewRowsForHourPlan(importPlan, { dropped }) : []),
     [importPlan, dropped],
   );
+
+  useEffect(() => {
+    if (!stackRows) return;
+    if (employeeFilter) return;
+    if (employeeOptions[0]?.id) setEmployeeFilter(employeeOptions[0].id);
+    else if (employees[0]?.id) setEmployeeFilter(employees[0].id);
+  }, [stackRows, employeeFilter, employeeOptions, employees]);
+
+  const daySheet = useMemo(() => dayTimesheetRows({
+    entries,
+    projects: projectList,
+    members: state.members || [],
+    date: selectedDay,
+    employeeId: employeeFilter,
+  }), [entries, projectList, state.members, selectedDay, employeeFilter]);
 
   useEffect(() => {
     setPageSize(80);
@@ -266,33 +286,6 @@ export default function EconomyHours({
   }
 
   function renderListRow({ item: row }) {
-    if (stackRows) {
-      return (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.cardTitle, { color: colors.ink }]}>
-            {formatDate(row.date)} · {row.employeeName || '—'}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            {[row.customerName, row.projectNumber || row.projectName, formatHours(row.hours)]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-          {row.description ? <Text style={{ color: colors.ink }}>{row.description}</Text> : null}
-          <View style={styles.cardLinks}>
-            {row.customerId ? (
-              <TouchableOpacity onPress={() => onOpenCustomer?.(row.customerId)}>
-                <Text style={{ color: colors.brand }}>Kunde</Text>
-              </TouchableOpacity>
-            ) : null}
-            {row.projectId ? (
-              <TouchableOpacity onPress={() => onOpenProject?.(row.projectId)}>
-                <Text style={{ color: colors.brand }}>Prosjekt</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-      );
-    }
     return (
       <View style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
         {COLUMNS.map((column) => (
@@ -432,58 +425,109 @@ export default function EconomyHours({
     );
   }
 
+  const selectedEmployeeName = employeeFilter
+    ? (employeeOptions.find((row) => row.id === employeeFilter)?.name
+      || displayName(employees.find((row) => row.id === employeeFilter))
+      || 'Medarbeider')
+    : 'Velg medarbeider';
+
+  if (stackRows && view === 'list') {
+    return (
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.phoneInner}
+        keyboardShouldPersistTaps="handled"
+        nativeID="economy-hours"
+      >
+        <View style={styles.phoneTop}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.crumb, { color: colors.muted }]}>Økonomi / Timeliste</Text>
+            <Text style={[styles.heading, { color: colors.ink }]} numberOfLines={1}>{selectedEmployeeName}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={importFile}
+            disabled={busy || !familyId}
+            accessibilityRole="button"
+            accessibilityLabel="Importer timer"
+            style={[styles.primaryBtn, styles.primaryBtnCompact, { backgroundColor: colors.brand, opacity: busy || !familyId ? 0.6 : 1 }]}
+          >
+            <Text style={styles.primaryBtnText}>{busy ? '…' : 'Importer'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
+        <ImportResult colors={colors} result={importReport} />
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
+          {employeeOptions.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => setEmployeeFilter(item.id)}
+              style={[styles.chip, { borderColor: colors.line, backgroundColor: employeeFilter === item.id ? colors.brand : colors.card }]}
+            >
+              <Text style={{ color: employeeFilter === item.id ? '#fff' : colors.ink }} numberOfLines={1}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <TimesheetDayView
+          colors={colors}
+          dateKey={selectedDay}
+          totalHours={daySheet.totalHours}
+          onPrevDay={() => setSelectedDay((day) => shiftDateKey(day, -1))}
+          onNextDay={() => setSelectedDay((day) => shiftDateKey(day, 1))}
+          emptyText={employeeFilter
+            ? 'Ingen prosjekt med timer denne dagen. Bytt dag eller importer Excel.'
+            : 'Velg medarbeider for å se timelisten.'}
+          rows={daySheet.rows.map((row) => ({
+            ...row,
+            onPress: row.id ? () => onOpenProject?.(row.id) : undefined,
+            testID: `economy-timesheet-${row.number || row.id}`,
+          }))}
+        />
+      </ScrollView>
+    );
+  }
+
   const table = (
     <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      {!stackRows ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator>
-          <View style={{ minWidth: TABLE_MIN }}>
-            <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-              {COLUMNS.map((column) => (
-                <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
-              ))}
-            </View>
-            <FlatList
-              data={pageRows}
-              keyExtractor={(row) => row.id}
-              renderItem={renderListRow}
-              style={{ maxHeight: 720 }}
-              initialNumToRender={24}
-              ListEmptyComponent={(
-                <View style={{ padding: 16 }}>
-                  <Text style={{ color: colors.muted }}>
-                    Ingen timer ennå. Bruk «Importer Excel» for å hente timeføringer fra regnskapssystemet.
-                  </Text>
-                </View>
-              )}
-              ListFooterComponent={visible.length > pageRows.length ? (
-                <TouchableOpacity
-                  onPress={() => setPageSize((n) => n + 80)}
-                  accessibilityRole="button"
-                  style={{ padding: 14, alignItems: 'center' }}
-                >
-                  <Text style={{ color: colors.brand, fontWeight: '600' }}>
-                    Vis flere ({pageRows.length} av {visible.length})
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            />
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View style={{ minWidth: TABLE_MIN }}>
+          <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+            {COLUMNS.map((column) => (
+              <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
+            ))}
           </View>
-        </ScrollView>
-      ) : (
-        <FlatList
-          data={pageRows}
-          keyExtractor={(row) => row.id}
-          renderItem={renderListRow}
-          style={{ maxHeight: 640 }}
-          ListEmptyComponent={(
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: colors.muted }}>
-                Ingen timer ennå. Bruk «Importer Excel» for å hente timeføringer.
-              </Text>
-            </View>
-          )}
-        />
-      )}
+          <FlatList
+            data={pageRows}
+            keyExtractor={(row) => row.id}
+            renderItem={renderListRow}
+            style={{ maxHeight: 720 }}
+            initialNumToRender={24}
+            ListEmptyComponent={(
+              <View style={{ padding: 16 }}>
+                <Text style={{ color: colors.muted }}>
+                  Ingen timer ennå. Bruk «Importer Excel» for å hente timeføringer fra regnskapssystemet.
+                </Text>
+              </View>
+            )}
+            ListFooterComponent={visible.length > pageRows.length ? (
+              <TouchableOpacity
+                onPress={() => setPageSize((n) => n + 80)}
+                accessibilityRole="button"
+                style={{ padding: 14, alignItems: 'center' }}
+              >
+                <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                  Vis flere ({pageRows.length} av {visible.length})
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 
@@ -573,9 +617,13 @@ export default function EconomyHours({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 1100, width: '100%', alignSelf: 'flex-start', gap: 14 },
+  phoneInner: { padding: 12, paddingBottom: 40, gap: 12 },
+  phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   heading: { fontSize: 22, fontWeight: '700' },
   primaryBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   filters: { gap: 10 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minHeight: 42 },
@@ -587,7 +635,4 @@ const styles = StyleSheet.create({
   head: { paddingVertical: 8 },
   th: { fontSize: 12, fontWeight: '700' },
   td: { fontSize: 13 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6, marginBottom: 8 },
-  cardTitle: { fontWeight: '700' },
-  cardLinks: { flexDirection: 'row', gap: 12, marginTop: 4 },
 });

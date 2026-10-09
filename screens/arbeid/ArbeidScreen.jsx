@@ -48,6 +48,7 @@ import {
 } from '../../src/arbeid/calendar.js';
 import { formatHours, parseHours, roundHours } from '../../src/arbeid/hours.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
+import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 
 const CELL_W = 44;
 const LABEL_W = 280;
@@ -475,86 +476,35 @@ export default function ArbeidScreen() {
           style={styles.phoneScroll}
           contentContainerStyle={styles.phoneScrollContent}
           keyboardShouldPersistTaps="handled"
+          nativeID="arbeid-phone-timeliste"
         >
-          <View style={[styles.phoneCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <View style={styles.weekNav}>
-              <TouchableOpacity onPress={() => shiftSelected(-7)} accessibilityRole="button" style={styles.navHit}>
-                <Ionicons name="chevron-back" size={22} color={colors.ink} />
-              </TouchableOpacity>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Uke {phoneWeek[0]?.week}</Text>
-              <TouchableOpacity onPress={() => shiftSelected(7)} accessibilityRole="button" style={styles.navHit}>
-                <Ionicons name="chevron-forward" size={22} color={colors.ink} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.weekRow}>
-              {phoneWeek.map((day) => {
-                const on = day.key === activeKey;
-                return (
-                  <TouchableOpacity
-                    key={day.key}
-                    onPress={() => selectDate(day.date)}
-                    accessibilityRole="button"
-                    style={[
-                      styles.weekDay,
-                      {
-                        borderColor: on ? colors.brand : colors.line,
-                        backgroundColor: on ? `${colors.brand}18` : colors.bg,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: day.weekend ? (colors.danger || '#dc2626') : colors.muted, fontSize: 11 }}>
-                      {day.weekday}
-                    </Text>
-                    <Text style={{ color: colors.ink, fontWeight: on ? '700' : '500', fontSize: 15 }}>{day.day}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={{ color: colors.ink }}>
-              Avtalte timer {formatHours(agreedByDay.get(activeKey) || agreedHoursForDay(parseDateKey(activeKey) || today, DAILY))}
-              {' · '}
-              Ført {formatHours(workedByDay.get(activeKey) || 0)}
-              {' · '}
-              Balanse {formatHours(activeBalance, { signed: true })}
-            </Text>
-            {myProjects.map(({ project, member, starred }) => {
+          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>Arbeid / Timeliste</Text>
+          <TimesheetDayView
+            colors={colors}
+            dateKey={activeKey}
+            totalHours={workedByDay.get(activeKey) || 0}
+            locked={false}
+            onPrevDay={() => shiftSelected(-1)}
+            onNextDay={() => shiftSelected(1)}
+            emptyText="Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet."
+            rows={myProjects.map(({ project, member }) => {
               const cell = entriesByCell.get(entryKey(project.id, activeKey));
               const hours = cell ? parseHours(cell.hours) : 0;
-              return (
-                <TouchableOpacity
-                  key={project.id}
-                  onPress={() => openCell(project, activeDay?.key === activeKey ? activeDay : phoneWeek.find((day) => day.key === activeKey) || activeDay)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Registrer timer ${project.name} ${activeKey}`}
-                  style={[styles.phoneProject, { borderColor: colors.line, backgroundColor: colors.bg }]}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>
-                      #{project.number} {project.name}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                      {project.client || '—'} · {member?.role || 'Deltaker'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => starProject(member?.id)} hitSlop={8} accessibilityRole="button">
-                    <Ionicons
-                      name={starred ? 'star' : 'star-outline'}
-                      size={18}
-                      color={starred ? (colors.star || '#e2a325') : colors.muted}
-                    />
-                  </TouchableOpacity>
-                  <Text style={{ color: hours ? colors.ink : colors.placeholder, fontWeight: '700', minWidth: 48, textAlign: 'right' }}>
-                    {hours ? formatHours(hours) : '0:00'}
-                  </Text>
-                </TouchableOpacity>
-              );
+              const day = activeDay?.key === activeKey
+                ? activeDay
+                : phoneWeek.find((item) => item.key === activeKey) || activeDay;
+              return {
+                id: project.id,
+                number: project.number,
+                name: project.name,
+                customer: project.client || '',
+                role: member?.role || 'Deltaker',
+                hours,
+                onPress: () => openCell(project, day),
+                testID: `timesheet-row-${project.number || project.id}`,
+              };
             })}
-            {!myProjects.length ? (
-              <Text style={{ color: colors.muted }}>
-                Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet.
-              </Text>
-            ) : null}
-          </View>
+          />
           {actions}
         </ScrollView>
       ) : null}

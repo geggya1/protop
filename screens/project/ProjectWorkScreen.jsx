@@ -64,6 +64,7 @@ import {
 import {
   loadProjectState,
   peekProjectState,
+  projectLoadMeta,
   putProjectState,
   saveProjectState,
 } from '../../src/project/storage';
@@ -236,7 +237,7 @@ export default function ProjectWorkScreen() {
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
   const [employees, setEmployees] = useState([]);
-  const [ready, setReady] = useState(() => !!(cachedProjects && cachedAnbud));
+  const [ready, setReady] = useState(() => (cachedProjects?.projects?.length || 0) > 0);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [query, setQuery] = useState('');
@@ -258,30 +259,53 @@ export default function ProjectWorkScreen() {
   const [confirmEditDelete, setConfirmEditDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
   const skipNextSave = useRef(true);
+  const allowSave = useRef(false);
   const pendingProjectId = useRef('');
   const skipColumnSave = useRef(true);
 
   useEffect(() => {
     let live = true;
+    // Sett før lagre-effekten i samme runde, så et bytte av selskap
+    // ikke skriver forrige (eller tom) liste over det nye selskapet.
+    skipNextSave.current = true;
+    allowSave.current = false;
     const warmProjects = peekProjectState(familyId);
     const warmAnbud = peekAnbudState(familyId);
-    if (warmProjects && warmAnbud) {
+    if (warmAnbud) setAnbud(warmAnbud);
+    if (warmProjects?.projects?.length) {
       setState(warmProjects);
-      setAnbud(warmAnbud);
       setReady(true);
-      skipNextSave.current = true;
-      return () => { live = false; };
+      allowSave.current = true;
+    } else {
+      setState(warmProjects || emptyProjectState());
+      setReady(false);
     }
-    Promise.all([loadProjectState(familyId), loadAnbudState(familyId)]).then(([projects, anbudState]) => {
+    // Anbud skal ikke holde prosjektlisten skjult. Kunder fylles inn når de kommer.
+    loadAnbudState(familyId).then((anbudState) => {
       if (!live) return;
-      setState(projects);
       setAnbud(anbudState);
+    });
+    const force = !(warmProjects?.projects?.length);
+    loadProjectState(familyId, { force }).then((projects) => {
+      if (!live) return;
+      const failed = projectLoadMeta(familyId) === 'error' && !(projects?.projects?.length);
+      if (failed) {
+        setError('Kunne ikke hente prosjekter.');
+        setReady(true);
+        allowSave.current = false;
+        skipNextSave.current = true;
+        return;
+      }
+      setError((current) => (current === 'Kunne ikke hente prosjekter.' ? '' : current));
+      setState(projects);
       setReady(true);
+      allowSave.current = true;
       skipNextSave.current = true;
     });
     return () => { live = false; };
-  }, [familyId]);
+  }, [familyId, reloadToken]);
 
   useEffect(() => {
     if (!familyId) {
@@ -332,7 +356,7 @@ export default function ProjectWorkScreen() {
   }, [uid]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !allowSave.current) return;
     putProjectState(state, familyId);
     if (skipNextSave.current) {
       skipNextSave.current = false;
@@ -1331,7 +1355,20 @@ export default function ProjectWorkScreen() {
         ]}
       />
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && (
+        <Text style={{ color: colors.danger || '#b42318' }}>
+          {error}
+          {error === 'Kunne ikke hente prosjekter.' ? (
+            <Text
+              onPress={() => setReloadToken((n) => n + 1)}
+              accessibilityRole="button"
+              style={{ color: colors.brand }}
+            >
+              {' '}Prøv igjen
+            </Text>
+          ) : null}
+        </Text>
+      )}
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
       <TextInput
         value={query}
@@ -1445,9 +1482,11 @@ export default function ProjectWorkScreen() {
 
       <View style={styles.tableToolbar}>
         <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
-          {!visibleProjects.length
-            ? 'Ingen prosjekter ennå.'
-            : `${visibleProjects.length} prosjekter${isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
+          {!ready
+            ? 'Henter prosjekter…'
+            : !visibleProjects.length
+              ? 'Ingen prosjekter ennå.'
+              : `${visibleProjects.length} prosjekter${isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
         </Text>
         <ColumnSettingsMenu
           visibleKeys={visibleKeys}

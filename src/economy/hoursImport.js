@@ -472,8 +472,9 @@ export function linkImportRowCustomer(row, customer) {
   const orgnr = normalizeOrgnr(customer.orgnr) || text(row.orgnr);
   const issues = (row.issues || []).filter((issue) => !/kunde/i.test(issue));
   let severity = row.severity;
-  if (severity === 'review' && !issues.length && row.employeeId && row.projectId) severity = 'ok';
-  if (!row.employeeId || !row.projectId) severity = 'block';
+  if (!issues.length && row.employeeId && row.projectId) severity = 'ok';
+  else if (!row.employeeId || !row.projectId) severity = 'review';
+  if (row.duplicate) severity = 'existing';
   const entry = {
     ...row.entry,
     customerId: customer.id,

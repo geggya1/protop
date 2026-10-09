@@ -475,23 +475,77 @@ function rowDetail(bag) {
   ].filter(Boolean).join(' · ');
 }
 
+function normalizeEmail(value) {
+  return text(value).replace(/\s+/g, '').toLowerCase();
+}
+
+function emailsOf(employee) {
+  const out = [];
+  for (const value of [employee?.person?.email, employee?.company?.email]) {
+    const email = normalizeEmail(value);
+    if (!email || !email.includes('@') || out.includes(email)) continue;
+    out.push(email);
+  }
+  return out;
+}
+
+function uniqueHits(list, test) {
+  return (list || []).filter(test);
+}
+
 function matchExisting(list, draft) {
-  const email = text(draft.person.email || draft.company.email).toLowerCase();
-  const number = text(draft.company.externalEmployeeNumber);
-  const name = displayName(draft).toLowerCase();
-  if (email) {
-    const hits = list.filter((row) => text(row.person?.email || row.company?.email).toLowerCase() === email);
-    if (hits.length) return hits[0];
+  const emails = emailsOf(draft);
+  if (emails.length) {
+    const hits = uniqueHits(list, (row) => emailsOf(row).some((email) => emails.includes(email)));
+    if (hits.length === 1) return { employee: hits[0], kind: 'email' };
+    if (hits.length > 1) return { employee: null, kind: 'email', ambiguous: true };
   }
+  const nationalId = nationalIdDigits(draft?.person?.nationalId);
+  if (nationalId.length === 11) {
+    const hits = uniqueHits(list, (row) => nationalIdDigits(row?.person?.nationalId) === nationalId);
+    if (hits.length === 1) return { employee: hits[0], kind: 'nationalId' };
+    if (hits.length > 1) return { employee: null, kind: 'nationalId', ambiguous: true };
+  }
+  const number = text(draft?.company?.externalEmployeeNumber);
   if (number) {
-    const hits = list.filter((row) => text(row.company?.externalEmployeeNumber) === number);
-    if (hits.length === 1) return hits[0];
+    const hits = uniqueHits(list, (row) => text(row?.company?.externalEmployeeNumber) === number);
+    if (hits.length === 1) return { employee: hits[0], kind: 'employeeNumber' };
+    if (hits.length > 1) return { employee: null, kind: 'employeeNumber', ambiguous: true };
   }
+  const name = displayName(draft).toLowerCase();
   if (name && name !== 'uten navn') {
-    const hits = list.filter((row) => displayName(row).toLowerCase() === name);
-    if (hits.length === 1) return hits[0];
+    const hits = uniqueHits(list, (row) => displayName(row).toLowerCase() === name);
+    if (hits.length === 1) return { employee: hits[0], kind: 'name' };
   }
-  return null;
+  return { employee: null, kind: '' };
+}
+
+function shouldMergeExisting(found, draft) {
+  if (!found?.employee || found.ambiguous) return false;
+  if (found.kind === 'email' || found.kind === 'nationalId' || found.kind === 'employeeNumber') return true;
+  if (found.kind !== 'name') return false;
+  const incoming = emailsOf(draft);
+  if (!incoming.length) return true;
+  return incoming.some((email) => emailsOf(found.employee).includes(email));
+}
+
+function ambiguousReason(kind) {
+  if (kind === 'nationalId') return 'Personnummeret matcher flere medarbeidere. Behandle raden manuelt.';
+  if (kind === 'employeeNumber') return 'Ansattnummeret matcher flere medarbeidere. Behandle raden manuelt.';
+  return 'E-posten matcher flere medarbeidere. Behandle raden manuelt.';
+}
+
+function sameDisplayName(left, right) {
+  return foldHeader(displayName(left)) === foldHeader(displayName(right));
+}
+
+export function employeeImportMatchLabel(kind) {
+  if (kind === 'email') return 'Finnes fra før · e-post';
+  if (kind === 'nationalId') return 'Finnes fra før · personnummer';
+  if (kind === 'employeeNumber') return 'Finnes fra før · ansattnummer';
+  if (kind === 'name') return 'Mulig treff på navn';
+  if (kind) return 'Finnes fra før';
+  return '';
 }
 
 function upsertCustom(fields, label, value) {
@@ -691,6 +745,7 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
   const customColumns = columns.filter((column) => column.kind === 'custom').map((column) => column.header);
   const hasRights = columns.some((column) => column.kind === 'permission' || column.kind === 'role' || (column.kind === 'field' && column.field === 'permissionsText'));
   const working = (existing || []).map((row) => normalizeEmployee(row));
+  const existingIds = new Set(working.map((row) => row.id).filter(Boolean));
   const planned = [];
   const ignoredSummaries = [];
   for (const cells of dataRows) {
@@ -708,18 +763,44 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
       planned.push(skipped(rowLabel(bag), missingNameReason(names), rights.permissions, email, [], rowDetail(bag)));
       continue;
     }
+    const personalEmail = firstValue(bag, 'email');
+    const workEmail = firstValue(bag, 'workEmail');
     const probe = normalizeEmployee({
       person: {
         ...names,
-        email: firstValue(bag, 'email') || firstValue(bag, 'workEmail'),
+        email: personalEmail || workEmail,
+        nationalId: recoverNationalId(firstValue(bag, 'nationalId')),
       },
       company: {
-        email: firstValue(bag, 'workEmail'),
+        email: workEmail || personalEmail,
         externalEmployeeNumber: firstValue(bag, 'externalEmployeeNumber'),
       },
     });
-    const current = matchExisting(working, probe);
+    const found = matchExisting(working, probe);
+    if (found.ambiguous) {
+      planned.push(skipped(
+        rowLabel(bag),
+        ambiguousReason(found.kind),
+        rights.permissions,
+        personalEmail || workEmail,
+        [],
+        rowDetail(bag),
+      ));
+      continue;
+    }
+    const merge = shouldMergeExisting(found, probe);
+    const current = merge ? found.employee : null;
+    const existedBefore = !!(current && existingIds.has(current.id));
     const built = buildDraft(current, bag, rights, departments);
+    if (!existedBefore && found.employee && found.kind === 'name') {
+      built.warnings.push(`Samme navn finnes allerede (${displayName(found.employee)}), men e-posten er en annen.`);
+    } else if (existedBefore && found.kind === 'name') {
+      built.warnings.push('Samme navn finnes allerede. Kontroller at det er samme person — treffet er ikke bekreftet med e-post.');
+    } else if (existedBefore && found.kind === 'email' && !sameDisplayName(current, probe)) {
+      built.warnings.push(`E-posten matcher «${displayName(current)}», men navnet i listen er annerledes.`);
+    } else if (existedBefore && (found.kind === 'nationalId' || found.kind === 'employeeNumber') && emailsOf(probe).length && !emailsOf(probe).some((email) => emailsOf(current).includes(email))) {
+      built.warnings.push(`Treff på ${found.kind === 'nationalId' ? 'personnummer' : 'ansattnummer'} mot «${displayName(current)}», men e-posten er en annen.`);
+    }
     if (built.nationalBlock) {
       planned.push(skipped(rowLabel(bag), built.nationalBlock, rights.permissions, text(probe.person.email)));
       continue;
@@ -740,12 +821,14 @@ export async function planEmployeeImport(bytes, filename, { existing = [], depar
     if (index >= 0) working[index] = employee;
     else working.push(employee);
     const previous = planned.find((row) => row.employee?.id === employee.id);
-    const action = previous?.action === 'create' || (!current && !previous) ? 'create' : 'update';
+    const action = previous?.action === 'create' || (!existedBefore && !previous) ? 'create' : 'update';
     if (previous) planned.splice(planned.indexOf(previous), 1);
     planned.push({
       action,
+      matchKind: existedBefore ? found.kind : '',
       name: displayName(employee),
       email: employee.person.email || employee.company.email,
+      detail: rowDetail(bag),
       accessRole: employee.company.accessRole,
       permissions: employee.company.permissions,
       canLogin: employee.company.canLogin,

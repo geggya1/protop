@@ -30,11 +30,11 @@ export default function ImportReview({
       <Text style={{ color: colors.muted }}>{lead}</Text>
       {sections.map(([id, title, sectionRows]) => (
         <View key={id} style={{ gap: 8 }}>
-          <Text style={{ color: id === 'block' ? danger : id === 'review' ? AMBER : colors.ink, fontWeight: '700' }}>
+          <Text style={{ color: id === 'block' ? danger : id === 'review' ? AMBER : id === 'existing' ? (colors.brand || '#175cd3') : colors.ink, fontWeight: '700' }}>
             {title}
           </Text>
           {sectionRows.map((row) => {
-            const border = row.severity === 'block' ? danger : row.severity === 'review' ? AMBER : colors.line;
+            const border = row.severity === 'block' ? danger : row.severity === 'review' ? AMBER : row.severity === 'existing' ? (colors.brand || '#175cd3') : colors.line;
             return (
               <View
                 key={row.id}

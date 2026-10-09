@@ -52,6 +52,29 @@ export function isWorkday(date) {
  * Dager i måned med ukegrupper for grid-header.
  * @returns {{ days: Array, weeks: Array<{ week: number, span: number }> }}
  */
+/**
+ * Mandag–søndag rundt datoen. Hele uken får plass i mobilbredde,
+ * så dagvalg ikke er avhengig av horisontal panorering.
+ */
+export function weekAround(date) {
+  const base = date instanceof Date ? date : parseDateKey(date);
+  if (!base) return [];
+  const mondayOffset = (base.getDay() + 6) % 7;
+  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate() - mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => {
+    const next = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+    return {
+      day: next.getDate(),
+      date: next,
+      key: toDateKey(next),
+      weekday: DAY_SHORT[next.getDay()],
+      weekend: isWeekend(next),
+      workday: isWorkday(next),
+      week: isoWeek(next),
+    };
+  });
+}
+
 export function buildMonthGrid(year, monthIndex) {
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const days = [];

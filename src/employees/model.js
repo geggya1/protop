@@ -4,6 +4,7 @@
  * Ansettelse, avdeling og tilgang ligger på selskapet.
  */
 import { normalizePhone } from '../utils/phone.js';
+import { sortByStartDesc, sortCoursesDesc } from './cvFormat.js';
 import {
   EMPLOYEE_VERSION,
   FORM_SECTIONS,
@@ -864,6 +865,26 @@ export function buildCv(employee, { companyName = '' } = {}) {
     if (!text(from) && !end) return '';
     return [text(from), end].filter(Boolean).join(' – ');
   };
+  const education = sortByStartDesc(row.cv.education, (item) => item.from).map((item) => ({
+    id: item.id,
+    when: yearSpan(item.from, item.to, false),
+    school: item.school,
+    program: item.program,
+    from: item.from,
+  }));
+  const courses = sortCoursesDesc(row.cv.courses).map((item) => ({
+    id: item.id,
+    when: item.date,
+    title: item.title,
+  }));
+  const experience = sortByStartDesc(row.cv.experience, (item) => item.from).map((item) => ({
+    id: item.id,
+    employer: item.employer,
+    place: item.place,
+    when: yearSpan(item.from, item.to, item.current),
+    title: item.title,
+    tasks: taskLines(item.tasks),
+  }));
   return {
     name: displayName(row),
     title: text(row.cv.headline) || text(row.company.title),
@@ -871,26 +892,10 @@ export function buildCv(employee, { companyName = '' } = {}) {
     photoUrl: row.person.photoUrl,
     facts,
     summary: row.cv.summary,
-    education: row.cv.education.map((item) => ({
-      id: item.id,
-      when: yearSpan(item.from, item.to, false),
-      school: item.school,
-      program: item.program,
-    })),
+    education,
     certifications: row.cv.certifications.map((item) => item.title),
-    courses: row.cv.courses.map((item) => ({
-      id: item.id,
-      when: item.date,
-      title: item.title,
-    })),
-    experience: row.cv.experience.map((item) => ({
-      id: item.id,
-      employer: item.employer,
-      place: item.place,
-      when: yearSpan(item.from, item.to, item.current),
-      title: item.title,
-      tasks: taskLines(item.tasks),
-    })),
+    courses,
+    experience,
     projects: row.cv.projects,
     custom: row.customFields.filter((field) => field.purpose === 'cv' && text(field.value)),
     gaps: gapReport(row).cv,

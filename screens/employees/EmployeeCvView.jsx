@@ -1,8 +1,39 @@
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { formattedSegments } from '../../src/employees/cvFormat';
 
 function filled(value) {
   return String(value ?? '').trim();
+}
+
+function FormattedText({ value, style, colors }) {
+  const lines = String(value || '').split(/\n/);
+  return (
+    <View style={styles.formattedBlock}>
+      {lines.map((line, lineIndex) => {
+        const bullet = /^\s*[•\-]\s+/.test(line);
+        const content = bullet ? line.replace(/^\s*[•\-]\s+/, '') : line;
+        const segments = formattedSegments(content);
+        return (
+          <Text key={`line-${lineIndex}`} style={[style, { color: colors?.ink || style?.color }]}>
+            {bullet ? '• ' : ''}
+            {segments.map((part, index) => (
+              <Text
+                key={`${lineIndex}-${index}`}
+                style={[
+                  part.bold && styles.fmtBold,
+                  part.italic && styles.fmtItalic,
+                  part.underline && styles.fmtUnderline,
+                ]}
+              >
+                {part.text}
+              </Text>
+            ))}
+          </Text>
+        );
+      })}
+    </View>
+  );
 }
 
 function Pencil({ label, onPress, colors }) {
@@ -109,7 +140,7 @@ function ProjectCard({ row, colors, onEditProject }) {
               </View>
             ) : null}
             {filled(row.description) ? (
-              <Text style={[styles.projectText, { color: colors.ink }]}>{filled(row.description)}</Text>
+              <FormattedText value={filled(row.description)} style={styles.projectText} colors={colors} />
             ) : null}
             {referenceName ? (
               <Text style={[styles.projectTextStrong, { color: colors.ink }]}>{referenceName}</Text>
@@ -171,7 +202,9 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject }) {
         ))}
       </Block>
       <Block title="Oppsummering og nøkkelkvalifikasjoner" colors={colors} onEdit={onEdit ? () => onEdit('cvProfile') : undefined}>
-        <Text style={[styles.body, { color: colors.ink }]}>{cv.summary || 'Oppsummering er ikke fylt ut.'}</Text>
+        {cv.summary
+          ? <FormattedText value={cv.summary} style={styles.body} colors={colors} />
+          : <Text style={{ color: colors.muted }}>Oppsummering er ikke fylt ut.</Text>}
       </Block>
       <Block title="Utdanning" colors={colors} onEdit={onEdit ? () => onEdit('education') : undefined}>
         {cv.education.length ? cv.education.map((row) => (
@@ -198,7 +231,7 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject }) {
             <Text style={[styles.jobTitle, { color: colors.ink }]}>{row.employer || 'Arbeidsgiver'}</Text>
             <Text style={{ color: colors.muted }}>{[row.place, row.when, row.title].filter(Boolean).join(' · ')}</Text>
             {row.tasks.map((task) => (
-              <Text key={task} style={[styles.body, { color: colors.ink }]}>{`• ${task}`}</Text>
+              <FormattedText key={task} value={`• ${task}`} style={styles.body} colors={colors} />
             ))}
           </View>
         )) : <Text style={{ color: colors.muted }}>Ingen erfaring er lagt inn.</Text>}
@@ -237,6 +270,10 @@ const styles = StyleSheet.create({
   factValue: { flex: 1, fontSize: 14 },
   body: { fontSize: 15, lineHeight: 22 },
   bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  formattedBlock: { gap: 2 },
+  fmtBold: { fontWeight: '700' },
+  fmtItalic: { fontStyle: 'italic' },
+  fmtUnderline: { textDecorationLine: 'underline' },
   subhead: { fontSize: 13, fontWeight: '600' },
   stackTight: { gap: 2 },
   job: { gap: 2, marginBottom: 8 },

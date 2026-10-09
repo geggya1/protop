@@ -1,5 +1,5 @@
-import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
+import { mediaBucket } from './storageBucket.js';
 
 /** Same origins as repo cors.json — applied to the Storage bucket from Admin SDK. */
 export const STORAGE_CORS = [
@@ -61,7 +61,7 @@ export async function ensureStorageCors({ force = false } = {}) {
   if (applied && !force) return { ok: true, skipped: true, origins: STORAGE_CORS[0].origin.length };
   if (inflight) return inflight;
   inflight = (async () => {
-    const bucket = getStorage().bucket();
+    const bucket = mediaBucket();
     await bucket.setCorsConfiguration(STORAGE_CORS);
     applied = true;
     logger.info('[storageCors] bucket CORS applied', {

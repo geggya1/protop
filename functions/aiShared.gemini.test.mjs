@@ -104,7 +104,7 @@ describe('callGeminiJson race / lite-first', () => {
       new Error('Gemini HTTP 400 (gemini-2.5-flash): invalid image'),
       new Error('Gemini HTTP 404 (gemini-3.5-flash)'),
     );
-    assert.match(friendlyGeminiError(hidden), /klarte ikke lese sidene/);
+    assert.match(friendlyGeminiError(hidden), /Komprimer/);
     assert.match(friendlyGeminiError(new Error('Gemini HTTP 404 (gemini-3.5-flash)')), /midlertidig utilgjengelig/);
   });
 

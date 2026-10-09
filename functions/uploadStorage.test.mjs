@@ -14,8 +14,10 @@ const cors = JSON.parse(readFileSync(join(root, 'cors.json'), 'utf8'));
 assert.match(uploadSrc, /handleUploadStorageFile/);
 assert.match(uploadSrc, /assertCanWriteObjectPath/);
 assert.match(uploadSrc, /families\/personal\//);
-assert.match(uploadSrc, /getStorage\(\)\.bucket\(\)/);
+assert.match(uploadSrc, /mediaBucket\(\)/);
 assert.equal(uploadSrc.includes('protop-c189c.firebasestorage.app'), false);
+assert.match(readFileSync(join(root, 'functions/storageBucket.js'), 'utf8'), /protop-c189c\.appspot\.com/);
+assert.match(readFileSync(join(root, 'functions/storageBucket.js'), 'utf8'), /export function mediaBucket/);
 // CORS må ikke kjøres på opplastingsstien (Admin SDK trenger det ikke).
 const uploadStart = uploadSrc.indexOf('export async function handleUploadStorageFile');
 const applyStart = uploadSrc.indexOf('export async function handleApplyStorageCors');
@@ -28,6 +30,10 @@ assert.match(mediaSrc, /uploadStorageFile/);
 assert.match(mediaSrc, /uploadImageViaCallable/);
 assert.match(mediaSrc, /callableUploadErrorMessage/);
 assert.match(mediaSrc, /protop-c189c\.appspot\.com/);
+const aiSharedSrc = readFileSync(join(root, 'functions/aiShared.js'), 'utf8');
+assert.match(aiSharedSrc, /Komprimer den/);
+assert.equal(aiSharedSrc.includes('AI klarte ikke lese sidene i filen'), false);
+assert.match(aiSharedSrc, /mediaBucket\(\)/);
 assert.equal(mediaSrc.includes('protop-c189c.firebasestorage.app'), false);
 const uploadImageBlock = mediaSrc.slice(mediaSrc.indexOf('export async function uploadImage'));
 assert.match(uploadImageBlock, /uploadImageViaCallable/);
@@ -46,8 +52,14 @@ assert.match(firebaseSrc, /protop-c189c\.appspot\.com/);
 assert.equal(firebaseSrc.includes('protop-c189c.firebasestorage.app'), false);
 
 const storageCorsSrc = readFileSync(join(root, 'functions/storageCors.js'), 'utf8');
-assert.match(storageCorsSrc, /getStorage\(\)\.bucket\(\)/);
+assert.match(storageCorsSrc, /mediaBucket\(\)/);
 assert.equal(storageCorsSrc.includes('protop-c189c.firebasestorage.app'), false);
+assert.match(deploySrc, /listOutgoingFriendRequests/);
+const friendsSrc = readFileSync(join(root, 'src/utils/friends.js'), 'utf8');
+const friendHttp = readFileSync(join(root, 'functions/friendListHttp.js'), 'utf8');
+assert.match(friendsSrc, /listOutgoingFriendRequests/);
+assert.doesNotMatch(friendsSrc, /httpsCallable\(functions, 'listOutgoingFriendRequests'/);
+assert.match(friendHttp, /action === 'outgoing'/);
 
 assert.ok(cors[0].origin.includes('https://protop.no'));
 assert.ok(cors[0].method.includes('OPTIONS'));

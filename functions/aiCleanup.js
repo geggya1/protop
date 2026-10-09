@@ -1,7 +1,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { AI_LIMITS, deleteStorageObject } from './aiShared.js';
 import { ensureStorageCors } from './storageCors.js';
+import { mediaBucket } from './storageBucket.js';
 
 /** Maks dokumenter/filer per kjøring — holder Cloud Functions innenfor gratis kvote. */
 const BATCH_LIMIT = 200;
@@ -46,7 +46,7 @@ async function purgeOldDraftDocs(db) {
 }
 
 async function purgeOldAiTempFiles() {
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const cutoffMs = Date.now() - AI_LIMITS.draftTtlMs;
   let deleted = 0;
   let pageToken;

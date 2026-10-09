@@ -2,10 +2,10 @@
  * Familiealbum — signert opplasting + base64-fallback (omgår Storage client CORS/App Check).
  */
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { randomUUID } from 'crypto';
 import { assertFamilyMember } from './security.js';
 import { ensureStorageCors } from './storageCors.js';
+import { mediaBucket } from './storageBucket.js';
 
 const MAX_SIGNED_BYTES = 50 * 1024 * 1024;
 const MAX_BASE64_BYTES = 15 * 1024 * 1024;
@@ -44,7 +44,7 @@ export async function handleCreateAlbumUploadUrl(data, auth) {
   await ensureStorageCors();
 
   const token = randomUUID();
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const file = bucket.file(objectPath);
   const metaHeader = 'x-goog-meta-firebasestoragedownloadtokens';
 
@@ -109,7 +109,7 @@ export async function handleUploadAlbumFile(data, auth) {
   await ensureStorageCors();
 
   const token = randomUUID();
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const file = bucket.file(objectPath);
   await file.save(buffer, {
     metadata: {

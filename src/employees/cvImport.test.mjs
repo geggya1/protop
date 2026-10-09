@@ -94,6 +94,7 @@ assert.match(screen, /slimCvDocument/);
 assert.match(screen, /countInlineCvImages/);
 assert.match(screen, /employee-cv-progress/);
 assert.match(screen, /Laster opp bilder/);
+assert.match(screen, /komprimer PDF-en først/);
 assert.match(screen, /CV-en er ikke lagret/);
 assert.match(screen, /review/);
 const fields = readFileSync(new URL('../../screens/employees/EmployeeFields.jsx', import.meta.url), 'utf8');

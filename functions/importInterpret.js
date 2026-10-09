@@ -97,8 +97,11 @@ function tableMessage(data) {
 async function documentParts(data, options = {}) {
   const mime = clean(data?.mime, 80) || 'image/jpeg';
   const imageBase64 = String(data?.imageBase64 || '').replace(/^data:[^;]+;base64,/, '');
-  if (imageBase64.length < 80 || imageBase64.length > MAX_DOC_CHARS) {
+  if (imageBase64.length < 80) {
     throw new Error('Send et bilde eller en PDF av listen.');
+  }
+  if (imageBase64.length > MAX_DOC_CHARS) {
+    throw new Error('Filen er for stor til å lastes inn. Komprimer den (lavere oppløsning eller færre sider) før du laster opp, og prøv igjen.');
   }
   const intro = clean(options.intro, 160) || 'Les listen og trekk ut radene som står i dokumentet.';
   const parts = [{ text: intro }];
@@ -247,7 +250,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   } catch (err) {
     if (deps.passthroughErrors) throw err;
     const message = String(err?.message || '');
-    if (/^Send et bilde|^Åpne selskapet|^AI er ikke|^Ikke innlogget/.test(message)) throw err;
+    if (/^Send et bilde|^Filen er for stor|^Åpne selskapet|^AI er ikke|^Ikke innlogget/.test(message)) throw err;
     throw new Error(runtime.friendlyGeminiError(err));
   }
 }

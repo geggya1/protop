@@ -96,7 +96,8 @@ await assert.rejects(
 );
 
 const internal = readableImportError({ code: 'functions/internal', message: 'internal' });
-assert.match(internal.message, /avbrutt/);
-assert.equal(readableImportError({ code: 'functions/unavailable', message: 'unavailable' }).message.includes('ikke tilgjengelig'), true);
+assert.match(internal.message, /Komprimer/);
+assert.match(readableImportError({ code: 'functions/unavailable', message: 'unavailable' }).message, /Komprimer/);
+assert.match(readableImportError({ code: 'functions/invalid-argument', message: '400' }).message, /Komprimer/);
 
 console.log('filePayload.test.mjs: ok');

@@ -1,6 +1,6 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { salvageTruncatedJson } from './timetableParse.js';
+import { mediaBucket } from './storageBucket.js';
 
 /** Gratis-nivå grenser — juster ved kommersialisering / betalt tier. */
 export const AI_LIMITS = {
@@ -128,7 +128,7 @@ export async function checkAndIncrementUsage(db, familyId, uid, kind, limit) {
 }
 
 export async function downloadImageBase64(storagePath) {
-  const bucket = getStorage().bucket();
+  const bucket = mediaBucket();
   const file = bucket.file(storagePath);
   const [meta] = await file.getMetadata().catch(() => [null]);
   const size = Number(meta?.size || 0);
@@ -143,7 +143,7 @@ export async function downloadImageBase64(storagePath) {
 export async function deleteStorageObject(storagePath) {
   if (!storagePath) return;
   try {
-    await getStorage().bucket().file(storagePath).delete({ ignoreNotFound: true });
+    await mediaBucket().file(storagePath).delete({ ignoreNotFound: true });
   } catch {
     // best effort
   }
@@ -185,7 +185,7 @@ export function friendlyGeminiError(err) {
 
   // Aldri videresend teknisk payload (JSON, model-id, generateContent, …)
   if (status === 413 || /too large|payload size|request size/i.test(raw)) {
-    return 'Filen er for stor for AI-lesingen. Prøv igjen.';
+    return 'Filen er for stor til å lastes inn. Komprimer den (lavere oppløsning eller færre sider) før du laster opp, og prøv igjen.';
   }
   if (status === 404 || (!status && /not found|no longer available/i.test(raw))) {
     return 'AI-tjenesten er midlertidig utilgjengelig. Prøv igjen om litt.';
@@ -194,7 +194,7 @@ export function friendlyGeminiError(err) {
     return 'AI er midlertidig opptatt (dagsgrense). Prøv igjen om noen minutter.';
   }
   if (status === 400 && /image|inline|jpeg|pdf|document|invalid argument|INVALID_ARGUMENT/i.test(raw)) {
-    return 'AI klarte ikke lese sidene i filen. Prøv igjen.';
+    return 'Filen er for tung å lese. Komprimer den (lavere oppløsning eller færre sider) før du laster opp, og prøv igjen.';
   }
   if (
     status === 400

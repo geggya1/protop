@@ -62,12 +62,17 @@ async function runPool(items, limit, task) {
  * @param {(path: string, dataUrl: string) => Promise<string>} upload
  * @param {{ onProgress?: (info: { done: number, total: number, label: string, lastError?: string }) => void }} [options]
  */
+function fatalUploadError(message) {
+  return /Bildelageret er feil konfigurert|Lagringsbucket mangler|bucket does not exist|Ikke innlogget|Du må være innlogget/i.test(String(message || ''));
+}
+
 export async function storeCvImages(employee, upload, options = {}) {
   const row = employee && typeof employee === 'object' ? employee : {};
   const id = row.id || 'cv';
   const total = countInlineCvImages(row);
   let done = 0;
   let lastError = '';
+  let stopped = false;
   const report = (label) => {
     if (typeof options.onProgress === 'function') {
       options.onProgress({ done, total, label, lastError });
@@ -76,10 +81,19 @@ export async function storeCvImages(employee, upload, options = {}) {
   report(total ? 'Laster opp bilder…' : 'Ingen bilder å laste opp');
 
   const bump = async (path, dataUrl) => {
+    if (stopped) return dataUrl;
     const stored = await upload(path, dataUrl);
     done += 1;
     report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
     return stored;
+  };
+
+  const failOne = (err, fallback) => {
+    lastError = String(err?.message || err || lastError);
+    done += 1;
+    if (fatalUploadError(lastError)) stopped = true;
+    report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
+    return fallback;
   };
 
   let photoUrl = row.person?.photoUrl || '';
@@ -88,9 +102,7 @@ export async function storeCvImages(employee, upload, options = {}) {
       const stored = await bump(`employees/${id}/photo`, photoUrl);
       if (stored && !isInline(stored)) photoUrl = stored;
     } catch (err) {
-      lastError = String(err?.message || err || lastError);
-      done += 1;
-      report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
+      failOne(err);
     }
   }
   const projects = await runPool(row.cv?.projects || [], 4, async (project, index) => {
@@ -102,14 +114,15 @@ export async function storeCvImages(employee, upload, options = {}) {
         if (image) images.push(image);
         continue;
       }
+      if (stopped) {
+        images.push(image);
+        continue;
+      }
       try {
         const stored = await bump(`employees/${id}/projects/${project?.id || index}/${imageIndex}`, image);
         images.push(stored && !isInline(stored) ? stored : image);
       } catch (err) {
-        lastError = String(err?.message || err || lastError);
-        done += 1;
-        report(total ? `Laster opp bilde ${done} av ${total}…` : 'Laster opp bilder…');
-        images.push(image);
+        images.push(failOne(err, image));
       }
     }
     return { ...project, images };

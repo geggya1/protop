@@ -20,7 +20,7 @@ export const EMPLOYEE_VERSION = 1;
 export const STATUS_OPTIONS = [
   { value: 'current', label: 'Nåværende' },
   { value: 'leave', label: 'Permisjon' },
-  { value: 'former', label: 'Sluttet' },
+  { value: 'former', label: 'Tidligere' },
 ];
 
 export const GENDER_OPTIONS = ['Kvinne', 'Mann', 'Annet'];
@@ -76,7 +76,7 @@ export const FORM_SECTIONS = [
     blurb: 'Avdeling, stilling og arbeidsforhold gjelder dette selskapet.',
     fields: [
       { key: 'company.status', label: 'Ansettelsesstatus', type: 'choice', options: STATUS_OPTIONS, requiredFor: 'register' },
-      { key: 'company.external', label: 'Ekstern medarbeider', type: 'bool' },
+      { key: 'company.external', label: 'Ekstern tilgang', type: 'bool' },
       { key: 'company.canLogin', label: 'Kan logge inn', type: 'bool' },
       { key: 'company.hasLicense', label: 'Bruker en lisens', type: 'bool' },
       { key: 'company.departmentIds', label: 'Avdeling', type: 'departments' },

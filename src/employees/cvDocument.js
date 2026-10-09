@@ -532,14 +532,15 @@ function renderCvPdf(cv, assets = {}) {
     gap(2);
     ty -= 2;
     const col2 = textX + Math.floor(textWidthPt / 2);
+    const labelW = 48;
     for (let i = 0; i < factRows; i += 1) {
       if (left[i]) {
-        paintText(ops(), `${left[i][0]} `, textX, ty - 9, 8, 'F2', MUTED);
-        paintText(ops(), filled(left[i][1]), textX + textWidth(left[i][0], 8) + 4, ty - 9, 8, 'F1', INK);
+        paintText(ops(), left[i][0], textX, ty - 9, 8, 'F2', MUTED);
+        paintText(ops(), filled(left[i][1]), textX + labelW, ty - 9, 8, 'F1', INK);
       }
       if (right[i]) {
-        paintText(ops(), `${right[i][0]} `, col2, ty - 9, 8, 'F2', MUTED);
-        paintText(ops(), filled(right[i][1]), col2 + textWidth(right[i][0], 8) + 4, ty - 9, 8, 'F1', INK);
+        paintText(ops(), right[i][0], col2, ty - 9, 8, 'F2', MUTED);
+        paintText(ops(), filled(right[i][1]), col2 + labelW, ty - 9, 8, 'F1', INK);
       }
       ty -= 11;
     }

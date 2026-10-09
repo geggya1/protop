@@ -43,6 +43,21 @@ export function interpretationFromGemini(parsed) {
         weight: text(row?.weight).slice(0, 40),
       };
     }).slice(0, 10),
+    deliverables: normalizeList(parsed?.deliverables, (row, index) => {
+      const title = text(row?.title || row?.label).slice(0, 200);
+      if (!title) return null;
+      const kind = ['tilbudsbrev', 'kvalifikasjon', 'tildeling', 'sjekk', 'annet'].includes(row?.kind)
+        ? row.kind
+        : 'annet';
+      return {
+        id: `lev_${index + 1}`,
+        kind,
+        title,
+        detail: text(row?.detail || row?.summary).slice(0, 8000),
+        weight: text(row?.weight).slice(0, 40),
+        source: 'ai',
+      };
+    }).slice(0, 15),
     generatedAt: new Date().toISOString(),
     engine: 'gemini',
   };

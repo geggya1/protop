@@ -1,6 +1,6 @@
 /** AI-tolkning av konkurransegrunnlag og Q&A for ett tilbud. */
 
-import { buildLocalBidInterpretation, collectBidAiSource } from './bidLibrary.js';
+import { buildLocalBidInterpretation, buildLocalStepSummary, collectBidAiSource } from './bidLibrary.js';
 
 async function post(action, payload) {
   const res = await fetch('/api/tender-proxy', {
@@ -20,7 +20,8 @@ async function post(action, payload) {
  * ellers lokal oppsummering fra dossier og filtekst.
  */
 export async function interpretBidCompetition(bid, options = {}) {
-  const source = collectBidAiSource(bid);
+  const focus = options.focus || 'arbeid';
+  const source = collectBidAiSource(bid, { focus });
   if (!source || source.length < 40) {
     throw new Error('Last inn konkurransegrunnlag eller skriv mer tekst før AI-tolkning.');
   }
@@ -30,6 +31,7 @@ export async function interpretBidCompetition(bid, options = {}) {
       buyer: String(bid?.buyer || ''),
       source: source.slice(0, 100000),
       companyName: String(options.companyName || ''),
+      focus,
     });
     if (data?.interpretation) {
       return {
@@ -40,6 +42,14 @@ export async function interpretBidCompetition(bid, options = {}) {
     }
   } catch (err) {
     if (options.allowLocal === false) throw err;
+  }
+  if (focus === 'grunnlag' || focus === 'qa') {
+    const step = buildLocalStepSummary(bid, focus);
+    return {
+      ok: true,
+      interpretation: { summary: step.summary, generatedAt: step.generatedAt, engine: step.engine },
+      engine: step.engine,
+    };
   }
   return {
     ok: true,

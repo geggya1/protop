@@ -9,10 +9,10 @@ function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-const PROMPT = `Du er en norsk anbudsrådgiver. Du leser konkurransegrunnlag, kunngjøring og spørsmål/svar.
+const PROMPT_ARBEID = `Du er en norsk anbudsrådgiver. Du leser konkurransegrunnlag, kunngjøring, OCR-uttrekk og spørsmål/svar.
 Returner KUN gyldig JSON:
 {
-  "summary": "ryddig oppsummering på 3-8 setninger om hva tilbudet krever",
+  "summary": "ryddig oppsummering på 3-8 setninger om hva som skal leveres i tilbudet",
   "checklist": [
     { "title": "kort kontrollpunkt", "detail": "hva som må sjekkes eller leveres" }
   ],
@@ -21,14 +21,46 @@ Returner KUN gyldig JSON:
   ],
   "awardCriteria": [
     { "title": "tildelingskriterium", "weight": "vekt hvis kjent, ellers tom streng", "summary": "én setning", "detail": "utdypende oppsummering" }
+  ],
+  "deliverables": [
+    { "kind": "tilbudsbrev|kvalifikasjon|tildeling|sjekk|annet", "title": "det som skal leveres", "detail": "hva svaret eller dokumentet må dekke" }
   ]
 }
 Regler:
 - Skriv på norsk.
 - checklist: 5-15 konkrete kontrollpunkter for tilbudsarbeidet.
+- deliverables: 4-12 leveranser. Alltid inkluder tilbudsbrev. Skill svar på kvalifikasjonsgrunnlag og tildelingskriterier.
 - qualification og awardCriteria: hent det som står i kilden. Hvis uklart, si det i summary/detail.
 - Ikke finn opp frister, vekter eller krav som ikke støttes av teksten.
-- Maks 15 checklist, 10 qualification, 10 awardCriteria.`;
+- Maks 15 checklist, 10 qualification, 10 awardCriteria, 15 deliverables.`;
+
+const PROMPT_GRUNNLAG = `Du er en norsk anbudsrådgiver. Du leser konkurransegrunnlag og OCR-uttrekk av dokumentene.
+Returner KUN gyldig JSON:
+{
+  "summary": "oppsummering på 4-10 setninger av hva konkurransegrunnlaget sier og krever",
+  "checklist": [],
+  "qualification": [],
+  "awardCriteria": [],
+  "deliverables": []
+}
+Skriv på norsk. Ikke finn opp krav som ikke støttes av teksten.`;
+
+const PROMPT_QA = `Du er en norsk anbudsrådgiver. Du leser spørsmål og svar i konkurransen.
+Returner KUN gyldig JSON:
+{
+  "summary": "oppsummering på 3-8 setninger av hva Q&A betyr for tilbudet: endrede krav, avklaringer, frister og risiko",
+  "checklist": [],
+  "qualification": [],
+  "awardCriteria": [],
+  "deliverables": []
+}
+Skriv på norsk. Si tydelig hvis det ikke er publisert Q&A ennå.`;
+
+function promptForFocus(focus) {
+  if (focus === 'grunnlag') return PROMPT_GRUNNLAG;
+  if (focus === 'qa') return PROMPT_QA;
+  return PROMPT_ARBEID;
+}
 
 export { interpretationFromGemini };
 
@@ -46,7 +78,7 @@ export async function interpretBid(input = {}) {
     err.status = 422;
     throw err;
   }
-  const parsed = await callGeminiJson(key, PROMPT, [{
+  const parsed = await callGeminiJson(key, promptForFocus(input.focus), [{
     text: [
       `Tilbud: ${text(input.title) || 'Ukjent'}`,
       input.buyer ? `Oppdragsgiver: ${text(input.buyer)}` : '',

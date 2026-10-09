@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -6,7 +6,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -14,23 +13,40 @@ import {
   GROUND_ATTACH_FOLDER_ID,
   GROUND_FOLDER_ID,
   QA_ATTACH_FOLDER_ID,
+  QA_FOLDER_ID,
+  WORK_ATTACH_FOLDER_ID,
+  WORK_ITEM_KINDS,
+  WORK_ITEM_STATUSES,
   addBidFile,
   addBidQuestion,
+  addWorkItem,
   answerBidQuestion,
   childFolders,
   createBidFolder,
   deleteBidFile,
   deleteBidFolder,
+  discardPendingWorkItems,
+  filesForCheck,
   filesInFolder,
+  importPendingWorkItems,
   isSystemFolderId,
+  patchWorkItem,
+  proposedWorkItemsFromInterpretation,
   pullFormTemplate,
+  removeWorkItem,
   renameBidFile,
   renameBidFolder,
   saveBidInterpretation,
+  saveBidStepAi,
+  saveBidStepNotes,
   setFormStatus,
   setFormValue,
-  toggleInterpretationCheck,
+  setPendingWorkItems,
+  togglePendingWorkItem,
   updateBidAssignment,
+  updateBidSettings,
+  workItemKindLabel,
+  workItemStatusLabel,
   workRootFolders,
 } from '../../src/anbud/bidLibrary';
 import { interpretBidCompetition } from '../../src/anbud/bidAi';
@@ -129,11 +145,9 @@ function toneColor(tone, colors) {
 }
 
 export default function BidWorkspace({
-  bid, state, colors, busy, note, onBack, onCommit, onRefresh, onOpenInWindow,
+  bid, state, colors, busy, note, onBack, onCommit, onRefresh,
   members = [], units = [], companies = [],
 }) {
-  const { width } = useWindowDimensions();
-  const wide = width >= 960;
   const [step, setStep] = useState('grunnlag');
   const [folderId, setFolderId] = useState(null);
   const [folderName, setFolderName] = useState('');
@@ -150,6 +164,23 @@ export default function BidWorkspace({
   const [expandedQual, setExpandedQual] = useState('');
   const [expandedAward, setExpandedAward] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [ownTitle, setOwnTitle] = useState('');
+  const [ownKind, setOwnKind] = useState('annet');
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaBuyer, setMetaBuyer] = useState('');
+  const [metaDeadline, setMetaDeadline] = useState('');
+
+  useEffect(() => {
+    setNotesDraft(bid?.stepNotes?.[step] || '');
+  }, [bid?.id, bid?.stepNotes, step]);
+
+  useEffect(() => {
+    setMetaTitle(bid?.title || '');
+    setMetaBuyer(bid?.buyer || '');
+    setMetaDeadline(bid?.dossier?.submissionDeadline || '');
+  }, [bid?.id, bid?.title, bid?.buyer, bid?.dossier?.submissionDeadline]);
 
   if (!bid) {
     return (
@@ -180,10 +211,22 @@ export default function BidWorkspace({
   const source = sourceLabel(notice || { source: /^\d{4}-\d+$/.test(String(bid.noticeId || '')) ? 'doffin' : 'ted' });
   const companyId = state?.companyId || '';
   const interpretation = bid.interpretation || {};
+  const stepIndex = BID_STEPS.findIndex((row) => row.id === step);
+  const people = (members || []).filter((row) => row.role !== 'child');
 
   async function commit(result) {
     setLocalNote('');
     await onCommit(result);
+  }
+
+  async function goStep(next) {
+    if (notesDraft !== (bid.stepNotes?.[step] || '')) {
+      await commit(saveBidStepNotes(state, bid.id, step, notesDraft));
+    }
+    setStep(next);
+    setFolderId(null);
+    setOpenFileId('');
+    setRenamingFolder(false);
   }
 
   async function addFolder() {
@@ -208,14 +251,14 @@ export default function BidWorkspace({
     await commit(result);
   }
 
-  async function uploadFiles(list, targetFolderId) {
+  async function uploadFiles(list, targetFolderId, checkId) {
     const target = targetFolderId || folderId;
     if (!target) {
       setLocalNote('Åpne eller opprett en mappe før du laster opp.');
       return;
     }
     const targetFolder = bid.folders.find((row) => row.id === target);
-    if (!targetFolder || targetFolder.locked || target === GROUND_FOLDER_ID) {
+    if (!targetFolder || targetFolder.locked || target === GROUND_FOLDER_ID || target === QA_FOLDER_ID) {
       setLocalNote('Denne mappen er låst. Last opp under egne vedlegg.');
       return;
     }
@@ -238,7 +281,7 @@ export default function BidWorkspace({
           setLocalNote(`«${payload.name}» er for stor (maks 25 MB via lagring, eller under 500 KB uten).`);
           continue;
         }
-        const result = addBidFile(nextState, bid.id, target, payload);
+        const result = addBidFile(nextState, bid.id, target, { ...payload, checkId });
         if (!result.ok) {
           setLocalNote(result.error);
           continue;
@@ -256,10 +299,10 @@ export default function BidWorkspace({
     }
   }
 
-  async function pickAndUpload(targetFolderId) {
+  async function pickAndUpload(targetFolderId, checkId) {
     const picked = await pickDocument({ multiple: true, accept: FILE_ACCEPT });
     const list = Array.isArray(picked) ? picked : (picked ? [picked] : []);
-    await uploadFiles(list, targetFolderId);
+    await uploadFiles(list, targetFolderId, checkId);
   }
 
   async function attachToField(form, field) {
@@ -288,17 +331,32 @@ export default function BidWorkspace({
     }));
   }
 
-  async function runAiInterpret() {
+  async function runStepAi(focus) {
     setAiBusy(true);
     setLocalNote('');
     try {
       const result = await interpretBidCompetition(bid, {
+        focus,
         companyName: companies.find((row) => row.id === companyId)?.name || '',
       });
-      await commit(saveBidInterpretation(state, bid.id, result.interpretation));
+      if (focus === 'grunnlag' || focus === 'qa') {
+        await commit(saveBidStepAi(state, bid.id, focus, result.interpretation));
+        setLocalNote(result.engine === 'gemini'
+          ? 'AI har tolket innholdet.'
+          : 'Lokal oppsummering er laget. Kjør på nytt når AI er tilgjengelig for rikere treff.');
+        return;
+      }
+      let next = saveBidInterpretation(state, bid.id, result.interpretation);
+      if (!next.ok) {
+        setLocalNote(next.error);
+        return;
+      }
+      const proposals = proposedWorkItemsFromInterpretation(next.state.bids.find((row) => row.id === bid.id)?.interpretation);
+      next = setPendingWorkItems(next.state, bid.id, proposals);
+      await commit(next);
       setLocalNote(result.engine === 'gemini'
-        ? 'AI har tolket konkurransen.'
-        : 'Lokal oppsummering er laget. Kjør på nytt når AI er tilgjengelig for rikere treff.');
+        ? 'AI og OCR har foreslått leveranser. Gå gjennom dem før import.'
+        : 'Lokalt forslag er klart. Gå gjennom det før import, eller kjør på nytt når AI er tilgjengelig.');
     } catch (err) {
       setLocalNote(err?.message || 'Kunne ikke tolke konkurransen.');
     } finally {
@@ -306,51 +364,89 @@ export default function BidWorkspace({
     }
   }
 
-  const sidePanel = (
-    <View style={[styles.side, wide ? styles.sideWide : null, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      <DeadlineBanner deadline={deadline} colors={colors} compact />
-      <AssignmentPanel
-        bid={bid}
-        state={state}
-        colors={colors}
-        locked={locked}
-        members={members}
-        units={units}
-        companies={companies}
-        onCommit={commit}
-        compact
-      />
-    </View>
-  );
+  const groundFiles = [
+    ...filesInFolder(bid.files, GROUND_FOLDER_ID),
+    ...filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID),
+  ];
+  const qaFiles = [
+    ...filesInFolder(bid.files, QA_FOLDER_ID),
+    ...filesInFolder(bid.files, QA_ATTACH_FOLDER_ID),
+  ];
 
-  const main = (
-    <View style={[styles.main, wide ? styles.mainWide : null, { gap: 12 }]}>
+  return (
+    <View style={{ gap: 14 }}>
       <View style={styles.row}>
         <TouchableOpacity onPress={onBack} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Alle tilbud</Text>
         </TouchableOpacity>
-        {onOpenInWindow ? (
-          <TouchableOpacity onPress={onOpenInWindow} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Åpne i eget vindu</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity onPress={() => setSettingsOpen((value) => !value)} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>{settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}</Text>
+        </TouchableOpacity>
       </View>
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
+      <DeadlineBanner deadline={deadline} colors={colors} compact />
       {noticeUrl ? (
         <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
           <Text style={{ color: colors.brand }}>Åpne på {source}</Text>
         </TouchableOpacity>
       ) : null}
-      {!wide ? sidePanel : null}
+      {settingsOpen ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 10 }]}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Innstillinger for tilbudsarbeidet</Text>
+          <TextInput
+            value={metaTitle}
+            onChangeText={setMetaTitle}
+            placeholder="Tittel"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TextInput
+            value={metaBuyer}
+            onChangeText={setMetaBuyer}
+            placeholder="Oppdragsgiver"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TextInput
+            value={metaDeadline}
+            onChangeText={setMetaDeadline}
+            placeholder="Tilbudsfrist"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <TouchableOpacity
+            onPress={() => commit(updateBidSettings(state, bid.id, {
+              title: metaTitle,
+              buyer: metaBuyer,
+              deadline: metaDeadline,
+            }))}
+            accessibilityRole="button"
+            style={[styles.btn, { backgroundColor: colors.brand }]}
+          >
+            <Text style={{ color: '#fff' }}>Lagre innstillinger</Text>
+          </TouchableOpacity>
+          <AssignmentPanel
+            bid={bid}
+            state={state}
+            colors={colors}
+            locked={locked}
+            members={members}
+            units={units}
+            companies={companies}
+            onCommit={commit}
+            compact
+          />
+        </View>
+      ) : null}
       <View style={styles.row}>
         {BID_STEPS.map((item) => {
           const on = step === item.id;
           return (
             <TouchableOpacity
               key={item.id}
-              onPress={() => { setStep(item.id); setFolderId(null); setOpenFileId(''); setRenamingFolder(false); }}
+              onPress={() => goStep(item.id)}
               accessibilityRole="button"
               style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
             >
@@ -359,315 +455,575 @@ export default function BidWorkspace({
           );
         })}
       </View>
+      <View style={styles.row}>
+        {stepIndex > 0 ? (
+          <TouchableOpacity onPress={() => goStep(BID_STEPS[stepIndex - 1].id)} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Forrige steg</Text>
+          </TouchableOpacity>
+        ) : null}
+        {stepIndex < BID_STEPS.length - 1 ? (
+          <TouchableOpacity onPress={() => goStep(BID_STEPS[stepIndex + 1].id)} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Neste steg</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
       {!!message && <Text style={{ color: colors.brand }}>{message}</Text>}
-      {step === 'grunnlag' ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Konkurransegrunnlaget</Text>
-          <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
-          <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
-          <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
-          {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
-          <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>{busy ? 'Henter dokumenter …' : 'Hent dokumenter på nytt'}</Text>
-          </TouchableOpacity>
-          <FileList
-            files={filesInFolder(bid.files, GROUND_FOLDER_ID)}
-            colors={colors}
-            openFileId={openFileId}
-            onOpen={setOpenFileId}
-          />
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne vedlegg</Text>
-          <Text style={{ color: colors.muted }}>
-            Last opp konkurransedokumenter du har lokalt. Filene lagres på tilbudet.
-          </Text>
-          <DropUpload
-            colors={colors}
-            dragOver={dragOver}
-            setDragOver={setDragOver}
-            uploading={uploading}
-            onPick={() => pickAndUpload(GROUND_ATTACH_FOLDER_ID)}
-            onFiles={(files) => uploadFiles(files, GROUND_ATTACH_FOLDER_ID)}
-          />
-          <FileList
-            files={filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID)}
-            colors={colors}
-            openFileId={openFileId}
-            onOpen={setOpenFileId}
-            onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
-            onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
-          />
-        </View>
-      ) : null}
-      {step === 'qa' ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Spørsmål og svar i konkurransen</Text>
-          <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
-          </TouchableOpacity>
-          {dossier.qa?.length ? dossier.qa.map((row) => (
-            <View key={`${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.question}</Text>
-              <Text style={{ color: colors.ink }}>{row.answer || 'Svaret er ikke publisert ennå.'}</Text>
-            </View>
-          )) : <Text style={{ color: colors.muted }}>Ingen spørsmål og svar er publisert i kunngjøringen ennå.</Text>}
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne spørsmål</Text>
-          {(bid.questions || []).map((row) => (
-            <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink }}>{row.question}</Text>
-              <TextInput
-                value={row.answer}
-                onChangeText={(answer) => commit(answerBidQuestion(state, bid.id, row.id, answer))}
-                placeholder="Svar fra oppdragsgiver"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-              />
-            </View>
-          ))}
-          <TextInput
-            value={question}
-            onChangeText={setQuestion}
-            placeholder="Nytt spørsmål til oppdragsgiver"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
-          <TouchableOpacity
-            onPress={() => {
-              const result = addBidQuestion(state, bid.id, question);
-              if (!result.ok) {
-                setLocalNote(result.error);
-                return;
-              }
-              setQuestion('');
-              commit(result);
-            }}
-            accessibilityRole="button"
-            style={[styles.btn, { backgroundColor: colors.brand }]}
-          >
-            <Text style={{ color: '#fff' }}>Legg til spørsmål</Text>
-          </TouchableOpacity>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Vedlegg til spørsmål og svar</Text>
-          <DropUpload
-            colors={colors}
-            dragOver={dragOver}
-            setDragOver={setDragOver}
-            uploading={uploading}
-            onPick={() => pickAndUpload(QA_ATTACH_FOLDER_ID)}
-            onFiles={(files) => uploadFiles(files, QA_ATTACH_FOLDER_ID)}
-          />
-          <FileList
-            files={filesInFolder(bid.files, QA_ATTACH_FOLDER_ID)}
-            colors={colors}
-            openFileId={openFileId}
-            onOpen={setOpenFileId}
-            onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
-            onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
-          />
-        </View>
-      ) : null}
-      {step === 'arbeid' ? (
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Tolk konkurransen ved bruk av AI</Text>
-          <Text style={{ color: colors.muted }}>
-            AI går gjennom konkurransegrunnlag, egne vedlegg og spørsmål/svar, og lager sjekkliste, oppsummering, kvalifikasjonskrav og tildelingskriterier.
-          </Text>
-          <TouchableOpacity
-            onPress={runAiInterpret}
-            disabled={aiBusy}
-            accessibilityRole="button"
-            style={[styles.btn, { backgroundColor: colors.brand, opacity: aiBusy ? 0.7 : 1 }]}
-          >
-            <Text style={{ color: '#fff' }}>{aiBusy ? 'Tolker konkurransen …' : 'Tolk konkurransen ved bruk av AI'}</Text>
-          </TouchableOpacity>
-          {interpretation.summary ? (
-            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Oppsummering</Text>
-              <Text style={{ color: colors.ink, lineHeight: 22 }}>{interpretation.summary}</Text>
-              {interpretation.generatedAt ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Generert {String(interpretation.generatedAt).slice(0, 16).replace('T', ' ')}
-                  {interpretation.engine ? ` · ${interpretation.engine}` : ''}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-          {(interpretation.checklist || []).length ? (
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Sjekkliste / kontrollpunkter</Text>
-              {interpretation.checklist.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => commit(toggleInterpretationCheck(state, bid.id, row.id))}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: !!row.done }}
-                  style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
-                >
-                  <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.done ? '✓' : '○'} {row.title}</Text>
-                  {row.detail ? <Text style={{ color: colors.muted }}>{row.detail}</Text> : null}
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
-          <ExpandSection
-            title="Kvalifikasjonskrav"
-            items={interpretation.qualification || []}
-            colors={colors}
-            expandedId={expandedQual}
-            onToggle={setExpandedQual}
-            empty="Kjør AI-tolkning for å hente kvalifikasjonskrav fra dokumentene."
-          />
-          <ExpandSection
-            title="Tildelingskriterier"
-            items={interpretation.awardCriteria || []}
-            colors={colors}
-            expandedId={expandedAward}
-            onToggle={setExpandedAward}
-            empty="Kjør AI-tolkning for å hente tildelingskriterier fra dokumentene."
-            showWeight
-          />
 
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Dokumentmappe</Text>
-          <Text style={{ color: colors.muted }}>
-            Opprett mapper, gi dem nye navn, og last opp filer med dra-og-slipp eller filvelger.
-          </Text>
-          {folder ? (
-            <TouchableOpacity onPress={() => { setFolderId(folder.parentId || null); setRenamingFolder(false); }} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>{folder.parentId ? 'Tilbake' : 'Alle mapper'}</Text>
+      {step === 'grunnlag' ? (
+        <View style={{ gap: 14 }}>
+          <Section title="Seksjon 1 · Dokumenter" colors={colors} well>
+            <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
+            <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
+            <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
+            {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
+            <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>{busy ? 'Henter dokumenter …' : 'Hent dokumenter på nytt'}</Text>
             </TouchableOpacity>
-          ) : null}
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{folder ? folder.name : 'Mapper'}</Text>
-          {(folder ? childFolders(bid.folders, folder.id) : workRootFolders(bid.folders)).map((row) => (
+            <FileList
+              files={filesInFolder(bid.files, GROUND_FOLDER_ID)}
+              colors={colors}
+              openFileId={openFileId}
+              onOpen={setOpenFileId}
+            />
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne vedlegg</Text>
+            <DropUpload
+              colors={colors}
+              dragOver={dragOver}
+              setDragOver={setDragOver}
+              uploading={uploading}
+              onPick={() => pickAndUpload(GROUND_ATTACH_FOLDER_ID)}
+              onFiles={(files) => uploadFiles(files, GROUND_ATTACH_FOLDER_ID)}
+            />
+            <FileList
+              files={filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID)}
+              colors={colors}
+              openFileId={openFileId}
+              onOpen={setOpenFileId}
+              onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
+              onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
+            />
+            {!groundFiles.length ? (
+              <Text style={{ color: colors.muted }}>Last inn konkurransegrunnlaget her. Filene vises i dette feltet.</Text>
+            ) : null}
+          </Section>
+          <Section title="Seksjon 2 · AI-tolkning og oppsummering" colors={colors}>
+            <Text style={{ color: colors.muted }}>
+              AI leser dokumentene og lager en oppsummering av konkurransegrunnlaget.
+            </Text>
             <TouchableOpacity
-              key={row.id}
-              onPress={() => { setFolderId(row.id); setRenameValue(row.name); setRenamingFolder(false); }}
+              onPress={() => runStepAi('grunnlag')}
+              disabled={aiBusy}
               accessibilityRole="button"
-              style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
+              style={[styles.btn, { backgroundColor: colors.brand, opacity: aiBusy ? 0.7 : 1 }]}
             >
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.emoji || '📁'} {row.name}</Text>
-              <Text style={{ color: colors.muted }}>{filesInFolder(bid.files, row.id).length} filer · {childFolders(bid.folders, row.id).length} undermapper</Text>
+              <Text style={{ color: '#fff' }}>{aiBusy ? 'Tolker …' : 'Tolk grunnlaget med AI og OCR'}</Text>
             </TouchableOpacity>
-          ))}
-          {folder && !isSystemFolderId(folder.id) ? (
-            <View style={{ gap: 8 }}>
-              {renamingFolder ? (
-                <View style={styles.row}>
-                  <TextInput
-                    value={renameValue}
-                    onChangeText={setRenameValue}
-                    placeholder="Nytt mappenavn"
-                    placeholderTextColor={colors.placeholder}
-                    style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-                  />
-                  <TouchableOpacity onPress={saveRenameFolder} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-                    <Text style={{ color: '#fff' }}>Lagre navn</Text>
+            {bid.stepAi?.grunnlag?.summary ? (
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.ink, lineHeight: 22 }}>{bid.stepAi.grunnlag.summary}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {bid.stepAi.grunnlag.generatedAt ? String(bid.stepAi.grunnlag.generatedAt).slice(0, 16).replace('T', ' ') : ''}
+                  {bid.stepAi.grunnlag.engine ? ` · ${bid.stepAi.grunnlag.engine}` : ''}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted }}>Ingen tolkning ennå.</Text>
+            )}
+          </Section>
+          <NotesSection colors={colors} value={notesDraft} onChange={setNotesDraft} onSave={() => commit(saveBidStepNotes(state, bid.id, 'grunnlag', notesDraft))} />
+        </View>
+      ) : null}
+
+      {step === 'qa' ? (
+        <View style={{ gap: 14 }}>
+          <Section title="Seksjon 1 · Innhold og filer" colors={colors} well>
+            <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
+            </TouchableOpacity>
+            {dossier.qa?.length ? dossier.qa.map((row) => (
+              <View key={`${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.question}</Text>
+                <Text style={{ color: colors.ink }}>{row.answer || 'Svaret er ikke publisert ennå.'}</Text>
+              </View>
+            )) : <Text style={{ color: colors.muted }}>Ingen spørsmål og svar er publisert i kunngjøringen ennå.</Text>}
+            <FileList
+              files={filesInFolder(bid.files, QA_FOLDER_ID)}
+              colors={colors}
+              openFileId={openFileId}
+              onOpen={setOpenFileId}
+            />
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne spørsmål</Text>
+            {(bid.questions || []).map((row) => (
+              <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+                <Text style={{ color: colors.ink }}>{row.question}</Text>
+                <TextInput
+                  value={row.answer}
+                  onChangeText={(answer) => commit(answerBidQuestion(state, bid.id, row.id, answer))}
+                  placeholder="Svar fra oppdragsgiver"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                />
+              </View>
+            ))}
+            <TextInput
+              value={question}
+              onChangeText={setQuestion}
+              placeholder="Nytt spørsmål til oppdragsgiver"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                const result = addBidQuestion(state, bid.id, question);
+                if (!result.ok) {
+                  setLocalNote(result.error);
+                  return;
+                }
+                setQuestion('');
+                commit(result);
+              }}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.brand }]}
+            >
+              <Text style={{ color: '#fff' }}>Legg til spørsmål</Text>
+            </TouchableOpacity>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Vedlegg til spørsmål og svar</Text>
+            <DropUpload
+              colors={colors}
+              dragOver={dragOver}
+              setDragOver={setDragOver}
+              uploading={uploading}
+              onPick={() => pickAndUpload(QA_ATTACH_FOLDER_ID)}
+              onFiles={(files) => uploadFiles(files, QA_ATTACH_FOLDER_ID)}
+            />
+            <FileList
+              files={filesInFolder(bid.files, QA_ATTACH_FOLDER_ID)}
+              colors={colors}
+              openFileId={openFileId}
+              onOpen={setOpenFileId}
+              onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
+              onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
+            />
+            {!qaFiles.length && !dossier.qa?.length ? (
+              <Text style={{ color: colors.muted }}>Kunngjorte Q&A-filer vises her når de er hentet inn.</Text>
+            ) : null}
+          </Section>
+          <Section title="Seksjon 2 · AI-tolkning av betydning" colors={colors}>
+            <Text style={{ color: colors.muted }}>
+              AI leser spørsmål og svar og forklarer hva de betyr for tilbudet.
+            </Text>
+            <TouchableOpacity
+              onPress={() => runStepAi('qa')}
+              disabled={aiBusy}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.brand, opacity: aiBusy ? 0.7 : 1 }]}
+            >
+              <Text style={{ color: '#fff' }}>{aiBusy ? 'Tolker …' : 'Tolk Q&A med AI og OCR'}</Text>
+            </TouchableOpacity>
+            {bid.stepAi?.qa?.summary ? (
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.ink, lineHeight: 22 }}>{bid.stepAi.qa.summary}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {bid.stepAi.qa.generatedAt ? String(bid.stepAi.qa.generatedAt).slice(0, 16).replace('T', ' ') : ''}
+                  {bid.stepAi.qa.engine ? ` · ${bid.stepAi.qa.engine}` : ''}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted }}>Ingen tolkning ennå.</Text>
+            )}
+          </Section>
+          <NotesSection colors={colors} value={notesDraft} onChange={setNotesDraft} onSave={() => commit(saveBidStepNotes(state, bid.id, 'qa', notesDraft))} />
+        </View>
+      ) : null}
+
+      {step === 'arbeid' ? (
+        <View style={{ gap: 14 }}>
+          <Section title="Seksjon 1 · Hva som skal leveres" colors={colors} well>
+            <Text style={{ color: colors.muted }}>
+              AI og OCR leser konkurransegrunnlaget og foreslår leveranser. Forslag vises her før du importerer dem.
+            </Text>
+            <TouchableOpacity
+              onPress={() => runStepAi('arbeid')}
+              disabled={aiBusy}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.brand, opacity: aiBusy ? 0.7 : 1 }]}
+            >
+              <Text style={{ color: '#fff' }}>{aiBusy ? 'Foreslår leveranser …' : 'Foreslå leveranser med AI og OCR'}</Text>
+            </TouchableOpacity>
+            {interpretation.summary ? (
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>AI-tolkning</Text>
+                <Text style={{ color: colors.ink, lineHeight: 22 }}>{interpretation.summary}</Text>
+                {interpretation.generatedAt ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Generert {String(interpretation.generatedAt).slice(0, 16).replace('T', ' ')}
+                    {interpretation.engine ? ` · ${interpretation.engine}` : ''}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            {(bid.pendingWorkItems || []).length ? (
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>Forslag før import</Text>
+                {bid.pendingWorkItems.map((row) => (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => commit(togglePendingWorkItem(state, bid.id, row.id))}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: row.selected !== false }}
+                    style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}
+                  >
+                    <Text style={{ color: colors.ink, fontWeight: '600' }}>
+                      {row.selected === false ? '○' : '✓'} {row.title}
+                    </Text>
+                    <Text style={{ color: colors.muted }}>{workItemKindLabel(row.kind)}</Text>
+                    {row.detail ? <Text style={{ color: colors.ink }}>{row.detail}</Text> : null}
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setRenamingFolder(false)} accessibilityRole="button">
-                    <Text style={{ color: colors.muted }}>Avbryt</Text>
+                ))}
+                <View style={styles.row}>
+                  <TouchableOpacity onPress={() => commit(importPendingWorkItems(state, bid.id))} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+                    <Text style={{ color: '#fff' }}>Importer valgte</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => commit(discardPendingWorkItems(state, bid.id))} accessibilityRole="button">
+                    <Text style={{ color: colors.muted }}>Forkast forslag</Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
-                <TouchableOpacity onPress={() => { setRenameValue(folder.name); setRenamingFolder(true); }} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>Endre mappenavn</Text>
-                </TouchableOpacity>
-              )}
-              <FileList
-                files={filesInFolder(bid.files, folder.id)}
+              </View>
+            ) : null}
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Sjekkpunkt i tilbudsarbeidet</Text>
+            {(bid.workItems || []).map((item) => (
+              <WorkItemCard
+                key={item.id}
+                item={item}
+                bid={bid}
+                state={state}
                 colors={colors}
+                people={people}
                 openFileId={openFileId}
-                onOpen={setOpenFileId}
-                onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
-                onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
-              />
-              <DropUpload
-                colors={colors}
+                setOpenFileId={setOpenFileId}
                 dragOver={dragOver}
                 setDragOver={setDragOver}
                 uploading={uploading}
-                onPick={() => pickAndUpload(folder.id)}
-                onFiles={(files) => uploadFiles(files, folder.id)}
+                onCommit={commit}
+                onPick={() => pickAndUpload(WORK_ATTACH_FOLDER_ID, item.id)}
+                onFiles={(files) => uploadFiles(files, WORK_ATTACH_FOLDER_ID, item.id)}
               />
-            </View>
-          ) : null}
-          <View style={{ gap: 8 }}>
-            <TextInput
-              value={folderName}
-              onChangeText={setFolderName}
-              placeholder={folder && !isSystemFolderId(folder.id) ? 'Ny undermappe' : 'Ny mappe'}
-              placeholderTextColor={colors.placeholder}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-            />
+            ))}
+            {!bid.workItems?.length && !bid.pendingWorkItems?.length ? (
+              <Text style={{ color: colors.muted }}>Ingen sjekkpunkt ennå. Foreslå med AI, eller legg til egne under.</Text>
+            ) : null}
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Legg til eget sjekkpunkt</Text>
             <View style={styles.row}>
-              <TouchableOpacity onPress={addFolder} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-                <Text style={{ color: '#fff' }}>Opprett mappe</Text>
+              {WORK_ITEM_KINDS.map((kind) => {
+                const on = ownKind === kind.id;
+                return (
+                  <TouchableOpacity
+                    key={kind.id}
+                    onPress={() => setOwnKind(kind.id)}
+                    accessibilityRole="button"
+                    style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                  >
+                    <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{kind.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              value={ownTitle}
+              onChangeText={setOwnTitle}
+              placeholder="Navn, f.eks. Tilbudsbrev"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                const result = addWorkItem(state, bid.id, { title: ownTitle, kind: ownKind });
+                if (!result.ok) {
+                  setLocalNote(result.error);
+                  return;
+                }
+                setOwnTitle('');
+                commit(result);
+              }}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.brand }]}
+            >
+              <Text style={{ color: '#fff' }}>Legg til</Text>
+            </TouchableOpacity>
+          </Section>
+          <Section title="Seksjon 2 · Krav og kriterier" colors={colors}>
+            <ExpandSection
+              title="Kvalifikasjonskrav"
+              items={interpretation.qualification || []}
+              colors={colors}
+              expandedId={expandedQual}
+              onToggle={setExpandedQual}
+              empty="Kjør AI-forslag for å hente kvalifikasjonskrav fra dokumentene."
+            />
+            <ExpandSection
+              title="Tildelingskriterier"
+              items={interpretation.awardCriteria || []}
+              colors={colors}
+              expandedId={expandedAward}
+              onToggle={setExpandedAward}
+              empty="Kjør AI-forslag for å hente tildelingskriterier fra dokumentene."
+              showWeight
+            />
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Dokumentmappe og skjema</Text>
+            {folder ? (
+              <TouchableOpacity onPress={() => { setFolderId(folder.parentId || null); setRenamingFolder(false); }} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>{folder.parentId ? 'Tilbake' : 'Alle mapper'}</Text>
               </TouchableOpacity>
-              {folder && !isSystemFolderId(folder.id) ? (
+            ) : null}
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>{folder ? folder.name : 'Mapper'}</Text>
+            {(folder ? childFolders(bid.folders, folder.id) : workRootFolders(bid.folders)).map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => { setFolderId(row.id); setRenameValue(row.name); setRenamingFolder(false); }}
+                accessibilityRole="button"
+                style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.emoji || '📁'} {row.name}</Text>
+                <Text style={{ color: colors.muted }}>{filesInFolder(bid.files, row.id).length} filer · {childFolders(bid.folders, row.id).length} undermapper</Text>
+              </TouchableOpacity>
+            ))}
+            {folder && !isSystemFolderId(folder.id) ? (
+              <View style={{ gap: 8 }}>
+                {renamingFolder ? (
+                  <View style={styles.row}>
+                    <TextInput
+                      value={renameValue}
+                      onChangeText={setRenameValue}
+                      placeholder="Nytt mappenavn"
+                      placeholderTextColor={colors.placeholder}
+                      style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+                    />
+                    <TouchableOpacity onPress={saveRenameFolder} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+                      <Text style={{ color: '#fff' }}>Lagre navn</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setRenamingFolder(false)} accessibilityRole="button">
+                      <Text style={{ color: colors.muted }}>Avbryt</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => { setRenameValue(folder.name); setRenamingFolder(true); }} accessibilityRole="button">
+                    <Text style={{ color: colors.brand }}>Endre mappenavn</Text>
+                  </TouchableOpacity>
+                )}
+                <FileList
+                  files={filesInFolder(bid.files, folder.id)}
+                  colors={colors}
+                  openFileId={openFileId}
+                  onOpen={setOpenFileId}
+                  onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
+                  onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
+                />
+                <DropUpload
+                  colors={colors}
+                  dragOver={dragOver}
+                  setDragOver={setDragOver}
+                  uploading={uploading}
+                  onPick={() => pickAndUpload(folder.id)}
+                  onFiles={(files) => uploadFiles(files, folder.id)}
+                />
+              </View>
+            ) : null}
+            <View style={{ gap: 8 }}>
+              <TextInput
+                value={folderName}
+                onChangeText={setFolderName}
+                placeholder={folder && !isSystemFolderId(folder.id) ? 'Ny undermappe' : 'Ny mappe'}
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+              />
+              <View style={styles.row}>
+                <TouchableOpacity onPress={addFolder} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+                  <Text style={{ color: '#fff' }}>Opprett mappe</Text>
+                </TouchableOpacity>
+                {folder && !isSystemFolderId(folder.id) ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const parent = folder.parentId || null;
+                      setFolderId(parent);
+                      setRenamingFolder(false);
+                      commit(deleteBidFolder(state, bid.id, folder.id));
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ color: colors.danger }}>Slett mappe</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Skjema fra bedriften</Text>
+            {(state.formTemplates || []).map((template) => (
+              <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                <Text style={{ color: colors.ink }}>{template.title}</Text>
+                <Text style={{ color: colors.muted }}>{template.intro}</Text>
+                <TouchableOpacity onPress={() => commit(pullFormTemplate(state, bid.id, template.id))} accessibilityRole="button">
+                  <Text style={{ color: colors.brand }}>Hent inn og arbeid</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {(bid.forms || []).map((form) => (
+              <View key={form.id} style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{form.title}</Text>
+                <Text style={{ color: colors.muted }}>{form.status === 'ferdig' ? 'Ferdig' : 'Under arbeid'}</Text>
+                {form.fields.map((field) => (
+                  <FormAnswer
+                    key={field.id}
+                    field={field}
+                    colors={colors}
+                    onChange={(next) => commit(setFormValue(state, bid.id, form.id, field.id, next))}
+                    onPickFile={() => attachToField(form, field)}
+                  />
+                ))}
                 <TouchableOpacity
-                  onPress={() => {
-                    const parent = folder.parentId || null;
-                    setFolderId(parent);
-                    setRenamingFolder(false);
-                    commit(deleteBidFolder(state, bid.id, folder.id));
-                  }}
+                  onPress={() => commit(setFormStatus(state, bid.id, form.id, form.status === 'ferdig' ? 'apent' : 'ferdig'))}
                   accessibilityRole="button"
                 >
-                  <Text style={{ color: colors.danger }}>Slett mappe</Text>
+                  <Text style={{ color: colors.brand }}>{form.status === 'ferdig' ? 'Åpne igjen' : 'Merk ferdig'}</Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Skjema fra bedriften</Text>
-          {(state.formTemplates || []).map((template) => (
-            <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink }}>{template.title}</Text>
-              <Text style={{ color: colors.muted }}>{template.intro}</Text>
-              <TouchableOpacity onPress={() => commit(pullFormTemplate(state, bid.id, template.id))} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Hent inn og arbeid</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          {(bid.forms || []).map((form) => (
-            <View key={form.id} style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{form.title}</Text>
-              <Text style={{ color: colors.muted }}>{form.status === 'ferdig' ? 'Ferdig' : 'Under arbeid'}</Text>
-              {form.fields.map((field) => (
-                <FormAnswer
-                  key={field.id}
-                  field={field}
-                  colors={colors}
-                  onChange={(next) => commit(setFormValue(state, bid.id, form.id, field.id, next))}
-                  onPickFile={() => attachToField(form, field)}
-                />
-              ))}
-              <TouchableOpacity
-                onPress={() => commit(setFormStatus(state, bid.id, form.id, form.status === 'ferdig' ? 'apent' : 'ferdig'))}
-                accessibilityRole="button"
-              >
-                <Text style={{ color: colors.brand }}>{form.status === 'ferdig' ? 'Åpne igjen' : 'Merk ferdig'}</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          <ExecutionPanel
-            bid={bid}
-            state={state}
-            colors={colors}
-            locked={locked}
-            strategyLocked={strategyLocked}
-            value={value}
-            start={start}
-            end={end}
-            setValue={setValue}
-            setStart={setStart}
-            setEnd={setEnd}
-            onCommit={commit}
-          />
+              </View>
+            ))}
+            <ExecutionPanel
+              bid={bid}
+              state={state}
+              colors={colors}
+              locked={locked}
+              strategyLocked={strategyLocked}
+              value={value}
+              start={start}
+              end={end}
+              setValue={setValue}
+              setStart={setStart}
+              setEnd={setEnd}
+              onCommit={commit}
+            />
+          </Section>
+          <NotesSection colors={colors} value={notesDraft} onChange={setNotesDraft} onSave={() => commit(saveBidStepNotes(state, bid.id, 'arbeid', notesDraft))} />
         </View>
       ) : null}
     </View>
   );
+}
 
+function Section({ title, colors, well, children }) {
   return (
-    <View style={[styles.shell, wide ? styles.shellWide : null]}>
-      {main}
-      {wide ? sidePanel : null}
+    <View style={[styles.section, well ? styles.well : styles.sectionCard, { borderColor: colors.line }]}>
+      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function NotesSection({ colors, value, onChange, onSave }) {
+  return (
+    <Section title="Seksjon 3 · Egne notater" colors={colors}>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder="Skriv notater til dette steget"
+        placeholderTextColor={colors.placeholder}
+        multiline
+        style={[styles.input, styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+      />
+      <TouchableOpacity onPress={onSave} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+        <Text style={{ color: '#fff' }}>Lagre notater</Text>
+      </TouchableOpacity>
+    </Section>
+  );
+}
+
+function WorkItemCard({
+  item, bid, state, colors, people, openFileId, setOpenFileId, dragOver, setDragOver, uploading, onCommit, onPick, onFiles,
+}) {
+  const [open, setOpen] = useState(false);
+  const attachments = filesForCheck(bid.files, item.id);
+  return (
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff', gap: 8 }]}>
+      <TouchableOpacity onPress={() => setOpen((value) => !value)} accessibilityRole="button">
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{open ? '▾' : '▸'} {item.title}</Text>
+        <Text style={{ color: colors.muted }}>{workItemKindLabel(item.kind)} · {workItemStatusLabel(item.status)}</Text>
+        {item.ownerName ? <Text style={{ color: colors.muted }}>Eier: {item.ownerName}</Text> : null}
+      </TouchableOpacity>
+      {item.detail && open ? <Text style={{ color: colors.ink, lineHeight: 22 }}>{item.detail}</Text> : null}
+      {open ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Status</Text>
+          <View style={styles.row}>
+            {WORK_ITEM_STATUSES.map((status) => {
+              const on = item.status === status.id;
+              return (
+                <TouchableOpacity
+                  key={status.id}
+                  onPress={() => onCommit(patchWorkItem(state, bid.id, item.id, { status: status.id }))}
+                  accessibilityRole="button"
+                  style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                >
+                  <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{status.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eier</Text>
+          <View style={styles.row}>
+            {people.map((person) => {
+              const id = person.id || person.uid;
+              const on = item.ownerId === id;
+              return (
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => onCommit(patchWorkItem(state, bid.id, item.id, {
+                    ownerId: id,
+                    ownerName: person.name || '',
+                  }))}
+                  accessibilityRole="button"
+                  style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                >
+                  <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{person.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {item.ownerId ? (
+              <TouchableOpacity
+                onPress={() => onCommit(patchWorkItem(state, bid.id, item.id, { ownerId: '', ownerName: '' }))}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Fjern eier</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <TextInput
+            value={item.note}
+            onChangeText={(note) => onCommit(patchWorkItem(state, bid.id, item.id, { note }))}
+            placeholder="Notat til sjekkpunktet"
+            placeholderTextColor={colors.placeholder}
+            multiline
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg, minHeight: 56 }]}
+          />
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Vedlegg</Text>
+          <DropUpload
+            colors={colors}
+            dragOver={dragOver}
+            setDragOver={setDragOver}
+            uploading={uploading}
+            onPick={onPick}
+            onFiles={onFiles}
+          />
+          <FileList
+            files={attachments}
+            colors={colors}
+            openFileId={openFileId}
+            onOpen={setOpenFileId}
+            onDelete={(fileId) => onCommit(deleteBidFile(state, bid.id, fileId))}
+            onRename={(fileId, name) => onCommit(renameBidFile(state, bid.id, fileId, name))}
+          />
+          <TouchableOpacity onPress={() => onCommit(removeWorkItem(state, bid.id, item.id))} accessibilityRole="button">
+            <Text style={{ color: colors.danger }}>Fjern sjekkpunkt</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1068,14 +1424,6 @@ function Line({ label, value, colors }) {
 }
 
 const styles = StyleSheet.create({
-  shell: { gap: 12 },
-  shellWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
-  main: { gap: 12 },
-  mainWide: { flex: 1, minWidth: 0 },
-  side: { gap: 12, borderWidth: 1, borderRadius: 12, padding: 12 },
-  sideWide: Platform.OS === 'web'
-    ? { width: 280, flexShrink: 0, position: 'sticky', top: 0 }
-    : { width: 280, flexShrink: 0 },
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
@@ -1083,10 +1431,13 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   grow: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
-  long: { minHeight: 80, textAlignVertical: 'top' },
+  long: { minHeight: 120, textAlignVertical: 'top' },
   deadlineBanner: { borderWidth: 2, borderRadius: 14, padding: 14, gap: 4 },
   deadlineCompact: { borderWidth: 2, borderRadius: 12, padding: 12, gap: 4 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  section: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
+  well: { backgroundColor: '#ffffff', minHeight: 320 },
+  sectionCard: { backgroundColor: '#f8fafc' },
   drop: {
     borderWidth: 1,
     borderStyle: Platform.OS === 'web' ? 'dashed' : 'solid',

@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import {
   GROUND_ATTACH_FOLDER_ID,
   QA_ATTACH_FOLDER_ID,
+  QA_FOLDER_ID,
+  WORK_ATTACH_FOLDER_ID,
   addBidFile,
   addBidQuestion,
+  addWorkItem,
   answerBidQuestion,
   bidDeskBucket,
   bidOverview,
@@ -16,20 +19,30 @@ import {
   deleteBidFile,
   deleteBidFolder,
   deleteFormTemplate,
+  discardPendingWorkItems,
+  filesForCheck,
+  importPendingWorkItems,
   normalizeBidWork,
+  proposedWorkItemsFromInterpretation,
   pullFormTemplate,
   renameBidFolder,
   saveBidInterpretation,
+  saveBidStepAi,
+  saveBidStepNotes,
   saveFormTemplate,
   setFormStatus,
   setFormValue,
+  setPendingWorkItems,
   sortBidsByDeadline,
   toggleInterpretationCheck,
+  togglePendingWorkItem,
   updateBidAssignment,
+  updateBidSettings,
   workRootFolders,
 } from './bidLibrary.js';
 import {
   createBidWork,
+  createManualBidWork,
   emptyAnbudState,
   normalizeAnbudState,
   setNoticeDecision,
@@ -72,6 +85,7 @@ assert.equal(made.state.notices[0].decision, 'tilbud');
 assert.equal(made.state.bids[0].strategy.fag, true);
 assert.equal(made.state.bids[0].files.some((row) => row.name === 'Kunngjøring.txt'), true);
 assert.equal(made.state.bids[0].files.some((row) => row.name === 'Krav.pdf'), true);
+assert.equal(made.state.bids[0].files.find((row) => row.name === 'Spørsmål og svar.txt')?.folderId, QA_FOLDER_ID);
 assert.equal(made.state.formTemplates.some((row) => row.id === 'tilbudsbrev'), true);
 
 const declined = setNoticeDecision(seeded, '2026-1', 'ikke');
@@ -194,5 +208,46 @@ const savedAi = saveBidInterpretation(attachState, bidId, localAi);
 assert.equal(savedAi.ok, true);
 const toggled = toggleInterpretationCheck(savedAi.state, bidId, savedAi.state.bids[0].interpretation.checklist[0].id);
 assert.equal(toggled.state.bids[0].interpretation.checklist[0].done, true);
+assert.ok((localAi.deliverables || []).some((row) => row.kind === 'tilbudsbrev'));
+
+const notes = saveBidStepNotes(attachState, bidId, 'grunnlag', 'Sjekk kapittel 3.');
+assert.equal(notes.state.bids[0].stepNotes.grunnlag, 'Sjekk kapittel 3.');
+const stepAi = saveBidStepAi(notes.state, bidId, 'grunnlag', { summary: 'Grunnlaget krever senior APL.', engine: 'lokal' });
+assert.match(stepAi.state.bids[0].stepAi.grunnlag.summary, /senior APL/);
+
+const proposals = proposedWorkItemsFromInterpretation(localAi);
+const pending = setPendingWorkItems(stepAi.state, bidId, proposals);
+assert.ok(pending.state.bids[0].pendingWorkItems.length >= 1);
+const skipped = togglePendingWorkItem(pending.state, bidId, pending.state.bids[0].pendingWorkItems[0].id);
+assert.equal(skipped.state.bids[0].pendingWorkItems[0].selected, false);
+const imported = importPendingWorkItems(skipped.state, bidId);
+assert.equal(imported.ok, true);
+assert.equal(imported.state.bids[0].pendingWorkItems.length, 0);
+assert.ok(imported.state.bids[0].workItems.length >= 1);
+assert.equal(discardPendingWorkItems(pending.state, bidId).state.bids[0].pendingWorkItems.length, 0);
+
+let working = addWorkItem(imported.state, bidId, { title: 'Eget tilbudsbrev', kind: 'tilbudsbrev' }).state;
+const checkId = working.bids[0].workItems.find((row) => row.title === 'Eget tilbudsbrev').id;
+working = addBidFile(working, bidId, WORK_ATTACH_FOLDER_ID, {
+  name: 'Brevutkast.pdf',
+  mimeType: 'application/pdf',
+  url: 'https://example.com/brev.pdf',
+  checkId,
+}).state;
+assert.equal(filesForCheck(working.bids[0].files, checkId).some((row) => row.name === 'Brevutkast.pdf'), true);
+
+const renamed = updateBidSettings(working, bidId, { title: 'Nytt navn', buyer: 'Ny kommune', deadline: '10.11.2026 12:00' });
+assert.equal(renamed.state.bids[0].title, 'Nytt navn');
+assert.equal(renamed.state.bids[0].dossier.submissionDeadline, '10.11.2026 12:00');
+
+const manual = createManualBidWork(emptyAnbudState(), {
+  title: 'Rammeavtale vei',
+  buyer: 'Aukra kommune',
+  deadline: '01.12.2026 12:00',
+});
+assert.equal(manual.ok, true);
+assert.equal(manual.state.bids[0].source, 'manuell');
+assert.equal(manual.state.bids[0].noticeId, '');
+assert.equal(createManualBidWork(emptyAnbudState(), { title: '' }).ok, false);
 
 console.log('bid library ok');

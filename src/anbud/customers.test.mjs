@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   customerDraftFromBrreg,
+  customerImportReviewRows,
+  customerInvoiceGaps,
+  customerReadyForInvoice,
   filterCustomers,
   formatOrgnr,
   importCustomers,
@@ -128,25 +131,74 @@ const byName = Object.fromEntries(planned.rows.map((row) => [row.name, row]));
 const ny = planned.rows.filter((row) => row.name === 'Ny kunde AS');
 assert.equal(ny.filter((row) => row.severity === 'ok' && row.action === 'create').length, 1);
 assert.equal(ny.filter((row) => row.severity === 'block' && /flere ganger/.test(row.reason)).length, 1);
-assert.equal(byName['Igang Totalentreprenør As'].severity, 'block');
-assert.match(byName['Igang Totalentreprenør As'].reason, /finnes allerede/);
+assert.equal(byName['Igang Totalentreprenør As'].severity, 'existing');
+assert.match(byName['Igang Totalentreprenør As'].reason, /organisasjonsnummer/);
+assert.equal(byName['Igang Totalentreprenør As'].action, 'skip');
 assert.equal(byName['Halv kunde'].severity, 'review');
+assert.equal(byName['Halv kunde'].action, 'create');
 assert.equal(byName['Halv kunde'].customer.email, '');
 assert.equal(byName['Halv kunde'].customer.phone, '');
 assert.ok(byName['Halv kunde'].issues.some((issue) => /E-post/.test(issue)));
 assert.ok(byName['Halv kunde'].issues.some((issue) => /adresse/.test(issue)));
 assert.equal(byName['923456807'].severity, 'block');
 assert.match(byName['923456807'].reason, /Mangler navn/);
-assert.equal(byName['Feil nummer'].severity, 'block');
+assert.equal(byName['Feil nummer'].severity, 'review');
+assert.equal(byName['Feil nummer'].action, 'create');
+assert.equal(byName['Feil nummer'].customer.orgnr, '');
+assert.ok(byName['Feil nummer'].issues.some((issue) => /ni siffer/.test(issue)));
 assert.equal(planned.rows[0].severity, 'block');
+
+const occupied = planCustomerImport(created.state, [
+  { name: 'Samme nummer', customerNumber: created.customer.customerNumber, address: 'Gate 9', postalCode: '4073', place: 'Randaberg', email: 'x@y.no', phone: '92082276' },
+  { name: created.customer.name, address: 'Annen gate', postalCode: '4073', place: 'Oslo', email: 'z@y.no', phone: '92082276' },
+  { name: 'Privat uten org', kind: 'person', address: 'Veien 1', postalCode: '0001', place: 'Oslo', email: 'ola@x.no', phone: '90000000' },
+]);
+assert.equal(occupied.rows.find((row) => row.name === 'Samme nummer').severity, 'existing');
+assert.match(occupied.rows.find((row) => row.name === 'Samme nummer').reason, /Kundenummeret/);
+assert.equal(occupied.rows.find((row) => row.name === created.customer.name).severity, 'review');
+assert.equal(occupied.rows.find((row) => row.name === created.customer.name).action, 'create');
+const privatRow = occupied.rows.find((row) => row.name === 'Privat uten org');
+assert.equal(privatRow.action, 'create');
+assert.equal(privatRow.severity, 'ok');
+assert.equal(privatRow.issues.some((issue) => /organisasjonsnummer/i.test(issue)), false);
+
+const grouped = customerImportReviewRows(planned.rows);
+assert.ok(grouped.some((row) => row.severity === 'existing' && row.locked && /organisasjonsnummer/.test(row.issues[0])));
+assert.equal(customerReadyForInvoice(created.customer), false);
+assert.ok(customerInvoiceGaps({ name: 'A', kind: 'org' }).includes('Mangler organisasjonsnummer.'));
+assert.equal(customerInvoiceGaps({ name: 'A', kind: 'person' }).includes('Mangler organisasjonsnummer.'), false);
+
+const takenNumber = upsertCustomer(created.state, { name: 'Duplikat nr', customerNumber: created.customer.customerNumber });
+assert.equal(takenNumber.ok, false);
+assert.match(takenNumber.error, /Kundenummeret/);
+
+let packed = emptyAnbudState();
+packed = upsertCustomer(packed, { name: 'Eksisterende AS', orgnr: '923456785', customerNumber: '10006', address: 'Gate 1', postalCode: '4073', place: 'Oslo', email: 'a@a.no', phone: '92082276' }).state;
+packed = upsertCustomer(packed, { name: 'Uten org i register', customerNumber: '10008', address: 'Gate 2', postalCode: '4073', place: 'Oslo', email: 'b@b.no', phone: '92082276' }).state;
+const mix = planCustomerImport(packed, [
+  { name: 'Eksisterende AS', orgnr: '923456785', email: '', phone: '' },
+  { name: 'Uten org i register', customerNumber: '10008' },
+  { name: 'Ny privatperson', kind: 'person', address: 'Veien 2' },
+  { name: 'Ny bedrift', address: 'Storgata 1' },
+]);
+assert.deepEqual(mix.rows.filter((row) => row.severity === 'existing').map((row) => row.name).sort(), ['Eksisterende AS', 'Uten org i register']);
+assert.equal(mix.rows.filter((row) => row.action === 'create').length, 2);
+assert.ok(mix.rows.find((row) => row.name === 'Ny privatperson').issues.includes('Mangler e-post og telefon.'));
+assert.ok(mix.rows.find((row) => row.name === 'Ny bedrift').issues.includes('Mangler organisasjonsnummer.'));
+const mixView = customerImportReviewRows(mix.rows);
+assert.equal(mixView.filter((row) => row.severity === 'existing').reduce((sum, row) => sum + row.count, 0), 2);
+assert.equal(mixView.filter((row) => row.severity === 'review' && row.included).length, 2);
 
 const screen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
 const importFile = screen.slice(screen.indexOf('async function importFile'), screen.indexOf('function toggleCustomer'));
 assert.equal(importFile.includes('saveAnbudState'), false);
 assert.match(importFile, /planCustomerImport/);
 assert.match(screen, /confirmCustomerImport/);
+assert.match(screen, /customerImportReviewRows/);
 assert.match(screen, /Ingenting er lagret ennå/);
 assert.match(screen, /neste ledige er/);
+assert.match(screen, /Må rettes før fakturering/);
+assert.match(screen, /customer-filter-gap-invoice/);
 
 const first = upsertCustomer(emptyAnbudState(), { name: 'A AS', orgnr: '923456785', address: 'Gate 1', postalCode: '4073', place: 'Oslo', email: 'a@a.no', phone: '92082276' });
 const second = upsertCustomer(first.state, { name: 'B AS', orgnr: '923456793', customerNumber: '10180', address: 'Gate 2', postalCode: '4073', place: 'Oslo', email: 'b@b.no', phone: '92082276' });
@@ -172,6 +224,21 @@ const ordered = filterCustomers([
 ], '10', { kind: 'person', gap: 'contact' });
 assert.equal(ordered.length, 1);
 assert.equal(ordered[0].name, 'Først');
+const incomplete = filterCustomers([
+  { id: 'b', name: 'Senere', kind: 'org', customerNumber: '2', orgnr: '923456785', email: 's@s.no', phone: '92082276', address: 'Gate', postalCode: '0001', place: 'Oslo' },
+  { id: 'a', name: 'Først', kind: 'person', customerNumber: '10', email: '', phone: '', address: '' },
+], '', { gap: 'invoice' });
+assert.equal(incomplete.length, 1);
+assert.equal(incomplete[0].name, 'Først');
+assert.equal(customerReadyForInvoice({
+  name: 'Komplett AS',
+  kind: 'org',
+  orgnr: '922987106',
+  address: 'Gate 1',
+  postalCode: '4073',
+  place: 'Randaberg',
+  email: 'post@komplett.no',
+}), true);
 const byNumber = filterCustomers([
   { id: 'b', name: 'Senere', kind: 'org', customerNumber: '12' },
   { id: 'a', name: 'Først', kind: 'org', customerNumber: '2' },

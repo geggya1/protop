@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -10,6 +11,8 @@ import {
   filterCustomers,
   formatOrgnr,
   identityFieldsForKind,
+  customerImportReviewRows,
+  customerInvoiceGaps,
   importCustomers,
   maskPersonnummer,
   nextCustomerNumber,
@@ -317,10 +320,12 @@ export default function CustomersScreen() {
     const leftOut = [];
     importPlan.rows.forEach((row, index) => {
       const id = String(index);
-      if (row.severity === 'block' || dropped.has(id) || !row.customer) {
+      if (row.severity === 'block' || row.severity === 'existing' || dropped.has(id) || !row.customer) {
         leftOut.push({
           name: row.name,
-          reason: row.severity === 'block' ? (row.reason || 'Kan ikke importeres.') : 'Valgt bort før lagring.',
+          reason: row.severity === 'block' || row.severity === 'existing'
+            ? (row.reason || 'Kan ikke importeres.')
+            : 'Valgt bort før lagring.',
         });
         return;
       }
@@ -363,21 +368,7 @@ export default function CustomersScreen() {
     }
   }
 
-  const customerReviewRows = (importPlan?.rows || []).map((row, index) => ({
-    id: String(index),
-    severity: row.severity,
-    title: row.name,
-    meta: [
-      row.customer?.customerNumber ? `Kundenr ${row.customer.customerNumber}` : '',
-      formatOrgnr(row.orgnr),
-      row.address,
-      row.place,
-      row.email,
-      row.phone,
-    ].filter(Boolean).join(' · '),
-    issues: row.issues || [],
-    included: row.severity !== 'block' && !dropped.has(String(index)),
-  }));
+  const customerReviewRows = customerImportReviewRows(importPlan?.rows, dropped);
 
   return (
     <ScrollView
@@ -396,7 +387,7 @@ export default function CustomersScreen() {
           title="Ny kunde"
           info={[
             'Org.nr hentes fra Brønnøysund. Privatkunder bruker personnummer.',
-            'Import fra CSV, Excel, PDF eller bilde. Kjente kolonner leses direkte. Ukjente kolonner og skannede lister tolkes med OCR og AI.',
+            'Import kjenner igjen eksisterende kunder på kundenummer, organisasjonsnummer og personnummer. Nye kunder uten org.nr kan importeres. Mangler merkes på kundekortet og må rettes før fakturering.',
           ]}
           actions={[
             { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
@@ -412,7 +403,7 @@ export default function CustomersScreen() {
         <ImportReview
           nativeID="customers-import-plan"
           colors={colors}
-          lead={`Ingenting er lagret ennå. Kontroller innholdet og bekreft importen.${importPlan.understood || ''}`}
+          lead={`Ingenting er lagret ennå. Kunder som finnes fra før hoppes over. Mangelfulle nye kunder importeres og merkes på kundekortet.${importPlan.understood || ''}`}
           rows={customerReviewRows}
           busy={importing}
           confirmLabel={(count) => `Importer ${count} kunder`}
@@ -455,6 +446,7 @@ export default function CustomersScreen() {
                   { id: 'contact', label: 'Mangler kontakt', nativeID: 'customer-filter-gap-contact' },
                   { id: 'address', label: 'Mangler adresse', nativeID: 'customer-filter-gap-address' },
                   { id: 'orgnr', label: 'Mangler org.nr', nativeID: 'customer-filter-gap-orgnr' },
+                  { id: 'invoice', label: 'Må rettes før faktura', nativeID: 'customer-filter-gap-invoice' },
                 ],
               },
             ]}
@@ -484,6 +476,7 @@ export default function CustomersScreen() {
                   : (formatOrgnr(row.orgnr) || '—');
                 const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
                 const projectCount = projectCounts.get(row.id) || 0;
+                const invoiceGaps = customerInvoiceGaps(row);
                 if (isPhone) {
                   return (
                     <CustomerPhoneRow
@@ -501,14 +494,24 @@ export default function CustomersScreen() {
                     key={row.id}
                     onPress={() => { setSelectedId(row.id); setView('detail'); }}
                     accessibilityRole="button"
-                    accessibilityLabel={`${row.customerNumber} ${row.name}`}
+                    accessibilityLabel={`${row.customerNumber} ${row.name}${invoiceGaps.length ? ' Må rettes før fakturering' : ''}`}
                     style={[styles.tableRow, { borderColor: colors.line }]}
                   >
                     <Text style={[styles.cell, colWidth(0, false), { color: colors.ink, fontWeight: '700' }]}>
                       {row.customerNumber}
                     </Text>
                     <View style={[styles.cell, colWidth(1, false)]}>
-                      <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {invoiceGaps.length ? (
+                          <Ionicons
+                            name="warning"
+                            size={16}
+                            color={colors.danger || '#b45309'}
+                            accessibilityLabel="Må rettes før fakturering"
+                          />
+                        ) : null}
+                        <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>{row.name}</Text>
+                      </View>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
                         {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
                         {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
@@ -631,6 +634,20 @@ export default function CustomersScreen() {
           <TouchableOpacity onPress={() => setView('list')} accessibilityRole="button">
             <Text style={{ color: colors.brand }}>Til kundelisten</Text>
           </TouchableOpacity>
+          {customerInvoiceGaps(selected).length ? (
+            <View
+              nativeID="customer-invoice-gaps"
+              style={[styles.card, { borderColor: colors.danger || '#b45309', backgroundColor: colors.card, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }]}
+            >
+              <Ionicons name="warning" size={20} color={colors.danger || '#b45309'} accessibilityLabel="Må rettes før fakturering" />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ color: colors.danger || '#b45309', fontWeight: '700' }}>Må rettes før fakturering</Text>
+                {customerInvoiceGaps(selected).map((issue) => (
+                  <Text key={issue} style={{ color: colors.ink }}>{issue}</Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Kundeforhold</Text>
             <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '600' }}>{selected.name}</Text>

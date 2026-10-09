@@ -14,6 +14,11 @@ assert.equal(reviewHeadline([
   { severity: 'block' },
 ]), '1 klare · 1 finnes fra før · 1 må kontrolleres · 1 blir ikke importert');
 
+assert.equal(reviewHeadline([
+  { severity: 'existing', count: 205 },
+  { severity: 'review' },
+]), '205 finnes fra før · 1 må kontrolleres');
+
 assert.deepEqual(reviewSections([
   { severity: 'ok', id: '1' },
   { severity: 'existing', id: '2' },
@@ -39,5 +44,8 @@ assert.deepEqual(issueTally([
   { issues: ['Mangler adresse.', 'Mangler navn.'] },
   { issues: ['Mangler adresse.'] },
 ]), [['Mangler adresse.', 2], ['Mangler navn.', 1]]);
+assert.deepEqual(issueTally([
+  { issues: ['Kundenummeret finnes allerede.'], count: 27 },
+]), [['Kundenummeret finnes allerede.', 27]]);
 
 console.log('review.test.mjs: ok');

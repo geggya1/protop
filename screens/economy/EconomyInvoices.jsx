@@ -765,11 +765,6 @@ export default function EconomyInvoices({
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.heading, { color: colors.ink }]}>Kontroller fakturaimport</Text>
-        <Text style={{ color: colors.muted }}>
-          Sjekk kobling til kunde og prosjekt før lagring. Summeringsrader importeres ikke.
-          PDF-vedlegg kan knyttes på hver faktura etter import.
-        </Text>
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
         <InvoiceImportReview
@@ -781,6 +776,8 @@ export default function EconomyInvoices({
           readyCount={importReadyCount}
           linkQuery={linkQuery}
           setLinkQuery={setLinkQuery}
+          title="Kontroller fakturaimport"
+          lead="Sjekk kobling til kunde og prosjekt før lagring. Summeringsrader importeres ikke. PDF-vedlegg kan knyttes på hver faktura etter import."
           confirmLabel={(count) => `Importer ${count} fakturaer`}
           onToggleCard={(card) => {
             setDropped((current) => toggleInvoiceReviewRow(current, card, importPlan));

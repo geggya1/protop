@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { reviewHeadline } from '../src/imports/review';
 import { formatMoney } from '../src/economy/invoices.js';
 import { suggestCustomers, suggestProjects } from '../src/economy/invoiceImport.js';
@@ -103,6 +103,8 @@ export default function InvoiceImportReview({
   onConfirm,
   onCancel,
   confirmLabel,
+  title = 'Kontroller fakturaimport',
+  lead = '',
 }) {
   const danger = colors.danger || '#b42318';
   const brand = colors.brand || '#175cd3';
@@ -126,6 +128,8 @@ export default function InvoiceImportReview({
         onConfirm={onConfirm}
         confirmLabel={confirmLabel}
       />
+      {!!title && <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '700' }}>{title}</Text>}
+      {!!lead && <Text style={{ color: colors.muted }}>{lead}</Text>}
 
       <Text style={{ color: colors.ink, fontWeight: '600' }}>{reviewHeadline(headlineCards)}</Text>
       {review?.existingCount ? (
@@ -159,6 +163,34 @@ export default function InvoiceImportReview({
         </View>
       ))}
 
+      {okRows.length ? (
+        <View style={{ gap: 8 }}>
+          <View style={styles.okHead}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>
+              Klare uten avvik ({okRows.filter((row) => row.included).length})
+            </Text>
+            <TouchableOpacity
+              onPress={() => onToggleCard({ id: 'ok-group', indexes: okRows.map((row) => row.index) })}
+              accessibilityRole="button"
+            >
+              <Text style={{ color: colors.brand }}>
+                {okRows.every((row) => row.included) ? 'Ta alle ut' : 'Ta alle med'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.tableScroll}>
+            <View style={{ minWidth: 720 }}>
+              <OkTable
+                colors={colors}
+                rows={okRows}
+                pageSize={okPage}
+                onMore={() => setOkPage((n) => n + 40)}
+                onToggleRow={onToggleOkRow}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null}
       {(review?.reviewCards || []).length ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: AMBER, fontWeight: '700' }}>
@@ -268,34 +300,6 @@ export default function InvoiceImportReview({
         </View>
       ) : null}
 
-      {okRows.length ? (
-        <View style={{ gap: 8 }}>
-          <View style={styles.okHead}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>
-              Klare uten avvik ({okRows.filter((row) => row.included).length})
-            </Text>
-            <TouchableOpacity
-              onPress={() => onToggleCard({ id: 'ok-group', indexes: okRows.map((row) => row.index) })}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: colors.brand }}>
-                {okRows.every((row) => row.included) ? 'Ta alle ut' : 'Ta alle med'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator>
-            <View style={{ minWidth: 720 }}>
-              <OkTable
-                colors={colors}
-                rows={okRows}
-                pageSize={okPage}
-                onMore={() => setOkPage((n) => n + 40)}
-                onToggleRow={onToggleOkRow}
-              />
-            </View>
-          </ScrollView>
-        </View>
-      ) : null}
 
       <ActionBar
         colors={colors}
@@ -316,6 +320,9 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   okHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  tableScroll: Platform.OS === 'web'
+    ? { overflowX: 'auto', width: '100%' }
+    : { width: '100%' },
   table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tr: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
   head: {},

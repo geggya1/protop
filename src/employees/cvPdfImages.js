@@ -1,36 +1,20 @@
 /**
- * Henter CV-bilder til PDF via Firebase Storage SDK (getBytes).
- * Vanlig fetch/CORS fra nettleseren feiler ofte mot Storage — derfor denne stien.
+ * Henter CV-bilder til PDF.
+ * Direkte Storage (getBytes / auth-fetch) feiler ofte fra protop.no pga. ødelagt
+ * CORS-preflight — samme årsak som at opplasting går via Admin-callable.
+ * Rekkefølge: token-URL uten ekstra headers → downloadStorageFile-callable → getBytes.
  */
-import { getAuth } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { getBytes, ref as storageRef } from 'firebase/storage';
-import { storage } from '../../firebase';
-import { decodeBase64, jpegSize } from '../project/companyLogo.js';
+import { functions, storage } from '../../firebase';
+import { decodeBase64 } from '../project/companyLogo.js';
+import { jpegFromBytes, jpegFromDataUrl } from './cvPdfJpeg.js';
 import { storagePathFromUrl } from './cvPdfPaths.js';
 
 export { isFirebaseStorageUrl, storagePathFromUrl } from './cvPdfPaths.js';
+export { jpegFromBytes, jpegFromDataUrl } from './cvPdfJpeg.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
-
-function jpegFromDataUrl(dataUrl) {
-  const raw = String(dataUrl || '');
-  const match = raw.match(/^data:image\/(?:jpeg|jpg);base64,([A-Za-z0-9+/=]+)$/i);
-  if (!match) return null;
-  const bytes = decodeBase64(match[1]);
-  const size = jpegSize(bytes);
-  if (!bytes || !size) return null;
-  return { bytes, width: size.width, height: size.height };
-}
-
-function jpegFromBytes(buf) {
-  if (!buf || buf.length < 4) return null;
-  if (buf[0] === 0xff && buf[1] === 0xd8) {
-    const size = jpegSize(buf);
-    if (!size) return null;
-    return { bytes: buf, width: size.width, height: size.height };
-  }
-  return null;
-}
 
 function rasterToJpeg(src, maxEdge = 1400) {
   return new Promise((resolve) => {
@@ -64,31 +48,53 @@ function rasterToJpeg(src, maxEdge = 1400) {
   });
 }
 
-async function bytesViaGetBytes(path) {
-  if (!path) return null;
+async function bytesToJpeg(bytes) {
+  if (!bytes?.length) return null;
+  const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const jpeg = jpegFromBytes(buf);
+  if (jpeg) return jpeg;
+  if (typeof document === 'undefined') return null;
+  const blob = new Blob([buf]);
+  const objectUrl = URL.createObjectURL(blob);
   try {
-    const bytes = await getBytes(storageRef(storage, path), MAX_BYTES);
-    return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    return await rasterToJpeg(objectUrl);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+/** Enkel GET uten Authorization — unngår ødelagt CORS-preflight fra protop.no. */
+export async function bytesViaPlainFetch(url) {
+  if (!url || !/^https?:\/\//i.test(url) || typeof fetch !== 'function') return null;
+  try {
+    const res = await fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit' });
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
   } catch {
     return null;
   }
 }
 
-async function bytesViaAuthFetch(url) {
-  if (!url || !/^https?:\/\//i.test(url) || typeof fetch !== 'function') return null;
+async function bytesViaCallable(url) {
+  const path = storagePathFromUrl(url);
+  if (!path && !/^https?:\/\//i.test(url)) return null;
   try {
-    const user = getAuth().currentUser;
-    const headers = {};
-    if (user) {
-      try {
-        headers.Authorization = `Bearer ${await user.getIdToken()}`;
-      } catch {
-        // fortsett uten token
-      }
-    }
-    const res = await fetch(url, { headers, mode: 'cors' });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
+    const fn = httpsCallable(functions, 'downloadStorageFile');
+    const res = await fn({ objectPath: path || undefined, url: url || undefined });
+    const b64 = String(res?.data?.fileBase64 || '').replace(/\s+/g, '');
+    if (!b64) return null;
+    return decodeBase64(b64);
+  } catch {
+    return null;
+  }
+}
+
+async function bytesViaGetBytes(url) {
+  const path = storagePathFromUrl(url);
+  if (!path) return null;
+  try {
+    const bytes = await getBytes(storageRef(storage, path), MAX_BYTES);
+    return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   } catch {
     return null;
   }
@@ -106,24 +112,8 @@ export async function loadImageAsJpeg(url) {
     return rasterToJpeg(src);
   }
 
-  const path = storagePathFromUrl(src);
-  let bytes = path ? await bytesViaGetBytes(path) : null;
-  if (!bytes && /^https?:\/\//i.test(src)) {
-    bytes = await bytesViaAuthFetch(src);
-  }
-  if (!bytes) return null;
-
-  const jpeg = jpegFromBytes(bytes);
-  if (jpeg) return jpeg;
-
-  if (typeof document !== 'undefined') {
-    const blob = new Blob([bytes]);
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      return await rasterToJpeg(objectUrl);
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  }
-  return null;
+  let bytes = await bytesViaPlainFetch(src);
+  if (!bytes) bytes = await bytesViaCallable(src);
+  if (!bytes) bytes = await bytesViaGetBytes(src);
+  return bytesToJpeg(bytes);
 }

@@ -12,9 +12,19 @@ const workflowSrc = readFileSync(join(root, '.github/workflows/deploy-hosting.ym
 const cors = JSON.parse(readFileSync(join(root, 'cors.json'), 'utf8'));
 
 assert.match(uploadSrc, /handleUploadStorageFile/);
+assert.match(uploadSrc, /handleDownloadStorageFile/);
 assert.match(uploadSrc, /assertCanWriteObjectPath/);
+assert.match(uploadSrc, /assertCanReadObjectPath/);
 assert.match(uploadSrc, /families\/personal\//);
 assert.match(uploadSrc, /await mediaBucket\(\)/);
+const downloadStart = uploadSrc.indexOf('export async function handleDownloadStorageFile');
+assert.ok(downloadStart > 0);
+assert.match(uploadSrc.slice(downloadStart), /file\.download/);
+assert.match(uploadSrc.slice(downloadStart), /fileBase64/);
+const callablesSrc = readFileSync(join(root, 'functions/storageUploadCallables.js'), 'utf8');
+assert.match(callablesSrc, /downloadStorageFile/);
+assert.match(deploySrc, /downloadStorageFile/);
+assert.match(deploySrc, /downloadstoragefile/);
 assert.equal(uploadSrc.includes('protop-c189c.firebasestorage.app'), false);
 const bucketSrc = readFileSync(join(root, 'functions/storageBucket.js'), 'utf8');
 assert.match(bucketSrc, /protop-c189c\.firebasestorage\.app/);

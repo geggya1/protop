@@ -28,6 +28,62 @@ export async function assertCanWriteObjectPath(db, uid, objectPath) {
   throw new Error('Ugyldig lagringssti');
 }
 
+/** Samme ACL som skriv — lesing av egne familie-/brukerbilder. */
+export const assertCanReadObjectPath = assertCanWriteObjectPath;
+
+function objectPathFromUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (/^gs:\/\//i.test(value)) return value.replace(/^gs:\/\/[^/]+\//i, '');
+  if (/firebasestorage\.googleapis\.com\/v0\/b\//i.test(value)) {
+    try {
+      const after = value.split('/o/')[1] || '';
+      return decodeURIComponent((after.split('?')[0] || ''));
+    } catch {
+      return '';
+    }
+  }
+  if (!/^https?:\/\//i.test(value)) return value.replace(/^\//, '');
+  return '';
+}
+
+/**
+ * Last ned bilde via Admin SDK — omgår Firebase Storage CORS i nettleseren
+ * (samme årsak som uploadStorageFile finnes).
+ */
+export async function handleDownloadStorageFile(data, auth) {
+  const db = getFirestore();
+  const uid = auth?.uid;
+  if (!uid) throw new Error('Ikke innlogget');
+
+  const fromUrl = objectPathFromUrl(data?.url);
+  const objectPath = await assertCanReadObjectPath(db, uid, data?.objectPath || fromUrl);
+  const bucket = await mediaBucket();
+  const file = bucket.file(objectPath);
+  const [exists] = await file.exists();
+  if (!exists) throw new Error('Filen finnes ikke.');
+
+  const [metadata] = await file.getMetadata();
+  const size = Number(metadata?.size || 0);
+  if (size > MAX_BASE64_BYTES) {
+    throw new Error('Filen er for stor til PDF-eksport (maks 15 MB).');
+  }
+
+  const [buffer] = await file.download();
+  if (!buffer?.length) throw new Error('Tom fil.');
+  if (buffer.length > MAX_BASE64_BYTES) {
+    throw new Error('Filen er for stor til PDF-eksport (maks 15 MB).');
+  }
+
+  return {
+    storagePath: objectPath,
+    contentType: String(metadata?.contentType || 'application/octet-stream').slice(0, 120),
+    fileBase64: buffer.toString('base64'),
+    size: buffer.length,
+    bucket: bucket.name,
+  };
+}
+
 export async function handleUploadStorageFile(data, auth) {
   const db = getFirestore();
   const uid = auth?.uid;

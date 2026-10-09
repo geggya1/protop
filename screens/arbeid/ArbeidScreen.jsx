@@ -258,6 +258,7 @@ export default function ArbeidScreen() {
       internalNote: payload.internalNote,
       activityId: payload.activityId,
       activityName: payload.activityName,
+      timeType: payload.timeType || 'ordinary',
       createdByUid: uid,
     });
     if (!result.ok) {

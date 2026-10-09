@@ -156,7 +156,13 @@ export function emptyInvoice(overrides = {}) {
     sent: '',
     sentAt: '',
     kid: '',
+    vatCode: 'HIGH',
+    bankAccount: '',
     deliveryMethod: '',
+    lines: [],
+    timeEntryIds: [],
+    voucherId: '',
+    ehfXml: '',
     currency: 'NOK',
     exchangeRate: null,
     feesExMarkup: null,
@@ -195,6 +201,27 @@ export function emptyInvoice(overrides = {}) {
 
 function moneyOrNull(value) {
   return parseMoney(value);
+}
+
+function normalizeInvoiceLines(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((line, index) => {
+    if (!line || typeof line !== 'object') return null;
+    return {
+      id: text(line.id) || `line_${index + 1}`,
+      description: text(line.description),
+      quantity: Number(line.quantity) || 0,
+      unit: text(line.unit) || 't',
+      unitPrice: moneyOrNull(line.unitPrice) ?? 0,
+      vatCode: text(line.vatCode) || 'HIGH',
+      vatPercent: moneyOrNull(line.vatPercent),
+      amountExVat: moneyOrNull(line.amountExVat),
+      vatAmount: moneyOrNull(line.vatAmount),
+      amountInclVat: moneyOrNull(line.amountInclVat),
+      account: text(line.account),
+      timeEntryIds: Array.isArray(line.timeEntryIds) ? line.timeEntryIds.map((id) => text(id)).filter(Boolean) : [],
+    };
+  }).filter(Boolean);
 }
 
 export function normalizeInvoice(input) {
@@ -246,7 +273,13 @@ export function normalizeInvoice(input) {
     sent: text(row.sent),
     sentAt: parseDate(row.sentAt) || text(row.sentAt),
     kid: text(row.kid),
+    vatCode: text(row.vatCode) || 'HIGH',
+    bankAccount: text(row.bankAccount),
     deliveryMethod: text(row.deliveryMethod),
+    lines: normalizeInvoiceLines(row.lines),
+    timeEntryIds: Array.isArray(row.timeEntryIds) ? row.timeEntryIds.map((id) => text(id)).filter(Boolean) : [],
+    voucherId: text(row.voucherId),
+    ehfXml: text(row.ehfXml),
     currency: text(row.currency) || 'NOK',
     exchangeRate: moneyOrNull(row.exchangeRate),
     feesExMarkup: moneyOrNull(row.feesExMarkup),

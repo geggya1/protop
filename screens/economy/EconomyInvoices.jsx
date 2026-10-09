@@ -43,6 +43,8 @@ import {
   statusLabel,
 } from '../../src/economy/invoices.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
+import { buildEhfXml } from '../../src/economy/ehf.js';
+import { validateKid } from '../../src/economy/kid.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -195,14 +197,36 @@ function InvoiceDetail({
   onNavigate,
   onUploadPdf,
   uploading,
+  supplier = {},
 }) {
   const [tab, setTab] = useState('overview');
+  const [ehfNote, setEhfNote] = useState('');
   const sections = useMemo(() => invoiceDetailSections(invoice), [invoice]);
   const payment = useMemo(() => invoicePaymentSummary(invoice), [invoice]);
   const overdue = isInvoiceOverdue(invoice);
+  const kidCheck = invoice.kid ? validateKid(invoice.kid) : null;
   const index = invoices.findIndex((row) => row.id === invoice.id);
   const prev = index > 0 ? invoices[index - 1] : null;
   const next = index >= 0 && index < invoices.length - 1 ? invoices[index + 1] : null;
+
+  function downloadEhf() {
+    const built = invoice.ehfXml
+      ? { ok: true, xml: invoice.ehfXml }
+      : buildEhfXml(invoice, { supplier });
+    if (!built?.ok || !built.xml) {
+      setEhfNote(built?.error || 'Kan ikke lage EHF (mangler org.nr eller data).');
+      return;
+    }
+    setEhfNote('EHF XML generert.');
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const blob = new Blob([built.xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `faktura-${invoice.invoiceNumber || 'ehf'}.xml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const overview = (
     <View style={{ gap: 16 }}>
@@ -233,14 +257,46 @@ function InvoiceDetail({
               {formatDate(invoice.dueDate)}
             </Text>
           </Text>
-          <Text style={{ color: colors.muted }}>KID {invoice.kid || '—'} · {invoice.deliveryMethod || statusLabel(invoice.status)}</Text>
+          <Text style={{ color: colors.muted }}>
+            KID {invoice.kid || '—'}
+            {kidCheck ? (kidCheck.ok ? ' ✓' : ` (${kidCheck.error})`) : ''}
+            {' · '}
+            {invoice.deliveryMethod || statusLabel(invoice.status)}
+          </Text>
+          {invoice.voucherId ? (
+            <Text style={{ color: colors.muted }}>
+              Bilag: {invoice.voucherId}
+              {Array.isArray(invoice.voucherLines) && invoice.voucherLines.length
+                ? ` (${invoice.voucherLines.length} linjer)`
+                : ''}
+            </Text>
+          ) : null}
           {invoice.projectId ? (
             <TouchableOpacity onPress={() => onOpenProject?.(invoice.projectId)}>
               <Text style={{ color: colors.brand }}>Åpne prosjekt</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity onPress={downloadEhf} style={{ marginTop: 6 }}>
+            <Text style={{ color: colors.brand }}>Last ned EHF (Peppol BIS 3.0)</Text>
+          </TouchableOpacity>
+          {ehfNote ? <Text style={{ color: colors.muted, fontSize: 12 }}>{ehfNote}</Text> : null}
         </View>
       </View>
+
+      {Array.isArray(invoice.lines) && invoice.lines.length ? (
+        <View style={[styles.section, { borderColor: colors.line, padding: 12, gap: 8 }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Fakturalinjer</Text>
+          {invoice.lines.map((line) => (
+            <View key={line.id} style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={{ color: colors.ink, flex: 2, minWidth: 140 }}>{line.description}</Text>
+              <Text style={{ color: colors.muted }}>{line.quantity} {line.unit}</Text>
+              <Text style={{ color: colors.muted }}>à {formatMoney(line.unitPrice, invoice.currency)}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatMoney(line.amountExVat, invoice.currency)}</Text>
+              <Text style={{ color: colors.muted }}>MVA {line.vatPercent ?? '—'}%</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <AmountGroups invoice={invoice} colors={colors} />
 
@@ -418,6 +474,7 @@ export default function EconomyInvoices({
   onOpenCustomer,
   onOpenProject,
   storage = null,
+  supplier = {},
 }) {
   const store = storage || invoiceStorage;
   const {
@@ -746,6 +803,7 @@ export default function EconomyInvoices({
           invoices={visible}
           colors={colors}
           wide={wideDetail}
+          supplier={supplier}
           onBack={() => { setView('list'); setSelectedId(''); }}
           onOpenCustomer={onOpenCustomer}
           onOpenProject={onOpenProject}

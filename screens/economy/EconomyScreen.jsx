@@ -18,8 +18,10 @@ import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import EconomyInvoices from './EconomyInvoices';
+import EconomyBilling from './EconomyBilling';
 import EconomyHours from './EconomyHours';
 import EconomyWelcome from './EconomyWelcome';
+import { supplierFromCompany } from '../../src/economy/ehf.js';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
@@ -172,10 +174,15 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         familyId={familyId}
         customers={customers}
         projects={projects}
+        supplier={supplierFromCompany(company, family?.name)}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
       />
     );
+  }
+
+  if (page === 'fakturagrunnlag') {
+    return <EconomyBilling />;
   }
 
   if (page === 'timer') {

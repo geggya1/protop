@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
+import { TIME_TYPES } from '../../src/arbeid/overtime.js';
 
 const QUICK = ['0:30', '1:00', '2:00', '4:00', '7:30', '8:00'];
 
@@ -34,6 +35,7 @@ export default function TimeEntryModal({
   const [description, setDescription] = useState('');
   const [internalNote, setInternalNote] = useState('');
   const [activityId, setActivityId] = useState('');
+  const [timeType, setTimeType] = useState('ordinary');
   const [showInternal, setShowInternal] = useState(false);
   const [showQuick, setShowQuick] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
@@ -45,6 +47,7 @@ export default function TimeEntryModal({
     setDescription(initial?.description || '');
     setInternalNote(initial?.internalNote || '');
     setActivityId(initial?.activityId || activities[0]?.id || '');
+    setTimeType(initial?.timeType || 'ordinary');
     setShowInternal(!!initial?.internalNote);
     setError('');
     setShowMenu(false);
@@ -67,6 +70,7 @@ export default function TimeEntryModal({
       internalNote: internalNote.trim(),
       activityId,
       activityName: activities.find((row) => row.id === activityId)?.name || 'Hovedaktivitet',
+      timeType,
     });
   }
 
@@ -150,6 +154,28 @@ export default function TimeEntryModal({
           />
         </>
       ) : null}
+
+      <Text style={[styles.label, { color: colors.muted }]}>Timeart</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+        {TIME_TYPES.map((row) => {
+          const on = row.id === timeType;
+          return (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => setTimeType(row.id)}
+              style={[
+                styles.chip,
+                {
+                  borderColor: on ? colors.brand : colors.line,
+                  backgroundColor: on ? `${colors.brand}18` : colors.bg,
+                },
+              ]}
+            >
+              <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{row.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       <Text style={[styles.label, { color: colors.muted }]}>Aktivitet</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>

@@ -204,6 +204,8 @@ function normalizeTimeEntryRow(row) {
     description: text(row.description),
     internalNote: text(row.internalNote),
     department: text(row.department),
+    timeType: text(row.timeType) || 'ordinary',
+    invoiceId: text(row.invoiceId) || null,
     status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
     importFingerprint: text(row.importFingerprint),
     externalId: text(row.externalId),
@@ -1282,7 +1284,9 @@ export function upsertTimeEntry(state, input) {
   const existing = existingId
     ? working.timeEntries.find((row) => row.id === existingId)
     : null;
-  if (existing?.status === 'låst') return fail(working, 'Føringen er låst og kan ikke endres.');
+  if (existing?.status === 'låst' || existing?.invoiceId) {
+    return fail(working, 'Føringen er låst/fakturert og kan ikke endres.');
+  }
 
   // Slett når timer settes til 0 uten beskrivelse
   if (existing && hours === 0 && !description) {
@@ -1299,6 +1303,11 @@ export function upsertTimeEntry(state, input) {
     projectId: gate.project.id,
     employeeId,
     employeeName: text(input.employeeName) || existing?.employeeName,
+    customerId: text(input.customerId) || existing?.customerId || gate.project.customerId,
+    customerNumber: text(input.customerNumber) || existing?.customerNumber || gate.project.customerNumber,
+    customerName: text(input.customerName) || existing?.customerName || gate.project.client,
+    projectNumber: gate.project.number,
+    projectName: gate.project.name,
     activityId,
     activityName,
     date,
@@ -1306,6 +1315,8 @@ export function upsertTimeEntry(state, input) {
     billableHours,
     description,
     internalNote: text(input.internalNote !== undefined ? input.internalNote : existing?.internalNote),
+    timeType: text(input.timeType) || existing?.timeType || 'ordinary',
+    invoiceId: existing?.invoiceId || null,
     status: ['registrert', 'godkjent', 'låst'].includes(input.status)
       ? input.status
       : (existing?.status || 'registrert'),

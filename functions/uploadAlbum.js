@@ -44,7 +44,7 @@ export async function handleCreateAlbumUploadUrl(data, auth) {
   await ensureStorageCors();
 
   const token = randomUUID();
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const file = bucket.file(objectPath);
   const metaHeader = 'x-goog-meta-firebasestoragedownloadtokens';
 
@@ -109,7 +109,7 @@ export async function handleUploadAlbumFile(data, auth) {
   await ensureStorageCors();
 
   const token = randomUUID();
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const file = bucket.file(objectPath);
   await file.save(buffer, {
     metadata: {

@@ -51,7 +51,7 @@ export async function handleUploadStorageFile(data, auth) {
   }
 
   const token = randomUUID();
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const file = bucket.file(objectPath);
   try {
     await file.save(buffer, {

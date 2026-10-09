@@ -128,7 +128,7 @@ export async function checkAndIncrementUsage(db, familyId, uid, kind, limit) {
 }
 
 export async function downloadImageBase64(storagePath) {
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const file = bucket.file(storagePath);
   const [meta] = await file.getMetadata().catch(() => [null]);
   const size = Number(meta?.size || 0);
@@ -143,7 +143,7 @@ export async function downloadImageBase64(storagePath) {
 export async function deleteStorageObject(storagePath) {
   if (!storagePath) return;
   try {
-    await mediaBucket().file(storagePath).delete({ ignoreNotFound: true });
+    await (await mediaBucket()).file(storagePath).delete({ ignoreNotFound: true });
   } catch {
     // best effort
   }

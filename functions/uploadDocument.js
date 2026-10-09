@@ -65,7 +65,7 @@ export async function handleUploadDocument(data, auth) {
   const safeName = fileName.replace(/[^\w.\-()+ ]/g, '_').slice(0, 120) || 'dokument';
   const storagePath = `families/${familyId}/documents/${folderId}/${Date.now()}-${safeName}`;
   const token = randomUUID();
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const file = bucket.file(storagePath);
 
   await file.save(buffer, {

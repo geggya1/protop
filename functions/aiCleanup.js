@@ -46,7 +46,7 @@ async function purgeOldDraftDocs(db) {
 }
 
 async function purgeOldAiTempFiles() {
-  const bucket = mediaBucket();
+  const bucket = await mediaBucket();
   const cutoffMs = Date.now() - AI_LIMITS.draftTtlMs;
   let deleted = 0;
   let pageToken;

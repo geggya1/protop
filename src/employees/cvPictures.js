@@ -105,7 +105,31 @@ export async function storeCvImages(employee, upload, options = {}) {
       failOne(err);
     }
   }
-  const projects = await runPool(row.cv?.projects || [], 4, async (project, index) => {
+
+  let pendingProjects = (row.cv?.projects || []).map((project) => ({
+    ...project,
+    images: Array.isArray(project?.images) ? [...project.images] : [],
+  }));
+  if (!stopped) {
+    let probed = false;
+    for (let index = 0; index < pendingProjects.length && !probed && !stopped; index += 1) {
+      const source = pendingProjects[index].images;
+      const imageIndex = source.findIndex(isInline);
+      if (imageIndex < 0) continue;
+      probed = true;
+      try {
+        const stored = await bump(
+          `employees/${id}/projects/${pendingProjects[index]?.id || index}/${imageIndex}`,
+          source[imageIndex],
+        );
+        if (stored && !isInline(stored)) source[imageIndex] = stored;
+      } catch (err) {
+        failOne(err);
+      }
+    }
+  }
+
+  const projects = await runPool(pendingProjects, stopped ? 1 : 4, async (project, index) => {
     const images = [];
     const source = Array.isArray(project?.images) ? project.images : [];
     for (let imageIndex = 0; imageIndex < source.length; imageIndex += 1) {

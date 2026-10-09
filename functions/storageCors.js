@@ -61,7 +61,7 @@ export async function ensureStorageCors({ force = false } = {}) {
   if (applied && !force) return { ok: true, skipped: true, origins: STORAGE_CORS[0].origin.length };
   if (inflight) return inflight;
   inflight = (async () => {
-    const bucket = mediaBucket();
+    const bucket = await mediaBucket();
     await bucket.setCorsConfiguration(STORAGE_CORS);
     applied = true;
     logger.info('[storageCors] bucket CORS applied', {

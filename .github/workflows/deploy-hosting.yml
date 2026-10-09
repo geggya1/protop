@@ -66,7 +66,10 @@ jobs:
 
       - name: Ensure Firebase Storage bucket
         # Oppretter default-bucket hvis den mangler, setter CORS, og skriver en probe.
-        # Uten denne bucketen feiler CV-bildeopplasting med «Lagringsbucket mangler».
+        # github-hosting-deploy mangler ofte storage.buckets.create — da skal Hosting
+        # og slim functions likevel deployes. CV-opplasting feiler til bucketen finnes
+        # (opprett via Firebase Console → Storage → Get started, eller eier-innlogging).
+        continue-on-error: true
         run: |
           npm ci --prefix functions
           NODE_PATH="$PWD/functions/node_modules" node scripts/apply-storage-cors.mjs

@@ -188,6 +188,9 @@ Neste i syklus 5–6: kreditnota-hjelper, lagring av `lines`/`kid`/`vatCode`/`eh
 | 1–6, 8–9 | Fakturagrunnlag, linjer, kreditnota, MVA, KID, EHF, overtid, timerapport | OK |
 | 7 | Bilag ved faktura | OK (snapshot `voucherLines` + `voucherId`) |
 
+**Tester (syklus 10):** `billingPipeline.test.mjs` + `arbeid/*.test.mjs` grønne.  
+**UI:** `/faktura-demo` viser fakturaliste, KID, EHF-nedlasting (Peppol BIS 3.0). Full Arbeid→Fakturagrunnlag krever innlogget lederøkt.
+
 **P1 igjen:** fakturanummerserie + forfallsdager, leveringsstatusflyt (EHF/e-post), lås perioder / masse-godkjenning, utlegg → faktura, purre, bankkonto på selskap.
 
 **P2 igjen:** Peppol Access Point, SAF-T, lønn/A-melding, Tripletex/Fiken/Visma sync, EHF CreditNote-dokumenttype.

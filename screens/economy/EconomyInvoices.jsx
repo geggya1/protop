@@ -210,15 +210,16 @@ function InvoiceDetail({
   const next = index >= 0 && index < invoices.length - 1 ? invoices[index + 1] : null;
 
   function downloadEhf() {
-    const xml = invoice.ehfXml || buildEhfXml(invoice, { supplier }).xml;
-    const built = invoice.ehfXml ? { ok: true, xml: invoice.ehfXml } : buildEhfXml(invoice, { supplier });
-    if (!built.ok) {
-      setEhfNote(built.error);
+    const built = invoice.ehfXml
+      ? { ok: true, xml: invoice.ehfXml }
+      : buildEhfXml(invoice, { supplier });
+    if (!built?.ok || !built.xml) {
+      setEhfNote(built?.error || 'Kan ikke lage EHF (mangler org.nr eller data).');
       return;
     }
     setEhfNote('EHF XML generert.');
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const blob = new Blob([built.xml || xml], { type: 'application/xml' });
+    const blob = new Blob([built.xml], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

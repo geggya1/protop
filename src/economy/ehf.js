@@ -19,6 +19,25 @@ function orgDigits(orgnr) {
   return String(orgnr || '').replace(/\D/g, '').slice(0, 9);
 }
 
+/**
+ * Map family.company → EHF/faktura-leverandørfelt.
+ * Bedriften lagrer adresse som `forretning` (ikke Brreg-råfeltet forretningsadresse).
+ */
+export function supplierFromCompany(company, fallbackName = '') {
+  const addr = company?.forretning;
+  const street = Array.isArray(addr?.lines) && addr.lines.length
+    ? addr.lines.filter(Boolean).join(', ')
+    : text(addr?.label || company?.addressLabel);
+  return {
+    name: text(company?.navn) || text(fallbackName) || 'Selskap',
+    orgnr: text(company?.organisasjonsnummer),
+    address: street,
+    city: text(addr?.poststed),
+    postalCode: text(addr?.postnummer),
+    bankAccount: text(company?.bankAccount || company?.kontonummer),
+  };
+}
+
 function money(n) {
   const v = Number(n) || 0;
   return v.toFixed(2);

@@ -21,6 +21,7 @@ import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
 import EconomyHours from './EconomyHours';
 import EconomyWelcome from './EconomyWelcome';
+import { supplierFromCompany } from '../../src/economy/ehf.js';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
@@ -168,20 +169,12 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   }
 
   if (page === 'faktura') {
-    const supplier = {
-      name: family?.company?.navn || family?.name || '',
-      orgnr: family?.company?.organisasjonsnummer || '',
-      address: family?.company?.forretningsadresse?.adresse || '',
-      city: family?.company?.forretningsadresse?.poststed || '',
-      postalCode: family?.company?.forretningsadresse?.postnummer || '',
-      bankAccount: family?.company?.bankAccount || family?.company?.kontonummer || '',
-    };
     return (
       <EconomyInvoices
         familyId={familyId}
         customers={customers}
         projects={projects}
-        supplier={supplier}
+        supplier={supplierFromCompany(company, family?.name)}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
       />

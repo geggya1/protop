@@ -19,7 +19,7 @@ import {
   markEntriesInvoiced,
 } from '../../src/economy/billingFromHours.js';
 import { voucherFromInvoice } from '../../src/economy/vouchers.js';
-import { buildEhfXml } from '../../src/economy/ehf.js';
+import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { VAT_CODES as VAT_TABLE } from '../../src/economy/vat.js';
@@ -60,14 +60,10 @@ export default function EconomyBilling() {
     [projectState, onlyApproved],
   );
 
-  const supplier = useMemo(() => ({
-    name: family?.company?.navn || family?.name || 'Selskap',
-    orgnr: family?.company?.organisasjonsnummer || '',
-    address: family?.company?.forretningsadresse?.adresse || '',
-    city: family?.company?.forretningsadresse?.poststed || '',
-    postalCode: family?.company?.forretningsadresse?.postnummer || '',
-    bankAccount: family?.company?.bankAccount || family?.company?.kontonummer || '',
-  }), [family]);
+  const supplier = useMemo(
+    () => supplierFromCompany(family?.company, family?.name),
+    [family],
+  );
 
   async function createInvoice(proposal) {
     setBusyKey(proposal.key);
@@ -101,9 +97,6 @@ export default function EconomyBilling() {
           status: 'draft',
         };
         setLastEhf(ehf.xml);
-      } else {
-        // Fortsett uten EHF hvis orgnr mangler — faktura lagres likevel
-        setNote(`Faktura opprettet. EHF: ${ehf.error}`);
       }
 
       await invoiceStorage.saveInvoice(familyId, invoice);
@@ -111,7 +104,15 @@ export default function EconomyBilling() {
       await saveProjectState(nextState, familyId);
       setProjectState(nextState);
       setInvoices(await invoiceStorage.loadInvoices(familyId));
-      setNote(`Faktura ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}). KID ${invoice.kid || '—'}.${voucher.ok ? ' Bilag bokført.' : ''}`);
+      const parts = [
+        `Faktura ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}).`,
+        `KID ${invoice.kid || '—'}.`,
+      ];
+      if (voucher.ok) parts.push('Bilag bokført.');
+      // Fortsett uten EHF hvis orgnr mangler — faktura lagres likevel
+      if (ehf.ok) parts.push('EHF klar.');
+      else parts.push(`EHF: ${ehf.error}`);
+      setNote(parts.join(' '));
     } catch (cause) {
       setError(String(cause?.message || cause) || 'Kunne ikke opprette faktura.');
     } finally {

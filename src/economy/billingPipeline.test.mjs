@@ -11,7 +11,7 @@ import { buildBillingProposals, createInvoiceFromProposal, markEntriesInvoiced }
 import { buildKid, validateKid, mod10CheckDigit, mod11CheckDigit, appendCheckDigit } from './kid.js';
 import { calcLineVat, invoiceVatTotals, VAT_CODES, vatCodeById, roundMoney } from './vat.js';
 import { voucherFromInvoice, creditVoucherFromInvoice, voucherBalances } from './vouchers.js';
-import { buildEhfXml, validateEhfBasics } from './ehf.js';
+import { buildEhfXml, validateEhfBasics, supplierFromCompany } from './ehf.js';
 import { reportByEmployee, reportSummary, entriesToCsv } from '../arbeid/reports.js';
 import { rateWithOvertime, TIME_TYPES } from '../arbeid/overtime.js';
 import { vatPayableAccount } from './accountsChart.js';
@@ -237,5 +237,18 @@ assert.ok(csv.includes('Overtid 50'));
 // EHF uten orgnr på selger skal feile tydelig
 const bad = buildEhfXml(created.invoice, { supplier: { name: 'X', orgnr: '12' } });
 assert.equal(bad.ok, false);
+
+// Leverandøradresse kommer fra company.forretning (ikke forretningsadresse)
+const mapped = supplierFromCompany({
+  navn: 'ProTop AS',
+  organisasjonsnummer: '912345678',
+  forretning: { lines: ['Storgata 1'], poststed: 'Oslo', postnummer: '0150', label: 'Storgata 1, 0150 Oslo' },
+  kontonummer: '12345678903',
+});
+assert.equal(mapped.address, 'Storgata 1');
+assert.equal(mapped.city, 'Oslo');
+assert.equal(mapped.postalCode, '0150');
+assert.equal(mapped.bankAccount, '12345678903');
+assert.equal(supplierFromCompany({ addressLabel: 'Kun label' }, 'Fallback').address, 'Kun label');
 
 console.log('billingPipeline.test.mjs: ok');

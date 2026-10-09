@@ -55,7 +55,10 @@ assert.match(deploySrc, /storageIndex\.js/);
 assert.match(deploySrc, /uploadStorageFile/);
 assert.match(workflowSrc, /Ensure Firebase Storage bucket/);
 assert.match(workflowSrc, /apply-storage-cors\.mjs/);
+assert.match(workflowSrc, /continue-on-error: true/);
 assert.equal(workflowSrc.includes('Apply Firebase Storage CORS'), false);
+assert.match(corsScript, /::warning::/);
+assert.match(corsScript, /Hosting deployes videre/);
 
 const firebaseSrc = readFileSync(join(root, 'firebase.js'), 'utf8');
 assert.match(firebaseSrc, /protop-c189c\.appspot\.com/);

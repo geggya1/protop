@@ -112,24 +112,40 @@ async function ensureDefaultBucket() {
   if (again) return again;
 
   const detail = created.data?.error?.message || JSON.stringify(created.data || {}).slice(0, 400);
-  throw new Error(
+  const message = (
     `Firebase Storage-bucket mangler og kunne ikke opprettes `
     + `(defaultBucket ${created.status}: ${detail}; GCS: ${gcsErrors.join(' | ') || 'ingen'}). `
-    + 'Gi github-hosting-deploy Storage Admin, eller trykk Get started under Storage i Firebase Console.',
+    + 'Gi github-hosting-deploy Storage Admin, eller trykk Get started under Storage i Firebase Console.'
   );
+  const err = new Error(message);
+  err.code = 'STORAGE_BUCKET_MISSING';
+  throw err;
 }
 
-const bucketName = await ensureDefaultBucket();
-const bucket = storage.bucket(bucketName);
-const [exists] = await bucket.exists();
-if (!exists) {
-  throw new Error(`Lagringsbucket mangler etter oppretting (gs://${bucketName}).`);
+try {
+  const bucketName = await ensureDefaultBucket();
+  const bucket = storage.bucket(bucketName);
+  const [exists] = await bucket.exists();
+  if (!exists) {
+    throw new Error(`Lagringsbucket mangler etter oppretting (gs://${bucketName}).`);
+  }
+
+  await bucket.setCorsConfiguration(cors);
+
+  const probe = bucket.file(`_health/storage-probe-${Date.now()}`);
+  await probe.save(Buffer.from('protop-storage-ok'), { contentType: 'text/plain' });
+  await probe.delete({ ignoreNotFound: true });
+
+  console.log(`Storage klar: gs://${bucketName} (${cors[0]?.origin?.length || 0} CORS-origins, skriveprobe ok)`);
+} catch (err) {
+  const text = String(err?.message || err);
+  if (/storage\.buckets\.create|defaultBucket\.create|STORAGE_BUCKET_MISSING|Permission/i.test(text)) {
+    console.error(`::warning::${text}`);
+    console.error(
+      'Storage-bucket mangler. Hosting deployes videre, men CV-bilder feiler til bucketen er opprettet '
+      + '(Firebase Console → Build → Storage → Get started).',
+    );
+    process.exit(1);
+  }
+  throw err;
 }
-
-await bucket.setCorsConfiguration(cors);
-
-const probe = bucket.file(`_health/storage-probe-${Date.now()}`);
-await probe.save(Buffer.from('protop-storage-ok'), { contentType: 'text/plain' });
-await probe.delete({ ignoreNotFound: true });
-
-console.log(`Storage klar: gs://${bucketName} (${cors[0]?.origin?.length || 0} CORS-origins, skriveprobe ok)`);

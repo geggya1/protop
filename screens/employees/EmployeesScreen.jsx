@@ -22,6 +22,7 @@ import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
 import {
   absorbCompanyIntoProfile,
+  applyEmployeeClassification,
   applyProfessionalProfile,
   buildCv,
   canSeeSensitive,
@@ -36,11 +37,13 @@ import {
   gapReport,
   hasPersonContent,
   initials,
+  isInnleidEmployee,
   linkClash,
   newId,
   presentEmployee,
   rememberLink,
   sortEmployees,
+  statusLabel,
 } from '../../src/employees/model';
 import { cvEditorSections } from '../../src/employees/schema';
 import {
@@ -67,9 +70,10 @@ async function bytesFromFile(file) {
 
 const FILTERS = [
   ['current', 'Nåværende'],
-  ['external', 'Eksterne'],
+  ['innleid', 'Innleid'],
+  ['external', 'Ekstern tilgang'],
   ['leave', 'Permisjon'],
-  ['former', 'Sluttet'],
+  ['former', 'Tidligere'],
   ['all', 'Alle'],
 ];
 
@@ -140,7 +144,7 @@ export default function EmployeesScreen() {
   }, [uid]);
 
   useEffect(() => {
-    if (view !== 'edit' && view !== 'mine') return undefined;
+    if (view !== 'edit' && view !== 'mine' && view !== 'detail') return undefined;
     const q = String(draft?.person?.address1 || '').trim();
     if (q.length < 3 || q === pickedAddress.current) {
       setAddressHits([]);
@@ -172,8 +176,6 @@ export default function EmployeesScreen() {
     [rows, filter, query, departments],
   );
   const stats = directoryStats(statusRows);
-  const reveal = selected ? canSeeSensitive(selected, { uid, isAdmin }) : false;
-
   function resetMessage() {
     setNote('');
     setError('');
@@ -309,15 +311,8 @@ export default function EmployeesScreen() {
     resetMessage();
     clearSectionEdit();
     setSelectedId(row.id);
-    setView('detail');
-  }
-
-  function openEdit(row) {
-    resetMessage();
-    clearSectionEdit();
-    setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView('edit');
+    setView('detail');
   }
 
   function openCv(row) {
@@ -504,6 +499,40 @@ export default function EmployeesScreen() {
     return !!isAdmin || (!!draft?.personUid && draft.personUid === uid);
   }
 
+  function changeDetail(next) {
+    setDraft(presentEmployee(next));
+    setError('');
+  }
+
+  async function classifyEmployee(patch) {
+    if (!isAdmin || busy) return;
+    const current = draft && draft.id === selectedId ? draft : selected;
+    if (!current) return;
+    const next = applyEmployeeClassification(current, patch);
+    setDraft(next);
+    const result = commitEmployee(next, { scope: 'company' });
+    if (!result.ok) {
+      showError(result.errors.join('\n'));
+      return;
+    }
+    if (!familyId) {
+      showError('Åpne selskapet før du lagrer en ansettelse.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await saveEmployee(familyId, result.employee);
+      setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
+      setDraft(presentEmployee(saved));
+      setSelectedId(saved.id);
+      setNote('Tilknytningen er lagret.');
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lagre.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function busyLabel(idle) {
     if (!busy) return idle;
     if (busyKind === 'cv') return 'Leser CV…';
@@ -518,21 +547,21 @@ export default function EmployeesScreen() {
   }
 
   async function save() {
-    if (!draft || busy) return;
+    if (!draft || busy) return false;
     const scope = view === 'mine' ? 'profile' : 'company';
     const result = commitEmployee(draft, { scope });
     if (!result.ok) {
       showError(result.errors.join('\n'));
-      return;
+      return false;
     }
     if (scope === 'company' && !familyId) {
       showError('Åpne selskapet før du lagrer en ansettelse.');
-      return;
+      return false;
     }
     const clash = scope === 'company' ? linkClash(rows, result.employee) : null;
     if (clash) {
       showError(`${displayName(clash)} er allerede knyttet til denne personen.`);
-      return;
+      return false;
     }
     const pendingImages = countInlineCvImages(result.employee);
     setBusy(true);
@@ -568,7 +597,7 @@ export default function EmployeesScreen() {
           `Kunne ikke laste opp ${remaining} bilde${remaining === 1 ? '' : 'r'}.${detail} `
           + 'CV-en er ikke lagret, så du kan prøve igjen uten å miste teksten i utkastet.',
         );
-        return;
+        return false;
       }
       setSaveProgress({ done: pendingImages, total: pendingImages, label: 'Skriver CV…' });
       setNote('Bildene er lastet opp. Skriver CV…');
@@ -578,7 +607,7 @@ export default function EmployeesScreen() {
           `${slim.dropped} bilde${slim.dropped === 1 ? '' : 'r'} ble for store til å lagres. `
           + 'CV-en er ikke lagret. Fjern noen bilder eller prøv igjen.',
         );
-        return;
+        return false;
       }
       const employee = slim.employee;
       if (scope === 'profile') {
@@ -603,7 +632,7 @@ export default function EmployeesScreen() {
         setNote(linked
           ? 'Profilen er lagret og ansettelsen i selskapet er oppdatert.'
           : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
-        return;
+        return true;
       }
       const saved = await saveEmployee(familyId, employee);
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
@@ -620,13 +649,15 @@ export default function EmployeesScreen() {
       if (view === 'cv') {
         setDraft(presentEmployee(saved));
         setNote('CV-en er lagret med alle bilder.');
-        return;
+        return true;
       }
+      setDraft(presentEmployee(saved));
       setView('detail');
-      setDraft(null);
       setNote('Medarbeideren er lagret.');
+      return true;
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
+      return false;
     } finally {
       setBusy(false);
       setBusyKind('');
@@ -692,7 +723,8 @@ export default function EmployeesScreen() {
       title: draft.company?.title || linked?.company?.title || '',
     },
   }, { companyName }) : null;
-  const gaps = selected ? gapReport(selected) : null;
+  const detailEmployee = (view === 'detail' && draft && draft.id === selectedId) ? draft : selected;
+  const gaps = (detailEmployee || selected) ? gapReport(detailEmployee || selected) : null;
 
   return (
     <ScrollView
@@ -747,7 +779,7 @@ export default function EmployeesScreen() {
           />
           <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>
-              {`Medarbeidere som kan logge inn  ${stats.login} (+${stats.external} eksterne)`}
+              {`Medarbeidere som kan logge inn  ${stats.login} (+${stats.external} med ekstern tilgang${stats.innleid ? `, ${stats.innleid} innleid` : ''})`}
             </Text>
             <Text style={{ color: colors.muted }}>{`Lisenser: ${stats.licenses}`}</Text>
           </View>
@@ -776,6 +808,15 @@ export default function EmployeesScreen() {
                 {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
                 <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
                 <View style={styles.chips}>
+                  <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
+                    {statusLabel(row.company?.status)}
+                  </Text>
+                  {isInnleidEmployee(row) ? (
+                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Innleid</Text>
+                  ) : null}
+                  {row.company?.external ? (
+                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Ekstern tilgang</Text>
+                  ) : null}
                   {departmentLabels(row, departments).map((name) => (
                     <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
                   ))}
@@ -791,11 +832,6 @@ export default function EmployeesScreen() {
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {view === 'cv' && selected && (isAdmin || selected.personUid === uid) ? (
-            <TouchableOpacity onPress={() => openEdit(selected)} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-              <Text style={styles.primaryText}>Rediger</Text>
-            </TouchableOpacity>
-          ) : null}
           {view === 'cv' && selected ? (
             <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Hovedside</Text>
@@ -844,27 +880,34 @@ export default function EmployeesScreen() {
         />
       ) : null}
 
-      {view === 'detail' && selected ? (
+      {view === 'detail' && detailEmployee ? (
         <EmployeeDetailView
-          employee={selected}
+          employee={detailEmployee}
           colors={colors}
           companyName={companyName}
           departments={departments}
-          reveal={reveal}
+          members={people}
+          addressHits={addressHits}
+          reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
           gaps={gaps}
-          canEdit={isAdmin || selected.personUid === uid}
+          canEdit={isAdmin || detailEmployee.personUid === uid}
           isAdmin={isAdmin}
-          isSelf={selected.personUid === uid}
+          isSelf={detailEmployee.personUid === uid}
           siblings={visible}
           confirmDelete={confirmDelete}
+          busy={busy}
           onBack={openList}
-          onEdit={() => openEdit(selected)}
-          onCv={() => openCv(selected)}
+          onCv={() => openCv(detailEmployee)}
           onOpenProject={(project) => {
             if (!project?.id) return;
             requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
           }}
           onSelect={openDetail}
+          onChange={changeDetail}
+          onSave={save}
+          onClassify={classifyEmployee}
+          onPhoto={choosePhoto}
+          onPickAddress={pickAddress}
           onPushProfile={pushProfile}
           onPullToProfile={pullToProfile}
           onConfirmDelete={() => setConfirmDelete(true)}

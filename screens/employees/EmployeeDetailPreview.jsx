@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/theme';
-import { presentEmployee } from '../../src/employees/model';
+import { applyEmployeeClassification, presentEmployee } from '../../src/employees/model';
 import EmployeeDetailView from './EmployeeDetailView';
 
 function mockEmployee(id, overrides = {}) {
@@ -112,7 +112,8 @@ export default function EmployeeDetailPreview() {
   ]), []);
   const [selectedId, setSelectedId] = useState(siblings[0].id);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const selected = siblings.find((row) => row.id === selectedId) || siblings[0];
+  const [people, setPeople] = useState(siblings);
+  const selected = people.find((row) => row.id === selectedId) || people[0];
   const departments = [{ id: 'dep-bygg', name: 'Bygg' }];
 
   return (
@@ -134,12 +135,20 @@ export default function EmployeeDetailPreview() {
         canEdit
         isAdmin
         isSelf
-        siblings={siblings}
+        siblings={people}
         confirmDelete={confirmDelete}
         onBack={() => {}}
-        onEdit={() => {}}
         onCv={() => {}}
         onSelect={(row) => setSelectedId(row.id)}
+        onChange={(next) => {
+          setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));
+        }}
+        onSave={() => true}
+        onClassify={(patch) => {
+          setPeople((current) => current.map((row) => (
+            row.id === selected.id ? presentEmployee(applyEmployeeClassification(row, patch)) : row
+          )));
+        }}
         onPushProfile={() => {}}
         onPullToProfile={() => {}}
         onConfirmDelete={() => setConfirmDelete(true)}

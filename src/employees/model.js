@@ -502,6 +502,31 @@ export function statusLabel(status) {
   return STATUS_OPTIONS.find((row) => row.value === status)?.label || 'Nåværende';
 }
 
+export function isInnleidEmployee(employee) {
+  return /innleid|innleie/.test(text(employee?.company?.employmentType).toLowerCase());
+}
+
+export function applyEmployeeClassification(employee, patch = {}) {
+  const next = normalizeEmployee(employee);
+  const company = { ...next.company };
+  if (Object.prototype.hasOwnProperty.call(patch, 'status') && patch.status) {
+    const allowed = STATUS_OPTIONS.some((row) => row.value === patch.status);
+    if (allowed) company.status = patch.status;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'external')) {
+    company.external = bool(patch.external);
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'canLogin')) {
+    company.canLogin = bool(patch.canLogin);
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'innleid')) {
+    if (patch.innleid) company.employmentType = 'Innleid';
+    else if (isInnleidEmployee({ company })) company.employmentType = 'Fast ansatt';
+  }
+  next.company = company;
+  return next;
+}
+
 function haystack(employee, departments) {
   const labels = departmentLabels(employee, departments);
   return [
@@ -523,6 +548,8 @@ export function filterEmployees(list, { query = '', status = 'current', departme
   return (list || []).filter((row) => {
     if (status === 'external') {
       if (!row.company?.external) return false;
+    } else if (status === 'innleid') {
+      if (!isInnleidEmployee(row)) return false;
     } else if (status && status !== 'all') {
       if (row.company?.status !== status) return false;
     }
@@ -541,6 +568,7 @@ export function directoryStats(list) {
     total: rows.length,
     login: rows.filter((row) => row.company?.canLogin && !row.company?.external).length,
     external: rows.filter((row) => row.company?.external).length,
+    innleid: rows.filter((row) => isInnleidEmployee(row)).length,
     licenses: rows.filter((row) => row.company?.hasLicense).length,
   };
 }

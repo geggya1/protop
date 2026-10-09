@@ -213,7 +213,7 @@ export default function EmployeeFields({
               />
             ) : null}
             {open && !section.repeatable ? section.fields.map((field) => (
-              <Field
+              <EmployeeField
                 key={field.key}
                 field={field}
                 draft={draft}
@@ -303,12 +303,12 @@ export default function EmployeeFields({
   );
 }
 
-function Field({
+export function EmployeeField({
   field, draft, colors, editable, departments, members, addressHits, onPickAddress,
-  extraDepartment, setExtraDepartment, onPhoto, onChange,
+  extraDepartment, setExtraDepartment, onPhoto, onChange, hideLabel = false,
 }) {
   const value = readPath(draft, field.key);
-  const label = (
+  const label = hideLabel ? null : (
     <Text style={[styles.label, { color: colors.muted }]}>
       {field.label}
       {field.requiredFor === 'register' ? ' *' : ''}

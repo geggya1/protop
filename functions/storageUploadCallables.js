@@ -2,7 +2,7 @@ import './setRegion.js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import * as logger from 'firebase-functions/logger';
-import { handleUploadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
+import { handleUploadStorageFile, handleDownloadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
 import { STORAGE_BUCKET } from './storageBucket.js';
 
 if (!getApps().length) initializeApp({ storageBucket: STORAGE_BUCKET });
@@ -27,6 +27,24 @@ export const uploadStorageFile = onCall(
     } catch (error) {
       logger.warn('uploadStorageFile failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke laste opp filen.');
+    }
+  },
+);
+
+/** Last ned bilde via Admin SDK — omgår Storage CORS for CV-PDF. */
+export const downloadStorageFile = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 60,
+    memory: '512MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      return await handleDownloadStorageFile(req.data, req.auth);
+    } catch (error) {
+      logger.warn('downloadStorageFile failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke hente bildet.');
     }
   },
 );

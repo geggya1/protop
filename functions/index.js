@@ -1071,6 +1071,7 @@ export {
   aiCleanupScheduled,
   uploadDocumentFile,
   uploadStorageFile,
+  downloadStorageFile,
   applyStorageCors,
   createAlbumUploadUrl,
   uploadAlbumFile,

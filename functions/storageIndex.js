@@ -3,4 +3,4 @@
  */
 import './setRegion.js';
 
-export { uploadStorageFile, applyStorageCors } from './storageUploadCallables.js';
+export { uploadStorageFile, downloadStorageFile, applyStorageCors } from './storageUploadCallables.js';

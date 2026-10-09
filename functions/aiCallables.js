@@ -34,7 +34,7 @@ import {
 } from './aiMatcoach.js';
 import { handleAiTutor } from './aiTutor.js';
 import { handleUploadDocument } from './uploadDocument.js';
-import { handleUploadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
+import { handleUploadStorageFile, handleDownloadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
 import { runAiCleanup } from './aiCleanup.js';
 import { handleAiSupportChat, handleCreateSupportTicket } from './aiSupport.js';
 import { assertRateLimits, hashRateKey, requireAuth } from './security.js';
@@ -404,6 +404,24 @@ export const uploadStorageFile = onCall(
     } catch (error) {
       logger.warn('uploadStorageFile failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke laste opp filen.');
+    }
+  },
+);
+
+/** Bilde-nedlasting via Admin SDK — CV-PDF på web (omgår Storage CORS). */
+export const downloadStorageFile = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 60,
+    memory: '512MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      return await handleDownloadStorageFile(req.data, req.auth);
+    } catch (error) {
+      logger.warn('downloadStorageFile failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke hente bildet.');
     }
   },
 );

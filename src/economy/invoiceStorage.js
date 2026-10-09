@@ -7,7 +7,7 @@ import {
   collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { normalizeInvoice, sortInvoices, text } from './invoices.js';
+import { normalizeInvoice, sortInvoices, text, toInvoiceCacheRow } from './invoices.js';
 
 const LIST_KEY = 'protop.invoices.v1';
 const BATCH_SIZE = 400;
@@ -24,34 +24,9 @@ function invoicesCol(companyId) {
   return collection(db, 'families', companyId, 'invoices');
 }
 
+/** @deprecated bruk toInvoiceCacheRow — beholdt som alias for lesbarhet i storage. */
 function toSummary(invoice) {
-  const row = normalizeInvoice(invoice);
-  return {
-    id: row.id,
-    invoiceNumber: row.invoiceNumber,
-    invoiceDate: row.invoiceDate,
-    dueDate: row.dueDate,
-    customerNumber: row.customerNumber,
-    customerName: row.customerName,
-    orgnr: row.orgnr,
-    projectNumber: row.projectNumber,
-    projectName: row.projectName,
-    customerId: row.customerId,
-    projectId: row.projectId,
-    amountExVat: row.amountExVat,
-    vat: row.vat,
-    amountInclVat: row.amountInclVat,
-    outstanding: row.outstanding,
-    outstandingAmount: row.outstandingAmount,
-    currency: row.currency,
-    status: row.status,
-    sentAt: row.sentAt,
-    paidAt: row.paidAt,
-    kid: row.kid,
-    department: row.department,
-    previewReady: row.previewReady,
-    updatedAt: row.updatedAt,
-  };
+  return toInvoiceCacheRow(invoice);
 }
 
 async function readLocal(companyId) {

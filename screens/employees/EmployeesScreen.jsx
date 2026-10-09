@@ -210,16 +210,26 @@ export default function EmployeesScreen() {
     beginSectionEdit(sectionId || editSection, itemId);
   }
 
-  function downloadCvPdf() {
+  async function downloadCvPdf() {
+    if (busy) return;
+    setError('');
+    setBusy(true);
+    setBusyKind('pdf');
     try {
       const employee = (draft && selectedId && draft.id === selectedId) ? draft : selected;
       const current = employee ? buildCv(employee, { companyName }) : null;
       if (!current) throw new Error('Ingen CV å eksportere.');
-      const file = cvDocumentFile(current);
+      const file = await cvDocumentFile(current, {
+        logo: family?.company?.logo || null,
+        photoUrl: current.photoUrl,
+      });
       downloadBytes(file.filename, file.bytes, file.mime);
-      setNote('CV-en er lastet ned som PDF.');
+      setNote('CV-en er lastet ned som PDF med layout, logo og bilder.');
     } catch (err) {
       showError(err?.message || 'Kunne ikke lage PDF.');
+    } finally {
+      setBusy(false);
+      setBusyKind('');
     }
   }
 
@@ -1075,7 +1085,7 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
-          {busy && (busyKind === 'save' || busyKind === 'cv' || busyKind === 'projects') ? (
+          {busy && (busyKind === 'save' || busyKind === 'cv' || busyKind === 'projects' || busyKind === 'pdf') ? (
             <View
               nativeID="employee-cv-progress"
               accessibilityLiveRegion="polite"
@@ -1084,7 +1094,10 @@ export default function EmployeesScreen() {
               <ActivityIndicator color={colors.brand} />
               <View style={styles.grow}>
                 <Text style={[styles.progressTitle, { color: colors.ink }]}>
-                  {busyKind === 'cv' ? 'Leser CV…' : busyKind === 'projects' ? 'Leser prosjekter…' : 'Lagrer CV…'}
+                  {busyKind === 'cv' ? 'Leser CV…'
+                    : busyKind === 'projects' ? 'Leser prosjekter…'
+                      : busyKind === 'pdf' ? 'Lager PDF…'
+                        : 'Lagrer CV…'}
                 </Text>
                 <Text style={{ color: colors.muted }}>
                   {saveProgress?.label

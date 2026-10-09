@@ -162,6 +162,7 @@ export function emptyInvoice(overrides = {}) {
     lines: [],
     timeEntryIds: [],
     voucherId: '',
+    voucherLines: [],
     ehfXml: '',
     creditNoteForId: '',
     creditNoteForNumber: '',
@@ -226,6 +227,21 @@ function normalizeInvoiceLines(list) {
   }).filter(Boolean);
 }
 
+/** Snapshot av bilagslinjer lagret på faktura (uten egen voucher-collection). */
+function normalizeVoucherLines(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((line) => {
+    if (!line || typeof line !== 'object') return null;
+    return {
+      account: text(line.account),
+      accountName: text(line.accountName),
+      debit: moneyOrNull(line.debit) ?? 0,
+      credit: moneyOrNull(line.credit) ?? 0,
+      vatCode: text(line.vatCode),
+    };
+  }).filter((line) => line && (line.account || line.debit || line.credit));
+}
+
 export function normalizeInvoice(input) {
   const row = input && typeof input === 'object' ? input : {};
   const accounts = {};
@@ -281,6 +297,7 @@ export function normalizeInvoice(input) {
     lines: normalizeInvoiceLines(row.lines),
     timeEntryIds: Array.isArray(row.timeEntryIds) ? row.timeEntryIds.map((id) => text(id)).filter(Boolean) : [],
     voucherId: text(row.voucherId),
+    voucherLines: normalizeVoucherLines(row.voucherLines),
     ehfXml: text(row.ehfXml),
     creditNoteForId: text(row.creditNoteForId),
     creditNoteForNumber: text(row.creditNoteForNumber),
@@ -361,6 +378,7 @@ export function toInvoiceCacheRow(invoice) {
     lines: row.lines,
     timeEntryIds: row.timeEntryIds,
     voucherId: row.voucherId,
+    voucherLines: row.voucherLines,
     ehfXml: row.ehfXml,
     creditNoteForId: row.creditNoteForId,
     creditNoteForNumber: row.creditNoteForNumber,

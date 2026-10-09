@@ -155,3 +155,39 @@ Neste i syklus 5–6: kreditnota-hjelper, lagring av `lines`/`kid`/`vatCode`/`eh
 - Egen voucher-collection / persistens (kun `voucherId` på faktura)
 - Dedikert timerapport-UI under Arbeid
 - Peppol Access Point (P2), EHF CreditNote-dokumenttype (nå Invoice-XML også for kredit)
+
+## 9. Syklus 7–10
+
+### Syklus 7 — Timerapport-UI (ferdig)
+
+- Kompakt rapportpanel i `screens/arbeid/ArbeidScreen.jsx` (måned + valgt medarbeider)
+- Bruker `filterTimeEntries` / `reportSummary` / `entriesToCsv` fra `src/arbeid/reports.js`
+- Knapp «Eksporter CSV»: web-nedlasting (BOM); ellers clipboard/copy-note
+
+### Syklus 8 — Bilag-snapshot på faktura (ferdig)
+
+- Felt `invoice.voucherLines[]` via `normalizeInvoice` + `toInvoiceCacheRow`
+- Hjelpere `snapshotVoucherLines` / `attachVoucherSnapshot` i `vouchers.js`
+- `EconomyBilling` lagrer bilagslinjer sammen med `voucherId` ved faktura/kreditnota
+- Minimal: ingen egen voucher-collection
+
+### Syklus 9 — Tester
+
+| Suite | Resultat |
+|-------|----------|
+| `node src/economy/billingPipeline.test.mjs` | ok |
+| `node src/project/engine.test.mjs` | ok |
+| `node src/navigation/shellModules.test.mjs` | ok |
+| `node src/arbeid/hours.test.mjs` | ok |
+| `node src/economy/invoiceStorage.test.mjs` | ok (voucherLines round-trip) |
+
+### Syklus 10 — Status P0 / åpent
+
+| # | P0 | Status |
+|---|-----|--------|
+| 1–6, 8–9 | Fakturagrunnlag, linjer, kreditnota, MVA, KID, EHF, overtid, timerapport | OK |
+| 7 | Bilag ved faktura | OK (snapshot `voucherLines` + `voucherId`) |
+
+**P1 igjen:** fakturanummerserie + forfallsdager, leveringsstatusflyt (EHF/e-post), lås perioder / masse-godkjenning, utlegg → faktura, purre, bankkonto på selskap.
+
+**P2 igjen:** Peppol Access Point, SAF-T, lønn/A-melding, Tripletex/Fiken/Visma sync, EHF CreditNote-dokumenttype.

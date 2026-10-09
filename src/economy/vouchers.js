@@ -127,3 +127,24 @@ export function formatVoucherLines(voucher) {
     `${line.account} ${line.accountName}: D ${line.debit} / K ${line.credit}`
   )).join('\n');
 }
+
+/** Kompakt snapshot for lagring på faktura.voucherLines. */
+export function snapshotVoucherLines(voucher) {
+  return (voucher?.lines || []).map((line) => ({
+    account: String(line.account || ''),
+    accountName: String(line.accountName || ''),
+    debit: Number(line.debit) || 0,
+    credit: Number(line.credit) || 0,
+    vatCode: String(line.vatCode || ''),
+  }));
+}
+
+/** Fest bilag-id + linjer på faktura (persistens uten egen collection). */
+export function attachVoucherSnapshot(invoice, voucherResult) {
+  if (!invoice || !voucherResult?.ok || !voucherResult.voucher) return invoice;
+  return {
+    ...invoice,
+    voucherId: voucherResult.voucher.id,
+    voucherLines: snapshotVoucherLines(voucherResult.voucher),
+  };
+}

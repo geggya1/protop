@@ -12,6 +12,11 @@ const full = emptyInvoice({
   bankAccount: '12345678903',
   deliveryMethod: 'ehf',
   voucherId: 'bilag_abc',
+  voucherLines: [
+    { account: '1500', accountName: 'Kundefordringer', debit: 9200, credit: 0, vatCode: '' },
+    { account: '3000', accountName: 'Salgsinntekt', debit: 0, credit: 8000, vatCode: 'MID' },
+    { account: '2701', accountName: 'Utgående MVA', debit: 0, credit: 1200, vatCode: 'MID' },
+  ],
   ehfXml: '<?xml version="1.0"?><Invoice/>',
   creditNoteForId: '',
   lines: [{
@@ -38,6 +43,9 @@ const cached = toInvoiceCacheRow(full);
 assert.equal(cached.kid, full.kid);
 assert.equal(cached.vatCode, 'MID');
 assert.equal(cached.voucherId, 'bilag_abc');
+assert.equal(cached.voucherLines.length, 3);
+assert.equal(cached.voucherLines[0].account, '1500');
+assert.equal(cached.voucherLines[0].debit, 9200);
 assert.ok(cached.ehfXml.includes('<Invoice'));
 assert.equal(cached.lines.length, 1);
 assert.equal(cached.lines[0].description, 'Konsulenttimer');
@@ -52,6 +60,11 @@ assert.equal(restored.lines.length, 1);
 assert.equal(restored.vatCode, 'MID');
 assert.equal(restored.ehfXml, full.ehfXml);
 assert.equal(restored.voucherId, 'bilag_abc');
+assert.equal(restored.voucherLines.length, 3);
+assert.equal(restored.voucherLines[1].credit, 8000);
 assert.equal(restored.kid, full.kid);
+
+// Uten voucherLines → tom liste
+assert.deepEqual(normalizeInvoice({ invoiceNumber: '1' }).voucherLines, []);
 
 console.log('invoiceStorage.test.mjs: ok');

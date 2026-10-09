@@ -264,7 +264,12 @@ function InvoiceDetail({
             {invoice.deliveryMethod || statusLabel(invoice.status)}
           </Text>
           {invoice.voucherId ? (
-            <Text style={{ color: colors.muted }}>Bilag: {invoice.voucherId}</Text>
+            <Text style={{ color: colors.muted }}>
+              Bilag: {invoice.voucherId}
+              {Array.isArray(invoice.voucherLines) && invoice.voucherLines.length
+                ? ` (${invoice.voucherLines.length} linjer)`
+                : ''}
+            </Text>
           ) : null}
           {invoice.projectId ? (
             <TouchableOpacity onPress={() => onOpenProject?.(invoice.projectId)}>

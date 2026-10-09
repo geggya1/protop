@@ -47,6 +47,11 @@ import {
   weekAround,
 } from '../../src/arbeid/calendar.js';
 import { formatHours, parseHours, roundHours } from '../../src/arbeid/hours.js';
+import {
+  entriesToCsv,
+  filterTimeEntries,
+  reportSummary,
+} from '../../src/arbeid/reports.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 
@@ -232,6 +237,42 @@ export default function ArbeidScreen() {
     }
     return cells;
   }, [state.timeEntries, state.absences, employeeId, days, workedByDay, agreedByDay]);
+
+  const monthEntries = useMemo(() => {
+    const fromDate = days[0]?.key || '';
+    const toDate = days[days.length - 1]?.key || '';
+    return filterTimeEntries(state.timeEntries, {
+      fromDate,
+      toDate,
+      employeeId,
+    });
+  }, [state.timeEntries, days, employeeId]);
+
+  const monthReport = useMemo(() => reportSummary(monthEntries), [monthEntries]);
+
+  function exportMonthCsv() {
+    const csv = entriesToCsv(monthEntries);
+    const filename = `timer-${selectedName.replace(/\s+/g, '-').toLowerCase() || 'rapport'}-${year}-${String(monthIndex + 1).padStart(2, '0')}.csv`;
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setNote(`CSV lastet ned (${monthEntries.length} føringer).`);
+      return;
+    }
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(csv).then(
+        () => setNote(`CSV kopiert til utklippstavlen (${monthEntries.length} føringer).`),
+        () => setNote('Kunne ikke kopiere CSV. Prøv i nettleser med nedlasting.'),
+      );
+      return;
+    }
+    setNote(`CSV klar for ${monthEntries.length} føringer — eksporter via nettleser (web).`);
+  }
 
   function openCell(project, day) {
     const key = entryKey(project.id, day.key);
@@ -470,6 +511,33 @@ export default function ArbeidScreen() {
           placeholderTextColor={colors.placeholder}
           style={[styles.search, { color: colors.ink }]}
         />
+      </View>
+
+      <View
+        style={[styles.reportPanel, isPhone && styles.reportPanelPhone, { borderColor: colors.line, backgroundColor: colors.card }]}
+        nativeID="arbeid-report-panel"
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>
+            Rapport · {monthLabel(year, monthIndex)}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+            {formatHours(monthReport.hours)} t · {formatHours(monthReport.billableHours)} fakturerbart
+            {monthReport.overtimeHours ? ` · ${formatHours(monthReport.overtimeHours)} overtid` : ''}
+            {' · '}
+            {monthReport.approvedCount}/{monthReport.count} godkjent
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={exportMonthCsv}
+          style={[styles.ctaGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Eksporter timer som CSV"
+          nativeID="arbeid-export-csv"
+        >
+          <Ionicons name="download-outline" size={16} color={colors.ink} />
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eksporter CSV</Text>
+        </TouchableOpacity>
       </View>
 
       {isPhone ? (
@@ -823,6 +891,18 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
+  reportPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  reportPanelPhone: { alignSelf: 'stretch' },
   phoneScroll: { flex: 1 },
   phoneScrollContent: { gap: 12, paddingBottom: 28 },
   phoneCard: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 10 },

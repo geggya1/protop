@@ -19,7 +19,11 @@ import {
   createInvoiceFromProposal,
   markEntriesInvoiced,
 } from '../../src/economy/billingFromHours.js';
-import { creditVoucherFromInvoice, voucherFromInvoice } from '../../src/economy/vouchers.js';
+import {
+  attachVoucherSnapshot,
+  creditVoucherFromInvoice,
+  voucherFromInvoice,
+} from '../../src/economy/vouchers.js';
 import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { formatMoney } from '../../src/economy/invoices.js';
@@ -86,7 +90,7 @@ export default function EconomyBilling() {
 
       const voucher = voucherFromInvoice(invoice);
       if (voucher.ok) {
-        invoice = { ...invoice, voucherId: voucher.voucher.id };
+        invoice = attachVoucherSnapshot(invoice, voucher);
         setLastVoucher(voucher.voucher);
       }
 
@@ -141,7 +145,7 @@ export default function EconomyBilling() {
       let invoice = created.invoice;
       const voucher = creditVoucherFromInvoice(lastInvoice);
       if (voucher.ok) {
-        invoice = { ...invoice, voucherId: voucher.voucher.id };
+        invoice = attachVoucherSnapshot(invoice, voucher);
         setLastVoucher(voucher.voucher);
       }
       const ehf = buildEhfXml(invoice, { supplier });

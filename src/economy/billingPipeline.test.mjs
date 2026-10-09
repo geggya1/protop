@@ -15,7 +15,14 @@ import {
 } from './billingFromHours.js';
 import { buildKid, validateKid, mod10CheckDigit, mod11CheckDigit, appendCheckDigit } from './kid.js';
 import { calcLineVat, invoiceVatTotals, VAT_CODES, vatCodeById, roundMoney } from './vat.js';
-import { voucherFromInvoice, creditVoucherFromInvoice, voucherBalances } from './vouchers.js';
+import {
+  attachVoucherSnapshot,
+  voucherFromInvoice,
+  creditVoucherFromInvoice,
+  voucherBalances,
+  snapshotVoucherLines,
+} from './vouchers.js';
+import { normalizeInvoice, toInvoiceCacheRow } from './invoices.js';
 import { buildEhfXml, validateEhfBasics, supplierFromCompany } from './ehf.js';
 import { reportByEmployee, reportSummary, entriesToCsv } from '../arbeid/reports.js';
 import { rateWithOvertime, TIME_TYPES } from '../arbeid/overtime.js';
@@ -172,6 +179,22 @@ const voucher = voucherFromInvoice(created.invoice);
 assert.equal(voucher.ok, true, voucher.error);
 const bal = voucherBalances(voucher.voucher);
 assert.equal(bal.debit, bal.credit);
+
+// Bilag-snapshot på faktura (persistens uten egen collection)
+const withVoucher = attachVoucherSnapshot(created.invoice, voucher);
+assert.equal(withVoucher.voucherId, voucher.voucher.id);
+assert.ok(withVoucher.voucherLines.length >= 2);
+assert.equal(
+  withVoucher.voucherLines.reduce((s, l) => s + l.debit, 0),
+  withVoucher.voucherLines.reduce((s, l) => s + l.credit, 0),
+);
+const cachedVoucher = toInvoiceCacheRow(withVoucher);
+assert.equal(cachedVoucher.voucherLines.length, withVoucher.voucherLines.length);
+assert.deepEqual(
+  normalizeInvoice(cachedVoucher).voucherLines,
+  snapshotVoucherLines(voucher.voucher),
+);
+assert.equal(attachVoucherSnapshot(created.invoice, { ok: false }).voucherId, created.invoice.voucherId || '');
 
 // Kreditnota-bilag balanserer (debet/kredit speilet)
 const credit = creditVoucherFromInvoice(created.invoice);

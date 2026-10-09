@@ -44,7 +44,7 @@ export const firebaseConfig = {
   apiKey: 'AIzaSyAShC-c1MK_iljAlbJPsNnrCQFwqGkVxqU',
   authDomain: resolveAuthDomain(),
   projectId: 'protop-c189c',
-  storageBucket: 'protop-c189c.appspot.com',
+  storageBucket: 'protop-c189c.firebasestorage.app',
   messagingSenderId: '330510386923',
   appId: resolveAppId(),
 };
@@ -117,8 +117,8 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   });
 }
 
-// Default GCS-bucket for prosjektet (appspot.com — firebasestorage.app finnes ikke her)
-export const storage = getStorage(app, 'gs://protop-c189c.appspot.com');
+// Default GCS-bucket for prosjektet (opprettet i Firebase Console)
+export const storage = getStorage(app, 'gs://protop-c189c.firebasestorage.app');
 export const functions = getFunctions(app, 'europe-west1');
 
 // ---- App Check (WEB) ----

@@ -17,10 +17,14 @@ assert.match(uploadSrc, /families\/personal\//);
 assert.match(uploadSrc, /await mediaBucket\(\)/);
 assert.equal(uploadSrc.includes('protop-c189c.firebasestorage.app'), false);
 const bucketSrc = readFileSync(join(root, 'functions/storageBucket.js'), 'utf8');
-assert.match(bucketSrc, /protop-c189c\.appspot\.com/);
 assert.match(bucketSrc, /protop-c189c\.firebasestorage\.app/);
+assert.match(bucketSrc, /protop-c189c\.appspot\.com/);
 assert.match(bucketSrc, /export async function mediaBucket/);
 assert.match(bucketSrc, /defaultBucket/);
+assert.ok(
+  bucketSrc.indexOf('protop-c189c.firebasestorage.app')
+  < bucketSrc.indexOf('protop-c189c.appspot.com'),
+);
 // CORS må ikke kjøres på opplastingsstien (Admin SDK trenger det ikke).
 const uploadStart = uploadSrc.indexOf('export async function handleUploadStorageFile');
 const applyStart = uploadSrc.indexOf('export async function handleApplyStorageCors');
@@ -32,12 +36,12 @@ assert.match(uploadSrc, /replace\(\/\^data:/);
 assert.match(mediaSrc, /uploadStorageFile/);
 assert.match(mediaSrc, /uploadImageViaCallable/);
 assert.match(mediaSrc, /callableUploadErrorMessage/);
-assert.match(mediaSrc, /protop-c189c\.appspot\.com/);
+assert.match(mediaSrc, /protop-c189c\.firebasestorage\.app/);
 const aiSharedSrc = readFileSync(join(root, 'functions/aiShared.js'), 'utf8');
 assert.match(aiSharedSrc, /Komprimer den/);
 assert.equal(aiSharedSrc.includes('AI klarte ikke lese sidene i filen'), false);
 assert.match(aiSharedSrc, /await mediaBucket\(\)/);
-assert.equal(mediaSrc.includes('protop-c189c.firebasestorage.app'), false);
+assert.equal(mediaSrc.includes('protop-c189c.appspot.com'), false);
 const uploadImageBlock = mediaSrc.slice(mediaSrc.indexOf('export async function uploadImage'));
 assert.match(uploadImageBlock, /uploadImageViaCallable/);
 assert.equal(uploadImageBlock.includes('trying client Storage'), false);
@@ -61,8 +65,8 @@ assert.match(corsScript, /::warning::/);
 assert.match(corsScript, /Hosting deployes videre/);
 
 const firebaseSrc = readFileSync(join(root, 'firebase.js'), 'utf8');
-assert.match(firebaseSrc, /protop-c189c\.appspot\.com/);
-assert.equal(firebaseSrc.includes('protop-c189c.firebasestorage.app'), false);
+assert.match(firebaseSrc, /protop-c189c\.firebasestorage\.app/);
+assert.equal(firebaseSrc.includes('protop-c189c.appspot.com'), false);
 
 const storageCorsSrc = readFileSync(join(root, 'functions/storageCors.js'), 'utf8');
 assert.match(storageCorsSrc, /await mediaBucket\(\)/);

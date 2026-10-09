@@ -6,7 +6,7 @@ import { httpsCallable } from 'firebase/functions';
 import { storage, functions } from '../../firebase';
 import { notifyUser } from './dialog';
 
-const STORAGE_BUCKET = 'protop-c189c.appspot.com';
+const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
 const FILE_UPLOAD_TIMEOUT_MS = 25000;
 const REST_UPLOAD_TIMEOUT_MS = 12000;
 const CALLABLE_UPLOAD_TIMEOUT_MS = 90000;

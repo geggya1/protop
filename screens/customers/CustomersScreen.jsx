@@ -8,6 +8,8 @@ import {
   applyCustomerKind,
   companyFollowUpPeople,
   customerDraftFromBrreg,
+  enrichCustomerFromBrreg,
+  enrichCustomerImportPlan,
   filterCustomers,
   formatOrgnr,
   identityFieldsForKind,
@@ -37,10 +39,27 @@ import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { loadProjectState } from '../../src/project/storage';
-import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
+import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
 import CustomerPhoneRow from './CustomerPhoneRow';
+
+async function lookupBrregCustomer(orgnr) {
+  const id = normalizeOrgnr(orgnr);
+  if (!id) return null;
+  try {
+    const enhet = await fetchBrregEnhet(id);
+    if (enhet?.organisasjonsnummer) return enhet;
+  } catch {
+    /* underenhet eller ikke funnet */
+  }
+  try {
+    const under = await searchBrregUnderenheter(id, { size: 1 });
+    return under.results?.[0] || null;
+  } catch {
+    return null;
+  }
+}
 
 const EMPTY = {
   name: '',
@@ -211,6 +230,39 @@ export default function CustomersScreen() {
   const related = selected ? relatedContractsForCustomer(contracts, selected) : [];
   const relatedProjects = selected ? relatedProjectsForCustomer(projects, selected) : [];
   const identity = identityFieldsForKind(form.kind);
+  const brregFillRef = useRef('');
+
+  useEffect(() => {
+    if (view !== 'detail' || !selected?.id || !familyId) return undefined;
+    const orgnr = normalizeOrgnr(selected.orgnr);
+    if (!orgnr || selected.kind === 'person') return undefined;
+    const key = `${selected.id}:${orgnr}:${selected.address || ''}:${selected.email || ''}:${selected.phone || ''}`;
+    if (brregFillRef.current === key) return undefined;
+    if (selected.address && selected.postalCode && selected.place && (selected.email || selected.phone)) {
+      brregFillRef.current = key;
+      return undefined;
+    }
+    let live = true;
+    enrichCustomerFromBrreg(selected, { lookup: lookupBrregCustomer }).then(async ({ customer, changed }) => {
+      if (!live || !changed) {
+        if (live) brregFillRef.current = key;
+        return;
+      }
+      const loaded = await loadAnbudState(familyId);
+      const result = upsertCustomer(loaded, { ...customer, id: selected.id });
+      if (!result.ok || !live) return;
+      const saved = await saveAnbudState(result.state, familyId);
+      if (!live) return;
+      setState(saved);
+      brregFillRef.current = `${selected.id}:${orgnr}:${customer.address || ''}:${customer.email || ''}:${customer.phone || ''}`;
+      setNote('Adresse og kontakt er hentet fra Brønnøysund.');
+    }).catch(() => {
+      if (live) brregFillRef.current = key;
+    });
+    return () => {
+      live = false;
+    };
+  }, [view, selected, familyId]);
 
   function patch(part) {
     setForm((current) => ({ ...current, ...part }));
@@ -282,15 +334,20 @@ export default function CustomersScreen() {
         ask: (payload) => askImportInterpret(payload),
       });
       const loaded = await loadAnbudState(familyId);
-      const plan = planCustomerImport(loaded, interpreted.rows);
-      if (!plan.rows.length) {
+      const planned = planCustomerImport(loaded, interpreted.rows);
+      if (!planned.rows.length) {
         setError('Fant ingen kunder i filen.');
         return;
       }
+      const plan = await enrichCustomerImportPlan(planned, { lookup: lookupBrregCustomer });
+      const filled = plan.rows.filter((row) => row.action === 'create' && row.customer?.address).length;
       const understood = interpreted.engine && interpreted.engine !== 'lokal'
         ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
         : '';
-      setImportPlan({ ...plan, understood });
+      const brregNote = filled
+        ? ` Adresse og kontakt er hentet fra Brønnøysund der org.nr fantes.`
+        : '';
+      setImportPlan({ ...plan, understood: `${understood}${brregNote}` });
       setDropped(new Set());
       setImportReport(null);
       setNote('');
@@ -387,7 +444,7 @@ export default function CustomersScreen() {
           title="Ny kunde"
           info={[
             'Org.nr hentes fra Brønnøysund. Privatkunder bruker personnummer.',
-            'Import kjenner igjen eksisterende kunder på kundenummer, organisasjonsnummer og personnummer. Nye kunder uten org.nr kan importeres. Mangler merkes på kundekortet og må rettes før fakturering.',
+            'Import kjenner igjen eksisterende kunder på kundenummer, organisasjonsnummer og personnummer. Adresse og kontakt hentes fra Brønnøysund når org.nr finnes. Privatkunder uten kontakt merkes på kundekortet.',
           ]}
           actions={[
             { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
@@ -403,7 +460,7 @@ export default function CustomersScreen() {
         <ImportReview
           nativeID="customers-import-plan"
           colors={colors}
-          lead={`Ingenting er lagret ennå. Kunder som finnes fra før hoppes over. Mangelfulle nye kunder importeres og merkes på kundekortet.${importPlan.understood || ''}`}
+          lead={`Ingenting er lagret ennå. Kunder som finnes fra før hoppes over. Virksomheter fylles fra Brønnøysund når org.nr finnes.${importPlan.understood || ''}`}
           rows={customerReviewRows}
           busy={importing}
           confirmLabel={(count) => `Importer ${count} kunder`}

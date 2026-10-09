@@ -269,8 +269,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
 
   useEffect(() => {
     if (!ready) return undefined;
-    const hasCodes = selectedCpv.size > 0 || (state.watch.cpvCodes || []).length > 0;
-    if (!hasCodes) return undefined;
+    const hasSignal = selectedCpv.size > 0
+      || (state.watch.cpvCodes || []).length > 0
+      || keywords.length > 0
+      || (state.watch?.profile?.keywords || []).length > 0;
+    if (!hasSignal) return undefined;
     const now = new Date();
     const mark = new Date(now);
     mark.setHours(23, 55, 0, 0);
@@ -350,9 +353,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
 
   async function refresh(nextState, manual = false) {
     const draft = saveTenderWatch(nextState, inputFromForm());
-    const active = watchQuery(draft.ok ? draft.state.watch : nextState.watch);
+    const watchForQuery = draft.ok ? draft.state.watch : nextState.watch;
+    const active = watchQuery(watchForQuery);
     if (!active) {
-      setError(draft.error || 'Legg inn CPV, søkeord eller en bedriftsbeskrivelse under Innstillinger, og trykk Oppdater nå.');
+      const profile = watchForQuery?.profile || {};
+      setError((profile.description || profile.summary || profile.website)
+        ? 'Profilen har ingen søkeord ennå. La AI tolke bedriften under Innstillinger, og trykk Oppdater nå.'
+        : (draft.error || 'Legg inn CPV, søkeord eller en bedriftsbeskrivelse under Innstillinger, og trykk Oppdater nå.'));
       return;
     }
     setSyncing(true);
@@ -367,7 +374,6 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       const data = await fetchWatchHits({
         ...active,
         channels: watch.channels,
-        keywords: watch.keywords,
         publishedFrom,
       });
       if (gen !== loadGen.current) return;
@@ -736,6 +742,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
           : (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.');
 
   const cpvCount = selectedCpv.size;
+  const searchTermCount = watchSearchTerms({ keywords, profile: state.watch?.profile }).length;
   const areaLabel = viewCoverage.nationwide
     ? (viewCoverage.label ? `${viewCoverage.label} · hele Norge` : 'Hele Norge')
     : (viewCoverage.areas.map((row) => row.name).join(', ') || 'Ingen fylker valgt');
@@ -751,7 +758,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       </View>
       <Text style={{ color: colors.ink }}>{company?.name || 'Bedriften'}</Text>
       <Text style={{ color: colors.muted }}>
-        {cpvCount} CPV · {keywords.length} søkeord · {companyTrades.length} næringskoder · {areaLabel} · {channelLabel}
+        {cpvCount} CPV · {searchTermCount} søkeord · {companyTrades.length} næringskoder · {areaLabel} · {channelLabel}
       </Text>
       {state.watch?.profile?.summary ? (
         <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>

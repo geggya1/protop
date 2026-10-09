@@ -61,6 +61,7 @@ assert.deepEqual(watchQuery(plain.watch).locationIds, ['NO071', 'NO081']);
 assert.equal(
   watchFingerprint(plain.watch),
   JSON.stringify({
+    v: 2,
     cpv: ['45000000', '45310000'],
     areas: ['NO071', 'NO081'],
     channels: ['doffin', 'ted'],

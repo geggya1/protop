@@ -390,6 +390,13 @@ export function upsertCustomer(state, input) {
   if (existingId) {
     const current = customers.find((row) => row.id === existingId);
     if (!current) return { ok: false, state, error: 'Kunden finnes ikke.' };
+    const nextNumber = normalizeCustomerNumber(input?.customerNumber) || current.customerNumber;
+    const numberClash = nextNumber
+      ? customers.find((row) => row.id !== existingId && row.customerNumber === nextNumber)
+      : null;
+    if (numberClash) {
+      return { ok: false, state, error: 'Kundenummeret finnes allerede.', customer: numberClash };
+    }
     const next = normalizeCustomer({
       ...current,
       ...input,
@@ -398,7 +405,7 @@ export function upsertCustomer(state, input) {
       kind,
       orgnr,
       personnummer,
-      customerNumber: normalizeCustomerNumber(input?.customerNumber) || current.customerNumber,
+      customerNumber: nextNumber,
       ownerUid: input?.ownerUid != null ? input.ownerUid : current.ownerUid,
       ownerName: input?.ownerName != null ? input.ownerName : current.ownerName,
       updatedAt: now,
@@ -619,6 +626,7 @@ function cleanContact(value, { email = false, phone = false, postal = false } = 
  * severity existing: kunden finnes allerede (kundenummer, org.nr eller personnummer).
  * severity block: raden kan ikke importeres (mangler navn, duplikat i filen).
  * severity review: ny kunde som importeres, men mangler opplysninger til faktura.
+ * action update: eksisterende kunde får kundenummer fra fila (samme org.nr/personnummer).
  */
 export function planCustomerImport(state, rows) {
   const existing = withCustomerNumbers(normalizeCustomers(state?.customers));
@@ -630,6 +638,68 @@ export function planCustomerImport(state, rows) {
   const seenNumbers = new Set();
   let registry = existing;
   const planned = [];
+
+  function claimNumberUpdate(hit, requestedNumber, identityReason) {
+    const matchCustomerNumber = text(hit?.customerNumber);
+    const matchId = text(hit?.id);
+    const matchName = text(hit?.name);
+    if (!requestedNumber || requestedNumber === matchCustomerNumber) {
+      return {
+        action: 'skip',
+        severity: 'existing',
+        reason: identityReason,
+        matchId,
+        matchName,
+        matchCustomerNumber,
+        customer: null,
+        issues: [],
+      };
+    }
+    const owner = registry.find((item) => item.customerNumber === requestedNumber);
+    if (owner && owner.id !== hit.id) {
+      return {
+        action: 'skip',
+        severity: 'existing',
+        reason: `Kundenummer ${requestedNumber} er opptatt av en annen kunde. Kunden finnes som Nr ${matchCustomerNumber}.`,
+        matchId,
+        matchName,
+        matchCustomerNumber,
+        customer: null,
+        issues: [],
+      };
+    }
+    if (seenNumbers.has(requestedNumber)) {
+      return {
+        action: 'skip',
+        severity: 'block',
+        reason: 'Kundenummeret står flere ganger i listen. Bare den første raden kan importeres.',
+        matchId,
+        matchName,
+        matchCustomerNumber,
+        customer: null,
+        issues: [],
+      };
+    }
+    const customer = normalizeCustomer({
+      ...hit,
+      customerNumber: requestedNumber,
+    });
+    if (matchCustomerNumber) existingNumbers.delete(matchCustomerNumber);
+    existingNumbers.add(requestedNumber);
+    seenNumbers.add(requestedNumber);
+    registry = registry.map((item) => (item.id === hit.id ? { ...item, customerNumber: requestedNumber } : item));
+    return {
+      action: 'update',
+      severity: 'ok',
+      reason: '',
+      matchId,
+      matchName,
+      matchCustomerNumber,
+      customer,
+      issues: [`Kundenummer oppdateres fra Nr ${matchCustomerNumber} til Nr ${requestedNumber}.`],
+    };
+  }
+
   for (const row of Array.isArray(rows) ? rows : []) {
     const name = text(row?.name);
     const kind = row?.kind === 'person' || row?.kind === 'org'
@@ -657,11 +727,54 @@ export function planCustomerImport(state, rows) {
     let matchId = '';
     let matchName = '';
     let matchCustomerNumber = '';
+    let action = 'skip';
+    let customer = null;
     if (!name) {
       severity = 'block';
       reason = 'Mangler navn.';
+    } else if (orgnr && existingOrgnr.has(orgnr)) {
+      const hit = existing.find((item) => item.orgnr === orgnr);
+      const plannedHit = claimNumberUpdate(
+        hit,
+        requestedNumber,
+        'En kunde med samme organisasjonsnummer finnes allerede.',
+      );
+      action = plannedHit.action;
+      severity = plannedHit.severity;
+      reason = plannedHit.reason;
+      matchId = plannedHit.matchId;
+      matchName = plannedHit.matchName;
+      matchCustomerNumber = plannedHit.matchCustomerNumber;
+      customer = plannedHit.customer;
+      for (const issue of plannedHit.issues) {
+        if (!issues.includes(issue)) issues.push(issue);
+      }
+    } else if (orgnr && seenOrgnr.has(orgnr)) {
+      severity = 'block';
+      reason = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
+    } else if (personnummer && existingPerson.has(personnummer)) {
+      const hit = existing.find((item) => item.personnummer === personnummer);
+      const plannedHit = claimNumberUpdate(
+        hit,
+        requestedNumber,
+        'En kunde med samme personnummer finnes allerede.',
+      );
+      action = plannedHit.action;
+      severity = plannedHit.severity;
+      reason = plannedHit.reason;
+      matchId = plannedHit.matchId;
+      matchName = plannedHit.matchName;
+      matchCustomerNumber = plannedHit.matchCustomerNumber;
+      customer = plannedHit.customer;
+      for (const issue of plannedHit.issues) {
+        if (!issues.includes(issue)) issues.push(issue);
+      }
+    } else if (personnummer && seenPerson.has(personnummer)) {
+      severity = 'block';
+      reason = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
     } else if (requestedNumber && existingNumbers.has(requestedNumber)) {
-      const hit = existing.find((item) => item.customerNumber === requestedNumber);
+      const hit = existing.find((item) => item.customerNumber === requestedNumber)
+        || registry.find((item) => item.customerNumber === requestedNumber);
       severity = 'existing';
       reason = 'Kundenummeret finnes allerede.';
       matchId = text(hit?.id);
@@ -670,28 +783,7 @@ export function planCustomerImport(state, rows) {
     } else if (requestedNumber && seenNumbers.has(requestedNumber)) {
       severity = 'block';
       reason = 'Kundenummeret står flere ganger i listen. Bare den første raden kan importeres.';
-    } else if (orgnr && existingOrgnr.has(orgnr)) {
-      const hit = existing.find((item) => item.orgnr === orgnr);
-      severity = 'existing';
-      reason = 'En kunde med samme organisasjonsnummer finnes allerede.';
-      matchId = text(hit?.id);
-      matchName = text(hit?.name);
-      matchCustomerNumber = text(hit?.customerNumber);
-    } else if (orgnr && seenOrgnr.has(orgnr)) {
-      severity = 'block';
-      reason = 'Organisasjonsnummeret står flere ganger i listen. Bare den første raden kan importeres.';
-    } else if (personnummer && existingPerson.has(personnummer)) {
-      const hit = existing.find((item) => item.personnummer === personnummer);
-      severity = 'existing';
-      reason = 'En kunde med samme personnummer finnes allerede.';
-      matchId = text(hit?.id);
-      matchName = text(hit?.name);
-      matchCustomerNumber = text(hit?.customerNumber);
-    } else if (personnummer && seenPerson.has(personnummer)) {
-      severity = 'block';
-      reason = 'Personnummeret står flere ganger i listen. Bare den første raden kan importeres.';
     }
-    let customer = null;
     if (!severity) {
       if (orgnr) seenOrgnr.add(orgnr);
       if (personnummer) seenPerson.add(personnummer);
@@ -715,9 +807,10 @@ export function planCustomerImport(state, rows) {
       }
       registry = [...registry, { ...customer, id: `plan_${planned.length}` }];
       severity = issues.length ? 'review' : 'ok';
+      action = 'create';
     }
     planned.push({
-      action: severity === 'ok' || severity === 'review' ? 'create' : 'skip',
+      action,
       severity,
       name: label,
       orgnr,
@@ -730,7 +823,9 @@ export function planCustomerImport(state, rows) {
       matchId,
       matchName,
       matchCustomerNumber,
-      issues: severity === 'ok' || severity === 'review' ? issues : [reason].filter(Boolean),
+      issues: action === 'create' || action === 'update' || severity === 'review'
+        ? issues
+        : [reason].filter(Boolean),
       customer,
     });
   }
@@ -837,6 +932,22 @@ export function customerImportReviewRows(planned, dropped = new Set()) {
   const rows = [];
   (Array.isArray(planned) ? planned : []).forEach((row, index) => {
     const id = String(index);
+    if (row.action === 'update' && row.customer) {
+      rows.push({
+        id,
+        severity: row.severity === 'review' ? 'review' : 'ok',
+        title: [row.customer.customerNumber, row.customer.name || row.name].filter(Boolean).join(' · ') || row.name,
+        meta: [
+          formatOrgnr(row.orgnr),
+          row.matchCustomerNumber ? `Var Nr ${row.matchCustomerNumber}` : '',
+        ].filter(Boolean).join(' · '),
+        issues: row.issues || [],
+        included: !dropped.has(id),
+        matchId: row.matchId || '',
+        matchCustomerNumber: row.customer.customerNumber || '',
+      });
+      return;
+    }
     if (row.severity === 'existing') {
       const registerLabel = [
         row.matchCustomerNumber ? `Nr ${row.matchCustomerNumber}` : '',

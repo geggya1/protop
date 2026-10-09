@@ -179,11 +179,40 @@ assert.ok(existingHit.matchId);
 assert.match(existingHit.title, /^Nr /);
 assert.match(existingHit.title, /Igang/i);
 assert.match(existingHit.meta, /922 987 106/);
-const namedClash = customerImportReviewRows(planCustomerImport(created.state, [
+const numberSyncPlan = planCustomerImport(created.state, [
   { name: 'Consult1 AS', orgnr: '922987106', customerNumber: '10001' },
-]).rows).find((row) => row.severity === 'existing');
-assert.match(namedClash.title, /^Nr /);
-assert.match(namedClash.meta, /I importfila: fil 10001 · Consult1 AS/);
+]);
+const numberSync = numberSyncPlan.rows.find((row) => row.orgnr === '922987106');
+assert.equal(numberSync.action, 'update');
+assert.equal(numberSync.severity, 'ok');
+assert.equal(numberSync.customer.id, created.customer.id);
+assert.equal(numberSync.customer.customerNumber, '10001');
+assert.equal(numberSync.matchCustomerNumber, created.customer.customerNumber);
+assert.ok(numberSync.issues.some((issue) => /oppdateres fra Nr/.test(issue)));
+const numberSyncView = customerImportReviewRows(numberSyncPlan.rows).find((row) => row.matchId === created.customer.id);
+assert.match(numberSyncView.title, /^10001 ·/);
+assert.match(numberSyncView.meta, /Var Nr/);
+assert.equal(numberSyncView.included, true);
+const synced = importCustomers(created.state, [numberSync.customer]);
+assert.equal(synced.created[0].customerNumber, '10001');
+assert.equal(synced.state.customers.find((row) => row.id === created.customer.id).customerNumber, '10001');
+
+const numberTaken = planCustomerImport(
+  upsertCustomer(created.state, {
+    name: 'Annen AS',
+    orgnr: '923456785',
+    customerNumber: '10001',
+    address: 'Gate 9',
+    postalCode: '4073',
+    place: 'Oslo',
+    email: 'a@a.no',
+    phone: '92082276',
+  }).state,
+  [{ name: 'Consult1 AS', orgnr: '922987106', customerNumber: '10001' }],
+).rows[0];
+assert.equal(numberTaken.action, 'skip');
+assert.equal(numberTaken.severity, 'existing');
+assert.match(numberTaken.reason, /opptatt/);
 assert.equal(customerReadyForInvoice(created.customer), true);
 assert.equal(customerInvoiceGaps({ name: 'A', kind: 'org', orgnr: '922987106' }).length, 0);
 assert.ok(customerInvoiceGaps({ name: 'A', kind: 'org' }).includes('Mangler organisasjonsnummer.'));
@@ -267,9 +296,14 @@ assert.match(screen, /Må rettes før fakturering/);
 assert.match(screen, /customer-filter-gap-invoice/);
 assert.match(screen, /Brønnøysund/);
 assert.match(screen, /onOpenExisting/);
+assert.match(screen, /action !== 'create' && row\.action !== 'update'/);
 const reviewUi = readFileSync(new URL('../../components/ImportReview.jsx', import.meta.url), 'utf8');
 assert.match(reviewUi, /onOpenExisting/);
 assert.match(reviewUi, /i kunderegisteret/);
+assert.match(
+  readFileSync(new URL('./customers.js', import.meta.url), 'utf8'),
+  /action update/,
+);
 
 const first = upsertCustomer(emptyAnbudState(), { name: 'A AS', orgnr: '923456785', address: 'Gate 1', postalCode: '4073', place: 'Oslo', email: 'a@a.no', phone: '92082276' });
 const second = upsertCustomer(first.state, { name: 'B AS', orgnr: '923456793', customerNumber: '10180', address: 'Gate 2', postalCode: '4073', place: 'Oslo', email: 'b@b.no', phone: '92082276' });

@@ -33,9 +33,24 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
 
   const byNormalizedNumber = matchCustomer(
     [{ id: 'c-num', name: 'Lyse Neo AS', customerNumber: '10115', orgnr: '982929733' }],
-    { customerNumber: '10115.0', client: 'Lyse Neo AS' },
+    { customerNumber: '10115.0', client: 'Annet navn' },
   );
   assert.equal(byNormalizedNumber.id, 'c-num');
+
+  const byNotesNumber = matchCustomer(
+    [{ id: 'c-notes', name: 'Sandnes kommune', customerNumber: '7', notes: 'Kundenr 10025', orgnr: '964965137' }],
+    { customerNumber: '10025', client: 'Sandnes Kommune' },
+  );
+  assert.equal(byNotesNumber.id, 'c-notes');
+
+  const byShortestSoft = matchCustomer(
+    [
+      { id: 'c-dept', name: 'Sandnes kommune Bymiljø', customerNumber: '8', orgnr: '' },
+      { id: 'c-legal', name: 'Sandnes kommune', customerNumber: '9', orgnr: '' },
+    ],
+    { customerNumber: '999', client: 'Sandnes Kommune Bymiljø Og Utbygging', orgnr: '' },
+  );
+  assert.equal(byShortestSoft.id, 'c-legal');
 }
 
 {

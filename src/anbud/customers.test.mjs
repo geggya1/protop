@@ -17,6 +17,7 @@ import {
   matchCustomer,
   namesLikelyMatch,
   normalizeCustomer,
+  normalizeCustomerNumber,
   customerPhoneLines,
   ownerLabel,
   projectBelongsToCustomer,
@@ -116,6 +117,11 @@ assert.match(
 
 assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'IGANG TOTALENTREPRENØR AS'), true);
 assert.equal(namesLikelyMatch('Igang Totalentreprenør As', 'Consult1 AS'), false);
+
+assert.equal(normalizeCustomerNumber('10115.0'), '10115');
+assert.equal(normalizeCustomerNumber('10115,00'), '10115');
+assert.equal(normalizeCustomerNumber('10 115'), '10115');
+assert.equal(normalizeCustomerNumber('0010115'), '10115');
 
 const owned = setCustomerOwner(created.state, created.customer.id, { uid: 'p1', name: 'Kari Konsulent' });
 assert.equal(owned.ok, true);

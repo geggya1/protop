@@ -164,7 +164,11 @@ export function emptyCustomer(partial = {}) {
 }
 
 export function normalizeCustomerNumber(value) {
-  const digits = String(value || '').replace(/\D/g, '');
+  let raw = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  // Excel lagrer ofte 10115 som 10115.0 — ikke strip punktum før nullene er fjernet.
+  if (/^\d+[.,]0+$/.test(raw)) raw = raw.replace(/[.,]0+$/, '');
+  const digits = raw.replace(/\D/g, '');
   if (!digits) return '';
   const number = Number(digits);
   if (!Number.isFinite(number) || number <= 0 || number > 999999999) return '';

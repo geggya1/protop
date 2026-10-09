@@ -48,6 +48,8 @@ export function emptyProjectState() {
   return {
     projects: [],
     activeProjectId: null,
+    /** Tombstones slik at slettede prosjekt ikke gjenoppstår ved merge. */
+    deletedProjects: [],
     activities: [],
     members: [],
     timeEntries: [],
@@ -71,6 +73,40 @@ export function emptyProjectState() {
   };
 }
 
+function normalizeDeletedProject(row) {
+  if (!row || typeof row !== 'object') return null;
+  const id = text(row.id);
+  if (!id) return null;
+  return {
+    id,
+    number: text(row.number),
+    deletedAt: text(row.deletedAt) || '',
+  };
+}
+
+function dedupeProjectsByNumber(projects) {
+  const map = new Map();
+  for (const row of Array.isArray(projects) ? projects : []) {
+    if (!row?.id) continue;
+    const key = projectNumberKey(row.number) || row.id;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, row);
+      continue;
+    }
+    const prevArchived = prev.status === 'arkivert';
+    const rowArchived = row.status === 'arkivert';
+    if (prevArchived !== rowArchived) {
+      map.set(key, rowArchived ? prev : row);
+      continue;
+    }
+    const tPrev = Date.parse(prev.updatedAt || prev.createdAt || '') || 0;
+    const tRow = Date.parse(row.updatedAt || row.createdAt || '') || 0;
+    map.set(key, tRow >= tPrev ? row : prev);
+  }
+  return [...map.values()];
+}
+
 export function normalizeProjectState(raw) {
   const base = emptyProjectState();
   const src = raw && typeof raw === 'object' ? raw : {};
@@ -84,6 +120,9 @@ export function normalizeProjectState(raw) {
     if (key === 'activeProjectId' || key === 'syncedAt') continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
+  next.deletedProjects = next.deletedProjects.map(normalizeDeletedProject).filter(Boolean);
+  const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
+  next.projects = next.projects.filter((row) => row?.id && !deletedIds.has(row.id));
   if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {
     next.activeProjectId = next.projects[0]?.id || null;
   }
@@ -91,6 +130,7 @@ export function normalizeProjectState(raw) {
     ...project,
     workSettings: defaultWorkSettings(project?.workSettings),
   }));
+  next.projects = dedupeProjectsByNumber(next.projects);
   next.activities = next.activities.map((row) => normalizeActivityRow(row));
   next.members = next.members.map((row) => normalizeMemberRow(row)).filter(Boolean);
   next.timeEntries = next.timeEntries.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
@@ -597,11 +637,30 @@ export function deleteProjects(state, projectIds) {
   const wanted = [...new Set((Array.isArray(projectIds) ? projectIds : [projectIds]).filter(Boolean))];
   if (!wanted.length) return fail(state, 'Ingen prosjekt er valgt.');
   const idSet = new Set(wanted);
-  const deletedIds = state.projects.filter((row) => idSet.has(row.id)).map((row) => row.id);
+  const removedRows = state.projects.filter((row) => idSet.has(row.id));
+  const deletedIds = removedRows.map((row) => row.id);
   if (!deletedIds.length) return fail(state, 'Fant ingen av de valgte prosjektene.');
   const removed = new Set(deletedIds);
+  const at = new Date().toISOString();
+  const deletedMap = new Map(
+    (Array.isArray(state.deletedProjects) ? state.deletedProjects : [])
+      .map(normalizeDeletedProject)
+      .filter(Boolean)
+      .map((row) => [row.id, row]),
+  );
+  for (const row of removedRows) {
+    deletedMap.set(row.id, {
+      id: row.id,
+      number: text(row.number),
+      deletedAt: at,
+    });
+  }
   const projects = state.projects.filter((row) => !removed.has(row.id));
-  const next = { ...state, projects };
+  const next = {
+    ...state,
+    projects,
+    deletedProjects: [...deletedMap.values()],
+  };
   for (const key of PROJECT_SCOPED_KEYS) {
     next[key] = (state[key] || []).filter((row) => !removed.has(row.projectId));
   }
@@ -1327,6 +1386,23 @@ export function activityTimeSummary(state, activityId) {
   };
 }
 
+function mergeDeletedProjects(left, right) {
+  const map = new Map();
+  for (const row of [...(left || []), ...(right || [])]) {
+    const next = normalizeDeletedProject(row);
+    if (!next) continue;
+    const prev = map.get(next.id);
+    if (!prev) {
+      map.set(next.id, next);
+      continue;
+    }
+    const tPrev = Date.parse(prev.deletedAt || '') || 0;
+    const tNext = Date.parse(next.deletedAt || '') || 0;
+    map.set(next.id, tNext >= tPrev ? next : prev);
+  }
+  return [...map.values()];
+}
+
 /** Merg lokal og remote prosjektstate (by-id, nyeste vinner). */
 export function mergeProjectStates(left, right) {
   const a = normalizeProjectState(left);
@@ -1354,12 +1430,22 @@ export function mergeProjectStates(left, right) {
   }
 
   const keys = Object.keys(emptyProjectState()).filter((key) => (
-    key !== 'activeProjectId' && key !== 'syncedAt' && key !== 'procedures'
+    key !== 'activeProjectId'
+    && key !== 'syncedAt'
+    && key !== 'procedures'
+    && key !== 'deletedProjects'
   ));
   const next = emptyProjectState();
   for (const key of keys) {
     next[key] = mergeRows(a[key] || [], b[key] || []);
   }
+  next.deletedProjects = mergeDeletedProjects(a.deletedProjects, b.deletedProjects);
+  const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
+  next.projects = next.projects.filter((row) => !deletedIds.has(row.id));
+  for (const key of PROJECT_SCOPED_KEYS) {
+    next[key] = (next[key] || []).filter((row) => !deletedIds.has(row.projectId));
+  }
+  next.projects = dedupeProjectsByNumber(next.projects);
   next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
   next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
   next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)
@@ -1367,7 +1453,9 @@ export function mergeProjectStates(left, right) {
     || b.activeProjectId
     || null;
   if (next.activeProjectId && !next.projects.some((p) => p.id === next.activeProjectId)) {
-    next.activeProjectId = next.projects[0]?.id || null;
+    next.activeProjectId = next.projects.find((p) => p.status !== 'arkivert')?.id
+      || next.projects[0]?.id
+      || null;
   }
   return normalizeProjectState(next);
 }

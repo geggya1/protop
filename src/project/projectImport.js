@@ -5,9 +5,11 @@
  */
 import { readSpreadsheetTables, CUSTOMER_IMPORT_ACCEPT } from '../anbud/customerImport.js';
 import {
+  customerNumberFromNotes,
   namesLikelyMatch,
   normalizeCustomerNumber,
   normalizeOrgnr,
+  withCustomerNumbers,
 } from '../anbud/customers.js';
 import { normalizePricingModel, projectNumberKey } from './projectFields.js';
 import { phaseFromProjectStatus } from './statusFilter.js';
@@ -120,7 +122,7 @@ function scoreCustomer(customer, hint = {}) {
   const number = normalizeCustomerNumber(hint.customerNumber);
   const orgnr = normalizeOrgnr(hint.orgnr);
   const name = text(hint.client || hint.name);
-  if (number && normalizeCustomerNumber(customer.customerNumber) === number) score += 100;
+  if (number && customerNumberOf(customer) === number) score += 100;
   if (orgnr && normalizeOrgnr(customer.orgnr) === orgnr) score += 80;
   if (name && fold(customer.name) === fold(name)) score += 60;
   else if (name && namesLikelyMatch(customer.name, name)) score += 40;
@@ -136,12 +138,16 @@ function scoreCustomer(customer, hint = {}) {
  * Kobler prosjektkunde mot kunderegisteret.
  * Prioritet: kundenummer → org.nr → eksakt navn → mykt navn (AS/kommune-varianter).
  */
+function customerNumberOf(row) {
+  return normalizeCustomerNumber(row?.customerNumber) || customerNumberFromNotes(row?.notes);
+}
+
 export function matchCustomer(customers, hint = {}) {
   const list = Array.isArray(customers) ? customers : [];
   if (!list.length) return null;
   const number = normalizeCustomerNumber(hint.customerNumber);
   if (number) {
-    const byNumber = list.filter((row) => normalizeCustomerNumber(row.customerNumber) === number);
+    const byNumber = list.filter((row) => customerNumberOf(row) === number);
     if (byNumber.length === 1) return byNumber[0];
     if (byNumber.length > 1) {
       const ranked = [...byNumber].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
@@ -168,6 +174,9 @@ export function matchCustomer(customers, hint = {}) {
     if (soft.length > 1) {
       const ranked = [...soft].sort((a, b) => scoreCustomer(b, hint) - scoreCustomer(a, hint));
       if (scoreCustomer(ranked[0], hint) > scoreCustomer(ranked[1], hint)) return ranked[0];
+      // Flere myke treff: velg korteste navn (ofte juridisk enhet uten avdelingsnavn).
+      ranked.sort((a, b) => text(a.name).length - text(b.name).length || a.name.localeCompare(b.name, 'nb'));
+      return ranked[0];
     }
   }
   return null;
@@ -414,10 +423,11 @@ export function planProjectImport(projectState, customers, contracts, rows) {
       .map((row) => projectNumberKey(row.number))
       .filter(Boolean),
   );
+  const registry = withCustomerNumbers(customers);
   const seen = new Set();
   const planned = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
-    const row = companyProjectRow(raw, customers, contracts);
+    const row = companyProjectRow(raw, registry, contracts);
     const key = projectNumberKey(row.number);
     if (row.severity !== 'block' && key) {
       if (existing.has(key)) {

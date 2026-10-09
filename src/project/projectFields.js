@@ -8,13 +8,23 @@ function text(value) {
 }
 
 /**
- * Nøkkel for å kjenne igjen prosjektnummer. Trim, og Excel-heltall som 10951.0
- * blir 10951. Bokstaver og bindestreker (f.eks. A-123) beholdes uendret.
+ * Nøkkel for å kjenne igjen prosjektnummer.
+ * Håndterer Excel-heltall (10951.0), mellomrom (10 951), ledende nuller og
+ * vitenskapelig notasjon. Bokstaver/bindestreker (A-123) beholdes.
  */
 export function projectNumberKey(value) {
-  const raw = String(value ?? '').replace(/\s+/g, ' ').trim();
+  let raw = String(value ?? '').replace(/\s+/g, ' ').trim();
   if (!raw) return '';
-  if (/^\d+[.,]0+$/.test(raw)) return raw.replace(/[.,]0+$/, '');
+  if (/^\d+(\.\d+)?e[+-]?\d+$/i.test(raw)) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) raw = String(Math.round(n));
+  }
+  if (/^\d+[.,]0+$/.test(raw)) raw = raw.replace(/[.,]0+$/, '');
+  if (/^\d[\d\s]*\d$|^\d$/.test(raw) && /\s/.test(raw)) raw = raw.replace(/\s+/g, '');
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(n);
+  }
   return raw;
 }
 

@@ -7,7 +7,7 @@ import {
   projectLoadMeta,
   putProjectState,
 } from './storage.js';
-import { emptyProjectState } from './engine.js';
+import { createProject, deleteProjects, emptyProjectState, mergeProjectStates } from './engine.js';
 
 clearProjectStateMemory();
 assert.equal(peekProjectState(), null);
@@ -59,5 +59,20 @@ assert.equal(emptyRemote.state.projects[0].id, 'p9');
 putProjectState(seeded, 'co1');
 assert.equal(await loadProjectState('co1'), peekProjectState('co1'));
 assert.equal(projectLoadMeta('co1'), 'ok');
+
+{
+  let state = createProject(emptyProjectState(), { name: 'Slettes', number: '55' }).state;
+  state = createProject(state, { name: 'Beholdes', number: '56' }).state;
+  const localBefore = { ...state, syncedAt: '2026-01-01T10:00:00.000Z' };
+  const deleted = deleteProjects(state, [state.projects.find((row) => row.number === '55').id]);
+  const stamped = { ...deleted.state, syncedAt: '2026-01-01T11:00:00.000Z' };
+  // Samme sti som saveProjectState: merge lokal disk med ny state.
+  const saved = mergeProjectStates(localBefore, stamped);
+  assert.equal(saved.projects.length, 1);
+  assert.equal(saved.projects[0].number, '56');
+  const remoteStillHasOld = applyRemoteProjectRead(saved, { ok: true, state: localBefore });
+  assert.equal(remoteStillHasOld.state.projects.length, 1);
+  assert.equal(remoteStillHasOld.state.projects[0].number, '56');
+}
 
 console.log('storage.test.mjs: ok');

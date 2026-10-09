@@ -64,6 +64,7 @@ import {
 import {
   loadProjectState,
   peekProjectState,
+  persistProjectState,
   projectLoadMeta,
   putProjectState,
   saveProjectState,
@@ -479,14 +480,14 @@ export default function ProjectWorkScreen() {
     setDeleting(true);
     setError('');
     try {
-      const loaded = await loadProjectState(familyId);
+      const loaded = await loadProjectState(familyId, { force: true });
       const result = deleteProjects(loaded, ids);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      await saveProjectState(result.state, familyId);
-      setState(result.state);
+      const saved = await persistProjectState(result.state, familyId);
+      setState(saved);
       await clearAnbudProjectLinks(result.deletedIds);
       setCheckedIds((current) => {
         const next = new Set(current);
@@ -782,8 +783,10 @@ export default function ProjectWorkScreen() {
     try {
       const bytes = await bytesFromFile(file);
       const rows = await readCompanyProjectTable(bytes, file.name);
-      const loadedProjects = await loadProjectState(familyId);
-      const loadedAnbud = await loadAnbudState(familyId);
+      const [loadedProjects, loadedAnbud] = await Promise.all([
+        loadProjectState(familyId, { force: true }),
+        loadAnbudState(familyId, { force: true }),
+      ]);
       const plan = planProjectImport(loadedProjects, loadedAnbud.customers || [], loadedAnbud.contracts || [], rows);
       if (!plan.rows.length) {
         setError('Fant ingen prosjekter i filen.');
@@ -793,7 +796,9 @@ export default function ProjectWorkScreen() {
       setDropped(new Set());
       setImportReport(null);
       setLinkQuery({});
-      setNote('');
+      setNote(!(loadedAnbud.customers || []).length
+        ? 'Kunderegisteret er tomt. Importer kundene først for automatisk kobling.'
+        : '');
       setView('import');
     } catch (cause) {
       const message = String(cause?.message || '');
@@ -848,14 +853,14 @@ export default function ProjectWorkScreen() {
     setImporting(true);
     setError('');
     try {
-      const loaded = await loadProjectState(familyId);
+      const loaded = await loadProjectState(familyId, { force: true });
       const result = importProjects(loaded, chosen.map((row) => row.project));
       if (!result.ok) {
         setError(result.error || 'Ingen prosjekter ble lagret.');
         return;
       }
-      await saveProjectState(result.state, familyId);
-      setState(result.state);
+      const saved = await persistProjectState(result.state, familyId);
+      setState(saved);
       for (const project of [...(result.created || []), ...(result.updated || [])]) {
         if (project.contractId) await syncContractLink(project.id, project.contractId, '');
       }

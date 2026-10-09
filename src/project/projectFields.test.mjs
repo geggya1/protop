@@ -19,6 +19,9 @@ import {
 assert.equal(projectNumberKey('10951.0'), '10951');
 assert.equal(projectNumberKey('10951,00'), '10951');
 assert.equal(projectNumberKey(' 10951 '), '10951');
+assert.equal(projectNumberKey('10 951'), '10951');
+assert.equal(projectNumberKey('0010951'), '10951');
+assert.equal(projectNumberKey('1.0951e4'), '10951');
 assert.equal(projectNumberKey('A-123'), 'A-123');
 assert.equal(projectNumberKey('1.5'), '1.5');
 

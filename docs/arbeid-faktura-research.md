@@ -138,10 +138,20 @@ Neste i syklus 5–6: kreditnota-hjelper, lagring av `lines`/`kid`/`vatCode`/`eh
 - `node src/project/engine.test.mjs` → **ok**
 - Ingen feil å fikse i denne runden.
 
-### Syklus 5 — Kreditnota
+### Syklus 5 — Kreditnota (ferdig)
 
-- Mål: `createCreditNoteFromInvoice` i `billingFromHours.js` + unit-test; valgfri knapp i `EconomyBilling`.
+- `createCreditNoteFromInvoice` i `billingFromHours.js` — speiler linjebeløp (uten øreavvik), ny KID, `creditNoteForId`
+- Pipeline-test dekker kreditnota + avvisning av dobbel kreditering
+- Valgfri knapp «Opprett kreditnota» i `EconomyBilling` (siste faktura) med speilet bilag
 
-### Syklus 6 — Persistens
+### Syklus 6 — Persistens (ferdig)
 
-- Mål: `invoiceStorage.toSummary` / lokal cache må beholde `lines`, `kid`, `vatCode`, `ehfXml`, `voucherId` (ikke strippe ved `writeLocal`).
+- Funnet: `toSummary` i `invoiceStorage.js` strippet `lines`, `vatCode`, `ehfXml`, `voucherId` fra AsyncStorage
+- Fiks: `toInvoiceCacheRow` i `invoices.js` (brukt av `writeLocal`) beholder disse + `timeEntryIds` / bank / delivery
+- Test: `node src/economy/invoiceStorage.test.mjs`
+
+### Åpent etter syklus 3–6
+
+- Egen voucher-collection / persistens (kun `voucherId` på faktura)
+- Dedikert timerapport-UI under Arbeid
+- Peppol Access Point (P2), EHF CreditNote-dokumenttype (nå Invoice-XML også for kredit)

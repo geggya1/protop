@@ -98,16 +98,18 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
+  assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kunder', 'Avtaler', 'Faktura', 'Timer', 'Indeksregulering'],
+    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Timer', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.subView, 'kunder');
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').action.tab, 'okonomi');
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').action.subView, 'avtaler');
-  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').label, 'Avtaler');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-avtaler').label, 'Avtalesummer');
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').label, 'Kundesummer');
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -340,6 +342,20 @@ assert.match(shellSrc, /EconomyScreen/);
 assert.match(shellSrc, /defaultOkonomiSubView/);
 assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
+const moreHubSrc = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
+assert.match(moreHubSrc, /item\.forceOpen && item\.children/);
+assert.match(
+  readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8'),
+  /item\.forceOpen/,
+);
+assert.match(
+  readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8'),
+  /Kundesummer/,
+);
+assert.equal(
+  readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8').includes("label: 'Økonomi',\n      action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },\n      forceOpen: true,"),
+  false,
+);
 const economyScreen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
 assert.match(economyScreen, /EconomyWelcome/);
 assert.match(economyScreen, /EconomyDesk/);

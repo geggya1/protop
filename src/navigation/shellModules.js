@@ -40,12 +40,14 @@ export function selskapMenuTitle(subView) {
 
 /**
  * Undermeny når Økonomi er valgt.
- * Kunder og Avtaler her er økonomiske utsnitt (okonomi-subviews), ikke fulle registre.
+ * Kundesummer / Avtalesummer er økonomiske utsnitt — fulle registre ligger
+ * som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
+ * Undermenyen åpnes bare når Økonomi er aktiv, så Kunder synes tydelig på mobil.
  */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
-  { id: 'kunder', icon: 'people', label: 'Kunder' },
-  { id: 'avtaler', icon: 'cash', label: 'Avtaler' },
+  { id: 'kunder', icon: 'people', label: 'Kundesummer' },
+  { id: 'avtaler', icon: 'cash', label: 'Avtalesummer' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'timer', icon: 'time', label: 'Timer' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
@@ -59,8 +61,8 @@ export function defaultOkonomiSubView(subView) {
 
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
-  if (subView === 'kunder') return 'Økonomi · kunder';
-  if (subView === 'avtaler') return 'Økonomi · avtaler';
+  if (subView === 'kunder') return 'Kundesummer';
+  if (subView === 'avtaler') return 'Avtalesummer';
   if (subView === 'faktura') return 'Faktura';
   if (subView === 'timer') return 'Timer';
   return 'Økonomi';
@@ -107,7 +109,6 @@ export function companyNavItems() {
       icon: 'wallet',
       label: 'Økonomi',
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
-      forceOpen: true,
       children: OKONOMI_MENU.map((item) => ({
         id: `okonomi-${item.id}`,
         icon: item.icon,

@@ -357,7 +357,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
                     moduleId={item.id}
                     onPress={() => runAction(item.action, item.id)}
                   />
-                  {(item.children || []).map((child) => (
+                  {((item.forceOpen && item.children) || []).map((child) => (
                     <Row
                       key={child.id}
                       icon={child.icon}

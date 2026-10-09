@@ -34,6 +34,7 @@ export default function ImportReview({
             {title}
           </Text>
           {sectionRows.map((row) => {
+            const locked = row.severity === 'block' || row.locked;
             const border = row.severity === 'block' ? danger : row.severity === 'review' ? AMBER : row.severity === 'existing' ? (colors.brand || '#175cd3') : colors.line;
             return (
               <View
@@ -45,7 +46,7 @@ export default function ImportReview({
                   gap: 6,
                   borderColor: border,
                   backgroundColor: colors.card,
-                  opacity: row.included || row.severity === 'block' ? 1 : 0.55,
+                  opacity: row.included || locked ? 1 : 0.55,
                 }}
               >
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.title}</Text>
@@ -59,8 +60,10 @@ export default function ImportReview({
                   </Text>
                 ))}
                 {typeof renderRowExtra === 'function' ? renderRowExtra(row) : null}
-                {row.severity === 'block' ? (
-                  <Text style={{ color: danger }}>Blir ikke importert.</Text>
+                {locked ? (
+                  <Text style={{ color: row.severity === 'existing' ? (colors.brand || '#175cd3') : danger }}>
+                    {row.severity === 'existing' ? 'Finnes allerede og blir ikke importert.' : 'Blir ikke importert.'}
+                  </Text>
                 ) : (
                   <TouchableOpacity onPress={() => onToggle(row.id)} accessibilityRole="button">
                     <Text style={{ color: colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>

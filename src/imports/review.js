@@ -7,12 +7,17 @@ export function employeeReviewSeverity(row) {
   return 'ok';
 }
 
+function severityCount(rows, severity) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row.severity === severity)
+    .reduce((sum, row) => sum + (Number(row.count) > 0 ? Number(row.count) : 1), 0);
+}
+
 export function reviewHeadline(rows) {
-  const list = Array.isArray(rows) ? rows : [];
-  const ok = list.filter((row) => row.severity === 'ok').length;
-  const existing = list.filter((row) => row.severity === 'existing').length;
-  const review = list.filter((row) => row.severity === 'review').length;
-  const block = list.filter((row) => row.severity === 'block').length;
+  const ok = severityCount(rows, 'ok');
+  const existing = severityCount(rows, 'existing');
+  const review = severityCount(rows, 'review');
+  const block = severityCount(rows, 'block');
   const parts = [];
   if (ok) parts.push(`${ok} klare`);
   if (existing) parts.push(`${existing} finnes fra før`);
@@ -34,8 +39,9 @@ export function reviewSections(rows) {
 export function issueTally(rows) {
   const counts = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
+    const weight = Number(row.count) > 0 ? Number(row.count) : 1;
     for (const issue of row.issues || []) {
-      counts.set(issue, (counts.get(issue) || 0) + 1);
+      counts.set(issue, (counts.get(issue) || 0) + weight);
     }
   }
   return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'nb'));

@@ -47,6 +47,7 @@ export const OKONOMI_MENU = [
   { id: 'kunder', icon: 'people', label: 'Kunder' },
   { id: 'avtaler', icon: 'cash', label: 'Avtaler' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
+  { id: 'timer', icon: 'time', label: 'Timer' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
@@ -61,6 +62,7 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'kunder') return 'Økonomi · kunder';
   if (subView === 'avtaler') return 'Økonomi · avtaler';
   if (subView === 'faktura') return 'Faktura';
+  if (subView === 'timer') return 'Timer';
   return 'Økonomi';
 }
 

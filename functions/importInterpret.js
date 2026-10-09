@@ -145,7 +145,9 @@ export async function handleInterpretImport(data, auth, deps = {}) {
       ? 'cv'
       : data?.kind === 'invoices'
         ? 'invoices'
-        : 'customers';
+        : data?.kind === 'hours'
+          ? 'hours'
+          : 'customers';
   const mode = data?.mode === 'ocr' ? 'ocr' : 'columns';
   if (!familyId) throw new Error('Åpne selskapet før du importerer.');
 

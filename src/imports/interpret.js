@@ -88,12 +88,34 @@ export const INVOICE_AI_FIELDS = {
   deliveryMethod: 'Forsendelsesmåte',
 };
 
+export const HOUR_AI_FIELDS = {
+  date: 'Dato for timeføringen',
+  employeeNumber: 'Ansattnummer',
+  employeeName: 'Navn på medarbeider eller ressurs',
+  customerNumber: 'Kundenummer',
+  customerName: 'Kundenavn',
+  orgnr: 'Organisasjonsnummer',
+  projectNumber: 'Prosjektnummer',
+  projectName: 'Prosjektnavn',
+  activityName: 'Aktivitet eller oppgave',
+  hours: 'Registrerte timer',
+  billableHours: 'Fakturerbare timer',
+  description: 'Beskrivelse av arbeidet',
+  internalNote: 'Intern merknad',
+  department: 'Avdeling',
+  status: 'Status eller godkjent',
+  rate: 'Timepris',
+  amount: 'Beløp',
+  externalId: 'Ekstern rad-ID',
+};
+
 const YES = new Set(['ja', 'yes', 'j', 'y', 'true', 'sant', 'sann', 'x', '1', 'ok', 'on']);
 const NO = new Set(['nei', 'no', 'n', 'false', 'usann', '0', 'av', 'off']);
 
 export function fieldsFor(kind) {
   if (kind === 'employees') return EMPLOYEE_AI_FIELDS;
   if (kind === 'invoices') return INVOICE_AI_FIELDS;
+  if (kind === 'hours') return HOUR_AI_FIELDS;
   return CUSTOMER_AI_FIELDS;
 }
 
@@ -280,7 +302,9 @@ export function sanitizeOcrRows(parsed, kind) {
       ? (row.firstName || row.lastName || row.fullName)
       : kind === 'invoices'
         ? (row.invoiceNumber || row.customerName)
-        : row.name
+        : kind === 'hours'
+          ? (row.date || row.employeeName || row.hours)
+          : row.name
   ));
   return {
     rows,
@@ -315,7 +339,9 @@ export function columnPrompt(kind) {
     ? 'en medarbeiderliste'
     : kind === 'invoices'
       ? 'en fakturaliste'
-      : 'en kundeliste';
+      : kind === 'hours'
+        ? 'en timeliste'
+        : 'en kundeliste';
   return `Du tolker kolonneoverskrifter i ${subject}.
 Returner KUN gyldig JSON:
 {"columns":[{"header":"overskrift slik den står","field":"feltnavn eller tom streng"}],"summary":"én kort setning"}
@@ -330,7 +356,13 @@ Regler:
 
 export function ocrPrompt(kind) {
   const fields = Object.keys(fieldsFor(kind)).join(', ');
-  const subject = kind === 'employees' ? 'medarbeidere' : kind === 'invoices' ? 'fakturaer' : 'kunder';
+  const subject = kind === 'employees'
+    ? 'medarbeidere'
+    : kind === 'invoices'
+      ? 'fakturaer'
+      : kind === 'hours'
+        ? 'timeføringer'
+        : 'kunder';
   return `Du leser et skannet dokument eller bilde med OCR og trekker ut ${subject}.
 Returner KUN gyldig JSON:
 {"rows":[{${Object.keys(fieldsFor(kind)).slice(0, 4).map((field) => `"${field}":""`).join(',')}}],"summary":"én kort setning"}

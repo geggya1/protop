@@ -178,11 +178,24 @@ function normalizeTimeEntryRow(row) {
   if (!projectId || !employeeId || !date) return null;
   const hours = roundHours(row.hours);
   const billableHours = row.billableHours == null ? hours : roundHours(row.billableHours);
+  const source = row.source && typeof row.source === 'object'
+    ? {
+      filename: text(row.source.filename),
+      importedAt: text(row.source.importedAt),
+      values: row.source.values && typeof row.source.values === 'object' ? row.source.values : {},
+    }
+    : null;
   return {
     id: text(row.id) || createId('tid'),
     projectId,
     employeeId,
     employeeName: text(row.employeeName),
+    employeeNumber: text(row.employeeNumber),
+    customerId: text(row.customerId),
+    customerNumber: text(row.customerNumber),
+    customerName: text(row.customerName),
+    projectNumber: text(row.projectNumber),
+    projectName: text(row.projectName),
     activityId: text(row.activityId) || null,
     activityName: text(row.activityName) || 'Hovedaktivitet',
     date,
@@ -190,7 +203,11 @@ function normalizeTimeEntryRow(row) {
     billableHours,
     description: text(row.description),
     internalNote: text(row.internalNote),
+    department: text(row.department),
     status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
+    importFingerprint: text(row.importFingerprint),
+    externalId: text(row.externalId),
+    source,
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
@@ -1352,6 +1369,150 @@ export function deleteAbsence(state, absenceId) {
     ...state,
     absences: state.absences.filter((row) => row.id !== absenceId),
   });
+}
+
+/**
+ * Importer timeføringer (f.eks. fra Excel under Økonomi · Timer).
+ * Hopper over duplikater (importFingerprint), legger medarbeider på prosjektet,
+ * sikrer aktivitet og oppdaterer prosjektets time-oppstilling.
+ */
+export function importTimeEntries(state, drafts = []) {
+  const list = Array.isArray(drafts) ? drafts : [];
+  if (!list.length) return ok(state);
+
+  let working = state;
+  const fingerprints = new Set(
+    (working.timeEntries || [])
+      .map((row) => text(row.importFingerprint))
+      .filter(Boolean),
+  );
+  const added = [];
+  const skipped = [];
+  const touchedProjects = new Set();
+  const now = stamp();
+
+  for (const draft of list) {
+    const projectId = text(draft.projectId);
+    const employeeId = text(draft.employeeId);
+    const date = text(draft.date);
+    if (!projectId || !employeeId || !date) {
+      skipped.push({ reason: 'Mangler prosjekt, medarbeider eller dato.', draft });
+      continue;
+    }
+    const gate = requireProject(working, projectId);
+    if (gate.error) {
+      skipped.push({ reason: gate.error, draft });
+      continue;
+    }
+
+    const fingerprint = text(draft.importFingerprint);
+    if (fingerprint && fingerprints.has(fingerprint)) {
+      skipped.push({ reason: 'Duplikat', draft });
+      continue;
+    }
+
+    const ensured = ensureMainActivity(working, projectId);
+    if (!ensured.ok) {
+      skipped.push({ reason: ensured.error || 'Kunne ikke opprette aktivitet.', draft });
+      continue;
+    }
+    working = ensured.state;
+
+    let activityId = text(draft.activityId) || null;
+    let activityName = text(draft.activityName) || 'Hovedaktivitet';
+    if (activityName && activityName !== 'Hovedaktivitet') {
+      const existingActivity = working.activities.find((row) => (
+        row.projectId === projectId && text(row.name) === activityName
+      ));
+      if (existingActivity) {
+        activityId = existingActivity.id;
+        activityName = existingActivity.name;
+      } else {
+        const created = addActivity(working, {
+          projectId,
+          name: activityName,
+          billable: gate.project.pricingModel !== 'not_billable',
+        });
+        if (created.ok) {
+          working = created.state;
+          const fresh = working.activities.find((row) => (
+            row.projectId === projectId && text(row.name) === activityName
+          ));
+          activityId = fresh?.id || null;
+        }
+      }
+    }
+    if (!activityId) {
+      const main = working.activities.find((row) => (
+        row.projectId === projectId && row.name === 'Hovedaktivitet'
+      )) || working.activities.find((row) => row.projectId === projectId);
+      activityId = main?.id || null;
+      activityName = activityName || main?.name || 'Hovedaktivitet';
+    }
+
+    const memberExists = working.members.some((row) => (
+      row.projectId === projectId && row.employeeId === employeeId && row.active !== false
+    ));
+    if (!memberExists) {
+      const membered = addProjectMember(working, {
+        projectId,
+        employeeId,
+        employeeName: text(draft.employeeName),
+        role: 'Prosjektmedlem',
+      });
+      if (membered.ok) working = membered.state;
+    }
+
+    const hours = roundHours(draft.hours);
+    const billableHours = draft.billableHours == null ? hours : roundHours(draft.billableHours);
+    const row = normalizeTimeEntryRow({
+      id: createId('tid'),
+      projectId,
+      employeeId,
+      employeeName: text(draft.employeeName),
+      employeeNumber: text(draft.employeeNumber),
+      customerId: text(draft.customerId),
+      customerNumber: text(draft.customerNumber),
+      customerName: text(draft.customerName),
+      projectNumber: text(draft.projectNumber) || text(gate.project.number),
+      projectName: text(draft.projectName) || text(gate.project.name),
+      activityId,
+      activityName,
+      date,
+      hours,
+      billableHours,
+      description: text(draft.description),
+      internalNote: text(draft.internalNote),
+      department: text(draft.department),
+      status: ['registrert', 'godkjent', 'låst'].includes(draft.status) ? draft.status : 'registrert',
+      importFingerprint: fingerprint,
+      externalId: text(draft.externalId),
+      source: draft.source,
+      createdAt: now,
+      updatedAt: now,
+      createdByUid: text(draft.createdByUid),
+    });
+    if (!row) {
+      skipped.push({ reason: 'Ugyldig timeføring.', draft });
+      continue;
+    }
+    working = { ...working, timeEntries: [row, ...working.timeEntries] };
+    if (fingerprint) fingerprints.add(fingerprint);
+    added.push(row);
+    touchedProjects.add(projectId);
+  }
+
+  for (const projectId of touchedProjects) {
+    working = syncProjectHourRollups(working, projectId);
+  }
+
+  return {
+    ok: true,
+    state: working,
+    error: null,
+    added,
+    skipped,
+  };
 }
 
 /** Summer timer for prosjekt (timeEntries). */

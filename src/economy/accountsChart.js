@@ -39,8 +39,12 @@ export function vatPayableAccount(vatCode = 'HIGH') {
     MID: '2702',
     LOW: '2703',
     ZERO: '2704',
+    EXEMPT: '',
+    OUTSIDE: '',
   };
-  return map[String(vatCode || 'HIGH').toUpperCase()] || '2701';
+  const code = String(vatCode || 'HIGH').toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(map, code)) return map[code];
+  return '2701';
 }
 
 export function receivableAccount() {

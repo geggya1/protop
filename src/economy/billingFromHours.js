@@ -105,9 +105,11 @@ export function linesFromEntries(entries, {
     }
     const type = timeTypeById(row.timeType || 'ordinary');
     if (type.id !== 'ordinary') label = `${label} (${type.label})`;
+    // Timeart i nøkkelen — ellers blandes ordinær/overtid og siste sats overskriver beløpet.
+    key = `${key}|${type.id}`;
     if (!buckets.has(key)) {
       buckets.set(key, {
-        id: `line_${key}`,
+        id: `line_${key.replace(/\|/g, '_')}`,
         description: descriptionPrefix ? `${descriptionPrefix}${label}` : label,
         quantity: 0,
         unit: 't',
@@ -119,7 +121,7 @@ export function linesFromEntries(entries, {
     }
     const bucket = buckets.get(key);
     bucket.quantity = roundHours(bucket.quantity + hours);
-    bucket.unitPrice = rate; // siste rate; blandede satser bør være egne linjer
+    bucket.unitPrice = rate;
     bucket.timeEntryIds.push(row.id);
   }
 
@@ -228,17 +230,17 @@ export function createInvoiceFromProposal(proposal, {
 export function markEntriesInvoiced(state, entryIds, invoiceId) {
   const wanted = new Set(entryIds || []);
   if (!wanted.size) return state;
-  return {
-    ...state,
-    timeEntries: (state.timeEntries || []).map((row) => (
-      wanted.has(row.id)
-        ? {
-          ...row,
-          invoiceId,
-          status: 'låst',
-          updatedAt: new Date().toISOString(),
-        }
-        : row
-    )),
-  };
+  let changed = false;
+  const timeEntries = (state.timeEntries || []).map((row) => {
+    if (!wanted.has(row.id)) return row;
+    if (row.invoiceId === invoiceId && row.status === 'låst') return row;
+    changed = true;
+    return {
+      ...row,
+      invoiceId,
+      status: 'låst',
+      updatedAt: new Date().toISOString(),
+    };
+  });
+  return changed ? { ...state, timeEntries } : state;
 }

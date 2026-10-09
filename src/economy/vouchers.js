@@ -67,6 +67,7 @@ export function voucherFromInvoice(invoice) {
   for (const g of groups) {
     if (!(Math.abs(g.vatAmount) > 0)) continue;
     const acc = vatPayableAccount(g.vatCode);
+    if (!acc) continue;
     voucherLines.push({
       account: acc,
       accountName: ledgerAccount(acc)?.name || 'Utgående MVA',

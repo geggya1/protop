@@ -264,6 +264,16 @@ assert.deepEqual(watchProfile.watch.profile.keywords, ['bro']);
 const mergedWatch = mergeAnbudStates(emptyAnbudState(), watchProfile);
 assert.equal(mergedWatch.watch.profile.keywords[0], 'bro');
 assert.equal(emptyAnbudState().watch.profile.description, '');
+const preferenceOnly = saveTenderWatch(emptyAnbudState(), {
+  companyName: 'Nord Bygg',
+  nationwide: true,
+  profile: {
+    description: 'Rådgivende ingeniører innen samferdsel',
+    keywords: ['bro', 'samferdsel'],
+  },
+}).state;
+assert.deepEqual(watchQuery(preferenceOnly.watch).cpvCodes, []);
+assert.deepEqual(watchQuery(preferenceOnly.watch).keywords, ['bro', 'samferdsel']);
 assert.match(formatMatchLabel({
   title: 'Ny bro i samferdsel',
   description: 'Prosjektering',

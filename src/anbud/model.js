@@ -604,7 +604,7 @@ export function watchFingerprint(watch) {
     ...(watch?.keywords || []),
     ...(watch?.profile?.keywords || []),
   ]).map((row) => fold(row)).sort();
-  return JSON.stringify({ cpv, areas, channels, keywords });
+  return JSON.stringify({ v: 2, cpv, areas, channels, keywords });
 }
 
 export function latestPublished(notices) {

@@ -39,14 +39,17 @@ import {
   gapReport,
   hasPersonContent,
   initials,
-  isInnleidEmployee,
+  isDeletedEmployee,
   linkClash,
   newId,
+  personnelKind,
+  personnelKindLabel,
   presentEmployee,
   rememberLink,
   sortEmployees,
   statusLabel,
 } from '../../src/employees/model';
+import { PERSONNEL_KIND_OPTIONS, STATUS_OPTIONS } from '../../src/employees/schema';
 import { cvEditorSections } from '../../src/employees/schema';
 import {
   loadProfessionalProfile,
@@ -70,14 +73,6 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-const FILTERS = [
-  ['current', 'Aktive'],
-  ['former', 'Tidligere (sluttet)'],
-  ['leave', 'Permisjon'],
-  ['innleid', 'Innleid'],
-  ['external', 'Ekstern tilgang'],
-  ['all', 'Alle'],
-];
 
 export default function EmployeesScreen() {
   const colors = useColors();
@@ -105,7 +100,8 @@ export default function EmployeesScreen() {
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
-  const [filter, setFilter] = useState('current');
+  const [kindFilter, setKindFilter] = useState('staff');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -170,15 +166,21 @@ export default function EmployeesScreen() {
 
   const selected = rows.find((row) => row.id === selectedId) || null;
   const linked = rows.find((row) => row.personUid && row.personUid === uid) || null;
-  const statusRows = useMemo(
-    () => filterEmployees(rows, { status: filter, departments }),
-    [rows, filter, departments],
+  const kindRows = useMemo(
+    () => filterEmployees(rows, { kind: kindFilter, status: 'all', departments }),
+    [rows, kindFilter, departments],
   );
   const visible = useMemo(
-    () => filterEmployees(rows, { status: filter, query, departments }),
-    [rows, filter, query, departments],
+    () => filterEmployees(rows, { kind: kindFilter, status: statusFilter, query, departments }),
+    [rows, kindFilter, statusFilter, query, departments],
   );
-  const stats = directoryStats(statusRows);
+  const stats = directoryStats(kindRows);
+  const kindOptions = useMemo(() => (
+    PERSONNEL_KIND_OPTIONS.map((option) => ({
+      id: option.value,
+      label: personnelKindLabel(option.value, companyName),
+    }))
+  ), [companyName]);
   function resetMessage() {
     setNote('');
     setError('');
@@ -719,20 +721,46 @@ export default function EmployeesScreen() {
   }
 
   async function destroy() {
-    if (!selected || busy) return;
+    const current = draft && draft.id === selectedId ? draft : selected;
+    if (!current || busy) return;
     setBusy(true);
     try {
-      await removeEmployee(familyId, selected.id);
-      setRows((current) => current.filter((row) => row.id !== selected.id));
-      setSelectedId('');
-      setView('list');
-      setNote('Medarbeideren er slettet.');
+      if (isDeletedEmployee(current)) {
+        await removeEmployee(familyId, current.id);
+        setRows((list) => list.filter((row) => row.id !== current.id));
+        setSelectedId('');
+        setDraft(null);
+        setView('list');
+        setNote('Medarbeideren er slettet permanent.');
+      } else {
+        const next = applyEmployeeClassification(current, { status: 'deleted' });
+        const committed = commitEmployee(next, { scope: 'company' });
+        if (!committed.ok) {
+          showError(committed.errors.join('\n'));
+          return;
+        }
+        const saved = await saveEmployee(familyId, committed.employee);
+        setRows((list) => sortEmployees([...list.filter((row) => row.id !== saved.id), saved]));
+        setDraft(presentEmployee(saved));
+        setSelectedId(saved.id);
+        setNote('Medarbeideren er flyttet til papirkurven.');
+        setView('list');
+        setStatusFilter('deleted');
+      }
     } catch (err) {
       setError(err?.message || 'Kunne ikke slette.');
     } finally {
       setBusy(false);
       setConfirmDelete(false);
     }
+  }
+
+  async function restoreEmployee() {
+    const current = draft && draft.id === selectedId ? draft : selected;
+    if (!current || busy || !isDeletedEmployee(current)) return;
+    await classifyEmployee({ status: 'active' });
+    setStatusFilter('active');
+    setNote('Medarbeideren er gjenopprettet som aktiv.');
   }
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
@@ -791,24 +819,38 @@ export default function EmployeesScreen() {
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
           <FilterMenu
-            groups={[{
-              id: 'status',
-              label: 'Status',
-              value: filter,
-              onChange: setFilter,
-              options: FILTERS.map(([id, label]) => ({ id, label })),
-            }]}
+            groups={[
+              {
+                id: 'kind',
+                label: 'Personell',
+                value: kindFilter,
+                onChange: setKindFilter,
+                options: [
+                  ...kindOptions,
+                  { id: 'all', label: 'Alle kategorier' },
+                ],
+              },
+              {
+                id: 'status',
+                label: 'Status',
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: [
+                  ...STATUS_OPTIONS.map((option) => ({
+                    id: option.value,
+                    label: option.value === 'deleted' ? 'Papirkurv' : option.label,
+                  })),
+                  { id: 'all', label: 'Alle statuser' },
+                ],
+              },
+            ]}
           />
           <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>
-              {filter === 'current'
-                ? `${stats.total} aktive medarbeidere`
-                : filter === 'former'
-                  ? `${stats.total} tidligere ansatte`
-                  : `${stats.total} medarbeidere`}
+              {`${visible.length} vist · ${stats.total} ${kindFilter === 'all' ? 'medarbeidere' : personnelKindLabel(kindFilter, companyName).toLowerCase()}`}
             </Text>
             <Text style={{ color: colors.muted }}>
-              {`Kan logge inn: ${stats.login} · Ekstern tilgang: ${stats.external}${stats.innleid ? ` · Innleid: ${stats.innleid}` : ''} · Lisenser: ${stats.licenses}`}
+              {`Aktiv: ${stats.active} · Deaktivert: ${stats.inactive} · Permisjon: ${stats.leave} · Papirkurv: ${stats.deleted}`}
             </Text>
           </View>
           {!visible.length ? (
@@ -839,16 +881,15 @@ export default function EmployeesScreen() {
                 {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
                 <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
                 <View style={styles.chips}>
-                  {filter !== 'current' ? (
+                  {kindFilter === 'all' ? (
                     <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
-                      {statusLabel(row.company?.status)}
+                      {personnelKindLabel(personnelKind(row), companyName)}
                     </Text>
                   ) : null}
-                  {isInnleidEmployee(row) ? (
-                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Innleid</Text>
-                  ) : null}
-                  {row.company?.external ? (
-                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Ekstern tilgang</Text>
+                  {statusFilter !== 'active' || row.company?.status !== 'active' ? (
+                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
+                      {row.company?.status === 'deleted' ? 'Papirkurv' : statusLabel(row.company?.status)}
+                    </Text>
                   ) : null}
                   {departmentLabels(row, departments).map((name) => (
                     <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
@@ -946,6 +987,7 @@ export default function EmployeesScreen() {
           onConfirmDelete={() => setConfirmDelete(true)}
           onCancelDelete={() => setConfirmDelete(false)}
           onDestroy={destroy}
+          onRestore={restoreEmployee}
         />
       ) : null}
 

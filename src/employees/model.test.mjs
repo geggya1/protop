@@ -5,6 +5,7 @@ import {
   applyEmployeeClassification,
   cvPlainText,
   applyProfessionalProfile,
+  isDeletedEmployee,
   isInnleidEmployee,
   blankRepeatItem,
   buildCv,
@@ -24,6 +25,8 @@ import {
   maskNationalId,
   normalizeEmployee,
   periodLabel,
+  personnelKind,
+  personnelKindLabel,
   presentEmployee,
   profileFromEmployee,
   rememberLink,
@@ -148,46 +151,64 @@ const FNR = sampleNationalId();
 {
   const rows = [
     normalizeEmployee({ id: 'b', person: { firstName: 'Bo', lastName: 'Ås' }, company: { status: 'former', title: 'Rådgiver' } }),
-    normalizeEmployee({ id: 'a', person: { firstName: 'Ada', lastName: 'Berg', phone: '99376973' }, company: { status: 'current', external: true, employmentType: 'Innleid', title: 'Byggeleder', canLogin: true, hasLicense: true } }),
+    normalizeEmployee({ id: 'a', person: { firstName: 'Ada', lastName: 'Berg', phone: '99376973' }, company: { status: 'current', employmentType: 'Innleid', title: 'Byggeleder', canLogin: true, hasLicense: true } }),
     normalizeEmployee({ id: 'c', person: { firstName: 'Cia', lastName: 'Dahl', email: 'cia@firma.no' }, company: { status: 'current', title: 'Prosjektleder', canLogin: true, hasLicense: true } }),
+    normalizeEmployee({ id: 'd', person: { firstName: 'Dan', lastName: 'Ek' }, company: { status: 'active', external: true, title: 'Konsulent' } }),
   ];
-  const current = filterEmployees(rows, { status: 'current' });
-  assert.deepEqual(current.map((row) => row.id), ['a', 'c']);
-  assert.deepEqual(filterEmployees(rows, { status: 'active' }).map((row) => row.id), ['a', 'c']);
-  const found = filterEmployees(rows, { status: 'all', query: 'prosjekt' });
-  assert.deepEqual(found.map((row) => row.id), ['c']);
-  const external = filterEmployees(rows, { status: 'external' });
-  assert.deepEqual(external.map((row) => row.id), ['a']);
-  const innleid = filterEmployees(rows, { status: 'innleid' });
-  assert.deepEqual(innleid.map((row) => row.id), ['a']);
-  const former = filterEmployees(rows, { status: 'former' });
-  assert.deepEqual(former.map((row) => row.id), ['b']);
+  assert.equal(personnelKind(rows[0]), 'staff');
+  assert.equal(personnelKind(rows[1]), 'innleid');
+  assert.equal(personnelKind(rows[2]), 'staff');
+  assert.equal(personnelKind(rows[3]), 'external');
+  assert.equal(rows[0].company.status, 'inactive');
+  assert.equal(rows[1].company.status, 'active');
+  assert.equal(personnelKindLabel('staff', 'Consult1'), 'Consult1-personell');
+  assert.equal(personnelKindLabel('innleid'), 'Innleid personell');
+  assert.equal(personnelKindLabel('external'), 'Eksternt personell');
+
+  const staffActive = filterEmployees(rows, { kind: 'staff', status: 'active' });
+  assert.deepEqual(staffActive.map((row) => row.id), ['c']);
+  assert.deepEqual(filterEmployees(rows, { status: 'active' }).map((row) => row.id), ['a', 'c', 'd']);
+  assert.deepEqual(filterEmployees(rows, { kind: 'innleid', status: 'all' }).map((row) => row.id), ['a']);
+  assert.deepEqual(filterEmployees(rows, { kind: 'external', status: 'all' }).map((row) => row.id), ['d']);
+  assert.deepEqual(filterEmployees(rows, { status: 'inactive' }).map((row) => row.id), ['b']);
+  assert.deepEqual(filterEmployees(rows, { status: 'former' }).map((row) => row.id), ['b']);
   assert.equal(statusLabel('current'), 'Aktiv');
-  assert.equal(statusLabel('former'), 'Tidligere (sluttet)');
+  assert.equal(statusLabel('former'), 'Deaktivert');
+  assert.equal(statusLabel('deleted'), 'Slettet (papirkurv)');
+  assert.equal(statusLabel('leave'), 'Permisjon');
+  assert.deepEqual(filterEmployees(rows, { kind: 'staff', status: 'leave' }).map((row) => row.id), []);
+  const onLeave = applyEmployeeClassification(rows[2], { status: 'leave' });
+  assert.equal(onLeave.company.status, 'leave');
+  assert.deepEqual(filterEmployees([...rows.slice(0, 2), onLeave, rows[3]], { kind: 'staff', status: 'leave' }).map((row) => row.id), ['c']);
   const withNumber = normalizeEmployee({
     id: 'n',
     person: { firstName: 'Nils', lastName: 'Holm' },
     company: { status: 'current', externalEmployeeNumber: '1042' },
   });
   assert.equal(employeeNumberLabel(withNumber), 'Ansattnr 1042');
-  const stats = directoryStats(current);
-  assert.equal(stats.login, 1);
-  assert.equal(stats.external, 1);
+  const stats = directoryStats(rows);
+  assert.equal(stats.staff, 2);
   assert.equal(stats.innleid, 1);
-  assert.equal(stats.licenses, 2);
-  const classified = applyEmployeeClassification(rows[2], { status: 'former', innleid: true, external: true, canLogin: false });
-  assert.equal(classified.company.status, 'former');
+  assert.equal(stats.external, 1);
+  assert.equal(stats.active, 3);
+  assert.equal(stats.inactive, 1);
+  const classified = applyEmployeeClassification(rows[2], { status: 'inactive', personnelKind: 'innleid', canLogin: false });
+  assert.equal(classified.company.status, 'inactive');
+  assert.equal(classified.company.personnelKind, 'innleid');
   assert.equal(classified.company.employmentType, 'Innleid');
-  assert.equal(classified.company.external, true);
+  assert.equal(classified.company.external, false);
   assert.equal(classified.company.canLogin, false);
   assert.equal(isInnleidEmployee(classified), true);
-  const back = applyEmployeeClassification(classified, { innleid: false, status: 'current' });
+  const trashed = applyEmployeeClassification(classified, { status: 'deleted' });
+  assert.equal(isDeletedEmployee(trashed), true);
+  const back = applyEmployeeClassification(trashed, { personnelKind: 'staff', status: 'active' });
   assert.equal(back.company.employmentType, 'Fast ansatt');
-  assert.equal(back.company.status, 'current');
-  assert.equal(cardSubtitle(rows[1], 'Consult AS'), 'Eksterne / Consult AS');
-  assert.equal(cardSubtitle(rows[2], 'Consult AS'), 'Prosjektleder');
-  assert.deepEqual(sortEmployees(rows).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia']);
-  assert.deepEqual(filterEmployees(rows, { status: 'all' }).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia']);
+  assert.equal(back.company.status, 'active');
+  assert.equal(back.company.personnelKind, 'staff');
+  assert.equal(cardSubtitle(rows[1], 'Consult1'), 'Innleid personell');
+  assert.equal(cardSubtitle(rows[3], 'Consult1'), 'Eksternt personell · Consult1');
+  assert.equal(cardSubtitle(rows[2], 'Consult1'), 'Prosjektleder');
+  assert.deepEqual(sortEmployees(rows).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia', 'Dan']);
 }
 
 {

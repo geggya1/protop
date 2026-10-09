@@ -32,6 +32,7 @@ const FIELD_ALIASES = [
   ['title', ['tittel', 'stilling', 'title', 'jobbtittel', 'jobtitle', 'position']],
   ['department', ['avdeling', 'department', 'enhet', 'businessunit', 'kostnadssted']],
   ['status', ['ansettelsesstatus', 'status', 'employmentstatus']],
+  ['personnelKind', ['personell', 'personellkategori', 'personelltype', 'kategori', 'personnelkind', 'personellgruppe']],
   ['external', ['ekstern', 'eksternmedarbeider', 'external', 'eksterne']],
   ['canLogin', ['kanloggeinn', 'login', 'innlogging', 'harinnlogging']],
   ['hasLicense', ['lisens', 'lisenser', 'brukerlisens', 'brukerenlisens', 'haslicense', 'license']],
@@ -207,9 +208,22 @@ function statusOf(value) {
   const key = foldHeader(value);
   if (!key) return '';
   if (/(permisjon|leave|sykemeldt)/.test(key)) return 'leave';
-  if (/(sluttet|avsluttet|inaktiv|former|tidligere)/.test(key)) return 'former';
-  if (/(navaerende|current|aktiv|ansatt|employed)/.test(key)) return 'current';
+  if (/(slettet|deleted|papirkurv|trash)/.test(key)) return 'deleted';
+  if (/(sluttet|avsluttet|inaktiv|deaktivert|former|tidligere|inactive)/.test(key)) return 'inactive';
+  if (/(navaerende|current|aktiv|ansatt|employed|active)/.test(key)) return 'active';
   return '';
+}
+
+function personnelKindFrom(bag, company) {
+  const explicit = foldHeader(firstValue(bag, 'personnelKind') || firstValue(bag, 'personell'));
+  if (/(innleid|innleie)/.test(explicit)) return 'innleid';
+  if (/(ekstern|external)/.test(explicit)) return 'external';
+  if (/(staff|eget|ansatt|personell)/.test(explicit) && !/(innleid|ekstern)/.test(explicit)) return 'staff';
+  const employment = foldHeader(firstValue(bag, 'employmentType') || company.employmentType);
+  if (/innleid|innleie/.test(employment)) return 'innleid';
+  if (company.external === true || /ekstern/.test(employment)) return 'external';
+  if (boolToken(firstValue(bag, 'external')) === true) return 'external';
+  return 'staff';
 }
 
 function percentOf(value) {
@@ -647,8 +661,10 @@ function buildDraft(existing, bag, rights, departments) {
     const flag = boolToken(raw);
     if (flag === true || flag === false) company[key] = flag;
   }
-  if (boolToken(firstValue(bag, 'external')) == null && /ekstern|innleid/.test(foldHeader(employmentType))) {
-    company.external = true;
+  company.personnelKind = personnelKindFrom(bag, company);
+  company.external = company.personnelKind === 'external';
+  if (company.personnelKind === 'innleid' && !/innleid|innleie/.test(foldHeader(company.employmentType))) {
+    company.employmentType = company.employmentType || 'Innleid';
   }
 
   const departmentNames = joined(bag, 'department');

@@ -153,7 +153,21 @@ export default function EmployeeDetailPreview() {
         onPullToProfile={() => {}}
         onConfirmDelete={() => setConfirmDelete(true)}
         onCancelDelete={() => setConfirmDelete(false)}
-        onDestroy={() => setConfirmDelete(false)}
+        onDestroy={() => {
+          setPeople((current) => current.map((row) => (
+            row.id === selected.id
+              ? presentEmployee(applyEmployeeClassification(row, { status: 'deleted' }))
+              : row
+          )));
+          setConfirmDelete(false);
+        }}
+        onRestore={() => {
+          setPeople((current) => current.map((row) => (
+            row.id === selected.id
+              ? presentEmployee(applyEmployeeClassification(row, { status: 'active' }))
+              : row
+          )));
+        }}
       />
       <View style={{ height: 40 }} />
     </ScrollView>

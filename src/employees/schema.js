@@ -17,10 +17,19 @@
 
 export const EMPLOYEE_VERSION = 1;
 
+/** Tre hovedkategorier for personell i selskapet. */
+export const PERSONNEL_KIND_OPTIONS = [
+  { value: 'staff', label: 'Eget personell' },
+  { value: 'innleid', label: 'Innleid personell' },
+  { value: 'external', label: 'Eksternt personell' },
+];
+
+/** Status innenfor hver personellkategori. */
 export const STATUS_OPTIONS = [
-  { value: 'current', label: 'Aktiv' },
+  { value: 'active', label: 'Aktiv' },
+  { value: 'inactive', label: 'Deaktivert' },
   { value: 'leave', label: 'Permisjon' },
-  { value: 'former', label: 'Tidligere (sluttet)' },
+  { value: 'deleted', label: 'Slettet (papirkurv)' },
 ];
 
 export const GENDER_OPTIONS = ['Kvinne', 'Mann', 'Annet'];
@@ -75,8 +84,8 @@ export const FORM_SECTIONS = [
     scope: 'employee',
     blurb: 'Avdeling, stilling og arbeidsforhold gjelder dette selskapet.',
     fields: [
-      { key: 'company.status', label: 'Ansettelsesstatus', type: 'choice', options: STATUS_OPTIONS, requiredFor: 'register' },
-      { key: 'company.external', label: 'Ekstern tilgang', type: 'bool' },
+      { key: 'company.personnelKind', label: 'Personell', type: 'choice', options: PERSONNEL_KIND_OPTIONS, requiredFor: 'register' },
+      { key: 'company.status', label: 'Status', type: 'choice', options: STATUS_OPTIONS, requiredFor: 'register' },
       { key: 'company.canLogin', label: 'Kan logge inn', type: 'bool' },
       { key: 'company.hasLicense', label: 'Bruker en lisens', type: 'bool' },
       { key: 'company.departmentIds', label: 'Avdeling', type: 'departments' },

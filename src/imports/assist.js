@@ -18,6 +18,11 @@ import {
   readInvoiceTable,
 } from '../economy/invoiceImport.js';
 import {
+  hourColumnField,
+  planHourImport,
+  readHourTable,
+} from '../economy/hoursImport.js';
+import {
   assignmentMap,
   claimAssignments,
   columnsNeedingHelp,
@@ -256,6 +261,96 @@ export async function readInvoiceImport(bytes, filename, options = {}, ask) {
     return { ...plan, interpretation: { engine: result?.engine || 'gemini', summary: result?.summary || '' } };
   } catch (err) {
     if (rows?.length) return planInvoiceImport(existingInvoices, customers, projects, rows);
+    throw localError || err;
+  }
+}
+
+function hourHeaderSlice(table) {
+  let best = 0;
+  let score = -1;
+  for (let index = 0; index < Math.min((table || []).length, 8); index += 1) {
+    const rank = (table[index] || []).filter((cell) => hourColumnField(cell)).length;
+    if (rank > score) {
+      score = rank;
+      best = index;
+    }
+  }
+  return (table || []).slice(best);
+}
+
+/**
+ * Leser timeliste lokalt, og spør OCR/AI ved ukjente kolonner eller skannet PDF/bilde.
+ * options: { existingEntries, employees, customers, projects, familyId }
+ */
+export async function readHourImport(bytes, filename, options = {}, ask) {
+  const raw = asBytes(bytes);
+  const media = fileMedia(raw, filename);
+  const {
+    familyId,
+    existingEntries = [],
+    employees = [],
+    customers = [],
+    projects = [],
+  } = options;
+
+  if (media.kind !== 'table') {
+    if (!ask || !familyId) {
+      throw new Error('Skannede timelister leses med OCR og AI. Åpne selskapet og prøv igjen — eller bruk Excel.');
+    }
+    const result = await ask({
+      mode: 'ocr', kind: 'hours', familyId, filename, media, bytes: raw,
+    });
+    const clean = sanitizeOcrRows(result, 'hours');
+    const table = objectsToTable(clean.rows);
+    if (!table[0]?.length) throw new Error(result?.summary || 'AI fant ingen timer i dokumentet.');
+    const mapped = [];
+    const headers = table[0] || [];
+    for (const cells of table.slice(1)) {
+      const row = { _filename: filename, _importedAt: new Date().toISOString(), _sourceValues: {} };
+      headers.forEach((header, index) => {
+        const value = String(cells?.[index] ?? '').trim();
+        const field = hourColumnField(header) || header;
+        row._sourceValues[header] = value;
+        if (field && value) row[field] = value;
+      });
+      if (row.date || row.employeeName || row.hours) mapped.push(row);
+    }
+    if (!mapped.length) throw new Error(result?.summary || 'AI fant ingen timer i dokumentet.');
+    const plan = planHourImport(existingEntries, employees, customers, projects, mapped);
+    return { ...plan, interpretation: { engine: result?.engine || 'ocr+gemini', summary: result?.summary || '' } };
+  }
+
+  let rows = null;
+  let localError = null;
+  try {
+    rows = await readHourTable(raw, filename);
+  } catch (err) {
+    localError = err;
+  }
+
+  const tables = await readSpreadsheetTables(raw, filename).catch(() => []);
+  const table = hourHeaderSlice(tables[0]?.table || []);
+  const gaps = columnsNeedingHelp(table, hourColumnField);
+  if (!gaps.length || !ask || !familyId) {
+    if (!rows?.length) throw localError || new Error('Fant ingen timeliste.');
+    return planHourImport(existingEntries, employees, customers, projects, rows);
+  }
+  try {
+    const preview = tablePreview(table);
+    const result = await ask({
+      mode: 'columns',
+      kind: 'hours',
+      familyId,
+      filename,
+      headers: preview.headers,
+      samples: preview.samples,
+    });
+    const claimed = claimedFrom(table, hourColumnField, result?.columns);
+    const assisted = await readHourTable(raw, filename, { columnFields: claimed });
+    const plan = planHourImport(existingEntries, employees, customers, projects, assisted);
+    return { ...plan, interpretation: { engine: result?.engine || 'gemini', summary: result?.summary || '' } };
+  } catch (err) {
+    if (rows?.length) return planHourImport(existingEntries, employees, customers, projects, rows);
     throw localError || err;
   }
 }

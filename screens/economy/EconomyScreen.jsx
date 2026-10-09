@@ -18,6 +18,7 @@ import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import EconomyInvoices from './EconomyInvoices';
+import EconomyHours from './EconomyHours';
 import EconomyWelcome from './EconomyWelcome';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
@@ -173,6 +174,19 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         projects={projects}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
+      />
+    );
+  }
+
+  if (page === 'timer') {
+    return (
+      <EconomyHours
+        familyId={familyId}
+        customers={customers}
+        projects={projects}
+        onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+        onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
+        onOpenEmployee={(employeeId) => requestShellTab?.('ansatte', null, { type: 'openEmployee', employeeId })}
       />
     );
   }

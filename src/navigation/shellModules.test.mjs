@@ -100,7 +100,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kunder', 'Avtaler', 'Faktura', 'Indeksregulering'],
+    ['Oversikt', 'Kunder', 'Avtaler', 'Faktura', 'Timer', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
@@ -349,6 +349,8 @@ assert.match(economyCustomers, /phoneName/);
 assert.match(economyCustomers, /stackRows/);
 assert.match(economyCustomers, /minWidth: 280/);
 assert.match(economyScreen, /EconomyContracts/);
+assert.match(economyScreen, /EconomyHours/);
+assert.match(economyScreen, /page === 'timer'/);
 const economyContracts = readFileSync(new URL('../../screens/economy/EconomyContracts.jsx', import.meta.url), 'utf8');
 assert.equal(economyContracts.includes('System-ID'), false);
 assert.equal(economyContracts.includes('systemId'), false);

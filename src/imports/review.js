@@ -3,16 +3,19 @@
 export function employeeReviewSeverity(row) {
   if (!row || row.action === 'skip' || !row.employee) return 'block';
   if (row.warnings?.length || row.reason) return 'review';
+  if (row.action === 'update' || row.matchKind) return 'existing';
   return 'ok';
 }
 
 export function reviewHeadline(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const ok = list.filter((row) => row.severity === 'ok').length;
+  const existing = list.filter((row) => row.severity === 'existing').length;
   const review = list.filter((row) => row.severity === 'review').length;
   const block = list.filter((row) => row.severity === 'block').length;
   const parts = [];
   if (ok) parts.push(`${ok} klare`);
+  if (existing) parts.push(`${existing} finnes fra før`);
   if (review) parts.push(`${review} må kontrolleres`);
   if (block) parts.push(`${block} blir ikke importert`);
   return parts.join(' · ') || 'Ingen rader.';
@@ -23,6 +26,7 @@ export function reviewSections(rows) {
   return [
     ['block', 'Krever behandling', list.filter((row) => row.severity === 'block')],
     ['review', 'Må kontrolleres', list.filter((row) => row.severity === 'review')],
+    ['existing', 'Finnes fra før', list.filter((row) => row.severity === 'existing')],
     ['ok', 'Klare', list.filter((row) => row.severity === 'ok')],
   ].filter((section) => section[2].length);
 }

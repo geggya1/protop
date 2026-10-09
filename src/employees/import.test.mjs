@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 import { zipStore } from '../indeksregulering/office.js';
-import { planEmployeeImport } from './import.js';
+import { employeeImportMatchLabel, planEmployeeImport } from './import.js';
+import { employeeReviewSeverity } from '../imports/review.js';
 import { displayName, normalizeEmployee, validNationalId } from './model.js';
 
 function sampleNationalId(seed = '010180') {
@@ -141,6 +142,10 @@ assert.equal(geirRow.isAdmin, undefined);
 
 const adaRow = byName['Ada Nordmann'];
 assert.equal(adaRow.action, 'update');
+assert.equal(adaRow.matchKind, 'email');
+assert.equal(employeeReviewSeverity(adaRow), 'existing');
+assert.equal(employeeImportMatchLabel(adaRow.matchKind), 'Finnes fra før · e-post');
+assert.equal(employeeReviewSeverity(byName['Geir Ove Andersen']), 'ok');
 assert.equal(adaRow.employee.id, 'emp-ada');
 assert.equal(adaRow.employee.personUid, 'user-ada');
 assert.equal(adaRow.employee.company.title, 'Prosjektleder');
@@ -283,5 +288,70 @@ const packedPlan = await planEmployeeImport(packed, 'overview (2).xlsx');
 assert.equal(packedPlan.rows[0].name, 'Liv Haug');
 assert.equal(packedPlan.rows[0].employee.company.accessRole, 'Administrator');
 assert.equal(packedPlan.rows[0].employee.isAdmin, undefined);
+
+function csvBytes(text) {
+  return new TextEncoder().encode(text);
+}
+
+const workMail = await planEmployeeImport(csvBytes(
+  'Navn;E-post arbeid\nAda Nordmann;ada@nord.example\n',
+), 'jobb.csv', { existing: [ada] });
+assert.equal(workMail.rows[0].action, 'update');
+assert.equal(workMail.rows[0].matchKind, 'email');
+assert.equal(workMail.rows[0].employee.id, 'emp-ada');
+assert.equal(employeeReviewSeverity(workMail.rows[0]), 'existing');
+
+const storedWork = normalizeEmployee({
+  id: 'emp-bo',
+  person: { firstName: 'Bo', lastName: 'Berg' },
+  company: { email: 'bo@firma.example', externalEmployeeNumber: '88' },
+});
+const personalAgainstWork = await planEmployeeImport(csvBytes(
+  'Navn;E-post\nBo Berg;bo@firma.example\n',
+), 'priv.csv', { existing: [storedWork] });
+assert.equal(personalAgainstWork.rows[0].action, 'update');
+assert.equal(personalAgainstWork.rows[0].employee.id, 'emp-bo');
+
+const otherMail = await planEmployeeImport(csvBytes(
+  'Navn;E-post\nAda Nordmann;ada.ny@nord.example\n',
+), 'ny.csv', { existing: [ada] });
+assert.equal(otherMail.rows[0].action, 'create');
+assert.notEqual(otherMail.rows[0].employee.id, 'emp-ada');
+assert.ok(otherMail.rows[0].warnings.some((line) => /Samme navn finnes allerede/.test(line)));
+assert.equal(employeeReviewSeverity(otherMail.rows[0]), 'review');
+
+const nameOnly = await planEmployeeImport(csvBytes(
+  'Fornavn;Etternavn;Avdeling\nAda;Nordmann;Bygg\n',
+), 'navn.csv', { existing: [ada] });
+assert.equal(nameOnly.rows[0].action, 'update');
+assert.equal(nameOnly.rows[0].matchKind, 'name');
+assert.equal(nameOnly.rows[0].employee.id, 'emp-ada');
+assert.ok(nameOnly.rows[0].warnings.some((line) => /ikke bekreftet med e-post/.test(line)));
+assert.equal(employeeReviewSeverity(nameOnly.rows[0]), 'review');
+
+const numberHit = await planEmployeeImport(csvBytes(
+  'Navn;Eksternt ansattnummer;E-post\nBo Berg;88;ny.bo@firma.example\n',
+), 'nr.csv', { existing: [storedWork] });
+assert.equal(numberHit.rows[0].action, 'update');
+assert.equal(numberHit.rows[0].employee.id, 'emp-bo');
+assert.ok(numberHit.rows[0].warnings.some((line) => /ansattnummer/.test(line)));
+assert.equal(employeeReviewSeverity(numberHit.rows[0]), 'review');
+
+const twins = [
+  normalizeEmployee({ id: 'emp-a', person: { firstName: 'Ann', lastName: 'En', email: 'delt@firma.example' } }),
+  normalizeEmployee({ id: 'emp-b', person: { firstName: 'Berit', lastName: 'To', email: 'delt@firma.example' } }),
+];
+const clash = await planEmployeeImport(csvBytes(
+  'Navn;E-post\nNy Person;delt@firma.example\n',
+), 'delt.csv', { existing: twins });
+assert.equal(clash.rows[0].action, 'skip');
+assert.match(clash.rows[0].reason, /matcher flere medarbeidere/);
+
+const renamed = await planEmployeeImport(csvBytes(
+  'Navn;E-post\nAda Nilsen;ada@nord.example\n',
+), 'navnbytte.csv', { existing: [ada] });
+assert.equal(renamed.rows[0].action, 'update');
+assert.ok(renamed.rows[0].warnings.some((line) => /navnet i listen er annerledes/.test(line)));
+assert.equal(employeeReviewSeverity(renamed.rows[0]), 'review');
 
 console.log('import.test.mjs: ok');

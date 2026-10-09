@@ -13,7 +13,7 @@ import { CV_IMPORT_ACCEPT, applyImportedCv, readCvImport } from '../../src/emplo
 import { cvAttention } from '../../src/employees/cvReview';
 import { countInlineCvImages, slimCvDocument, storeCvImages } from '../../src/employees/cvPictures';
 import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/projectImport';
-import { EMPLOYEE_IMPORT_ACCEPT } from '../../src/employees/import';
+import { EMPLOYEE_IMPORT_ACCEPT, employeeImportMatchLabel } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
@@ -810,7 +810,7 @@ export default function EmployeesScreen() {
           colors={colors}
           lead={[
             'Ingenting er lagret ennå. Kontroller radene og bekreft importen.',
-            'Lik e-post oppdaterer medarbeideren som finnes. Rettigheter lagres på ansettelsen og endrer ikke hvem som er administrator i ProTop.',
+            'E-post, personnummer og ansattnummer sjekkes mot de som allerede er registrert. Treff havner i «Finnes fra før» og oppdaterer den eksisterende medarbeideren. Rettigheter lagres på ansettelsen og endrer ikke hvem som er administrator i ProTop.',
             summaryNote(importPlan.ignoredSummaries),
             importPlan.interpretation?.engine?.includes('ocr') ? 'Dokumentet er lest med OCR og AI.' : '',
             importPlan.interpretation?.engine && importPlan.interpretation.engine !== 'lokal' && !importPlan.interpretation.engine.includes('ocr') ? 'Ukjente kolonner er tolket med AI.' : '',
@@ -822,7 +822,7 @@ export default function EmployeesScreen() {
             severity: employeeReviewSeverity(row),
             title: row.name,
             meta: [
-              row.action === 'create' ? 'Ny' : row.action === 'update' ? 'Oppdaterer eksisterende' : '',
+              row.action === 'create' ? 'Ny' : row.action === 'update' ? (employeeImportMatchLabel(row.matchKind) || 'Oppdaterer eksisterende') : '',
               row.email,
               row.detail,
               row.accessRole,

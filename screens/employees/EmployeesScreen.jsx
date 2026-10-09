@@ -32,6 +32,7 @@ import {
   departmentLabels,
   directoryStats,
   displayName,
+  employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
   gapReport,
@@ -69,11 +70,11 @@ async function bytesFromFile(file) {
 }
 
 const FILTERS = [
-  ['current', 'Nåværende'],
+  ['current', 'Aktive'],
+  ['former', 'Tidligere (sluttet)'],
+  ['leave', 'Permisjon'],
   ['innleid', 'Innleid'],
   ['external', 'Ekstern tilgang'],
-  ['leave', 'Permisjon'],
-  ['former', 'Tidligere'],
   ['all', 'Alle'],
 ];
 
@@ -779,9 +780,15 @@ export default function EmployeesScreen() {
           />
           <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>
-              {`Medarbeidere som kan logge inn  ${stats.login} (+${stats.external} med ekstern tilgang${stats.innleid ? `, ${stats.innleid} innleid` : ''})`}
+              {filter === 'current'
+                ? `${stats.total} aktive medarbeidere`
+                : filter === 'former'
+                  ? `${stats.total} tidligere ansatte`
+                  : `${stats.total} medarbeidere`}
             </Text>
-            <Text style={{ color: colors.muted }}>{`Lisenser: ${stats.licenses}`}</Text>
+            <Text style={{ color: colors.muted }}>
+              {`Kan logge inn: ${stats.login} · Ekstern tilgang: ${stats.external}${stats.innleid ? ` · Innleid: ${stats.innleid}` : ''} · Lisenser: ${stats.licenses}`}
+            </Text>
           </View>
           {!visible.length ? (
             <Text style={{ color: colors.muted }}>
@@ -805,12 +812,17 @@ export default function EmployeesScreen() {
               )}
               <View style={styles.grow}>
                 <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                {!!employeeNumberLabel(row) && (
+                  <Text style={{ color: colors.muted }}>{employeeNumberLabel(row)}</Text>
+                )}
                 {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
                 <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
                 <View style={styles.chips}>
-                  <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
-                    {statusLabel(row.company?.status)}
-                  </Text>
+                  {filter !== 'current' ? (
+                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
+                      {statusLabel(row.company?.status)}
+                    </Text>
+                  ) : null}
                   {isInnleidEmployee(row) ? (
                     <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Innleid</Text>
                   ) : null}

@@ -18,9 +18,9 @@
 export const EMPLOYEE_VERSION = 1;
 
 export const STATUS_OPTIONS = [
-  { value: 'current', label: 'Nåværende' },
+  { value: 'current', label: 'Aktiv' },
   { value: 'leave', label: 'Permisjon' },
-  { value: 'former', label: 'Tidligere' },
+  { value: 'former', label: 'Tidligere (sluttet)' },
 ];
 
 export const GENDER_OPTIONS = ['Kvinne', 'Mann', 'Annet'];

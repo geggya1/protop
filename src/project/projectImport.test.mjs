@@ -99,6 +99,59 @@ import { createProject, emptyProjectState, importProjects, projectMissingAgreeme
 }
 
 {
+  let state = emptyProjectState();
+  state = createProject(state, { name: 'Nykirkebakken', number: '10951' }).state;
+  const plan = planProjectImport(
+    state,
+    [],
+    [],
+    [
+      { number: '10951.0', name: 'Nykirkebakken Fasade' },
+      { number: '10952', name: 'Nytt prosjekt' },
+      { number: '10952', name: 'Samme nummer i filen' },
+    ],
+  );
+  assert.equal(plan.rows[0].severity, 'block');
+  assert.match(plan.rows[0].issues.join(' '), /finnes allerede/);
+  assert.equal(plan.rows[0].project, null);
+  assert.equal(plan.rows[1].severity !== 'block', true);
+  assert.equal(plan.rows[2].severity, 'block');
+  assert.match(plan.rows[2].issues.join(' '), /flere ganger/);
+
+  const imported = importProjects(state, plan.rows.map((row) => row.project).filter(Boolean));
+  assert.equal(imported.ok, true);
+  assert.equal(imported.created.length, 1);
+  assert.equal(imported.created[0].number, '10952');
+  assert.equal(state.projects.filter((row) => row.number === '10951').length, 1);
+
+  const mixed = importProjects(imported.state, [
+    { number: '10951', name: 'Skal ikke oppdateres', manager: 'Ny' },
+    { number: '10999', name: 'Helt ny' },
+  ]);
+  assert.equal(mixed.ok, true);
+  assert.equal(mixed.created.length, 1);
+  assert.equal(mixed.created[0].number, '10999');
+  assert.equal(mixed.skipped.length, 1);
+  assert.equal(mixed.state.projects.find((row) => row.number === '10951').name, 'Nykirkebakken');
+
+  const replay = importProjects(mixed.state, [
+    { number: '10951', name: 'Skal ikke oppdateres' },
+    { number: '10952', name: 'Skal heller ikke oppdateres' },
+  ]);
+  assert.equal(replay.ok, false);
+  assert.match(replay.error, /finnes allerede/);
+
+  let archived = emptyProjectState();
+  archived = createProject(archived, { name: 'Gammel', number: '200' }).state;
+  archived = updateProject(archived, archived.projects[0].id, { status: 'arkivert' }).state;
+  const archivedPlan = planProjectImport(archived, [], [], [{ number: '200', name: 'Ny med samme nummer' }]);
+  assert.equal(archivedPlan.rows[0].severity, 'block');
+  const fromArchive = importProjects(archived, [{ number: '200', name: 'Ny med samme nummer' }]);
+  assert.equal(fromArchive.ok, false);
+  assert.match(fromArchive.error, /finnes allerede/);
+}
+
+{
   const customers = [
     { id: 'c-sandnes', name: 'Sandnes kommune', customerNumber: '7', orgnr: '964965137' },
     { id: 'c-other', name: 'Annen AS', customerNumber: '8', orgnr: '999999999' },

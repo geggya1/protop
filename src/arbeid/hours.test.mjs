@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { formatHours, parseHours, sumHours } from './hours.js';
-import { buildMonthGrid, isoWeek, toDateKey } from './calendar.js';
+import { buildMonthGrid, isoWeek, shortDayLabel, toDateKey } from './calendar.js';
 import {
   addAbsence,
   addProjectMember,
@@ -27,6 +28,7 @@ assert.equal(grid.days[0].weekday, 'to'); // 1. okt 2026 er torsdag
 assert.ok(grid.weeks.some((w) => w.week === 40));
 assert.equal(toDateKey(new Date(2026, 9, 8)), '2026-10-08');
 assert.equal(isoWeek(new Date(2026, 9, 8)), 41);
+assert.equal(shortDayLabel('2026-10-09'), '9 okt');
 
 let state = emptyProjectState();
 state = createProject(state, {
@@ -100,5 +102,17 @@ const right = {
 const merged = mergeProjectStates(left, right);
 assert.ok(merged.projects.length >= 2);
 assert.ok(merged.members.length >= 1);
+
+{
+  const arbeidSrc = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
+  assert.match(arbeidSrc, /TimesheetDayView/);
+  assert.match(arbeidSrc, /Lønnsgrunnlag|arbeid-phone-timeliste/);
+  const economySrc = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
+  assert.match(economySrc, /TimesheetDayView/);
+  assert.match(economySrc, /Økonomi \/ Timeliste/);
+  const dayViewSrc = readFileSync(new URL('../../components/arbeid/TimesheetDayView.jsx', import.meta.url), 'utf8');
+  assert.match(dayViewSrc, /Lønnsgrunnlag/);
+  assert.match(dayViewSrc, /TimesheetProjectRow/);
+}
 
 console.log('hours.test.mjs: ok');

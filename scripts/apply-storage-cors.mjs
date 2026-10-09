@@ -21,8 +21,8 @@ const storage = new Storage({ projectId });
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
 
 const CANDIDATES = [
-  `${projectId}.appspot.com`,
   `${projectId}.firebasestorage.app`,
+  `${projectId}.appspot.com`,
 ];
 
 function bucketIdFromDefault(payload) {

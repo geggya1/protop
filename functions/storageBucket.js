@@ -1,14 +1,14 @@
 /**
  * Finn eller opprett Firebase Storage-bucketen.
- * Verken protop-c189c.appspot.com eller default firebasestorage.app fantes —
- * Admin SDK traff da en bucket som ikke eksisterer.
+ * Default-bucketen er gs://protop-c189c.firebasestorage.app (Firebase Console).
+ * appspot.com er fallback hvis den også finnes.
  */
 import { getStorage } from 'firebase-admin/storage';
 
-export const STORAGE_BUCKET = 'protop-c189c.appspot.com';
+export const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
 export const STORAGE_BUCKET_CANDIDATES = [
-  'protop-c189c.appspot.com',
   'protop-c189c.firebasestorage.app',
+  'protop-c189c.appspot.com',
 ];
 
 const PROJECT_ID = 'protop-c189c';

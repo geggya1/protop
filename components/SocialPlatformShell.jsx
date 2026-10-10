@@ -16,6 +16,9 @@ import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import { useCompanyAccess } from '../src/access/useCompanyAccess';
+import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
@@ -98,6 +101,7 @@ export default function SocialPlatformShell({ platformType }) {
   const nav = useNavigation();
   const route = useRoute();
   const { familyId, family, families, uid, selectFamily, members } = useApp();
+  const companyAccess = useCompanyAccess();
   const [tab, setTab] = useState(route.params?.module || 'home');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [groupDoc, setGroupDoc] = useState(family);
@@ -135,6 +139,16 @@ export default function SocialPlatformShell({ platformType }) {
 
   const body = useMemo(() => {
     const props = { config, groupId: familyId, group, onSelectTab: setTab };
+    if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.ready) {
+      return (
+        <View style={{ flex: 1, padding: 24 }}>
+          <Text style={{ color: '#5b6b82' }}>Henter tilgang…</Text>
+        </View>
+      );
+    }
+    if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, route.params?.subView)) {
+      return <CompanyAccessDenied colors={{ ink: '#1a2744', muted: '#5b6b82' }} />;
+    }
 
     if (!familyId || tab === 'groups') {
       return <PlatformListScreen {...props} embedded onOpenGroup={openGroup} />;
@@ -179,6 +193,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'arbeid') return <ArbeidScreen />;
     if (tab === 'iso') return <IsoScreen />;
+    if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView !== 'underenheter') return <ProjectPlatformScreen />;
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={route.params?.subView} />;
@@ -192,7 +207,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'announcements') return <PlatformAnnouncementsScreen {...props} />;
     if (tab === 'tasks') return <PlatformTasksScreen {...props} />;
     return <PlatformHomeScreen {...props} />;
-  }, [tab, familyId, group?.id, group?.name, group?.joinCode, group?.subUnits, family?.company?.subUnits, families, members, config, platformType]);
+  }, [tab, familyId, group?.id, group?.name, group?.joinCode, group?.subUnits, family?.company?.subUnits, families, members, config, platformType, companyAccess, route.params?.subView]);
 
   const addPress = () => {
     if (!familyId || !isAdmin) return undefined;

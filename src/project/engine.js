@@ -1239,7 +1239,7 @@ export function toggleMemberStar(state, memberId) {
  * Prosjekter synlige i timesheet for en ansatt:
  * medlemskap, showInAllTimesheets, eller allowSelfJoin (kan legges til).
  */
-export function projectsForEmployee(state, employeeId, { includeJoinable = false } = {}) {
+export function projectsForEmployee(state, employeeId, { includeJoinable = false, assignedOnly = false } = {}) {
   const id = text(employeeId);
   const memberIds = new Set(
     state.members
@@ -1249,6 +1249,7 @@ export function projectsForEmployee(state, employeeId, { includeJoinable = false
   return state.projects.filter((project) => {
     if (project.status === 'arkivert') return false;
     if (memberIds.has(project.id)) return true;
+    if (assignedOnly) return false;
     const settings = defaultWorkSettings(project.workSettings);
     if (settings.showInAllTimesheets) return true;
     if (includeJoinable && settings.allowSelfJoin) return true;

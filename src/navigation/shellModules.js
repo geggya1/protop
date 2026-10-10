@@ -7,6 +7,7 @@ import { groupChildAppItems } from './childAppGroups.js';
 import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
+import { filterCompanyNav } from '../access/companyAccess.js';
 
 /** Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet. */
 export const ANBUD_MENU = [
@@ -35,6 +36,7 @@ export function anbudMenuTitle(subView) {
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
+  if (subView === 'tilgang') return 'Tilgang';
   return 'Selskap';
 }
 
@@ -90,6 +92,12 @@ export function companyNavItems() {
           icon: 'git-network',
           label: 'Underenheter',
           action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
+        },
+        {
+          id: 'tilgang',
+          icon: 'key',
+          label: 'Tilgang',
+          action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
         },
       ],
     },
@@ -193,6 +201,7 @@ export function buildShellModules({
   firstKid = null,
   isGrandparent = false,
   grandparentModules = null,
+  companyGrants = null,
 }) {
   const sections = [];
 
@@ -428,7 +437,7 @@ export function buildShellModules({
     const companySection = {
       id: 'company',
       title: t('shell.company'),
-      items: companyNavItems(),
+      items: filterCompanyNav(companyNavItems(), companyGrants),
     };
     if (accountAt >= 0) sections.splice(accountAt, 0, companySection);
     else sections.push(companySection);

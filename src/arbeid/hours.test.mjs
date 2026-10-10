@@ -93,6 +93,14 @@ state = createProject(state, {
   workSettings: { allowSelfJoin: true, showInAllTimesheets: false },
 }).state;
 assert.equal(projectsForEmployee(state, 'emp1', { includeJoinable: true }).length, 2);
+state.projects = state.projects.map((project) => (
+  project.number === '10374'
+    ? { ...project, workSettings: { ...(project.workSettings || {}), showInAllTimesheets: true } }
+    : project
+));
+assert.equal(projectsForEmployee(state, 'emp2').length, 1);
+assert.equal(projectsForEmployee(state, 'emp2', { assignedOnly: true }).length, 0);
+assert.equal(projectsForEmployee(state, 'emp1', { assignedOnly: true }).length, 1);
 
 const left = emptyProjectState();
 const right = {

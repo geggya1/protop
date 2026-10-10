@@ -15,6 +15,9 @@ import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
+import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import { saveEmployee } from '../../src/employees/storage';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import CompanyLanding from './CompanyLanding';
 
 const PAGES = [
@@ -38,14 +41,17 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
   );
 }
 
-export default function ProjectPlatformScreen() {
+export default function ProjectPlatformScreen({ startPage = '' }) {
   const colors = useColors();
   const nav = useNavigation();
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
+  const access = useCompanyAccess();
   const company = family?.company?.navn ? family.company : null;
-  const canEdit = isSuperAdmin(family, uid);
+  const owner = isSuperAdmin(family, uid);
+  const canEdit = owner || (access.ready && access.can('companyProfile', 'write'));
+  const canOpenSettings = owner || (access.ready && access.can('companyProfile', 'read'));
   const contextLabel = companyContextLabel(family);
-  const [page, setPage] = useState('oversikt');
+  const [page, setPage] = useState(startPage === 'tilgang' ? 'tilgang' : 'oversikt');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState(company?.telefon || '');
@@ -58,6 +64,14 @@ export default function ProjectPlatformScreen() {
 
   const savedCpvKey = (family?.cpvCodes || []).map((row) => row.code).filter(Boolean).join(',');
   const savedTradesKey = (company?.egneNaeringskoder || []).join('|');
+  useEffect(() => {
+    if (startPage === 'tilgang') setPage('tilgang');
+  }, [startPage]);
+
+  useEffect(() => {
+    if (page === 'innstillinger' && access.ready && !canOpenSettings) setPage('oversikt');
+  }, [page, access.ready, canOpenSettings]);
+
   useEffect(() => {
     setPhone(company?.telefon || '');
     setEmail(company?.epostadresse || '');
@@ -147,7 +161,14 @@ export default function ProjectPlatformScreen() {
         return (
           <TouchableOpacity
             key={id}
-            onPress={() => { setPage(id); setError(''); }}
+            onPress={() => {
+              if (startPage === 'tilgang') {
+                requestShellTab?.('selskap');
+                return;
+              }
+              setPage(id);
+              setError('');
+            }}
             style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
           >
             <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{label}</Text>
@@ -195,15 +216,35 @@ export default function ProjectPlatformScreen() {
           </Text>
         </>
       ) : null}
-      {chips}
+      {startPage === 'tilgang' ? null : chips}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
 
       {page === 'oversikt' ? (
         <CompanyLanding
           stored={company}
-          onSettings={() => setPage('innstillinger')}
+          onSettings={canOpenSettings ? () => setPage('innstillinger') : null}
           onUnits={() => requestShellTab?.('selskap', 'underenheter')}
         />
+      ) : null}
+
+      {page === 'tilgang' ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : canOpenSettings ? (
+          <CompanyAccessSettings
+            company={company}
+            employees={access.employees}
+            canEdit={canEdit}
+            colors={colors}
+            busy={busy}
+            onSavePolicy={async (accessPolicy) => {
+              await savePatch(familyId, { company: { ...company, accessPolicy } });
+            }}
+            onSaveEmployee={(employee) => saveEmployee(familyId, employee)}
+          />
+        ) : (
+          <CompanyAccessDenied colors={colors} />
+        )
       ) : null}
 
       {page === 'innstillinger' ? (
@@ -216,9 +257,17 @@ export default function ProjectPlatformScreen() {
           </View>
           {!canEdit ? (
             <Text style={[styles.lead, { color: colors.muted }]}>
-              Bare superadministrator kan endre dette.
+              Bare administrator kan endre bedriftsprofil og grunninnstillinger.
             </Text>
           ) : null}
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('selskap', 'tilgang')}
+            accessibilityRole="button"
+            accessibilityLabel="Tilgang og rettigheter"
+            style={[styles.btn, { backgroundColor: colors.sunken }]}
+          >
+            <Text style={[styles.btnText, { color: colors.ink }]}>Tilgang og rettigheter</Text>
+          </TouchableOpacity>
           <CompanyLogoSettings
             company={company}
             canEdit={canEdit}

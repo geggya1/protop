@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { insertBullet, moveItem, sortByStartDesc, sortCoursesDesc, wrapSelection } from '../../src/employees/cvFormat';
+import { levelById, placedLevelId } from '../../src/access/companyAccess';
 import { blankRepeatItem, readPath, setEmployeePath } from '../../src/employees/model';
 import { OWNER_LABEL, PURPOSE_LABEL, sectionsFor } from '../../src/employees/schema';
 import { PHONE_COUNTRIES, parsePhoneInput, splitPhone } from '../../src/utils/phone';
@@ -125,6 +126,7 @@ export default function EmployeeFields({
   onPhoto,
   onProjectImage,
   sections: sectionsProp,
+  lockedKeys = [],
   showCustom = true,
   review = false,
   startOpen = '',
@@ -239,7 +241,7 @@ export default function EmployeeFields({
                 field={field}
                 draft={draft}
                 colors={colors}
-                editable={editable}
+                editable={editable && !lockedKeys.includes(field.key)}
                 departments={departments}
                 members={members}
                 addressHits={field.type === 'address' ? addressHits : []}
@@ -328,7 +330,10 @@ export function EmployeeField({
   field, draft, colors, editable, departments, members, addressHits, onPickAddress,
   extraDepartment, setExtraDepartment, onPhoto, onChange, hideLabel = false,
 }) {
-  const value = readPath(draft, field.key);
+  const stored = readPath(draft, field.key);
+  const value = field.key === 'company.accessRole'
+    ? (levelById(placedLevelId(draft))?.label || stored)
+    : stored;
   const label = hideLabel ? null : (
     <Text style={[styles.label, { color: colors.muted }]}>
       {field.label}
@@ -390,7 +395,10 @@ export function EmployeeField({
               label={option.label}
               on={value === option.value}
               disabled={!editable}
-              onPress={() => onChange(field.key, value === option.value ? '' : option.value)}
+              onPress={() => onChange(
+                field.key,
+                field.key === 'company.accessRole' || value !== option.value ? option.value : '',
+              )}
               colors={colors}
             />
           ))}

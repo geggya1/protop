@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { watchEmployees } from '../../src/employees/storage';
@@ -71,7 +73,8 @@ function entryKey(projectId, date) {
 export default function ArbeidScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, user, isAdmin, requestShellTab } = useApp();
+  const { familyId, family, user, isAdmin, requestShellTab } = useApp();
+  const access = useCompanyAccess();
   const uid = user?.uid || null;
 
   const cached = peekProjectState(familyId);
@@ -130,7 +133,9 @@ export default function ArbeidScreen() {
   }, [state, ready, familyId]);
 
   const linked = useMemo(() => findLinkedEmployee(employees, uid), [employees, uid]);
-  const manager = canManageTimesheets({ isAdmin, employee: linked });
+  const manager = access.ready
+    ? (isAdmin || access.can('hoursOthers', 'write'))
+    : canManageTimesheets({ isAdmin, employee: linked });
 
   useEffect(() => {
     if (employeeId) return;
@@ -144,9 +149,15 @@ export default function ArbeidScreen() {
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);
 
+  const selectedGrants = useMemo(
+    () => (selectedEmployee ? grantsForEmployee(family?.company?.accessPolicy, selectedEmployee) : null),
+    [family?.company?.accessPolicy, selectedEmployee],
+  );
+  const assignedOnly = selectedGrants ? hoursOnAssignedOnly(selectedGrants) : false;
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
-    const list = projectsForEmployee(state, employeeId);
+    const list = projectsForEmployee(state, employeeId, { assignedOnly });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
     const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
@@ -168,14 +179,14 @@ export default function ArbeidScreen() {
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery]);
+  }, [state, employeeId, projectQuery, assignedOnly]);
 
   const joinable = useMemo(() => {
-    if (!employeeId) return [];
+    if (!employeeId || assignedOnly) return [];
     const mine = new Set(myProjects.map((row) => row.project.id));
     return projectsForEmployee(state, employeeId, { includeJoinable: true })
       .filter((project) => !mine.has(project.id));
-  }, [state, employeeId, myProjects]);
+  }, [state, employeeId, myProjects, assignedOnly]);
 
   const entriesByCell = useMemo(() => {
     const map = new Map();
@@ -437,6 +448,7 @@ export default function ArbeidScreen() {
 
   const actions = (
     <View style={[styles.footer, isPhone && styles.footerPhone]}>
+      {assignedOnly ? null : (
       <TouchableOpacity
         onPress={() => setAddProjectOpen(true)}
         style={[styles.cta, { backgroundColor: '#0d9488' }, isPhone && styles.ctaPhone]}
@@ -445,6 +457,7 @@ export default function ArbeidScreen() {
         <Ionicons name="add" size={18} color="#fff" />
         <Text style={styles.ctaText}>Legg til prosjekt</Text>
       </TouchableOpacity>
+      )}
       <TouchableOpacity
         onPress={() => {
           setAbsenceForm({ type: 'ferie', hours: '7:30', description: '', date: activeKey || todayKey });
@@ -456,6 +469,7 @@ export default function ArbeidScreen() {
         <Ionicons name="add" size={18} color="#fff" />
         <Text style={styles.ctaText}>Legg til fravær / ferie</Text>
       </TouchableOpacity>
+      {assignedOnly ? null : (
       <TouchableOpacity
         onPress={() => requestShellTab?.('projects')}
         style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
@@ -463,6 +477,7 @@ export default function ArbeidScreen() {
       >
         <Text style={{ color: colors.ink }}>Åpne prosjekt</Text>
       </TouchableOpacity>
+      )}
     </View>
   );
 

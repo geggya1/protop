@@ -112,7 +112,7 @@ export const FORM_SECTIONS = [
     owner: 'company',
     purpose: 'operations',
     scope: 'employee',
-    blurb: 'Ett tilgangsnivå per ansatt. Nivået og eventuelle personavvik settes under Selskap → Tilgang. Det gjør ikke personen til administrator i ProTop.',
+    blurb: 'Ett tilgangsnivå per ansatt: regnskap, innleie, ansatt, avdelingsleder, øverste leder eller administrator. Samme nivå brukes under Selskap → Tilgang.',
     fields: [
       { key: 'company.accessRole', label: 'Tilgangsnivå', type: 'choice', options: ACCESS_OPTIONS },
       { key: 'company.permissions', label: 'Rettigheter', type: 'tags' },

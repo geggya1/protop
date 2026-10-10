@@ -15,6 +15,7 @@ import {
 import {
   alignCompanyEmployment,
   canonicalLevelId,
+  levelById,
   levelIdFromRoleLabel,
   normalizeOverrides,
 } from '../access/companyAccess.js';
@@ -591,8 +592,49 @@ export function applyEmployeeClassification(employee, patch = {}) {
     company.personnelKind = patch.external ? 'external' : (company.personnelKind === 'external' ? 'staff' : company.personnelKind);
     company.external = company.personnelKind === 'external';
   }
+  if (Object.prototype.hasOwnProperty.call(patch, 'accessLevel') && patch.accessLevel) {
+    applyAccessLevel(company, patch.accessLevel);
+  } else if (
+    Object.prototype.hasOwnProperty.call(patch, 'personnelKind')
+    || Object.prototype.hasOwnProperty.call(patch, 'innleid')
+    || Object.prototype.hasOwnProperty.call(patch, 'external')
+  ) {
+    alignAccessLevelToKind(company);
+  }
   next.company = company;
   return normalizeEmployee(next);
+}
+
+function applyAccessLevel(company, levelId) {
+  const level = levelById(levelId);
+  if (!level) return;
+  company.accessLevel = level.id;
+  company.accessRole = level.label;
+  if (level.kind === 'external') {
+    company.personnelKind = 'external';
+    company.external = true;
+  } else if (level.kind === 'innleid') {
+    company.personnelKind = 'innleid';
+    company.external = false;
+  } else if (company.personnelKind === 'external' || company.personnelKind === 'innleid') {
+    company.personnelKind = 'staff';
+    company.external = false;
+    if (/^(ekstern|innleid|innleie)$/i.test(text(company.employmentType))) company.employmentType = 'Fast ansatt';
+  }
+}
+
+function alignAccessLevelToKind(company) {
+  const current = levelById(company.accessLevel);
+  if (company.personnelKind === 'external' && current?.kind !== 'external') {
+    company.accessLevel = 'regnskap_ekstern';
+    company.accessRole = 'Regnskap eksternt';
+  } else if (company.personnelKind === 'innleid' && current?.kind !== 'innleid') {
+    company.accessLevel = 'innleie_ekstern';
+    company.accessRole = 'Innleie eksternt';
+  } else if (company.personnelKind === 'staff' && (!current || current.kind !== 'staff')) {
+    company.accessLevel = 'ansatt';
+    company.accessRole = 'Ansatt';
+  }
 }
 
 function haystack(employee, departments) {

@@ -101,7 +101,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Timer', 'Indeksregulering'],
+    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Timer', 'Utlegg', 'Kjørebok', 'Produkter', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');

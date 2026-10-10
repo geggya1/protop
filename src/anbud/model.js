@@ -110,6 +110,7 @@ export function emptyAnbudState() {
     customers: [],
     audit: [],
     formTemplates: null,
+    formTemplatesAt: '',
     supplierProfile: null,
     syncedAt: null,
     queryKey: '',
@@ -140,6 +141,7 @@ export function normalizeAnbudState(raw) {
     customers: normalizeCustomers(src.customers),
     audit: normalizeAudit(src.audit),
     formTemplates: normalizeFormTemplates(src.formTemplates),
+    formTemplatesAt: text(src.formTemplatesAt).slice(0, 40),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     syncedAt: src.syncedAt || null,
     queryKey: text(src.queryKey),
@@ -297,6 +299,40 @@ function mergeContractFiles(left, right) {
   }));
 }
 
+/**
+ * Skjemamalene er en liste som kan slettes.
+ * Nyeste formTemplatesAt vinner hele listen. Uten tidsstempel slås listene sammen på id,
+ * slik at en gammel lagring ikke skjuler maler som bare finnes på den andre siden.
+ */
+function mergeFormTemplates(left, right) {
+  const aAt = Date.parse(left?.formTemplatesAt || '') || 0;
+  const bAt = Date.parse(right?.formTemplatesAt || '') || 0;
+  if (aAt !== bAt) {
+    const winner = aAt > bAt ? left : right;
+    return {
+      formTemplates: winner.formTemplates,
+      formTemplatesAt: winner.formTemplatesAt || '',
+    };
+  }
+  if (aAt) {
+    return {
+      formTemplates: right.formTemplates,
+      formTemplatesAt: right.formTemplatesAt || '',
+    };
+  }
+  const map = new Map();
+  for (const row of left?.formTemplates || []) {
+    if (row?.id) map.set(row.id, row);
+  }
+  for (const row of right?.formTemplates || []) {
+    if (row?.id) map.set(row.id, row);
+  }
+  return {
+    formTemplates: [...map.values()].slice(0, 80),
+    formTemplatesAt: '',
+  };
+}
+
 /** Slår sammen to lagrede tilstander uten å nullstille vurderinger. */
 export function mergeAnbudStates(left, right) {
   const a = normalizeAnbudState(left);
@@ -310,7 +346,7 @@ export function mergeAnbudStates(left, right) {
     contracts: mergeContractFiles(a.contracts, b.contracts),
     customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
-    formTemplates: a.formTemplates || b.formTemplates,
+    ...mergeFormTemplates(a, b),
     supplierProfile: (Date.parse(b.supplierProfile?.savedAt || '') || 0) > (Date.parse(a.supplierProfile?.savedAt || '') || 0)
       ? b.supplierProfile
       : (a.supplierProfile || b.supplierProfile),

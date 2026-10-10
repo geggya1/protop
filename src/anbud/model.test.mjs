@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { deleteFormTemplate, saveFormTemplate } from './bidLibrary.js';
 import { buildDoffinBody, searchDoffinNotices } from './doffinQuery.js';
 import { buildTedQuery } from './tedQuery.js';
 import {
@@ -279,5 +280,23 @@ assert.match(formatMatchLabel({
   description: 'Prosjektering',
   cpvCodes: [],
 }, { ...watchProfile.watch, keywords: [] }), /bro/);
+
+const savedTemplate = saveFormTemplate(emptyAnbudState(), {
+  title: 'Befaring',
+  fields: [{ label: 'Adresse', kind: 'text' }],
+});
+const dropped = deleteFormTemplate(savedTemplate.state, savedTemplate.state.formTemplates.find((row) => row.title === 'Befaring').id);
+const afterSave = mergeAnbudStates(savedTemplate.state, dropped.state);
+assert.equal(afterSave.formTemplates.some((row) => row.title === 'Befaring'), false);
+assert.ok(afterSave.formTemplatesAt);
+const legacyLeft = normalizeAnbudState({
+  formTemplates: [{ id: 'mal_a', title: 'A', fields: [{ id: 'felt_a', label: 'Navn', kind: 'text' }] }],
+});
+const legacyRight = normalizeAnbudState({
+  formTemplates: [{ id: 'mal_b', title: 'B', fields: [{ id: 'felt_b', label: 'Dato', kind: 'date' }] }],
+});
+const union = mergeAnbudStates(legacyLeft, legacyRight);
+assert.equal(union.formTemplates.some((row) => row.id === 'mal_a'), true);
+assert.equal(union.formTemplates.some((row) => row.id === 'mal_b'), true);
 
 console.log('model.test.mjs ok');

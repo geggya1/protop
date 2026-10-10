@@ -3,6 +3,7 @@ import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
+import { levelById } from '../../src/access/companyAccess';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
@@ -553,7 +554,9 @@ export default function EmployeesScreen() {
   }
 
   async function classifyEmployee(patch) {
-    if (!isAdmin || busy) return;
+    const accessChange = Object.prototype.hasOwnProperty.call(patch, 'accessLevel');
+    if (busy) return;
+    if (accessChange ? !canEditAccess : !isAdmin) return;
     const current = draft && draft.id === selectedId ? draft : selected;
     if (!current) return;
     const next = applyEmployeeClassification(current, patch);
@@ -573,7 +576,9 @@ export default function EmployeesScreen() {
       setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
       setDraft(presentEmployee(saved));
       setSelectedId(saved.id);
-      setNote('Tilknytningen er lagret.');
+      setNote(accessChange
+        ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
+        : 'Tilknytningen er lagret.');
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
     } finally {

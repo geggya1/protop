@@ -3,7 +3,7 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { levelById, placedLevelId } from '../../src/access/companyAccess';
+import { ACCESS_LEVELS, levelById, placedLevelId } from '../../src/access/companyAccess';
 import {
   cardSubtitle,
   choiceLabel,
@@ -35,7 +35,6 @@ const DETAIL_TABS = [
 const MAIN_FACT_KEYS = [
   'company.title',
   'company.projectRole',
-  'company.accessRole',
   'person.email',
   'company.email',
   'person.username',
@@ -167,6 +166,119 @@ function Pencil({ onPress, colors, label }) {
     >
       <Ionicons name="create-outline" size={16} color={colors.brand} />
     </TouchableOpacity>
+  );
+}
+
+const ACCESS_SYMBOLS = {
+  regnskap_ekstern: 'calculator-outline',
+  innleie_ekstern: 'time-outline',
+  ansatt: 'person-outline',
+  avdelingsleder: 'people-outline',
+  leder: 'ribbon-outline',
+  administrator: 'shield-checkmark-outline',
+};
+
+function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, startOpen = false }) {
+  const [open, setOpen] = useState(startOpen);
+  const currentId = placedLevelId(employee);
+  const current = levelById(currentId);
+  const symbol = ACCESS_SYMBOLS[currentId] || 'ellipse-outline';
+  const label = current?.label || 'Ikke valgt';
+  return (
+    <View nativeID="employee-access-level" style={styles.accessCorner}>
+      <View style={styles.accessCornerRow}>
+        <View
+          accessibilityLabel={label}
+          style={[styles.accessSymbol, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+        >
+          <Ionicons name={symbol} size={18} color={colors.brand} />
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Rettighetsinnstillinger"
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen((value) => !value)}
+          style={[styles.accessGear, { borderColor: open ? colors.brand : colors.line, backgroundColor: colors.card }]}
+        >
+          <Ionicons name="settings-outline" size={18} color={open ? colors.brand : colors.ink} />
+        </TouchableOpacity>
+      </View>
+      {open ? (
+        <View nativeID="employee-access-menu" style={[styles.accessMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
+          {ACCESS_LEVELS.map((level) => {
+            const on = level.id === currentId;
+            return (
+              <TouchableOpacity
+                key={level.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on, disabled: !canEditAccess || busy }}
+                accessibilityLabel={level.label}
+                disabled={!canEditAccess || busy}
+                onPress={() => {
+                  if (!canEditAccess) return;
+                  onClassify?.({ accessLevel: level.id });
+                  setOpen(false);
+                }}
+                style={[
+                  styles.accessOption,
+                  {
+                    borderColor: on ? colors.brand : 'transparent',
+                    backgroundColor: on ? colors.brandSoft : 'transparent',
+                    opacity: !canEditAccess ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Ionicons name={ACCESS_SYMBOLS[level.id]} size={18} color={on ? colors.brand : colors.ink} />
+                <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600' }}>{level.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin, onClassify }) {
+  return (
+    <View nativeID="employee-classification" style={styles.classify}>
+      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
+      <View style={styles.chipRow}>
+        {PERSONNEL_KIND_OPTIONS.map((option) => (
+          <FlagChip
+            key={option.value}
+            label={personnelKindLabel(option.value, companyName)}
+            on={personnelKind(employee) === option.value}
+            disabled={!canEdit || busy || !isAdmin}
+            onPress={canEdit && isAdmin ? () => onClassify?.({ personnelKind: option.value }) : undefined}
+            colors={colors}
+          />
+        ))}
+      </View>
+      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Status</Text>
+      <View style={styles.chipRow}>
+        {STATUS_OPTIONS.map((option) => (
+          <FlagChip
+            key={option.value}
+            label={option.value === 'deleted' ? 'Papirkurv' : option.label}
+            on={(employee.company?.status || 'active') === option.value}
+            disabled={!canEdit || busy || !isAdmin}
+            onPress={canEdit && isAdmin ? () => onClassify?.({ status: option.value }) : undefined}
+            colors={colors}
+          />
+        ))}
+      </View>
+      <View style={styles.chipRow}>
+        <FlagChip
+          label="Kan logge inn"
+          on={!!employee.company?.canLogin}
+          disabled={!canEdit || busy || !isAdmin}
+          onPress={canEdit && isAdmin ? () => onClassify?.({ canLogin: !employee.company?.canLogin }) : undefined}
+          colors={colors}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -337,6 +449,7 @@ export default function EmployeeDetailView({
   onChange,
   onSave,
   onClassify,
+  accessMenuOpen = false,
   onPhoto,
   onPickAddress,
   onPushProfile,
@@ -436,14 +549,11 @@ export default function EmployeeDetailView({
 
   const employmentRows = useMemo(() => {
     const rows = [
-      { key: 'company.personnelKind', label: 'Personell', value: personnelKindLabel(personnelKind(employee), companyName) },
-      { key: 'company.status', label: 'Status', value: status },
       { key: 'company.employmentType', label: 'Type ansatt', value: employee.company?.employmentType },
       { key: 'company.compensationType', label: 'Type lønnskompensasjon', value: employee.company?.compensationType },
-      { key: 'company.canLogin', label: 'Kan logge inn', value: employee.company?.canLogin ? 'Ja' : (canEdit ? 'Nei' : '') },
     ];
     return canEdit ? rows : rows.filter((row) => row.value);
-  }, [employee, status, canEdit, companyName]);
+  }, [employee, canEdit]);
 
   const workRows = useMemo(() => {
     const rows = [
@@ -660,11 +770,21 @@ export default function EmployeeDetailView({
           >
             <View style={styles.heroTop}>
               <Text style={[styles.panelKicker, { color: colors.muted }]}>Medarbeiderdetaljer</Text>
-              <Pencil
-                onPress={canEdit ? () => startSection('identity') : undefined}
-                colors={colors}
-                label="Rediger navn og kontakt"
-              />
+              <View style={styles.heroActions}>
+                <Pencil
+                  onPress={canEdit ? () => startSection('identity') : undefined}
+                  colors={colors}
+                  label="Rediger navn og kontakt"
+                />
+                <AccessCorner
+                  employee={employee}
+                  colors={colors}
+                  busy={busy}
+                  canEditAccess={canEditAccess}
+                  onClassify={onClassify}
+                  startOpen={accessMenuOpen}
+                />
+              </View>
             </View>
 
             <View style={[styles.heroBody, isPhone && styles.heroBodyPhone]}>
@@ -710,43 +830,6 @@ export default function EmployeeDetailView({
                       {dept}
                     </Text>
                   ))}
-                </View>
-                <View nativeID="employee-classification" style={styles.classify}>
-                  <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
-                  <View style={styles.chipRow}>
-                    {PERSONNEL_KIND_OPTIONS.map((option) => (
-                      <FlagChip
-                        key={option.value}
-                        label={personnelKindLabel(option.value, companyName)}
-                        on={personnelKind(employee) === option.value}
-                        disabled={!canEdit || busy || !isAdmin}
-                        onPress={canEdit && isAdmin ? () => onClassify?.({ personnelKind: option.value }) : undefined}
-                        colors={colors}
-                      />
-                    ))}
-                  </View>
-                  <Text style={[styles.classifyLabel, { color: colors.muted }]}>Status</Text>
-                  <View style={styles.chipRow}>
-                    {STATUS_OPTIONS.map((option) => (
-                      <FlagChip
-                        key={option.value}
-                        label={option.value === 'deleted' ? 'Papirkurv' : option.label}
-                        on={(employee.company?.status || 'active') === option.value}
-                        disabled={!canEdit || busy || !isAdmin}
-                        onPress={canEdit && isAdmin ? () => onClassify?.({ status: option.value }) : undefined}
-                        colors={colors}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.chipRow}>
-                    <FlagChip
-                      label="Kan logge inn"
-                      on={!!employee.company?.canLogin}
-                      disabled={!canEdit || busy || !isAdmin}
-                      onPress={canEdit && isAdmin ? () => onClassify?.({ canLogin: !employee.company?.canLogin }) : undefined}
-                      colors={colors}
-                    />
-                  </View>
                 </View>
                 {editingSection === 'identity' ? sectionEditor('identity') : null}
                 <View style={styles.factList}>
@@ -831,30 +914,41 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {employmentRows.length || canEdit ? (
-            <SectionCard
-              title="Ansettelsesdata"
-              icon="briefcase-outline"
-              colors={colors}
-              open={openSections.employment}
-              onToggle={() => toggle('employment')}
-              badge={OWNER_LABEL.company}
-              onEdit={canEdit && isAdmin ? () => startSection('employment') : undefined}
-            >
-              {editingSection === 'employment' ? sectionEditor('employment') : employmentRows.map((row, i) => (
-                <FactRow
-                  key={row.key}
-                  label={row.label}
-                  value={row.value}
+          <SectionCard
+            title="Ansettelsesdata"
+            icon="briefcase-outline"
+            colors={colors}
+            open={openSections.employment}
+            onToggle={() => toggle('employment')}
+            badge={OWNER_LABEL.company}
+            onEdit={canEdit && isAdmin ? () => startSection('employment') : undefined}
+          >
+            {editingSection === 'employment' ? sectionEditor('employment') : (
+              <>
+                <EmploymentChips
+                  employee={employee}
                   colors={colors}
-                  last={i === employmentRows.length - 1}
-                  onEdit={canEdit && isAdmin ? () => startField(row.key) : undefined}
-                  editing={editingKey === row.key}
-                  editor={editingKey === row.key ? fieldEditor(row.key) : null}
+                  companyName={companyName}
+                  busy={busy}
+                  canEdit={canEdit}
+                  isAdmin={isAdmin}
+                  onClassify={onClassify}
                 />
-              ))}
-            </SectionCard>
-          ) : null}
+                {employmentRows.map((row, i) => (
+                  <FactRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    colors={colors}
+                    last={i === employmentRows.length - 1}
+                    onEdit={canEdit && isAdmin ? () => startField(row.key) : undefined}
+                    editing={editingKey === row.key}
+                    editor={editingKey === row.key ? fieldEditor(row.key) : null}
+                  />
+                ))}
+              </>
+            )}
+          </SectionCard>
 
           {workRows.length || canEdit ? (
             <SectionCard
@@ -1168,7 +1262,14 @@ const styles = StyleSheet.create({
     ? { boxShadow: '0 8px 24px rgba(7, 39, 76, 0.06)' }
     : {},
   heroPanel: { gap: 16 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  heroActions: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  accessCorner: { alignItems: 'flex-end', gap: 8 },
+  accessCornerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accessSymbol: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  accessGear: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  accessMenu: { borderWidth: 1, borderRadius: 12, padding: 8, gap: 4, minWidth: 220 },
+  accessOption: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8 },
   panelKicker: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   editBtn: {
     flexDirection: 'row',

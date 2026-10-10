@@ -37,6 +37,10 @@ async function shrinkImageInBrowser(bytes, { maxEdge = 1100, quality = 0.62 } = 
   }
 }
 
+export async function shrinkImportImage(bytes, options) {
+  return shrinkImageInBrowser(bytes, options);
+}
+
 export async function askImportInterpret(payload) {
   const call = httpsCallable(functions, 'interpretImport', { timeout: 180000 });
   const body = {

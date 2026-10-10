@@ -23,7 +23,7 @@ export const FIELD_GROUPS = [
 
 export const FIELD_TYPE_IDS = new Set(FIELD_TYPES.map((row) => row.id));
 const OPTION_KINDS = new Set(['choice', 'checks', 'dropdown']);
-export const MAX_FIELDS = 40;
+export const MAX_FIELDS = 80;
 export const MAX_TEMPLATES = 80;
 
 function text(value) {
@@ -53,6 +53,9 @@ export function blankField(kind = 'text') {
     scaleMax: 5,
     lowLabel: '',
     highLabel: '',
+    placeholder: '',
+    width: 'full',
+    review: '',
     options: OPTION_KINDS.has(type)
       ? [
         { id: `${id}_a`, label: 'Alternativ 1' },
@@ -163,6 +166,9 @@ export function normalizeBuilderField(raw) {
     scaleMax: kind === 'scale' ? Math.max(2, Math.min(10, Number(raw?.scaleMax) || 5)) : 5,
     lowLabel: kind === 'scale' ? text(raw?.lowLabel).slice(0, 40) : '',
     highLabel: kind === 'scale' ? text(raw?.highLabel).slice(0, 40) : '',
+    placeholder: kind === 'title' ? '' : text(raw?.placeholder).slice(0, 120),
+    width: raw?.width === 'half' ? 'half' : 'full',
+    review: text(raw?.review).slice(0, 180),
     options: OPTION_KINDS.has(kind) ? normalizeOptions(raw?.options) : [],
     value: coerceAnswer(kind, raw?.value),
   };
@@ -413,41 +419,264 @@ export function dragTargetIndex(payload, gapIndex, length) {
   return Math.max(0, Math.min(adjusted, count - 1));
 }
 
-function kindFromLabel(label) {
-  if (/klokken|tidspunkt|\btid\b/i.test(label)) return 'time';
-  if (/skala|fra 1 til/i.test(label)) return 'scale';
-  if (/dato|frist|gyldig til/i.test(label)) return 'date';
-  if (/bilde|foto|skisse/i.test(label)) return 'image';
+const CHECK_MARK = /^(?:\[\s*[xX ]?\]|[☐☑☒□■○◯◉]|\(\s*[xX ]?\s*\))\s+(.+)$/;
+const BULLET = /^(?:[-*•]|\d+[.)])\s+(.+)$/;
+const GENERIC_TITLE = 'Skjema fra dokument';
+
+function foldLabel(value) {
+  return text(value).toLocaleLowerCase('nb-NO').replace(/\s+/g, ' ');
+}
+
+export function formPrompt() {
+  return `Du leser et skjema slik det ser ut på papir, i PDF, som skann eller som bilde.
+Du får teksten og selve siden, med bokser, streker, avkrysninger, logo og kolonner.
+Returner KUN gyldig JSON:
+{
+  "title": "navnet på skjemaet",
+  "intro": "én setning om hva skjemaet brukes til, eller tom streng",
+  "designNote": "én setning om oppsettet, for eksempel to kolonner og logo øverst",
+  "fields": [
+    {
+      "label": "teksten som står ved feltet",
+      "kind": "title|text|long|date|time|number|scale|check|choice|checks|dropdown|image|file",
+      "required": false,
+      "help": "hjelpetekst under feltet, eller tom streng",
+      "placeholder": "grå tekst inne i feltet, eller tom streng",
+      "options": ["bare for choice, checks og dropdown"],
+      "scaleMax": 5,
+      "lowLabel": "",
+      "highLabel": "",
+      "width": "full|half",
+      "review": "tom streng, eller en kort grunn til at feltet bør ses over"
+    }
+  ]
+}
+Slik kjenner du igjen felt:
+- title er en overskrift eller seksjon som ikke skal fylles ut.
+- text er én linje, en understrek eller en liten boks.
+- long er en stor tekstboks eller flere linjer.
+- date er et datofelt, også når det står dd.mm.åååå.
+- time er et klokkeslett.
+- number er beløp, antall, mål eller prosent.
+- scale er en tallrekke eller en vurdering fra–til.
+- check er én avkrysning eller ja/nei.
+- choice er ett av flere runde valg.
+- checks er flere firkantede avkrysninger.
+- dropdown er en liste med pil eller «velg».
+- image er foto, skisse, signatur som skal tegnes, eller et bildefelt.
+- file er et vedlegg.
+- width er half når to felt står ved siden av hverandre. Ellers full.
+- required er true når feltet har stjerne eller «må fylles ut».
+- review fylles når typen er usikker, teksten er kuttet, alternativene mangler, eller et bilde i skjemaet ikke kan gjenskapes som felt.
+Utfyllingsfelter som er listet opp, er fasit for type. Bruk etiketten som står ved feltet, ikke interne navn som Text1.
+Ikke finn opp felter som ikke står i dokumentet. Ta med feltene i alle kolonner. Maks 80 felt.`;
+}
+
+/** Internt PDF-navn som Text1 eller Check Box 2 er ikke en etikett. */
+export function technicalFieldName(label) {
+  const value = text(label);
+  if (!value) return true;
+  if (/^(text|check|checkbox|radio|button|field|felt|signature|sig|undefined)(\s+box)?\s*\d*$/i.test(value)) return true;
+  if (/^[A-Za-z]{1,16}\d{1,3}$/.test(value)) return true;
+  return false;
+}
+
+export function fieldFromWidget(ann, pageWidth = 0) {
+  const src = ann && typeof ann === 'object' ? ann : {};
+  const rawName = text(src.fieldName || src.alternativeText || src.label);
+  const rect = Array.isArray(src.rect) ? src.rect : [];
+  const boxWidth = Math.abs(Number(rect[2] || 0) - Number(rect[0] || 0));
+  const boxHeight = Math.abs(Number(rect[3] || 0) - Number(rect[1] || 0));
+  const page = Number(pageWidth) || 0;
+  const type = text(src.fieldType);
+  if (src.readOnly && type === 'Tx') return null;
+  let kind = 'text';
+  if (type === 'Btn') kind = src.radioButton ? 'choice' : 'check';
+  else if (type === 'Ch') kind = src.combo ? 'dropdown' : 'choice';
+  else if (type === 'Sig' || /signatur|underskrift/i.test(rawName)) kind = 'image';
+  else if (src.multiLine || boxHeight > 40) kind = 'long';
+  else if (/dato|frist/i.test(rawName)) kind = 'date';
+  else if (/\btid\b|klokke/i.test(rawName)) kind = 'time';
+  const options = (Array.isArray(src.options) ? src.options : []).map((row) => (
+    text(typeof row === 'string' ? row : (row?.displayValue || row?.exportValue))
+  )).filter(Boolean);
+  const named = !technicalFieldName(rawName);
+  if (!named && !options.length && kind === 'text') {
+    return {
+      label: 'Felt uten etikett',
+      kind,
+      required: !!src.required,
+      help: '',
+      placeholder: '',
+      options: [],
+      width: page > 0 && boxWidth > 0 && boxWidth < page * 0.48 ? 'half' : 'full',
+      review: 'PDF-feltet har ikke et lesbart navn. Gi det etiketten som står ved siden av.',
+      scaleMax: 5,
+      lowLabel: '',
+      highLabel: '',
+    };
+  }
+  return {
+    label: (named ? rawName : (kind === 'check' ? 'Avkrysning' : 'Felt')).slice(0, 120),
+    kind: options.length && kind === 'text' ? 'dropdown' : kind,
+    required: !!src.required,
+    help: '',
+    placeholder: '',
+    options,
+    width: page > 0 && boxWidth > 0 && boxWidth < page * 0.48 ? 'half' : 'full',
+    review: named ? '' : 'PDF-feltet har ikke et lesbart navn. Gi det etiketten som står ved siden av.',
+    scaleMax: 5,
+    lowLabel: '',
+    highLabel: '',
+  };
+}
+
+export function formFromWidgets(widgets, pageWidth = 0) {
+  const groups = new Map();
+  const fields = [];
+  for (const ann of (Array.isArray(widgets) ? widgets : [])) {
+    const made = fieldFromWidget(ann, pageWidth);
+    if (!made) continue;
+    const key = text(ann?.fieldName);
+    const radio = made.kind === 'choice' && (ann?.radioButton || ann?.fieldType === 'Btn');
+    if (radio && key) {
+      const option = text(ann?.buttonValue || ann?.exportValue);
+      const existing = groups.get(key);
+      if (existing) {
+        if (option && !existing.options.some((row) => foldLabel(row) === foldLabel(option))) existing.options.push(option);
+        continue;
+      }
+      const field = { ...made, kind: 'choice', options: option ? [option] : made.options };
+      groups.set(key, field);
+      fields.push(field);
+      continue;
+    }
+    fields.push(made);
+  }
+  return formFromScan({ title: '', fields });
+}
+
+function kindFromLabel(label, raw = '') {
+  const source = `${label} ${raw}`;
+  if (/signatur|underskrift/i.test(source)) return 'image';
+  if (/klokken|tidspunkt|\bkl\b|\btid\b/i.test(label) && !/periode|frist/i.test(label)) return 'time';
+  if (/skala|fra 1 til|svært (uenig|enig)/i.test(source)) return 'scale';
+  if (/dato|frist|gyldig til|dd\.mm/i.test(source)) return 'date';
+  if (/bilde|foto|skisse|lim inn/i.test(label)) return 'image';
   if (/vedlegg|last opp|dokumentasjon/i.test(label)) return 'file';
-  if (/\b(beløp|antall|pris|kr)\b/i.test(label) || /sum/i.test(label)) return 'number';
-  if (/ja\s*\/\s*nei|kryss av|bekreft/i.test(label)) return 'check';
-  if (label.length > 80) return 'long';
+  if (/\b(beløp|antall|pris|kr|m2|kvm|prosent)\b/i.test(label) || /\bsum\b/i.test(label)) return 'number';
+  if (/ja\s*\/\s*nei|kryss av|bekreft|avkrys/i.test(label)) return 'check';
+  if (/_{20,}/.test(raw) || String(label || '').length > 80) return 'long';
   return 'text';
+}
+
+function isHeading(line) {
+  const value = String(line || '').trim();
+  if (!value || value.includes(':') || value.length >= 60) return false;
+  if (/^#{1,3}\s+\S/.test(value)) return true;
+  return value === value.toUpperCase() && /[A-ZÆØÅ]/.test(value);
+}
+
+function requiredOf(raw) {
+  return /\*\s*$/.test(String(raw || '').trim()) || /\bobligatorisk\b/i.test(raw);
+}
+
+function placeholderOf(raw) {
+  const match = String(raw || '').match(/\((?:f\.eks\.|for eksempel|eks\.|dd\.mm|tt:?mm|åååå)[^)]*\)/i);
+  return match ? match[0].slice(1, -1).slice(0, 120) : '';
+}
+
+function stripDecor(raw) {
+  return text(raw)
+    .replace(/^#{1,3}\s+/, '')
+    .replace(/\((?:f\.eks\.|for eksempel|eks\.)[^)]*\)/gi, '')
+    .replace(/[_·.]{3,}/g, ' ')
+    .replace(/\s*\*+\s*$/, '')
+    .replace(/[:：]\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function pushField(raw, width = 'full') {
+  const mark = String(raw || '').trim().match(CHECK_MARK);
+  const body = mark ? mark[1] : String(raw || '').trim();
+  const label = stripDecor(body).slice(0, 120);
+  if (!label) return null;
+  const radio = /^[○◯◉]/.test(String(raw || '').trim());
+  const kind = mark && !radio ? 'check' : kindFromLabel(label, raw);
+  const field = {
+    ...blankField(kind),
+    label,
+    required: requiredOf(raw),
+    placeholder: placeholderOf(raw),
+    width,
+    review: /signatur|underskrift/i.test(label)
+      ? 'Signaturfelt. Behold bilde hvis det skal tegnes, eller bytt til kort svar hvis navnet skrives.'
+      : '',
+  };
+  if (kind === 'scale') {
+    const max = String(raw).match(/(\d+)\s*[-–]\s*(\d+)/);
+    if (max) field.scaleMax = Math.max(2, Math.min(10, Number(max[2]) || 5));
+    const ends = String(raw).match(/(.{2,30}?)\s+\d\s*[-–]\s*\d\s+(.{2,30})/);
+    if (ends) {
+      field.lowLabel = stripDecor(ends[1]).slice(0, 40);
+      field.highLabel = stripDecor(ends[2]).slice(0, 40);
+    }
+  }
+  return field;
+}
+
+function addOption(field, label, kind) {
+  const value = stripDecor(label).slice(0, 80);
+  if (!value) return;
+  if (field.kind === 'text') field.kind = kind;
+  if (!Array.isArray(field.options)) field.options = [];
+  field.options.push({ id: createId('alt'), label: value });
 }
 
 /** Lager et utkast fra ren tekst når AI ikke svarer. */
 export function formFromPlainText(source, titleHint = '') {
-  const lines = String(source || '').split(/\n/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
+  const lines = String(source || '').replace(/\r\n/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 240);
   const fields = [];
-  let pendingChoice = null;
+  let pending = null;
+  let heading = '';
   for (const line of lines) {
-    const bullet = line.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
-    if (bullet && pendingChoice) {
-      pendingChoice.options.push({ id: createId('alt'), label: bullet[1].slice(0, 80) });
-      if (pendingChoice.options.length === 2) pendingChoice.kind = 'choice';
+    const pair = line.split(/\t+|\s{3,}/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));
+    if (pair.length === 2 && pair.every((part) => part.length < 70 && !BULLET.test(part) && !CHECK_MARK.test(part))) {
+      pending = null;
+      for (const part of pair) {
+        const field = pushField(part, 'half');
+        if (field) fields.push(field);
+      }
       continue;
     }
-    pendingChoice = null;
-    const heading = !line.includes(':') && line.length < 60 && line === line.toUpperCase() && /[A-ZÆØÅ]/.test(line);
-    if (heading) {
-      fields.push({ ...blankField('title'), label: line.slice(0, 120) });
+    const bullet = line.match(BULLET);
+    if (bullet && pending && ['text', 'choice', 'checks'].includes(pending.kind)) {
+      addOption(pending, bullet[1], 'choice');
       continue;
     }
-    const label = line.replace(/[:*]\s*$/, '').slice(0, 120);
-    if (!label) continue;
-    const field = { ...blankField(kindFromLabel(label)), label };
+    const mark = line.match(CHECK_MARK);
+    if (mark && pending && ['text', 'choice', 'checks'].includes(pending.kind)) {
+      const option = stripDecor(mark[1]);
+      const radio = /^[○◯◉]/.test(line);
+      const wanted = radio ? 'choice' : 'checks';
+      const compatible = pending.kind === 'text' || pending.kind === wanted;
+      if (option && option.length <= 40 && compatible) {
+        addOption(pending, option, wanted);
+        continue;
+      }
+    }
+    pending = null;
+    if (isHeading(line)) {
+      const label = stripDecor(line).slice(0, 120);
+      if (!heading) heading = label;
+      fields.push({ ...blankField('title'), label });
+      continue;
+    }
+    const field = pushField(line);
+    if (!field) continue;
     fields.push(field);
-    if (field.kind === 'text') pendingChoice = field;
+    if (field.kind === 'text' || field.kind === 'checks' || field.kind === 'choice') pending = field;
   }
   const usable = fields.filter((row) => row.label).slice(0, MAX_FIELDS);
   if (!usable.length) return { ok: false, form: null, error: 'Fant ingen felter i teksten.' };
@@ -456,7 +685,7 @@ export function formFromPlainText(source, titleHint = '') {
     form: {
       ...blankForm(),
       id: '',
-      title: text(titleHint).slice(0, 80) || usable.find((row) => row.kind === 'title')?.label || 'Skjema fra dokument',
+      title: text(titleHint).slice(0, 80) || heading || usable.find((row) => row.kind === 'title')?.label || GENERIC_TITLE,
       intro: '',
       fields: usable,
     },
@@ -471,15 +700,147 @@ export function formFromScan(raw) {
     kind: row?.kind,
     required: row?.required,
     help: row?.help,
+    placeholder: row?.placeholder,
+    width: row?.width,
+    review: row?.review,
+    scaleMax: row?.scaleMax,
+    lowLabel: row?.lowLabel,
+    highLabel: row?.highLabel,
     options: row?.options,
     value: '',
   })).filter(Boolean).slice(0, MAX_FIELDS);
-  if (!title || !fields.length) {
+  if (!fields.length) {
     return { ok: false, form: null, error: 'AI fant ikke et skjema i dokumentet.' };
   }
   return {
     ok: true,
-    form: { ...blankForm(), id: '', title, intro: text(raw?.intro).slice(0, 280), fields },
+    form: {
+      ...blankForm(),
+      id: '',
+      title: title || GENERIC_TITLE,
+      intro: text(raw?.intro).slice(0, 280),
+      fields,
+    },
     error: null,
   };
+}
+
+function sameLabel(left, right) {
+  const a = foldLabel(left);
+  const b = foldLabel(right);
+  return !!a && a === b;
+}
+
+function preferTitle(primary, fallback) {
+  const first = text(primary);
+  const second = text(fallback);
+  if (first && first !== GENERIC_TITLE) return first.slice(0, 80);
+  return (second || first || GENERIC_TITLE).slice(0, 80);
+}
+
+/** AI-felt vinner typen. Felt som bare den lokale lesingen fant, legges bakerst. */
+export function mergeFormReads(localForm, aiForm) {
+  const localFields = Array.isArray(localForm?.fields) ? localForm.fields : [];
+  const aiFields = Array.isArray(aiForm?.fields) ? aiForm.fields : [];
+  if (!aiFields.length) return localFields.length ? { ...localForm, id: '' } : null;
+  if (!localFields.length) return { ...aiForm, id: '' };
+  const used = new Set();
+  const fields = aiFields.map((field) => {
+    const match = localFields.find((row) => !used.has(row) && sameLabel(row.label, field.label));
+    if (!match) return field;
+    used.add(match);
+    return {
+      ...field,
+      required: !!(field.required || match.required),
+      help: field.help || match.help || '',
+      placeholder: field.placeholder || match.placeholder || '',
+      width: field.width === 'half' || match.width === 'half' ? 'half' : 'full',
+      review: field.review || match.review || '',
+      options: (field.options || []).length ? field.options : (match.options || []),
+      scaleMax: field.kind === 'scale' ? (field.scaleMax || match.scaleMax || 5) : field.scaleMax,
+      lowLabel: field.lowLabel || match.lowLabel || '',
+      highLabel: field.highLabel || match.highLabel || '',
+    };
+  });
+  for (const row of localFields) {
+    if (used.has(row) || fields.length >= MAX_FIELDS) continue;
+    fields.push({
+      ...row,
+      review: row.review || 'Feltet stod i dokumentet, men ble ikke med i AI-lesingen. Se over typen.',
+    });
+  }
+  return {
+    ...aiForm,
+    id: '',
+    title: preferTitle(aiForm.title, localForm.title),
+    intro: text(aiForm.intro) || text(localForm.intro),
+    cover: aiForm.cover || localForm.cover || '',
+    fields: fields.slice(0, MAX_FIELDS),
+  };
+}
+
+function matchOptions(previous, incoming) {
+  const prev = Array.isArray(previous) ? previous : [];
+  const next = Array.isArray(incoming) ? incoming : [];
+  if (!next.length) return prev;
+  return next.map((option) => {
+    const found = prev.find((row) => sameLabel(row.label, option.label));
+    if (!found) return option;
+    return { ...option, id: found.id, image: option.image || found.image || '' };
+  });
+}
+
+/** Leser inn i malen som er åpen. Id, svar og innstillinger blir stående. */
+export function applyImportedForm(current, incoming) {
+  const base = current && typeof current === 'object' ? current : blankForm();
+  const next = incoming && typeof incoming === 'object' ? incoming : {};
+  const incomingFields = Array.isArray(next.fields) ? next.fields : [];
+  const previous = Array.isArray(base.fields) ? base.fields : [];
+  const byLabel = new Map();
+  for (const field of previous) {
+    const key = foldLabel(field.label);
+    if (key && !byLabel.has(key)) byLabel.set(key, field);
+  }
+  const fields = incomingFields.length
+    ? incomingFields.map((field) => {
+      const prev = byLabel.get(foldLabel(field.label));
+      if (!prev) return field;
+      return {
+        ...field,
+        id: prev.id,
+        options: matchOptions(prev.options, field.options),
+      };
+    })
+    : previous;
+  return {
+    ...blankForm(),
+    ...base,
+    id: base.id || '',
+    title: preferTitle(next.title, base.title),
+    intro: text(next.intro) || text(base.intro),
+    cover: next.cover || base.cover || '',
+    settings: base.settings || next.settings || blankSettings(),
+    responses: Array.isArray(base.responses) ? base.responses : [],
+    fields,
+  };
+}
+
+export function formAttention(form) {
+  const fields = Array.isArray(form?.fields) ? form.fields : [];
+  const issues = [];
+  if (!text(form?.title) || form.title === GENERIC_TITLE) {
+    issues.push({ tone: 'warn', text: 'Gi skjemaet navnet som står på dokumentet.' });
+  }
+  if (!fields.length) issues.push({ tone: 'warn', text: 'Ingen felt er lest inn.' });
+  const flagged = fields.filter((field) => text(field.review));
+  for (const field of flagged.slice(0, 8)) {
+    issues.push({ tone: 'warn', fieldId: field.id, text: `${field.label}: ${field.review}` });
+  }
+  if (flagged.length > 8) issues.push({ tone: 'warn', text: `${flagged.length - 8} felt til bør ses over.` });
+  const bare = fields.filter((field) => OPTION_KINDS.has(field.kind) && (field.options || []).filter((row) => text(row.label)).length < 2);
+  for (const field of bare.slice(0, 4)) {
+    if (flagged.includes(field)) continue;
+    issues.push({ tone: 'warn', fieldId: field.id, text: `«${field.label}» mangler alternativer.` });
+  }
+  return { issues };
 }

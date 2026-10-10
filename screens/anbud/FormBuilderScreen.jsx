@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  applyImportedForm,
   blankForm,
   cloneFields,
-  formFromPlainText,
+  formAttention,
   normalizeSettings,
   starterForm,
 } from '../../src/anbud/formBuilder';
 import { deleteFormTemplate, saveFormTemplate } from '../../src/anbud/bidLibrary';
-import { fileToDataUrl, generateCompanyForm } from '../../src/anbud/intakeClient';
+import { askCompanyForm, FORM_IMPORT_ACCEPT, readFormImport } from '../../src/anbud/formImport';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
@@ -18,8 +19,6 @@ import { companyLogoOf } from '../../src/project/companyLogo';
 import FormStudio from './FormStudio';
 import CreateMenu from '../../components/CreateMenu';
 
-const IMPORT_ACCEPT = 'image/*,.pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
 const STARTERS = [
   { id: 'blank', title: 'Tomt skjema', icon: 'document-outline', kind: 'blank' },
   { id: 'copy', title: 'Kopier skjemaet ditt', icon: 'copy-outline', kind: 'copy' },
@@ -27,16 +26,13 @@ const STARTERS = [
   { id: 'befaring', title: 'Befaring', icon: 'map-outline', kind: 'befaring' },
 ];
 
-function plainTextFromDataUrl(dataUrl, mimeType) {
-  if (!/^text\//i.test(mimeType || '') && !/text\/plain/i.test(dataUrl || '')) return '';
-  try {
-    const cleaned = String(dataUrl || '').replace(/^data:[^;]+;base64,/, '');
-    const binary = atob(cleaned);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return new TextDecoder('utf-8').decode(bytes);
-  } catch {
-    return '';
+async function bytesFromFile(file) {
+  let blob = file?.blob || null;
+  if (!blob && file?.uri && typeof fetch === 'function') {
+    blob = await (await fetch(file.uri)).blob();
   }
+  if (!blob || typeof blob.arrayBuffer !== 'function') return null;
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 function draftFromTemplate(template, { copy = false } = {}) {
@@ -71,6 +67,7 @@ export default function FormBuilderScreen({
   const [noteBad, setNoteBad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState('');
+  const [scanToken, setScanToken] = useState(0);
 
   useEffect(() => {
     if (externalState) return undefined;
@@ -143,17 +140,15 @@ export default function FormBuilderScreen({
   }
 
   function adoptForm(form, text) {
-    setDraft((current) => ({
-      ...blankForm(),
-      id: current?.id && current.title ? '' : (current?.id || ''),
-      title: form.title || current?.title || '',
-      intro: form.intro || '',
-      cover: form.cover || '',
-      settings: normalizeSettings(form.settings),
-      responses: [],
-      fields: form.fields,
-    }));
+    setDraft((current) => applyImportedForm(current, form));
+    setScanToken((value) => value + 1);
     say(text);
+  }
+
+  async function removeTemplate(template) {
+    setPendingDelete('');
+    const result = await commit(deleteFormTemplate(state, template.id));
+    if (result?.ok) say('Skjemaet er slettet.');
   }
 
   async function readDocument(mode) {
@@ -162,39 +157,34 @@ export default function FormBuilderScreen({
     try {
       const picked = mode === 'scan'
         ? await pickImage({ camera: true, edit: false })
-        : await pickDocument({ accept: IMPORT_ACCEPT });
+        : await pickDocument({ accept: FORM_IMPORT_ACCEPT });
       const file = Array.isArray(picked) ? picked[0] : picked;
       if (!file) {
         setBusy(false);
         return;
       }
-      const dataUrl = await fileToDataUrl(file);
-      if (!dataUrl) {
+      const bytes = await bytesFromFile(file);
+      if (!bytes?.length) {
         say('Kunne ikke lese filen.', true);
         setBusy(false);
         return;
       }
       const name = file.name || (mode === 'scan' ? 'skann.jpg' : 'dokument');
-      const plain = plainTextFromDataUrl(dataUrl, file.mimeType);
-      try {
-        const data = await generateCompanyForm(dataUrl, name);
-        if (data?.form?.fields?.length) {
-          adoptForm(data.form, 'Malen er lest med AI. Se over feltene og lagre.');
-          setBusy(false);
-          return;
-        }
-        say(data?.error || 'AI fant ikke et skjema.', true);
-      } catch (err) {
-        say(err?.message || 'AI svarte ikke.', true);
-      }
-      if (plain) {
-        const local = formFromPlainText(plain, name.replace(/\.[^.]+$/, ''));
-        if (local.ok) {
-          adoptForm(local.form, 'AI svarte ikke. Feltene er lest rett fra teksten. Se over dem og lagre.');
-          setBusy(false);
-          return;
-        }
-      }
+      const interpreted = await readFormImport(bytes, name, {
+        ask: (payload) => askCompanyForm(payload.bytes, payload.filename, file.mimeType || ''),
+      });
+      const attention = formAttention(interpreted.form);
+      const understood = interpreted.engine === 'text'
+        ? ' fra teksten i filen'
+        : interpreted.engine?.includes('ocr')
+          ? ' fra bildet, med OCR'
+          : ' fra dokumentet';
+      const review = attention.issues.length
+        ? ` ${attention.issues.length} punkt bør ses over.`
+        : '';
+      const kept = draft?.id ? ' Lagre oppdaterer dette skjemaet.' : '';
+      const design = interpreted.summary ? ` ${interpreted.summary}` : '';
+      adoptForm(interpreted.form, `Skjemaet er lest${understood}.${design} Ingenting er lagret før du trykker Lagre.${review}${kept}`);
     } catch (err) {
       const denied = err?.message === 'camera-denied';
       say(denied ? 'Gi tilgang til kamera, eller bruk Importer.' : (err?.message || 'Kunne ikke lese dokumentet.'), true);
@@ -207,6 +197,7 @@ export default function FormBuilderScreen({
   if (draft) {
     return (
       <FormStudio
+        key={scanToken}
         draft={draft}
         colors={colors}
         busy={busy}
@@ -228,7 +219,7 @@ export default function FormBuilderScreen({
       <CreateMenu
         label="Nytt skjema"
         title="Nytt skjema"
-        info="AI-scan og import lager en mal fra bilde, PDF, Word eller tekst. Ferdige utgangspunkt ligger under."
+        info="AI-scan og import leser bilde, PDF, Word eller tekst. Bokser, avkrysninger og kolonner blir felt du kan rette før du lagrer."
         actions={[
           { id: 'scan', label: busy ? 'Leser …' : 'AI-scan', primary: true, onPress: () => readDocument('scan'), disabled: busy },
           { id: 'import', label: busy ? 'Leser …' : 'Importer', onPress: () => readDocument('import'), disabled: busy },
@@ -282,23 +273,17 @@ export default function FormBuilderScreen({
               <Text style={{ color: colors.brand }}>Kopier</Text>
             </TouchableOpacity>
             {pendingDelete === template.id ? (
-              <>
-                <Text style={{ color: colors.ink }}>Slette «{template.title}»?</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setPendingDelete('');
-                    commit(deleteFormTemplate(state, template.id));
-                  }}
-                  accessibilityRole="button"
-                >
-                  <Text style={{ color: colors.danger }}>Slett</Text>
+              <View style={styles.confirm}>
+                <Text style={{ color: colors.ink }}>Slette «{template.title}»? Svarene i skjemaet følger med.</Text>
+                <TouchableOpacity onPress={() => removeTemplate(template)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title} nå`}>
+                  <Text style={{ color: colors.danger, fontWeight: '700' }}>Slett nå</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setPendingDelete('')} accessibilityRole="button">
                   <Text style={{ color: colors.muted }}>Avbryt</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
-              <TouchableOpacity onPress={() => setPendingDelete(template.id)} accessibilityRole="button">
+              <TouchableOpacity onPress={() => setPendingDelete(template.id)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title}`}>
                 <Text style={{ color: colors.danger }}>Slett</Text>
               </TouchableOpacity>
             )}
@@ -318,5 +303,6 @@ const styles = StyleSheet.create({
   starter: { width: 168, flexGrow: 1, borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
+  confirm: { gap: 8, paddingTop: 4 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

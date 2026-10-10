@@ -169,23 +169,73 @@ function Pencil({ onPress, colors, label }) {
   );
 }
 
-function AccessLevelChips({ employee, colors, busy, canEditAccess, onClassify }) {
-  const current = placedLevelId(employee);
+const ACCESS_SYMBOLS = {
+  regnskap_ekstern: 'calculator-outline',
+  innleie_ekstern: 'time-outline',
+  ansatt: 'person-outline',
+  avdelingsleder: 'people-outline',
+  leder: 'ribbon-outline',
+  administrator: 'shield-checkmark-outline',
+};
+
+function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, startOpen = false }) {
+  const [open, setOpen] = useState(startOpen);
+  const currentId = placedLevelId(employee);
+  const current = levelById(currentId);
+  const symbol = ACCESS_SYMBOLS[currentId] || 'ellipse-outline';
+  const label = current?.label || 'Ikke valgt';
   return (
-    <View nativeID="employee-access-level" style={styles.classify}>
-      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Tilgang</Text>
-      <View style={styles.chipRow}>
-        {ACCESS_LEVELS.map((level) => (
-          <FlagChip
-            key={level.id}
-            label={level.label}
-            on={current === level.id}
-            disabled={!canEditAccess || busy}
-            onPress={canEditAccess ? () => onClassify?.({ accessLevel: level.id }) : undefined}
-            colors={colors}
-          />
-        ))}
+    <View nativeID="employee-access-level" style={styles.accessCorner}>
+      <View style={styles.accessCornerRow}>
+        <View
+          accessibilityLabel={label}
+          style={[styles.accessSymbol, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+        >
+          <Ionicons name={symbol} size={18} color={colors.brand} />
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Rettighetsinnstillinger"
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen((value) => !value)}
+          style={[styles.accessGear, { borderColor: open ? colors.brand : colors.line, backgroundColor: colors.card }]}
+        >
+          <Ionicons name="settings-outline" size={18} color={open ? colors.brand : colors.ink} />
+        </TouchableOpacity>
       </View>
+      {open ? (
+        <View nativeID="employee-access-menu" style={[styles.accessMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
+          {ACCESS_LEVELS.map((level) => {
+            const on = level.id === currentId;
+            return (
+              <TouchableOpacity
+                key={level.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on, disabled: !canEditAccess || busy }}
+                accessibilityLabel={level.label}
+                disabled={!canEditAccess || busy}
+                onPress={() => {
+                  if (!canEditAccess) return;
+                  onClassify?.({ accessLevel: level.id });
+                  setOpen(false);
+                }}
+                style={[
+                  styles.accessOption,
+                  {
+                    borderColor: on ? colors.brand : 'transparent',
+                    backgroundColor: on ? colors.brandSoft : 'transparent',
+                    opacity: !canEditAccess ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Ionicons name={ACCESS_SYMBOLS[level.id]} size={18} color={on ? colors.brand : colors.ink} />
+                <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600' }}>{level.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -399,6 +449,7 @@ export default function EmployeeDetailView({
   onChange,
   onSave,
   onClassify,
+  accessMenuOpen = false,
   onPhoto,
   onPickAddress,
   onPushProfile,
@@ -719,11 +770,21 @@ export default function EmployeeDetailView({
           >
             <View style={styles.heroTop}>
               <Text style={[styles.panelKicker, { color: colors.muted }]}>Medarbeiderdetaljer</Text>
-              <Pencil
-                onPress={canEdit ? () => startSection('identity') : undefined}
-                colors={colors}
-                label="Rediger navn og kontakt"
-              />
+              <View style={styles.heroActions}>
+                <Pencil
+                  onPress={canEdit ? () => startSection('identity') : undefined}
+                  colors={colors}
+                  label="Rediger navn og kontakt"
+                />
+                <AccessCorner
+                  employee={employee}
+                  colors={colors}
+                  busy={busy}
+                  canEditAccess={canEditAccess}
+                  onClassify={onClassify}
+                  startOpen={accessMenuOpen}
+                />
+              </View>
             </View>
 
             <View style={[styles.heroBody, isPhone && styles.heroBodyPhone]}>
@@ -770,13 +831,6 @@ export default function EmployeeDetailView({
                     </Text>
                   ))}
                 </View>
-                <AccessLevelChips
-                  employee={employee}
-                  colors={colors}
-                  busy={busy}
-                  canEditAccess={canEditAccess}
-                  onClassify={onClassify}
-                />
                 {editingSection === 'identity' ? sectionEditor('identity') : null}
                 <View style={styles.factList}>
                   {mainFacts.map((row, i) => (
@@ -1208,7 +1262,14 @@ const styles = StyleSheet.create({
     ? { boxShadow: '0 8px 24px rgba(7, 39, 76, 0.06)' }
     : {},
   heroPanel: { gap: 16 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  heroActions: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  accessCorner: { alignItems: 'flex-end', gap: 8 },
+  accessCornerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accessSymbol: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  accessGear: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  accessMenu: { borderWidth: 1, borderRadius: 12, padding: 8, gap: 4, minWidth: 220 },
+  accessOption: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8 },
   panelKicker: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   editBtn: {
     flexDirection: 'row',

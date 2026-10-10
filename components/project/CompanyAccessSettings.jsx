@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
+  Image, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -23,7 +23,7 @@ import {
   suggestedLevelId,
   toggleGrant,
 } from '../../src/access/companyAccess';
-import { displayName, normalizeEmployee } from '../../src/employees/model';
+import { displayName, initials, normalizeEmployee } from '../../src/employees/model';
 
 function kindLabel(kind) {
   if (kind === 'external') return 'Eksternt · ikke fast ansatt';
@@ -142,6 +142,150 @@ function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
   );
 }
 
+function byName(a, b) {
+  return displayName(a).localeCompare(displayName(b), 'nb');
+}
+
+function AvatarFace({ employee, colors, active }) {
+  const photo = employee?.person?.photoUrl || '';
+  const custom = Object.keys(employee?.company?.accessOverrides || {}).length > 0;
+  return (
+    <View
+      style={[
+        styles.avatarBtn,
+        {
+          backgroundColor: colors.sunken,
+          borderColor: active ? colors.brand : colors.line,
+        },
+      ]}
+    >
+      <View style={styles.avatarClip}>
+        {photo ? (
+          <Image source={{ uri: photo }} accessibilityIgnoresInvertColors style={styles.avatarImg} />
+        ) : (
+          <Text style={[styles.avatarText, { color: colors.ink }]}>{initials(employee)}</Text>
+        )}
+      </View>
+      {custom ? <View style={[styles.avatarDot, { backgroundColor: colors.brand, borderColor: colors.card }]} /> : null}
+    </View>
+  );
+}
+
+function ProfileIcon({ employee, colors, active = false, onPress, onHover }) {
+  const name = displayName(employee);
+  return (
+    <View nativeID={`access-person-${employee.id}`} style={styles.avatarWrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={name}
+        accessibilityHint={onPress ? 'Vis navn og flytt til et annet nivå' : 'Vis navn'}
+        accessibilityState={{ selected: active }}
+        onHoverIn={() => onHover?.(true)}
+        onHoverOut={() => onHover?.(false)}
+        onPress={onPress}
+      >
+        <AvatarFace employee={employee} colors={colors} active={active} />
+      </Pressable>
+    </View>
+  );
+}
+
+function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
+  const name = displayName(employee);
+  const targets = ACCESS_LEVELS.filter((level) => level.id !== excludeId);
+  return (
+    <View style={styles.moveBox}>
+      <Text style={[styles.kind, { color: colors.ink }]}>Flytt {name} til</Text>
+      <View style={styles.modeRow}>
+        {targets.map((level) => {
+          const suggested = level.id === suggestedId;
+          return (
+            <Pressable
+              key={level.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Flytt ${name} til ${level.label}`}
+              onPress={() => onAssign(employee, level.id)}
+              style={[
+                styles.moveBtn,
+                {
+                  borderColor: suggested ? colors.brand : colors.line,
+                  backgroundColor: suggested ? colors.brandSoft : colors.card,
+                },
+              ]}
+            >
+              <Text style={{ color: suggested ? colors.brand : colors.ink, fontSize: 13 }}>
+                {suggested ? `${level.label} · forslag` : level.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function LevelRosterCard({
+  nativeID, title, meta, members, selected, colors, canEdit, movingId, excludeId, suggestedId, compact, onSelect, onToggleMove, onAssign,
+}) {
+  const [hoverId, setHoverId] = useState('');
+  const moving = members.find((row) => row.id === movingId) || null;
+  const caption = members.find((row) => row.id === (hoverId || movingId)) || null;
+  const captionTitle = caption?.company?.title || '';
+  return (
+    <View
+      nativeID={nativeID}
+      style={[
+        styles.rosterCard,
+        compact ? styles.rosterCardCompact : null,
+        moving ? styles.rosterCardFront : null,
+        {
+          borderColor: selected ? colors.brand : colors.line,
+          backgroundColor: selected ? colors.brandSoft : colors.card,
+        },
+      ]}
+    >
+      <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onSelect}>
+        <Text style={[styles.levelName, { color: selected ? colors.brand : colors.ink }]}>{title}</Text>
+        <Text style={[styles.kind, { color: colors.muted }]}>{meta}</Text>
+      </Pressable>
+      <View style={styles.avatarRow}>
+        {members.map((employee) => (
+          <ProfileIcon
+            key={employee.id}
+            employee={employee}
+            colors={colors}
+            active={employee.id === movingId}
+            onHover={(on) => {
+              if (on) setHoverId(employee.id);
+              else setHoverId((current) => (current === employee.id ? '' : current));
+            }}
+            onPress={canEdit
+              ? () => onToggleMove(employee.id)
+              : () => setHoverId((current) => (current === employee.id ? '' : employee.id))}
+          />
+        ))}
+        {!members.length ? (
+          <Text style={[styles.kind, { color: colors.muted }]}>Ingen</Text>
+        ) : null}
+      </View>
+      {members.length ? (
+        <Text numberOfLines={1} style={[styles.hoverName, { color: caption ? colors.ink : colors.muted }]}>
+          {caption ? `${displayName(caption)}${captionTitle ? ` · ${captionTitle}` : ''}` : ' '}
+        </Text>
+      ) : null}
+      {moving && canEdit ? (
+        <MoveTargets
+          employee={moving}
+          colors={colors}
+          excludeId={excludeId}
+          suggestedId={suggestedId}
+          onAssign={onAssign}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 function LevelChips({ levelId, onPick, colors, counts }) {
   return (
     <View style={styles.levelRow}>
@@ -195,6 +339,7 @@ export default function CompanyAccessSettings({
   onSavePolicy,
   onSaveEmployee,
   layout = '',
+  initialMovingId = '',
 }) {
   const policyKey = JSON.stringify(company?.accessPolicy || {});
   const [policy, setPolicy] = useState(() => normalizeAccessPolicy(company?.accessPolicy));
@@ -205,6 +350,7 @@ export default function CompanyAccessSettings({
   const [personId, setPersonId] = useState('');
   const [personGrants, setPersonGrants] = useState(null);
   const [personDirty, setPersonDirty] = useState(false);
+  const [movingId, setMovingId] = useState(initialMovingId);
   const { width } = useWindowDimensions();
   const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
   const [error, setError] = useState('');
@@ -216,14 +362,8 @@ export default function CompanyAccessSettings({
   }, [policyKey]);
 
   const grouped = useMemo(() => groupEmployeesByLevel(employees), [employees]);
-  const counts = useMemo(() => {
-    const next = {};
-    for (const level of ACCESS_LEVELS) next[level.id] = grouped.buckets[level.id].length;
-    return next;
-  }, [grouped]);
   const level = levelById(levelId) || ACCESS_LEVELS[2];
   const levelGrant = levelGrants(policy, level.id);
-  const members = grouped.buckets[level.id] || [];
 
   const people = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -279,6 +419,8 @@ export default function CompanyAccessSettings({
   function assignLevel(employee, nextLevelId) {
     const nextLevel = levelById(nextLevelId);
     if (!nextLevel || !employee) return;
+    if (placedLevelId(employee) === nextLevel.id) return;
+    setMovingId('');
     const company = {
       ...employee.company,
       accessLevel: nextLevel.id,
@@ -320,6 +462,7 @@ export default function CompanyAccessSettings({
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Seks standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
+        Profilikonene viser hvem som har hvilke rettigheter. Hold over et ikon for å se navnet.
         En person kan i tillegg få egne avvik. Se, lese, skrive og slette gjelder hvert område.
         Høyere rettighet tar med dem under.
       </Text>
@@ -339,7 +482,10 @@ export default function CompanyAccessSettings({
               key={id}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
-              onPress={() => setMode(id)}
+              onPress={() => {
+                setMode(id);
+                setMovingId('');
+              }}
               style={[styles.modeChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
             >
               <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
@@ -350,7 +496,57 @@ export default function CompanyAccessSettings({
 
       {mode === 'levels' ? (
         <View style={styles.stack}>
-          <LevelChips levelId={level.id} onPick={setLevelId} colors={colors} counts={counts} />
+          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Hvem som har hvilke rettigheter</Text>
+          <Text style={[styles.kind, { color: colors.muted }]}>
+            {canEdit
+              ? 'Hold over et profilikon for å se navnet. Trykk på ikonet og velg nivået personen skal flyttes til. En person kan bare ligge i ett nivå. Blå prikk betyr egne avvik fra nivået.'
+              : 'Hold over et profilikon for å se navnet. Blå prikk betyr egne avvik fra nivået.'}
+          </Text>
+          <View style={styles.roster}>
+            {ACCESS_LEVELS.map((row) => {
+              const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
+              const countLabel = roster.length === 1 ? '1 person' : `${roster.length} personer`;
+              return (
+                <LevelRosterCard
+                  key={row.id}
+                  nativeID={`company-access-level-${row.id}`}
+                  title={`${row.order}. ${row.label}`}
+                  meta={`${countLabel} · ${kindLabel(row.kind)}`}
+                  members={roster}
+                  selected={row.id === level.id}
+                  colors={colors}
+                  compact={compact}
+                  canEdit={canEdit && !busy}
+                  movingId={movingId}
+                  excludeId={row.id}
+                  onSelect={() => {
+                    setLevelId(row.id);
+                    setMovingId('');
+                  }}
+                  onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
+                  onAssign={assignLevel}
+                />
+              );
+            })}
+            <LevelRosterCard
+              nativeID="company-access-unplaced"
+              title="Ikke plassert"
+              meta={grouped.unplaced.length
+                ? 'Eksterne foreslås til regnskap eller innleie. Øvrige får ansattnivå til de plasseres.'
+                : 'Alle ansatte er plassert i ett nivå.'}
+              members={[...grouped.unplaced].sort(byName)}
+              selected={false}
+              colors={colors}
+              compact={compact}
+              canEdit={canEdit && !busy}
+              movingId={movingId}
+              excludeId=""
+              suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
+              onSelect={() => setMovingId('')}
+              onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
+              onAssign={assignLevel}
+            />
+          </View>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.ink }]}>{level.order}. {level.label}</Text>
             <Text style={[styles.kind, { color: colors.muted }]}>{kindLabel(level.kind)}</Text>
@@ -398,56 +594,6 @@ export default function CompanyAccessSettings({
               <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre tilpasning av nivåer'}</Text>
             </Pressable>
           ) : null}
-
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>
-            {members.length === 1 ? '1 ansatt i nivået' : `${members.length} ansatte i nivået`}
-          </Text>
-          {members.map((employee) => (
-            <PersonLine
-              key={employee.id}
-              employee={employee}
-              colors={colors}
-              canEdit={canEdit && !busy}
-              onAssign={assignLevel}
-            />
-          ))}
-          {!members.length ? (
-            <Text style={[styles.kind, { color: colors.muted }]}>Ingen er plassert her ennå.</Text>
-          ) : null}
-
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Ikke plassert</Text>
-          <Text style={[styles.kind, { color: colors.muted }]}>
-            Disse har ikke fått et nivå ennå. De ligger ikke i flere grupper. Eksterne foreslås til regnskap eller innleie, øvrige får ansattnivå til de plasseres.
-          </Text>
-          {grouped.unplaced.map((employee) => {
-            const suggestion = suggestedLevelId(employee);
-            const suggested = suggestion ? levelById(suggestion) : null;
-            return (
-              <View key={employee.id} style={[styles.person, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
-                  <Text style={[styles.kind, { color: colors.muted }]}>
-                    {suggested ? `Foreslått: ${suggested.label}` : 'Får ansattnivå til nivået er valgt'}
-                  </Text>
-                </View>
-                {canEdit && suggested ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => assignLevel(employee, suggested.id)}
-                    style={[styles.quietBtn, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>Plasser</Text>
-                  </Pressable>
-                ) : null}
-                {canEdit ? (
-                  <AssignRow employee={employee} colors={colors} onAssign={assignLevel} />
-                ) : null}
-              </View>
-            );
-          })}
-          {!grouped.unplaced.length ? (
-            <Text style={[styles.kind, { color: colors.muted }]}>Alle ansatte er plassert i ett nivå.</Text>
-          ) : null}
         </View>
       ) : (
         <View style={styles.stack}>
@@ -472,6 +618,7 @@ export default function CompanyAccessSettings({
                 onPress={() => setPersonId(employee.id)}
                 style={[styles.person, { borderColor: on ? colors.brand : colors.line, backgroundColor: colors.card }]}
               >
+                <AvatarFace employee={employee} colors={colors} active={on} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
                   <Text style={[styles.kind, { color: colors.muted }]}>
@@ -485,7 +632,9 @@ export default function CompanyAccessSettings({
             <View nativeID="company-access-person" style={styles.stack}>
               <Text style={[styles.sectionTitle, { color: colors.ink }]}>{displayName(person)}</Text>
               <Text style={[styles.kind, { color: colors.muted }]}>
-                Velg ett nivå. Personavvikene under gjelder bare denne personen.
+                {canEdit
+                  ? 'Trykk et nivå for å flytte personen dit. Personavvikene under gjelder bare denne personen.'
+                  : 'Personavvikene under gjelder bare denne personen.'}
               </Text>
               <LevelChips
                 levelId={personLevel}
@@ -536,45 +685,6 @@ export default function CompanyAccessSettings({
   );
 }
 
-function AssignRow({ employee, colors, onAssign }) {
-  return (
-    <View style={styles.assign}>
-      {ACCESS_LEVELS.map((level) => (
-        <Pressable
-          key={level.id}
-          accessibilityRole="button"
-          accessibilityLabel={`Plasser ${displayName(employee)} som ${level.label}`}
-          onPress={() => onAssign(employee, level.id)}
-          style={[styles.mini, { borderColor: colors.line }]}
-        >
-          <Text style={{ color: colors.ink, fontSize: 12 }}>{level.order}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-function PersonLine({ employee, colors, canEdit, onAssign }) {
-  const [open, setOpen] = useState(false);
-  const custom = Object.keys(employee.company?.accessOverrides || {}).length > 0;
-  return (
-    <View style={[styles.person, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
-        <Text style={[styles.kind, { color: colors.muted }]}>
-          {[employee.company?.title, custom ? 'Egen tilpasning' : ''].filter(Boolean).join(' · ') || 'Medarbeider'}
-        </Text>
-      </View>
-      {canEdit ? (
-        <Pressable accessibilityRole="button" onPress={() => setOpen((value) => !value)}>
-          <Text style={{ color: colors.brand }}>{open ? 'Lukk' : 'Bytt nivå'}</Text>
-        </Pressable>
-      ) : null}
-      {open && canEdit ? <AssignRow employee={employee} colors={colors} onAssign={onAssign} /> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   denied: { flex: 1, padding: 24, gap: 8, maxWidth: 560 },
   page: { alignSelf: 'flex-start', width: '100%', maxWidth: 980, gap: 12 },
@@ -617,7 +727,19 @@ const styles = StyleSheet.create({
   quietBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
   person: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personName: { fontSize: 15, fontWeight: '600' },
-  assign: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, width: '100%' },
-  mini: { width: 36, height: 36, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  roster: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  rosterCard: { position: 'relative', borderWidth: 1, borderRadius: 14, padding: 12, gap: 8, flexGrow: 1, flexBasis: 280, maxWidth: 320 },
+  rosterCardCompact: { flexBasis: '100%', maxWidth: '100%' },
+  rosterCardFront: { zIndex: 20 },
+  avatarRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 32, alignItems: 'center' },
+  avatarWrap: { position: 'relative' },
+  hoverName: { fontSize: 12, fontWeight: '600', minHeight: 18 },
+  avatarBtn: { position: 'relative', width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  avatarClip: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  avatarImg: { width: 28, height: 28 },
+  avatarText: { fontSize: 11, fontWeight: '700' },
+  avatarDot: { position: 'absolute', right: -1, bottom: -1, width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
+  moveBox: { gap: 6, width: '100%' },
+  moveBtn: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

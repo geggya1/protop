@@ -759,7 +759,7 @@ export default function EmployeeDetailView({
       </View>
 
       <View style={[styles.columns, isPhone && styles.columnsPhone]}>
-        <View style={[styles.mainCol, isPhone && styles.fullCol]}>
+        <View style={[styles.mainCol, isPhone && styles.stackCol]}>
           <View
             style={[
               styles.panel,
@@ -1130,7 +1130,7 @@ export default function EmployeeDetailView({
           ) : null}
         </View>
 
-        <View style={[styles.sideCol, isPhone && styles.fullCol]}>
+        <View style={[styles.sideCol, isPhone ? styles.stackCol : styles.sideColSticky]}>
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <View style={styles.sideHead}>
               <Text style={[styles.sideTitle, { color: colors.ink }]}>Prosjekter</Text>
@@ -1235,16 +1235,30 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
-  columnsPhone: { flexDirection: 'column' },
+  columnsPhone: { flexDirection: 'column', alignItems: 'stretch' },
   mainCol: { flex: 1.65, gap: 12, minWidth: 0 },
   sideCol: {
     flex: 1,
     gap: 12,
     minWidth: 260,
     maxWidth: 380,
-    ...(Platform.OS === 'web' ? { position: 'sticky', top: 12, alignSelf: 'flex-start' } : {}),
   },
-  fullCol: { maxWidth: '100%', width: '100%', minWidth: 0, position: 'relative', top: 0 },
+  // Sticky only on wide layouts. On phone, sticky + flex:1 inside ScrollView
+  // collapses column height so Prosjekter/Tagger paint over Arbeidsforhold.
+  sideColSticky: Platform.OS === 'web'
+    ? { position: 'sticky', top: 12, alignSelf: 'flex-start' }
+    : { alignSelf: 'flex-start' },
+  stackCol: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
+    maxWidth: '100%',
+    width: '100%',
+    minWidth: 0,
+    alignSelf: 'stretch',
+    position: 'relative',
+    top: 0,
+  },
   heroFooter: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -234,7 +234,7 @@ Nummerserie, PDF, innbetaling, purre, Peppol AP, journal/SAF-T, lønn.
 
 ## 7. Prioritering
 
-**P0 (denne runden):** utlegg + kjørebok + produkter/salg + felles fakturagrunnlag + tester + meny.
+**P0 (denne runden, implementert 2026-10-10):** utlegg + kjørebok + produkter/salg + felles fakturagrunnlag + tester + meny.
 
 **P1:** kvitteringsopplasting til Storage, periodelås, PDF-faktura, innbetaling, nummerserie, lager, kreditnota fra fakturadetalj, timespesifikasjon-vedlegg.
 

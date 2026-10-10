@@ -13,12 +13,13 @@ import { useColors } from '../../src/context/ThemeContext';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
+import { createCreditNoteFromInvoice } from '../../src/economy/billingFromHours.js';
 import {
-  buildBillingProposals,
-  createCreditNoteFromInvoice,
-  createInvoiceFromProposal,
-  markEntriesInvoiced,
-} from '../../src/economy/billingFromHours.js';
+  buildOperationsProposals,
+  createInvoiceFromOperations,
+  markProposalInvoiced,
+  proposalSummary,
+} from '../../src/economy/billingFromOperations.js';
 import {
   attachVoucherSnapshot,
   creditVoucherFromInvoice,
@@ -62,7 +63,7 @@ export default function EconomyBilling() {
   }, [familyId]);
 
   const proposals = useMemo(
-    () => buildBillingProposals(projectState, { onlyApproved }),
+    () => buildOperationsProposals(projectState, { onlyApproved }),
     [projectState, onlyApproved],
   );
 
@@ -76,7 +77,7 @@ export default function EconomyBilling() {
     setError('');
     setNote('');
     try {
-      const created = createInvoiceFromProposal(proposal, {
+      const created = createInvoiceFromOperations(proposal, {
         existingInvoices: invoices,
         vatCode,
         groupBy: 'activity',
@@ -106,7 +107,7 @@ export default function EconomyBilling() {
       }
 
       await invoiceStorage.saveInvoice(familyId, invoice);
-      const nextState = markEntriesInvoiced(projectState, invoice.timeEntryIds, invoice.id);
+      const nextState = markProposalInvoiced(projectState, proposal, invoice.id);
       await saveProjectState(nextState, familyId);
       setProjectState(nextState);
       setInvoices(await invoiceStorage.loadInvoices(familyId));
@@ -193,7 +194,7 @@ export default function EconomyBilling() {
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
       <Text style={[styles.title, { color: colors.ink }]}>Fakturagrunnlag</Text>
       <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 640 }}>
-        Godkjente fakturerbare timer samles per kunde/prosjekt. Opprett faktura med linjer, MVA, KID, bilag og EHF-XML (Peppol BIS Billing 3.0).
+        Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde/prosjekt. Opprett faktura med linjer, MVA, KID, bilag og EHF-XML.
       </Text>
 
       <View style={styles.row}>
@@ -246,7 +247,7 @@ export default function EconomyBilling() {
       {!proposals.length ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.muted }}>
-            Ingen timer klare for fakturering. Godkjenn føringer under Prosjekt → Timerapport, eller før timer i Arbeid.
+            Ingen poster klare for fakturering. Godkjenn timer, utlegg, kjøring eller varesalg først.
           </Text>
           <View style={[styles.row, { marginTop: 12 }]}>
             <TouchableOpacity onPress={() => requestShellTab?.('arbeid')} style={[styles.btn, { backgroundColor: colors.brand }]}>
@@ -265,7 +266,16 @@ export default function EconomyBilling() {
             {proposal.customerName || 'Uten kunde'} · #{proposal.projectNumber} {proposal.projectName}
           </Text>
           <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
-            {proposal.entries.length} føringer · {formatHours(proposal.hours)} · eks. mva {formatMoney(proposal.amountExVat)}
+            {(() => {
+              const s = proposalSummary(proposal);
+              const bits = [];
+              if (s.entryCount) bits.push(`${s.entryCount} timer (${formatHours(s.hours)})`);
+              if (s.expenseCount) bits.push(`${s.expenseCount} utlegg`);
+              if (s.tripCount) bits.push(`${s.tripCount} turer`);
+              if (s.saleCount) bits.push(`${s.saleCount} varer`);
+              bits.push(`eks. mva ${formatMoney(proposal.amountExVat)}`);
+              return bits.join(' · ');
+            })()}
           </Text>
           <ScrollView horizontal style={{ marginTop: 8 }}>
             {proposal.entries.slice(0, 8).map((row) => (

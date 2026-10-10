@@ -53,6 +53,10 @@ export function emptyProjectState() {
     activities: [],
     members: [],
     timeEntries: [],
+    expenses: [],
+    mileageTrips: [],
+    products: [],
+    sales: [],
     absences: [],
     board: [],
     sja: [],
@@ -135,6 +139,10 @@ export function normalizeProjectState(raw) {
   next.members = next.members.map((row) => normalizeMemberRow(row)).filter(Boolean);
   next.timeEntries = next.timeEntries.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
   next.absences = next.absences.map((row) => normalizeAbsenceRow(row)).filter(Boolean);
+  next.expenses = (next.expenses || []).filter((row) => row && typeof row === 'object');
+  next.mileageTrips = (next.mileageTrips || []).filter((row) => row && typeof row === 'object');
+  next.products = (next.products || []).filter((row) => row && typeof row === 'object');
+  next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
   return scrubProjectState(next);
 }

@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { emptyInvoice, normalizeInvoice, sortInvoices } from '../../src/economy/invoices.js';
 import { buildKid } from '../../src/economy/kid.js';
-import { calcLineVat } from '../../src/economy/vat.js';
+import { calcLineVat, roundMoney } from '../../src/economy/vat.js';
 import { attachVoucherSnapshot, voucherFromInvoice } from '../../src/economy/vouchers.js';
 import EconomyInvoices from './EconomyInvoices';
 
@@ -166,9 +166,9 @@ function buildDemoSeedInvoice() {
       account: '3000',
     },
   ];
-  const amountExVat = lines.reduce((s, l) => s + l.amountExVat, 0);
-  const vat = lines.reduce((s, l) => s + l.vatAmount, 0);
-  const amountInclVat = lines.reduce((s, l) => s + l.amountInclVat, 0);
+  const amountExVat = roundMoney(lines.reduce((s, l) => s + l.amountExVat, 0));
+  const vat = roundMoney(lines.reduce((s, l) => s + l.vatAmount, 0));
+  const amountInclVat = roundMoney(lines.reduce((s, l) => s + l.amountInclVat, 0));
   const kid = buildKid({
     customerNumber: '10231',
     invoiceNumber: '10001',

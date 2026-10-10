@@ -84,7 +84,7 @@ function idsIn(sections) {
   assert.equal(companyItems[0].forceOpen, true);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'selskap').children.map((i) => i.label),
-    ['Underenheter'],
+    ['Underenheter', 'Tilgang'],
   );
   assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(

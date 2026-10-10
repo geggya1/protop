@@ -3,6 +3,7 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { levelById, placedLevelId } from '../../src/access/companyAccess';
 import {
   cardSubtitle,
   choiceLabel,
@@ -57,6 +58,10 @@ function showValue(employee, field, reveal) {
   if (field.type === 'bool') return raw ? 'Ja' : '';
   if (field.key === 'person.nationalId') return reveal ? raw : maskNationalId(raw);
   if (field.type === 'date') return formatNbDate(raw);
+  if (field.key === 'company.accessRole') {
+    const id = placedLevelId(employee);
+    if (id) return levelById(id)?.label || clip(raw);
+  }
   if (field.type === 'choice') return choiceLabel(field.options, raw);
   if (field.type === 'percent') return raw ? `${raw} %` : '';
   return clip(raw);
@@ -269,7 +274,7 @@ function ownerForKey(key) {
 }
 
 function InlineEditor({
-  fieldKey, employee, colors, canEditOwner, departments, members, addressHits,
+  fieldKey, employee, colors, canEditOwner, lockedKeys = [], departments, members, addressHits,
   extraDepartment, setExtraDepartment, onPickAddress, onPhoto, onChange, onSave, onCancel, busy,
 }) {
   const field = FIELDS.get(fieldKey);
@@ -281,7 +286,7 @@ function InlineEditor({
         field={field}
         draft={employee}
         colors={colors}
-        editable={canEditOwner(owner)}
+        editable={canEditOwner(owner) && !lockedKeys.includes(field.key)}
         departments={departments}
         members={members}
         addressHits={addressHits}
@@ -319,6 +324,7 @@ export default function EmployeeDetailView({
   reveal = false,
   gaps = null,
   canEdit = false,
+  canEditAccess = false,
   isAdmin = false,
   isSelf = false,
   siblings = [],
@@ -519,6 +525,7 @@ export default function EmployeeDetailView({
         employee={employee}
         colors={colors}
         canEditOwner={canEditOwner}
+        lockedKeys={canEditAccess ? [] : ['company.accessRole']}
         departments={departments}
         members={members}
         addressHits={addressHits}
@@ -751,7 +758,9 @@ export default function EmployeeDetailView({
                       link={row.link}
                       colors={colors}
                       last={i === mainFacts.length - 1}
-                      onEdit={canEdit && row.key !== 'kin' ? () => startField(row.key) : (canEdit ? () => startSection('kin') : undefined)}
+                      onEdit={row.key === 'company.accessRole'
+                        ? (canEditAccess ? () => startField(row.key) : undefined)
+                        : (canEdit && row.key !== 'kin' ? () => startField(row.key) : (canEdit ? () => startSection('kin') : undefined))}
                       editing={editingKey === row.key || (row.key === 'person.kinName' && editingSection === 'kin')}
                       editor={editingKey === row.key ? fieldEditor(row.key) : (row.key === 'person.kinName' && editingSection === 'kin' ? fieldEditor('person.kinName') : null)}
                     />

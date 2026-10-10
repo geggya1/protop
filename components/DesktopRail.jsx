@@ -5,6 +5,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
+import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
@@ -95,6 +96,7 @@ export default function DesktopRail({
 
   const asChild = isChild || isActingAsChild;
   const asParent = isParent && !isActingAsChild;
+  const companyAccess = useCompanyAccess();
   const activeKids = useMemo(
     () => (kids || []).filter((k) => k.active !== false),
     [kids],
@@ -126,6 +128,7 @@ export default function DesktopRail({
         firstKid: activeKids[0] || null,
         isGrandparent,
         grandparentModules,
+        companyGrants: companyAccess.grants,
       });
       if (!hideChatNav) return built;
       return built.map((section) => ({
@@ -137,6 +140,7 @@ export default function DesktopRail({
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
       canImport, activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, hideChatNav, isGrandparent, grandparentModules,
+      companyAccess.grants,
     ],
   );
 

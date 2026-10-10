@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
@@ -233,7 +234,10 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, isAdmin, uid, shellIntent, clearShellIntent } = useApp();
+  const { familyId, requestShellTab, isAdmin: groupAdmin, uid, shellIntent, clearShellIntent } = useApp();
+  const access = useCompanyAccess();
+  const isAdmin = groupAdmin || (access.ready && access.can('projects', 'write'));
+  const canDeleteProjects = groupAdmin || (access.ready && access.can('projects', 'delete'));
   const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -494,7 +498,7 @@ export default function ProjectWorkScreen() {
   }
 
   async function runDelete(ids, successNote) {
-    if (!isAdmin || deleting) return;
+    if (!canDeleteProjects || deleting) return;
     if (!ids.length) {
       setError('Marker minst ett prosjekt før sletting.');
       setConfirmBulkDelete(false);
@@ -1358,7 +1362,7 @@ export default function ProjectWorkScreen() {
             >
               <Text style={{ color: colors.ink }}>Arkiver</Text>
             </TouchableOpacity>
-            {confirmEditDelete ? (
+            {canDeleteProjects && confirmEditDelete ? (
               <>
                 <TouchableOpacity
                   onPress={() => runDelete([selected.id], 'Prosjektet er slettet.')}
@@ -1372,7 +1376,7 @@ export default function ProjectWorkScreen() {
                   <Text style={{ color: colors.ink }}>Avbryt slett</Text>
                 </TouchableOpacity>
               </>
-            ) : (
+            ) : canDeleteProjects ? (
               <TouchableOpacity
                 onPress={() => setConfirmEditDelete(true)}
                 accessibilityRole="button"
@@ -1380,7 +1384,7 @@ export default function ProjectWorkScreen() {
               >
                 <Text style={{ color: '#fff' }}>Slett prosjekt</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </>
         ) : null}
       </View>
@@ -1463,7 +1467,7 @@ export default function ProjectWorkScreen() {
         ]}
       />
 
-      {isAdmin && visibleProjects.length ? (
+      {canDeleteProjects && visibleProjects.length ? (
         <View style={styles.rowWrap}>
           <TouchableOpacity
             onPress={toggleCheckAllVisible}
@@ -1518,14 +1522,14 @@ export default function ProjectWorkScreen() {
           )}
         </View>
       ) : null}
-      {isAdmin && confirmBulkDelete ? (
+      {canDeleteProjects && confirmBulkDelete ? (
         <Text style={{ color: colors.danger || '#b42318' }}>
           Sletting kan ikke angres. Tilhørende poster på prosjektet fjernes også.
         </Text>
       ) : null}
-      {!isAdmin && visibleProjects.length ? (
+      {!canDeleteProjects && visibleProjects.length ? (
         <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Bare administratorer kan slette prosjekter.
+          Bare den som kan slette prosjekter, kan fjerne dem.
         </Text>
       ) : null}
 
@@ -1535,7 +1539,7 @@ export default function ProjectWorkScreen() {
             ? 'Henter prosjekter…'
             : !visibleProjects.length
               ? 'Ingen prosjekter ennå.'
-              : `${visibleProjects.length} prosjekter${isAdmin && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
+              : `${visibleProjects.length} prosjekter${canDeleteProjects && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
         </Text>
         <ColumnSettingsMenu
           visibleKeys={visibleKeys}
@@ -1546,7 +1550,7 @@ export default function ProjectWorkScreen() {
 
       {visibleProjects.length ? (
         <View style={listDesk ? styles.tableGrow : null}>
-          <ProjectTable phone={isPhone} colors={colors} selectCol={isAdmin} columns={listColumns}>
+          <ProjectTable phone={isPhone} colors={colors} selectCol={canDeleteProjects} columns={listColumns}>
             {!isPhone ? (
               <View
                 nativeID="project-table-head"
@@ -1557,7 +1561,7 @@ export default function ProjectWorkScreen() {
                   Platform.OS === 'web' && styles.tableHeadSticky,
                 ]}
               >
-                {isAdmin ? (
+                {canDeleteProjects ? (
                   <View style={[styles.selectCell, styles.headSelect, { width: SELECT_COL_WIDTH }]}>
                     <TouchableOpacity
                       onPress={toggleCheckAllVisible}
@@ -1611,7 +1615,7 @@ export default function ProjectWorkScreen() {
                   key={item.id}
                   style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
                 >
-                  {isAdmin ? (
+                  {canDeleteProjects ? (
                     <TouchableOpacity
                       onPress={() => toggleChecked(item.id)}
                       accessibilityRole="checkbox"

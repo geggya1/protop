@@ -71,7 +71,7 @@ const ROLE_HEADERS = new Map([
   ['admin', 'Administrator'],
   ['hovedadministrator', 'Administrator'],
   ['leder', 'Leder'],
-  ['avdelingsleder', 'Leder'],
+  ['avdelingsleder', 'Avdelingsleder'],
   ['manager', 'Leder'],
   ['medarbeider', 'Medarbeider'],
   ['bruker', 'Medarbeider'],
@@ -80,13 +80,13 @@ const ROLE_HEADERS = new Map([
   ['readonly', 'Lesetilgang'],
   ['gjest', 'Lesetilgang'],
 ]);
-const ROLE_RANK = ['Lesetilgang', 'Medarbeider', 'Leder', 'Administrator'];
+const ROLE_RANK = ['Lesetilgang', 'Medarbeider', 'Ansatt', 'Avdelingsleder', 'Leder', 'Øverste leder', 'Administrator'];
 const KNOWN_ROLE = new Map([
   ['administrator', 'Administrator'],
   ['admin', 'Administrator'],
   ['hovedadministrator', 'Administrator'],
   ['leder', 'Leder'],
-  ['avdelingsleder', 'Leder'],
+  ['avdelingsleder', 'Avdelingsleder'],
   ['manager', 'Leder'],
   ['medarbeider', 'Medarbeider'],
   ['bruker', 'Medarbeider'],

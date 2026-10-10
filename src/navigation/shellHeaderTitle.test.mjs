@@ -120,6 +120,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'home', t }), 'Hjem');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', t }), 'Selskap');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'underenheter', t }), 'Underenheter');
+  assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'tilgang', t }), 'Tilgang');
   assert.equal(resolveShellHeaderTitle({ tab: 'underenheter', t }), 'Underenheter');
   assert.equal(resolveShellHeaderTitle({ tab: 'plan', t }), 'Kalender');
   assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjema');

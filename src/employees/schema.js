@@ -38,7 +38,14 @@ export const NATIONALITY_OPTIONS = ['Norsk', 'Svensk', 'Dansk', 'Finsk', 'Annen'
 export const MARITAL_OPTIONS = ['Ugift', 'Gift', 'Samboer', 'Skilt', 'Enke/enkemann'];
 export const EMPLOYMENT_OPTIONS = ['Fast ansatt', 'Midlertidig', 'Vikar', 'Lærling', 'Innleid', 'Ekstern'];
 export const COMPENSATION_OPTIONS = ['Fastlønn', 'Timelønn', 'Provisjon', 'Honorar'];
-export const ACCESS_OPTIONS = ['Administrator', 'Leder', 'Medarbeider', 'Lesetilgang'];
+export const ACCESS_OPTIONS = [
+  'Regnskap eksternt',
+  'Innleie eksternt',
+  'Ansatt',
+  'Avdelingsleder',
+  'Øverste leder',
+  'Administrator',
+];
 export const PROJECT_ROLE_OPTIONS = [
   'Prosjektleder',
   'Prosjekteringsleder',
@@ -105,9 +112,9 @@ export const FORM_SECTIONS = [
     owner: 'company',
     purpose: 'operations',
     scope: 'employee',
-    blurb: 'Rollen og rettighetene gjelder ansettelsen. De gjør ikke personen til administrator i ProTop.',
+    blurb: 'Ett tilgangsnivå per ansatt. Nivået og eventuelle personavvik settes under Selskap → Tilgang. Det gjør ikke personen til administrator i ProTop.',
     fields: [
-      { key: 'company.accessRole', label: 'Tilgangsstyringsrolle', type: 'suggest', options: ACCESS_OPTIONS },
+      { key: 'company.accessRole', label: 'Tilgangsnivå', type: 'choice', options: ACCESS_OPTIONS },
       { key: 'company.permissions', label: 'Rettigheter', type: 'tags' },
       { key: 'company.canHandleLegal', label: 'Kan behandle juridiske saker', type: 'bool' },
       { key: 'company.projectRole', label: 'Standard rolle på prosjekter', type: 'suggest', options: PROJECT_ROLE_OPTIONS },

@@ -20,6 +20,9 @@ import ChatTabScreen from '../screens/v2/ChatTabScreen';
 import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import { useCompanyAccess } from '../src/access/useCompanyAccess';
+import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
@@ -137,6 +140,7 @@ function AppShellInner() {
   const route = useOptionalRoute();
   const { t } = useI18n();
   const colors = useColors();
+  const companyAccess = useCompanyAccess();
   const { highChildFriendliness } = useThemeMeta();
   const {
     isParent, isChild, isActingAsChild, isGrandparent, family, families, loading,
@@ -497,6 +501,16 @@ function AppShellInner() {
   const onEdgeSwipeBack = moreSubView ? goBackFromGate : goHome;
 
   const otherBody = useMemo(() => {
+    if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.ready) {
+      return (
+        <View style={{ flex: 1, padding: 24 }}>
+          <Text style={{ color: colors.muted }}>Henter tilgang…</Text>
+        </View>
+      );
+    }
+    if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, moreSubView)) {
+      return <CompanyAccessDenied colors={colors} />;
+    }
     if (tab === 'plan') return null;
     if (tab === 'chores') {
       if (isChild || isActingAsChild) return <ChoresScreen />;
@@ -552,6 +566,7 @@ function AppShellInner() {
     if (tab === 'arbeid') return <ArbeidScreen />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
+    if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'selskap' || (isOrganizationType(family?.type) && tab === 'home')) {
@@ -566,7 +581,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, colors]);
+  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess]);
 
   const body = (
     <>

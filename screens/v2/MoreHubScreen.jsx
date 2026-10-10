@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useI18n } from '../../src/i18n';
 import { colors, radius, useLayout } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
@@ -53,6 +54,7 @@ import {
 import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
 import AiImportChildPicker from '../../components/AiImportChildPicker';
 import { buildChildDashboardApps, buildParentDashboardApps, buildShellModules, companyNavItems } from '../../src/navigation/shellModules';
+import { filterCompanyNav } from '../../src/access/companyAccess';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
 import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
@@ -168,6 +170,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
 
   const asChild = isChild || isActingAsChild;
   const asParent = isParent && !isActingAsChild;
+  const companyAccess = useCompanyAccess();
   const { unreadByModule } = useUnread();
   const profileChild = isChild ? meChild : (isActingAsChild ? activeChild : null);
   const childForSchedule = profileChild;
@@ -214,11 +217,13 @@ export default function MoreHubScreen({ subView, setSubView }) {
       firstKid: activeKids[0] || null,
       isGrandparent,
       grandparentModules,
+      companyGrants: companyAccess.grants,
     }),
     [
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
       canImport, activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
+      companyAccess.grants,
     ],
   );
 
@@ -349,7 +354,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
           footer={isOrganizationType(family?.type) ? (
             <View style={styles.companyBlock}>
               <Text style={styles.companyHeading}>{t('shell.company')}</Text>
-              {companyNavItems().map((item) => (
+              {filterCompanyNav(companyNavItems(), companyAccess.grants).map((item) => (
                 <View key={item.id}>
                   <Row
                     icon={item.icon}

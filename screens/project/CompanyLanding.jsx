@@ -254,15 +254,17 @@ export default function CompanyLanding({
               </View>
             ) : null}
           </View>
-          <View style={styles.heroActions}>
-            <TouchableOpacity
-              onPress={onSettings}
-              accessibilityLabel="Innstillinger for bedriften"
-              style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
-            >
-              <Ionicons name="pencil" size={16} color={colors.ink} />
-            </TouchableOpacity>
-          </View>
+          {onSettings ? (
+            <View style={styles.heroActions}>
+              <TouchableOpacity
+                onPress={onSettings}
+                accessibilityLabel="Innstillinger for bedriften"
+                style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+              >
+                <Ionicons name="pencil" size={16} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
         {logo?.dataUrl ? (
           <View

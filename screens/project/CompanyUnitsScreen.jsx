@@ -3,13 +3,15 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 
 export default function CompanyUnitsScreen() {
   const colors = useColors();
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
   const company = family?.company?.navn ? family.company : null;
-  const canEdit = isSuperAdmin(family, uid);
+  const access = useCompanyAccess();
+  const canEdit = isSuperAdmin(family, uid) || (access.ready && access.can('units', 'write'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 

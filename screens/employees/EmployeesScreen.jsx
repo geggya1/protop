@@ -3,6 +3,8 @@ import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
@@ -76,7 +78,11 @@ async function bytesFromFile(file) {
 
 export default function EmployeesScreen() {
   const colors = useColors();
-  const { familyId, family, members, uid, user, userProfile, isAdmin, requestShellTab } = useApp();
+  const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab } = useApp();
+  const access = useCompanyAccess();
+  const isAdmin = groupAdmin || (access.ready && access.can('employees', 'write'));
+  const canEditAccess = isSuperAdmin(family, uid) || (access.ready && access.can('companyProfile', 'write'));
+  const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = family?.company?.navn || family?.name || '';
   const departments = useMemo(
     () => departmentsOf(family?.company?.subUnits || []),
@@ -983,6 +989,7 @@ export default function EmployeesScreen() {
           reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
           gaps={gaps}
           canEdit={isAdmin || detailEmployee.personUid === uid}
+          canEditAccess={canEditAccess}
           isAdmin={isAdmin}
           isSelf={detailEmployee.personUid === uid}
           siblings={visible}
@@ -1035,6 +1042,7 @@ export default function EmployeesScreen() {
             scope={view === 'mine' ? 'profile' : 'employee'}
             colors={colors}
             canEditOwner={canEditOwner}
+            lockedKeys={accessLocked}
             departments={departments}
             members={people}
             addressHits={addressHits}

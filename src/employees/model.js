@@ -12,6 +12,12 @@ import {
   STATUS_OPTIONS,
   scalarFields,
 } from './schema.js';
+import {
+  alignCompanyEmployment,
+  canonicalLevelId,
+  levelIdFromRoleLabel,
+  normalizeOverrides,
+} from '../access/companyAccess.js';
 
 const DATE_PATHS = ['person.birthDate', 'company.periodFrom', 'company.periodTo'];
 const EMAIL_PATHS = ['person.email', 'company.email', 'person.kinEmail'];
@@ -101,6 +107,8 @@ export function emptyCompany() {
     extraDepartments: [],
     title: '',
     accessRole: '',
+    accessLevel: '',
+    accessOverrides: {},
     permissions: [],
     canHandleLegal: false,
     employmentType: '',
@@ -427,6 +435,10 @@ function normalizeCompany(raw) {
   company.extraDepartments = stringList(source.extraDepartments);
   company.title = text(source.title);
   company.accessRole = text(source.accessRole);
+  const fromRole = levelIdFromRoleLabel(company.accessRole);
+  const explicitLevel = canonicalLevelId(source.accessLevel);
+  company.accessLevel = fromRole || explicitLevel || '';
+  company.accessOverrides = normalizeOverrides(source.accessOverrides);
   company.permissions = stringList(source.permissions);
   company.canHandleLegal = bool(source.canHandleLegal);
   company.employmentType = text(source.employmentType);
@@ -441,7 +453,7 @@ function normalizeCompany(raw) {
   company.periodFrom = text(source.periodFrom);
   company.periodTo = text(source.periodTo);
   company.comment = text(source.comment);
-  return company;
+  return alignCompanyEmployment(company);
 }
 
 export function normalizeEmployee(raw) {

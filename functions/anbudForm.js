@@ -5,8 +5,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { requireAuth } from './security.js';
-import { formFromScan } from './anbud/formBuilder.js';
-import { classifyPlanMime, decodePlainText, extractDocxText, extractPdfText } from './documentText.js';
+import { formFromScan, formPrompt, mergeFormReads } from './anbud/formBuilder.js';
+import { formDocumentParts } from './formDocument.js';
 import { touchGeminiEnv } from './geminiEnv.js';
 import {
   callGeminiJson,
@@ -14,64 +14,46 @@ import {
   getGeminiKey,
 } from './aiShared.js';
 
-const PROMPT = `Du leser et skjema, en sjekkliste, et brev eller et skannet dokument og bygger et digitalt skjema.
-Returner KUN gyldig JSON:
-{
-  "title": "kort navn på skjemaet",
-  "intro": "en setning om hva skjemaet brukes til, eller tom streng",
-  "fields": [
-    {
-      "label": "teksten som står ved feltet",
-      "kind": "title|text|long|date|time|number|scale|check|choice|checks|dropdown|image|file",
-      "required": false,
-      "help": "kort hjelpetekst eller tom streng",
-      "options": ["bare for choice, checks og dropdown"]
-    }
-  ]
-}
-Bruk title på overskrifter som ikke skal fylles ut.
-Bruk date på datoer, time på klokkeslett, number på beløp og antall, scale på en tallskala, check på ja/nei, choice når ett alternativ skal velges, checks når flere kan krysses av, dropdown på lister, image når et bilde skal legges inn, file når et dokument skal lastes opp, long på fritekst over flere linjer.
-Ikke finn opp felter som ikke står i dokumentet. Maks 40 felt.`;
-
 function reject(code, message) {
   throw new HttpsError(code, message);
 }
 
-async function documentParts(dataUrl, fileName) {
-  const cleaned = String(dataUrl || '').replace(/^data:[^;]+;base64,/, '');
-  const mime = (String(dataUrl || '').match(/^data:([^;]+);base64,/i) || [])[1] || '';
-  const kind = classifyPlanMime(mime, fileName);
-  if (cleaned.length < 40) reject('invalid-argument', 'Last opp et bilde eller et dokument.');
-  if (kind === 'pdf') {
-    const read = await extractPdfText(Buffer.from(cleaned, 'base64'));
-    return [{ text: `Dokumenttekst:\n${String(read.text || '').slice(0, 20000)}` }];
-  }
-  if (kind === 'docx') {
-    const read = extractDocxText(Buffer.from(cleaned, 'base64'));
-    return [{ text: `Dokumenttekst:\n${String(read || '').slice(0, 20000)}` }];
-  }
-  if (kind === 'text') {
-    return [{ text: `Dokumenttekst:\n${decodePlainText(cleaned).slice(0, 20000)}` }];
-  }
-  return [
-    { text: 'Les dette dokumentet og bygg skjemaet.' },
-    { inline_data: { mime_type: mime || 'image/jpeg', data: cleaned } },
-  ];
+function readForm(parsed, localForm) {
+  const scanned = parsed ? formFromScan(parsed) : null;
+  const merged = mergeFormReads(localForm, scanned?.ok ? scanned.form : null);
+  return merged?.fields?.length ? merged : null;
 }
 
 export const generateCompanyForm = onCall(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 90, memory: '1GiB' },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 120, memory: '1GiB' },
   async (request) => {
     try {
       requireAuth(request.auth);
       touchGeminiEnv();
+      const prepared = await formDocumentParts(request.data?.imageBase64, request.data?.fileName);
+      if (prepared.error) reject('invalid-argument', prepared.error);
+      if (!prepared.parts.length && !prepared.localForm) reject('invalid-argument', 'Last opp et bilde eller et dokument.');
       const apiKey = getGeminiKey();
-      if (!apiKey) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
-      const parts = await documentParts(request.data?.imageBase64, request.data?.fileName);
-      const parsed = await callGeminiJson(apiKey, PROMPT, parts, { maxOutputTokens: 4096, perModelTimeoutMs: 50000 });
-      const made = formFromScan(parsed);
-      if (!made.ok) reject('failed-precondition', made.error);
-      return { ok: true, form: made.form, engine: 'gemini' };
+      let parsed = null;
+      let engine = prepared.localForm ? (prepared.usedOcr ? 'ocr' : 'text') : '';
+      if (!apiKey && !prepared.localForm) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
+      if (apiKey && prepared.parts.length > 1) {
+        try {
+          parsed = await callGeminiJson(apiKey, formPrompt(), prepared.parts, { maxOutputTokens: 8192, perModelTimeoutMs: 55000 });
+          engine = prepared.usedOcr ? 'ocr+gemini' : 'gemini';
+        } catch (err) {
+          if (!prepared.localForm) throw err;
+          logger.warn('generateCompanyForm used local read', { message: err?.message });
+        }
+      }
+      const form = readForm(parsed, prepared.localForm);
+      if (!form) reject('failed-precondition', 'AI fant ikke et skjema i dokumentet.');
+      return {
+        ok: true,
+        form,
+        engine: engine || 'text',
+        summary: String(parsed?.designNote || '').replace(/\s+/g, ' ').trim().slice(0, 240),
+      };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.warn('generateCompanyForm failed', { message: err?.message });

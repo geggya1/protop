@@ -1,6 +1,6 @@
 /** Dokumentmapper, opplastede filer og bedriftsskjema i ett tilbudsarbeid. */
 
-import { coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
+import { MAX_FIELDS, coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
 import { deadlinePassedAt, parseDeadline } from './noticeText.js';
 
 export const GROUND_FOLDER_ID = 'grunnlag';
@@ -417,7 +417,7 @@ function normalizeTemplate(row) {
   const title = text(row?.title).slice(0, 80);
   const id = text(row?.id);
   if (!title || !id) return null;
-  const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
+  const fields = (Array.isArray(row.fields) ? row.fields : []).map(normalizeField).filter(Boolean).slice(0, MAX_FIELDS);
   if (!fields.length) return null;
   return {
     id,
@@ -439,7 +439,7 @@ function normalizeForm(raw) {
   const id = text(raw?.id);
   const title = text(raw?.title).slice(0, 80);
   if (!id || !title) return null;
-  const fields = (Array.isArray(raw.fields) ? raw.fields : []).map(normalizeField).filter(Boolean).slice(0, 40);
+  const fields = (Array.isArray(raw.fields) ? raw.fields : []).map(normalizeField).filter(Boolean).slice(0, MAX_FIELDS);
   return {
     id,
     templateId: text(raw?.templateId),
@@ -1203,6 +1203,7 @@ export function saveFormTemplate(state, input) {
   const exists = templates.some((row) => row.id === id);
   return ok({
     ...state,
+    formTemplatesAt: new Date().toISOString(),
     formTemplates: exists ? templates.map((row) => (row.id === id ? next : row)) : [...templates, next],
   });
 }
@@ -1210,7 +1211,11 @@ export function saveFormTemplate(state, input) {
 export function deleteFormTemplate(state, templateId) {
   const templates = normalizeFormTemplates(state?.formTemplates);
   if (!templates.some((row) => row.id === templateId)) return fail(state, 'Malen finnes ikke.');
-  return ok({ ...state, formTemplates: templates.filter((row) => row.id !== templateId) });
+  return ok({
+    ...state,
+    formTemplatesAt: new Date().toISOString(),
+    formTemplates: templates.filter((row) => row.id !== templateId),
+  });
 }
 
 export function pullFormTemplate(state, bidId, templateId) {

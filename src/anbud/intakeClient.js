@@ -11,7 +11,7 @@ export async function sendDirectAnbud(input) {
 
 export async function generateCompanyForm(imageBase64, fileName) {
   try {
-    const call = httpsCallable(functions, 'generateCompanyForm', { timeout: 90000 });
+    const call = httpsCallable(functions, 'generateCompanyForm', { timeout: 120000 });
     const res = await call({ imageBase64, fileName: fileName || '' });
     return res?.data || { ok: false };
   } catch (err) {

@@ -107,7 +107,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile }) {
       <TextInput
         value={String(field.value || '')}
         onChangeText={onChange}
-        placeholder={field.kind === 'date' ? 'ÅÅÅÅ-MM-DD' : field.kind === 'time' ? 'TT:MM' : fieldType(field.kind).label}
+        placeholder={field.placeholder || (field.kind === 'date' ? 'ÅÅÅÅ-MM-DD' : field.kind === 'time' ? 'TT:MM' : fieldType(field.kind).label)}
         placeholderTextColor={colors.placeholder}
         multiline={field.kind === 'long'}
         keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}

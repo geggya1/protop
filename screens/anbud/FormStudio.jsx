@@ -8,6 +8,7 @@ import {
   dragTargetIndex,
   duplicateField,
   fieldType,
+  formAttention,
   insertField,
   insertionIndex,
   moveField,
@@ -232,6 +233,7 @@ export default function FormStudio({
     patch(typeFor, {
       kind,
       options,
+      review: '',
       other: optionKind && kind !== 'dropdown' ? !!current.other : false,
       shuffle: optionKind ? !!current.shuffle : false,
     });
@@ -363,6 +365,20 @@ export default function FormStudio({
   const previewFields = settings.shuffleQuestions
     ? mixRows(draft.fields, previewSeed)
     : draft.fields;
+  const attention = formAttention(draft);
+
+  function previewRows(fields) {
+    const rows = [];
+    for (let index = 0; index < fields.length; index += 1) {
+      const field = fields[index];
+      const next = fields[index + 1];
+      if (field.width === 'half' && next?.width === 'half' && field.kind !== 'title' && next.kind !== 'title') {
+        rows.push([field, next]);
+        index += 1;
+      } else rows.push([field]);
+    }
+    return rows;
+  }
 
   function optionsFor(field) {
     if (!field.shuffle || !(field.options || []).length) return field.options || [];
@@ -418,6 +434,23 @@ export default function FormStudio({
                     <Text style={{ color: colors.muted }}>Legg til forsidebilde</Text>
                   )}
                 </TouchableOpacity>
+                {attention.issues.length ? (
+                  <View style={[styles.attention, { borderColor: '#9a6700', backgroundColor: colors.card }]}>
+                    <Text style={{ color: '#9a6700', fontWeight: '700' }}>Se over før du lagrer</Text>
+                    {attention.issues.map((issue) => (
+                      <TouchableOpacity
+                        key={`${issue.fieldId || 'note'}-${issue.text}`}
+                        onPress={() => {
+                          const index = draft.fields.findIndex((field) => field.id === issue.fieldId);
+                          if (index >= 0) setSelected(index);
+                        }}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ color: '#9a6700', fontWeight: '600' }}>{issue.text}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
                 <View style={[styles.card, styles.headerCard, { backgroundColor: colors.card, borderColor: colors.line, borderTopColor: colors.brand }]}>
                   <TextInput
                     value={draft.title}
@@ -536,8 +569,40 @@ export default function FormStudio({
                             <TextInput value={field.highLabel || ''} onChangeText={(highLabel) => patch(index, { highLabel })} placeholder="Etikett for høyeste" placeholderTextColor={colors.placeholder} style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]} />
                           </View>
                         ) : null}
+                        {on && field.review ? (
+                          <View style={styles.row}>
+                            <Text style={{ color: '#9a6700', flex: 1 }}>{field.review}</Text>
+                            <TouchableOpacity onPress={() => patch(index, { review: '' })} accessibilityRole="button">
+                              <Text style={{ color: colors.brand }}>Sett som ferdig</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                        {on && field.kind !== 'title' ? (
+                          <TextInput
+                            value={field.help || ''}
+                            onChangeText={(help) => patch(index, { help })}
+                            placeholder="Hjelpetekst"
+                            placeholderTextColor={colors.placeholder}
+                            style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]}
+                          />
+                        ) : null}
+                        {on && field.kind !== 'title' && !['check', 'choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
+                          <TextInput
+                            value={field.placeholder || ''}
+                            onChangeText={(placeholder) => patch(index, { placeholder })}
+                            placeholder="Tekst inne i feltet"
+                            placeholderTextColor={colors.placeholder}
+                            style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]}
+                          />
+                        ) : null}
                         {on ? (
                           <View style={[styles.cardFoot, { borderTopColor: colors.line }]}>
+                            {field.kind !== 'title' ? (
+                              <View style={styles.switchRow}>
+                                <Text style={{ color: colors.ink }}>{field.width === 'half' ? 'Halv bredde' : 'Full bredde'}</Text>
+                                <Switch value={field.width === 'half'} onValueChange={(half) => patch(index, { width: half ? 'half' : 'full' })} />
+                              </View>
+                            ) : null}
                             {field.kind !== 'title' ? (
                               <View style={styles.switchRow}>
                                 <Text style={{ color: colors.ink }}>Obligatorisk</Text>
@@ -603,18 +668,23 @@ export default function FormStudio({
                 {settings.collectEmail ? (
                   <TextInput value={email} onChangeText={setEmail} placeholder="E-post" placeholderTextColor={colors.placeholder} autoCapitalize="none" keyboardType="email-address" style={[styles.questionInput, { color: colors.ink, borderColor: colors.line }]} />
                 ) : null}
-                {previewFields.map((field) => (
-                  <FormAnswer
-                    key={field.id}
-                    field={{
-                      ...field,
-                      options: optionsFor(field),
-                      value: answers[field.id] ?? (field.kind === 'check' ? false : field.kind === 'checks' ? [] : ''),
-                    }}
-                    colors={colors}
-                    onChange={(next) => setAnswers((current) => ({ ...current, [field.id]: next }))}
-                    onPickFile={() => setAnswers((current) => ({ ...current, [field.id]: { name: field.kind === 'image' ? 'bilde.jpg' : 'fil.pdf' } }))}
-                  />
+                {previewRows(previewFields).map((row) => (
+                  <View key={row.map((field) => field.id).join('-')} style={row.length > 1 ? styles.pair : undefined}>
+                    {row.map((field) => (
+                      <View key={field.id} style={row.length > 1 ? styles.pairItem : undefined}>
+                        <FormAnswer
+                          field={{
+                            ...field,
+                            options: optionsFor(field),
+                            value: answers[field.id] ?? (field.kind === 'check' ? false : field.kind === 'checks' ? [] : ''),
+                          }}
+                          colors={colors}
+                          onChange={(next) => setAnswers((current) => ({ ...current, [field.id]: next }))}
+                          onPickFile={() => setAnswers((current) => ({ ...current, [field.id]: { name: field.kind === 'image' ? 'bilde.jpg' : 'fil.pdf' } }))}
+                        />
+                      </View>
+                    ))}
+                  </View>
                 ))}
                 {sent ? <Text style={{ color: colors.brand }}>{settings.confirmation || 'Svaret er sendt.'}</Text> : null}
                 {!!sendNote && <Text style={{ color: colors.danger }}>{sendNote}</Text>}
@@ -806,6 +876,9 @@ const styles = StyleSheet.create({
   cover: { minHeight: 92, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   coverImage: { width: '100%', height: 160 },
   logo: { width: 180, height: 56, alignSelf: 'flex-start' },
+  attention: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
+  pair: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  pairItem: { flex: 1, minWidth: 140 },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   headerCard: { borderTopWidth: 4 },
   title: { fontSize: 26, fontWeight: '600' },

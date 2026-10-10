@@ -1,19 +1,25 @@
 import assert from 'node:assert/strict';
 import {
   applyDrag,
+  applyImportedForm,
   blankField,
   coerceAnswer,
   dragTargetIndex,
   duplicateField,
+  fieldFromWidget,
+  formAttention,
   formFromPlainText,
   formFromScan,
+  formFromWidgets,
   insertField,
   insertionIndex,
+  mergeFormReads,
   moveField,
   normalizeBuilderField,
   normalizeSettings,
   responsesToCsv,
   summarizeQuestion,
+  technicalFieldName,
 } from './formBuilder.js';
 import { emptyAnbudState, normalizeAnbudState } from './model.js';
 import { saveFormTemplate } from './bidLibrary.js';
@@ -167,6 +173,74 @@ const csv = responsesToCsv({
 });
 assert.equal(csv.includes('Salat'), true);
 assert.equal(csv.includes('a@bedrift.no'), true);
+
+const laidOut = formFromPlainText(`BEFARING
+Navn (f.eks. Ola) *    Telefon
+Verneutstyr
+☐ Hjelm
+☐ Vest
+Skift
+○ Dag
+○ Natt
+Signatur
+Svært uenig 1-5 Svært enig`, 'Befaring');
+assert.equal(laidOut.ok, true);
+assert.equal(laidOut.form.fields.find((row) => row.label === 'Navn').width, 'half');
+assert.equal(laidOut.form.fields.find((row) => row.label === 'Navn').required, true);
+assert.equal(laidOut.form.fields.find((row) => row.label === 'Navn').placeholder, 'f.eks. Ola');
+assert.equal(laidOut.form.fields.find((row) => row.label === 'Telefon').width, 'half');
+const gear = laidOut.form.fields.find((row) => row.label === 'Verneutstyr');
+assert.equal(gear.kind, 'checks');
+assert.deepEqual(gear.options.map((row) => row.label), ['Hjelm', 'Vest']);
+const shift = laidOut.form.fields.find((row) => row.label === 'Skift');
+assert.equal(shift.kind, 'choice');
+assert.deepEqual(shift.options.map((row) => row.label), ['Dag', 'Natt']);
+assert.equal(laidOut.form.fields.find((row) => row.label === 'Signatur').kind, 'image');
+assert.match(laidOut.form.fields.find((row) => row.label === 'Signatur').review, /Signatur/);
+const scaleRow = laidOut.form.fields.find((row) => row.kind === 'scale');
+assert.equal(scaleRow.scaleMax, 5);
+assert.equal(scaleRow.lowLabel, 'Svært uenig');
+assert.equal(scaleRow.highLabel, 'Svært enig');
+
+const scannedRich = formFromScan({
+  title: '',
+  designNote: 'To kolonner',
+  fields: [{ label: 'Adresse', kind: 'text', width: 'half', placeholder: 'Gate', review: 'Se over kolonnen.' }],
+});
+assert.equal(scannedRich.ok, true);
+assert.equal(scannedRich.form.title, 'Skjema fra dokument');
+assert.equal(scannedRich.form.fields[0].width, 'half');
+assert.equal(scannedRich.form.fields[0].placeholder, 'Gate');
+assert.equal(formAttention(scannedRich.form).issues.some((row) => /Se over kolonnen/.test(row.text)), true);
+
+const merged = mergeFormReads(laidOut.form, scannedRich.form);
+assert.equal(merged.fields.some((row) => row.label === 'Signatur'), true);
+assert.match(merged.fields.find((row) => row.label === 'Navn').review, /dokumentet/);
+assert.match(merged.fields.find((row) => row.label === 'Signatur').review, /Signatur/);
+
+const adopted = applyImportedForm({
+  id: 'mal_1',
+  title: 'Gammel mal',
+  responses: [{ id: 'svar_1', answers: { navn: 'Kari' } }],
+  fields: [{ id: 'navn', label: 'Adresse', kind: 'text', options: [] }],
+}, scannedRich.form);
+assert.equal(adopted.id, 'mal_1');
+assert.equal(adopted.fields.find((row) => row.label === 'Adresse').id, 'navn');
+assert.equal(adopted.responses.length, 1);
+assert.equal(adopted.title, 'Gammel mal');
+
+assert.equal(technicalFieldName('Text1'), true);
+assert.equal(technicalFieldName('Oppdragsgiver'), false);
+const widgets = formFromWidgets([
+  { fieldName: 'Kjonn', fieldType: 'Btn', radioButton: true, buttonValue: 'Kvinne', rect: [0, 0, 40, 12] },
+  { fieldName: 'Kjonn', fieldType: 'Btn', radioButton: true, buttonValue: 'Mann', rect: [0, 0, 40, 12] },
+  { fieldName: 'Kommentar', fieldType: 'Tx', multiLine: true, rect: [0, 0, 400, 80], pageWidth: 500 },
+], 500);
+assert.equal(widgets.ok, true);
+assert.equal(widgets.form.fields.find((row) => row.label === 'Kjonn').options.length, 2);
+assert.equal(widgets.form.fields.find((row) => row.label === 'Kommentar').kind, 'long');
+const unnamed = fieldFromWidget({ fieldName: 'Text1', fieldType: 'Tx', rect: [0, 0, 120, 16] }, 500);
+assert.match(unnamed.review, /lesbart navn/);
 
 const deployedBuilder = readFileSync(new URL('../../functions/anbud/formBuilder.js', import.meta.url), 'utf8');
 const sourceBuilder = readFileSync(new URL('./formBuilder.js', import.meta.url), 'utf8');

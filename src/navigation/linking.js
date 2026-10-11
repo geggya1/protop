@@ -219,6 +219,7 @@ export const linking = {
           familyId: (v) => (v ? String(v) : ''),
           phone: (v) => (v ? String(v) : ''),
           friendInvite: (v) => (v ? String(v) : ''),
+          employeeInvite: (v) => (v ? String(v) : ''),
           addFriend: (v) => (v ? String(v) : ''),
         },
       },
@@ -232,6 +233,9 @@ export const linking = {
         path: 'login',
         parse: {
           addFriend: (v) => (v ? String(v) : ''),
+          email: (v) => (v ? String(v) : ''),
+          familyId: (v) => (v ? String(v) : ''),
+          employeeInvite: (v) => (v ? String(v) : ''),
         },
       },
       PickLanguage: 'language',

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCESS_LEVELS, levelById, placedLevelId } from '../../src/access/companyAccess';
+import { inviteStatusLabel } from '../../src/employees/invite';
 import {
   cardSubtitle,
   choiceLabel,
@@ -485,6 +486,8 @@ export default function EmployeeDetailView({
   onCancelDelete,
   onDestroy,
   onRestore,
+  canInvite = false,
+  onInvite,
 }) {
   const { isPhone } = useLayout();
   const [editingKey, setEditingKey] = useState('');
@@ -875,6 +878,11 @@ export default function EmployeeDetailView({
                       Ikke knyttet
                     </Text>
                   )}
+                  {inviteStatusLabel(employee.invite?.status) ? (
+                    <Text style={[styles.statusChip, { color: colors.ink, backgroundColor: colors.sunken }]}>
+                      {inviteStatusLabel(employee.invite?.status)}
+                    </Text>
+                  ) : null}
                   {depts.map((dept) => (
                     <Text key={dept} style={[styles.statusChip, { color: colors.ink, backgroundColor: colors.sunken }]}>
                       {dept}
@@ -901,6 +909,20 @@ export default function EmployeeDetailView({
                 </View>
               </View>
             </View>
+            {canInvite && employee.invite?.status !== 'accepted' && !isDeletedEmployee(employee) ? (
+              <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
+                <TouchableOpacity
+                  onPress={onInvite}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken, opacity: busy ? 0.6 : 1 }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>
+                    {employee.invite?.status === 'sent' ? 'Send invitasjon på nytt' : 'Inviter'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {isSelf ? (
               <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
                 <TouchableOpacity

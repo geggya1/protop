@@ -12,9 +12,10 @@ import { auth, db } from '../firebase';
 import { colors, radius } from '../src/theme';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
 import { claimAdultInvitesOnRegister } from '../src/utils/groups';
+import { claimStoredEmployeeInvite, rememberEmployeeInviteToken } from '../src/employees/inviteClient';
 import { claimPendingFriendInvite } from '../src/utils/friends';
 import { isTeamType } from '../src/utils/teams';
-import { isClassroomType } from '../src/utils/groupTypes';
+import { isClassroomType, isOrganizationType } from '../src/utils/groupTypes';
 import {
   setDoc, doc, serverTimestamp, getDoc,
 } from 'firebase/firestore';
@@ -40,6 +41,7 @@ function readInviteParams(route) {
     familyId: String(p.familyId || qs.familyId || '').trim(),
     phone: String(p.phone || qs.phone || '').trim(),
     friendInvite: String(p.friendInvite || qs.friendInvite || '').trim(),
+    employeeInvite: String(p.employeeInvite || qs.employeeInvite || '').trim(),
     addFriend: String(p.addFriend || qs.addFriend || '').trim(),
   };
 }
@@ -69,6 +71,10 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   useEffect(() => {
     if (invite.addFriend) persistPendingAddFriend(invite.addFriend);
   }, [invite.addFriend]);
+
+  useEffect(() => {
+    if (invite.employeeInvite) rememberEmployeeInviteToken(invite.employeeInvite);
+  }, [invite.employeeInvite]);
 
   useEffect(() => {
     if (invite.email && !email) setEmail(invite.email);
@@ -131,6 +137,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const emailLocked = !!invite.email;
   const isTeamInvite = inviteGroup && !inviteGroup.missing && isTeamType(inviteGroup.type);
   const isClassInvite = inviteGroup && !inviteGroup.missing && isClassroomType(inviteGroup.type);
+  const isCompanyInvite = !!(invite.employeeInvite || (inviteGroup && !inviteGroup.missing && isOrganizationType(inviteGroup.type)));
 
   const handleRegister = async () => {
     if (!legalOk) {
@@ -184,6 +191,15 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
         phone: invite.phone || '',
         preferredFamilyId: invite.familyId || '',
       });
+
+      if (invite.employeeInvite) {
+        try {
+          await cred.user.getIdToken(true);
+          await claimStoredEmployeeInvite();
+        } catch (inviteErr) {
+          console.warn('Employee invite claim failed', inviteErr?.message || inviteErr);
+        }
+      }
 
       if (invite.friendInvite) {
         try {
@@ -275,17 +291,21 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                 ) : (
                   <>
                     <Text style={styles.inviteEyebrow}>
-                      {isTeamInvite
-                        ? 'Invitasjon til idrettslag'
-                        : (isClassInvite ? 'Invitasjon til klasserom' : 'Invitasjon til familie')}
+                      {isCompanyInvite
+                        ? 'Invitasjon til bedrift'
+                        : (isTeamInvite
+                          ? 'Invitasjon til idrettslag'
+                          : (isClassInvite ? 'Invitasjon til klasserom' : 'Invitasjon til familie'))}
                     </Text>
                     <Text style={styles.inviteTitle}>{inviteGroup?.name}</Text>
                     <Text style={styles.inviteSub}>
-                      {isTeamInvite
-                        ? 'Når du registrerer deg, blir du med på laget. Status «invitert» byttes til aktivt medlemskap.'
-                        : (isClassInvite
-                          ? 'Når du registrerer deg, blir du med i klassen som lærer eller ansatt.'
-                          : 'Når du registrerer deg, blir du med i familien som foresatt.')}
+                      {isCompanyInvite
+                        ? 'Når du registrerer deg, kommer du inn i bedriften med tilgangen som er satt på invitasjonen.'
+                        : (isTeamInvite
+                          ? 'Når du registrerer deg, blir du med på laget. Status «invitert» byttes til aktivt medlemskap.'
+                          : (isClassInvite
+                            ? 'Når du registrerer deg, blir du med i klassen som lærer eller ansatt.'
+                            : 'Når du registrerer deg, blir du med i familien som foresatt.'))}
                     </Text>
                     {!!inviteGroup?.joinCode && (isTeamInvite || isClassInvite) ? (
                       <Text style={styles.inviteCode}>

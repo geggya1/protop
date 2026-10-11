@@ -18,6 +18,7 @@ import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/company
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { watchEmployees } from '../../src/employees/storage';
+import { recordUsage } from '../../src/employees/usageClient';
 import {
   addAbsence,
   addProjectMember,
@@ -321,6 +322,23 @@ export default function ArbeidScreen() {
     setEditor(null);
     setNote('Timer lagret.');
     setError('');
+    const hours = Number(payload.hours);
+    recordUsage({
+      type: 'hour',
+      companyId: familyId,
+      employeeId,
+      summary: [
+        Number.isFinite(hours) ? `${hours} t` : 'Timer',
+        editor.day?.key,
+        editor.project?.name,
+      ].filter(Boolean).join(' · '),
+      detail: {
+        hours: Number.isFinite(hours) ? hours : '',
+        date: editor.day?.key || '',
+        projectName: editor.project?.name || '',
+        entryId: payload.id || editor.entry?.id || '',
+      },
+    }).catch(() => {});
   }
 
   function removeEntry(id) {
@@ -332,6 +350,13 @@ export default function ArbeidScreen() {
     setState(result.state);
     setEditor(null);
     setNote('Føring slettet.');
+    recordUsage({
+      type: 'hour_deleted',
+      companyId: familyId,
+      employeeId,
+      summary: 'Slettet timeføring',
+      detail: { entryId: id || '' },
+    }).catch(() => {});
   }
 
   function joinProject(project) {

@@ -1089,3 +1089,5 @@ export { interpretIndeksAvtale, indeksSsbDaily } from './indeksreguleringAi.js';
 export { interpretAvtaleHttp } from './interpretAvtaleHttp.js';
 export { friendListHttp } from './friendListHttp.js';
 export { generateCompanyForm } from './anbudForm.js';
+export { sendEmployeeInvites, claimEmployeeInvite } from './employeeInvite.js';
+export { recordUsage, listEmployeeUsage } from './usageLog.js';

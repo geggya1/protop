@@ -34,6 +34,7 @@ import BrandLogo from '../components/BrandLogo';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
+import { claimStoredEmployeeInvite, readEmployeeInviteToken, rememberEmployeeInviteToken } from '../src/employees/inviteClient';
 
 function confirmAsync(title, message, ok = 'Bli med', cancel = 'Senere') {
   // react-native-web's Alert.alert is a no-op — Promises would hang forever on web.
@@ -98,6 +99,13 @@ export default function LoginScreen({ navigation }) {
     const u = String(route?.params?.addFriend || '').trim();
     if (u) persistPendingAddFriend(u);
   }, [route?.params?.addFriend]);
+
+  useEffect(() => {
+    const token = String(route?.params?.employeeInvite || readEmployeeInviteToken() || '').trim();
+    if (token) rememberEmployeeInviteToken(token);
+    const preset = String(route?.params?.email || '').trim().toLowerCase();
+    if (preset) setEmail(preset);
+  }, [route?.params?.employeeInvite, route?.params?.email]);
 
   useEffect(() => {
     const stashed = consumeOauthError();
@@ -307,6 +315,9 @@ export default function LoginScreen({ navigation }) {
       try {
         await withDeadline(handlePendingInvites(cred.user), 8000, 'invite-timeout');
       } catch { /* invite lookup must not keep the button spinning */ }
+      try {
+        await withDeadline(claimStoredEmployeeInvite(), 8000, 'employee-invite-timeout');
+      } catch { /* bedriftsinvitasjonen kan fullføres etter innlogging */ }
 
       // Navigation is driven by onAuthStateChanged + RootNav stage.
       // Only hint-navigate if Home is already registered (avoids silent no-op).

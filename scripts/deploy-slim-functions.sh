@@ -48,6 +48,15 @@ deploy_entry friendListIndex.js functions:friendListHttp
 deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests,functions:listOutgoingFriendRequests
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 deploy_entry importIndex.js functions:interpretImport
+deploy_entry employeeInviteIndex.js functions:sendEmployeeInvites,functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 sendemployeeinvites \
+  || echo "::warning::Klarte ikke å åpne sendEmployeeInvites for innloggede kall"
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 claimemployeeinvite \
+  || echo "::warning::Klarte ikke å åpne claimEmployeeInvite for innloggede kall"
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 recordusage \
+  || echo "::warning::Klarte ikke å åpne recordUsage for innloggede kall"
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 listemployeeusage \
+  || echo "::warning::Klarte ikke å åpne listEmployeeUsage for innloggede kall"
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.
 NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 interpretimport \
   || echo "::warning::Klarte ikke åpne interpretImport for innloggede kall"

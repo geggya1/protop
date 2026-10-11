@@ -173,6 +173,8 @@ const ACCESS_SYMBOLS = {
   regnskap_ekstern: 'calculator-outline',
   innleie_ekstern: 'time-outline',
   ansatt: 'person-outline',
+  tilbud: 'document-text-outline',
+  ansatt_andre_avdelinger: 'git-network-outline',
   avdelingsleder: 'people-outline',
   leder: 'ribbon-outline',
   administrator: 'shield-checkmark-outline',

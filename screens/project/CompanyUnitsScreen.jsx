@@ -11,7 +11,7 @@ export default function CompanyUnitsScreen() {
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const access = useCompanyAccess();
-  const canEdit = isSuperAdmin(family, uid) || (access.ready && access.can('units', 'write'));
+  const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.can('units', 'write'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 

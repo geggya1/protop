@@ -22,7 +22,7 @@ import {
   statusLabel,
 } from '../../src/employees/model';
 import {
-  FORM_SECTIONS, OWNER_LABEL, PERSONNEL_KIND_OPTIONS, STATUS_OPTIONS,
+  FORM_SECTIONS, OWNER_LABEL,
 } from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
 import { useLayout } from '../../src/theme';
@@ -240,44 +240,69 @@ function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, start
   );
 }
 
+function accountDeactivated(employee) {
+  const status = employee?.company?.status || 'active';
+  return status === 'inactive' || status === 'deleted' || status === 'former';
+}
+
 function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin, onClassify }) {
+  const status = employee.company?.status || 'active';
+  const deactivated = accountDeactivated(employee);
+  const onLeave = status === 'leave';
+  const locked = !canEdit || busy || !isAdmin;
+  const danger = colors.danger || '#dc2626';
+  const success = colors.success || '#16a34a';
   return (
     <View nativeID="employee-classification" style={styles.classify}>
+      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Konto</Text>
+      <View style={[styles.accountSwitch, { borderColor: deactivated ? danger : colors.line }]}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Aktiv konto"
+          accessibilityState={{ selected: !deactivated }}
+          disabled={locked}
+          onPress={() => onClassify?.({ status: 'active' })}
+          style={[styles.accountSide, !deactivated && { backgroundColor: colors.successSoft || '#e4f5ea' }]}
+        >
+          <Text style={{ color: !deactivated ? success : colors.muted, fontWeight: '700' }}>Aktiv</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Deaktivert konto"
+          accessibilityState={{ selected: deactivated }}
+          disabled={locked}
+          onPress={() => onClassify?.({ status: 'inactive', canLogin: false })}
+          style={[styles.accountSide, deactivated && { backgroundColor: danger }]}
+        >
+          <Text style={{ color: deactivated ? '#fff' : colors.muted, fontWeight: '700' }}>Deaktivert</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={{ color: deactivated ? danger : colors.muted, fontSize: 13, lineHeight: 18 }}>
+        {deactivated
+          ? 'Ansatt er deaktivert og har ikke vanlig tilgang.'
+          : 'Kontoen er aktiv.'}
+      </Text>
       <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
-      <View style={styles.chipRow}>
-        {PERSONNEL_KIND_OPTIONS.map((option) => (
+      <Text style={{ color: colors.ink, fontSize: 15 }}>{personnelKindLabel(personnelKind(employee), companyName)}</Text>
+      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>Følger tilgangsnivået.</Text>
+      {!deactivated ? (
+        <View style={styles.chipRow}>
           <FlagChip
-            key={option.value}
-            label={personnelKindLabel(option.value, companyName)}
-            on={personnelKind(employee) === option.value}
-            disabled={!canEdit || busy || !isAdmin}
-            onPress={canEdit && isAdmin ? () => onClassify?.({ personnelKind: option.value }) : undefined}
+            label="Permisjon"
+            on={onLeave}
+            disabled={locked}
+            onPress={!locked ? () => onClassify?.({ status: onLeave ? 'active' : 'leave' }) : undefined}
             colors={colors}
           />
-        ))}
-      </View>
-      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Status</Text>
-      <View style={styles.chipRow}>
-        {STATUS_OPTIONS.map((option) => (
           <FlagChip
-            key={option.value}
-            label={option.value === 'deleted' ? 'Papirkurv' : option.label}
-            on={(employee.company?.status || 'active') === option.value}
-            disabled={!canEdit || busy || !isAdmin}
-            onPress={canEdit && isAdmin ? () => onClassify?.({ status: option.value }) : undefined}
+            label="Kan logge inn"
+            on={!!employee.company?.canLogin}
+            disabled={locked}
+            onPress={!locked ? () => onClassify?.({ canLogin: !employee.company?.canLogin }) : undefined}
             colors={colors}
           />
-        ))}
-      </View>
-      <View style={styles.chipRow}>
-        <FlagChip
-          label="Kan logge inn"
-          on={!!employee.company?.canLogin}
-          disabled={!canEdit || busy || !isAdmin}
-          onPress={canEdit && isAdmin ? () => onClassify?.({ canLogin: !employee.company?.canLogin }) : undefined}
-          colors={colors}
-        />
-      </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -495,6 +520,7 @@ export default function EmployeeDetailView({
 
   const name = displayName(employee);
   const status = statusLabel(employee.company?.status);
+  const deactivated = accountDeactivated(employee);
   const depts = departmentLabels(employee, departments);
   const tags = [
     ...depts,
@@ -701,7 +727,12 @@ export default function EmployeeDetailView({
         <View style={styles.titleBlock}>
           <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
           <Text style={{ color: colors.muted, fontSize: 14 }}>
-            {[status, cardSubtitle(employee, companyName)].filter(Boolean).join(' · ')}
+            {deactivated ? (
+              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
+            ) : (
+              <Text style={{ color: colors.muted }}>{status}</Text>
+            )}
+            {cardSubtitle(employee, companyName) ? ` · ${cardSubtitle(employee, companyName)}` : ''}
           </Text>
         </View>
         <View style={styles.navActions}>
@@ -733,6 +764,23 @@ export default function EmployeeDetailView({
           </TouchableOpacity>
         </View>
       </View>
+
+      {deactivated ? (
+        <View
+          nativeID="employee-deactivated"
+          style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger || '#dc2626' }]}
+        >
+          <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
+            <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
+              {employee.company?.status === 'deleted'
+                ? 'Kontoen er deaktivert og ligger i papirkurven.'
+                : 'Kontoen er deaktivert. Personen har ikke vanlig tilgang.'}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <View style={[styles.tabs, { borderBottomColor: colors.line }]}>
         {DETAIL_TABS.map((tab) => {
@@ -1336,6 +1384,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  deactivatedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
+  accountSwitch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  accountSide: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   classify: { gap: 8, marginTop: 4 },
   classifyLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase' },
   inlineEditor: { gap: 8, flex: 1, minWidth: 0 },

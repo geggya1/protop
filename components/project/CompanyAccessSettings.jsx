@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Image, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
+  Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
   ACCESS_LEVELS,
+  accountDeactivated,
   applyOverrides,
   checksFromGrant,
   compactOverrides,
@@ -175,6 +176,30 @@ function employeeMail(employee) {
   return employee?.company?.email || employee?.person?.email || '';
 }
 
+function statusNote(employee) {
+  const status = employee?.company?.status || 'active';
+  if (status === 'deleted') return 'Papirkurv';
+  if (status === 'inactive' || status === 'former') return 'Deaktivert';
+  if (status === 'leave') return 'Permisjon';
+  return '';
+}
+
+function splitMembers(members) {
+  const active = [];
+  const inactive = [];
+  for (const employee of members || []) {
+    if (accountDeactivated(employee)) inactive.push(employee);
+    else active.push(employee);
+  }
+  return { active, inactive };
+}
+
+function rosterMeta(activeCount, inactiveCount, detail) {
+  const activeLabel = activeCount === 1 ? '1 aktiv' : `${activeCount} aktive`;
+  const inactiveLabel = inactiveCount === 1 ? '1 deaktivert' : `${inactiveCount} deaktiverte`;
+  return `${activeLabel} · ${inactiveLabel}${detail ? ` · ${detail}` : ''}`;
+}
+
 function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
   const name = displayName(employee);
   const targets = ACCESS_LEVELS.filter((level) => level.id !== excludeId);
@@ -209,11 +234,41 @@ function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
   );
 }
 
+function MemberTabs({ tab, activeCount, inactiveCount, colors, onChange }) {
+  const tabs = [
+    ['active', 'Aktive', activeCount],
+    ['inactive', 'Deaktiverte', inactiveCount],
+  ];
+  return (
+    <View style={styles.tabRow}>
+      {tabs.map(([id, label, count]) => {
+        const on = tab === id;
+        return (
+          <Pressable
+            key={id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`${label}, ${count}`}
+            onPress={() => onChange(id)}
+            style={[styles.tabBtn, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+          >
+            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '600' }}>{label}</Text>
+            <Text style={[styles.levelCount, { color: colors.muted }]}>{count}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function LevelDrawer({
   nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
-  open, settingsOpen, grants, custom, summary, onToggleOpen, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset,
+  open, memberTab, settingsOpen, grants, custom, summary, onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset,
 }) {
-  const moving = members.find((row) => row.id === movingId) || null;
+  const { active, inactive } = splitMembers(members);
+  const tab = memberTab === 'inactive' ? 'inactive' : 'active';
+  const shown = tab === 'inactive' ? inactive : active;
+  const moving = shown.find((row) => row.id === movingId) || null;
   return (
     <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.drawerHead}>
@@ -265,9 +320,17 @@ function LevelDrawer({
       ) : null}
       {open ? (
         <View style={[styles.drawerBody, { borderTopColor: colors.line }]}>
-          {members.map((employee) => {
+          <MemberTabs
+            tab={tab}
+            activeCount={active.length}
+            inactiveCount={inactive.length}
+            colors={colors}
+            onChange={onMemberTab}
+          />
+          {shown.map((employee) => {
             const mail = employeeMail(employee);
             const customPerson = Object.keys(employee.company?.accessOverrides || {}).length > 0;
+            const note = statusNote(employee);
             const movingThis = employee.id === movingId;
             return (
               <View key={employee.id} nativeID={`access-person-${employee.id}`} style={styles.memberLine}>
@@ -275,7 +338,9 @@ function LevelDrawer({
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
                     <Text style={[styles.kind, { color: colors.muted }]}>
-                      {mail || 'Ingen e-post'}{customPerson ? ' · egen tilpasning' : ''}
+                      {mail || 'Ingen e-post'}
+                      {note ? ` · ${note}` : ''}
+                      {customPerson ? ' · egen tilpasning' : ''}
                     </Text>
                   </View>
                   {canEdit ? (
@@ -301,8 +366,10 @@ function LevelDrawer({
               </View>
             );
           })}
-          {!members.length ? (
-            <Text style={[styles.kind, { color: colors.muted }]}>Ingen i denne gruppen.</Text>
+          {!shown.length ? (
+            <Text style={[styles.kind, { color: colors.muted }]}>
+              {tab === 'inactive' ? 'Ingen deaktiverte i denne gruppen.' : 'Ingen aktive i denne gruppen.'}
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -343,6 +410,103 @@ function LevelChips({ levelId, onPick, colors, counts }) {
   );
 }
 
+export function PersonAccessSheet({
+  person,
+  personLevel,
+  personGrants,
+  personBase,
+  colors,
+  canEdit,
+  busy,
+  dirty,
+  compact,
+  scrollMax,
+  onClose,
+  onPickLevel,
+  onToggleGrant,
+  onSave,
+  onClear,
+}) {
+  if (!person || !personGrants) return null;
+  const mail = employeeMail(person);
+  const note = statusNote(person);
+  return (
+    <View nativeID="company-access-person" style={[styles.popupCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <View style={styles.popupHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardTitle, { color: colors.ink }]}>{displayName(person)}</Text>
+          <Text style={[styles.kind, { color: colors.muted }]}>
+            {mail || 'Ingen e-post'}{note ? ` · ${note}` : ''}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Lukk"
+          onPress={onClose}
+          style={[styles.gearBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+        >
+          <Ionicons name="close" size={18} color={colors.ink} />
+        </Pressable>
+      </View>
+      <ScrollView style={{ maxHeight: scrollMax }} contentContainerStyle={styles.stack}>
+        <Text style={[styles.kind, { color: colors.muted }]}>
+          {canEdit
+            ? 'Trykk et nivå for å flytte personen dit. Avvikene under gjelder bare denne personen.'
+            : 'Avvikene under gjelder bare denne personen.'}
+        </Text>
+        <LevelChips
+          levelId={personLevel}
+          onPick={onPickLevel}
+          colors={colors}
+          counts={null}
+        />
+        <Matrix
+          grants={personGrants}
+          base={personBase}
+          colors={colors}
+          compact={compact}
+          canEdit={canEdit && !busy}
+          onToggle={onToggleGrant}
+        />
+        {canEdit ? (
+          <View style={styles.modeRow}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!dirty || busy}
+              onPress={onSave}
+              style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
+            >
+              <Text style={styles.primaryText}>Lagre avvik for personen</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={onClear}
+              style={[styles.quietBtn, { borderColor: colors.line }]}
+            >
+              <Text style={{ color: colors.ink }}>Nullstill til nivået</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+function PersonAccessPopup(props) {
+  const { height } = useWindowDimensions();
+  if (!props.person) return null;
+  const scrollMax = Math.max(240, Math.round((height || 800) * 0.62));
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={props.onClose}>
+      <View style={styles.modalBg}>
+        <Pressable style={styles.modalDismiss} onPress={props.onClose} accessibilityLabel="Lukk personinnstillinger" />
+        <PersonAccessSheet {...props} scrollMax={scrollMax} />
+      </View>
+    </Modal>
+  );
+}
+
 export function CompanyAccessDenied({ colors }) {
   return (
     <View style={styles.denied}>
@@ -366,13 +530,16 @@ export default function CompanyAccessSettings({
   initialMovingId = '',
   initialDrawerId = '',
   initialSettingsId = '',
+  initialMemberTab = '',
+  initialPersonId = '',
+  initialMode = 'levels',
 }) {
   const policyKey = JSON.stringify(company?.accessPolicy || {});
   const [policy, setPolicy] = useState(() => normalizeAccessPolicy(company?.accessPolicy));
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState('levels');
+  const [mode, setMode] = useState(initialMode);
   const [query, setQuery] = useState('');
-  const [personId, setPersonId] = useState('');
+  const [personId, setPersonId] = useState(initialPersonId);
   const [personGrants, setPersonGrants] = useState(null);
   const [personDirty, setPersonDirty] = useState(false);
   const [movingId, setMovingId] = useState(initialMovingId);
@@ -386,6 +553,15 @@ export default function CompanyAccessSettings({
     return next;
   });
   const [settingsId, setSettingsId] = useState(initialSettingsId);
+  const [memberTabs, setMemberTabs] = useState(() => {
+    const next = {};
+    if (initialDrawerId && initialMemberTab) next[initialDrawerId] = initialMemberTab;
+    if (initialMovingId) {
+      const row = employees.find((item) => item.id === initialMovingId);
+      if (row && accountDeactivated(row)) next[placedLevelId(row) || 'unplaced'] = 'inactive';
+    }
+    return next;
+  });
   const { width } = useWindowDimensions();
   const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
   const [error, setError] = useState('');
@@ -495,7 +671,7 @@ export default function CompanyAccessSettings({
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Åtte standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
-        Åpne et nivå for å se fullt navn og e-post. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
+        Åpne et nivå og velg Aktive eller Deaktiverte. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
         En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
       </Text>
       {!canEdit ? (
@@ -517,6 +693,7 @@ export default function CompanyAccessSettings({
               onPress={() => {
                 setMode(id);
                 setMovingId('');
+                setPersonId('');
               }}
               style={[styles.modeChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
             >
@@ -530,19 +707,19 @@ export default function CompanyAccessSettings({
         <View style={styles.stack}>
           <Text style={[styles.kind, { color: colors.muted }]}>
             {canEdit
-              ? 'Åpne gruppen for å se hvem som er med. Trykk Flytt for å flytte en person til et annet nivå. Tannhjulet definerer tilgangen til modulene i gruppen.'
-              : 'Åpne gruppen for å se hvem som er med. Tannhjulet viser tilgangen til modulene i gruppen.'}
+              ? 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk Flytt for å flytte en person til et annet nivå. Tannhjulet definerer tilgangen til modulene i gruppen.'
+              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Tannhjulet viser tilgangen til modulene i gruppen.'}
           </Text>
           {ACCESS_LEVELS.map((row) => {
             const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
-            const countLabel = roster.length === 1 ? '1 person' : `${roster.length} personer`;
+            const parts = splitMembers(roster);
             const grants = levelGrants(policy, row.id);
             return (
               <LevelDrawer
                 key={row.id}
                 nativeID={`company-access-level-${row.id}`}
                 title={`${row.order}. ${row.label}`}
-                meta={`${countLabel} · ${kindLabel(row.kind)}`}
+                meta={rosterMeta(parts.active.length, parts.inactive.length, kindLabel(row.kind))}
                 members={roster}
                 colors={colors}
                 compact={compact}
@@ -550,6 +727,11 @@ export default function CompanyAccessSettings({
                 movingId={movingId}
                 excludeId={row.id}
                 open={!!openDrawers[row.id]}
+                memberTab={memberTabs[row.id]}
+                onMemberTab={(tab) => {
+                  setMemberTabs((current) => ({ ...current, [row.id]: tab }));
+                  setMovingId('');
+                }}
                 settingsOpen={settingsId === row.id}
                 grants={grants}
                 custom={levelIsCustom(policy, row.id)}
@@ -575,7 +757,7 @@ export default function CompanyAccessSettings({
             nativeID="company-access-unplaced"
             title="Ikke plassert"
             meta={grouped.unplaced.length
-              ? 'Eksterne foreslås til regnskap eller innleie. Øvrige får ansattnivå til de plasseres.'
+              ? rosterMeta(splitMembers(grouped.unplaced).active.length, splitMembers(grouped.unplaced).inactive.length, 'Ikke tildelt nivå ennå')
               : 'Alle ansatte er plassert i ett nivå.'}
             members={[...grouped.unplaced].sort(byName)}
             colors={colors}
@@ -585,6 +767,11 @@ export default function CompanyAccessSettings({
             excludeId=""
             suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
             open={!!openDrawers.unplaced}
+            memberTab={memberTabs.unplaced}
+            onMemberTab={(tab) => {
+              setMemberTabs((current) => ({ ...current, unplaced: tab }));
+              setMovingId('');
+            }}
             settingsOpen={false}
             onToggleOpen={() => setOpenDrawers((current) => ({ ...current, unplaced: !current.unplaced }))}
             onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
@@ -618,11 +805,13 @@ export default function CompanyAccessSettings({
             const label = placed ? levelById(placed)?.label : 'Ikke plassert';
             const on = employee.id === personId;
             const custom = Object.keys(employee.company?.accessOverrides || {}).length > 0;
+            const note = statusNote(employee);
             return (
               <Pressable
                 key={employee.id}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
+                accessibilityLabel={`Endre ${displayName(employee)}`}
                 onPress={() => setPersonId(employee.id)}
                 style={[styles.person, { borderColor: on ? colors.brand : colors.line, backgroundColor: colors.card }]}
               >
@@ -630,65 +819,36 @@ export default function CompanyAccessSettings({
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
                   <Text style={[styles.kind, { color: colors.muted }]}>
-                    {label}{custom ? ' · egen tilpasning' : ''}
+                    {label}{note ? ` · ${note}` : ''}{custom ? ' · egen tilpasning' : ''}
                   </Text>
                 </View>
               </Pressable>
             );
           })}
-          {person && personGrants ? (
-            <View nativeID="company-access-person" style={styles.stack}>
-              <Text style={[styles.sectionTitle, { color: colors.ink }]}>{displayName(person)}</Text>
-              <Text style={[styles.kind, { color: colors.muted }]}>
-                {canEdit
-                  ? 'Trykk et nivå for å flytte personen dit. Personavvikene under gjelder bare denne personen.'
-                  : 'Personavvikene under gjelder bare denne personen.'}
-              </Text>
-              <LevelChips
-                levelId={personLevel}
-                onPick={(id) => canEdit && assignLevel(person, id)}
-                colors={colors}
-                counts={null}
-              />
-              <Matrix
-                grants={personGrants}
-                base={personBase}
-                colors={colors}
-                compact={compact}
-                canEdit={canEdit && !busy}
-                onToggle={(resourceId, action, on) => {
-                  const next = toggleGrant(personGrants[resourceId], action, on);
-                  setPersonGrants({ ...personGrants, [resourceId]: next });
-                  setPersonDirty(true);
-                  setNote('');
-                }}
-              />
-              {canEdit ? (
-                <View style={styles.modeRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!personDirty || busy}
-                    onPress={savePersonGrants}
-                    style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !personDirty || busy ? 0.5 : 1 }]}
-                  >
-                    <Text style={styles.primaryText}>Lagre avvik for personen</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={busy}
-                    onPress={clearPersonGrants}
-                    style={[styles.quietBtn, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>Nullstill til nivået</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          ) : (
-            <Text style={[styles.kind, { color: colors.muted }]}>Velg en ansatt for å sette nivå og egne avvik.</Text>
-          )}
+          <Text style={[styles.kind, { color: colors.muted }]}>Trykk en ansatt for å endre nivå og avvik.</Text>
         </View>
       )}
+      <PersonAccessPopup
+        person={person}
+        personLevel={personLevel}
+        personGrants={personGrants}
+        personBase={personBase}
+        colors={colors}
+        canEdit={canEdit && !busy}
+        busy={busy}
+        dirty={personDirty}
+        compact={compact}
+        onClose={() => setPersonId('')}
+        onPickLevel={(id) => canEdit && assignLevel(person, id)}
+        onToggleGrant={(resourceId, action, on) => {
+          const next = toggleGrant(personGrants[resourceId], action, on);
+          setPersonGrants({ ...personGrants, [resourceId]: next });
+          setPersonDirty(true);
+          setNote('');
+        }}
+        onSave={savePersonGrants}
+        onClear={clearPersonGrants}
+      />
     </View>
   );
 }
@@ -708,6 +868,13 @@ const styles = StyleSheet.create({
   levelOrder: { fontSize: 12 },
   levelName: { fontSize: 14, fontWeight: '600' },
   levelCount: { fontSize: 12 },
+  cardTitle: { fontSize: 18, fontWeight: '600' },
+  tabRow: { flexDirection: 'row', gap: 8 },
+  tabBtn: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalBg: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalDismiss: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(15,23,42,0.45)' },
+  popupCard: { width: '100%', maxWidth: 560, maxHeight: '100%', borderWidth: 1, borderRadius: 16, padding: 16, gap: 10, zIndex: 2 },
+  popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginTop: 6 },

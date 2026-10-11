@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
+  accountDeactivated,
   alignCompanyEmployment,
   allows,
   applyOverrides,
@@ -215,6 +216,20 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.equal(grouped.buckets.ansatt.length, 1);
   assert.equal(grouped.buckets.administrator.length, 1);
   assert.equal(grouped.unplaced.length, 1);
+  assert.equal(accountDeactivated(ada), false);
+  assert.equal(accountDeactivated({ company: { status: 'leave' } }), false);
+  const paused = {
+    id: 'eva',
+    company: { accessLevel: 'ansatt', status: 'inactive', personnelKind: 'staff' },
+  };
+  const trashed = {
+    id: 'ola',
+    company: { accessLevel: 'ansatt', status: 'deleted', personnelKind: 'staff' },
+  };
+  const withPaused = groupEmployeesByLevel([ada, paused, trashed]);
+  assert.equal(withPaused.buckets.ansatt.length, 3);
+  assert.equal(accountDeactivated(paused), true);
+  assert.equal(accountDeactivated(trashed), true);
   assert.equal(grouped.buckets.ansatt.includes(kari), false);
   const actor = resolveActorAccess({ employees: [ada, nils], uid: 'nils' });
   assert.equal(actor.levelId, 'administrator');

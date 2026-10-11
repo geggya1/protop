@@ -42,6 +42,8 @@ export const ACCESS_OPTIONS = [
   'Regnskap eksternt',
   'Innleie eksternt',
   'Ansatt',
+  'Tilbud',
+  'Ansatt andre avdelinger',
   'Avdelingsleder',
   'Øverste leder',
   'Administrator',
@@ -112,7 +114,7 @@ export const FORM_SECTIONS = [
     owner: 'company',
     purpose: 'operations',
     scope: 'employee',
-    blurb: 'Ett tilgangsnivå per ansatt: regnskap, innleie, ansatt, avdelingsleder, øverste leder eller administrator. Samme nivå brukes under Selskap → Tilgang.',
+    blurb: 'Ett tilgangsnivå per ansatt: regnskap, innleie, ansatt, tilbud, ansatt andre avdelinger, avdelingsleder, øverste leder eller administrator. Samme nivå brukes under Selskap → Tilgang.',
     fields: [
       { key: 'company.accessRole', label: 'Tilgangsnivå', type: 'choice', options: ACCESS_OPTIONS },
       { key: 'company.permissions', label: 'Rettigheter', type: 'tags' },

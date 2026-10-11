@@ -1,6 +1,6 @@
 /**
  * Tilgang i bedriften.
- * Seks standardnivåer ligger til grunn. Bedriften kan tilpasse hvert nivå,
+ * Åtte standardnivåer ligger til grunn. Bedriften kan tilpasse hvert nivå,
  * og hver ansatt hører til nøyaktig ett nivå. En person kan i tillegg ha egne avvik.
  *
  * Rettighet per område er ett trinn: ikke se, se, lese, skrive/redigere, slette.
@@ -41,7 +41,8 @@ export const ACCESS_GROUPS = [
     label: 'Arbeid',
     resources: [
       { id: 'customers', label: 'Kunder' },
-      { id: 'tenders', label: 'Anbud' },
+      { id: 'tenders', label: 'Anbud', hint: 'Anbudsvarsling og forespørsel.' },
+      { id: 'offers', label: 'Tilbud', hint: 'Tilbud i anbudsløpet.' },
       { id: 'contracts', label: 'Kontrakt / avtale' },
       { id: 'forms', label: 'Skjema og sjekklister' },
       { id: 'projects', label: 'Prosjekt' },
@@ -86,22 +87,36 @@ export const ACCESS_LEVELS = [
     summary: 'Ser det som er tilgjengelig for ansatte, skriver timer, ser prosjekt, fyller ut sjekklister og styrer mye av egen profil.',
   },
   {
-    id: 'avdelingsleder',
+    id: 'tilbud',
     order: 4,
+    label: 'Tilbud',
+    kind: 'staff',
+    summary: 'Skriver tilbud og leser anbud, kunder og prosjekt. Ikke økonomi og ikke bedriftsinnstillinger.',
+  },
+  {
+    id: 'ansatt_andre_avdelinger',
+    order: 5,
+    label: 'Ansatt andre avdelinger',
+    kind: 'staff',
+    summary: 'Ser andre avdelinger, prosjekt og medarbeidere, og kan se andres timer. Skriver egne timer. Endrer ikke avdelingene.',
+  },
+  {
+    id: 'avdelingsleder',
+    order: 6,
     label: 'Avdelingsleder',
     kind: 'staff',
     summary: 'Administrerer og ser mer av bedriften, prosjekt, kunder og medarbeidere. Ikke økonomi.',
   },
   {
     id: 'leder',
-    order: 5,
+    order: 7,
     label: 'Øverste leder',
     kind: 'staff',
     summary: 'Kan gjøre det meste, men ikke endre bedriftsprofil og grunninnstillinger.',
   },
   {
     id: 'administrator',
-    order: 6,
+    order: 8,
     label: 'Administrator',
     kind: 'staff',
     summary: 'Kan gjøre alt, inkludert bedriftsprofil og grunninnstillinger.',
@@ -118,6 +133,10 @@ const ROLE_TO_LEVEL = [
   ['daglig leder', 'leder'],
   ['leder', 'leder'],
   ['avdelingsleder', 'avdelingsleder'],
+  ['ansatt andre avdelinger', 'ansatt_andre_avdelinger'],
+  ['ansatt andre avdeling', 'ansatt_andre_avdelinger'],
+  ['andre avdelinger', 'ansatt_andre_avdelinger'],
+  ['tilbud', 'tilbud'],
   ['regnskap eksternt', 'regnskap_ekstern'],
   ['regnskap ekstern', 'regnskap_ekstern'],
   ['regnskap', 'regnskap_ekstern'],
@@ -163,6 +182,33 @@ const STANDARD = {
     hours: 'write',
     iso: 'read',
   }),
+  tilbud: fill({
+    companyPublic: 'read',
+    units: 'see',
+    employees: 'read',
+    ownProfile: 'write',
+    customers: 'read',
+    tenders: 'read',
+    offers: 'write',
+    contracts: 'read',
+    forms: 'write',
+    projects: 'read',
+    assignedProjects: 'read',
+    hours: 'write',
+    iso: 'read',
+  }),
+  ansatt_andre_avdelinger: fill({
+    companyPublic: 'read',
+    units: 'read',
+    employees: 'read',
+    ownProfile: 'write',
+    forms: 'write',
+    projects: 'read',
+    assignedProjects: 'read',
+    hours: 'write',
+    hoursOthers: 'see',
+    iso: 'read',
+  }),
   avdelingsleder: fill({
     companyPublic: 'read',
     companyProfile: 'read',
@@ -171,6 +217,7 @@ const STANDARD = {
     ownProfile: 'write',
     customers: 'write',
     tenders: 'read',
+    offers: 'read',
     contracts: 'read',
     forms: 'write',
     projects: 'write',
@@ -187,6 +234,7 @@ const STANDARD = {
     ownProfile: 'write',
     customers: 'delete',
     tenders: 'delete',
+    offers: 'delete',
     contracts: 'delete',
     forms: 'delete',
     projects: 'delete',
@@ -486,6 +534,11 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (tab === 'anbud') {
+    if (subView === 'tilbud') return allows(grants, 'offers', 'see');
+    if (subView === 'varsling' || subView === 'foresporsel') return allows(grants, 'tenders', 'see');
+    return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
+  }
   const resource = COMPANY_TAB_RESOURCE[tab];
   if (!resource) return true;
   return allows(grants, resource, 'see');
@@ -495,6 +548,8 @@ function navItemAllowed(id, grants) {
   if (id === 'tilgang') return allows(grants, 'companyProfile', 'read');
   if (id === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
   if (id === 'underenheter') return allows(grants, 'units', 'see');
+  if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
+  if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');
   if (String(id).startsWith('anbud')) return allows(grants, 'tenders', 'see');
   if (String(id).startsWith('okonomi')) return allows(grants, 'economy', 'see');
   const resource = COMPANY_TAB_RESOURCE[id];
@@ -509,7 +564,15 @@ export function filterCompanyNav(items, grants) {
     const self = navItemAllowed(item.id, grants);
     if (!self && children.length === 0) return null;
     if (!self) return null;
-    return item.children ? { ...item, children } : item;
+    if (!item.children) return item;
+    const next = { ...item, children };
+    const currentSub = item.action?.subView;
+    const childStillThere = children.some((child) => child.action?.subView === currentSub);
+    const firstSub = children[0]?.action?.subView;
+    if (currentSub && firstSub && !childStillThere) {
+      next.action = { ...item.action, subView: firstSub };
+    }
+    return next;
   }).filter(Boolean);
 }
 

@@ -494,7 +494,7 @@ export default function CompanyAccessSettings({
     <View nativeID="company-access-page" id="company-access-page" style={styles.page}>
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
-        Seks standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
+        Åtte standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
         Åpne et nivå for å se fullt navn og e-post. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
         En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
       </Text>

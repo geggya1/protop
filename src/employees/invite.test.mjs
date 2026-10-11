@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeEmployee } from './model.js';
 import {
-  buildEmployeeInviteMessage,
-  claimInvitePlan,
+  applyInviteSendResult,
+  claimEmployeeSeatPlan,
   draftInviteEmployee,
-  employeeInviteUrl,
+  employeeRegisterUrl,
   invitesAwaitingSend,
   matchEmployeeByEmail,
   queueEmployeeInvite,
@@ -30,6 +30,7 @@ test('flere medarbeidere kan legges i kø uten at status blir sendt', () => {
   }));
   assert.equal(ada.invite.status, 'queued');
   assert.equal(ada.invite.email, 'ada@firma.no');
+  assert.equal(ada.invite.parentKey, '');
   assert.equal(ada.company.accessLevel, 'ansatt');
   assert.equal(ada.company.accessRole, 'Ansatt');
   assert.equal(ada.company.canLogin, false);
@@ -69,33 +70,37 @@ test('invitasjon uten e-post eller tilgang stoppes', () => {
   assert.match(noLevel.error, /tilgang/i);
 });
 
-test('e-posten peker på registrering eller innlogging og nevner rettigheten', () => {
-  const fresh = employeeInviteUrl({
+test('registreringslenken er den vanlige, og mislykket e-post beholder køen', () => {
+  const url = employeeRegisterUrl({ email: 'ada@firma.no', companyId: 'fam 1' });
+  assert.equal(url, 'https://www.protop.no/register?email=ada%40firma.no&familyId=fam%201');
+  const employee = normalizeEmployee(draftInviteEmployee({
+    firstName: 'Ada',
+    lastName: 'Nord',
     email: 'ada@firma.no',
-    companyId: 'fam1',
-    token: 'tok_1',
-    existingUser: false,
-  });
-  const existing = employeeInviteUrl({
-    email: 'ada@firma.no',
-    companyId: 'fam1',
-    token: 'tok_1',
+    accessLevel: 'ansatt',
+    id: 'emp_ada',
+  }));
+  const failed = applyInviteSendResult(employee, {
+    key: 'adafirma',
+    emailSent: false,
+    emailError: 'Kunne ikke sende e-post',
+  }, { at: '2026-10-11T11:00:00.000Z' });
+  assert.equal(failed.invite.status, 'queued');
+  assert.equal(failed.invite.parentKey, 'adafirma');
+  assert.match(failed.invite.error, /e-post/i);
+  const sent = applyInviteSendResult(failed, {
+    key: 'adafirma',
+    emailSent: true,
+  }, { at: '2026-10-11T12:00:00.000Z' });
+  assert.equal(sent.invite.status, 'sent');
+  assert.equal(sent.invite.parentKey, 'adafirma');
+  assert.equal(sent.invite.error, '');
+  const existing = applyInviteSendResult(employee, {
     existingUser: true,
+    invitee: { uid: 'user_9' },
+    emailSent: true,
   });
-  assert.match(fresh, /^https:\/\/www\.protop\.no\/register\?/);
-  assert.match(fresh, /employeeInvite=tok_1/);
-  assert.match(existing, /\/login\?/);
-  const message = buildEmployeeInviteMessage({
-    to: 'ada@firma.no',
-    name: 'Ada',
-    companyName: 'Consult AS',
-    accessLabel: 'Ansatt',
-    registerUrl: fresh,
-  });
-  assert.match(message.subject, /Consult AS/);
-  assert.match(message.text, /Ansatt/);
-  assert.match(message.html, /employeeInvite=tok_1/);
-  assert.doesNotMatch(message.html, /<script/i);
+  assert.equal(existing.invite.parentKey, 'user_9');
 });
 
 test('godtatt invitasjon knytter brukeren og beholder tilgangsnivået', () => {
@@ -107,41 +112,56 @@ test('godtatt invitasjon knytter brukeren og beholder tilgangsnivået', () => {
     id: 'emp_ada',
   }));
   employee.invite.status = 'sent';
-  const plan = claimInvitePlan({
-    invite: {
-      status: 'pending',
-      email: 'ada@firma.no',
-      companyId: 'fam1',
-      employeeId: 'emp_ada',
-      expiresAt: '2026-12-01T00:00:00.000Z',
-    },
-    employee,
+  const queued = normalizeEmployee(draftInviteEmployee({
+    firstName: 'Bo',
+    lastName: 'Berg',
+    email: 'bo@firma.no',
+    accessLevel: 'ansatt',
+    id: 'emp_bo',
+  }));
+  const plan = claimEmployeeSeatPlan({
+    employees: [employee, queued],
     uid: 'user_1',
     authEmail: 'Ada@firma.no',
     now: '2026-10-11T12:00:00.000Z',
+    companyId: 'fam1',
   });
   assert.equal(plan.ok, true);
+  assert.equal(plan.skipped, false);
   assert.equal(plan.employeePatch.personUid, 'user_1');
   assert.equal(plan.employeePatch.company.canLogin, true);
   assert.equal(plan.employeePatch.company.accessLevel, 'tilbud');
   assert.equal(plan.employeePatch.invite.status, 'accepted');
   assert.equal(plan.accessLevel, 'tilbud');
 
-  const wrong = claimInvitePlan({
-    invite: { status: 'pending', email: 'ada@firma.no', expiresAt: '2026-12-01T00:00:00.000Z' },
-    employee,
+  const waiting = claimEmployeeSeatPlan({
+    employees: [queued],
+    uid: 'user_2',
+    authEmail: 'bo@firma.no',
+    now: '2026-10-11T12:00:00.000Z',
+    companyId: 'fam1',
+  });
+  assert.equal(waiting.skipped, true);
+
+  const stranger = claimEmployeeSeatPlan({
+    employees: [employee],
     uid: 'user_2',
     authEmail: 'annen@firma.no',
     now: '2026-10-11T12:00:00.000Z',
+    companyId: 'fam1',
   });
-  assert.equal(wrong.ok, false);
+  assert.equal(stranger.skipped, true);
 
-  const again = claimInvitePlan({
-    invite: { status: 'accepted', acceptedUid: 'user_1', companyId: 'fam1', employeeId: 'emp_ada' },
-    employee,
+  const again = claimEmployeeSeatPlan({
+    employees: [{
+      ...employee,
+      personUid: 'user_1',
+      invite: { ...employee.invite, status: 'accepted', acceptedUid: 'user_1' },
+    }],
     uid: 'user_1',
     authEmail: 'ada@firma.no',
     now: '2026-10-11T12:00:00.000Z',
+    companyId: 'fam1',
   });
   assert.equal(again.already, true);
 });

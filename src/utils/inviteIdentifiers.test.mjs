@@ -88,6 +88,9 @@ function groupInviteCopy(groupType, familyName) {
   if (type === 'platform') {
     return { title: 'Plattforminvitasjon', noun: 'plattformen', bodyName: name || 'en plattform' };
   }
+  if (type === 'organization' || type === 'company') {
+    return { title: 'Bedriftsinvitasjon', noun: 'bedriften', bodyName: name || 'en bedrift' };
+  }
   return { title: 'Familieinvitasjon', noun: 'familien', bodyName: name || 'en familie' };
 }
 
@@ -108,6 +111,8 @@ assert.deepEqual(
 assert.equal(groupInviteCopy('team', 'Ski').title, 'Laginvitasjon');
 assert.equal(groupInviteCopy('classroom', '5A').title, 'Klasseinvitasjon');
 assert.equal(groupInviteCopy('family', 'Andersen').title, 'Familieinvitasjon');
+assert.equal(groupInviteCopy('organization', 'Consult').title, 'Bedriftsinvitasjon');
+assert.equal(groupInviteCopy('company', '').noun, 'bedriften');
 assert.match(groupInviteCopy('team', 'Ski').bodyName, /Ski/);
 
 console.log('inviteIdentifiers.test.mjs: ok');

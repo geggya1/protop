@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useApp } from '../src/context/AppContext';
-import { claimStoredEmployeeInvite } from '../src/employees/inviteClient';
+import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { recordUsage } from '../src/employees/usageClient';
 
 function currentPath() {
@@ -9,8 +9,8 @@ function currentPath() {
 }
 
 /**
- * Skriver innlogging, aktivitet og sideskifte. Invitasjon som ligger igjen
- * etter registrering eller innlogging, knyttes til bedriften her.
+ * Skriver innlogging, aktivitet og sideskifte. En sendt bedriftsinvitasjon
+ * knyttes til medarbeideren når personen er inne i bedriften.
  */
 export default function UsageRecorder({ companyId = '', tab = '', subView = '' }) {
   const { uid } = useApp();
@@ -19,7 +19,18 @@ export default function UsageRecorder({ companyId = '', tab = '', subView = '' }
 
   useEffect(() => {
     if (!uid) return undefined;
-    claimStoredEmployeeInvite().catch(() => {});
+    if (companyId) {
+      const seatKey = `protop.employeeSeat.${uid}.${companyId}`;
+      let seen = false;
+      try { seen = sessionStorage.getItem(seatKey) === '1'; } catch { seen = false; }
+      if (!seen) {
+        claimEmployeeSeat(companyId).then((result) => {
+          if (result?.ok) {
+            try { sessionStorage.setItem(seatKey, '1'); } catch { /* privatmodus */ }
+          }
+        }).catch(() => {});
+      }
+    }
     const loginKey = 'protop.usage.login';
     let seen = false;
     try { seen = sessionStorage.getItem(loginKey) === uid; } catch { seen = false; }

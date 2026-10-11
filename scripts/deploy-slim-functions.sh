@@ -48,9 +48,7 @@ deploy_entry friendListIndex.js functions:friendListHttp
 deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests,functions:listOutgoingFriendRequests
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 deploy_entry importIndex.js functions:interpretImport
-deploy_entry employeeInviteIndex.js functions:sendEmployeeInvites,functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 sendemployeeinvites \
-  || echo "::warning::Klarte ikke å åpne sendEmployeeInvites for innloggede kall"
+deploy_entry employeeInviteIndex.js functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
 NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 claimemployeeinvite \
   || echo "::warning::Klarte ikke å åpne claimEmployeeInvite for innloggede kall"
 NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 recordusage \

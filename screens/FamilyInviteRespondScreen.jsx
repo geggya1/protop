@@ -13,6 +13,7 @@ import {
   declineFamilyMemberInvite,
   getFamilyMemberInvite,
 } from '../src/utils/groups';
+import { claimEmployeeSeat } from '../src/employees/inviteClient';
 
 export default function FamilyInviteRespondScreen() {
   const { t } = useI18n();
@@ -59,6 +60,7 @@ export default function FamilyInviteRespondScreen() {
     setBusy(true);
     try {
       const res = await acceptFamilyMemberInvite({ familyId, inviteId, uid });
+      await claimEmployeeSeat(familyId).catch(() => {});
       setDone('accepted');
       if (res?.familyId) {
         await selectFamily?.(res.familyId, { name: res.familyName, type: invite?.groupType || 'family' });

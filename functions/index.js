@@ -130,33 +130,46 @@ export const buildInviteMessage = ({
   const label = familyName || familyId || 'gruppen';
   const team = isTeamGroupType(groupType);
   const classroom = isClassroomGroupType(groupType);
-  const greet = name || (team || classroom ? '' : 'foresatt');
+  const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
+  const product = organization ? 'ProTop' : 'Weekplan';
+  const greet = name || (team || classroom || organization ? '' : 'foresatt');
   const hello = greet ? `Hei ${greet}` : 'Hei';
   const roleText = team
     ? `Du er invitert til idrettslaget «${label}» på Weekplan.`
     : (classroom
       ? `Du er invitert til klassen «${label}» på Weekplan.`
-      : `Du er invitert som foresatt i familien «${label}» på Weekplan.`);
+      : (organization
+        ? `Du er invitert inn i bedriften «${label}» på ProTop.`
+        : `Du er invitert som foresatt i familien «${label}» på Weekplan.`));
   const roleHtml = team
     ? `Du er invitert til idrettslaget <strong>${escapeHtml(label)}</strong> på Weekplan.`
     : (classroom
       ? `Du er invitert til klassen <strong>${escapeHtml(label)}</strong> på Weekplan.`
-      : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på Weekplan.`);
+      : (organization
+        ? `Du er invitert inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
+        : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på Weekplan.`));
+  const accountLine = organization
+    ? 'Du har allerede en ProTop-konto. Godta invitasjonen her'
+    : 'Du har allerede en Weekplan-konto. Godta invitasjonen her';
+  const accountHtml = organization
+    ? 'Du har allerede en ProTop-konto. Åpne lenken under for å godta eller avslå invitasjonen.'
+    : 'Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
+  const signoff = organization ? 'Hilsen ProTop' : 'Hilsen Weekplan-teamet';
 
   if (existingUser) {
     return {
       to,
       name,
-      subject: `Du er invitert til ${label} på Weekplan`,
+      subject: `Du er invitert til ${label} på ${product}`,
       text:
         `${hello},\n\n` +
         `${roleText}\n\n` +
-        `Du har allerede en Weekplan-konto. Godta invitasjonen her: ${registerUrl}\n\n` +
-        `Hilsen Weekplan-teamet`,
+        `${accountLine}: ${registerUrl}\n\n` +
+        signoff,
       html: `
     <p>${escapeHtml(hello)},</p>
     <p>${roleHtml}</p>
-    <p>Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.</p>
+    <p>${accountHtml}</p>
     <p>
       <a href="${registerUrl}"
          style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
@@ -165,7 +178,7 @@ export const buildInviteMessage = ({
       </a>
     </p>
     <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>
-    <p>Med vennlig hilsen,<br/>Weekplan-teamet</p>
+    <p>Med vennlig hilsen,<br/>${signoff.replace(/^Hilsen /, '')}</p>
   `,
     };
   }
@@ -173,12 +186,12 @@ export const buildInviteMessage = ({
   return {
     to,
     name,
-    subject: `Invitasjon til ${label} på Weekplan`,
+    subject: `Invitasjon til ${label} på ${product}`,
     text:
       `${hello},\n\n` +
       `${roleText}\n\n` +
       `Registrer deg her: ${registerUrl}\n\n` +
-      `Hilsen Weekplan-teamet`,
+      signoff,
     html: `
     <p>${escapeHtml(hello)},</p>
     <p>${roleHtml}</p>
@@ -190,7 +203,7 @@ export const buildInviteMessage = ({
       </a>
     </p>
     <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>
-    <p>Med vennlig hilsen,<br/>Weekplan-teamet</p>
+    <p>Med vennlig hilsen,<br/>${signoff.replace(/^Hilsen /, '')}</p>
   `,
   };
 };
@@ -1089,5 +1102,5 @@ export { interpretIndeksAvtale, indeksSsbDaily } from './indeksreguleringAi.js';
 export { interpretAvtaleHttp } from './interpretAvtaleHttp.js';
 export { friendListHttp } from './friendListHttp.js';
 export { generateCompanyForm } from './anbudForm.js';
-export { sendEmployeeInvites, claimEmployeeInvite } from './employeeInvite.js';
+export { claimEmployeeInvite } from './employeeInvite.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';

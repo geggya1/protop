@@ -4,5 +4,5 @@
  */
 import './setRegion.js';
 
-export { sendEmployeeInvites, claimEmployeeInvite } from './employeeInvite.js';
+export { claimEmployeeInvite } from './employeeInvite.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';

@@ -90,6 +90,13 @@ export function groupInviteCopy(groupType, familyName) {
       bodyName: name || 'en plattform',
     };
   }
+  if (type === 'organization' || type === 'company') {
+    return {
+      title: 'Bedriftsinvitasjon',
+      noun: 'bedriften',
+      bodyName: name || 'en bedrift',
+    };
+  }
   return {
     title: 'Familieinvitasjon',
     noun: 'familien',

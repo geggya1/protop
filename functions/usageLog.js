@@ -115,6 +115,12 @@ export const recordUsage = onCall(CALL, async (req) => {
         throw new HttpsError('permission-denied', 'Du kan ikke logge timer for denne medarbeideren.');
       }
       trusted = true;
+    } else if (type === 'invite_sent') {
+      const employee = ctx.employees.find((row) => row.id === employeeId);
+      if (!employee || !canWriteEmployees(ctx)) {
+        throw new HttpsError('permission-denied', 'Du kan ikke logge invitasjonen.');
+      }
+      trusted = true;
     } else if (ctx.linked?.id) {
       employeeId = ctx.linked.id;
       trusted = true;

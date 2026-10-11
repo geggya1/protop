@@ -34,7 +34,7 @@ import BrandLogo from '../components/BrandLogo';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
-import { claimStoredEmployeeInvite, readEmployeeInviteToken, rememberEmployeeInviteToken } from '../src/employees/inviteClient';
+import { claimEmployeeSeat } from '../src/employees/inviteClient';
 
 function confirmAsync(title, message, ok = 'Bli med', cancel = 'Senere') {
   // react-native-web's Alert.alert is a no-op — Promises would hang forever on web.
@@ -101,11 +101,9 @@ export default function LoginScreen({ navigation }) {
   }, [route?.params?.addFriend]);
 
   useEffect(() => {
-    const token = String(route?.params?.employeeInvite || readEmployeeInviteToken() || '').trim();
-    if (token) rememberEmployeeInviteToken(token);
     const preset = String(route?.params?.email || '').trim().toLowerCase();
     if (preset) setEmail(preset);
-  }, [route?.params?.employeeInvite, route?.params?.email]);
+  }, [route?.params?.email]);
 
   useEffect(() => {
     const stashed = consumeOauthError();
@@ -204,18 +202,23 @@ export default function LoginScreen({ navigation }) {
 
     for (const inv of invites) {
       let famName = inv.familyId;
+      let famType = '';
       try {
         const s = await getDoc(doc(db, 'families', inv.familyId));
         if (s.exists()) {
           const fam = s.data() || {};
           if (fam.deleted === true || fam.hiddenFromApp === true) continue;
           famName = fam.name || famName;
+          famType = String(fam.type || '');
         }
       } catch {}
 
+      const companyInvite = famType === 'organization' || famType === 'company';
       const ok = await confirmAsync(
         'Invitasjon',
-        `Du er invitert som foresatt i familien «${famName}». Vil du bli med?`,
+        companyInvite
+          ? `Du er invitert inn i bedriften «${famName}». Vil du bli med?`
+          : `Du er invitert som foresatt i familien «${famName}». Vil du bli med?`,
       );
       if (!ok) continue;
 
@@ -244,6 +247,7 @@ export default function LoginScreen({ navigation }) {
           familyIds: arrayUnion(inv.familyId),
           updatedAt: now,
         }).catch(() => {});
+        await claimEmployeeSeat(inv.familyId).catch(() => {});
       } catch {
         notifyAsync('Kunne ikke akseptere', 'Mangler tillatelse i Firestore-reglene.');
       }
@@ -316,7 +320,8 @@ export default function LoginScreen({ navigation }) {
         await withDeadline(handlePendingInvites(cred.user), 8000, 'invite-timeout');
       } catch { /* invite lookup must not keep the button spinning */ }
       try {
-        await withDeadline(claimStoredEmployeeInvite(), 8000, 'employee-invite-timeout');
+        const companyId = String(route?.params?.familyId || '').trim();
+        if (companyId) await withDeadline(claimEmployeeSeat(companyId), 8000, 'employee-invite-timeout');
       } catch { /* bedriftsinvitasjonen kan fullføres etter innlogging */ }
 
       // Navigation is driven by onAuthStateChanged + RootNav stage.

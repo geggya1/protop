@@ -12,6 +12,7 @@ import {
   acceptFamilyMemberInvite,
   declineFamilyMemberInvite,
 } from '../src/utils/groups';
+import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import {
   listenIncomingGameInvites,
   listenFamilyPendingGameInvites,
@@ -146,6 +147,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         const inviteId = inv.inviteId || inv.id;
         const familyId = inv.familyId;
         const res = await acceptFamilyMemberInvite({ familyId, inviteId, uid });
+        await claimEmployeeSeat(familyId).catch(() => {});
         if (res?.familyId) {
           await selectFamily?.(res.familyId, {
             name: res.familyName || inv.familyName,

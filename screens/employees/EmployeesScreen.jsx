@@ -5,14 +5,17 @@ import {
 import { useApp } from '../../src/context/AppContext';
 import { levelById } from '../../src/access/companyAccess';
 import {
+  applyInviteSendResult,
   draftInviteEmployee,
+  employeeContactEmail,
+  inviteDeliveryError,
   inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
   queueEmployeeInvite,
   unqueueEmployeeInvite,
 } from '../../src/employees/invite';
-import { sendEmployeeInvites } from '../../src/employees/inviteClient';
+import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
 import { recordUsage } from '../../src/employees/usageClient';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
@@ -446,25 +449,73 @@ export default function EmployeesScreen() {
     }
     setBusy(true);
     setError('');
+    const sent = [];
+    const failed = [];
+    const at = new Date().toISOString();
     try {
-      const result = await sendEmployeeInvites({ companyId: familyId, employeeIds });
-      if (result?.failed?.length) {
-        setError(result.failed.map((row) => row.error).filter(Boolean).join('\n') || 'Noen invitasjoner ble ikke sendt.');
-      } else if (!result?.ok) {
-        setError(result?.error || 'Kunne ikke sende invitasjonen.');
-      } else {
-        setError('');
+      for (const id of employeeIds) {
+        const row = rows.find((item) => item.id === id);
+        if (!row) {
+          failed.push('Fant ikke medarbeideren.');
+          continue;
+        }
+        let current = row;
+        if (current.invite?.status !== 'queued' && current.invite?.status !== 'sent') {
+          const queued = queueEmployeeInvite(current, { at });
+          if (!queued.ok) {
+            failed.push(queued.error);
+            continue;
+          }
+          const saved = await rememberInvite(queued.employee);
+          if (!saved) {
+            failed.push('Kunne ikke lagre personen.');
+            continue;
+          }
+          current = saved;
+        }
+        const email = employeeContactEmail(current);
+        const name = displayName(current);
+        try {
+          const result = current.invite?.parentKey
+            ? await resendAdultInvite({
+              familyId,
+              parentId: current.invite.parentKey,
+              familyName: companyName,
+              groupType: family?.type || 'organization',
+            })
+            : await inviteAdultSmart({
+              familyId,
+              name,
+              email,
+              familyName: companyName,
+              groupType: family?.type || 'organization',
+              createdBy: uid,
+              asAdmin: placedAccessLevel(current) === 'administrator',
+            });
+          const next = applyInviteSendResult(current, result, { at });
+          await rememberInvite(next);
+          if (result?.emailSent) {
+            sent.push(id);
+            recordUsage({
+              type: 'invite_sent',
+              companyId: familyId,
+              employeeId: id,
+              summary: `Invitasjon sendt til ${email}`,
+              detail: { accessLevel: placedAccessLevel(current) },
+            }).catch(() => {});
+          } else {
+            failed.push(result?.emailError || `${name || email}: e-post ble ikke sendt.`);
+          }
+        } catch (err) {
+          failed.push(inviteDeliveryError(err));
+        }
       }
-      if (result?.sent?.length) {
-        const sentIds = new Set(result.sent.map((row) => row.id));
-        setRows((current) => current.map((row) => (
-          sentIds.has(row.id)
-            ? { ...row, invite: { ...(row.invite || {}), status: 'sent', error: '' } }
-            : row
-        )));
-        setNote(result.sent.length === 1
+      if (failed.length) setError(failed.filter(Boolean).join('\n'));
+      else setError('');
+      if (sent.length) {
+        setNote(sent.length === 1
           ? 'Invitasjonen er sendt.'
-          : `${result.sent.length} invitasjoner er sendt.`);
+          : `${sent.length} invitasjoner er sendt.`);
       }
     } catch (err) {
       showError(err?.message || 'Kunne ikke sende invitasjonen.');

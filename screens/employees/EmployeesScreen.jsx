@@ -53,6 +53,18 @@ import {
   statusLabel,
 } from '../../src/employees/model';
 import { PERSONNEL_KIND_OPTIONS, STATUS_OPTIONS } from '../../src/employees/schema';
+
+function statusTone(row, colors) {
+  const status = row.company?.status;
+  if (status === 'inactive' || status === 'former' || status === 'deleted') {
+    const danger = colors.danger || '#dc2626';
+    return { color: danger, backgroundColor: `${danger}22` };
+  }
+  if (status === 'leave') {
+    return { color: colors.warn || '#d97706', backgroundColor: colors.starSoft || '#fff8e8' };
+  }
+  return { color: colors.brand, backgroundColor: colors.brandSoft };
+}
 import { cvEditorSections } from '../../src/employees/schema';
 import {
   loadProfessionalProfile,
@@ -916,8 +928,8 @@ export default function EmployeesScreen() {
                     </Text>
                   ) : null}
                   {statusFilter !== 'active' || row.company?.status !== 'active' ? (
-                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
-                      {row.company?.status === 'deleted' ? 'Papirkurv' : statusLabel(row.company?.status)}
+                    <Text style={[styles.dept, statusTone(row, colors)]}>
+                      {row.company?.status === 'deleted' ? 'Papirkurv' : (row.company?.status === 'inactive' || row.company?.status === 'former' ? 'Deaktivert' : statusLabel(row.company?.status))}
                     </Text>
                   ) : null}
                   {departmentLabels(row, departments).map((name) => (

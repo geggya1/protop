@@ -498,11 +498,15 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
   };
 }
 
+export function accountDeactivated(employee) {
+  const status = employmentStatus(employee);
+  return status === 'inactive' || status === 'deleted' || status === 'former';
+}
+
 export function groupEmployeesByLevel(employees) {
   const buckets = Object.fromEntries(ACCESS_LEVELS.map((level) => [level.id, []]));
   const unplaced = [];
   for (const employee of employees || []) {
-    if (employmentStatus(employee) === 'deleted') continue;
     const placed = placedLevelId(employee);
     if (placed && buckets[placed]) buckets[placed].push(employee);
     else unplaced.push(employee);

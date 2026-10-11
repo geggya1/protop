@@ -134,7 +134,7 @@ export default function ArbeidScreen() {
 
   const linked = useMemo(() => findLinkedEmployee(employees, uid), [employees, uid]);
   const manager = access.ready
-    ? (isAdmin || access.can('hoursOthers', 'write'))
+    ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.can('hoursOthers', 'write'))
     : canManageTimesheets({ isAdmin, employee: linked });
 
   useEffect(() => {

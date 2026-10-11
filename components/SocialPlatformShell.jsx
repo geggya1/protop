@@ -17,6 +17,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import ViewAsBar, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
@@ -130,6 +131,13 @@ export default function SocialPlatformShell({ platformType }) {
     }
   }, [familyId, family?.id, family?.type, nav, platformType]);
 
+  useEffect(() => {
+    if (!companyAccess.previewing || !companyAccess.ready) return;
+    if (!COMPANY_TAB_IDS.includes(tab)) return;
+    if (companyAccess.tabAllowed(tab, route.params?.subView)) return;
+    setTab('home');
+  }, [companyAccess.previewing, companyAccess.previewStamp, companyAccess.ready, tab, route.params?.subView]);
+
   const title = TITLES[tab] || 'Hjem';
 
   const openGroup = (id) => {
@@ -144,6 +152,21 @@ export default function SocialPlatformShell({ platformType }) {
         <View style={{ flex: 1, padding: 24 }}>
           <Text style={{ color: '#5b6b82' }}>Henter tilgang…</Text>
         </View>
+      );
+    }
+    if (
+      COMPANY_TAB_IDS.includes(tab)
+      && companyAccess.previewing
+      && companyAccess.tabAllowed(tab, route.params?.subView)
+      && !companyAccess.actorTabAllowed(tab, route.params?.subView)
+    ) {
+      return (
+        <ViewAsModulePlaceholder
+          access={companyAccess}
+          tab={tab}
+          subView={route.params?.subView}
+          colors={{ ink: '#1a2744', muted: '#5b6b82' }}
+        />
       );
     }
     if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, route.params?.subView)) {
@@ -249,8 +272,11 @@ export default function SocialPlatformShell({ platformType }) {
       />
 
       <View style={styles.body}>
-        <ShellErrorBoundary>{body}</ShellErrorBoundary>
-        <ModuleIntroHost scope={platformType} moduleId={tab} />
+        <ViewAsBar access={companyAccess} />
+        <View style={styles.bodyFill}>
+          <ShellErrorBoundary>{body}</ShellErrorBoundary>
+          <ModuleIntroHost scope={platformType} moduleId={tab} />
+        </View>
       </View>
 
       <HelpTarget id="tabs">
@@ -293,6 +319,7 @@ export default function SocialPlatformShell({ platformType }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   body: { flex: 1, position: 'relative' },
+  bodyFill: { flex: 1, minHeight: 0 },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

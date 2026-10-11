@@ -59,6 +59,17 @@ export const ACCESS_GROUPS = [
       { id: 'economy', label: 'Regnskap og økonomi' },
     ],
   },
+  {
+    id: 'preview',
+    label: 'Visning',
+    resources: [
+      {
+        id: 'viewAs',
+        label: 'Se som bruker',
+        hint: 'Bytt bruker og se moduler og applikasjoner slik personen ser dem. Se: bare bedriftsinnstillinger. Lese eller høyere: alle moduler og apper.',
+      },
+    ],
+  },
 ];
 
 export const ACCESS_RESOURCES = ACCESS_GROUPS.flatMap((group) => group.resources);
@@ -243,6 +254,7 @@ const STANDARD = {
     hoursOthers: 'delete',
     iso: 'delete',
     economy: 'delete',
+    viewAs: 'write',
   }),
   administrator: fill(
     Object.fromEntries(RESOURCE_IDS.map((id) => [id, 'delete'])),
@@ -582,4 +594,87 @@ export function filterCompanyNav(items, grants) {
 
 export function loadingGrants() {
   return { ...blankGrants(), companyPublic: 'read' };
+}
+
+/** Områdene som utgjør bedriftsinnstillinger i «Se som bruker». */
+export const COMPANY_SETTINGS_RESOURCES = ['companyPublic', 'companyProfile', 'units'];
+
+/**
+ * Hvem som kan bytte bruker.
+ * Ingen: funksjonen er av.
+ * companySettings: bare se hva den valgte brukeren ser av bedriftsinnstillinger.
+ * all: se alle moduler og applikasjoner slik brukeren ser dem.
+ * Administrator og øverste leder har all som standard. Lavere nivå kan få see eller read.
+ */
+export function viewAsCapability(grants, { bypass = false } = {}) {
+  if (bypass) return 'all';
+  const rank = rankValue(grants?.viewAs);
+  if (rank >= rankValue('read')) return 'all';
+  if (rank >= rankValue('see')) return 'companySettings';
+  return 'none';
+}
+
+export function effectiveViewAsScope(capability, lens) {
+  if (capability !== 'all' && capability !== 'companySettings') return 'none';
+  if (capability === 'companySettings') return 'companySettings';
+  return lens === 'companySettings' ? 'companySettings' : 'all';
+}
+
+export function resourcesInViewAsScope(scope) {
+  if (scope === 'companySettings') return COMPANY_SETTINGS_RESOURCES;
+  if (scope === 'all') return RESOURCE_IDS.filter((id) => id !== 'viewAs');
+  return [];
+}
+
+export function grantsForViewAs(actorGrants, targetGrants, scope) {
+  const actor = { ...(actorGrants || standardGrants('administrator')) };
+  if ((scope !== 'companySettings' && scope !== 'all') || !targetGrants) return actor;
+  const next = { ...actor };
+  for (const id of resourcesInViewAsScope(scope)) {
+    next[id] = ACCESS_RANKS.includes(targetGrants[id]) ? targetGrants[id] : 'none';
+  }
+  next.viewAs = ACCESS_RANKS.includes(actor.viewAs) ? actor.viewAs : 'none';
+  return next;
+}
+
+export function resolveViewAsAccess({ actor, targetEmployee, policy, lens = 'all' } = {}) {
+  const bypass = !!actor?.bypass;
+  const capability = viewAsCapability(actor?.grants, { bypass });
+  const alive = !!targetEmployee && employmentStatus(targetEmployee) !== 'deleted';
+  const scope = alive ? effectiveViewAsScope(capability, lens) : 'none';
+  if (scope === 'none') {
+    return {
+      active: false,
+      capability,
+      scope: 'none',
+      grants: bypass ? null : (actor?.grants || loadingGrants()),
+      employee: null,
+    };
+  }
+  const targetGrants = grantsForEmployee(policy, targetEmployee);
+  const actorGrants = bypass ? standardGrants('administrator') : actor.grants;
+  return {
+    active: true,
+    capability,
+    scope,
+    grants: grantsForViewAs(actorGrants, targetGrants, scope),
+    employee: targetEmployee,
+  };
+}
+
+export function viewAsLocks(preview, resource) {
+  return !!preview?.active && resourcesInViewAsScope(preview.scope).includes(resource);
+}
+
+/**
+ * Synlighet i forhåndsvisning er skjæringspunktet av innlogget bruker og valgt bruker.
+ * Skriving og sletting er av, så visningen ikke opptrer som den andre.
+ * Områder utenfor valgt omfang følger den innloggede brukeren.
+ */
+export function viewAsAllows({ preview, actor, bypass = false, resource, action } = {}) {
+  if (!preview?.active) return bypass ? true : allows(actor?.grants, resource, action);
+  const actorOk = bypass ? true : allows(actor?.grants, resource, action);
+  if (!viewAsLocks(preview, resource)) return actorOk;
+  if (action === 'write' || action === 'delete') return false;
+  return actorOk && allows(preview.grants, resource, action);
 }

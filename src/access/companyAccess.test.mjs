@@ -7,6 +7,12 @@ import {
   allows,
   applyOverrides,
   companyTabAllowed,
+  effectiveViewAsScope,
+  grantsForViewAs,
+  resolveViewAsAccess,
+  viewAsAllows,
+  viewAsCapability,
+  viewAsLocks,
   compactOverrides,
   effectiveLevelId,
   filterCompanyNav,
@@ -26,6 +32,7 @@ import {
   toggleGrant,
 } from './companyAccess.js';
 import { companyNavItems } from '../navigation/shellModules.js';
+import { companyModuleVisibility, hiddenCompanyModules } from './viewAsNav.js';
 
 const ids = ACCESS_LEVELS.map((level) => level.id);
 assert.deepEqual(ids, [
@@ -76,6 +83,8 @@ assert.deepEqual(ids, [
   assert.equal(hoursOnAssignedOnly(ansatt), false);
   assert.equal(ansatt.offers, 'none');
   assert.equal(ansatt.units, 'see');
+  assert.equal(ansatt.viewAs, 'none');
+  assert.equal(viewAsCapability(ansatt), 'none');
 }
 
 {
@@ -126,6 +135,9 @@ assert.deepEqual(ids, [
   assert.equal(leder.companyProfile, 'read');
   assert.equal(allows(leder, 'companyProfile', 'write'), false);
   assert.equal(leder.units, 'read');
+  assert.equal(leder.viewAs, 'write');
+  assert.equal(viewAsCapability(leder), 'all');
+  assert.equal(viewAsCapability(standardGrants('avdelingsleder')), 'none');
 }
 
 {
@@ -276,6 +288,132 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   const andreSelskap = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
     .find((item) => item.id === 'selskap');
   assert.deepEqual(andreSelskap.children.map((child) => child.id), ['underenheter']);
+}
+
+{
+  const actor = resolveActorAccess({ bypass: true });
+  const ansatt = {
+    id: 'kari',
+    company: { accessLevel: 'ansatt', status: 'active' },
+  };
+  const narrowed = resolveViewAsAccess({
+    actor, targetEmployee: ansatt, policy: null, lens: 'companySettings',
+  });
+  assert.equal(narrowed.active, true);
+  assert.equal(narrowed.scope, 'companySettings');
+  assert.equal(narrowed.grants.companyProfile, 'none');
+  assert.equal(narrowed.grants.economy, 'delete');
+  assert.equal(narrowed.grants.viewAs, 'delete');
+  assert.equal(viewAsLocks(narrowed, 'units'), true);
+  assert.equal(viewAsLocks(narrowed, 'economy'), false);
+  assert.equal(viewAsAllows({
+    preview: narrowed, actor, bypass: true, resource: 'companyProfile', action: 'write',
+  }), false);
+  assert.equal(viewAsAllows({
+    preview: narrowed, actor, bypass: true, resource: 'companyProfile', action: 'read',
+  }), false);
+  assert.equal(viewAsAllows({
+    preview: narrowed, actor, bypass: true, resource: 'economy', action: 'delete',
+  }), true);
+  const selskap = filterCompanyNav(companyNavItems(), narrowed.grants)
+    .find((item) => item.id === 'selskap');
+  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter']);
+  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'okonomi'));
+
+  const full = resolveViewAsAccess({
+    actor, targetEmployee: ansatt, policy: null, lens: 'all',
+  });
+  assert.equal(full.scope, 'all');
+  assert.equal(full.grants.economy, 'none');
+  assert.equal(full.grants.projects, 'read');
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'economy', action: 'write',
+  }), false);
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'projects', action: 'read',
+  }), true);
+  const fullIds = filterCompanyNav(companyNavItems(), full.grants).map((item) => item.id);
+  assert.equal(fullIds.includes('okonomi'), false);
+  assert.equal(fullIds.includes('projects'), true);
+  const hidden = hiddenCompanyModules(full.grants).map((row) => row.id);
+  assert.ok(hidden.includes('okonomi'));
+  assert.ok(hidden.includes('tilgang'));
+  assert.equal(hidden.includes('anbud-varsling'), false);
+}
+
+{
+  const policy = setLevelGrant(null, 'ansatt', 'viewAs', 'see');
+  const viewer = {
+    id: 'ida',
+    personUid: 'ida',
+    company: { accessLevel: 'ansatt', status: 'active' },
+  };
+  const actor = resolveActorAccess({ policy, employees: [viewer], uid: 'ida' });
+  assert.equal(viewAsCapability(actor.grants), 'companySettings');
+  assert.equal(effectiveViewAsScope('companySettings', 'all'), 'companySettings');
+  const boss = {
+    id: 'bo',
+    company: { accessLevel: 'administrator', status: 'active' },
+  };
+  const preview = resolveViewAsAccess({
+    actor, targetEmployee: boss, policy, lens: 'all',
+  });
+  assert.equal(preview.scope, 'companySettings');
+  assert.equal(preview.grants.companyProfile, 'delete');
+  assert.equal(preview.grants.economy, 'none');
+  assert.equal(preview.grants.viewAs, 'see');
+  assert.equal(companyTabAllowed('selskap', 'tilgang', preview.grants), true);
+  assert.equal(companyTabAllowed('selskap', 'tilgang', actor.grants), false);
+  assert.equal(viewAsAllows({
+    preview, actor, bypass: false, resource: 'companyProfile', action: 'read',
+  }), false);
+  assert.equal(viewAsAllows({
+    preview, actor, bypass: false, resource: 'companyProfile', action: 'write',
+  }), false);
+  const blocked = resolveViewAsAccess({
+    actor: resolveActorAccess({ employees: [viewer], uid: 'ida' }),
+    targetEmployee: boss,
+    policy: null,
+    lens: 'all',
+  });
+  assert.equal(blocked.active, false);
+  assert.equal(viewAsCapability(blocked.grants), 'none');
+  const viaPerson = resolveActorAccess({
+    employees: [{
+      id: 'ida',
+      personUid: 'ida',
+      company: { accessLevel: 'ansatt', status: 'active', accessOverrides: { viewAs: 'see' } },
+    }],
+    uid: 'ida',
+  });
+  assert.equal(viewAsCapability(viaPerson.grants), 'companySettings');
+  assert.equal(viaPerson.grants.economy, 'none');
+}
+
+{
+  const deleted = { id: 'x', company: { accessLevel: 'ansatt', status: 'deleted' } };
+  const skipped = resolveViewAsAccess({
+    actor: resolveActorAccess({ bypass: true }),
+    targetEmployee: deleted,
+    policy: null,
+    lens: 'all',
+  });
+  assert.equal(skipped.active, false);
+  assert.equal(skipped.grants, null);
+}
+
+{
+  const rows = companyModuleVisibility(standardGrants('ansatt'));
+  assert.equal(rows.find((row) => row.id === 'tilgang').visible, false);
+  assert.equal(rows.find((row) => row.id === 'selskap').visible, true);
+  assert.equal(rows.find((row) => row.id === 'okonomi').visible, false);
+  const readOnly = grantsForViewAs(
+    standardGrants('leder'),
+    standardGrants('ansatt'),
+    'all',
+  );
+  assert.equal(readOnly.viewAs, 'write');
+  assert.equal(readOnly.economy, 'none');
 }
 
 console.log('companyAccess.test.mjs: ok');

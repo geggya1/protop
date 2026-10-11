@@ -4,11 +4,18 @@ import { watchEmployees } from '../employees/storage';
 import { isSuperAdmin } from '../utils/groups';
 import { isOrganizationType } from '../utils/groupTypes';
 import {
-  allows,
   companyTabAllowed,
   loadingGrants,
   resolveActorAccess,
+  resolveViewAsAccess,
+  viewAsAllows,
+  viewAsLocks,
 } from './companyAccess';
+import {
+  clearViewAs,
+  useViewAsSelection,
+  viewAsKey,
+} from './viewAsStore';
 
 const idle = {
   active: false,
@@ -20,16 +27,60 @@ const idle = {
   employee: null,
   can: () => true,
   tabAllowed: () => true,
+  actorTabAllowed: () => true,
+  previewLocks: () => false,
+  previewing: false,
+  previewStamp: '',
+  viewingAs: null,
+  viewAsScope: 'none',
+  viewAsCapability: 'none',
+  canViewAs: false,
 };
+
+function presentAccess({ bypass, ready, employees, actor, preview }) {
+  const previewing = !!preview?.active;
+  const grants = preview?.grants;
+  const stamp = previewing
+    ? `${preview.employee?.id || ''}:${preview.scope}:${JSON.stringify(grants)}`
+    : '';
+  return {
+    active: true,
+    ready,
+    bypass: !!bypass,
+    grants,
+    employees,
+    levelId: actor?.levelId || '',
+    employee: actor?.employee || null,
+    customized: !!actor?.customized,
+    hoursOnAssignedOnly: !!actor?.hoursOnAssignedOnly,
+    can: (resource, action) => viewAsAllows({ preview, actor, bypass, resource, action }),
+    tabAllowed: (tab, subView) => {
+      if (!previewing && bypass) return true;
+      return companyTabAllowed(tab, subView, grants);
+    },
+    actorTabAllowed: (tab, subView) => (
+      bypass ? true : companyTabAllowed(tab, subView, actor?.grants)
+    ),
+    previewLocks: (resource) => viewAsLocks(preview, resource),
+    previewing,
+    previewStamp: stamp,
+    viewingAs: previewing ? preview.employee : null,
+    viewAsScope: preview?.scope || 'none',
+    viewAsCapability: preview?.capability || 'none',
+    canViewAs: (preview?.capability || 'none') !== 'none',
+  };
+}
 
 /**
  * Effektiv tilgang for innlogget bruker i bedriften.
  * Eier av bedriften har full tilgang, så grunninnstillingene ikke kan låses ute.
+ * «Se som bruker» bytter menyen til den valgte brukerens moduler uten å gi skrivetilgang.
  */
 export function useCompanyAccess() {
   const { family, familyId, uid } = useApp();
   const org = isOrganizationType(family?.type);
   const bypass = isSuperAdmin(family, uid);
+  const selection = useViewAsSelection();
   const [employees, setEmployees] = useState([]);
   const [ready, setReady] = useState(!org);
 
@@ -49,21 +100,28 @@ export function useCompanyAccess() {
     });
   }, [org, familyId]);
 
+  const selectedId = selection.key === viewAsKey(uid, familyId) ? selection.employeeId : '';
+
+  useEffect(() => {
+    if (!org || !familyId || !uid || !ready || !selectedId) return;
+    const exists = employees.some((row) => row.id === selectedId && row?.company?.status !== 'deleted');
+    if (!exists) clearViewAs();
+  }, [org, familyId, uid, ready, selectedId, employees]);
+
   return useMemo(() => {
     if (!org) return idle;
+    const lens = selection.key === viewAsKey(uid, familyId) ? selection.lens : 'all';
+    const target = selectedId
+      ? employees.find((row) => row.id === selectedId && row?.company?.status !== 'deleted') || null
+      : null;
+    const policy = family?.company?.accessPolicy;
+
     if (bypass) {
-      const resolved = resolveActorAccess({ bypass: true });
-      return {
-        active: true,
-        ready: true,
-        bypass: true,
-        grants: null,
-        employees,
-        levelId: resolved.levelId,
-        employee: resolved.employee,
-        can: () => true,
-        tabAllowed: () => true,
-      };
+      const actor = resolveActorAccess({ bypass: true });
+      const preview = resolveViewAsAccess({ actor, targetEmployee: target, policy, lens });
+      return presentAccess({
+        bypass: true, ready: true, employees, actor, preview,
+      });
     }
     if (!ready) {
       const grants = loadingGrants();
@@ -77,25 +135,20 @@ export function useCompanyAccess() {
         employee: null,
         can: () => false,
         tabAllowed: (tab, subView) => companyTabAllowed(tab, subView, grants),
+        actorTabAllowed: (tab, subView) => companyTabAllowed(tab, subView, grants),
+        previewLocks: () => false,
+        previewing: false,
+        previewStamp: '',
+        viewingAs: null,
+        viewAsScope: 'none',
+        viewAsCapability: 'none',
+        canViewAs: false,
       };
     }
-    const resolved = resolveActorAccess({
-      policy: family?.company?.accessPolicy,
-      employees,
-      uid,
+    const actor = resolveActorAccess({ policy, employees, uid });
+    const preview = resolveViewAsAccess({ actor, targetEmployee: target, policy, lens });
+    return presentAccess({
+      bypass: false, ready: true, employees, actor, preview,
     });
-    return {
-      active: true,
-      ready: true,
-      bypass: false,
-      grants: resolved.grants,
-      employees,
-      levelId: resolved.levelId,
-      employee: resolved.employee,
-      customized: resolved.customized,
-      hoursOnAssignedOnly: resolved.hoursOnAssignedOnly,
-      can: (resource, action) => allows(resolved.grants, resource, action),
-      tabAllowed: (tab, subView) => companyTabAllowed(tab, subView, resolved.grants),
-    };
-  }, [org, bypass, ready, employees, family?.company?.accessPolicy, uid]);
+  }, [org, bypass, ready, employees, family?.company?.accessPolicy, uid, selectedId, selection.key, selection.lens, familyId]);
 }

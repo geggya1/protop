@@ -171,23 +171,8 @@ function AvatarFace({ employee, colors, active }) {
   );
 }
 
-function ProfileIcon({ employee, colors, active = false, onPress, onHover }) {
-  const name = displayName(employee);
-  return (
-    <View nativeID={`access-person-${employee.id}`} style={styles.avatarWrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={name}
-        accessibilityHint={onPress ? 'Vis navn og flytt til et annet nivå' : 'Vis navn'}
-        accessibilityState={{ selected: active }}
-        onHoverIn={() => onHover?.(true)}
-        onHoverOut={() => onHover?.(false)}
-        onPress={onPress}
-      >
-        <AvatarFace employee={employee} colors={colors} active={active} />
-      </Pressable>
-    </View>
-  );
+function employeeMail(employee) {
+  return employee?.company?.email || employee?.person?.email || '';
 }
 
 function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
@@ -224,63 +209,102 @@ function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
   );
 }
 
-function LevelRosterCard({
-  nativeID, title, meta, members, selected, colors, canEdit, movingId, excludeId, suggestedId, compact, onSelect, onToggleMove, onAssign,
+function LevelDrawer({
+  nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
+  open, settingsOpen, grants, custom, summary, onToggleOpen, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset,
 }) {
-  const [hoverId, setHoverId] = useState('');
   const moving = members.find((row) => row.id === movingId) || null;
-  const caption = members.find((row) => row.id === (hoverId || movingId)) || null;
-  const captionTitle = caption?.company?.title || '';
   return (
-    <View
-      nativeID={nativeID}
-      style={[
-        styles.rosterCard,
-        compact ? styles.rosterCardCompact : null,
-        moving ? styles.rosterCardFront : null,
-        {
-          borderColor: selected ? colors.brand : colors.line,
-          backgroundColor: selected ? colors.brandSoft : colors.card,
-        },
-      ]}
-    >
-      <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onSelect}>
-        <Text style={[styles.levelName, { color: selected ? colors.brand : colors.ink }]}>{title}</Text>
-        <Text style={[styles.kind, { color: colors.muted }]}>{meta}</Text>
-      </Pressable>
-      <View style={styles.avatarRow}>
-        {members.map((employee) => (
-          <ProfileIcon
-            key={employee.id}
-            employee={employee}
-            colors={colors}
-            active={employee.id === movingId}
-            onHover={(on) => {
-              if (on) setHoverId(employee.id);
-              else setHoverId((current) => (current === employee.id ? '' : current));
-            }}
-            onPress={canEdit
-              ? () => onToggleMove(employee.id)
-              : () => setHoverId((current) => (current === employee.id ? '' : employee.id))}
-          />
-        ))}
-        {!members.length ? (
-          <Text style={[styles.kind, { color: colors.muted }]}>Ingen</Text>
+    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={styles.drawerHead}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={open ? `Lukk ${title}` : `Åpne ${title}`}
+          onPress={onToggleOpen}
+          style={styles.drawerToggle}
+        >
+          <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.muted} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.levelName, { color: colors.ink }]}>{title}</Text>
+            <Text style={[styles.kind, { color: colors.muted }]}>{meta}</Text>
+          </View>
+        </Pressable>
+        {onToggleSettings ? (
+          <Pressable
+            nativeID={`${nativeID}-gear`}
+            accessibilityRole="button"
+            accessibilityLabel={`Innstillinger for ${title}`}
+            accessibilityState={{ expanded: settingsOpen }}
+            onPress={onToggleSettings}
+            style={[styles.gearBtn, { borderColor: settingsOpen ? colors.brand : colors.line, backgroundColor: settingsOpen ? colors.brandSoft : colors.card }]}
+          >
+            <Ionicons name="settings-outline" size={18} color={settingsOpen ? colors.brand : colors.ink} />
+          </Pressable>
         ) : null}
       </View>
-      {members.length ? (
-        <Text numberOfLines={1} style={[styles.hoverName, { color: caption ? colors.ink : colors.muted }]}>
-          {caption ? `${displayName(caption)}${captionTitle ? ` · ${captionTitle}` : ''}` : ' '}
-        </Text>
+      {settingsOpen && grants ? (
+        <View nativeID={`${nativeID}-settings`} style={[styles.drawerBody, { borderTopColor: colors.line }]}>
+          <Text style={[styles.summary, { color: colors.ink }]}>{summary}</Text>
+          <Text style={[styles.kind, { color: custom ? colors.brand : colors.muted }]}>
+            {custom ? 'Tilpasset for denne bedriften' : 'Standard'}
+          </Text>
+          {canEdit && custom && onReset ? (
+            <Pressable accessibilityRole="button" onPress={onReset} style={[styles.quietBtn, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Tilbakestill nivået til standard</Text>
+            </Pressable>
+          ) : null}
+          <Matrix
+            grants={grants}
+            colors={colors}
+            compact={compact}
+            canEdit={canEdit}
+            onToggle={onToggleGrant}
+          />
+        </View>
       ) : null}
-      {moving && canEdit ? (
-        <MoveTargets
-          employee={moving}
-          colors={colors}
-          excludeId={excludeId}
-          suggestedId={suggestedId}
-          onAssign={onAssign}
-        />
+      {open ? (
+        <View style={[styles.drawerBody, { borderTopColor: colors.line }]}>
+          {members.map((employee) => {
+            const mail = employeeMail(employee);
+            const customPerson = Object.keys(employee.company?.accessOverrides || {}).length > 0;
+            const movingThis = employee.id === movingId;
+            return (
+              <View key={employee.id} nativeID={`access-person-${employee.id}`} style={styles.memberLine}>
+                <View style={styles.memberRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
+                    <Text style={[styles.kind, { color: colors.muted }]}>
+                      {mail || 'Ingen e-post'}{customPerson ? ' · egen tilpasning' : ''}
+                    </Text>
+                  </View>
+                  {canEdit ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={movingThis ? `Lukk flytting av ${displayName(employee)}` : `Flytt ${displayName(employee)}`}
+                      onPress={() => onToggleMove(employee.id)}
+                      style={styles.moveLink}
+                    >
+                      <Text style={{ color: colors.brand }}>{movingThis ? 'Lukk' : 'Flytt'}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {movingThis && canEdit ? (
+                  <MoveTargets
+                    employee={employee}
+                    colors={colors}
+                    excludeId={excludeId}
+                    suggestedId={employee.id === moving?.id ? suggestedId : ''}
+                    onAssign={onAssign}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+          {!members.length ? (
+            <Text style={[styles.kind, { color: colors.muted }]}>Ingen i denne gruppen.</Text>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -340,17 +364,28 @@ export default function CompanyAccessSettings({
   onSaveEmployee,
   layout = '',
   initialMovingId = '',
+  initialDrawerId = '',
+  initialSettingsId = '',
 }) {
   const policyKey = JSON.stringify(company?.accessPolicy || {});
   const [policy, setPolicy] = useState(() => normalizeAccessPolicy(company?.accessPolicy));
   const [dirty, setDirty] = useState(false);
   const [mode, setMode] = useState('levels');
-  const [levelId, setLevelId] = useState('ansatt');
   const [query, setQuery] = useState('');
   const [personId, setPersonId] = useState('');
   const [personGrants, setPersonGrants] = useState(null);
   const [personDirty, setPersonDirty] = useState(false);
   const [movingId, setMovingId] = useState(initialMovingId);
+  const [openDrawers, setOpenDrawers] = useState(() => {
+    const next = {};
+    if (initialDrawerId) next[initialDrawerId] = true;
+    if (initialMovingId) {
+      const row = employees.find((item) => item.id === initialMovingId);
+      if (row) next[placedLevelId(row) || 'unplaced'] = true;
+    }
+    return next;
+  });
+  const [settingsId, setSettingsId] = useState(initialSettingsId);
   const { width } = useWindowDimensions();
   const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
   const [error, setError] = useState('');
@@ -362,8 +397,6 @@ export default function CompanyAccessSettings({
   }, [policyKey]);
 
   const grouped = useMemo(() => groupEmployeesByLevel(employees), [employees]);
-  const level = levelById(levelId) || ACCESS_LEVELS[2];
-  const levelGrant = levelGrants(policy, level.id);
 
   const people = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -462,9 +495,8 @@ export default function CompanyAccessSettings({
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Seks standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
-        Profilikonene viser hvem som har hvilke rettigheter. Hold over et ikon for å se navnet.
-        En person kan i tillegg få egne avvik. Se, lese, skrive og slette gjelder hvert område.
-        Høyere rettighet tar med dem under.
+        Åpne et nivå for å se fullt navn og e-post. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
+        En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
       </Text>
       {!canEdit ? (
         <Text style={[styles.lead, { color: colors.muted }]}>
@@ -496,91 +528,67 @@ export default function CompanyAccessSettings({
 
       {mode === 'levels' ? (
         <View style={styles.stack}>
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Hvem som har hvilke rettigheter</Text>
           <Text style={[styles.kind, { color: colors.muted }]}>
             {canEdit
-              ? 'Hold over et profilikon for å se navnet. Trykk på ikonet og velg nivået personen skal flyttes til. En person kan bare ligge i ett nivå. Blå prikk betyr egne avvik fra nivået.'
-              : 'Hold over et profilikon for å se navnet. Blå prikk betyr egne avvik fra nivået.'}
+              ? 'Åpne gruppen for å se hvem som er med. Trykk Flytt for å flytte en person til et annet nivå. Tannhjulet definerer tilgangen til modulene i gruppen.'
+              : 'Åpne gruppen for å se hvem som er med. Tannhjulet viser tilgangen til modulene i gruppen.'}
           </Text>
-          <View style={styles.roster}>
-            {ACCESS_LEVELS.map((row) => {
-              const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
-              const countLabel = roster.length === 1 ? '1 person' : `${roster.length} personer`;
-              return (
-                <LevelRosterCard
-                  key={row.id}
-                  nativeID={`company-access-level-${row.id}`}
-                  title={`${row.order}. ${row.label}`}
-                  meta={`${countLabel} · ${kindLabel(row.kind)}`}
-                  members={roster}
-                  selected={row.id === level.id}
-                  colors={colors}
-                  compact={compact}
-                  canEdit={canEdit && !busy}
-                  movingId={movingId}
-                  excludeId={row.id}
-                  onSelect={() => {
-                    setLevelId(row.id);
-                    setMovingId('');
-                  }}
-                  onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
-                  onAssign={assignLevel}
-                />
-              );
-            })}
-            <LevelRosterCard
-              nativeID="company-access-unplaced"
-              title="Ikke plassert"
-              meta={grouped.unplaced.length
-                ? 'Eksterne foreslås til regnskap eller innleie. Øvrige får ansattnivå til de plasseres.'
-                : 'Alle ansatte er plassert i ett nivå.'}
-              members={[...grouped.unplaced].sort(byName)}
-              selected={false}
-              colors={colors}
-              compact={compact}
-              canEdit={canEdit && !busy}
-              movingId={movingId}
-              excludeId=""
-              suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
-              onSelect={() => setMovingId('')}
-              onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
-              onAssign={assignLevel}
-            />
-          </View>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.cardTitle, { color: colors.ink }]}>{level.order}. {level.label}</Text>
-            <Text style={[styles.kind, { color: colors.muted }]}>{kindLabel(level.kind)}</Text>
-            <Text style={[styles.summary, { color: colors.ink }]}>{level.summary}</Text>
-            {levelIsCustom(policy, level.id) ? (
-              <Text style={[styles.kind, { color: colors.brand }]}>Tilpasset for denne bedriften</Text>
-            ) : (
-              <Text style={[styles.kind, { color: colors.muted }]}>Standard</Text>
-            )}
-            {canEdit && levelIsCustom(policy, level.id) ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setPolicy(resetLevel(policy, level.id));
+          {ACCESS_LEVELS.map((row) => {
+            const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
+            const countLabel = roster.length === 1 ? '1 person' : `${roster.length} personer`;
+            const grants = levelGrants(policy, row.id);
+            return (
+              <LevelDrawer
+                key={row.id}
+                nativeID={`company-access-level-${row.id}`}
+                title={`${row.order}. ${row.label}`}
+                meta={`${countLabel} · ${kindLabel(row.kind)}`}
+                members={roster}
+                colors={colors}
+                compact={compact}
+                canEdit={canEdit && !busy}
+                movingId={movingId}
+                excludeId={row.id}
+                open={!!openDrawers[row.id]}
+                settingsOpen={settingsId === row.id}
+                grants={grants}
+                custom={levelIsCustom(policy, row.id)}
+                summary={row.summary}
+                onToggleOpen={() => setOpenDrawers((current) => ({ ...current, [row.id]: !current[row.id] }))}
+                onToggleSettings={() => setSettingsId((current) => (current === row.id ? '' : row.id))}
+                onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
+                onAssign={assignLevel}
+                onToggleGrant={(resourceId, action, on) => {
+                  const next = toggleGrant(grants[resourceId], action, on);
+                  setPolicy(setLevelGrant(policy, row.id, resourceId, next));
+                  setDirty(true);
+                  setNote('');
+                }}
+                onReset={() => {
+                  setPolicy(resetLevel(policy, row.id));
                   setDirty(true);
                 }}
-                style={[styles.quietBtn, { borderColor: colors.line }]}
-              >
-                <Text style={{ color: colors.ink }}>Tilbakestill nivået til standard</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          <Matrix
-            grants={levelGrant}
+              />
+            );
+          })}
+          <LevelDrawer
+            nativeID="company-access-unplaced"
+            title="Ikke plassert"
+            meta={grouped.unplaced.length
+              ? 'Eksterne foreslås til regnskap eller innleie. Øvrige får ansattnivå til de plasseres.'
+              : 'Alle ansatte er plassert i ett nivå.'}
+            members={[...grouped.unplaced].sort(byName)}
             colors={colors}
             compact={compact}
             canEdit={canEdit && !busy}
-            onToggle={(resourceId, action, on) => {
-              const next = toggleGrant(levelGrant[resourceId], action, on);
-              setPolicy(setLevelGrant(policy, level.id, resourceId, next));
-              setDirty(true);
-              setNote('');
-            }}
+            movingId={movingId}
+            excludeId=""
+            suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
+            open={!!openDrawers.unplaced}
+            settingsOpen={false}
+            onToggleOpen={() => setOpenDrawers((current) => ({ ...current, unplaced: !current.unplaced }))}
+            onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
+            onAssign={assignLevel}
           />
 
           {canEdit ? (
@@ -700,8 +708,6 @@ const styles = StyleSheet.create({
   levelOrder: { fontSize: 12 },
   levelName: { fontSize: 14, fontWeight: '600' },
   levelCount: { fontSize: 12 },
-  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
-  cardTitle: { fontSize: 18, fontWeight: '600' },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginTop: 6 },
@@ -727,13 +733,14 @@ const styles = StyleSheet.create({
   quietBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
   person: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personName: { fontSize: 15, fontWeight: '600' },
-  roster: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  rosterCard: { position: 'relative', borderWidth: 1, borderRadius: 14, padding: 12, gap: 8, flexGrow: 1, flexBasis: 280, maxWidth: 320 },
-  rosterCardCompact: { flexBasis: '100%', maxWidth: '100%' },
-  rosterCardFront: { zIndex: 20 },
-  avatarRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 32, alignItems: 'center' },
-  avatarWrap: { position: 'relative' },
-  hoverName: { fontSize: 12, fontWeight: '600', minHeight: 18 },
+  drawer: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 4, paddingRight: 8, paddingVertical: 4 },
+  drawerToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 8 },
+  gearBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  drawerBody: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  memberLine: { gap: 8 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  moveLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   avatarBtn: { position: 'relative', width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   avatarClip: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   avatarImg: { width: 28, height: 28 },

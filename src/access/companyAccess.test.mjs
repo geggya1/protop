@@ -31,6 +31,8 @@ assert.deepEqual(ids, [
   'regnskap_ekstern',
   'innleie_ekstern',
   'ansatt',
+  'tilbud',
+  'ansatt_andre_avdelinger',
   'avdelingsleder',
   'leder',
   'administrator',
@@ -71,6 +73,39 @@ assert.deepEqual(ids, [
   assert.equal(ansatt.economy, 'none');
   assert.equal(ansatt.customers, 'none');
   assert.equal(hoursOnAssignedOnly(ansatt), false);
+  assert.equal(ansatt.offers, 'none');
+  assert.equal(ansatt.units, 'see');
+}
+
+{
+  const tilbud = standardGrants('tilbud');
+  assert.equal(tilbud.offers, 'write');
+  assert.equal(tilbud.tenders, 'read');
+  assert.equal(tilbud.customers, 'read');
+  assert.equal(tilbud.contracts, 'read');
+  assert.equal(tilbud.economy, 'none');
+  assert.equal(tilbud.companyProfile, 'none');
+  assert.equal(allows(tilbud, 'offers', 'write'), true);
+  assert.equal(allows(tilbud, 'tenders', 'write'), false);
+  assert.equal(companyTabAllowed('anbud', 'tilbud', tilbud), true);
+  assert.equal(companyTabAllowed('anbud', 'varsling', tilbud), true);
+  assert.equal(companyTabAllowed('okonomi', null, tilbud), false);
+}
+
+{
+  const andre = standardGrants('ansatt_andre_avdelinger');
+  assert.equal(andre.units, 'read');
+  assert.equal(allows(andre, 'units', 'write'), false);
+  assert.equal(andre.employees, 'read');
+  assert.equal(andre.projects, 'read');
+  assert.equal(andre.hours, 'write');
+  assert.equal(andre.hoursOthers, 'see');
+  assert.equal(allows(andre, 'hoursOthers', 'write'), false);
+  assert.equal(andre.customers, 'none');
+  assert.equal(andre.offers, 'none');
+  assert.equal(andre.economy, 'none');
+  assert.equal(companyTabAllowed('underenheter', null, andre), true);
+  assert.equal(companyTabAllowed('anbud', null, andre), false);
 }
 
 {
@@ -131,6 +166,8 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     company: { accessRole: 'Leder', personnelKind: 'staff', status: 'active', employmentType: 'Fast ansatt' },
   };
   assert.equal(placedLevelId(employee), 'leder');
+  assert.equal(placedLevelId({ company: { accessRole: 'Tilbud' } }), 'tilbud');
+  assert.equal(placedLevelId({ company: { accessRole: 'Ansatt andre avdelinger' } }), 'ansatt_andre_avdelinger');
   assert.equal(effectiveLevelId(employee), 'leder');
   const external = {
     company: { personnelKind: 'external', employmentType: 'Fast ansatt', status: 'active', accessRole: 'Lesetilgang' },
@@ -208,6 +245,22 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   const ansattNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt'))
     .find((item) => item.id === 'selskap');
   assert.deepEqual(ansattNav.children.map((child) => child.id), ['underenheter']);
+  const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
+    .find((item) => item.id === 'anbud');
+  assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-tilbud']);
+  const offersOnly = { ...standardGrants('tilbud'), tenders: 'none' };
+  const offersNav = filterCompanyNav(companyNavItems(), offersOnly)
+    .find((item) => item.id === 'anbud');
+  assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud']);
+  assert.equal(offersNav.action.subView, 'tilbud');
+  const andreNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger')).map((item) => item.id);
+  assert.ok(andreNav.includes('underenheter') === false);
+  assert.ok(andreNav.includes('projects'));
+  assert.equal(andreNav.includes('anbud'), false);
+  assert.equal(andreNav.includes('okonomi'), false);
+  const andreSelskap = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
+    .find((item) => item.id === 'selskap');
+  assert.deepEqual(andreSelskap.children.map((child) => child.id), ['underenheter']);
 }
 
 console.log('companyAccess.test.mjs: ok');

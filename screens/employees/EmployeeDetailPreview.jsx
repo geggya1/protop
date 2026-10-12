@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/theme';
 import { applyEmployeeClassification, presentEmployee } from '../../src/employees/model';
 import { emptyProjectState } from '../../src/project/engine';
+import ProjectDetail from '../../components/project/ProjectDetail';
 import EmployeeDetailView from './EmployeeDetailView';
 
 function mockEmployee(id, overrides = {}) {
@@ -114,7 +115,7 @@ export default function EmployeeDetailPreview() {
   const [selectedId, setSelectedId] = useState(siblings[0].id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [people, setPeople] = useState(siblings);
-  const [openedProject, setOpenedProject] = useState('');
+  const [openedId, setOpenedId] = useState('');
   const selected = people.find((row) => row.id === selectedId) || people[0];
   const departments = [{ id: 'dep-bygg', name: 'Bygg' }];
   const projectState = useMemo(() => {
@@ -128,10 +129,20 @@ export default function EmployeeDetailPreview() {
     return {
       ...base,
       projects: [
-        { id: 'wp-1', number: '10417', name: 'Prismen (Ny)', client: 'Oslo kommune', status: 'aktiv' },
-        { id: 'wp-2', number: '10201', name: 'Skolebygg Vest', client: 'Statsbygg', status: 'aktiv' },
-        { id: 'wp-3', number: '9802', name: 'Kontorbygg Sentrum', client: 'Private', status: 'aktiv' },
-        { id: 'wp-4', number: '10001', name: 'Myklebust CB6-12-13', client: 'Sola Kommune', status: 'aktiv', start: '42461', end: '43334' },
+        { id: 'wp-1', number: '10417', name: 'Prismen (Ny)', client: 'Oslo kommune', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Under arbeid', start: '2019-08-01', end: '' },
+        { id: 'wp-2', number: '10201', name: 'Skolebygg Vest', client: 'Statsbygg', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Under arbeid', start: '2021-03-01', end: '' },
+        { id: 'wp-3', number: '9802', name: 'Kontorbygg Sentrum', client: 'Private', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Avsluttet', start: '2017-01-01', end: '2019-12-31' },
+        {
+          id: 'wp-4',
+          number: '10001',
+          name: 'Myklebust CB6-12-13 (1882)',
+          client: 'Sola Kommune',
+          status: 'aktiv',
+          manager: 'Geir Ove Andersen',
+          projectStatus: 'Avsluttet',
+          start: '42461',
+          end: '43334',
+        },
       ],
       members: [
         { id: 'm1', projectId: 'wp-1', employeeId: siblings[0].id, employeeName: 'Geir Ove Andersen', role: 'Prosjektleder', active: true },
@@ -146,12 +157,32 @@ export default function EmployeeDetailPreview() {
       ],
     };
   }, [siblings]);
+  const openedProject = projectState.projects.find((row) => row.id === openedId) || null;
+
+  if (openedProject) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+        <Text style={[styles.banner, { color: colors.muted, borderColor: colors.line, backgroundColor: colors.card, marginBottom: 12 }]}>
+          Forhåndsvisning · prosjekt åpnet fra medarbeider
+        </Text>
+        <ProjectDetail
+          state={projectState}
+          project={openedProject}
+          employees={people}
+          colors={colors}
+          isAdmin
+          uid="preview-user"
+          onChangeState={() => {}}
+          onBack={() => setOpenedId('')}
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.inner}>
       <Text style={[styles.banner, { color: colors.muted, borderColor: colors.line, backgroundColor: colors.card }]}>
         Forhåndsvisning · /employee-detail-preview
-        {openedProject ? ` · Åpnet prosjekt: ${openedProject}` : ''}
       </Text>
       <EmployeeDetailView
         employee={selected}
@@ -172,7 +203,7 @@ export default function EmployeeDetailPreview() {
         confirmDelete={confirmDelete}
         onBack={() => {}}
         onCv={() => {}}
-        onOpenProject={(project) => setOpenedProject(`${project.number} ${project.name}`)}
+        onOpenProject={(project) => setOpenedId(project.id)}
         onSelect={(row) => setSelectedId(row.id)}
         onChange={(next) => {
           setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));

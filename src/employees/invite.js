@@ -34,6 +34,21 @@ export function employeeContactEmail(employee) {
   return text(employee?.invite?.email || employee?.company?.email || employee?.person?.email).toLowerCase();
 }
 
+/** Alle e-poster som kan treffe brukeren (person, arbeid, invitasjon). */
+export function employeeMatchEmails(employee) {
+  const out = [];
+  for (const value of [
+    employee?.person?.email,
+    employee?.company?.email,
+    employee?.invite?.email,
+  ]) {
+    const email = text(value).toLowerCase();
+    if (!email || !email.includes('@') || out.includes(email)) continue;
+    out.push(email);
+  }
+  return out;
+}
+
 export function normalizeInviteState(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const invite = emptyInvite();
@@ -66,8 +81,8 @@ export function inviteStatusLabel(status) {
 
 export function matchEmployeeByEmail(rows, email) {
   const needle = text(email).toLowerCase();
-  if (!needle) return null;
-  return (rows || []).find((row) => employeeContactEmail(row) === needle) || null;
+  if (!needle || !needle.includes('@')) return null;
+  return (rows || []).find((row) => employeeMatchEmails(row).includes(needle)) || null;
 }
 
 function splitName(name) {
@@ -270,7 +285,7 @@ export function claimEmployeeSeatPlan({
   const stamp = text(now) || new Date().toISOString();
   if (!actor) return { ok: false, error: 'Du må være innlogget.' };
   if (!email) return { ok: true, skipped: true };
-  const matches = (employees || []).filter((row) => employeeContactEmail(row) === email);
+  const matches = (employees || []).filter((row) => employeeMatchEmails(row).includes(email));
   if (!matches.length) return { ok: true, skipped: true };
 
   const accepted = matches.find((row) => (

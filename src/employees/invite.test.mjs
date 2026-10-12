@@ -39,6 +39,26 @@ test('flere medarbeidere kan legges i kø uten at status blir sendt', () => {
   assert.equal(matchEmployeeByEmail([ada, bo], 'ADA@firma.no')?.id, 'emp_ada');
 });
 
+test('e-postmatch treffer både person- og arbeidsadresse', () => {
+  const geir = normalizeEmployee({
+    id: 'emp_geir',
+    person: {
+      firstName: 'Geir Ove',
+      middleName: 'Ove',
+      lastName: 'Andersen',
+      email: 'goa@invest-as.no',
+    },
+    company: {
+      email: 'goa@consult1.no',
+      status: 'active',
+      personnelKind: 'external',
+    },
+  });
+  assert.equal(matchEmployeeByEmail([geir], 'goa@invest-as.no')?.id, 'emp_geir');
+  assert.equal(matchEmployeeByEmail([geir], 'GOA@consult1.no')?.id, 'emp_geir');
+  assert.equal(matchEmployeeByEmail([geir], 'other@example.com'), null);
+});
+
 test('køen kan oppdateres og tas ut før e-post er sendt', () => {
   const row = normalizeEmployee(draftInviteEmployee({
     firstName: 'Cia',

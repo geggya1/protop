@@ -513,9 +513,14 @@ export function normalizeProfile(raw) {
   return profile;
 }
 
-function emailsOf(employee) {
+/** Alle e-poster på medarbeideren (person + arbeid), uten duplikater. */
+export function employeeEmails(employee) {
   const out = [];
-  for (const value of [employee?.person?.email, employee?.company?.email]) {
+  for (const value of [
+    employee?.person?.email,
+    employee?.company?.email,
+    employee?.invite?.email,
+  ]) {
     const email = text(value).toLowerCase();
     if (!email || !email.includes('@') || out.includes(email)) continue;
     out.push(email);
@@ -523,10 +528,24 @@ function emailsOf(employee) {
   return out;
 }
 
+/** @deprecated Bruk employeeEmails — beholdt for interne kall. */
+function emailsOf(employee) {
+  return employeeEmails(employee);
+}
+
 export function displayName(employee) {
   const person = employee?.person || {};
   const parts = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean);
-  return parts.join(' ') || 'Uten navn';
+  // Unngå «Geir Ove» + «Ove» + «Andersen» → «Geir Ove Ove Andersen».
+  const tokens = [];
+  for (const part of parts) {
+    for (const token of part.split(/\s+/).filter(Boolean)) {
+      const prev = tokens[tokens.length - 1];
+      if (prev && prev.toLowerCase() === token.toLowerCase()) continue;
+      tokens.push(token);
+    }
+  }
+  return tokens.join(' ') || 'Uten navn';
 }
 
 function namesFromHint(value) {

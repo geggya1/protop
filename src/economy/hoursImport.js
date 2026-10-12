@@ -10,7 +10,7 @@ import {
   normalizeOrgnr,
 } from '../anbud/customers.js';
 import { parseHours, roundHours, formatHours } from '../arbeid/hours.js';
-import { displayName } from '../employees/model.js';
+import { displayName, employeeEmails } from '../employees/model.js';
 import {
   matchCustomer,
   matchProject,
@@ -34,6 +34,10 @@ const FIELD_ALIASES = [
     'ansatt', 'ansattnavn', 'medarbeider', 'medarbeidernavn', 'resource', 'ressurs',
     'user', 'bruker', 'employee', 'employeename', 'name', 'navn',
     'medarbeidereksterntansattnummer', 'employeeexternalemployeenumber',
+  ]],
+  ['employeeEmail', [
+    'ansattepost', 'ansattmail', 'medarbeiderepost', 'medarbeidermail',
+    'employeeemail', 'workemail', 'arbeidsepost', 'epost', 'email', 'mail',
   ]],
   ['customerNumber', ['kundenummer', 'kundenr', 'customernumber', 'customerno']],
   ['customerName', ['kundenavn', 'kunde', 'customer', 'client', 'oppdragsgiver']],
@@ -322,8 +326,32 @@ function matchEmployeeByName(list, name, hint = {}) {
   return null;
 }
 
+function normalizeMatchEmail(value) {
+  const email = text(value).toLowerCase();
+  return email.includes('@') ? email : '';
+}
+
+function hintEmails(hint = {}) {
+  const out = [];
+  for (const value of [hint.employeeEmail, hint.email, hint.workEmail, hint.personEmail]) {
+    const email = normalizeMatchEmail(value);
+    if (email && !out.includes(email)) out.push(email);
+  }
+  return out;
+}
+
+function matchEmployeeByEmail(list, hint = {}) {
+  const needles = hintEmails(hint);
+  if (!needles.length) return null;
+  const hits = list.filter((row) => {
+    const emails = employeeEmails(row);
+    return needles.some((email) => emails.includes(email));
+  });
+  return pickBestEmployee(hits, hint);
+}
+
 /**
- * Match medarbeider på ansattnummer og/eller navn.
+ * Match medarbeider på e-post (alle registrerte), ansattnummer og/eller navn.
  * Alle statuser (aktiv, permisjon, inaktiv, slettet) er med — aktiv foretrekkes
  * ved flere treff. Nummer alene brukes bare når navnet ikke motstrider.
  */
@@ -331,6 +359,11 @@ export function matchEmployee(employees, hint = {}) {
   const list = Array.isArray(employees) ? employees : [];
   const number = normalizeEmployeeNumber(hint.employeeNumber);
   const name = text(hint.employeeName);
+
+  // E-post først når filen har det — prøv både person- og arbeidsadresse i Ansatte.
+  const byEmail = matchEmployeeByEmail(list, hint);
+  if (byEmail && (!name || employeeNameMatches(byEmail, name))) return byEmail;
+
   if (number) {
     const byNumber = list.filter((row) => (
       normalizeEmployeeNumber(row?.company?.externalEmployeeNumber) === number
@@ -380,8 +413,10 @@ export function applyCustomerFromProject(entry, project, customers = []) {
 
 export function suggestEmployees(employees, hint = {}, limit = 8) {
   const list = Array.isArray(employees) ? employees : [];
-  const q = fold(hint.query || hint.employeeName || hint.employeeNumber);
+  const qRaw = text(hint.query || hint.employeeName || hint.employeeNumber || hint.employeeEmail);
+  const q = fold(qRaw);
   const qNumber = normalizeEmployeeNumber(hint.query || hint.employeeNumber);
+  const qEmail = normalizeMatchEmail(hint.query || hint.employeeEmail);
   if (!q) {
     return [...list]
       .sort((left, right) => (
@@ -394,13 +429,16 @@ export function suggestEmployees(employees, hint = {}, limit = 8) {
     const name = fold(displayName(row));
     const number = normalizeEmployeeNumber(row?.company?.externalEmployeeNumber);
     const numberFold = fold(row?.company?.externalEmployeeNumber);
+    const emails = employeeEmails(row);
     let score = 0;
+    if (qEmail && emails.includes(qEmail)) score += 120;
+    else if (emails.some((email) => email.includes(qRaw.toLowerCase()))) score += 50;
     if (number && qNumber && number === qNumber) score += 100;
     if (name === q) score += 80;
-    if (employeeCoreName(name) && employeeCoreName(name) === employeeCoreName(q)) score += 60;
+    if (employeeCoreName(displayName(row)) && employeeCoreName(displayName(row)) === employeeCoreName(qRaw)) score += 60;
     if (name.includes(q) || q.includes(name)) score += 40;
     if (numberFold && numberFold.includes(q)) score += 30;
-    if (namesLikelyMatch(name, q)) score += 20;
+    if (namesLikelyMatch(displayName(row), qRaw)) score += 20;
     score -= employeeStatusRank(row);
     return { row, score };
   }).filter((item) => item.score > 0)
@@ -439,6 +477,7 @@ export function hourEntryFromMappedRow(mapped, originalValues = {}, meta = {}) {
     date,
     employeeNumber: text(mapped.employeeNumber) || split.number,
     employeeName,
+    employeeEmail: text(mapped.employeeEmail).toLowerCase(),
     employeeId: text(mapped.employeeId),
     customerNumber: normalizeCustomerNumber(mapped.customerNumber) || text(mapped.customerNumber),
     customerName: text(mapped.customerName),

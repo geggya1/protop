@@ -3,7 +3,7 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ACCESS_LEVELS, employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
+import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
 import { inviteStatusLabel } from '../../src/employees/invite';
 import {
   cardSubtitle,
@@ -161,73 +161,20 @@ const ACCESS_SYMBOLS = {
   administrator: 'shield-checkmark-outline',
 };
 
-function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, startOpen = false }) {
-  const [open, setOpen] = useState(startOpen);
+function AccessCorner({ employee, colors }) {
   const selectedIds = employeeLevelIds(employee);
   const currentId = placedLevelId(employee);
   const symbol = ACCESS_SYMBOLS[currentId] || 'ellipse-outline';
   const label = selectedIds.map((id) => levelById(id)?.label).filter(Boolean).join(', ') || 'Ikke valgt';
   return (
     <View nativeID="employee-access-level" style={styles.accessCorner}>
-      <View style={styles.accessCornerRow}>
-        <View
-          accessibilityLabel={label}
-          style={[styles.accessSymbol, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
-        >
-          <Ionicons name={symbol} size={18} color={colors.brand} />
-        </View>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel="Rettighetsinnstillinger"
-          accessibilityState={{ expanded: open }}
-          onPress={() => setOpen((value) => !value)}
-          style={[styles.accessGear, { borderColor: open ? colors.brand : colors.line, backgroundColor: colors.card }]}
-        >
-          <Ionicons name="settings-outline" size={18} color={open ? colors.brand : colors.ink} />
-        </TouchableOpacity>
+      <View
+        accessibilityLabel={label}
+        style={[styles.accessSymbol, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+      >
+        <Ionicons name={symbol} size={18} color={colors.brand} />
       </View>
-      {open ? (
-        <View nativeID="employee-access-menu" style={[styles.accessMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
-          {ACCESS_LEVELS.map((level) => {
-            const on = selectedIds.includes(level.id);
-            return (
-              <TouchableOpacity
-                key={level.id}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on, disabled: !canEditAccess || busy }}
-                accessibilityLabel={level.label}
-                disabled={!canEditAccess || busy}
-                onPress={() => {
-                  if (!canEditAccess) return;
-                  const next = on
-                    ? selectedIds.filter((id) => id !== level.id)
-                    : [...selectedIds, level.id];
-                  onClassify?.({ accessLevels: next });
-                }}
-                style={[
-                  styles.accessOption,
-                  {
-                    borderColor: on ? colors.brand : 'transparent',
-                    backgroundColor: on ? colors.brandSoft : 'transparent',
-                    opacity: !canEditAccess ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Ionicons name={ACCESS_SYMBOLS[level.id]} size={18} color={on ? colors.brand : colors.ink} />
-                <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600', flex: 1 }}>{level.label}</Text>
-                <View style={[
-                  styles.levelBox,
-                  { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent' },
-                ]}
-                >
-                  {on ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
+      <Text style={{ color: colors.muted, fontSize: 12, maxWidth: 140 }}>{label}</Text>
     </View>
   );
 }
@@ -459,7 +406,6 @@ export default function EmployeeDetailView({
   onChange,
   onSave,
   onClassify,
-  accessMenuOpen = false,
   onPhoto,
   onPickAddress,
   onPushProfile,
@@ -820,14 +766,7 @@ export default function EmployeeDetailView({
                   colors={colors}
                   label="Rediger navn og kontakt"
                 />
-                <AccessCorner
-                  employee={employee}
-                  colors={colors}
-                  busy={busy}
-                  canEditAccess={canEditAccess}
-                  onClassify={onClassify}
-                  startOpen={accessMenuOpen}
-                />
+                <AccessCorner employee={employee} colors={colors} />
               </View>
             </View>
 

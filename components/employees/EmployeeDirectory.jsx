@@ -154,6 +154,7 @@ export default function EmployeeDirectory({
   companyName = '',
   colors,
   focusSection = '',
+  variant = 'list',
   canEditLevels = false,
   renderPerson,
   renderIdentity,
@@ -181,9 +182,21 @@ export default function EmployeeDirectory({
   const companyShown = companyTab === 'inactive' ? companyParts.inactive : companyParts.active;
   const externalShown = externalTab === 'inactive' ? externalParts.inactive : externalParts.active;
   const identity = renderIdentity || renderPerson;
+  const withLevels = variant === 'levels';
 
-  function table(nativeID, shown, levels, emptyText) {
+  function listing(nativeID, shown, levels, emptyText) {
     if (!shown.length) return <Text style={{ color: colors.muted }}>{emptyText}</Text>;
+    if (!withLevels) {
+      return (
+        <View nativeID={nativeID} style={styles.list}>
+          {shown.map((row) => (
+            <View key={row.id} nativeID={`employee-row-${row.id}`} style={[styles.listRow, { borderBottomColor: colors.line }]}>
+              {identity(row)}
+            </View>
+          ))}
+        </View>
+      );
+    }
     return (
       <LevelTable
         nativeID={nativeID}
@@ -214,11 +227,13 @@ export default function EmployeeDirectory({
           colors={colors}
           onChange={setCompanyTab}
         />
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Kryss av nivåene som passer. En ansatt kan ha flere.
-        </Text>
-        {table(
-          'employees-table-company',
+        {withLevels ? (
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Kryss av nivåene som passer. En ansatt kan ha flere.
+          </Text>
+        ) : null}
+        {listing(
+          withLevels ? 'employees-table-company' : 'employees-list-company',
           companyShown,
           companyLevels,
           companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
@@ -239,11 +254,13 @@ export default function EmployeeDirectory({
           colors={colors}
           onChange={setExternalTab}
         />
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Kryss av nivåene som passer. En person kan ha flere.
-        </Text>
-        {table(
-          'employees-table-external',
+        {withLevels ? (
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Kryss av nivåene som passer. En person kan ha flere.
+          </Text>
+        ) : null}
+        {listing(
+          withLevels ? 'employees-table-external' : 'employees-list-external',
           externalShown,
           externalLevels,
           externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
@@ -274,6 +291,8 @@ const styles = StyleSheet.create({
   body: { borderTopWidth: 1, padding: 12, gap: 10 },
   tabs: { flexDirection: 'row', gap: 8 },
   tab: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  list: { gap: 2 },
+  listRow: { borderBottomWidth: 1, paddingVertical: 6 },
   tableScroll: { marginHorizontal: -4 },
   table: { minWidth: 860 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1, paddingBottom: 8 },

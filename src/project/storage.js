@@ -19,12 +19,36 @@ const MEMORY = new Map();
 const inflight = new Map();
 /** 'ok' når siste lesing mot Firestore lyktes, 'error' når den feilet. */
 const loadMeta = new Map();
+/**
+ * Siste timeEntries som er synket til Firestore-subcollection.
+ * Brukes som baseline for diff — ikke MEMORY, fordi Timeliste/Arbeid
+ * kaller putProjectState før saveProjectState og da blir slettinger usynlige.
+ */
+const SYNCED_ENTRIES = new Map();
 
 const REMOTE_AUTH_MS = 8000;
 const REMOTE_READ_MS = 12000;
 
 function memoryKey(companyId) {
   return String(companyId || '').trim() || '_';
+}
+
+function cloneEntries(entries) {
+  return (Array.isArray(entries) ? entries : []).slice();
+}
+
+export function peekSyncedTimeEntries(companyId) {
+  return SYNCED_ENTRIES.get(memoryKey(companyId)) || null;
+}
+
+export function markTimeEntriesSynced(companyId, entries) {
+  SYNCED_ENTRIES.set(memoryKey(companyId), cloneEntries(entries));
+}
+
+function baselineTimeEntries(companyId) {
+  const key = memoryKey(companyId);
+  if (SYNCED_ENTRIES.has(key)) return SYNCED_ENTRIES.get(key) || [];
+  return MEMORY.get(key)?.timeEntries || [];
 }
 
 function localKey(companyId) {
@@ -200,6 +224,7 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries) {
   for (const entryId of removed) {
     await removeTimeEntry(id, entryId);
   }
+  markTimeEntriesSynced(id, nextEntries);
 }
 
 /**
@@ -234,12 +259,14 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     loadMeta.set(key, applied.meta);
     if (!applied.cache) {
       const withHours = await attachTimeEntriesToState(companyId, applied.state);
+      markTimeEntriesSynced(companyId, withHours.timeEntries);
       return putProjectState(withHours, companyId);
     }
     if (applied.upload) {
       queueRemote(companyId, { ...stripTimeEntriesFromState(applied.state), syncedAt: new Date().toISOString() });
     }
     const withHours = await attachTimeEntriesToState(companyId, applied.state);
+    markTimeEntriesSynced(companyId, withHours.timeEntries);
     // Rydd legacy timeEntries ut av monolitten når de er migrert.
     if ((applied.state.timeEntries || []).length && withHours.timeEntries?.length) {
       queueRemote(companyId, {
@@ -260,7 +287,7 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
 
 export async function saveProjectState(state, companyId) {
   const full = normalizeProjectState(state);
-  const previous = MEMORY.get(memoryKey(companyId));
+  const previousEntries = baselineTimeEntries(companyId);
   const stamped = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
@@ -271,7 +298,7 @@ export async function saveProjectState(state, companyId) {
 
   if (companyId) {
     try {
-      await syncTimeEntriesRemote(companyId, previous?.timeEntries || [], full.timeEntries || []);
+      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || []);
     } catch (error) {
       // Behold minne, men signaliser feil til kallere som await-er.
       putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
@@ -287,7 +314,7 @@ export async function saveProjectState(state, companyId) {
 /** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries). */
 export async function persistProjectState(state, companyId) {
   const full = normalizeProjectState(state);
-  const previous = MEMORY.get(memoryKey(companyId));
+  const previousEntries = baselineTimeEntries(companyId);
   const stamped = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
@@ -297,7 +324,7 @@ export async function persistProjectState(state, companyId) {
     : stamped;
 
   if (companyId) {
-    await syncTimeEntriesRemote(companyId, previous?.timeEntries || [], full.timeEntries || []);
+    await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || []);
   }
 
   await writeLocal(companyId, nextSlim);
@@ -327,9 +354,11 @@ export function clearProjectStateMemory(companyId) {
     MEMORY.delete(key);
     inflight.delete(key);
     loadMeta.delete(key);
+    SYNCED_ENTRIES.delete(key);
     return;
   }
   MEMORY.clear();
   inflight.clear();
   loadMeta.clear();
+  SYNCED_ENTRIES.clear();
 }

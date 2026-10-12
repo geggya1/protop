@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import {
+  attachTimeEntriesToState,
   diffTimeEntries,
 } from './timeEntryStorage.js';
 import {
-  attachTimeEntriesToState,
-} from './timeEntryStorage.js';
-import { stripTimeEntriesFromState } from '../project/storage.js';
-import { emptyProjectState } from '../project/engine.js';
+  markTimeEntriesSynced,
+  peekSyncedTimeEntries,
+  putProjectState,
+  stripTimeEntriesFromState,
+  clearProjectStateMemory,
+} from '../project/storage.js';
+import { deleteTimeEntry, emptyProjectState } from '../project/engine.js';
 
 {
   const prev = [{
@@ -25,6 +29,37 @@ import { emptyProjectState } from '../project/engine.js';
   assert.deepEqual(removed, []);
   const deleted = diffTimeEntries(next, prev);
   assert.deepEqual(deleted.removed, ['t2']);
+}
+
+{
+  // Timeliste-mønster: putProjectState før save — MEMORY mister slettingen i diff
+  // mot seg selv, men SYNCED-baseline skal fortsatt se removed.
+  clearProjectStateMemory('co-del');
+  const entry = {
+    id: 'tid_del',
+    projectId: 'p1',
+    employeeId: 'e1',
+    date: '2026-10-10',
+    hours: 8,
+    billableHours: 8,
+    employeeName: 'Geir Ove Andersen',
+    updatedAt: '2026-10-10T10:00:00.000Z',
+  };
+  const before = emptyProjectState();
+  before.timeEntries = [entry];
+  markTimeEntriesSynced('co-del', before.timeEntries);
+  putProjectState(before, 'co-del');
+
+  const afterDelete = deleteTimeEntry(before, entry.id);
+  assert.equal(afterDelete.ok, true);
+  // Samme rekkefølge som ArbeidScreen useEffect:
+  putProjectState(afterDelete.state, 'co-del');
+  const memoryNow = afterDelete.state.timeEntries;
+  const againstMemory = diffTimeEntries(memoryNow, memoryNow);
+  assert.deepEqual(againstMemory.removed, [], 'diff mot MEMORY etter put blir tom');
+  const againstSynced = diffTimeEntries(peekSyncedTimeEntries('co-del'), memoryNow);
+  assert.deepEqual(againstSynced.removed, ['tid_del']);
+  clearProjectStateMemory('co-del');
 }
 
 {

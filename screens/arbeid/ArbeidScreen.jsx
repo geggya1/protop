@@ -34,6 +34,7 @@ import {
   putProjectState,
   saveProjectState,
 } from '../../src/project/storage';
+import { removeTimeEntry } from '../../src/economy/timeEntryStorage.js';
 import {
   ABSENCE_TYPES,
   canManageTimesheets,
@@ -341,7 +342,7 @@ export default function ArbeidScreen() {
     }).catch(() => {});
   }
 
-  function removeEntry(id) {
+  async function removeEntry(id) {
     const result = deleteTimeEntry(state, id);
     if (!result.ok) {
       setError(result.error);
@@ -350,6 +351,16 @@ export default function ArbeidScreen() {
     setState(result.state);
     setEditor(null);
     setNote('Føring slettet.');
+    setError('');
+    // Slett direkte i timeEntries-subcollection — saveProjectState-diff alene
+    // feilet tidligere når putProjectState kjørte først i useEffect.
+    try {
+      if (familyId && id) await removeTimeEntry(familyId, id);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
+      setNote('');
+      return;
+    }
     recordUsage({
       type: 'hour_deleted',
       companyId: familyId,

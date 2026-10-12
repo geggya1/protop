@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
-import { accessLevelSections, levelById, placedLevelId } from '../../src/access/companyAccess';
+import { employeeLevelIds, levelById, placedLevelId, withToggledLevel } from '../../src/access/companyAccess';
 import {
   applyInviteSendResult,
   draftInviteEmployee,
@@ -36,7 +36,6 @@ import { askImportInterpret } from '../../src/imports/interpretClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
-import FilterMenu from '../../components/FilterMenu';
 import EmployeeDirectory from '../../components/employees/EmployeeDirectory';
 import {
   absorbCompanyIntoProfile,
@@ -126,7 +125,6 @@ export default function EmployeesScreen() {
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
-  const [levelFilter, setLevelFilter] = useState('all');
   const [focusSection, setFocusSection] = useState('');
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
@@ -219,23 +217,13 @@ export default function EmployeesScreen() {
   const linked = mine?.personUid === uid ? mine : (rows.find((row) => row.personUid && row.personUid === uid) || null);
   const visible = useMemo(
     () => filterEmployees(rows, {
-      level: levelFilter,
       status: 'all',
       query,
       departments,
       keepIds: mine?.id ? [mine.id] : [],
     }),
-    [rows, levelFilter, query, departments, mine?.id],
+    [rows, query, departments, mine?.id],
   );
-  const mineLevelId = mine ? placedLevelId(mine) : '';
-  const mineHiddenByLevel = !!(mine && levelFilter !== 'all' && mineLevelId !== levelFilter);
-  const levelOptions = useMemo(() => ([
-    { id: 'all', label: 'Alle nivåer' },
-    ...accessLevelSections().flatMap((section) => section.levels.map((level) => ({
-      id: level.id,
-      label: `${level.order}. ${level.label}`,
-    }))),
-  ]), []);
   function resetMessage() {
     setNote('');
     setError('');
@@ -632,7 +620,6 @@ export default function EmployeesScreen() {
       }
       setNote(noteText);
       setRegisterOpen(false);
-      setLevelFilter('all');
       const section = levelById(placedAccessLevel(saved))?.section || '';
       if (section) setFocusSection(section);
     } finally {
@@ -741,7 +728,6 @@ export default function EmployeesScreen() {
   async function restoreMine() {
     if (!uid || !familyId || busy) return;
     if (mine) {
-      setLevelFilter('all');
       setQuery('');
       if (!mine.personUid && uid) {
         setBusy(true);
@@ -783,7 +769,6 @@ export default function EmployeesScreen() {
         customFields: saved.customFields.filter((field) => field.owner === 'person'),
       }, { companyId: familyId, employeeId: saved.id, companyName }));
       setProfile(stored);
-      setLevelFilter('all');
       setQuery('');
       setSelectedId(saved.id);
       setDraft(presentEmployee(saved));
@@ -895,13 +880,42 @@ export default function EmployeesScreen() {
     setError('');
   }
 
+  async function toggleListedLevel(employee, levelId, checked) {
+    if (!canEditAccess || busy || !familyId || !employee) return;
+    const next = withToggledLevel(employee, levelId, checked);
+    const result = commitEmployee(next, { scope: 'company' });
+    if (!result.ok) {
+      showError(result.errors.join('\n'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await saveEmployee(familyId, result.employee);
+      setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
+      if (draft?.id === saved.id) setDraft(presentEmployee(saved));
+      const levelNames = employeeLevelIds(saved).map((id) => levelById(id)?.label).filter(Boolean);
+      setNote(levelNames.length
+        ? `${displayName(saved)} har ${levelNames.join(', ')}.`
+        : `${displayName(saved)} har ingen tilgangsnivå.`);
+      const section = levelById(levelId)?.section || '';
+      if (section) setFocusSection(section);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lagre tilgangsnivået.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function classifyEmployee(patch) {
-    const accessChange = Object.prototype.hasOwnProperty.call(patch, 'accessLevel');
+    const levelSet = Object.prototype.hasOwnProperty.call(patch, 'accessLevels');
+    const accessChange = levelSet || Object.prototype.hasOwnProperty.call(patch, 'accessLevel');
     if (busy) return;
     if (accessChange ? !canEditAccess : !isAdmin) return;
     const current = draft && draft.id === selectedId ? draft : selected;
     if (!current) return;
-    const next = applyEmployeeClassification(current, patch);
+    const next = levelSet
+      ? { ...current, company: { ...(current.company || {}), accessLevels: patch.accessLevels } }
+      : applyEmployeeClassification(current, patch);
     setDraft(next);
     const result = commitEmployee(next, { scope: 'company' });
     if (!result.ok) {
@@ -918,9 +932,12 @@ export default function EmployeesScreen() {
       setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
       setDraft(presentEmployee(saved));
       setSelectedId(saved.id);
-      setNote(accessChange
-        ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
-        : 'Tilknytningen er lagret.');
+      const levelNames = employeeLevelIds(saved).map((id) => levelById(id)?.label).filter(Boolean);
+      setNote(levelSet
+        ? (levelNames.length ? `${displayName(saved)} har ${levelNames.join(', ')}.` : `${displayName(saved)} har ingen tilgangsnivå.`)
+        : (accessChange
+          ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
+          : 'Tilknytningen er lagret.'));
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
     } finally {
@@ -1122,7 +1139,6 @@ export default function EmployeesScreen() {
         setSelectedId(saved.id);
         setNote('Medarbeideren er flyttet til papirkurven.');
         setView('list');
-        setLevelFilter('all');
         setFocusSection('trash');
       }
     } catch (err) {
@@ -1197,21 +1213,6 @@ export default function EmployeesScreen() {
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          <FilterMenu
-            groups={[
-              {
-                id: 'level',
-                label: 'Tilgangsnivå',
-                value: levelFilter,
-                onChange: (id) => {
-                  setLevelFilter(id);
-                  const section = levelById(id)?.section || '';
-                  if (section) setFocusSection(section);
-                },
-                options: levelOptions,
-              },
-            ]}
-          />
           {!mine ? (
             <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Profilen din ligger ikke i listen</Text>
@@ -1228,19 +1229,6 @@ export default function EmployeesScreen() {
                 <Text style={styles.primaryText}>{busy ? 'Gjenoppretter…' : 'Gjenopprett min profil'}</Text>
               </TouchableOpacity>
             </View>
-          ) : mineHiddenByLevel ? (
-            <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>
-                {`${displayName(mine)} vises her selv om filteret er ${levelById(levelFilter)?.label || 'et annet nivå'}.`}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setLevelFilter('all')}
-                accessibilityRole="button"
-                style={[styles.secondary, { borderColor: colors.line }]}
-              >
-                <Text style={{ color: colors.ink }}>Vis alle nivåer</Text>
-              </TouchableOpacity>
-            </View>
           ) : null}
           {!rows.length ? (
             <Text style={{ color: colors.muted }}>Ingen medarbeidere er registrert ennå.</Text>
@@ -1250,50 +1238,57 @@ export default function EmployeesScreen() {
               companyName={companyName}
               colors={colors}
               focusSection={focusSection}
-              renderPerson={(row) => {
-                const levelLabel = levelById(placedLevelId(row))?.label || '';
-                return (
-                  <TouchableOpacity
-                    key={row.id}
-                    onPress={() => openDetail(row)}
-                    accessibilityRole="button"
-                    accessibilityLabel={displayName(row)}
-                    style={[styles.person, { borderColor: colors.line, backgroundColor: colors.bg }]}
-                  >
-                    {row.person.photoUrl ? (
-                      <Image source={{ uri: row.person.photoUrl }} style={styles.avatar} />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
-                        <Text style={{ color: colors.ink, fontWeight: '700' }}>{initials(row)}</Text>
-                      </View>
-                    )}
-                    <View style={styles.grow}>
-                      <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
-                      {!!employeeNumberLabel(row) && (
-                        <Text style={{ color: colors.muted }}>{employeeNumberLabel(row)}</Text>
-                      )}
-                      {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
-                      <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
-                      <View style={styles.chips}>
-                        {mine?.id === row.id ? (
-                          <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
-                        ) : null}
-                        {levelLabel ? (
-                          <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{levelLabel}</Text>
-                        ) : null}
-                        {departmentLabels(row, departments).map((name) => (
-                          <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
-                        ))}
-                        {inviteStatusLabel(row.invite?.status) ? (
-                          <Text style={[styles.dept, { color: colors.ink, backgroundColor: colors.sunken }]}>
-                            {inviteStatusLabel(row.invite?.status)}
-                          </Text>
-                        ) : null}
-                      </View>
+              canEditLevels={canEditAccess && !busy}
+              onToggleLevel={toggleListedLevel}
+              renderIdentity={(row) => (
+                <TouchableOpacity
+                  onPress={() => openDetail(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel={displayName(row)}
+                  style={styles.identity}
+                >
+                  {row.person.photoUrl ? (
+                    <Image source={{ uri: row.person.photoUrl }} style={styles.avatarSmall} />
+                  ) : (
+                    <View style={[styles.avatarSmall, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
+                      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 12 }}>{initials(row)}</Text>
                     </View>
-                  </TouchableOpacity>
-                );
-              }}
+                  )}
+                  <View style={styles.grow}>
+                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                    {!!employeeNumberLabel(row) && (
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{employeeNumberLabel(row)}</Text>
+                    )}
+                    {!!contactLine(row) && <Text style={{ color: colors.muted, fontSize: 12 }}>{contactLine(row)}</Text>}
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{cardSubtitle(row, companyName)}</Text>
+                    <View style={styles.chips}>
+                      {mine?.id === row.id ? (
+                        <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
+                      ) : null}
+                      {departmentLabels(row, departments).map((name) => (
+                        <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
+                      ))}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+              renderPerson={(row) => (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => openDetail(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel={displayName(row)}
+                  style={[styles.person, { borderColor: colors.line, backgroundColor: colors.bg }]}
+                >
+                  <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
+                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{initials(row)}</Text>
+                  </View>
+                  <View style={styles.grow}>
+                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                    {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
+                  </View>
+                </TouchableOpacity>
+              )}
             />
           )}
         </>
@@ -1718,6 +1713,8 @@ const styles = StyleSheet.create({
   stats: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   person: { borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', gap: 12 },
   avatar: { width: 56, height: 56, borderRadius: 10 },
+  avatarSmall: { width: 40, height: 40, borderRadius: 8 },
+  identity: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   personName: { fontSize: 16, fontWeight: '700' },
   grow: { flex: 1, gap: 2 },

@@ -570,6 +570,24 @@ export function projectCountsByCustomer(projects, customers) {
   return counts;
 }
 
+/**
+ * Summer prosjekt linket til kunder opp mot aktive i systemet.
+ * Brukes på kundelisten for å se om tallene stemmer.
+ */
+export function projectLinkSummary(projects, customers) {
+  const counts = projectCountsByCustomer(projects, customers);
+  let linked = 0;
+  for (const count of counts.values()) linked += count;
+  const total = (Array.isArray(projects) ? projects : [])
+    .filter((row) => row && row.status !== 'arkivert')
+    .length;
+  return {
+    linked,
+    total,
+    unlinked: Math.max(0, total - linked),
+  };
+}
+
 /** Mobilrad i kundelisten: navn og org.nr, og bare utfylte tillegg. */
 export function customerPhoneLines(customer, people = [], { projectCount } = {}) {
   const row = customer || {};

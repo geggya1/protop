@@ -22,6 +22,7 @@ import {
   normalizeOrgnr,
   ownerLabel,
   projectCountsByCustomer,
+  projectLinkSummary,
   relatedContractsForCustomer,
   relatedProjectsForCustomer,
   upsertCustomer,
@@ -137,7 +138,6 @@ export default function CustomersScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [kindFilter, setKindFilter] = useState('');
-  const [gapFilter, setGapFilter] = useState('');
   const lookupRef = useRef('');
   const numberSave = useRef('');
 
@@ -200,11 +200,15 @@ export default function CustomersScreen() {
   const followPeople = companyFollowUpPeople(members);
   const numbered = useMemo(() => withCustomerNumbers(customers), [customers]);
   const visible = useMemo(
-    () => filterCustomers(numbered, query, { kind: kindFilter, gap: gapFilter }),
-    [numbered, query, kindFilter, gapFilter],
+    () => filterCustomers(numbered, query, { kind: kindFilter }),
+    [numbered, query, kindFilter],
   );
   const projectCounts = useMemo(
     () => projectCountsByCustomer(projects, numbered),
+    [projects, numbered],
+  );
+  const projectSummary = useMemo(
+    () => projectLinkSummary(projects, numbered),
     [projects, numbered],
   );
   const upcomingNumber = nextCustomerNumber(numbered);
@@ -483,7 +487,6 @@ export default function CustomersScreen() {
             setDropped(new Set());
             setQuery('');
             setKindFilter('');
-            setGapFilter('');
             setSelectedId(customerId);
             setView('detail');
             setNote('Kunden finnes allerede i registeret — her er kortet.');
@@ -515,23 +518,14 @@ export default function CustomersScreen() {
                   { id: 'person', label: 'Privat', nativeID: 'customer-filter-kind-person' },
                 ],
               },
-              {
-                id: 'gap',
-                label: 'Opplysninger',
-                value: gapFilter,
-                onChange: setGapFilter,
-                options: [
-                  { id: '', label: 'Alle opplysninger', nativeID: 'customer-filter-gap-all' },
-                  { id: 'contact', label: 'Mangler kontakt', nativeID: 'customer-filter-gap-contact' },
-                  { id: 'address', label: 'Mangler adresse', nativeID: 'customer-filter-gap-address' },
-                  { id: 'orgnr', label: 'Mangler org.nr', nativeID: 'customer-filter-gap-orgnr' },
-                  { id: 'invoice', label: 'Må rettes før faktura', nativeID: 'customer-filter-gap-invoice' },
-                ],
-              },
             ]}
           />
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
+            {` · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet`}
+            {projectSummary.unlinked
+              ? ` (${projectSummary.unlinked} uten kunde)`
+              : ''}
             {` · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
           </Text>
           {!numbered.length ? (

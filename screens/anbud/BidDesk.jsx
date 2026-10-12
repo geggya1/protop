@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   bidDeskBucket,
@@ -15,6 +15,8 @@ import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
+import MapRail, { revealAnbudRow } from './MapRail';
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
@@ -50,6 +52,9 @@ export default function BidDesk({
   const [draftDeadline, setDraftDeadline] = useState('');
   const [draftUnitId, setDraftUnitId] = useState('');
   const [draftPersonId, setDraftPersonId] = useState('');
+  const [mapFocusId, setMapFocusId] = useState('');
+  const stateRef = useRef(null);
+  stateRef.current = state;
 
   useEffect(() => {
     let live = true;
@@ -168,27 +173,71 @@ export default function BidDesk({
     sortDir,
   );
   const openBidRow = rows.find((row) => row.id === openId) || null;
+  const mapBids = useMemo(() => {
+    const list = visible.slice();
+    if (openBidRow && !list.some((row) => row.id === openBidRow.id)) list.unshift(openBidRow);
+    return bidMapRows(list, state?.notices);
+  }, [visible, openBidRow, state?.notices]);
+
+  useEffect(() => {
+    if (openId) setMapFocusId(openId);
+  }, [openId]);
+
+  async function persistGeo(hits) {
+    const current = stateRef.current;
+    if (!current) return;
+    const merged = mergeWorkGeo(current, hits);
+    if (!merged.changed) return;
+    await commit({ ok: true, state: { ...current, bids: merged.bids, notices: merged.notices } });
+  }
+
+  function openFromMap(id) {
+    if (!rows.some((bid) => bid.id === id)) return;
+    setMapFocusId(id);
+    setShowForms(false);
+    setNote('');
+    setOpenId(id);
+  }
+
+  const map = (
+    <MapRail
+      rows={mapBids}
+      colors={colors}
+      selectedId={mapFocusId}
+      legendLabel="Tilbud"
+      kindLabel="Tilbud"
+      openLabel="Åpne tilbudet"
+      mapTitle="Kart over tilbud"
+      onSelect={openFromMap}
+      onPreview={(id) => { setMapFocusId(id); revealAnbudRow(id); }}
+      onGeocode={persistGeo}
+    />
+  );
 
   if (openBidRow && state) {
     return (
-      <BidWorkspace
-        bid={openBidRow}
-        state={state}
-        colors={colors}
-        busy={busyId === openBidRow.id}
-        note={note}
-        members={members}
-        units={units}
-        companies={companies}
-        onBack={() => { setOpenId(''); setNote(''); }}
-        onCommit={commit}
-        onRefresh={() => refreshFiles(openBidRow)}
-      />
+      <View style={{ gap: 12 }}>
+        {map}
+        <BidWorkspace
+          bid={openBidRow}
+          state={state}
+          colors={colors}
+          busy={busyId === openBidRow.id}
+          note={note}
+          members={members}
+          units={units}
+          companies={companies}
+          onBack={() => { setOpenId(''); setNote(''); }}
+          onCommit={commit}
+          onRefresh={() => refreshFiles(openBidRow)}
+        />
+      </View>
     );
   }
 
   return (
     <View style={{ gap: 12 }}>
+      {map}
       <View style={styles.toolbar}>
         <TouchableOpacity
           onPress={() => { setCreating((value) => !value); setNote(''); }}
@@ -299,7 +348,12 @@ export default function BidDesk({
         return (
           <View
             key={bid.id}
-            style={[styles.card, { borderColor: urgent ? colors.danger : colors.line, backgroundColor: colors.card }]}
+            dataSet={{ anbudId: bid.id }}
+            style={[styles.card, {
+              borderColor: mapFocusId === bid.id ? colors.brand : (urgent ? colors.danger : colors.line),
+              backgroundColor: mapFocusId === bid.id ? colors.brandSoft : colors.card,
+              borderWidth: mapFocusId === bid.id ? 2 : 1,
+            }]}
           >
             <TouchableOpacity
               onPress={() => setOpenId(bid.id)}

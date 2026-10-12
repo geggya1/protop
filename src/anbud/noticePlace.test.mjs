@@ -53,6 +53,17 @@ assert.equal(mapFollowsList('uaktuelle'), true);
 assert.equal(mapFollowsList('alle'), false);
 assert.equal(mapFollowsList('utlopt'), false);
 
+const workPins = mapPinsForNotices([
+  { id: '1', title: 'Uten sted', buyer: 'Ukjent AS', places: [], decision: 'aktuell' },
+  { id: '2', title: 'Oslo', places: ['Oslo'], decision: 'aktuell' },
+  { id: '3', title: 'Hele landet', places: ['Ikke stedbunden'], decision: 'aktuell' },
+], { asShown: true, unknownAsLand: false });
+assert.deepEqual(workPins.map((row) => row.id), ['2', '3']);
+assert.equal(workPins.find((row) => row.id === '3').coverage, 'land');
+assert.equal(mapPinsForNotices([
+  { id: '1', title: 'Uten sted', places: [], decision: 'aktuell' },
+], { asShown: true }).length, 1);
+
 const html = tenderMapDocument(pins, { selectedId: '2' });
 const landDoc = tenderMapDocument([
   { id: 'o', title: 'Oslo bro', lat: 59.9, lng: 10.7, kind: 'ny', label: 'Oslo', coverage: 'punkt' },
@@ -66,6 +77,19 @@ const landBubble = pinPopupHtml({
   id: 'n', title: 'Rammeavtale', label: 'Hele Norge', coverage: 'land', kind: 'ny',
 }, 0, 2);
 assert.match(landBubble, /Hele Norge · ikke stedbunden/);
+const quietBubble = pinPopupHtml({
+  id: 'b', title: 'Tilbud', label: 'Kvitsøy', coverage: 'punkt', kind: 'aktuell',
+}, 0, 1, { showMark: false, openLabel: 'Åpne tilbudet', kindLabel: 'Tilbud' });
+assert.doesNotMatch(quietBubble, /data-mark=/);
+assert.match(quietBubble, /Åpne tilbudet/);
+assert.match(quietBubble, /Tilbud · Kvitsøy/);
+const quietDoc = tenderMapDocument([
+  { id: 'b', title: 'Tilbud', lat: 59.1, lng: 5.4, kind: 'aktuell', label: 'Kvitsøy' },
+], { showMark: false, openLabel: 'Åpne tilbudet', kindLabel: 'Tilbud' });
+assert.match(quietDoc, /const showMark = false/);
+assert.match(quietDoc, /if \(!showMark\) return ''/);
+assert.match(quietDoc, /const openLabel = "Åpne tilbudet"/);
+assert.match(quietDoc, /const kindLabel = "Tilbud"/);
 
 assert.match(html, /openstreetmap\.org/);
 assert.match(html, /leaflet/);

@@ -25,9 +25,11 @@ import {
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
+import { applyGeoHits, reviewMapRows } from '../../src/anbud/workMap';
 import ProcessTrail from './ProcessTrail';
 import OppdragBrief from './OppdragBrief';
 import ReviewNotes from './ReviewNotes';
+import MapRail, { revealAnbudRow } from './MapRail';
 
 function peopleOf(members) {
   return (members || [])
@@ -92,6 +94,8 @@ function DecisionCard({
   brief,
   briefLoading,
   wide,
+  selected,
+  anchorId,
 }) {
   const missing = assignmentGap({ departments, people, unitId, personId });
   const collectRef = React.useRef(() => notes || []);
@@ -149,7 +153,14 @@ function DecisionCard({
     </View>
   );
   return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View
+      dataSet={anchorId ? { anbudId: anchorId } : undefined}
+      style={[styles.card, {
+        borderColor: selected ? colors.brand : colors.line,
+        backgroundColor: selected ? colors.brandSoft : colors.card,
+        borderWidth: selected ? 2 : 1,
+      }]}
+    >
       <View style={wide ? styles.split : styles.stack}>
         {decision}
         <OppdragBrief brief={brief} colors={colors} loading={briefLoading} />
@@ -175,6 +186,7 @@ export default function CurrentReview({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [loadingIds, setLoadingIds] = useState(() => new Set());
+  const [focusId, setFocusId] = useState('');
   const fetchedIds = useRef(new Set());
   const stateRef = useRef(null);
   stateRef.current = state;
@@ -199,6 +211,7 @@ export default function CurrentReview({
 
   const notices = noticesAwaitingBid(state?.notices);
   const direct = directQueueItems({ inquiries, inbox });
+  const mapRows = useMemo(() => reviewMapRows({ notices, direct }), [notices, direct]);
 
   useEffect(() => {
     onNoticeCount?.(notices.length);
@@ -251,6 +264,32 @@ export default function CurrentReview({
       }
     };
   }, [noticeKey, company?.id]);
+
+  function focusRow(id) {
+    setFocusId(id);
+    revealAnbudRow(id);
+  }
+
+  async function persistGeo(hits) {
+    const current = stateRef.current;
+    if (current) {
+      const applied = applyGeoHits(current.notices, hits);
+      if (applied.changed) {
+        const next = { ...current, notices: applied.rows };
+        stateRef.current = next;
+        setState(next);
+        saveAnbudState(next, company?.id);
+      }
+    }
+    for (const item of direct) {
+      const hit = (hits || []).find((row) => row.id === item.id);
+      if (!hit?.geo || item.geo) continue;
+      const sourceList = item.queueKind === 'protop' ? inbox : inquiries;
+      const patched = patchInquiry(sourceList, item.id, { geo: hit.geo });
+      if (!patched.ok) continue;
+      try { await saveList(item.queueKind, patched.list); } catch { /* kartet viser stedet likevel */ }
+    }
+  }
 
   function pick(id) {
     return choice[id] || { unitId: '', personId: '' };
@@ -432,6 +471,18 @@ export default function CurrentReview({
 
   return (
     <View style={{ gap: 14 }}>
+      <MapRail
+        rows={mapRows}
+        colors={colors}
+        selectedId={focusId}
+        legendLabel="Aktuelle"
+        kindLabel="Aktuell"
+        openLabel="Vis i vurderingen"
+        mapTitle="Kart over aktuelle"
+        onSelect={focusRow}
+        onPreview={focusRow}
+        onGeocode={persistGeo}
+      />
       <View style={[styles.lead, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={{ color: colors.ink, fontWeight: '600' }}>Vurdering av aktuelle</Text>
         <Text style={{ color: colors.muted, lineHeight: 20 }}>
@@ -472,6 +523,8 @@ export default function CurrentReview({
               brief={noticeBrief(notice)}
               briefLoading={loadingIds.has(notice.id)}
               wide={wide}
+              selected={focusId === notice.id}
+              anchorId={notice.id}
             />
           );
         })}
@@ -514,6 +567,8 @@ export default function CurrentReview({
               busy={busyId === item.id}
               brief={inquiryBrief(item)}
               wide={wide}
+              selected={focusId === item.id}
+              anchorId={item.id}
             />
           );
         })}

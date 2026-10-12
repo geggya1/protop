@@ -20,6 +20,12 @@ export default function TenderMap({
   followId = '',
   followAt = 0,
   view = 'nye',
+  showMark = true,
+  openLabel = 'Åpne i listen',
+  kindLabel = '',
+  legendLabel = '',
+  mapTitle = 'Kart over nye og aktuelle treff',
+  showHeading = true,
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
@@ -31,9 +37,12 @@ export default function TenderMap({
       brand: colors?.brand || '#3D6B8A',
       danger: colors?.danger || '#dc2626',
       compact,
+      showMark,
+      openLabel,
+      kindLabel,
     }),
     // Nåler synkes med postMessage. Nytt srcDoc laster kartet på nytt og flytter siden på mobil.
-    [colors?.brand, colors?.danger, compact],
+    [colors?.brand, colors?.danger, compact, showMark, openLabel, kindLabel],
   );
   const found = pins.findIndex((row) => row.id === (cursorId || selectedId));
   if (found >= 0) indexRef.current = found;
@@ -114,25 +123,37 @@ export default function TenderMap({
   const count = pins.length;
   const national = pins.filter((row) => row.coverage === 'land').length;
   const placed = count - national;
-  const legend = view === 'aktuelle'
-    ? [{ label: 'Aktuelle', color: colors.brand }]
-    : view === 'uaktuelle'
-      ? [{ label: 'Uaktuelle', color: colors.danger || '#dc2626' }]
-      : view === 'nye'
-        ? [{ label: 'Nye', color: '#64748b' }]
-        : [];
-  const emptyMap = view === 'nye' || view === 'aktuelle' || view === 'uaktuelle'
-    ? 'Ingen treff å vise på kartet i denne visningen.'
-    : 'Kartet viser Nye, Aktuelle og Uaktuelle.';
+  const legend = legendLabel
+    ? [{ label: legendLabel, color: colors.brand }]
+    : view === 'aktuelle'
+      ? [{ label: 'Aktuelle', color: colors.brand }]
+      : view === 'uaktuelle'
+        ? [{ label: 'Uaktuelle', color: colors.danger || '#dc2626' }]
+        : view === 'nye'
+          ? [{ label: 'Nye', color: '#64748b' }]
+          : [];
+  const emptyMap = legendLabel
+    ? 'Ingen steder å vise på kartet.'
+    : view === 'nye' || view === 'aktuelle' || view === 'uaktuelle'
+      ? 'Ingen treff å vise på kartet i denne visningen.'
+      : 'Kartet viser Nye, Aktuelle og Uaktuelle.';
+  const kindText = kindLabel
+    || (current?.kind === 'aktuell' ? 'Aktuell' : current?.kind === 'uaktuell' ? 'Uaktuell' : 'Ny');
 
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      <View style={styles.head}>
-        <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
+      {showHeading ? (
+        <View style={styles.head}>
+          <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {`${placed} nål${placed === 1 ? '' : 'er'}${national ? ` · ${national} hele landet` : ''}`}
+          </Text>
+        </View>
+      ) : (
         <Text style={{ color: colors.muted, fontSize: 12 }}>
           {`${placed} nål${placed === 1 ? '' : 'er'}${national ? ` · ${national} hele landet` : ''}`}
         </Text>
-      </View>
+      )}
       {legend.length ? (
         <View style={styles.legend}>
           {legend.map((item) => (
@@ -161,7 +182,7 @@ export default function TenderMap({
         <View style={[styles.map, { height: mapHeight }]}>
           {React.createElement('iframe', {
             ref: iframeRef,
-            title: 'Kart over nye og aktuelle treff',
+            title: mapTitle,
             srcDoc: html,
             sandbox: 'allow-scripts allow-same-origin',
             style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
@@ -188,9 +209,9 @@ export default function TenderMap({
       {current ? (
         <View style={[styles.bubble, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
           <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
-            {current.kind === 'aktuell' ? 'Aktuell' : 'Ny'} · {current.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : current.label}
+            {kindText} · {current.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : current.label}
           </Text>
-          <View style={styles.decisions}>
+          {showMark ? <View style={styles.decisions}>
             <TouchableOpacity
               onPress={() => onMark?.(current.id, 'aktuell')}
               accessibilityRole="button"
@@ -213,7 +234,7 @@ export default function TenderMap({
             >
               <Text style={{ color: colors.ink, fontSize: compact ? 15 : 13, fontWeight: '600' }}>Uaktuell</Text>
             </TouchableOpacity>
-          </View>
+          </View> : null}
           <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button">
             <Text style={{ color: colors.brand, fontWeight: '700' }} numberOfLines={compact ? 2 : undefined}>{current.title}</Text>
           </TouchableOpacity>
@@ -229,7 +250,7 @@ export default function TenderMap({
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={() => onSelect?.(current.id)} accessibilityRole="button" style={[styles.jump, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Åpne i listen</Text>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>{openLabel}</Text>
           </TouchableOpacity>
         </View>
       ) : null}

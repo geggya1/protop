@@ -47,6 +47,7 @@ export function selskapMenuTitle(subView) {
 /**
  * Undermeny når Arbeid er valgt.
  * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
+ * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
  */
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
@@ -268,6 +269,15 @@ export function buildShellModules({
   mainItems.push(
     { id: 'notes', icon: 'document-text', label: t('tabs.notes'), action: { type: 'tab', tab: 'notes' } },
   );
+  // Egen timeliste under Personlig. Bedriftens Timeliste under Arbeid er uendret.
+  if (!asChild) {
+    mainItems.push({
+      id: 'timeliste',
+      icon: 'time',
+      label: 'Timeliste',
+      action: { type: 'tab', tab: 'timeliste' },
+    });
+  }
 
   sections.push({
     id: 'main',
@@ -482,7 +492,9 @@ export function buildShellModules({
     : isGrandparent
       ? applyGrandparentAppRestrictions(sections, grandparentModules)
       : sections;
-  return applyProtopShellSections(visible, onCompany ? companyAllowIds() : []);
+  const extraIds = asChild ? [] : ['timeliste'];
+  if (onCompany) extraIds.push(...companyAllowIds());
+  return applyProtopShellSections(visible, extraIds);
 }
 
 /**

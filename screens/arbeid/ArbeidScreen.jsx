@@ -18,6 +18,7 @@ import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/company
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { watchEmployees } from '../../src/employees/storage';
+import { ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
 import {
   addAbsence,
@@ -42,6 +43,11 @@ import {
   filterEmployeesForPicker,
   findLinkedEmployee,
 } from '../../src/arbeid/roles.js';
+import {
+  canSwitchTimesheetPerson,
+  timesheetCrumb,
+  timesheetIdentity,
+} from '../../src/arbeid/timesheetIdentity.js';
 import {
   agreedHoursForDay,
   buildMonthGrid,
@@ -73,15 +79,22 @@ function entryKey(projectId, date) {
   return `${projectId}|${date}`;
 }
 
-export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
+export default function ArbeidScreen({
+  lockedEmployeeId = '',
+  personal = false,
+  companyId = '',
+  companyFamily = null,
+} = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
   const lockedId = String(lockedEmployeeId || '').trim();
+  const workspaceId = String(companyId || '').trim() || familyId;
+  const policySource = companyFamily || family;
 
-  const cached = peekProjectState(familyId);
+  const cached = peekProjectState(workspaceId);
   const [state, setState] = useState(() => cached || emptyProjectState());
   const [employees, setEmployees] = useState([]);
   const [ready, setReady] = useState(!!cached);
@@ -100,69 +113,91 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
   const [empPickerQuery, setEmpPickerQuery] = useState('');
+  const pickerSearchRef = useRef(null);
   const [absenceForm, setAbsenceForm] = useState({ type: 'ferie', hours: '7:30', description: '', date: '' });
 
   useEffect(() => {
     let live = true;
-    const warm = peekProjectState(familyId);
+    const warm = peekProjectState(workspaceId);
     if (warm) {
       setState(warm);
       setReady(true);
       skipSave.current = true;
     }
-    loadProjectState(familyId).then((loaded) => {
+    loadProjectState(workspaceId).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
       skipSave.current = true;
     });
     return () => { live = false; };
-  }, [familyId]);
+  }, [workspaceId]);
 
   useEffect(() => {
-    if (!familyId) {
+    if (!workspaceId) {
       setEmployees([]);
       return undefined;
     }
-    return watchEmployees(familyId, setEmployees, () => setEmployees([]));
-  }, [familyId]);
+    return watchEmployees(workspaceId, setEmployees, () => setEmployees([]));
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!ready) return;
-    putProjectState(state, familyId);
+    putProjectState(state, workspaceId);
     if (skipSave.current) {
       skipSave.current = false;
       return;
     }
-    saveProjectState(state, familyId).catch(() => setError('Kunne ikke lagre timeføring.'));
-  }, [state, ready, familyId]);
+    saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre timeføring.'));
+  }, [state, ready, workspaceId]);
 
-  const linked = useMemo(() => findLinkedEmployee(employees, uid), [employees, uid]);
-  const manager = access.ready
-    ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.can('hoursOthers', 'write'))
-    : canManageTimesheets({ isAdmin, employee: linked });
+  const linked = useMemo(() => {
+    const row = personal
+      ? ownEmployee(employees, {
+        uid,
+        emails: [user?.email],
+        name: user?.displayName || '',
+      })
+      : findLinkedEmployee(employees, uid);
+    if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
+    return row;
+  }, [employees, uid, personal, user?.email, user?.displayName]);
+  const manager = personal
+    ? false
+    : (access.ready
+      ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.can('hoursOthers', 'write'))
+      : canManageTimesheets({ isAdmin, employee: linked }));
 
   useEffect(() => {
     if (lockedId) {
       setEmployeeId(lockedId);
       return;
     }
+    if (personal) {
+      if (linked?.id) setEmployeeId(linked.id);
+      return;
+    }
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
     else if (manager && employees[0]?.id) setEmployeeId(employees[0].id);
-  }, [linked, employees, manager, employeeId, lockedId]);
+  }, [linked, employees, manager, employeeId, lockedId, personal]);
 
   useEffect(() => {
-    if (lockedId) return;
+    if (lockedId || personal) return;
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type !== 'openTimesheet') return;
     const id = String(shellIntent.employeeId || '').trim();
     if (id) setEmployeeId(id);
     clearShellIntent?.();
-  }, [shellIntent, clearShellIntent, lockedId]);
+  }, [shellIntent, clearShellIntent, lockedId, personal]);
 
   useEffect(() => {
-    if (!empPickerOpen) setEmpPickerQuery('');
+    if (!empPickerOpen) {
+      setEmpPickerQuery('');
+      return undefined;
+    }
+    const timer = setTimeout(() => pickerSearchRef.current?.focus?.(), 60);
+    return () => clearTimeout(timer);
   }, [empPickerOpen]);
 
   const selectedEmployee = employees.find((row) => row.id === employeeId) || linked;
@@ -177,8 +212,8 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   const todayKey = toDateKey(today);
 
   const selectedGrants = useMemo(
-    () => (selectedEmployee ? grantsForEmployee(family?.company?.accessPolicy, selectedEmployee) : null),
-    [family?.company?.accessPolicy, selectedEmployee],
+    () => (selectedEmployee ? grantsForEmployee(policySource?.company?.accessPolicy, selectedEmployee) : null),
+    [policySource?.company?.accessPolicy, selectedEmployee],
   );
   const assignedOnly = selectedGrants ? hoursOnAssignedOnly(selectedGrants) : false;
 
@@ -351,7 +386,7 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
     const hours = Number(payload.hours);
     recordUsage({
       type: 'hour',
-      companyId: familyId,
+      companyId: workspaceId,
       employeeId,
       summary: [
         Number.isFinite(hours) ? `${hours} t` : 'Timer',
@@ -380,7 +415,7 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
     // Slett direkte i timeEntries-subcollection — saveProjectState-diff alene
     // feilet tidligere når putProjectState kjørte først i useEffect.
     try {
-      if (familyId && id) await removeTimeEntry(familyId, id);
+      if (workspaceId && id) await removeTimeEntry(workspaceId, id);
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
       setNote('');
@@ -388,7 +423,7 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
     }
     recordUsage({
       type: 'hour_deleted',
-      companyId: familyId,
+      companyId: workspaceId,
       employeeId,
       summary: 'Slettet timeføring',
       detail: { entryId: id || '' },
@@ -458,16 +493,22 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   if (!employees.length) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-        <Text style={[styles.title, { color: colors.ink }]}>Arbeid</Text>
-        <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480 }}>
-          Registrer medarbeidere under Ansatte før timeføring. Deretter kan de legges inn som deltakere på prosjekt.
+        <Text style={{ color: colors.ink, fontSize: personal ? 16 : 22, fontWeight: personal ? '600' : '700' }}>
+          {personal ? 'Timeliste' : 'Arbeid'}
         </Text>
-        <TouchableOpacity
-          onPress={() => requestShellTab?.('ansatte')}
-          style={[styles.cta, { backgroundColor: colors.brand, marginTop: 16 }]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>Gå til Ansatte</Text>
-        </TouchableOpacity>
+        <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480 }}>
+          {personal
+            ? 'Bedriften har ingen medarbeidere ennå, så timelisten kan ikke åpnes.'
+            : 'Registrer medarbeidere under Ansatte før timeføring. Deretter kan de legges inn som deltakere på prosjekt.'}
+        </Text>
+        {personal ? null : (
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('ansatte')}
+            style={[styles.cta, { backgroundColor: colors.brand, marginTop: 16 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Gå til Ansatte</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -475,16 +516,22 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   if (!linked && !manager) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-        <Text style={[styles.title, { color: colors.ink }]}>Arbeid</Text>
-        <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480 }}>
-          Kontoen din er ikke koblet til en medarbeider. En administrator kan knytte brukeren din under Ansatte, så timeføringen vises her.
+        <Text style={{ color: colors.ink, fontSize: personal ? 16 : 22, fontWeight: personal ? '600' : '700' }}>
+          {personal ? 'Timeliste' : 'Arbeid'}
         </Text>
-        <TouchableOpacity
-          onPress={() => requestShellTab?.('ansatte')}
-          style={[styles.cta, { backgroundColor: colors.brand, marginTop: 16 }]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>Gå til Ansatte</Text>
-        </TouchableOpacity>
+        <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480 }}>
+          {personal
+            ? 'Kontoen din er ikke koblet til en medarbeider i denne bedriften, så timelisten kan ikke åpnes for deg.'
+            : 'Kontoen din er ikke koblet til en medarbeider. En administrator kan knytte brukeren din under Ansatte, så timeføringen vises her.'}
+        </Text>
+        {personal ? null : (
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('ansatte')}
+            style={[styles.cta, { backgroundColor: colors.brand, marginTop: 16 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Gå til Ansatte</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -530,7 +577,7 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
         <Ionicons name="add" size={18} color="#fff" />
         <Text style={styles.ctaText}>Legg til fravær / ferie</Text>
       </TouchableOpacity>
-      {assignedOnly ? null : (
+      {assignedOnly || (personal && familyId !== workspaceId) ? null : (
       <TouchableOpacity
         onPress={() => requestShellTab?.('projects')}
         style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
@@ -542,28 +589,53 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
     </View>
   );
 
+  const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
+  const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
+  const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
+  const identity = timesheetIdentity({ personal });
+
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="arbeid-screen">
-      <View style={styles.topBar}>
-        <View style={{ flex: 1 }}>
+    <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
+      <View style={[styles.topBar, personal && styles.topBarPersonal]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.crumb, { color: colors.muted }]}>
-            {lockedId ? 'Ansatte / Timeføring' : 'Arbeid / Timeføring'}
+            {crumb}
           </Text>
           <TouchableOpacity
-            onPress={() => !lockedId && manager && setEmpPickerOpen(true)}
-            style={styles.empBtn}
-            disabled={!!lockedId || !manager}
+            onPress={() => canSwitchPerson && setEmpPickerOpen(true)}
+            style={[styles.empBtn, personal && styles.empBtnPersonal]}
+            disabled={!canSwitchPerson}
+            activeOpacity={canSwitchPerson ? 0.7 : 1}
             accessibilityRole="button"
+            accessibilityLabel={canSwitchPerson ? 'Skift person' : selectedName}
+            nativeID="arbeid-employee-name"
           >
             {selectedEmployee?.person?.photoUrl ? (
-              <Image source={{ uri: selectedEmployee.person.photoUrl }} style={styles.avatar} />
+              <Image
+                source={{ uri: selectedEmployee.person.photoUrl }}
+                style={[styles.avatar, { width: identity.avatar, height: identity.avatar, borderRadius: identity.avatar / 2 }]}
+              />
             ) : (
-              <View style={[styles.avatar, { backgroundColor: `${colors.brand}22` }]}>
-                <Ionicons name="person" size={16} color={colors.brand} />
+              <View style={[styles.avatar, { width: identity.avatar, height: identity.avatar, borderRadius: identity.avatar / 2, backgroundColor: `${colors.brand}22` }]}>
+                <Ionicons name="person" size={identity.icon} color={colors.brand} />
               </View>
             )}
-            <Text style={[styles.title, { color: colors.ink }]}>{selectedName}</Text>
-            {!lockedId && manager ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+            <Text
+              style={[
+                styles.title,
+                {
+                  color: colors.ink,
+                  fontSize: identity.fontSize,
+                  fontWeight: identity.fontWeight,
+                  flexShrink: personal ? 1 : undefined,
+                  letterSpacing: personal ? 0 : -0.3,
+                },
+              ]}
+              numberOfLines={identity.numberOfLines}
+            >
+              {selectedName}
+            </Text>
+            {canSwitchPerson ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
           </TouchableOpacity>
         </View>
         <View style={styles.monthNav}>
@@ -625,7 +697,9 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
           keyboardShouldPersistTaps="handled"
           nativeID="arbeid-phone-timeliste"
         >
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>Arbeid / Timeliste</Text>
+          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>
+            {personal ? 'Timeliste' : 'Arbeid / Timeliste'}
+          </Text>
           <TimesheetDayView
             colors={colors}
             dateKey={activeKey}
@@ -836,27 +910,35 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
 
       {/* Ansattvelger for leder */}
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
-        <Pressable style={styles.modalBg} onPress={() => setEmpPickerOpen(false)}>
+        <View style={styles.modalBg}>
           <Pressable
-            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
-            onPress={() => {}}
+            style={StyleSheet.absoluteFill}
+            onPress={() => setEmpPickerOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk medarbeidervelger"
+          />
+          <View
+            style={[styles.sheet, styles.pickerSheet, { backgroundColor: colors.card, borderColor: colors.line }]}
             accessibilityViewIsModal
           >
             <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
             <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
               <Ionicons name="search" size={16} color={colors.muted} />
               <TextInput
+                ref={pickerSearchRef}
                 value={empPickerQuery}
                 onChangeText={setEmpPickerQuery}
                 placeholder="Søk navn, rolle eller ansattnr"
                 placeholderTextColor={colors.placeholder}
-                autoFocus={Platform.OS === 'web'}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
                 style={[styles.pickerSearchInput, { color: colors.ink }]}
                 accessibilityLabel="Søk medarbeider"
                 nativeID="arbeid-employee-picker-search"
               />
               {empPickerQuery ? (
-                <TouchableOpacity onPress={() => setEmpPickerQuery('')} hitSlop={8} accessibilityRole="button">
+                <TouchableOpacity onPress={() => setEmpPickerQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tøm søk">
                   <Ionicons name="close-circle" size={18} color={colors.muted} />
                 </TouchableOpacity>
               ) : null}
@@ -877,12 +959,14 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
                 </TouchableOpacity>
               )) : (
                 <Text style={{ color: colors.muted, paddingVertical: 12 }}>
-                  Ingen treff for «{empPickerQuery.trim()}».
+                  {empPickerQuery.trim()
+                    ? `Ingen treff for «${empPickerQuery.trim()}».`
+                    : 'Ingen medarbeidere å velge.'}
                 </Text>
               )}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       {/* Legg til prosjekt */}
@@ -968,6 +1052,7 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 16, minHeight: 0 },
+  screenPersonal: { paddingTop: 8 },
   topBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -976,10 +1061,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexWrap: 'wrap',
   },
+  topBarPersonal: { alignItems: 'center' },
   crumb: { fontSize: 12, marginBottom: 4 },
-  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
+  title: { letterSpacing: -0.3 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  empBtnPersonal: { gap: 6, minWidth: 0, flexShrink: 1 },
+  avatar: { alignItems: 'center', justifyContent: 'center' },
   monthNav: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   navHit: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   monthLabel: { fontSize: 16, fontWeight: '600', minWidth: 140, textAlign: 'center' },
@@ -1112,6 +1199,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
+  pickerSheet: { zIndex: 2, maxHeight: '80%', position: 'relative' },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
   pickerSearch: {
     flexDirection: 'row',

@@ -42,7 +42,10 @@ function idsIn(sections) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }
   const main = sections.find((s) => s.id === 'main').items.map((i) => i.id);
-  assert.deepEqual(main, ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes']);
+  assert.deepEqual(main, ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes', 'timeliste']);
+  const ownSheet = sections.find((s) => s.id === 'main').items.find((i) => i.id === 'timeliste');
+  assert.equal(ownSheet.label, 'Timeliste');
+  assert.equal(ownSheet.action.tab, 'timeliste');
   assert.equal(sections.some((s) => s.id === 'company'), false);
   assert.ok(main.indexOf('friends') < main.indexOf('plan'));
   assert.ok(main.includes('mail'));
@@ -72,6 +75,8 @@ function idsIn(sections) {
   assert.equal(ids.includes('members'), false);
   assert.ok(ids.includes('mail'));
   const mainIds = company.find((s) => s.id === 'main').items.map((i) => i.id);
+  assert.ok(mainIds.includes('timeliste'));
+  assert.equal(company.find((s) => s.id === 'main').items.find((i) => i.id === 'timeliste').action.tab, 'timeliste');
   assert.equal(mainIds.includes('anbud'), false);
   assert.equal(mainIds.includes('projects'), false);
   const companyItems = company.find((s) => s.id === 'company').items;
@@ -175,6 +180,7 @@ function idsIn(sections) {
   const ids = idsIn(child);
   assert.ok(ids.includes('mail'), 'e-post stays in the shell');
   assert.equal(ids.includes('chores'), false);
+  assert.equal(ids.includes('timeliste'), false);
   assert.equal(ids.includes('klassen'), false);
   assert.ok(PROTOP_SHELL_MODULE_IDS.includes('notes'));
 }

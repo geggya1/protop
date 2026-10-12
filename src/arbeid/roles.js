@@ -64,17 +64,20 @@ export function employeeDisplayName(employee) {
 export function filterEmployeesForPicker(employees, query = '') {
   const active = (Array.isArray(employees) ? employees : [])
     .filter((row) => row?.company?.status !== 'former');
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return active;
+  const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return active;
   return active.filter((row) => {
     const hay = [
       employeeDisplayName(row),
+      row.person?.firstName,
+      row.person?.middleName,
+      row.person?.lastName,
       row.company?.accessRole,
       row.company?.title,
       row.company?.externalEmployeeNumber,
       row.person?.email,
       row.company?.email,
     ].join(' ').toLowerCase();
-    return hay.includes(q);
+    return tokens.every((token) => hay.includes(token));
   });
 }

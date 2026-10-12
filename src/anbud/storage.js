@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { compactAnbudState, emptyAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
+import { anbudLocalKey, ANBUD_LOCAL_KEY, storeAnbudPayload } from './localStore.js';
+import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 
-const KEY = 'protop.anbud.v1';
+const KEY = ANBUD_LOCAL_KEY;
 const remoteTimers = new Map();
 const remotePending = new Map();
 /** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
@@ -24,11 +25,6 @@ function putAnbudMemory(companyId, state) {
   return next;
 }
 
-function localKey(companyId) {
-  const id = String(companyId || '').trim();
-  return id ? `${KEY}.${id}` : KEY;
-}
-
 function anbudDoc(companyId) {
   const id = String(companyId || '').trim();
   if (!id) return null;
@@ -37,7 +33,7 @@ function anbudDoc(companyId) {
 
 async function readLocal(companyId) {
   try {
-    const scoped = await AsyncStorage.getItem(localKey(companyId));
+    const scoped = await AsyncStorage.getItem(anbudLocalKey(companyId));
     const raw = scoped || (companyId ? await AsyncStorage.getItem(KEY) : null);
     if (!raw) return emptyAnbudState();
     return normalizeAnbudState(JSON.parse(raw));
@@ -58,22 +54,18 @@ async function readRemote(companyId) {
   }
 }
 
+function plainState(state) {
+  return JSON.parse(JSON.stringify(fitAnbudState(state)));
+}
+
 async function writeLocal(companyId, state) {
-  const payload = JSON.stringify(state);
-  const key = localKey(companyId);
-  try {
-    await AsyncStorage.setItem(key, payload);
-    if (companyId && key !== KEY) await AsyncStorage.setItem(KEY, payload).catch(() => {});
-  } catch {
-    const compact = JSON.stringify(compactAnbudState(state));
-    await AsyncStorage.setItem(key, compact);
-  }
+  await storeAnbudPayload(AsyncStorage, companyId, state);
 }
 
 async function writeRemote(companyId, state) {
   const ref = anbudDoc(companyId);
   if (!ref) return;
-  const payload = compactAnbudState(state);
+  const payload = plainState(state);
   const bodyOf = (next) => ({
     state: next,
     digestEnabled: !!(next.watch?.notify?.email && (next.watch?.emails || []).length),
@@ -83,8 +75,9 @@ async function writeRemote(companyId, state) {
     await runTransaction(db, async (transaction) => {
       const snap = await transaction.get(ref);
       const remote = snap.exists() ? (snap.data()?.state || {}) : {};
-      const merged = compactAnbudState(mergeAnbudStates(remote, payload));
-      transaction.set(ref, bodyOf(merged), { merge: true });
+      const merged = plainState(mergeAnbudStates(remote, payload));
+      // Hele dokumentet byttes ut, slik at tidligere filinnhold ikke blir liggende i dokumentet.
+      transaction.set(ref, bodyOf(merged));
     });
   } catch {
     await setDoc(ref, bodyOf(payload), { merge: true });
@@ -137,7 +130,7 @@ export async function flushAnbudState(companyId) {
 export async function saveAnbudState(state, companyId) {
   const next = mergeAnbudStates(await readLocal(companyId), state);
   await writeLocal(companyId, next);
-  queueRemote(companyId, compactAnbudState(next));
+  queueRemote(companyId, next);
   return putAnbudMemory(companyId, next);
 }
 
@@ -152,6 +145,6 @@ export async function persistAnbudState(state, companyId) {
     remoteTimers.delete(id);
     remotePending.delete(id);
   }
-  await writeRemote(companyId, compactAnbudState(next));
+  await writeRemote(companyId, next);
   return putAnbudMemory(companyId, next);
 }

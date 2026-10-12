@@ -5,6 +5,7 @@ import { buildTedQuery } from './tedQuery.js';
 import {
   emptyAnbudState,
   compactAnbudState,
+  fitAnbudState,
   mergeAnbudStates,
   mergeTenderNotices,
   normalizeAnbudState,
@@ -152,6 +153,66 @@ assert.equal(trimmed.notices[0].decision, 'aktuell');
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].name, 'Krav.pdf');
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].dataUrl, undefined);
 assert.equal(trimmed.notices[0].dossier.portalFiles[0].base64, undefined);
+
+const keptSummary = 'Consult1 er en foretrukken leverandør.';
+const smallFit = fitAnbudState({
+  watch: {
+    companyName: 'CONSULT1 AS',
+    savedAt: '2026-10-12T07:47:00.000Z',
+    keywords: ['rådgivning'],
+    profile: { summary: keptSummary },
+  },
+  notices: [{
+    id: '2026-1',
+    title: 'Skole',
+    decision: 'aktuell',
+    description: 'Kort tekst',
+    dossier: { portalFiles: [{ name: 'Krav.pdf', dataUrl: 'data:application/pdf;base64,AAAA' }] },
+  }],
+  agreementCases: [{ id: 'sak_1', title: 'Rammeavtale' }],
+});
+assert.equal(smallFit.watch.companyName, 'CONSULT1 AS');
+assert.equal(smallFit.watch.profile.summary, keptSummary);
+assert.equal(smallFit.notices[0].description, 'Kort tekst');
+assert.equal(smallFit.notices[0].decision, 'aktuell');
+assert.equal(smallFit.notices[0].dossier.portalFiles[0].name, 'Krav.pdf');
+assert.equal(smallFit.notices[0].dossier.portalFiles[0].dataUrl, undefined);
+assert.equal(smallFit.agreementCases[0].id, 'sak_1');
+
+const circular = emptyAnbudState();
+circular.notices = [{ id: '2026-9', title: 'Sirkel', decision: 'ubestemt', description: 'Tekst' }];
+circular.notices[0].self = circular.notices[0];
+const safe = fitAnbudState(circular);
+assert.equal(safe.notices[0].id, '2026-9');
+JSON.stringify(safe);
+
+const fatNotices = Array.from({ length: 220 }, (_, index) => ({
+  id: `2026-${index}`,
+  title: `Konkurranse ${index}`,
+  buyer: 'Oppdragsgiver',
+  decision: index === 3 ? 'aktuell' : 'ubestemt',
+  description: 'A'.repeat(12_000),
+  dossier: {
+    description: 'B'.repeat(20_000),
+    portalFiles: [{ name: 'Fil.pdf', dataUrl: `data:application/pdf;base64,${'C'.repeat(8_000)}` }],
+  },
+}));
+const fat = fitAnbudState({
+  watch: {
+    companyName: 'CONSULT1 AS',
+    savedAt: '2026-10-12T07:47:00.000Z',
+    keywords: ['sykehus'],
+    profile: { summary: keptSummary },
+  },
+  notices: fatNotices,
+  agreementCases: [{ id: 'sak_1', title: 'Rammeavtale' }],
+}, 20_000);
+assert.ok(new TextEncoder().encode(JSON.stringify(fat)).length <= 20_000);
+assert.equal(JSON.stringify(fat).includes('data:application'), false);
+assert.equal(fat.notices.find((row) => row.id === '2026-3').decision, 'aktuell');
+assert.equal(fat.watch.companyName, 'CONSULT1 AS');
+assert.equal(fat.watch.profile.summary, keptSummary);
+assert.equal(fat.agreementCases[0].title, 'Rammeavtale');
 
 const withWords = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',

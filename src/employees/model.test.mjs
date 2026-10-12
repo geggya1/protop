@@ -18,6 +18,7 @@ import {
   employeeFromProfile,
   employeeActivityTab,
   employeeDirectoryBucket,
+  employeeShowsInSection,
   employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
@@ -194,6 +195,18 @@ const FNR = sampleNationalId();
   assert.equal(employeeDirectoryBucket(dirAndre), 'external');
   assert.equal(employeeActivityTab(dirAndre), 'inactive');
   assert.equal(employeeDirectoryBucket(deletedRow), 'trash');
+  const several = normalizeEmployee({
+    id: 'mix',
+    person: { firstName: 'Ada', lastName: 'Berg' },
+    company: { personnelKind: 'staff', status: 'active', accessLevels: ['ansatt', 'tilbud', 'regnskap_ekstern'] },
+  });
+  assert.deepEqual(several.company.accessLevels, ['regnskap_ekstern', 'ansatt', 'tilbud']);
+  assert.equal(several.company.accessLevel, 'tilbud');
+  assert.equal(several.company.personnelKind, 'staff');
+  assert.equal(employeeShowsInSection(several, 'company'), true);
+  assert.equal(employeeShowsInSection(several, 'external'), true);
+  assert.equal(employeeShowsInSection(dirTilbud, 'external'), false);
+  assert.deepEqual(filterEmployees([several], { status: 'all', level: 'ansatt' }).map((row) => row.id), ['mix']);
   assert.deepEqual(filterEmployees([dirTilbud, dirRegnskap, dirAndre], { status: 'all', level: 'tilbud' }).map((row) => row.id), ['t']);
   const withNumber = normalizeEmployee({
     id: 'n',

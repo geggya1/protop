@@ -11,10 +11,15 @@ import {
 } from '../anbud/customers.js';
 import { parseHours, roundHours, formatHours } from '../arbeid/hours.js';
 import { displayName } from '../employees/model.js';
-import { matchCustomer, matchProject, customerIdentityKey } from './invoiceImport.js';
+import {
+  matchCustomer,
+  matchProject,
+  customerIdentityKey,
+  normalizeProjectNumber,
+} from './invoiceImport.js';
 import { parseDate, fold, text } from './invoices.js';
 
-export { matchCustomer, matchProject, customerIdentityKey };
+export { matchCustomer, matchProject, customerIdentityKey, normalizeProjectNumber };
 
 const FIELD_ALIASES = [
   ['date', [
@@ -181,6 +186,26 @@ export function collectHourFingerprints(entries) {
   return keys;
 }
 
+function employeeNameMatches(employee, name) {
+  if (!name) return true;
+  const label = displayName(employee);
+  return fold(label) === fold(name) || namesLikelyMatch(label, name);
+}
+
+function matchEmployeeByName(list, name) {
+  if (!name) return null;
+  const exact = list.filter((row) => fold(displayName(row)) === fold(name));
+  if (exact.length === 1) return exact[0];
+  const soft = list.filter((row) => namesLikelyMatch(displayName(row), name));
+  if (soft.length === 1) return soft[0];
+  return null;
+}
+
+/**
+ * Match medarbeider på ansattnummer og/eller navn.
+ * Nummer alene brukes bare når navnet ikke motstrider treffet — ellers
+ * prioriteres unik navnematch, så vi ikke kobler Geirs timer til Tom.
+ */
 export function matchEmployee(employees, hint = {}) {
   const list = Array.isArray(employees) ? employees : [];
   const number = text(hint.employeeNumber);
@@ -189,23 +214,48 @@ export function matchEmployee(employees, hint = {}) {
     const byNumber = list.filter((row) => (
       text(row?.company?.externalEmployeeNumber) === number
     ));
-    if (byNumber.length === 1) return byNumber[0];
-    if (byNumber.length > 1 && name) {
-      const named = byNumber.filter((row) => {
-        const label = displayName(row);
-        return fold(label) === fold(name) || namesLikelyMatch(label, name);
-      });
-      if (named.length) return named[0];
+    if (byNumber.length === 1) {
+      const hit = byNumber[0];
+      if (employeeNameMatches(hit, name)) return hit;
+      // Nummer peker på annen person enn navnet — stol på unik navnematch.
+      return matchEmployeeByName(list, name);
     }
-    if (byNumber.length) return byNumber[0];
+    if (byNumber.length > 1) {
+      if (name) {
+        const named = byNumber.filter((row) => employeeNameMatches(row, name));
+        if (named.length === 1) return named[0];
+        if (named.length > 1) return named[0];
+      }
+      // Ambiguøst nummer uten klart navnetreff — ikke gjett.
+      return matchEmployeeByName(list, name);
+    }
   }
-  if (name) {
-    const exact = list.filter((row) => fold(displayName(row)) === fold(name));
-    if (exact.length === 1) return exact[0];
-    const soft = list.filter((row) => namesLikelyMatch(displayName(row), name));
-    if (soft.length === 1) return soft[0];
+  return matchEmployeeByName(list, name);
+}
+
+/** Fyll kundenavn/-nummer fra register eller prosjektets client-felt. */
+export function applyCustomerFromProject(entry, project, customers = []) {
+  if (!entry || !project) return entry;
+  const next = entry;
+  if (!next.customerId && project.customerId) {
+    next.customerId = text(project.customerId);
   }
-  return null;
+  if (!next.customerName && project.client) {
+    next.customerName = text(project.client);
+  }
+  if (!next.customerNumber && project.customerNumber) {
+    next.customerNumber = normalizeCustomerNumber(project.customerNumber)
+      || text(project.customerNumber);
+  }
+  if (next.customerId && (!next.customerName || !next.customerNumber || !next.orgnr)) {
+    const linked = (customers || []).find((row) => row.id === next.customerId);
+    if (linked) {
+      next.customerName = text(linked.name) || next.customerName;
+      next.customerNumber = normalizeCustomerNumber(linked.customerNumber) || next.customerNumber;
+      next.orgnr = normalizeOrgnr(linked.orgnr) || next.orgnr;
+    }
+  }
+  return next;
 }
 
 export function suggestEmployees(employees, hint = {}, limit = 8) {
@@ -385,8 +435,15 @@ export function companyHourRow(input, {
     entry.projectId = project.id;
     entry.projectNumber = text(project.number) || entry.projectNumber;
     entry.projectName = text(project.name) || entry.projectName;
-    if (!entry.customerId && project.customerId) {
-      entry.customerId = project.customerId;
+    applyCustomerFromProject(entry, project, customers);
+    // Etter prosjektkobling: fyll manglende kundenavn fra registeret.
+    if (entry.customerId && !entry.customerName) {
+      const linked = (customers || []).find((row) => row.id === entry.customerId);
+      if (linked) {
+        entry.customerName = text(linked.name) || entry.customerName;
+        entry.customerNumber = normalizeCustomerNumber(linked.customerNumber) || entry.customerNumber;
+        entry.orgnr = normalizeOrgnr(linked.orgnr) || entry.orgnr;
+      }
     }
   } else if (entry.projectNumber || entry.projectName) {
     if (severity === 'ok') severity = 'review';
@@ -514,7 +571,7 @@ export function linkImportPlanEmployee(plan, rowIndex, employee, { applyGroup = 
   return { ...plan, rows: nextRows };
 }
 
-export function linkImportRowProject(row, project) {
+export function linkImportRowProject(row, project, customers = []) {
   if (!row || row.severity === 'existing' || !project?.id || !row.entry) return row;
   const issues = (row.issues || []).filter((issue) => !/prosjekt/i.test(issue));
   let severity = 'ok';
@@ -533,29 +590,59 @@ export function linkImportRowProject(row, project) {
     projectNumber: text(project.number) || row.projectNumber,
     projectName: text(project.name) || row.projectName,
     customerId: row.entry.customerId || project.customerId || '',
+    customerName: row.entry.customerName || text(project.client) || '',
+    customerNumber: row.entry.customerNumber || text(project.customerNumber) || '',
   };
+  applyCustomerFromProject(entry, project, customers);
+  // Prosjektkobling løser også «kunden ikke koblet» når prosjektet har kunde.
+  const nextIssues = entry.customerId
+    ? issues.filter((issue) => !/kunde/i.test(issue))
+    : issues;
+  if (!nextIssues.length && entry.employeeId && entry.projectId && !row.duplicate) {
+    severity = 'ok';
+  } else if (!entry.employeeId || !entry.projectId) {
+    severity = 'review';
+  }
   entry.importFingerprint = hourFingerprint(entry);
   return {
     ...row,
     severity,
-    issues,
+    issues: nextIssues,
     projectId: project.id,
     projectNumber: entry.projectNumber,
     projectName: entry.projectName,
+    customerId: entry.customerId,
+    customerNumber: entry.customerNumber,
+    customerName: entry.customerName,
     entry,
     meta: [
       `${entry.projectNumber} · ${entry.projectName}`.replace(/^\s·\s/, ''),
       entry.activityName,
       formatHours(entry.hours),
-      row.customerName,
+      entry.customerName,
     ].filter(Boolean).join(' · '),
   };
 }
 
-export function linkImportPlanProject(plan, rowIndex, project) {
+export function linkImportPlanProject(plan, rowIndex, project, { applyGroup = true, customers = [] } = {}) {
   const rows = Array.isArray(plan?.rows) ? plan.rows : [];
-  if (!rows[rowIndex] || !project?.id) return plan;
-  const nextRows = rows.map((row, index) => (index === rowIndex ? linkImportRowProject(row, project) : row));
+  const target = rows[rowIndex];
+  if (!target || !project?.id) return plan;
+  const key = normalizeProjectNumber(target.projectNumber);
+  const nextRows = rows.map((row, index) => {
+    if (index === rowIndex) return linkImportRowProject(row, project, customers);
+    if (
+      applyGroup
+      && key
+      && normalizeProjectNumber(row.projectNumber) === key
+      && !row.projectId
+      && row.severity !== 'block'
+      && row.severity !== 'existing'
+    ) {
+      return linkImportRowProject(row, project, customers);
+    }
+    return row;
+  });
   return { ...plan, rows: nextRows };
 }
 

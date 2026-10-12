@@ -21,6 +21,7 @@ import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import ViewAsBar, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
@@ -509,6 +510,21 @@ function AppShellInner() {
         </View>
       );
     }
+    if (
+      COMPANY_TAB_IDS.includes(tab)
+      && companyAccess.previewing
+      && companyAccess.tabAllowed(tab, moreSubView)
+      && !companyAccess.actorTabAllowed(tab, moreSubView)
+    ) {
+      return (
+        <ViewAsModulePlaceholder
+          access={companyAccess}
+          tab={tab}
+          subView={moreSubView}
+          colors={colors}
+        />
+      );
+    }
     if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, moreSubView)) {
       return <CompanyAccessDenied colors={colors} />;
     }
@@ -610,6 +626,16 @@ function AppShellInner() {
   }, [isDesktop, tab, moreSubView]);
 
   useEffect(() => {
+    if (!companyAccess.previewing || !companyAccess.ready) return;
+    if (!COMPANY_TAB_IDS.includes(tab)) return;
+    if (companyAccess.tabAllowed(tab, moreSubView)) return;
+    const next = companyAccess.tabAllowed('selskap', null) ? 'selskap' : 'home';
+    if (next === tab && !moreSubView) return;
+    setTab(next);
+    setMoreSubView(null);
+  }, [companyAccess.previewing, companyAccess.previewStamp, companyAccess.ready, tab, moreSubView]);
+
+  useEffect(() => {
     if (tab === 'chores' && !(isChild || isActingAsChild)) {
       setTab('home');
       return;
@@ -703,13 +729,18 @@ function AppShellInner() {
   };
 
   const gatedBody = (
-    <ModuleActivationGate
-      moduleId={activationModuleId}
-      onBack={onActivationBack}
-      enabled={!kitchenMode}
-    >
-      {body}
-    </ModuleActivationGate>
+    <View style={styles.viewAsFrame}>
+      {!kitchenMode ? <ViewAsBar access={companyAccess} /> : null}
+      <View style={styles.viewAsFrameBody}>
+        <ModuleActivationGate
+          moduleId={activationModuleId}
+          onBack={onActivationBack}
+          enabled={!kitchenMode}
+        >
+          {body}
+        </ModuleActivationGate>
+      </View>
+    </View>
   );
 
   const showDeskAside = isDesktop && !kitchenMode
@@ -1051,6 +1082,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   bodyFill: { flex: 1, minHeight: 0, backgroundColor: 'transparent' },
+  viewAsFrame: { flex: 1, minHeight: 0, minWidth: 0 },
+  viewAsFrameBody: { flex: 1, minHeight: 0, minWidth: 0 },
   deskSplit: {
     flex: 1,
     flexDirection: 'row',

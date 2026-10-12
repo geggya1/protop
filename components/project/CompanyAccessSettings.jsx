@@ -674,6 +674,11 @@ export default function CompanyAccessSettings({
         Åpne et nivå og velg Aktive eller Deaktiverte. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
         En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
       </Text>
+      <Text style={[styles.lead, { color: colors.muted }]}>
+        Se som bruker, under Visning, er standard for administrator og øverste leder.
+        Se tester bare bedriftsinnstillinger. Lese eller høyere viser alle moduler og applikasjoner.
+        Nivå og personavvik kan gi funksjonen til andre.
+      </Text>
       {!canEdit ? (
         <Text style={[styles.lead, { color: colors.muted }]}>
           Du kan se oppsettet. Bare administrator kan endre nivåer, hvem som hører til hvor, og personavvik.

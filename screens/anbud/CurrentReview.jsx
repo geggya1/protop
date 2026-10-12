@@ -1,14 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { STRATEGY_ITEMS } from '../../src/anbud/lifecycle';
 import {
+  attachDossier,
   createBidWork,
   createManualBidWork,
   releaseUntouchedBid,
   setNoticeDecision,
   toggleConsideration,
 } from '../../src/anbud/model';
+import { fetchCompetitionFile } from '../../src/anbud/doffinClient';
+import { inquiryBrief, noticeBrief, noticeNeedsDossier } from '../../src/anbud/noticeBrief';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { patchInquiry } from '../../src/anbud/intake';
 import {
@@ -24,6 +27,7 @@ import { deadlineInfo } from '../../src/anbud/noticeText';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
 import ProcessTrail from './ProcessTrail';
+import OppdragBrief from './OppdragBrief';
 
 function peopleOf(members) {
   return (members || [])
@@ -84,10 +88,13 @@ function DecisionCard({
   busy,
   strategy,
   onToggleStrategy,
+  brief,
+  briefLoading,
+  wide,
 }) {
   const missing = assignmentGap({ departments, people, unitId, personId });
-  return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+  const decision = (
+    <View style={styles.col}>
       <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{title}</Text>
       <Text style={{ color: colors.ink }}>{buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       {meta ? <Text style={{ color: colors.muted }}>{meta}</Text> : null}
@@ -150,6 +157,14 @@ function DecisionCard({
       </View>
     </View>
   );
+  return (
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={wide ? styles.split : styles.stack}>
+        {decision}
+        <OppdragBrief brief={brief} colors={colors} loading={briefLoading} />
+      </View>
+    </View>
+  );
 }
 
 export default function CurrentReview({
@@ -168,6 +183,12 @@ export default function CurrentReview({
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [loadingIds, setLoadingIds] = useState(() => new Set());
+  const fetchedIds = useRef(new Set());
+  const stateRef = useRef(null);
+  stateRef.current = state;
+  const { width } = useWindowDimensions();
+  const wide = width >= 1080;
 
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
@@ -191,6 +212,54 @@ export default function CurrentReview({
   useEffect(() => {
     onNoticeCount?.(notices.length);
   }, [notices.length, onNoticeCount]);
+
+  const noticeKey = notices.map((row) => row.id).join('|');
+  useEffect(() => {
+    const pending = (stateRef.current?.notices || [])
+      .filter((row) => noticeNeedsDossier(row) && !fetchedIds.current.has(row.id));
+    if (!pending.length) return undefined;
+    let live = true;
+    const done = new Set();
+    pending.forEach((row) => fetchedIds.current.add(row.id));
+    setLoadingIds((current) => {
+      const next = new Set(current);
+      pending.forEach((row) => next.add(row.id));
+      return next;
+    });
+    (async () => {
+      let base = stateRef.current;
+      for (const notice of pending) {
+        if (!live) break;
+        try {
+          const file = await fetchCompetitionFile(notice.id);
+          if (!live || !file?.dossier) continue;
+          const adopted = attachDossier(base, notice.id, file.dossier);
+          if (!adopted.ok) continue;
+          base = adopted.state;
+          stateRef.current = base;
+          done.add(notice.id);
+          if (!live) return;
+          setState(base);
+          await saveAnbudState(base, company?.id);
+        } catch {
+          // Treffteksten og lenken til kunngjøringen blir stående.
+        } finally {
+          setLoadingIds((current) => {
+            if (!current.has(notice.id)) return current;
+            const next = new Set(current);
+            next.delete(notice.id);
+            return next;
+          });
+        }
+      }
+    })();
+    return () => {
+      live = false;
+      for (const row of pending) {
+        if (!done.has(row.id)) fetchedIds.current.delete(row.id);
+      }
+    };
+  }, [noticeKey, company?.id]);
 
   function pick(id) {
     return choice[id] || { unitId: '', personId: '' };
@@ -384,6 +453,9 @@ export default function CurrentReview({
               busy={busyId === notice.id}
               strategy={notice.consideration?.strategy || {}}
               onToggleStrategy={(itemId) => weigh(notice.id, itemId)}
+              brief={noticeBrief(notice)}
+              briefLoading={loadingIds.has(notice.id)}
+              wide={wide}
             />
           );
         })}
@@ -421,6 +493,8 @@ export default function CurrentReview({
               onUnit={(unitId) => setPick(item.id, { unitId })}
               onPerson={(personId) => setPick(item.id, { personId })}
               busy={busyId === item.id}
+              brief={inquiryBrief(item)}
+              wide={wide}
             />
           );
         })}
@@ -440,6 +514,9 @@ export default function CurrentReview({
 const styles = StyleSheet.create({
   lead: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  stack: { gap: 16 },
+  col: { flex: 1, minWidth: 280, gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

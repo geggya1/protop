@@ -439,6 +439,58 @@ export function placedLevelId(employee) {
   return levelIdFromRoleLabel(employee?.company?.accessRole);
 }
 
+/** Kjente nivå-id-er i fast rekkefølge. Ukjente verdier faller bort. */
+export function normalizeEmployeeLevelIds(values) {
+  const raw = Array.isArray(values) ? values : [];
+  return ACCESS_LEVELS
+    .map((level) => level.id)
+    .filter((id) => raw.some((value) => canonicalLevelId(value) === id || levelIdFromRoleLabel(value) === id));
+}
+
+/**
+ * Nivåene som er krysset av. Eldre poster har bare ett accessLevel,
+ * og det brukes til listen er lagret på nytt.
+ */
+export function employeeLevelIds(employee) {
+  const company = employee?.company || {};
+  if (Array.isArray(company.accessLevels)) return normalizeEmployeeLevelIds(company.accessLevels);
+  const single = placedLevelId(employee);
+  return single ? [single] : [];
+}
+
+/** Legg til eller ta bort ett nivå uten å endre personelltype. */
+export function withToggledLevel(employee, levelId, checked) {
+  const level = levelById(canonicalLevelId(levelId));
+  if (!level || !employee) return employee;
+  const current = employeeLevelIds(employee);
+  const ids = checked
+    ? ACCESS_LEVELS.filter((row) => current.includes(row.id) || row.id === level.id).map((row) => row.id)
+    : current.filter((id) => id !== level.id);
+  const primary = levelById(ids[ids.length - 1]);
+  return {
+    ...employee,
+    company: {
+      ...(employee.company || {}),
+      accessLevels: ids,
+      accessLevel: primary?.id || '',
+      accessRole: primary?.label || '',
+    },
+  };
+}
+
+export function grantsForLevelIds(policy, levelIds) {
+  const ids = normalizeEmployeeLevelIds(levelIds);
+  if (!ids.length) return blankGrants();
+  const merged = blankGrants();
+  for (const id of ids) {
+    const grants = levelGrants(policy, id);
+    for (const resourceId of RESOURCE_IDS) {
+      if (rankValue(grants[resourceId]) > rankValue(merged[resourceId])) merged[resourceId] = grants[resourceId];
+    }
+  }
+  return merged;
+}
+
 export function suggestedLevelId(employee) {
   if (placedLevelId(employee)) return '';
   const kind = employee?.company?.personnelKind;
@@ -481,8 +533,10 @@ export function grantsForEmployee(policy, employee) {
   if (status === 'inactive' || status === 'deleted') {
     return { ...blankGrants(), companyPublic: 'read' };
   }
-  const levelId = effectiveLevelId(employee);
-  const base = levelGrants(policy, levelId);
+  const ids = employeeLevelIds(employee);
+  const base = ids.length
+    ? grantsForLevelIds(policy, ids)
+    : levelGrants(policy, effectiveLevelId(employee));
   return applyOverrides(base, employee?.company?.accessOverrides);
 }
 
@@ -516,8 +570,9 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
       bypass: false,
     };
   }
-  const levelId = linked ? effectiveLevelId(linked) : 'ansatt';
-  const base = levelGrants(policy, levelId);
+  const ids = linked ? employeeLevelIds(linked) : [];
+  const levelId = ids.length ? ids[ids.length - 1] : (linked ? effectiveLevelId(linked) : 'ansatt');
+  const base = ids.length ? grantsForLevelIds(policy, ids) : levelGrants(policy, levelId);
   const grants = linked ? applyOverrides(base, linked.company?.accessOverrides) : base;
   const overrides = normalizeOverrides(linked?.company?.accessOverrides);
   return {

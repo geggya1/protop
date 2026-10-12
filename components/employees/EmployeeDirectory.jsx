@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { accessSectionTitle } from '../../src/access/companyAccess';
-import { employeeActivityTab, employeeDirectoryBucket } from '../../src/employees/model';
+import { accessLevelSections, accessSectionTitle, employeeLevelIds } from '../../src/access/companyAccess';
+import { displayName, employeeActivityTab, employeeShowsInSection } from '../../src/employees/model';
+
+const COLUMN_LABEL = {
+  regnskap_ekstern: 'Regnskap',
+  innleie_ekstern: 'Innleie',
+  ansatt: 'Ansatt',
+  tilbud: 'Tilbud',
+  ansatt_andre_avdelinger: 'Andre avdelinger',
+  avdelingsleder: 'Avdelingsleder',
+  leder: 'Øverste leder',
+  administrator: 'Administrator',
+};
 
 function splitActivity(rows) {
   const active = [];
@@ -68,25 +79,123 @@ function Drawer({ nativeID, title, meta, open, colors, onToggle, children }) {
   );
 }
 
-export default function EmployeeDirectory({ rows = [], companyName = '', colors, focusSection = '', renderPerson }) {
+function LevelTable({
+  nativeID,
+  rows,
+  levels,
+  colors,
+  canEditLevels,
+  renderIdentity,
+  onToggleLevel,
+}) {
+  return (
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator
+      style={styles.tableScroll}
+    >
+      <View nativeID={nativeID} accessibilityRole="table" style={styles.table}>
+        <View style={[styles.headerRow, { borderBottomColor: colors.line, backgroundColor: colors.bg }]}>
+          <Text style={[styles.personHead, { color: colors.muted }]}>Navn</Text>
+          {levels.map((level) => (
+            <Text key={level.id} style={[styles.levelHead, { color: colors.ink }]}>
+              {COLUMN_LABEL[level.id] || level.label}
+            </Text>
+          ))}
+        </View>
+        {rows.map((row) => {
+          const selected = employeeLevelIds(row);
+          const name = displayName(row);
+          return (
+            <View
+              key={row.id}
+              nativeID={`employee-row-${row.id}`}
+              style={[styles.dataRow, { borderBottomColor: colors.line }]}
+            >
+              <View style={styles.personCell}>{renderIdentity(row)}</View>
+              {levels.map((level) => {
+                const on = selected.includes(level.id);
+                return (
+                  <Pressable
+                    key={level.id}
+                    nativeID={`employee-level-${row.id}-${level.id}`}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on, disabled: !canEditLevels }}
+                    accessibilityLabel={`${name}, ${level.label}`}
+                    disabled={!canEditLevels}
+                    onPress={() => onToggleLevel?.(row, level.id, !on)}
+                    style={styles.levelCell}
+                  >
+                    <View style={[
+                      styles.box,
+                      {
+                        borderColor: on ? colors.brand : colors.line,
+                        backgroundColor: on ? colors.brand : colors.card,
+                        opacity: canEditLevels ? 1 : 0.7,
+                      },
+                    ]}
+                    >
+                      {on ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
+
+export default function EmployeeDirectory({
+  rows = [],
+  companyName = '',
+  colors,
+  focusSection = '',
+  canEditLevels = false,
+  renderPerson,
+  renderIdentity,
+  onToggleLevel,
+}) {
   const [companyOpen, setCompanyOpen] = useState(true);
-  const [externalOpen, setExternalOpen] = useState(false);
+  const [externalOpen, setExternalOpen] = useState(true);
   const [trashOpen, setTrashOpen] = useState(false);
   const [companyTab, setCompanyTab] = useState('active');
   const [externalTab, setExternalTab] = useState('active');
+  const sections = accessLevelSections();
+  const companyLevels = sections.find((section) => section.id === 'company')?.levels || [];
+  const externalLevels = sections.find((section) => section.id === 'external')?.levels || [];
 
   useEffect(() => {
     if (focusSection === 'external') setExternalOpen(true);
     if (focusSection === 'company') setCompanyOpen(true);
   }, [focusSection]);
 
-  const company = rows.filter((row) => employeeDirectoryBucket(row) === 'company');
-  const external = rows.filter((row) => employeeDirectoryBucket(row) === 'external');
-  const trash = rows.filter((row) => employeeDirectoryBucket(row) === 'trash');
+  const company = rows.filter((row) => employeeShowsInSection(row, 'company'));
+  const external = rows.filter((row) => employeeShowsInSection(row, 'external'));
+  const trash = rows.filter((row) => employeeActivityTab(row) === 'trash');
   const companyParts = splitActivity(company);
   const externalParts = splitActivity(external);
   const companyShown = companyTab === 'inactive' ? companyParts.inactive : companyParts.active;
   const externalShown = externalTab === 'inactive' ? externalParts.inactive : externalParts.active;
+  const identity = renderIdentity || renderPerson;
+
+  function table(nativeID, shown, levels, emptyText) {
+    if (!shown.length) return <Text style={{ color: colors.muted }}>{emptyText}</Text>;
+    return (
+      <LevelTable
+        nativeID={nativeID}
+        rows={shown}
+        levels={levels}
+        colors={colors}
+        canEditLevels={canEditLevels}
+        renderIdentity={identity}
+        onToggleLevel={onToggleLevel}
+      />
+    );
+  }
 
   return (
     <View style={styles.stack}>
@@ -105,12 +214,15 @@ export default function EmployeeDirectory({ rows = [], companyName = '', colors,
           colors={colors}
           onChange={setCompanyTab}
         />
-        {companyShown.map((row) => renderPerson(row))}
-        {!companyShown.length ? (
-          <Text style={{ color: colors.muted }}>
-            {companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.'}
-          </Text>
-        ) : null}
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          Kryss av nivåene som passer. En ansatt kan ha flere.
+        </Text>
+        {table(
+          'employees-table-company',
+          companyShown,
+          companyLevels,
+          companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
+        )}
       </Drawer>
       <Drawer
         nativeID="employees-section-external"
@@ -127,12 +239,15 @@ export default function EmployeeDirectory({ rows = [], companyName = '', colors,
           colors={colors}
           onChange={setExternalTab}
         />
-        {externalShown.map((row) => renderPerson(row))}
-        {!externalShown.length ? (
-          <Text style={{ color: colors.muted }}>
-            {externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.'}
-          </Text>
-        ) : null}
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          Kryss av nivåene som passer. En person kan ha flere.
+        </Text>
+        {table(
+          'employees-table-external',
+          externalShown,
+          externalLevels,
+          externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
+        )}
       </Drawer>
       {trash.length ? (
         <Drawer
@@ -159,4 +274,13 @@ const styles = StyleSheet.create({
   body: { borderTopWidth: 1, padding: 12, gap: 10 },
   tabs: { flexDirection: 'row', gap: 8 },
   tab: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tableScroll: { marginHorizontal: -4 },
+  table: { minWidth: 860 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1, paddingBottom: 8 },
+  dataRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, minHeight: 72 },
+  personHead: { width: 280, fontSize: 12, fontWeight: '600', paddingHorizontal: 8 },
+  personCell: { width: 280, paddingVertical: 8, paddingRight: 8 },
+  levelHead: { width: 108, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  levelCell: { width: 108, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
+  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
 });

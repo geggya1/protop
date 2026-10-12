@@ -3,7 +3,7 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ACCESS_LEVELS, levelById, placedLevelId } from '../../src/access/companyAccess';
+import { ACCESS_LEVELS, employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
 import { inviteStatusLabel } from '../../src/employees/invite';
 import {
   cardSubtitle,
@@ -162,10 +162,10 @@ const ACCESS_SYMBOLS = {
 
 function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, startOpen = false }) {
   const [open, setOpen] = useState(startOpen);
+  const selectedIds = employeeLevelIds(employee);
   const currentId = placedLevelId(employee);
-  const current = levelById(currentId);
   const symbol = ACCESS_SYMBOLS[currentId] || 'ellipse-outline';
-  const label = current?.label || 'Ikke valgt';
+  const label = selectedIds.map((id) => levelById(id)?.label).filter(Boolean).join(', ') || 'Ikke valgt';
   return (
     <View nativeID="employee-access-level" style={styles.accessCorner}>
       <View style={styles.accessCornerRow}>
@@ -189,18 +189,20 @@ function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, start
         <View nativeID="employee-access-menu" style={[styles.accessMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
           {ACCESS_LEVELS.map((level) => {
-            const on = level.id === currentId;
+            const on = selectedIds.includes(level.id);
             return (
               <TouchableOpacity
                 key={level.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on, disabled: !canEditAccess || busy }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on, disabled: !canEditAccess || busy }}
                 accessibilityLabel={level.label}
                 disabled={!canEditAccess || busy}
                 onPress={() => {
                   if (!canEditAccess) return;
-                  onClassify?.({ accessLevel: level.id });
-                  setOpen(false);
+                  const next = on
+                    ? selectedIds.filter((id) => id !== level.id)
+                    : [...selectedIds, level.id];
+                  onClassify?.({ accessLevels: next });
                 }}
                 style={[
                   styles.accessOption,
@@ -212,7 +214,14 @@ function AccessCorner({ employee, colors, busy, canEditAccess, onClassify, start
                 ]}
               >
                 <Ionicons name={ACCESS_SYMBOLS[level.id]} size={18} color={on ? colors.brand : colors.ink} />
-                <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600' }}>{level.label}</Text>
+                <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600', flex: 1 }}>{level.label}</Text>
+                <View style={[
+                  styles.levelBox,
+                  { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent' },
+                ]}
+                >
+                  {on ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -1340,6 +1349,7 @@ const styles = StyleSheet.create({
   accessGear: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   accessMenu: { borderWidth: 1, borderRadius: 12, padding: 8, gap: 4, minWidth: 220 },
   accessOption: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8 },
+  levelBox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   panelKicker: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   editBtn: {
     flexDirection: 'row',

@@ -49,6 +49,7 @@ import {
   departmentLabels,
   directoryStats,
   displayName,
+  employeeFromProfile,
   employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
@@ -58,6 +59,7 @@ import {
   isDeletedEmployee,
   linkClash,
   newId,
+  ownEmployee,
   personnelKind,
   personnelKindLabel,
   presentEmployee,
@@ -200,15 +202,31 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
-  const linked = rows.find((row) => row.personUid && row.personUid === uid) || null;
+  const mine = useMemo(() => ownEmployee(rows, {
+    uid,
+    emails: [
+      user?.email,
+      userProfile?.email,
+      profile?.person?.email,
+    ],
+    name: userProfile?.displayName || user?.displayName || '',
+  }), [rows, uid, user, userProfile, profile]);
+  const linked = mine?.personUid === uid ? mine : (rows.find((row) => row.personUid && row.personUid === uid) || null);
   const kindRows = useMemo(
-    () => filterEmployees(rows, { kind: kindFilter, status: 'all', departments }),
-    [rows, kindFilter, departments],
+    () => filterEmployees(rows, { kind: kindFilter, status: 'all', departments, keepIds: mine?.id ? [mine.id] : [] }),
+    [rows, kindFilter, departments, mine?.id],
   );
   const visible = useMemo(
-    () => filterEmployees(rows, { kind: kindFilter, status: statusFilter, query, departments }),
-    [rows, kindFilter, statusFilter, query, departments],
+    () => filterEmployees(rows, {
+      kind: kindFilter,
+      status: statusFilter,
+      query,
+      departments,
+      keepIds: mine?.id ? [mine.id] : [],
+    }),
+    [rows, kindFilter, statusFilter, query, departments, mine?.id],
   );
+  const mineHiddenByKind = !!(mine && kindFilter !== 'all' && personnelKind(mine) !== kindFilter);
   const stats = directoryStats(kindRows);
   const kindOptions = useMemo(() => (
     PERSONNEL_KIND_OPTIONS.map((option) => ({
@@ -657,6 +675,66 @@ export default function EmployeesScreen() {
     }
   }
 
+  async function restoreMine() {
+    if (!uid || !familyId || busy) return;
+    if (mine) {
+      setKindFilter('all');
+      setStatusFilter('all');
+      setQuery('');
+      if (!mine.personUid && uid) {
+        setBusy(true);
+        try {
+          const saved = await saveEmployee(familyId, { ...mine, personUid: uid });
+          setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+          openDetail(saved);
+        } catch (err) {
+          showError(err?.message || 'Kunne ikke knytte profilen til deg.');
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+      openDetail(mine);
+      return;
+    }
+    const hint = userProfile?.displayName || user?.displayName || '';
+    const link = (profile?.links || []).find((row) => row.companyId === familyId);
+    const draft = employeeFromProfile(profile, {
+      id: link?.employeeId || '',
+      uid,
+      displayNameHint: hint,
+      accessLevel: isSuperAdmin(family, uid) ? 'administrator' : 'ansatt',
+    });
+    const result = commitEmployee(draft, { scope: 'company' });
+    if (!result.ok) {
+      showError(result.errors.join('\n'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await saveEmployee(familyId, result.employee);
+      setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+      const stored = await saveProfessionalProfile(uid, rememberLink({
+        ...(profile || {}),
+        person: saved.person,
+        cv: saved.cv,
+        customFields: saved.customFields.filter((field) => field.owner === 'person'),
+      }, { companyId: familyId, employeeId: saved.id, companyName }));
+      setProfile(stored);
+      setKindFilter('all');
+      setStatusFilter('all');
+      setQuery('');
+      setSelectedId(saved.id);
+      setDraft(presentEmployee(saved));
+      setView('detail');
+      setNote('Profilen din er lagt tilbake i ansatte-listen.');
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke gjenopprette profilen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openMine() {
     resetMessage();
     clearSectionEdit();
@@ -1092,6 +1170,36 @@ export default function EmployeesScreen() {
               {`Aktiv: ${stats.active} · Deaktivert: ${stats.inactive} · Permisjon: ${stats.leave} · Papirkurv: ${stats.deleted}`}
             </Text>
           </View>
+          {!mine ? (
+            <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Profilen din ligger ikke i listen</Text>
+              <Text style={{ color: colors.muted }}>
+                Ansettelsen kan ha blitt flyttet til en annen kategori, eller den mangler i selskapet. Gjenopprett den her uten å miste Min side.
+              </Text>
+              <TouchableOpacity
+                nativeID="employees-restore-mine"
+                onPress={restoreMine}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>{busy ? 'Gjenoppretter…' : 'Gjenopprett min profil'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : mineHiddenByKind ? (
+            <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>
+                {`${displayName(mine)} vises her selv om filteret er ${personnelKindLabel(kindFilter, companyName).toLowerCase()}. Profilen er ${personnelKindLabel(personnelKind(mine), companyName).toLowerCase()}.`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setKindFilter('all')}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.line }]}
+              >
+                <Text style={{ color: colors.ink }}>Vis alle kategorier</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {!visible.length ? (
             <Text style={{ color: colors.muted }}>
               {rows.length ? 'Ingen treff på filteret.' : 'Ingen medarbeidere er registrert ennå.'}
@@ -1120,7 +1228,10 @@ export default function EmployeesScreen() {
                 {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
                 <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
                 <View style={styles.chips}>
-                  {kindFilter === 'all' ? (
+                  {mine?.id === row.id ? (
+                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
+                  ) : null}
+                  {kindFilter === 'all' || (mine?.id === row.id && personnelKind(row) !== kindFilter) ? (
                     <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
                       {personnelKindLabel(personnelKind(row), companyName)}
                     </Text>

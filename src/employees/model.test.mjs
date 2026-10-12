@@ -15,6 +15,7 @@ import {
   departmentLabels,
   directoryStats,
   displayName,
+  employeeFromProfile,
   employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
@@ -24,6 +25,7 @@ import {
   linkClash,
   maskNationalId,
   normalizeEmployee,
+  ownEmployee,
   periodLabel,
   personnelKind,
   personnelKindLabel,
@@ -220,6 +222,37 @@ const FNR = sampleNationalId();
   assert.equal(cardSubtitle(rows[3], 'Consult1'), 'Eksternt personell · Consult1');
   assert.equal(cardSubtitle(rows[2], 'Consult1'), 'Prosjektleder');
   assert.deepEqual(sortEmployees(rows).map((row) => row.person.firstName), ['Ada', 'Bo', 'Cia', 'Dan']);
+}
+
+{
+  const geir = normalizeEmployee({
+    id: 'emp-geir',
+    personUid: 'uid-geir',
+    person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen', email: 'goa@consult1.no' },
+    company: {
+      personnelKind: 'staff',
+      status: 'active',
+      accessLevel: 'regnskap_ekstern',
+      accessRole: 'Regnskap eksternt',
+      email: 'goa@consult1.no',
+    },
+  });
+  assert.equal(geir.company.personnelKind, 'staff', 'lagring/lesing skal ikke tyst flytte egen profil til eksternt personell');
+  assert.equal(filterEmployees([geir], { kind: 'staff', status: 'all' }).some((row) => row.id === 'emp-geir'), true);
+  const hidden = filterEmployees([geir], { kind: 'staff', status: 'active' });
+  const shown = filterEmployees([geir], { kind: 'innleid', status: 'active', keepIds: ['emp-geir'] });
+  assert.equal(hidden[0].id, 'emp-geir');
+  assert.equal(shown[0].id, 'emp-geir');
+  assert.equal(ownEmployee([geir], { uid: 'uid-geir' }).id, 'emp-geir');
+  assert.equal(ownEmployee([geir], { emails: ['GOA@consult1.no'] }).id, 'emp-geir');
+  const rebuilt = employeeFromProfile({
+    person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen', email: 'goa@consult1.no' },
+    cv: { headline: 'Prosjekt- og byggeleder' },
+  }, { id: 'emp-geir', uid: 'uid-geir', accessLevel: 'administrator' });
+  assert.equal(displayName(rebuilt), 'Geir Ove Andersen');
+  assert.equal(rebuilt.personUid, 'uid-geir');
+  assert.equal(rebuilt.company.personnelKind, 'staff');
+  assert.equal(rebuilt.company.accessLevel, 'administrator');
 }
 
 {

@@ -42,9 +42,9 @@ const FIELD_ALIASES = [
   ['projectName', ['prosjekt', 'prosjektnavn', 'project', 'projectname']],
   ['activityName', ['aktivitet', 'aktivitetsnavn', 'activity', 'activityname', 'task']],
   ['hours', [
-    'timer', 'hours', 'quantity', 'antall', 'registeredhours',
+    'timer', 'hours', 'quantity', 'antall', 'registeredhours', 'registrertetimer',
     'antalltimer', 'antalltimerivalgtperiode', 'numberofhoursinselectedperiod',
-    'hoursinselectedperiod', 'hoursinselectedperiod', 'quantityhours',
+    'hoursinselectedperiod', 'quantityhours',
   ]],
   ['billableHours', [
     'fakturerbaretimer', 'billablehours', 'timerfakturerbart', 'hoursbillable',
@@ -69,30 +69,50 @@ const SKIP_HEADERS = [
   'aktivitetsnummer', 'activitynumber', 'activityno',
 ];
 
+/** Kolonner som ligner «timer» men ikke er føringens timeantall (Moment-eksport). */
+function isNonEntryHoursHeader(key) {
+  if (!key) return false;
+  if (key.includes('avtalt')) return true;
+  if (key.includes('estimert') || key.includes('estimated')) return true;
+  if (key.includes('planlagt') || key.includes('planned')) return true;
+  if (key.includes('rest') && (key.includes('timer') || key.includes('hour'))) return true;
+  if (key.includes('andel')) return true;
+  if (key.includes('visfaktisk') || key.includes('vispafaktura') || key.includes('vispåfaktura')) return true;
+  if (key.includes('ikkefakturerbar') || key.includes('nonbillable')) return true;
+  if (key.includes('opparbeidet') || key.includes('inntekt') || key.includes('profitt')) return true;
+  return false;
+}
+
 export function hourColumnField(header) {
   const key = fold(header);
   if (!key) return '';
+  if (SKIP_HEADERS.some((skip) => key === skip || key.startsWith(skip))) return '';
+  if (isNonEntryHoursHeader(key)) return '';
+  // Fakturadato er ikke arbeidsdato.
+  if (key.includes('fakturadato') || key.includes('invoicedate')) return '';
   for (const [field, aliases] of FIELD_ALIASES) {
     if (aliases.some((alias) => fold(alias) === key)) return field;
     if (fold(field) === key) return field;
   }
-  if (SKIP_HEADERS.some((skip) => key === skip || key.startsWith(skip))) return '';
   if ((key.includes('fakturerbar') || key.includes('billable')) && (key.includes('timer') || key.includes('hour'))) {
     return 'billableHours';
   }
   if (key === 'fakturerbart' || key === 'billable') return 'billable';
+  // Registrerte timer / antall timer i perioden — ikke «avtalte timer i valgt periode».
+  if (key.includes('registrertetimer') || key === 'registeredhours') return 'hours';
   if (
-    key.includes('antalltimer')
-    || key.includes('timerivalgt')
-    || key.includes('hoursinselected')
-    || key.includes('numberofhours')
-    || key.includes('registeredhours')
+    (key.includes('antalltimer') || key.includes('numberofhours') || key.includes('hoursinselected'))
+    && !key.includes('avtalt')
   ) return 'hours';
-  if (key.includes('timer') && !key.includes('aktivitet') && !key.includes('ansatt')) return 'hours';
+  if (key.includes('timerivalgt') && key.includes('antall')) return 'hours';
+  if (key === 'timer' || key === 'hours') return 'hours';
+  if (key.includes('fakturertetimer') || key.includes('invoicedhours')) return 'hours';
   if (key.includes('arbeidsdato') || key.includes('workdate') || key.includes('opprettetdato') || key.includes('createddate')) {
     return 'date';
   }
-  if ((key.endsWith('dato') || key.endsWith('date')) && !key.includes('utsett')) return 'date';
+  if ((key.endsWith('dato') || key.endsWith('date')) && !key.includes('utsett') && !key.includes('faktura')) {
+    return 'date';
+  }
   if (key.includes('intern') && (key.includes('notat') || key.includes('merknad') || key.includes('kommentar') || key.includes('note'))) {
     return 'internalNote';
   }
@@ -106,6 +126,21 @@ export function hourColumnField(header) {
   if (key.includes('kundenavn')) return 'customerName';
   if (key.includes('prosjektnavn')) return 'projectName';
   return '';
+}
+
+/**
+ * Moment eksporterer ofte fakturerbare timer som Excel-døgnbrøk (0.1458 ≈ 3:30).
+ * Verdier i [0, 1) tolkes som brøk av døgn; ellers vanlige desimaltimer / H:MM.
+ */
+export function parseImportHours(value) {
+  if (value == null || value === '') return 0;
+  const raw = String(value).trim().replace(',', '.');
+  if (!raw) return 0;
+  if (raw.includes(':')) return roundHours(parseHours(raw));
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  if (n > 0 && n < 1) return roundHours(n * 24);
+  return roundHours(n);
 }
 
 export function splitEmployeeHint(value) {
@@ -155,18 +190,22 @@ export function hourPersonKey(row = {}) {
 }
 
 /**
- * Duplikat bare når dato, person, timer og beskrivelse er 100 % identiske.
- * Flere oppstykkede føringer samme dag (og samme prosjekt) er lov — ulikt
- * timeantall eller ulik beskrivelse betyr ikke duplikat. Prosjekt/aktivitet
- * inngår ikke i nøkkelen.
+ * Duplikat bare når dato, person, prosjekt, timer og beskrivelse er 100 % like.
+ * Samme dag/person med ulike prosjekt (typisk SHA-befaring på flere bygg)
+ * er ikke duplikat. Oppstykkede føringer samme prosjekt er lov når timer
+ * eller beskrivelse avviker.
  */
 export function hourFingerprint(row = {}) {
   const date = parseDate(row.date) || text(row.date);
   const person = hourPersonKey(row);
+  // Prosjektnummer først — stabilt mellom Excel og lagrede føringer (ikke intern id).
+  const project = text(row.projectNumber)
+    || fold(row.projectName)
+    || text(row.projectId);
   const hours = String(roundHours(row.hours ?? 0));
   const description = fold(row.description);
   if (!date || !person) return '';
-  return [date, person, hours, description].join('|');
+  return [date, person, project, hours, description].join('|');
 }
 
 /** Samme kriterier som fingerprint — eksplisitt for tester og UI. */
@@ -280,10 +319,10 @@ function resolveBillableHours(mapped, hours) {
   const billedHoursFlag = parseBillableFlag(mapped.billableHours);
   const billedFlag = parseBillableFlag(mapped.billable);
   if (mapped.billableHours != null && mapped.billableHours !== '' && billedHoursFlag == null) {
-    return roundHours(parseHours(mapped.billableHours));
+    return parseImportHours(mapped.billableHours);
   }
   if (mapped.billable != null && mapped.billable !== '' && billedFlag == null) {
-    return roundHours(parseHours(mapped.billable));
+    return parseImportHours(mapped.billable);
   }
   if (billedFlag === false || billedHoursFlag === false) return 0;
   return hours;
@@ -291,8 +330,15 @@ function resolveBillableHours(mapped, hours) {
 
 export function hourEntryFromMappedRow(mapped, originalValues = {}, meta = {}) {
   const date = parseDate(mapped.date) || text(mapped.date);
-  const hours = roundHours(parseHours(mapped.hours));
-  const billableHours = resolveBillableHours(mapped, hours);
+  let hours = parseImportHours(mapped.hours);
+  let billableHours = resolveBillableHours(mapped, hours);
+  // Moment: «Registrerte timer» tom, faktisk tid ligger ofte i fakturerbare (døgnbrøk).
+  if (!(hours > 0) && billableHours > 0) hours = billableHours;
+  if (!(billableHours > 0) && hours > 0) {
+    const billedOff = parseBillableFlag(mapped.billableHours) === false
+      || parseBillableFlag(mapped.billable) === false;
+    if (!billedOff) billableHours = hours;
+  }
   const split = splitEmployeeHint(mapped.employeeName);
   const employeeName = split.name || text(mapped.employeeName);
   const activityName = text(mapped.activityName) || 'Hovedaktivitet';
@@ -461,8 +507,8 @@ export function companyHourRow(input, {
   if (duplicate) {
     severity = 'existing';
     issues.push(duplicateInFile
-      ? 'Duplikat i filen (samme dato, person, timer og beskrivelse) — hoppes over.'
-      : 'Finnes fra før (samme dato, person, timer og beskrivelse) — hoppes over.');
+      ? 'Duplikat i filen (samme dato, person, prosjekt, timer og beskrivelse) — hoppes over.'
+      : 'Finnes fra før (samme dato, person, prosjekt, timer og beskrivelse) — hoppes over.');
   }
   seenInFile.add(fingerprint);
 

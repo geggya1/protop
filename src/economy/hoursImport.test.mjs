@@ -8,6 +8,7 @@ import {
   linkImportPlanEmployee,
   linkImportPlanProject,
   matchEmployee,
+  parseImportHours,
   planHourImport,
   readHourTable,
   reviewRowsForHourPlan,
@@ -33,13 +34,26 @@ import {
   assert.equal(hourColumnField('Opprettet dato'), 'date');
   assert.equal(hourColumnField('Antall timer i valgt periode'), 'hours');
   assert.equal(hourColumnField('Number of hours in selected period'), 'hours');
+  assert.equal(hourColumnField('Registrerte timer'), 'hours');
   assert.equal(hourColumnField('Created date'), 'date');
   assert.equal(hourColumnField('Medarbeider (Eksternt ansattnummer)'), 'employeeName');
   assert.equal(hourColumnField('Fakturerbart'), 'billable');
   assert.equal(hourColumnField('Internt notat'), 'internalNote');
   assert.equal(hourColumnField('Opprettet av'), '');
+  // Moment-aggregater / støy — ikke føringens timer eller arbeidsdato.
+  assert.equal(hourColumnField('Avtalte timer i valgt periode'), '');
+  assert.equal(hourColumnField('Estimerte timer'), '');
+  assert.equal(hourColumnField('Planlagte timer'), '');
+  assert.equal(hourColumnField('Rest Registrerte timer'), '');
+  assert.equal(hourColumnField('Fakturadato'), '');
   assert.equal(splitEmployeeHint('Geir Andersen (12)').name, 'Geir Andersen');
   assert.equal(splitEmployeeHint('Geir Andersen (12)').number, '12');
+}
+
+{
+  assert.equal(parseImportHours('7:30'), 7.5);
+  assert.equal(parseImportHours('0.14583333333333334'), 3.5);
+  assert.equal(parseImportHours('8'), 8);
 }
 
 {
@@ -208,7 +222,7 @@ import {
 }
 
 {
-  // Duplikat krever dato + person + timer + beskrivelse — ikke bare dato/person.
+  // Duplikat krever dato + person + prosjekt + timer + beskrivelse.
   const employees = [{
     id: 'emp1',
     person: { firstName: 'Geir', lastName: 'Andersen' },
@@ -227,13 +241,15 @@ import {
     hours: '8',
     description: 'Befaring',
   };
-  assert.equal(hoursLookDuplicate(base, { ...base, projectNumber: '10999', projectName: 'Annet' }), true);
+  // Samme tekst/timer på annet prosjekt er IKKE duplikat.
+  assert.equal(hoursLookDuplicate(base, { ...base, projectNumber: '10999', projectName: 'Annet' }), false);
   assert.equal(hoursLookDuplicate(base, { ...base, hours: '4' }), false);
   assert.equal(hoursLookDuplicate(base, { ...base, description: 'Annet arbeid' }), false);
   assert.equal(hoursLookDuplicate(base, { ...base, date: '16.03.2023' }), false);
   assert.equal(hoursLookDuplicate(base, {
     ...base, employeeNumber: '99', employeeName: 'Noen Andre',
   }), false);
+  assert.equal(hoursLookDuplicate(base, { ...base }), true);
 
   // Ulik beskrivelse / timer → ikke duplikat mot eksisterende, selv med gammel fingerprint-streng.
   const existing = [{
@@ -241,6 +257,8 @@ import {
     employeeId: 'emp1',
     employeeNumber: '12',
     employeeName: 'Geir Andersen',
+    projectNumber: '10857',
+    projectName: 'Sikker skolevei',
     hours: 8,
     description: 'Befaring',
     importFingerprint: 'gammel|kort|nokkel',
@@ -308,7 +326,32 @@ import {
   const withClone = planHourImport([], employees, [], projects, [...chunks, chunks[0]]);
   assert.equal(withClone.rows.filter((row) => row.severity === 'ok').length, 3);
   assert.equal(withClone.rows.filter((row) => row.severity === 'existing').length, 1);
-  assert.match(withClone.rows.find((row) => row.severity === 'existing').issues.join(' '), /dato, person, timer og beskrivelse/);
+  assert.match(withClone.rows.find((row) => row.severity === 'existing').issues.join(' '), /dato, person, prosjekt, timer og beskrivelse/);
+}
+
+{
+  // Samme dag/person/beskrivelse på ulike prosjekt skal ikke hoppes over.
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Ellen', lastName: 'Hidle' },
+    company: { externalEmployeeNumber: '101' },
+  }];
+  const projects = [
+    { id: 'p1', number: '10825', name: 'Smeaheia' },
+    { id: 'p2', number: '10531', name: 'Rovik' },
+  ];
+  const plan = planHourImport([], employees, [], projects, [
+    {
+      date: '22.12.2021', employeeNumber: '101', employeeName: 'Ellen Hidle',
+      projectNumber: '10825', projectName: 'Smeaheia', hours: '3:30', description: 'SHA- befaring',
+    },
+    {
+      date: '22.12.2021', employeeNumber: '101', employeeName: 'Ellen Hidle',
+      projectNumber: '10531', projectName: 'Rovik', hours: '3:30', description: 'SHA- befaring',
+    },
+  ]);
+  assert.equal(plan.rows.filter((row) => row.severity === 'ok').length, 2);
+  assert.equal(plan.rows.some((row) => row.severity === 'existing'), false);
 }
 
 {

@@ -26,7 +26,9 @@ export default function AgreementLinkHost() {
       if (!result?.ok) setError(result?.error || 'Kunne ikke åpne avtalen.');
       else setRow(result.row);
     }).catch((err) => {
-      if (live) setError(err?.message || 'Kunne ikke åpne avtalen.');
+      if (!live) return;
+      const message = String(err?.message || '');
+      setError(!message || /internal/i.test(message) ? 'Kunne ikke åpne avtalen.' : message);
     });
     return () => { live = false; };
   }, []);

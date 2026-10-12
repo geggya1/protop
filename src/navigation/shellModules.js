@@ -32,7 +32,7 @@ export function anbudMenuTitle(subView) {
 
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
- * ikke blant de personlige punktene i Hoved.
+ * ikke blant de personlige punktene i Personlig.
  * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
  * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  * Ansatte er et eget register: ansettelsen følger selskapet, CV-en følger personen.
@@ -242,7 +242,7 @@ export function buildShellModules({
     { id: 'home', icon: 'home', label: t('tabs.home'), action: { type: 'tab', tab: 'home' } },
     { id: 'chat', icon: 'chatbubbles', label: t('tabs.chat'), action: { type: 'tab', tab: 'chat' } },
   ];
-  // Venner blant hurtigvalg i Hoved. ProTop viser modulen uten familiekobling.
+  // Venner blant hurtigvalg i Personlig. ProTop viser modulen uten familiekobling.
   mainItems.push({
     id: 'friends', icon: 'people', label: t('apps.friends'),
     action: { type: 'tab', tab: 'more', subView: 'friends' },
@@ -257,7 +257,7 @@ export function buildShellModules({
   mainItems.push(
     { id: 'stars', icon: 'checkbox', label: t('tabs.tasks'), action: { type: 'tab', tab: 'stars' } },
   );
-  // Barn: Gjøremål blant hurtigvalg i Hoved (ikke under Familien).
+  // Barn: Gjøremål blant hurtigvalg i Personlig (ikke under Familien).
   if (asChild) {
     mainItems.push({
       id: 'chores', icon: 'star', label: t('tabs.chores'),
@@ -398,7 +398,7 @@ export function buildShellModules({
     }).map(({ id, icon, label, action }) => ({ id, icon, label, action }));
 
     if (skoleItems.length > 0) {
-      // Sett Skole rett etter Hoved, før app-mappene.
+      // Sett Skole rett etter Personlig, før app-mappene.
       const insertAt = Math.max(1, sections.findIndex((s) => s.id === 'main') + 1);
       sections.splice(insertAt, 0, {
         id: 'skole',

@@ -19,7 +19,6 @@ import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
-import EconomyHours from './EconomyHours';
 import EconomyOps from './EconomyOps';
 import EconomyWelcome from './EconomyWelcome';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
@@ -184,18 +183,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 
   if (page === 'fakturagrunnlag') {
     return <EconomyBilling />;
-  }
-
-  if (page === 'timer') {
-    return (
-      <EconomyHours
-        familyId={familyId}
-        customers={customers}
-        projects={projects}
-        onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
-        onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
-      />
-    );
   }
 
   if (page === 'utlegg') {

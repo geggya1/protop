@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { dayTimesheetRows, shiftDateKey } from './hoursList.js';
+import {
+  dayTimesheetRows,
+  employeeHourOptions,
+  filterHours,
+  groupHours,
+  shiftDateKey,
+  sortHours,
+} from './hoursList.js';
 import { shortDayLabel } from '../arbeid/calendar.js';
 
 assert.equal(shortDayLabel('2023-10-09'), '9 okt');
@@ -32,6 +39,22 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   assert.equal(withHours.length, 2);
   assert.equal(rows.find((row) => row.number === '10563').role, 'Prosjekteringsleder');
   assert.equal(rows.find((row) => row.number === '10315').hours, 0);
+}
+
+{
+  const entries = [
+    { id: '1', employeeId: 'geir', employeeName: 'Geir Ove Andersen', date: '2026-10-10', hours: 8, billableHours: 8, projectName: 'A' },
+    { id: '2', employeeId: 'tom', employeeName: 'Tom Kåre Hestvåg', date: '2025-01-01', hours: 8, billableHours: 8, projectName: 'B' },
+    { id: '3', employeeId: 'tom', employeeName: 'Tom Kåre Hestvåg', date: '2026-10-10', hours: 0, billableHours: 0, projectName: 'C' },
+  ];
+  const yearSlice = filterHours(entries, { period: 'year' }, new Date('2026-10-12'));
+  assert.equal(yearSlice.length, 2);
+  const options = employeeHourOptions(yearSlice);
+  assert.deepEqual(options.map((row) => row.id), ['geir']);
+  const sorted = sortHours(yearSlice, 'hours-desc');
+  assert.equal(sorted[0].employeeId, 'geir');
+  const groups = groupHours(yearSlice, 'employee');
+  assert.equal(groups.length, 2);
 }
 
 console.log('hoursList.test.mjs: ok');

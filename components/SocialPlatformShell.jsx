@@ -24,7 +24,7 @@ import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
-import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
+import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -214,7 +214,7 @@ export default function SocialPlatformShell({ platformType }) {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
-    if (tab === 'arbeid') return <ArbeidScreen />;
+    if (tab === 'arbeid') return <ArbeidHub subView={route.params?.subView} />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView !== 'underenheter') return <ProjectPlatformScreen />;

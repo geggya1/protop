@@ -4,6 +4,7 @@ import { CPV_CODES, CPV_GROUPS, TENDER_AREAS } from '../../src/anbud/catalog';
 import { buildTenderAlert } from '../../src/anbud/alertMail';
 import { fetchCompanyCpv, sendTenderAlert } from '../../src/anbud/doffinClient';
 import { alignDepartmentAreas, emptyAnbudState, normalizeCpvCode, normalizeDepartmentAreas, normalizeKeywords, noticeDeadlineExpired, saveTenderWatch } from '../../src/anbud/model';
+import { addProfile, selectProfile } from '../../src/anbud/desk';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
@@ -69,6 +70,7 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [publicCpv, setPublicCpv] = useState([]);
   const [publicNote, setPublicNote] = useState('');
+  const [profileName, setProfileName] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -290,6 +292,60 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
   return (
     <View style={styles.page}>
       <Text style={[styles.h, { color: colors.ink }]}>Søkekriterier</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {(state.profiles || []).map((profile) => {
+          const on = state.activeProfileId === profile.id;
+          return (
+            <TouchableOpacity
+              key={profile.id}
+              onPress={async () => {
+                const selected = selectProfile(state, profile.id);
+                if (!selected.ok) return;
+                const next = await persistAnbudState(selected.state, company?.id);
+                setState(next);
+                const watch = next.watch || {};
+                setSelectedCpv(new Set((watch.cpvCodes || []).map((row) => row.code).filter(Boolean)));
+                setKeywords(watch.keywords || []);
+                setNationwide(!!watch.nationwide);
+                setAreas(new Set((watch.areas || []).map((row) => row.id)));
+                setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
+                setDepartmentAreas(watch.departmentAreas || []);
+                setNote(`Profilen ${profile.name} er valgt.`);
+              }}
+              accessibilityRole="button"
+              style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
+            >
+              <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{profile.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        <TextInput
+          value={profileName}
+          onChangeText={setProfileName}
+          placeholder="Navn på ny profil"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg, flexGrow: 1 }]}
+        />
+        <TouchableOpacity
+          onPress={async () => {
+            const added = addProfile(state, { name: profileName });
+            if (!added.ok) {
+              setError(added.error);
+              return;
+            }
+            const next = await persistAnbudState(added.state, company?.id);
+            setState(next);
+            setProfileName('');
+            setNote('Profilen er lagret. Juster CPV og søkeord, og lagre kriteriene.');
+          }}
+          accessibilityRole="button"
+          style={[styles.chip, { backgroundColor: colors.brand }]}
+        >
+          <Text style={{ color: '#fff' }}>Ny profil</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={[styles.h, { color: colors.ink }]}>CPV fra offentlige tildelinger</Text>

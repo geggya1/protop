@@ -174,6 +174,37 @@ export const tenderProxy = onRequest(
         }
         return;
       }
+      if (action === 'read-documents' || action === 'qualify-notice' || action === 'ask-notice' || action === 'draft-answer' || action === 'plan-tasks') {
+        try {
+          const reading = action === 'read-documents'
+            ? await import('./anbudRead.js').then((mod) => mod.readPublicDocuments(body))
+            : { excerpts: body.excerpts || [], gated: body.gated || [] };
+          const ai = await import('./anbudDeskAi.js');
+          if (action === 'read-documents') {
+            const data = await ai.summarizeNotice({ ...body, excerpts: reading.excerpts, gated: reading.gated });
+            res.json({ ...data, excerpts: reading.excerpts, gated: reading.gated });
+            return;
+          }
+          if (action === 'qualify-notice') {
+            res.json(ai.qualifyOpenNotice({ ...body, excerpts: reading.excerpts }));
+            return;
+          }
+          if (action === 'ask-notice') {
+            const data = ai.askOpenNotice(body);
+            res.status(data.ok === false ? 400 : 200).json(data);
+            return;
+          }
+          if (action === 'draft-answer') {
+            res.json(ai.draftOpenAnswer(body));
+            return;
+          }
+          res.json(ai.planOpenTasks(body));
+        } catch (err) {
+          logger.warn('anbud desk failed', { action, message: err?.message });
+          res.status(502).json({ ok: false, error: 'Kunne ikke lese konkurransen.' });
+        }
+        return;
+      }
       const channels = Array.isArray(body.channels) ? body.channels : ['doffin', 'ted'];
       const hits = [];
       const errors = [];

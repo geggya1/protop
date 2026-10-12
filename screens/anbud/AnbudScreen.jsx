@@ -4,7 +4,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
-import { loadAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { useLayout } from '../../src/theme';
 import ScrollSheet from '../../components/ScrollSheet';
 import TenderAlert from './TenderAlert';
@@ -12,6 +12,9 @@ import TenderInquiry from './TenderInquiry';
 import CurrentReview from './CurrentReview';
 import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
+import PipelineBoard from './PipelineBoard';
+import CalloffInbox from './CalloffInbox';
+import { setNoticeDecision } from '../../src/anbud/model';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
@@ -22,6 +25,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const [aktuellCount, setAktuellCount] = useState(0);
   const [focusBidId, setFocusBidId] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [desk, setDesk] = useState(null);
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
   const reviewCount = aktuellCount + directQueueItems({ inquiries, inbox }).length;
@@ -36,6 +40,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       if (!live) return;
       setBids(loaded?.bids || []);
       setAktuellCount(noticesAwaitingBid(loaded?.notices).length);
+      setDesk(loaded);
     });
     return () => { live = false; };
   }, [company?.id]);
@@ -122,6 +127,33 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
           onSnapshot={(next) => setBids(next?.bids || [])}
+        />
+      ) : null}
+      {step === 'avrop' && desk ? (
+        <CalloffInbox
+          state={desk}
+          colors={colors}
+          onCommit={(next) => { setDesk(next); saveAnbudState(next, company?.id); }}
+          onOpenBid={(notice) => {
+            const marked = setNoticeDecision(desk, notice.id, 'aktuell');
+            if (marked.ok) {
+              setDesk(marked.state);
+              saveAnbudState(marked.state, company?.id);
+            }
+            go('vurdering');
+          }}
+        />
+      ) : null}
+      {step === 'pipeline' && desk ? (
+        <PipelineBoard
+          state={desk}
+          colors={colors}
+          onCommit={(next) => {
+            setDesk(next);
+            setBids(next.bids || []);
+            saveAnbudState(next, company?.id);
+          }}
+          onOpenBid={(bidId) => { go('tilbud'); setFocusBidId(bidId); }}
         />
       ) : null}
       <ScrollSheet

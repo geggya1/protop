@@ -75,6 +75,7 @@ async function writeRemote(companyId, state) {
   if (!ref) return;
   await setDoc(ref, {
     state,
+    digestEnabled: !!(state.watch?.notify?.email && (state.watch?.emails || []).length),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }

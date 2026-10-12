@@ -598,7 +598,7 @@ export function companyTabAllowed(tab, subView, grants) {
     return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
   }
   if (tab === 'anbud') {
-    if (subView === 'tilbud') return allows(grants, 'offers', 'see');
+    if (subView === 'tilbud' || subView === 'pipeline') return allows(grants, 'offers', 'see') || (subView === 'pipeline' && allows(grants, 'tenders', 'see'));
     if (subView === 'varsling' || subView === 'foresporsel' || subView === 'vurdering') {
       return allows(grants, 'tenders', 'see');
     }
@@ -616,7 +616,7 @@ function navItemAllowed(id, grants) {
   }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
   if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
-  if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');
+  if (id === 'anbud-tilbud' || id === 'anbud-pipeline') return allows(grants, 'offers', 'see') || (id === 'anbud-pipeline' && allows(grants, 'tenders', 'see'));
   if (String(id).startsWith('anbud')) return allows(grants, 'tenders', 'see');
   if (String(id).startsWith('okonomi')) return allows(grants, 'economy', 'see');
   const resource = COMPANY_TAB_RESOURCE[id];

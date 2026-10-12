@@ -13,11 +13,14 @@ import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/ma
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
 import { locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
+import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
+import { sendTenderAlert } from '../../src/anbud/doffinClient';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
+import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
 import TenderMap from './TenderMap';
 import RegionCoverage from './RegionCoverage';
@@ -258,6 +261,24 @@ export default function TenderAlert({
   }, [state, ready, company?.id]);
 
   useEffect(() => {
+    if (!ready || !digestDue(state.watch)) return undefined;
+    const notices = digestSelection(state.notices);
+    if (!notices.length) return undefined;
+    let live = true;
+    sendTenderAlert({
+      emails: state.watch.emails,
+      companyName: state.watch.companyName,
+      cpvCodes: state.watch.cpvCodes,
+      keywords: state.watch.keywords,
+      notices,
+    }).then((data) => {
+      if (!live || !data?.ok) return;
+      commitState(stampDigest(stateRef.current));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [ready, company?.id, state.watch?.digestAt, state.watch?.notify?.email]);
+
+  useEffect(() => {
     const orgnr = company?.orgnr;
     if (!orgnr) return undefined;
     let alive = true;
@@ -378,15 +399,26 @@ export default function TenderAlert({
       const sameSearch = nextState.queryKey === fingerprint && (nextState.notices || []).length > 0;
       const publishedFrom = sameSearch ? latestPublished(nextState.notices) : '';
       const known = new Set((nextState.notices || []).map((row) => row.id));
-      const data = await fetchWatchHits({
-        ...active,
-        channels: watch.channels,
-        publishedFrom,
-      });
+      const profiles = searchProfiles(draft.ok ? draft.state : nextState);
+      const hits = [];
+      const errors = [];
+      let fetchedAt = '';
+      for (const profile of profiles) {
+        const query = watchQuery(profile.watch);
+        if (!query) continue;
+        const data = await fetchWatchHits({
+          ...query,
+          channels: profile.watch.channels || watch.channels,
+          publishedFrom,
+        });
+        fetchedAt = data.fetchedAt || fetchedAt;
+        for (const hit of data.hits || []) hits.push({ ...hit, profileIds: profile.id ? [profile.id] : [] });
+        if (data.errors?.length) errors.push(...data.errors);
+      }
       if (gen !== loadGen.current) return;
       const latest = stateRef.current;
       const base = draft.ok ? { ...latest, watch } : latest;
-      const merged = mergeTenderNotices(base, data.hits, data.fetchedAt).state;
+      const merged = mergeTenderNotices(base, hits, fetchedAt).state;
       const added = merged.notices.filter((row) => !known.has(row.id)).length;
       commitState({ ...merged, queryKey: fingerprint });
       if (manual || added) {
@@ -394,8 +426,8 @@ export default function TenderAlert({
           ? `${added} nye treff lagt til. Tidligere treff og vurderinger er beholdt.`
           : 'Ingen nye treff. Tidligere treff og vurderinger er beholdt.');
       }
-      if (!data.hits?.length && data.errors?.length && !known.size) setError(data.errors[0]);
-      else if (data.errors?.length) setError(data.errors.join(' '));
+      if (!hits.length && errors.length && !known.size) setError(errors[0]);
+      else if (errors.length) setError(errors.join(' '));
       applyAiRank(watch, merged.notices, { silent: true }).catch(() => {});
     } catch (err) {
       const raw = String(err?.message || '');
@@ -895,6 +927,9 @@ export default function TenderAlert({
             renderDecision={() => (
               <NextStep colors={colors} onOpenReview={onOpenReview} />
             )}
+            renderInsight={(row) => (
+              <NoticeInsight notice={row} state={stateRef.current} colors={colors} onCommit={commitState} />
+            )}
             matchWatch={matchWatch}
             syncing={syncing}
             emptyText={listEmpty}
@@ -1004,6 +1039,7 @@ export default function TenderAlert({
                     <NoticeBody row={row} colors={colors} />
                     {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
                     {aktuell ? <NextStep colors={colors} onOpenReview={onOpenReview} /> : null}
+                    <NoticeInsight notice={row} state={stateRef.current} colors={colors} onCommit={commitState} />
                   </View>
                 ) : null}
               </View>

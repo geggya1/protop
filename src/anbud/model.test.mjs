@@ -186,6 +186,9 @@ assert.match(buildTedQuery({ keywords: ['sykehus'], publishedFrom: '2026-09-20' 
 
 const body = buildDoffinBody({ cpvCodes: ['45000000'], locationIds: ['NO071'] });
 assert.deepEqual(body.facets.cpvCodesId.checkedItems, ['45000000']);
+assert.deepEqual(body.facets.status.checkedItems, ['ACTIVE']);
+assert.deepEqual(buildDoffinBody({ cpvCodes: ['45000000'], types: ['RESULT'] }).facets.type.checkedItems, ['RESULT']);
+assert.deepEqual(buildDoffinBody({ cpvCodes: ['45000000'], types: ['RESULT'] }).facets.status.checkedItems, []);
 assert.deepEqual(buildDoffinBody({ cpvCodes: ['45', '45000000-7'] }).facets.cpvCodesId.checkedItems, ['45000000']);
 assert.deepEqual(body.facets.status.checkedItems, ['ACTIVE']);
 assert.deepEqual(body.facets.location.checkedItems, ['NO071']);

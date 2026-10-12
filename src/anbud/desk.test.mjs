@@ -81,8 +81,13 @@ assert.equal(classifyNotice({ title: 'Ny barnehage' }), 'konkurranse');
   const changes = dossierChanges(notice.dossier, { ...notice.dossier, submissionDeadline: '2026-11-15', qa: [{ question: 'A', answer: 'B' }] });
   assert.ok(changes.some((row) => row.field === 'submissionDeadline'));
   assert.ok(changes.some((row) => row.field === 'qa'));
-  const applied = applyNoticeReading({ notices: [notice] }, '2026-1', { dossier: { ...notice.dossier, submissionDeadline: '2026-11-15' }, brief });
+  const applied = applyNoticeReading({ notices: [notice] }, '2026-1', {
+    dossier: { ...notice.dossier, submissionDeadline: '2026-11-15' },
+    brief,
+    excerpts: [{ title: 'Krav', text: 'A'.repeat(5000) }],
+  });
   assert.equal(applied.ok, true);
+  assert.equal(applied.state.notices[0].excerpts[0].text.length, 4000);
   assert.equal(applied.state.notices[0].updates.length, 1);
   assert.equal(tasksFromNotice(notice).length > 0, true);
 }

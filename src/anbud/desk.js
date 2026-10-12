@@ -25,6 +25,9 @@ function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+/** Tre dokumentutdrag får plass i korpuset på 12 000 tegn. */
+export const EXCERPT_TEXT_CHARS = 4000;
+
 function clip(value, max) {
   const raw = text(value);
   if (raw.length <= max) return raw;
@@ -355,7 +358,7 @@ export function applyNoticeReading(state, id, { dossier, brief, excerpts = [] } 
       excerpts: (Array.isArray(excerpts) ? excerpts : []).slice(0, 3).map((item) => ({
         title: clip(item.title, 120),
         url: text(item.url).slice(0, 400),
-        text: clip(item.text, 1500),
+        text: clip(item.text, EXCERPT_TEXT_CHARS),
       })),
       brief: brief || row.brief || null,
       updates,
@@ -698,7 +701,7 @@ export function normalizeNoticeDesk(notice) {
     excerpts: (Array.isArray(row.excerpts) ? row.excerpts : []).slice(0, 3).map((item) => ({
       title: clip(item?.title, 120),
       url: text(item?.url).slice(0, 400),
-      text: clip(item?.text, 1500),
+      text: clip(item?.text, EXCERPT_TEXT_CHARS),
     })),
     updates: (Array.isArray(row.updates) ? row.updates : []).slice(-20).map((item) => ({
       at: text(item?.at).slice(0, 40),

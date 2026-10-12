@@ -451,7 +451,7 @@ Returner KUN gyldig JSON:
   "fields": [
     {
       "label": "teksten som står ved feltet",
-      "kind": "title|text|long|date|time|number|scale|check|choice|checks|dropdown|image|file",
+      "kind": "title|note|text|long|date|time|number|scale|check|choice|checks|dropdown|image|file",
       "required": false,
       "help": "hjelpetekst under feltet, eller tom streng",
       "placeholder": "grå tekst inne i feltet, eller tom streng",

@@ -8,12 +8,12 @@ assert.ok(CHILD_APP_GROUPS.find((g) => g.id === 'house')?.ids.includes('boligmap
 assert.equal(
   CHILD_APP_GROUPS.find((g) => g.id === 'family')?.ids.includes('chores'),
   false,
-  'Gjøremål is hurtigvalg (Hoved), not under Familien',
+  'Gjøremål is hurtigvalg (Personlig), not under Familien',
 );
 assert.equal(
   CHILD_APP_GROUPS.find((g) => g.id === 'family')?.ids.includes('friends'),
   false,
-  'Venner is hurtigvalg (Hoved), not under Familien',
+  'Venner is hurtigvalg (Personlig), not under Familien',
 );
 
 const tools = [

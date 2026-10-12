@@ -51,6 +51,7 @@ export default function ShellHeader({
   onBackHome = null,
   onLogoHome = null,
   hero = null,
+  viewAs = null,
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
@@ -93,6 +94,7 @@ export default function ShellHeader({
             {!floatHelp ? (
               <HelpButton compact color={colors.ink} borderColor={colors.line} />
             ) : null}
+            {viewAs}
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
               onPress={() => openNotifications(nav)}
@@ -153,6 +155,7 @@ export default function ShellHeader({
               <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
             ) : null}
             <HelpButton compact color={colors.ink} borderColor={colors.line} />
+            {viewAs}
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
               onPress={() => openNotifications(nav)}
@@ -232,6 +235,7 @@ export default function ShellHeader({
             {!floatHelp ? (
               <HelpButton color={colors.ink} borderColor={colors.line} />
             ) : null}
+            {viewAs}
             <TouchableOpacity
               style={[styles.iconBtn, {
                 borderColor: colors.line,

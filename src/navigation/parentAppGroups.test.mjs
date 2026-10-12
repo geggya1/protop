@@ -7,7 +7,7 @@ assert.equal(PARENT_APP_GROUPS.some((g) => g.ids.includes('klassen')), false);
 assert.equal(
   PARENT_APP_GROUPS.find((g) => g.id === 'family')?.ids.includes('friends'),
   false,
-  'Venner is hurtigvalg (Hoved), not under Familien',
+  'Venner is hurtigvalg (Personlig), not under Familien',
 );
 
 const tools = [
@@ -44,7 +44,7 @@ assert.equal(grouped.find((s) => s.id === 'kids'), undefined);
 assert.deepEqual(
   grouped.find((s) => s.id === 'tools').items.map((i) => i.id),
   ['friends', 'klassen'],
-  'Venner is leftover when still passed as a tool (drawer puts it in Hoved)',
+  'Venner is leftover when still passed as a tool (drawer puts it in Personlig)',
 );
 
 const withoutProgress = groupParentAppItems(tools.filter((i) => i.id !== 'progress' && i.id !== 'klassen' && i.id !== 'friends'), t);

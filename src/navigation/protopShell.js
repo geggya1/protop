@@ -42,7 +42,7 @@ export const PROTOP_SHELL_MODULE_IDS = [
 
 export const PROTOP_SHELL_MODULE_ID_SET = new Set(PROTOP_SHELL_MODULE_IDS);
 
-/** Dock holds five shortcuts. Venner stays in the drawer (Hoved). */
+/** Dock holds five shortcuts. Venner stays in the drawer (Personlig). */
 export const PROTOP_BOTTOM_SHORTCUT_IDS = ['home', 'plan', 'mail', 'stars', 'notes'];
 
 /** Home widgets that belong to the kept shell. Same grid, without family modules. */

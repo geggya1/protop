@@ -77,6 +77,7 @@ import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
+import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
@@ -142,6 +143,7 @@ export default function EmployeesScreen() {
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -570,11 +572,72 @@ export default function EmployeesScreen() {
     resetMessage();
     clearSectionEdit();
     setSelectedId('');
-    setDraft(presentEmployee({
-      ...emptyEmployee(newId('emp')),
-      createdAt: new Date().toISOString(),
-    }));
-    setView('edit');
+    setRegisterOpen(true);
+  }
+
+  async function registerEmployee(result) {
+    if (!canInvite || !familyId) throw new Error('Du kan ikke registrere medarbeidere.');
+    const address = employeeContactEmail(result.employee);
+    const existing = matchEmployeeByEmail(rows, address);
+    if (existing) {
+      setRegisterOpen(false);
+      openDetail(existing);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const committed = commitEmployee({
+        ...result.employee,
+        id: newId('emp'),
+        createdAt: new Date().toISOString(),
+      }, { scope: 'company' });
+      if (!committed.ok) throw new Error(committed.errors.join('\n'));
+      let saved = await saveEmployee(familyId, committed.employee);
+      setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+      const name = displayName(saved);
+      let noteText = `${name} er registrert.`;
+      if (result.sendWelcome) {
+        try {
+          const sent = await inviteAdultSmart({
+            familyId,
+            name,
+            email: address,
+            familyName: companyName,
+            groupType: family?.type || 'organization',
+            createdBy: uid,
+            asAdmin: placedAccessLevel(saved) === 'administrator',
+          });
+          const next = applyInviteSendResult(saved, sent, { at: new Date().toISOString() });
+          const stored = commitEmployee(next, { scope: 'company' });
+          if (stored.ok) {
+            saved = await saveEmployee(familyId, stored.employee);
+            setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+          }
+          if (sent?.emailSent) {
+            noteText = `${name} er registrert, og velkomstmalen er sendt.`;
+            recordUsage({
+              type: 'invite_sent',
+              companyId: familyId,
+              employeeId: saved.id,
+              summary: `Invitasjon sendt til ${address}`,
+              detail: { accessLevel: placedAccessLevel(saved) },
+            }).catch(() => {});
+          } else {
+            setError(sent?.emailError || 'Velkomstmalen ble ikke sendt.');
+          }
+        } catch (err) {
+          setError(inviteDeliveryError(err));
+        }
+      }
+      setNote(noteText);
+      setRegisterOpen(false);
+      setLevelFilter('all');
+      const section = levelById(placedAccessLevel(saved))?.section || '';
+      if (section) setFocusSection(section);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openDetail(row) {
@@ -1109,7 +1172,7 @@ export default function EmployeesScreen() {
         <CreateMenu
           label={isAdmin ? 'Ny medarbeider' : 'Min side'}
           title="Ny medarbeider"
-          info={isAdmin ? 'Kontakt, utdanning og CV fyller den ansatte ut selv. Ansettelse, avdeling og tilgang fyller bedriften ut.' : ''}
+          info={isAdmin ? 'Første registrering samler navn, kontakt og tilgang. Personen får en lenke for å sette passord.' : ''}
           actions={isAdmin ? [
             { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },
             { id: 'invite', nativeID: 'employees-invite', label: 'Inviter brukere', onPress: openInvite },
@@ -1595,6 +1658,21 @@ export default function EmployeesScreen() {
           />
         </View>
       ) : null}
+      <RegisterEmployeeDialog
+        visible={registerOpen}
+        initialEmail={/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query.trim()) ? query.trim() : ''}
+        colors={colors}
+        employees={rows}
+        departments={departments}
+        canEditAccess={canEditAccess}
+        busy={busy}
+        onClose={() => { if (!busy) setRegisterOpen(false); }}
+        onOpenExisting={(row) => {
+          setRegisterOpen(false);
+          openDetail(row);
+        }}
+        onSubmit={registerEmployee}
+      />
     </ScrollView>
   );
 }

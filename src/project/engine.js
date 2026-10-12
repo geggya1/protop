@@ -1428,7 +1428,13 @@ export function importTimeEntries(state, drafts = []) {
       continue;
     }
 
-    const fingerprint = hourFingerprint(draft) || text(draft.importFingerprint);
+    // Stabil fingerprint: bruk prosjektnummer fra registeret når utkast mangler det.
+    const fingerprint = hourFingerprint({
+      ...draft,
+      projectNumber: text(draft.projectNumber) || text(gate.project.number),
+      projectName: text(draft.projectName) || text(gate.project.name),
+      projectId,
+    }) || text(draft.importFingerprint);
     if (fingerprint && fingerprints.has(fingerprint)) {
       skipped.push({ reason: 'Duplikat', draft });
       continue;

@@ -19,6 +19,7 @@ import {
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { collectHourFingerprints, hourFingerprint } from '../economy/hoursImport.js';
+import { parseDate } from '../economy/invoices.js';
 
 export function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -179,11 +180,11 @@ function normalizeMemberRow(row) {
   };
 }
 
-function normalizeTimeEntryRow(row) {
+export function normalizeTimeEntryRow(row) {
   if (!row || typeof row !== 'object') return null;
   const projectId = text(row.projectId);
   const employeeId = text(row.employeeId);
-  const date = text(row.date);
+  const date = parseDate(row.date) || text(row.date);
   if (!projectId || !employeeId || !date) return null;
   const hours = roundHours(row.hours);
   const billableHours = row.billableHours == null ? hours : roundHours(row.billableHours);

@@ -3,7 +3,7 @@
  */
 import { formatHours, parseHours, roundHours, sumHours } from '../arbeid/hours.js';
 import { displayName } from '../employees/model.js';
-import { formatDate, fold, text } from './invoices.js';
+import { formatDate, fold, parseDate, text } from './invoices.js';
 
 export { formatHours, formatDate, sumHours };
 
@@ -71,7 +71,12 @@ export const HOUR_SORT_OPTIONS = [
 export function periodBounds(period = 'all', fromDate = '', toDate = '', now = new Date()) {
   const startOfYear = `${now.getFullYear()}-01-01`;
   if (period === 'custom') {
-    return { minDate: text(fromDate), maxDate: text(toDate) };
+    // Støtt både ISO og dd.mm.åååå — ellers blir «01.01.2016» sammenlignet
+    // leksikografisk mot ISO-datoer og filteret slipper gjennom alt.
+    return {
+      minDate: parseDate(fromDate) || text(fromDate),
+      maxDate: parseDate(toDate) || text(toDate),
+    };
   }
   if (period === '7' || period === '30' || period === '100') {
     const from = new Date(now);

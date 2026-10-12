@@ -4,6 +4,12 @@ import {
   mergeProjectStates,
   normalizeProjectState,
 } from './engine.js';
+import {
+  attachTimeEntriesToState,
+  diffTimeEntries,
+  removeTimeEntry,
+  saveTimeEntries,
+} from '../economy/timeEntryStorage.js';
 
 const KEY = 'protop.projectPlatform.v1';
 const remoteTimers = new Map();
@@ -24,6 +30,12 @@ function memoryKey(companyId) {
 function localKey(companyId) {
   const id = String(companyId || '').trim();
   return id ? `${KEY}.${id}` : KEY;
+}
+
+/** Prosjekt-monolitt uten timeEntries — unngår 1 MiB Firestore-tak. */
+export function stripTimeEntriesFromState(state) {
+  const next = normalizeProjectState(state);
+  return { ...next, timeEntries: [] };
 }
 
 async function firestoreBits() {
@@ -128,14 +140,16 @@ export function projectLoadMeta(companyId) {
 }
 
 async function writeLocal(companyId, state) {
-  const payload = JSON.stringify(state);
+  // Ikke lagre timeEntries i prosjekt-blob — egen cache i timeEntryStorage.
+  const slim = stripTimeEntriesFromState(state);
+  const payload = JSON.stringify(slim);
   const key = localKey(companyId);
   try {
     await AsyncStorage.setItem(key, payload);
     if (companyId && key !== KEY) await AsyncStorage.setItem(KEY, payload).catch(() => {});
   } catch {
     await AsyncStorage.setItem(key, JSON.stringify({
-      ...state,
+      ...slim,
       documents: [],
       board: [],
     })).catch(() => {});
@@ -144,12 +158,13 @@ async function writeLocal(companyId, state) {
 
 function firestorePayload(state) {
   // JSON fjerner undefined, som Firestore avviser og som ellers stopper synk til mobil.
-  return JSON.parse(JSON.stringify(state));
+  // timeEntries strippes alltid — monolitt må holde seg under 1 MiB.
+  return JSON.parse(JSON.stringify(stripTimeEntriesFromState(state)));
 }
 
 async function writeRemote(companyId, state) {
   const id = String(companyId || '').trim();
-  if (!id) return;
+  if (!id) return { ok: true };
   try {
     const { doc, setDoc, serverTimestamp, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
@@ -157,8 +172,9 @@ async function writeRemote(companyId, state) {
       state: firestorePayload(state),
       updatedAt: serverTimestamp(),
     }, { merge: true });
-  } catch {
-    // Offline / manglende tilgang — lokal kopi er allerede lagret.
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
   }
 }
 
@@ -174,6 +190,16 @@ function queueRemote(companyId, state) {
     remotePending.delete(id);
     if (pending) writeRemote(id, pending).catch(() => {});
   }, 400));
+}
+
+async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const { changed, removed } = diffTimeEntries(previousEntries, nextEntries);
+  if (changed.length) await saveTimeEntries(id, changed);
+  for (const entryId of removed) {
+    await removeTimeEntry(id, entryId);
+  }
 }
 
 /**
@@ -206,11 +232,22 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     }
     const applied = applyRemoteProjectRead(local, await readRemote(companyId));
     loadMeta.set(key, applied.meta);
-    if (!applied.cache) return applied.state;
-    if (applied.upload) {
-      queueRemote(companyId, { ...applied.state, syncedAt: new Date().toISOString() });
+    if (!applied.cache) {
+      const withHours = await attachTimeEntriesToState(companyId, applied.state);
+      return putProjectState(withHours, companyId);
     }
-    return putProjectState(applied.state, companyId);
+    if (applied.upload) {
+      queueRemote(companyId, { ...stripTimeEntriesFromState(applied.state), syncedAt: new Date().toISOString() });
+    }
+    const withHours = await attachTimeEntriesToState(companyId, applied.state);
+    // Rydd legacy timeEntries ut av monolitten når de er migrert.
+    if ((applied.state.timeEntries || []).length && withHours.timeEntries?.length) {
+      queueRemote(companyId, {
+        ...stripTimeEntriesFromState(withHours),
+        syncedAt: new Date().toISOString(),
+      });
+    }
+    return putProjectState(withHours, companyId);
   })();
 
   inflight.set(key, pending);
@@ -222,37 +259,65 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
 }
 
 export async function saveProjectState(state, companyId) {
+  const full = normalizeProjectState(state);
+  const previous = MEMORY.get(memoryKey(companyId));
   const stamped = {
-    ...normalizeProjectState(state),
+    ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
   };
-  const next = companyId
-    ? mergeProjectStates(await readLocal(companyId), stamped)
+  const nextSlim = companyId
+    ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
-  await writeLocal(companyId, next);
-  queueRemote(companyId, next);
-  return putProjectState(next, companyId);
+
+  if (companyId) {
+    try {
+      await syncTimeEntriesRemote(companyId, previous?.timeEntries || [], full.timeEntries || []);
+    } catch (error) {
+      // Behold minne, men signaliser feil til kallere som await-er.
+      putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
+      throw error;
+    }
+  }
+
+  await writeLocal(companyId, nextSlim);
+  queueRemote(companyId, nextSlim);
+  return putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
 }
 
-/** Lagrer med en gang og venter på Firestore. */
+/** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries). */
 export async function persistProjectState(state, companyId) {
+  const full = normalizeProjectState(state);
+  const previous = MEMORY.get(memoryKey(companyId));
   const stamped = {
-    ...normalizeProjectState(state),
+    ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
   };
-  const next = companyId
-    ? mergeProjectStates(await readLocal(companyId), stamped)
+  const nextSlim = companyId
+    ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
-  await writeLocal(companyId, next);
+
+  if (companyId) {
+    await syncTimeEntriesRemote(companyId, previous?.timeEntries || [], full.timeEntries || []);
+  }
+
+  await writeLocal(companyId, nextSlim);
   const id = String(companyId || '').trim();
   if (id) {
     const prev = remoteTimers.get(id);
     if (prev) clearTimeout(prev);
     remoteTimers.delete(id);
     remotePending.delete(id);
-    await writeRemote(id, next);
+    const remote = await writeRemote(id, nextSlim);
+    if (!remote.ok) {
+      const message = remote.error?.message || remote.error?.code || 'Kunne ikke synke prosjekt til skyen.';
+      throw new Error(
+        /exceeds|too big|size|invalid-argument/i.test(String(message))
+          ? 'Prosjektdata er for store til å lagres. Timeføringer lagres nå separat — prøv igjen.'
+          : String(message),
+      );
+    }
   }
-  return putProjectState(next, companyId);
+  return putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
 }
 
 /** Test/hjelper: tøm minne mellom tester. */

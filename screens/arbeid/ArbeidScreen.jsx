@@ -39,6 +39,7 @@ import {
   ABSENCE_TYPES,
   canManageTimesheets,
   employeeDisplayName,
+  filterEmployeesForPicker,
   findLinkedEmployee,
 } from '../../src/arbeid/roles.js';
 import {
@@ -72,12 +73,13 @@ function entryKey(projectId, date) {
   return `${projectId}|${date}`;
 }
 
-export default function ArbeidScreen() {
+export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, family, user, isAdmin, requestShellTab } = useApp();
+  const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
+  const lockedId = String(lockedEmployeeId || '').trim();
 
   const cached = peekProjectState(familyId);
   const [state, setState] = useState(() => cached || emptyProjectState());
@@ -97,6 +99,7 @@ export default function ArbeidScreen() {
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
+  const [empPickerQuery, setEmpPickerQuery] = useState('');
   const [absenceForm, setAbsenceForm] = useState({ type: 'ferie', hours: '7:30', description: '', date: '' });
 
   useEffect(() => {
@@ -140,13 +143,35 @@ export default function ArbeidScreen() {
     : canManageTimesheets({ isAdmin, employee: linked });
 
   useEffect(() => {
+    if (lockedId) {
+      setEmployeeId(lockedId);
+      return;
+    }
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
     else if (manager && employees[0]?.id) setEmployeeId(employees[0].id);
-  }, [linked, employees, manager, employeeId]);
+  }, [linked, employees, manager, employeeId, lockedId]);
+
+  useEffect(() => {
+    if (lockedId) return;
+    if (!shellIntent || typeof shellIntent !== 'object') return;
+    if (shellIntent.type !== 'openTimesheet') return;
+    const id = String(shellIntent.employeeId || '').trim();
+    if (id) setEmployeeId(id);
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent, lockedId]);
+
+  useEffect(() => {
+    if (!empPickerOpen) setEmpPickerQuery('');
+  }, [empPickerOpen]);
 
   const selectedEmployee = employees.find((row) => row.id === employeeId) || linked;
   const selectedName = employeeDisplayName(selectedEmployee) || 'Medarbeider';
+
+  const pickerEmployees = useMemo(
+    () => filterEmployeesForPicker(employees, empPickerQuery),
+    [employees, empPickerQuery],
+  );
 
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);
@@ -521,11 +546,13 @@ export default function ArbeidScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="arbeid-screen">
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timeføring</Text>
+          <Text style={[styles.crumb, { color: colors.muted }]}>
+            {lockedId ? 'Ansatte / Timeføring' : 'Arbeid / Timeføring'}
+          </Text>
           <TouchableOpacity
-            onPress={() => manager && setEmpPickerOpen(true)}
+            onPress={() => !lockedId && manager && setEmpPickerOpen(true)}
             style={styles.empBtn}
-            disabled={!manager}
+            disabled={!!lockedId || !manager}
             accessibilityRole="button"
           >
             {selectedEmployee?.person?.photoUrl ? (
@@ -536,7 +563,7 @@ export default function ArbeidScreen() {
               </View>
             )}
             <Text style={[styles.title, { color: colors.ink }]}>{selectedName}</Text>
-            {manager ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+            {!lockedId && manager ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
           </TouchableOpacity>
         </View>
         <View style={styles.monthNav}>
@@ -810,10 +837,32 @@ export default function ArbeidScreen() {
       {/* Ansattvelger for leder */}
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setEmpPickerOpen(false)}>
-          <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
+            onPress={() => {}}
+            accessibilityViewIsModal
+          >
             <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {employees.filter((row) => row.company?.status !== 'former').map((row) => (
+            <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                value={empPickerQuery}
+                onChangeText={setEmpPickerQuery}
+                placeholder="Søk navn, rolle eller ansattnr"
+                placeholderTextColor={colors.placeholder}
+                autoFocus={Platform.OS === 'web'}
+                style={[styles.pickerSearchInput, { color: colors.ink }]}
+                accessibilityLabel="Søk medarbeider"
+                nativeID="arbeid-employee-picker-search"
+              />
+              {empPickerQuery ? (
+                <TouchableOpacity onPress={() => setEmpPickerQuery('')} hitSlop={8} accessibilityRole="button">
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              {pickerEmployees.length ? pickerEmployees.map((row) => (
                 <TouchableOpacity
                   key={row.id}
                   onPress={() => { setEmployeeId(row.id); setEmpPickerOpen(false); }}
@@ -826,9 +875,13 @@ export default function ArbeidScreen() {
                     {row.company?.accessRole || row.company?.title || ''}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              )) : (
+                <Text style={{ color: colors.muted, paddingVertical: 12 }}>
+                  Ingen treff for «{empPickerQuery.trim()}».
+                </Text>
+              )}
             </ScrollView>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1060,6 +1113,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  pickerSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'web' ? 8 : 6,
+    marginBottom: 10,
+  },
+  pickerSearchInput: { flex: 1, fontSize: 14, outlineStyle: 'none', minHeight: 22 },
   sheetRow: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,

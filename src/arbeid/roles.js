@@ -56,3 +56,25 @@ export function employeeDisplayName(employee) {
   const last = String(employee.person?.lastName || '').trim();
   return [first, last].filter(Boolean).join(' ') || employee.company?.email || 'Uten navn';
 }
+
+/**
+ * Filtrer aktive medarbeidere for Velg medarbeider-listen.
+ * Søker i navn, rolle, tittel, ansattnummer og e-post.
+ */
+export function filterEmployeesForPicker(employees, query = '') {
+  const active = (Array.isArray(employees) ? employees : [])
+    .filter((row) => row?.company?.status !== 'former');
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return active;
+  return active.filter((row) => {
+    const hay = [
+      employeeDisplayName(row),
+      row.company?.accessRole,
+      row.company?.title,
+      row.company?.externalEmployeeNumber,
+      row.person?.email,
+      row.company?.email,
+    ].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}

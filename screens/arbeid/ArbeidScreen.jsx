@@ -75,7 +75,7 @@ function entryKey(projectId, date) {
 export default function ArbeidScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, family, user, isAdmin, requestShellTab } = useApp();
+  const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
 
@@ -97,6 +97,7 @@ export default function ArbeidScreen() {
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
+  const [empPickerQuery, setEmpPickerQuery] = useState('');
   const [absenceForm, setAbsenceForm] = useState({ type: 'ferie', hours: '7:30', description: '', date: '' });
 
   useEffect(() => {
@@ -145,8 +146,36 @@ export default function ArbeidScreen() {
     else if (manager && employees[0]?.id) setEmployeeId(employees[0].id);
   }, [linked, employees, manager, employeeId]);
 
+  useEffect(() => {
+    if (!shellIntent || typeof shellIntent !== 'object') return;
+    if (shellIntent.type !== 'openTimesheet') return;
+    const id = String(shellIntent.employeeId || '').trim();
+    if (id) setEmployeeId(id);
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
+
+  useEffect(() => {
+    if (!empPickerOpen) setEmpPickerQuery('');
+  }, [empPickerOpen]);
+
   const selectedEmployee = employees.find((row) => row.id === employeeId) || linked;
   const selectedName = employeeDisplayName(selectedEmployee) || 'Medarbeider';
+
+  const pickerEmployees = useMemo(() => {
+    const active = employees.filter((row) => row.company?.status !== 'former');
+    const q = empPickerQuery.trim().toLowerCase();
+    if (!q) return active;
+    return active.filter((row) => {
+      const hay = [
+        employeeDisplayName(row),
+        row.company?.accessRole,
+        row.company?.title,
+        row.company?.externalEmployeeNumber,
+        row.person?.email,
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [employees, empPickerQuery]);
 
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);
@@ -810,10 +839,32 @@ export default function ArbeidScreen() {
       {/* Ansattvelger for leder */}
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setEmpPickerOpen(false)}>
-          <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
+            onPress={() => {}}
+            accessibilityViewIsModal
+          >
             <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {employees.filter((row) => row.company?.status !== 'former').map((row) => (
+            <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                value={empPickerQuery}
+                onChangeText={setEmpPickerQuery}
+                placeholder="Søk navn, rolle eller ansattnr"
+                placeholderTextColor={colors.placeholder}
+                autoFocus={Platform.OS === 'web'}
+                style={[styles.pickerSearchInput, { color: colors.ink }]}
+                accessibilityLabel="Søk medarbeider"
+                nativeID="arbeid-employee-picker-search"
+              />
+              {empPickerQuery ? (
+                <TouchableOpacity onPress={() => setEmpPickerQuery('')} hitSlop={8} accessibilityRole="button">
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              {pickerEmployees.length ? pickerEmployees.map((row) => (
                 <TouchableOpacity
                   key={row.id}
                   onPress={() => { setEmployeeId(row.id); setEmpPickerOpen(false); }}
@@ -826,9 +877,13 @@ export default function ArbeidScreen() {
                     {row.company?.accessRole || row.company?.title || ''}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              )) : (
+                <Text style={{ color: colors.muted, paddingVertical: 12 }}>
+                  Ingen treff for «{empPickerQuery.trim()}».
+                </Text>
+              )}
             </ScrollView>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1060,6 +1115,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  pickerSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'web' ? 8 : 6,
+    marginBottom: 10,
+  },
+  pickerSearchInput: { flex: 1, fontSize: 14, outlineStyle: 'none', minHeight: 22 },
   sheetRow: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,

@@ -36,6 +36,7 @@ import {
 const DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
   { id: 'cv', label: 'CV' },
+  { id: 'hours', label: 'Timeføring' },
 ];
 
 const MAIN_FACT_KEYS = [
@@ -442,6 +443,7 @@ export default function EmployeeDetailView({
   busy = false,
   onBack,
   onCv,
+  onHours,
   onOpenProject,
   projectState = null,
   onSelect,
@@ -601,6 +603,7 @@ export default function EmployeeDetailView({
   function onTab(id) {
     if (id === 'home') return;
     if (id === 'cv') onCv?.();
+    if (id === 'hours') onHours?.();
   }
 
   function canEditOwner(owner) {
@@ -764,7 +767,7 @@ export default function EmployeeDetailView({
         </View>
       ) : null}
 
-      <View style={[styles.tabs, { borderBottomColor: colors.line }]}>
+      <View style={[styles.tabs, { borderBottomColor: colors.line }]} nativeID="employee-detail-tabs">
         {DETAIL_TABS.map((tab) => {
           const active = tab.id === 'home';
           return (
@@ -773,6 +776,8 @@ export default function EmployeeDetailView({
               onPress={() => onTab(tab.id)}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              accessibilityLabel={tab.label}
+              nativeID={`employee-tab-${tab.id}`}
               style={[styles.tab, active && { borderBottomColor: colors.brand }]}
             >
               <Text style={{
@@ -1233,6 +1238,17 @@ export default function EmployeeDetailView({
                 })}
               </View>
             )}
+            {onHours ? (
+              <TouchableOpacity
+                onPress={onHours}
+                accessibilityRole="button"
+                accessibilityLabel="Åpne timeføring"
+                nativeID="employee-open-hours"
+                style={{ marginTop: 8 }}
+              >
+                <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne timeføring…</Text>
+              </TouchableOpacity>
+            ) : null}
             {(employee.cv?.projects || []).length > 0 ? (
               <TouchableOpacity onPress={onCv} accessibilityRole="button" style={{ marginTop: 8 }}>
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Vis referanseprosjekter i CV…</Text>

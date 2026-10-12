@@ -1371,6 +1371,13 @@ export default function EmployeesScreen() {
           busy={busy}
           onBack={openList}
           onCv={() => openCv(detailEmployee)}
+          onHours={() => {
+            if (!detailEmployee?.id) return;
+            requestShellTab?.('arbeid', 'timeliste', {
+              type: 'openTimesheet',
+              employeeId: detailEmployee.id,
+            });
+          }}
           projectState={projectState}
           onOpenProject={(project) => {
             if (!project?.id) return;

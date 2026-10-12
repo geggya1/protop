@@ -16,6 +16,7 @@ import PipelineBoard from './PipelineBoard';
 import CalloffInbox from './CalloffInbox';
 import { setNoticeDecision } from '../../src/anbud/model';
 import AgreementTreatment from './AgreementTreatment';
+import ContractFollowUp from './ContractFollowUp';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
@@ -26,6 +27,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const [aktuellCount, setAktuellCount] = useState(0);
   const [focusBidId, setFocusBidId] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [avtalePart, setAvtalePart] = useState('behandling');
   const [desk, setDesk] = useState(null);
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
@@ -146,12 +148,41 @@ export default function AnbudScreen({ company, subView, members = [], units = []
         />
       ) : null}
       {step === 'avtale' ? (
-        <AgreementTreatment
-          companyId={company?.id}
-          company={company}
-          members={members}
-          colors={colors}
-        />
+        <View style={{ gap: 12 }}>
+          <View style={styles.row}>
+            {[['behandling', 'Behandle med motpart'], ['inngatt', 'Registrer inngått']].map(([id, label]) => {
+              const on = avtalePart === id;
+              return (
+                <TouchableOpacity key={id} onPress={() => setAvtalePart(id)} accessibilityRole="button" style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}>
+                  <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            {avtalePart === 'inngatt'
+              ? 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'
+              : 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'}
+          </Text>
+          {avtalePart === 'inngatt' ? (
+            <ContractFollowUp
+              colors={colors}
+              companyId={company?.id}
+              people={members}
+              onOpenWork={() => go('tilbud')}
+              onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
+              onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+            />
+          ) : (
+            <AgreementTreatment
+              companyId={company?.id}
+              company={company}
+              members={members}
+              colors={colors}
+              onRegisterExisting={() => setAvtalePart('inngatt')}
+            />
+          )}
+        </View>
       ) : null}
       {step === 'pipeline' && desk ? (
         <PipelineBoard

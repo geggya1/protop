@@ -77,6 +77,7 @@ export default function AgreementTreatment({
   shareToken = '',
   sharedRow = null,
   onShared,
+  onRegisterExisting,
 }) {
   const { user, requestShellTab } = useApp();
   const [state, setState] = useState(null);
@@ -297,6 +298,11 @@ export default function AgreementTreatment({
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
         Når et tilbud blir et oppdrag, låses avtalen som utkast. Motparten ser bare feltene den kan endre, og merknadene blir synlige for avsender når de sendes i retur. Er alt i orden, kan avtalen signeres uten merknader.
       </Text>
+      {party === 'avsender' && onRegisterExisting ? (
+        <TouchableOpacity onPress={onRegisterExisting} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Avtalen er allerede inngått — registrer den med dokument og AI</Text>
+        </TouchableOpacity>
+      ) : null}
       {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
 
       {party === 'avsender' && !selected ? (

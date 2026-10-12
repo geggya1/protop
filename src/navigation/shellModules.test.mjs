@@ -266,6 +266,8 @@ assert.match(anbudScreen, /ScrollSheet/);
 assert.equal(anbudScreen.includes("go('innstillinger')"), false);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
+assert.match(anbudScreen, /Registrer inngått/);
+assert.match(anbudScreen, /ContractFollowUp/);
 assert.equal(anbudScreen.includes('motta eller send'), false);
 
 const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.jsx', import.meta.url), 'utf8');

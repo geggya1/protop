@@ -18,7 +18,7 @@ export default function ContractScreen() {
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
       <View style={styles.switch}>
-        {[['register', 'Register'], ['behandling', 'Behandling']].map(([id, label]) => {
+        {[['register', 'Registrer inngått'], ['behandling', 'Behandling']].map(([id, label]) => {
           const on = part === id;
           return (
             <TouchableOpacity key={id} onPress={() => setPart(id)} accessibilityRole="button" style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}>
@@ -27,6 +27,11 @@ export default function ContractScreen() {
           );
         })}
       </View>
+      <Text style={{ color: colors.muted, lineHeight: 20 }}>
+        {part === 'register'
+          ? 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'
+          : 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'}
+      </Text>
       {part === 'behandling' ? (
         <AgreementTreatment
           companyId={familyId}
@@ -36,6 +41,7 @@ export default function ContractScreen() {
           }}
           members={members}
           colors={colors}
+          onRegisterExisting={() => setPart('register')}
         />
       ) : (
       <ContractFollowUp

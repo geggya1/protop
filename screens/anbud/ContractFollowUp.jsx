@@ -308,7 +308,7 @@ export default function ContractFollowUp({
         <CreateMenu
           label="Ny avtale"
           title="Ny avtale"
-          info="Inngåtte avtaler med dokumenter, varighet og underavtaler. Beløp føres eks. mva."
+          info="Allerede inngåtte avtaler. Last opp eller skann dokumentet, la AI fylle feltene, og knytt avtalen til et prosjekt. Beløp føres eks. mva."
           actions={[
             { id: 'new', label: 'Registrer avtale', primary: true, onPress: () => { setComposeParent(''); setComposeKind(''); setView('compose'); } },
             { id: 'work', label: 'Tilbudsarbeid', onPress: onOpenWork },

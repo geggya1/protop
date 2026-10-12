@@ -81,6 +81,7 @@ export const ACCESS_LEVELS = [
     order: 1,
     label: 'Regnskap eksternt',
     kind: 'external',
+    section: 'external',
     summary: 'Lesetilgang på regnskap. Ikke fast ansatt.',
   },
   {
@@ -88,6 +89,7 @@ export const ACCESS_LEVELS = [
     order: 2,
     label: 'Innleie eksternt',
     kind: 'innleid',
+    section: 'external',
     summary: 'Kan skrive timer på tildelte prosjekt, og ser bare offentlig info om bedriften.',
   },
   {
@@ -95,6 +97,7 @@ export const ACCESS_LEVELS = [
     order: 3,
     label: 'Ansatt',
     kind: 'staff',
+    section: 'company',
     summary: 'Ser det som er tilgjengelig for ansatte, skriver timer, ser prosjekt, fyller ut sjekklister og styrer mye av egen profil.',
   },
   {
@@ -102,6 +105,7 @@ export const ACCESS_LEVELS = [
     order: 4,
     label: 'Tilbud',
     kind: 'staff',
+    section: 'company',
     summary: 'Skriver tilbud og leser anbud, kunder og prosjekt. Ikke økonomi og ikke bedriftsinnstillinger.',
   },
   {
@@ -109,6 +113,7 @@ export const ACCESS_LEVELS = [
     order: 5,
     label: 'Ansatt andre avdelinger',
     kind: 'staff',
+    section: 'external',
     summary: 'Ser andre avdelinger, prosjekt og medarbeidere, og kan se andres timer. Skriver egne timer. Endrer ikke avdelingene.',
   },
   {
@@ -116,6 +121,7 @@ export const ACCESS_LEVELS = [
     order: 6,
     label: 'Avdelingsleder',
     kind: 'staff',
+    section: 'company',
     summary: 'Administrerer og ser mer av bedriften, prosjekt, kunder og medarbeidere. Ikke økonomi.',
   },
   {
@@ -123,6 +129,7 @@ export const ACCESS_LEVELS = [
     order: 7,
     label: 'Øverste leder',
     kind: 'staff',
+    section: 'company',
     summary: 'Kan gjøre det meste, men ikke endre bedriftsprofil og grunninnstillinger.',
   },
   {
@@ -130,9 +137,23 @@ export const ACCESS_LEVELS = [
     order: 8,
     label: 'Administrator',
     kind: 'staff',
+    section: 'company',
     summary: 'Kan gjøre alt, inkludert bedriftsprofil og grunninnstillinger.',
   },
 ];
+
+export function accessLevelSections() {
+  return [
+    { id: 'company', levels: ACCESS_LEVELS.filter((level) => level.section === 'company') },
+    { id: 'external', levels: ACCESS_LEVELS.filter((level) => level.section === 'external') },
+  ];
+}
+
+export function accessSectionTitle(sectionId, companyName) {
+  if (sectionId === 'external') return 'Eksternt';
+  const name = String(companyName || '').replace(/\s+/g, ' ').trim() || 'bedriften';
+  return `Ansatt i ${name}`;
+}
 
 export const ACCESS_LEVEL_LABELS = ACCESS_LEVELS.map((level) => level.label);
 

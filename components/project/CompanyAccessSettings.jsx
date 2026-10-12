@@ -8,6 +8,8 @@ import {
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
   ACCESS_LEVELS,
+  accessLevelSections,
+  accessSectionTitle,
   accountDeactivated,
   applyOverrides,
   checksFromGrant,
@@ -29,10 +31,15 @@ import {
 } from '../../src/access/companyAccess';
 import { applyEmployeeClassification, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 
-function kindLabel(kind) {
-  if (kind === 'external') return 'Eksternt · ikke fast ansatt';
-  if (kind === 'innleid') return 'Innleie · ikke fast ansatt';
+function kindLabel(level) {
+  if (level?.id === 'ansatt_andre_avdelinger') return 'Andre avdelinger · ikke ansatt i bedriften';
+  if (level?.kind === 'external') return 'Eksternt · ikke fast ansatt';
+  if (level?.kind === 'innleid') return 'Innleie · ikke fast ansatt';
   return 'Ansatt i bedriften';
+}
+
+function companyHeadingName(company) {
+  return String(company?.navn || company?.name || '').trim();
 }
 
 function CheckBox({ on, disabled, colors, onPress, label }) {
@@ -884,53 +891,60 @@ export default function CompanyAccessSettings({
               ? 'Trykk navnet for å åpne personen. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
               : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å se personen. Tannhjulet viser tilgangen til modulene.'}
           </Text>
-          {ACCESS_LEVELS.map((row) => {
-            const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
-            const parts = splitMembers(roster);
-            const grants = levelGrants(policy, row.id);
-            return (
-              <LevelDrawer
-                key={row.id}
-                nativeID={`company-access-level-${row.id}`}
-                title={`${row.order}. ${row.label}`}
-                meta={rosterMeta(parts.active.length, parts.inactive.length, kindLabel(row.kind))}
-                members={roster}
-                colors={colors}
-                compact={compact}
-                canEdit={canEdit && !busy}
-                movingId={movingId}
-                excludeId={row.id}
-                open={!!openDrawers[row.id]}
-                dropKey={row.id}
-                hotDrop={drag?.drop || ''}
-                dragging={!!drag}
-                onOpen={(employee) => setPersonId(employee.id)}
-                memberTab={memberTabs[row.id]}
-                onMemberTab={(tab) => {
-                  setMemberTabs((current) => ({ ...current, [row.id]: tab }));
-                  setMovingId('');
-                }}
-                settingsOpen={settingsId === row.id}
-                grants={grants}
-                custom={levelIsCustom(policy, row.id)}
-                summary={row.summary}
-                onToggleOpen={() => setOpenDrawers((current) => ({ ...current, [row.id]: !current[row.id] }))}
-                onToggleSettings={() => setSettingsId((current) => (current === row.id ? '' : row.id))}
-                onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
-                onAssign={assignLevel}
-                onToggleGrant={(resourceId, action, on) => {
-                  const next = toggleGrant(grants[resourceId], action, on);
-                  setPolicy(setLevelGrant(policy, row.id, resourceId, next));
-                  setDirty(true);
-                  setNote('');
-                }}
-                onReset={() => {
-                  setPolicy(resetLevel(policy, row.id));
-                  setDirty(true);
-                }}
-              />
-            );
-          })}
+          {accessLevelSections().map((section) => (
+            <View key={section.id} nativeID={`company-access-section-${section.id}`} style={styles.section}>
+              <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.ink }]}>
+                {accessSectionTitle(section.id, companyHeadingName(company))}
+              </Text>
+              {section.levels.map((row) => {
+                const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
+                const parts = splitMembers(roster);
+                const grants = levelGrants(policy, row.id);
+                return (
+                  <LevelDrawer
+                    key={row.id}
+                    nativeID={`company-access-level-${row.id}`}
+                    title={`${row.order}. ${row.label}`}
+                    meta={rosterMeta(parts.active.length, parts.inactive.length, kindLabel(row))}
+                    members={roster}
+                    colors={colors}
+                    compact={compact}
+                    canEdit={canEdit && !busy}
+                    movingId={movingId}
+                    excludeId={row.id}
+                    open={!!openDrawers[row.id]}
+                    dropKey={row.id}
+                    hotDrop={drag?.drop || ''}
+                    dragging={!!drag}
+                    onOpen={(employee) => setPersonId(employee.id)}
+                    memberTab={memberTabs[row.id]}
+                    onMemberTab={(tab) => {
+                      setMemberTabs((current) => ({ ...current, [row.id]: tab }));
+                      setMovingId('');
+                    }}
+                    settingsOpen={settingsId === row.id}
+                    grants={grants}
+                    custom={levelIsCustom(policy, row.id)}
+                    summary={row.summary}
+                    onToggleOpen={() => setOpenDrawers((current) => ({ ...current, [row.id]: !current[row.id] }))}
+                    onToggleSettings={() => setSettingsId((current) => (current === row.id ? '' : row.id))}
+                    onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
+                    onAssign={assignLevel}
+                    onToggleGrant={(resourceId, action, on) => {
+                      const next = toggleGrant(grants[resourceId], action, on);
+                      setPolicy(setLevelGrant(policy, row.id, resourceId, next));
+                      setDirty(true);
+                      setNote('');
+                    }}
+                    onReset={() => {
+                      setPolicy(resetLevel(policy, row.id));
+                      setDirty(true);
+                    }}
+                  />
+                );
+              })}
+            </View>
+          ))}
           <LevelDrawer
             nativeID="company-access-unplaced"
             title="Ikke plassert"
@@ -1046,6 +1060,8 @@ const styles = StyleSheet.create({
   denied: { flex: 1, padding: 24, gap: 8, maxWidth: 560 },
   page: { alignSelf: 'flex-start', width: '100%', maxWidth: 980, gap: 12 },
   stack: { gap: 10 },
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 8 },
   title: { fontSize: 22, fontWeight: '600' },
   lead: { fontSize: 15, lineHeight: 21 },
   error: { fontSize: 14 },
@@ -1066,7 +1082,6 @@ const styles = StyleSheet.create({
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginTop: 6 },
   matrix: { minWidth: 680, gap: 14, paddingBottom: 4 },
   group: { gap: 0 },
   groupLabel: { fontSize: 12, marginBottom: 4 },

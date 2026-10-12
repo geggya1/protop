@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
+  accessLevelSections,
+  accessSectionTitle,
   accountDeactivated,
   personDropChange,
   alignCompanyEmployment,
@@ -46,6 +48,13 @@ assert.deepEqual(ids, [
   'leder',
   'administrator',
 ]);
+const sections = accessLevelSections();
+assert.deepEqual(sections.map((section) => section.id), ['company', 'external']);
+assert.deepEqual(sections[0].levels.map((level) => level.order), [3, 4, 6, 7, 8]);
+assert.deepEqual(sections[1].levels.map((level) => level.order), [1, 2, 5]);
+assert.equal(accessSectionTitle('company', 'CONSULT1 AS'), 'Ansatt i CONSULT1 AS');
+assert.equal(accessSectionTitle('company', '  '), 'Ansatt i bedriften');
+assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
 
 {
   const regnskap = standardGrants('regnskap_ekstern');

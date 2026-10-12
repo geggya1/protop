@@ -4,6 +4,8 @@ import {
   employeeHourOptions,
   filterHours,
   groupHours,
+  hourFacets,
+  hydrateHourEntry,
   shiftDateKey,
   sortHours,
 } from './hoursList.js';
@@ -55,6 +57,61 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   assert.equal(sorted[0].employeeId, 'geir');
   const groups = groupHours(yearSlice, 'employee');
   assert.equal(groups.length, 2);
+}
+
+{
+  // Chip-navn fra register; tabell hydreres så Tom-filter ikke viser Geir-navn.
+  const employees = [
+    { id: 'tom', person: { firstName: 'Tom', middleName: 'Kåre', lastName: 'Hestvåg' } },
+    { id: 'geir', person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' } },
+  ];
+  const entries = [{
+    id: '1',
+    employeeId: 'tom',
+    employeeName: 'Geir Ove Andersen',
+    date: '2026-10-06',
+    hours: 8,
+    projectId: 'p1',
+    projectNumber: '',
+    projectName: '',
+    customerId: 'c1',
+    customerName: '',
+  }];
+  const options = employeeHourOptions(entries, employees);
+  assert.equal(options[0].id, 'tom');
+  assert.equal(options[0].name, 'Tom Kåre Hestvåg');
+  const filtered = filterHours(entries, { employeeId: 'tom' });
+  assert.equal(filtered.length, 1);
+  const hydrated = hydrateHourEntry(filtered[0], {
+    employeesById: new Map(employees.map((row) => [row.id, row])),
+    projectsById: new Map([['p1', {
+      id: 'p1', number: '10857', name: 'Sikker skolevei', customerId: 'c1', client: 'Sola Kommune',
+    }]]),
+    customersById: new Map([['c1', { id: 'c1', name: 'Sola Kommune', customerNumber: '10010' }]]),
+  });
+  assert.equal(hydrated.employeeName, 'Tom Kåre Hestvåg');
+  assert.equal(hydrated.projectName, 'Sikker skolevei');
+  assert.equal(hydrated.projectNumber, '10857');
+  assert.equal(hydrated.customerName, 'Sola Kommune');
+}
+
+{
+  // Facetter uten id må fortsatt kunne filtreres (name:/number: nøkler).
+  const entries = [{
+    id: '1',
+    employeeId: 'geir',
+    employeeName: 'Geir',
+    customerName: 'Sola Kommune',
+    projectNumber: '10857',
+    projectName: 'Skole',
+    date: '2026-10-06',
+    hours: 2,
+  }];
+  const facets = hourFacets(entries);
+  assert.ok(facets.customers[0].id.startsWith('name:'));
+  assert.ok(facets.projects[0].id.startsWith('number:'));
+  assert.equal(filterHours(entries, { customerId: facets.customers[0].id }).length, 1);
+  assert.equal(filterHours(entries, { projectId: facets.projects[0].id }).length, 1);
 }
 
 console.log('hoursList.test.mjs: ok');

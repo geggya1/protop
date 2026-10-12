@@ -2,9 +2,25 @@
  * Filtrering, sortering og summering av timeføringer under Arbeid · Timerapport.
  */
 import { formatHours, parseHours, roundHours, sumHours } from '../arbeid/hours.js';
+import { displayName } from '../employees/model.js';
 import { formatDate, fold, text } from './invoices.js';
 
 export { formatHours, formatDate, sumHours };
+
+const NAME_FACET_PREFIX = 'name:';
+const NUMBER_FACET_PREFIX = 'number:';
+
+function facetMatches(filterId, rowId, { name = '', number = '' } = {}) {
+  const wanted = text(filterId);
+  if (!wanted) return true;
+  if (wanted.startsWith(NAME_FACET_PREFIX)) {
+    return fold(name) === wanted.slice(NAME_FACET_PREFIX.length);
+  }
+  if (wanted.startsWith(NUMBER_FACET_PREFIX)) {
+    return text(number) === wanted.slice(NUMBER_FACET_PREFIX.length);
+  }
+  return text(rowId) === wanted;
+}
 
 export const HOUR_COLUMNS = [
   { key: 'date', label: 'Dato', width: 96 },
@@ -82,8 +98,13 @@ export function filterHours(entries, {
 
   return (Array.isArray(entries) ? entries : []).filter((row) => {
     if (employeeId && text(row.employeeId) !== text(employeeId)) return false;
-    if (customerId && text(row.customerId) !== text(customerId)) return false;
-    if (projectId && text(row.projectId) !== text(projectId)) return false;
+    if (customerId && !facetMatches(customerId, row.customerId, { name: row.customerName })) return false;
+    if (projectId && !facetMatches(projectId, row.projectId, {
+      name: row.projectName,
+      number: row.projectNumber,
+    })) {
+      return false;
+    }
     if (activityName && fold(row.activityName) !== fold(activityName)) return false;
     if (minDate && text(row.date) < minDate) return false;
     if (maxDate && text(row.date) > maxDate) return false;
@@ -184,14 +205,19 @@ export function hourFacets(entries) {
   const activities = new Map();
   for (const row of Array.isArray(entries) ? entries : []) {
     if (text(row.customerId) || text(row.customerName)) {
-      const id = text(row.customerId) || fold(row.customerName);
-      if (!customers.has(id)) customers.set(id, { id: text(row.customerId), name: text(row.customerName) || id });
+      const id = text(row.customerId) || `${NAME_FACET_PREFIX}${fold(row.customerName)}`;
+      if (!customers.has(id)) {
+        customers.set(id, { id, name: text(row.customerName) || id });
+      }
     }
     if (text(row.projectId) || text(row.projectNumber) || text(row.projectName)) {
-      const id = text(row.projectId) || text(row.projectNumber) || fold(row.projectName);
+      const id = text(row.projectId)
+        || (text(row.projectNumber)
+          ? `${NUMBER_FACET_PREFIX}${text(row.projectNumber)}`
+          : `${NAME_FACET_PREFIX}${fold(row.projectName)}`);
       if (!projects.has(id)) {
         projects.set(id, {
-          id: text(row.projectId),
+          id,
           name: row.projectNumber
             ? `${row.projectNumber} ${row.projectName || ''}`.trim()
             : (text(row.projectName) || id),
@@ -208,6 +234,74 @@ export function hourFacets(entries) {
     customers: [...customers.values()].sort(byName),
     projects: [...projects.values()].sort(byName),
     activities: [...activities.values()].sort(byName),
+  };
+}
+
+/**
+ * Visningsnavn fra register når id finnes — unngår at chip og tabell
+ * viser ulike personer for samme employeeId (f.eks. Tom vs Geir).
+ */
+export function hydrateHourEntry(row, {
+  employeesById = null,
+  projectsById = null,
+  customersById = null,
+} = {}) {
+  if (!row || typeof row !== 'object') return row;
+  let employeeName = text(row.employeeName);
+  let customerName = text(row.customerName);
+  let customerNumber = text(row.customerNumber);
+  let projectNumber = text(row.projectNumber);
+  let projectName = text(row.projectName);
+  const employeeId = text(row.employeeId);
+  const projectId = text(row.projectId);
+  const customerId = text(row.customerId);
+
+  if (employeeId && employeesById) {
+    const employee = employeesById.get(employeeId);
+    if (employee) employeeName = displayName(employee) || employeeName;
+  }
+  if (projectId && projectsById) {
+    const project = projectsById.get(projectId);
+    if (project) {
+      projectNumber = text(project.number) || projectNumber;
+      projectName = text(project.name) || projectName;
+      if (!customerId && project.customerId && customersById) {
+        const fromProject = customersById.get(project.customerId);
+        if (fromProject) {
+          customerName = text(fromProject.name) || customerName;
+          customerNumber = text(fromProject.customerNumber) || customerNumber;
+        } else if (project.client) {
+          customerName = text(project.client) || customerName;
+        }
+      } else if (!customerName && project.client) {
+        customerName = text(project.client);
+      }
+    }
+  }
+  if (customerId && customersById) {
+    const customer = customersById.get(customerId);
+    if (customer) {
+      customerName = text(customer.name) || customerName;
+      customerNumber = text(customer.customerNumber) || customerNumber;
+    }
+  }
+
+  if (
+    employeeName === text(row.employeeName)
+    && customerName === text(row.customerName)
+    && customerNumber === text(row.customerNumber)
+    && projectNumber === text(row.projectNumber)
+    && projectName === text(row.projectName)
+  ) {
+    return row;
+  }
+  return {
+    ...row,
+    employeeName,
+    customerName,
+    customerNumber,
+    projectNumber,
+    projectName,
   };
 }
 
@@ -239,8 +333,8 @@ export function employeeHourOptions(entries, employees = []) {
   }
   for (const employee of employees) {
     if (!byId.has(employee.id)) continue;
-    const label = [employee.person?.firstName, employee.person?.lastName].filter(Boolean).join(' ');
-    if (label) byId.get(employee.id).name = label;
+    const label = displayName(employee);
+    if (label && label !== 'Uten navn') byId.get(employee.id).name = label;
   }
   return [...byId.values()]
     .filter((row) => row.hours > 0)

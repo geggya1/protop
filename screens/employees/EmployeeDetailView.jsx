@@ -27,6 +27,11 @@ import {
 } from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
 import { useLayout } from '../../src/theme';
+import {
+  emptyProjectState,
+  monthsAgoIso,
+  projectsWithEmployeeHours,
+} from '../../src/project/engine';
 
 const DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
@@ -95,42 +100,16 @@ function kinLine(person = {}, reveal) {
     .join(' · ');
 }
 
-function projectActive(project) {
-  const period = String(project?.period || '').toLowerCase();
-  if (!period) return true;
-  if (/nåværende|naavaerende|current|pågår|pagar|ongoing/.test(period)) return true;
-  if (/–\s*$|-\s*$/.test(period)) return true;
-  return !/\b(20\d{2})\b/.test(period) || /nå|nu|current/.test(period);
+function workProjectTitle(project) {
+  const number = project?.number ? `#${project.number} ` : '';
+  return `${number}${project?.name || project?.title || 'Prosjekt'}`.trim();
 }
 
-function roleLabels(project, fallbackRole) {
-  const raw = String(project?.roles || '')
-    .split(/[\n;,|/]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (raw.length) return raw;
-  if (fallbackRole) return [fallbackRole];
-  return ['Prosjekt'];
-}
-
-function groupProjects(projects, fallbackRole, onlyActive) {
-  const groups = new Map();
-  for (const project of projects || []) {
-    if (onlyActive && !projectActive(project)) continue;
-    for (const role of roleLabels(project, fallbackRole)) {
-      if (!groups.has(role)) groups.set(role, []);
-      groups.get(role).push(project);
-    }
-  }
-  return [...groups.entries()].map(([role, items]) => ({ role, items }));
-}
-
-function projectLine(project) {
-  const idPart = project.object || project.client || '';
-  const title = project.title || 'Prosjekt';
-  const period = project.period ? ` · ${project.period}` : '';
-  if (idPart && idPart !== title) return `${title} — ${idPart}${period}`;
-  return `${title}${period}`;
+function workProjectMeta(project) {
+  const parts = [];
+  if (project?.client) parts.push(project.client);
+  if (project?.recentHours) parts.push(`${project.recentHours} t`);
+  return parts.join(' · ');
 }
 
 function repeatSummary(sectionId, item) {
@@ -473,6 +452,7 @@ export default function EmployeeDetailView({
   onBack,
   onCv,
   onOpenProject,
+  projectState = null,
   onSelect,
   onChange,
   onSave,
@@ -493,7 +473,7 @@ export default function EmployeeDetailView({
   const [editingKey, setEditingKey] = useState('');
   const [editingSection, setEditingSection] = useState('');
   const [extraDepartment, setExtraDepartment] = useState('');
-  const [onlyActive, setOnlyActive] = useState(true);
+  const [recentOnly, setRecentOnly] = useState(true);
   const [openSections, setOpenSections] = useState({
     personal: true,
     employment: true,
@@ -505,7 +485,7 @@ export default function EmployeeDetailView({
   });
 
   useEffect(() => {
-    setOnlyActive(true);
+    setRecentOnly(true);
     setEditingKey('');
     setEditingSection('');
     setOpenSections({
@@ -598,10 +578,16 @@ export default function EmployeeDetailView({
     return canEdit ? rows : rows.filter((row) => row.value);
   }, [employee, canEdit]);
 
-  const projectGroups = useMemo(
-    () => groupProjects(employee.cv?.projects || [], employee.company?.projectRole, onlyActive),
-    [employee, onlyActive],
-  );
+  const visibleWorkProjects = useMemo(() => {
+    const state = projectState || emptyProjectState();
+    if (recentOnly) {
+      return projectsWithEmployeeHours(state, employee.id, { since: monthsAgoIso(3) });
+    }
+    return projectsWithEmployeeHours(state, employee.id, {
+      since: '',
+      includeMembership: true,
+    });
+  }, [projectState, employee.id, recentOnly]);
 
   const cvSections = useMemo(
     () => FORM_SECTIONS.filter((section) => section.repeatable && section.id !== 'projects')
@@ -1207,51 +1193,58 @@ export default function EmployeeDetailView({
             <View style={styles.sideHead}>
               <Text style={[styles.sideTitle, { color: colors.ink }]}>Prosjekter</Text>
               <TouchableOpacity
-                onPress={() => setOnlyActive((value) => !value)}
+                onPress={() => setRecentOnly((value) => !value)}
                 accessibilityRole="checkbox"
-                accessibilityState={{ checked: onlyActive }}
+                accessibilityState={{ checked: recentOnly }}
                 style={styles.activeCheck}
               >
                 <View style={[
                   styles.checkBox,
-                  { borderColor: onlyActive ? colors.brand : colors.muted },
-                  onlyActive && { backgroundColor: colors.brand },
+                  { borderColor: recentOnly ? colors.brand : colors.muted },
+                  recentOnly && { backgroundColor: colors.brand },
                 ]}
                 >
-                  {onlyActive ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+                  {recentOnly ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
                 </View>
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Kun aktive</Text>
+                <Text style={{ color: colors.ink, fontSize: 13 }}>Siste 3 mnd</Text>
               </TouchableOpacity>
             </View>
-            {!projectGroups.length ? (
+            {!visibleWorkProjects.length ? (
               <Text style={{ color: colors.muted, fontSize: 14 }}>
-                {onlyActive ? 'Ingen aktive prosjekter.' : 'Ingen prosjekter er registrert.'}
+                {recentOnly
+                  ? 'Ingen timer ført på prosjekt de siste 3 månedene.'
+                  : 'Ingen prosjektmedlemskap eller timer er registrert.'}
               </Text>
             ) : (
-              projectGroups.map((group) => (
-                <View key={group.role} style={styles.projectGroup}>
-                  <View style={styles.projectGroupHead}>
-                    <Ionicons name="remove-outline" size={16} color={colors.brand} />
-                    <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 14 }}>{group.role}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{group.items.length}</Text>
-                  </View>
-                  {group.items.map((project) => (
+              <View style={styles.projectGroup}>
+                {visibleWorkProjects.map((project) => {
+                  const meta = workProjectMeta(project);
+                  return (
                     <TouchableOpacity
-                      key={`${group.role}:${project.id}`}
-                      onPress={() => (onOpenProject ? onOpenProject(project) : onCv?.())}
+                      key={project.id}
+                      onPress={() => onOpenProject?.(project)}
                       accessibilityRole="button"
                       style={[styles.projectRow, { borderTopColor: colors.line }]}
                     >
-                      <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{projectLine(project)}</Text>
+                      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                        <Text style={{ color: colors.ink, fontSize: 14 }} numberOfLines={2}>
+                          {workProjectTitle(project)}
+                        </Text>
+                        {meta ? (
+                          <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                            {meta}
+                          </Text>
+                        ) : null}
+                      </View>
                       <Ionicons name="chevron-forward" size={14} color={colors.muted} />
                     </TouchableOpacity>
-                  ))}
-                </View>
-              ))
+                  );
+                })}
+              </View>
             )}
             {(employee.cv?.projects || []).length > 0 ? (
               <TouchableOpacity onPress={onCv} accessibilityRole="button" style={{ marginTop: 8 }}>
-                <Text style={{ color: colors.brand, fontSize: 13 }}>Vis alle i CV…</Text>
+                <Text style={{ color: colors.brand, fontSize: 13 }}>Vis referanseprosjekter i CV…</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1479,12 +1472,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   projectGroup: { gap: 0 },
-  projectGroupHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-  },
   projectRow: {
     flexDirection: 'row',
     alignItems: 'center',

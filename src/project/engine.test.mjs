@@ -11,6 +11,7 @@ import {
   addIncident,
   addInspection,
   addMeeting,
+  addProjectMember,
   addSja,
   addWaste,
   archiveProject,
@@ -22,9 +23,11 @@ import {
   deleteProjects,
   emptyProjectState,
   mergeProjectStates,
+  monthsAgoIso,
   postEntry,
   progressSummary,
   projectEconomy,
+  projectsWithEmployeeHours,
   removeRecord,
   selectProject,
   setActivityProgress,
@@ -32,6 +35,7 @@ import {
   signSja,
   updateSja,
   toggleCheckItem,
+  upsertTimeEntry,
   wasteSummary,
 } from './engine.js';
 import { draftMinutes, projectAdvice, projectReport, suggestIso, suggestMeasures } from './assistant.js';
@@ -158,6 +162,71 @@ assert.equal(deleteProjects(bulk.state, [projectId]).ok, false);
   });
   assert.equal(duplicateNumber.projects.filter((row) => row.number === '20' || row.number === '20.0').length, 1);
   assert.equal(duplicateNumber.projects[0].name, 'Ny B');
+}
+
+{
+  const since = monthsAgoIso(3, new Date('2026-10-12T12:00:00.000Z'));
+  assert.equal(since, '2026-07-12');
+
+  let hoursState = emptyProjectState();
+  hoursState = must(createProject(hoursState, { name: 'Aktivt', number: 'H-1' }));
+  const recentId = hoursState.activeProjectId;
+  hoursState = must(createProject(hoursState, { name: 'Gammelt', number: 'H-2' }));
+  const oldId = hoursState.activeProjectId;
+  hoursState = must(createProject(hoursState, { name: 'Kun medlem', number: 'H-3' }));
+  const memberOnlyId = hoursState.activeProjectId;
+
+  hoursState = must(addProjectMember(hoursState, {
+    projectId: recentId,
+    employeeId: 'emp-goa',
+    employeeName: 'Geir',
+    role: 'Prosjektleder',
+  }));
+  hoursState = must(addProjectMember(hoursState, {
+    projectId: oldId,
+    employeeId: 'emp-goa',
+    employeeName: 'Geir',
+    role: 'Byggherreombud',
+  }));
+  hoursState = must(addProjectMember(hoursState, {
+    projectId: memberOnlyId,
+    employeeId: 'emp-goa',
+    employeeName: 'Geir',
+    role: 'Prosjekteringsleder',
+  }));
+
+  hoursState = must(upsertTimeEntry(hoursState, {
+    projectId: recentId,
+    employeeId: 'emp-goa',
+    employeeName: 'Geir',
+    date: '2026-09-01',
+    hours: 4,
+    description: 'Oppfølging',
+  }));
+  hoursState = must(upsertTimeEntry(hoursState, {
+    projectId: oldId,
+    employeeId: 'emp-goa',
+    employeeName: 'Geir',
+    date: '2025-01-15',
+    hours: 8,
+    description: 'Oppstart',
+  }));
+
+  const recent = projectsWithEmployeeHours(hoursState, 'emp-goa', { since });
+  assert.equal(recent.length, 1);
+  assert.equal(recent[0].id, recentId);
+  assert.equal(recent[0].recentHours, 4);
+
+  const allMembership = projectsWithEmployeeHours(hoursState, 'emp-goa', {
+    since: '',
+    includeMembership: true,
+  });
+  assert.equal(allMembership.length, 3);
+  assert.ok(allMembership.every((row) => !row.roles));
+  assert.equal(allMembership[0].id, recentId);
+
+  const none = projectsWithEmployeeHours(hoursState, 'unknown', { since });
+  assert.equal(none.length, 0);
 }
 
 console.log('project engine ok');

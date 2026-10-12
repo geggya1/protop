@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
-import { levelById } from '../../src/access/companyAccess';
+import { accessLevelSections, levelById, placedLevelId } from '../../src/access/companyAccess';
 import {
   applyInviteSendResult,
   draftInviteEmployee,
@@ -37,6 +37,7 @@ import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
+import EmployeeDirectory from '../../components/employees/EmployeeDirectory';
 import {
   absorbCompanyIntoProfile,
   applyEmployeeClassification,
@@ -47,7 +48,6 @@ import {
   commitEmployee,
   contactLine,
   departmentLabels,
-  directoryStats,
   displayName,
   employeeFromProfile,
   employeeNumberLabel,
@@ -60,26 +60,11 @@ import {
   linkClash,
   newId,
   ownEmployee,
-  personnelKind,
-  personnelKindLabel,
   presentEmployee,
   rememberLink,
   sortEmployees,
-  statusLabel,
 } from '../../src/employees/model';
-import { PERSONNEL_KIND_OPTIONS, STATUS_OPTIONS } from '../../src/employees/schema';
 
-function statusTone(row, colors) {
-  const status = row.company?.status;
-  if (status === 'inactive' || status === 'former' || status === 'deleted') {
-    const danger = colors.danger || '#dc2626';
-    return { color: danger, backgroundColor: `${danger}22` };
-  }
-  if (status === 'leave') {
-    return { color: colors.warn || '#d97706', backgroundColor: colors.starSoft || '#fff8e8' };
-  }
-  return { color: colors.brand, backgroundColor: colors.brandSoft };
-}
 import { cvEditorSections } from '../../src/employees/schema';
 import {
   loadProfessionalProfile,
@@ -92,6 +77,7 @@ import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
+import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
@@ -140,8 +126,8 @@ export default function EmployeesScreen() {
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
-  const [kindFilter, setKindFilter] = useState('staff');
-  const [statusFilter, setStatusFilter] = useState('active');
+  const [levelFilter, setLevelFilter] = useState('all');
+  const [focusSection, setFocusSection] = useState('');
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -157,6 +143,7 @@ export default function EmployeesScreen() {
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -230,28 +217,25 @@ export default function EmployeesScreen() {
     name: userProfile?.displayName || user?.displayName || '',
   }), [rows, uid, user, userProfile, profile]);
   const linked = mine?.personUid === uid ? mine : (rows.find((row) => row.personUid && row.personUid === uid) || null);
-  const kindRows = useMemo(
-    () => filterEmployees(rows, { kind: kindFilter, status: 'all', departments, keepIds: mine?.id ? [mine.id] : [] }),
-    [rows, kindFilter, departments, mine?.id],
-  );
   const visible = useMemo(
     () => filterEmployees(rows, {
-      kind: kindFilter,
-      status: statusFilter,
+      level: levelFilter,
+      status: 'all',
       query,
       departments,
       keepIds: mine?.id ? [mine.id] : [],
     }),
-    [rows, kindFilter, statusFilter, query, departments, mine?.id],
+    [rows, levelFilter, query, departments, mine?.id],
   );
-  const mineHiddenByKind = !!(mine && kindFilter !== 'all' && personnelKind(mine) !== kindFilter);
-  const stats = directoryStats(kindRows);
-  const kindOptions = useMemo(() => (
-    PERSONNEL_KIND_OPTIONS.map((option) => ({
-      id: option.value,
-      label: personnelKindLabel(option.value, companyName),
-    }))
-  ), [companyName]);
+  const mineLevelId = mine ? placedLevelId(mine) : '';
+  const mineHiddenByLevel = !!(mine && levelFilter !== 'all' && mineLevelId !== levelFilter);
+  const levelOptions = useMemo(() => ([
+    { id: 'all', label: 'Alle nivåer' },
+    ...accessLevelSections().flatMap((section) => section.levels.map((level) => ({
+      id: level.id,
+      label: `${level.order}. ${level.label}`,
+    }))),
+  ]), []);
   function resetMessage() {
     setNote('');
     setError('');
@@ -588,11 +572,72 @@ export default function EmployeesScreen() {
     resetMessage();
     clearSectionEdit();
     setSelectedId('');
-    setDraft(presentEmployee({
-      ...emptyEmployee(newId('emp')),
-      createdAt: new Date().toISOString(),
-    }));
-    setView('edit');
+    setRegisterOpen(true);
+  }
+
+  async function registerEmployee(result) {
+    if (!canInvite || !familyId) throw new Error('Du kan ikke registrere medarbeidere.');
+    const address = employeeContactEmail(result.employee);
+    const existing = matchEmployeeByEmail(rows, address);
+    if (existing) {
+      setRegisterOpen(false);
+      openDetail(existing);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const committed = commitEmployee({
+        ...result.employee,
+        id: newId('emp'),
+        createdAt: new Date().toISOString(),
+      }, { scope: 'company' });
+      if (!committed.ok) throw new Error(committed.errors.join('\n'));
+      let saved = await saveEmployee(familyId, committed.employee);
+      setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+      const name = displayName(saved);
+      let noteText = `${name} er registrert.`;
+      if (result.sendWelcome) {
+        try {
+          const sent = await inviteAdultSmart({
+            familyId,
+            name,
+            email: address,
+            familyName: companyName,
+            groupType: family?.type || 'organization',
+            createdBy: uid,
+            asAdmin: placedAccessLevel(saved) === 'administrator',
+          });
+          const next = applyInviteSendResult(saved, sent, { at: new Date().toISOString() });
+          const stored = commitEmployee(next, { scope: 'company' });
+          if (stored.ok) {
+            saved = await saveEmployee(familyId, stored.employee);
+            setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+          }
+          if (sent?.emailSent) {
+            noteText = `${name} er registrert, og velkomstmalen er sendt.`;
+            recordUsage({
+              type: 'invite_sent',
+              companyId: familyId,
+              employeeId: saved.id,
+              summary: `Invitasjon sendt til ${address}`,
+              detail: { accessLevel: placedAccessLevel(saved) },
+            }).catch(() => {});
+          } else {
+            setError(sent?.emailError || 'Velkomstmalen ble ikke sendt.');
+          }
+        } catch (err) {
+          setError(inviteDeliveryError(err));
+        }
+      }
+      setNote(noteText);
+      setRegisterOpen(false);
+      setLevelFilter('all');
+      const section = levelById(placedAccessLevel(saved))?.section || '';
+      if (section) setFocusSection(section);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openDetail(row) {
@@ -696,8 +741,7 @@ export default function EmployeesScreen() {
   async function restoreMine() {
     if (!uid || !familyId || busy) return;
     if (mine) {
-      setKindFilter('all');
-      setStatusFilter('all');
+      setLevelFilter('all');
       setQuery('');
       if (!mine.personUid && uid) {
         setBusy(true);
@@ -739,8 +783,7 @@ export default function EmployeesScreen() {
         customFields: saved.customFields.filter((field) => field.owner === 'person'),
       }, { companyId: familyId, employeeId: saved.id, companyName }));
       setProfile(stored);
-      setKindFilter('all');
-      setStatusFilter('all');
+      setLevelFilter('all');
       setQuery('');
       setSelectedId(saved.id);
       setDraft(presentEmployee(saved));
@@ -1079,7 +1122,8 @@ export default function EmployeesScreen() {
         setSelectedId(saved.id);
         setNote('Medarbeideren er flyttet til papirkurven.');
         setView('list');
-        setStatusFilter('deleted');
+        setLevelFilter('all');
+        setFocusSection('trash');
       }
     } catch (err) {
       setError(err?.message || 'Kunne ikke slette.');
@@ -1093,7 +1137,7 @@ export default function EmployeesScreen() {
     const current = draft && draft.id === selectedId ? draft : selected;
     if (!current || busy || !isDeletedEmployee(current)) return;
     await classifyEmployee({ status: 'active' });
-    setStatusFilter('active');
+    setFocusSection(placedLevelId(current) && levelById(placedLevelId(current))?.section === 'external' ? 'external' : 'company');
     setNote('Medarbeideren er gjenopprettet som aktiv.');
   }
 
@@ -1128,7 +1172,7 @@ export default function EmployeesScreen() {
         <CreateMenu
           label={isAdmin ? 'Ny medarbeider' : 'Min side'}
           title="Ny medarbeider"
-          info={isAdmin ? 'Kontakt, utdanning og CV fyller den ansatte ut selv. Ansettelse, avdeling og tilgang fyller bedriften ut.' : ''}
+          info={isAdmin ? 'Første registrering samler navn, kontakt og tilgang. Personen får en lenke for å sette passord.' : ''}
           actions={isAdmin ? [
             { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },
             { id: 'invite', nativeID: 'employees-invite', label: 'Inviter brukere', onPress: openInvite },
@@ -1156,38 +1200,18 @@ export default function EmployeesScreen() {
           <FilterMenu
             groups={[
               {
-                id: 'kind',
-                label: 'Personell',
-                value: kindFilter,
-                onChange: setKindFilter,
-                options: [
-                  ...kindOptions,
-                  { id: 'all', label: 'Alle kategorier' },
-                ],
-              },
-              {
-                id: 'status',
-                label: 'Status',
-                value: statusFilter,
-                onChange: setStatusFilter,
-                options: [
-                  ...STATUS_OPTIONS.map((option) => ({
-                    id: option.value,
-                    label: option.value === 'deleted' ? 'Papirkurv' : option.label,
-                  })),
-                  { id: 'all', label: 'Alle statuser' },
-                ],
+                id: 'level',
+                label: 'Tilgangsnivå',
+                value: levelFilter,
+                onChange: (id) => {
+                  setLevelFilter(id);
+                  const section = levelById(id)?.section || '';
+                  if (section) setFocusSection(section);
+                },
+                options: levelOptions,
               },
             ]}
           />
-          <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink }}>
-              {`${visible.length} vist · ${stats.total} ${kindFilter === 'all' ? 'medarbeidere' : personnelKindLabel(kindFilter, companyName).toLowerCase()}`}
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              {`Aktiv: ${stats.active} · Deaktivert: ${stats.inactive} · Permisjon: ${stats.leave} · Papirkurv: ${stats.deleted}`}
-            </Text>
-          </View>
           {!mine ? (
             <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Profilen din ligger ikke i listen</Text>
@@ -1204,73 +1228,74 @@ export default function EmployeesScreen() {
                 <Text style={styles.primaryText}>{busy ? 'Gjenoppretter…' : 'Gjenopprett min profil'}</Text>
               </TouchableOpacity>
             </View>
-          ) : mineHiddenByKind ? (
+          ) : mineHiddenByLevel ? (
             <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>
-                {`${displayName(mine)} vises her selv om filteret er ${personnelKindLabel(kindFilter, companyName).toLowerCase()}. Profilen er ${personnelKindLabel(personnelKind(mine), companyName).toLowerCase()}.`}
+                {`${displayName(mine)} vises her selv om filteret er ${levelById(levelFilter)?.label || 'et annet nivå'}.`}
               </Text>
               <TouchableOpacity
-                onPress={() => setKindFilter('all')}
+                onPress={() => setLevelFilter('all')}
                 accessibilityRole="button"
                 style={[styles.secondary, { borderColor: colors.line }]}
               >
-                <Text style={{ color: colors.ink }}>Vis alle kategorier</Text>
+                <Text style={{ color: colors.ink }}>Vis alle nivåer</Text>
               </TouchableOpacity>
             </View>
           ) : null}
-          {!visible.length ? (
-            <Text style={{ color: colors.muted }}>
-              {rows.length ? 'Ingen treff på filteret.' : 'Ingen medarbeidere er registrert ennå.'}
-            </Text>
-          ) : null}
-          {visible.map((row) => (
-            <TouchableOpacity
-              key={row.id}
-              onPress={() => openDetail(row)}
-              accessibilityRole="button"
-              accessibilityLabel={displayName(row)}
-              style={[styles.person, { borderColor: colors.line, backgroundColor: colors.card }]}
-            >
-              {row.person.photoUrl ? (
-                <Image source={{ uri: row.person.photoUrl }} style={styles.avatar} />
-              ) : (
-                <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }}>{initials(row)}</Text>
-                </View>
-              )}
-              <View style={styles.grow}>
-                <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
-                {!!employeeNumberLabel(row) && (
-                  <Text style={{ color: colors.muted }}>{employeeNumberLabel(row)}</Text>
-                )}
-                {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
-                <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
-                <View style={styles.chips}>
-                  {mine?.id === row.id ? (
-                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
-                  ) : null}
-                  {kindFilter === 'all' || (mine?.id === row.id && personnelKind(row) !== kindFilter) ? (
-                    <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>
-                      {personnelKindLabel(personnelKind(row), companyName)}
-                    </Text>
-                  ) : null}
-                  {statusFilter !== 'active' || row.company?.status !== 'active' ? (
-                    <Text style={[styles.dept, statusTone(row, colors)]}>
-                      {row.company?.status === 'deleted' ? 'Papirkurv' : (row.company?.status === 'inactive' || row.company?.status === 'former' ? 'Deaktivert' : statusLabel(row.company?.status))}
-                    </Text>
-                  ) : null}
-                  {departmentLabels(row, departments).map((name) => (
-                    <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
-                  ))}
-                  {inviteStatusLabel(row.invite?.status) ? (
-                    <Text style={[styles.dept, { color: colors.ink, backgroundColor: colors.sunken }]}>
-                      {inviteStatusLabel(row.invite?.status)}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {!rows.length ? (
+            <Text style={{ color: colors.muted }}>Ingen medarbeidere er registrert ennå.</Text>
+          ) : (
+            <EmployeeDirectory
+              rows={visible}
+              companyName={companyName}
+              colors={colors}
+              focusSection={focusSection}
+              renderPerson={(row) => {
+                const levelLabel = levelById(placedLevelId(row))?.label || '';
+                return (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => openDetail(row)}
+                    accessibilityRole="button"
+                    accessibilityLabel={displayName(row)}
+                    style={[styles.person, { borderColor: colors.line, backgroundColor: colors.bg }]}
+                  >
+                    {row.person.photoUrl ? (
+                      <Image source={{ uri: row.person.photoUrl }} style={styles.avatar} />
+                    ) : (
+                      <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
+                        <Text style={{ color: colors.ink, fontWeight: '700' }}>{initials(row)}</Text>
+                      </View>
+                    )}
+                    <View style={styles.grow}>
+                      <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                      {!!employeeNumberLabel(row) && (
+                        <Text style={{ color: colors.muted }}>{employeeNumberLabel(row)}</Text>
+                      )}
+                      {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
+                      <Text style={{ color: colors.muted }}>{cardSubtitle(row, companyName)}</Text>
+                      <View style={styles.chips}>
+                        {mine?.id === row.id ? (
+                          <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
+                        ) : null}
+                        {levelLabel ? (
+                          <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{levelLabel}</Text>
+                        ) : null}
+                        {departmentLabels(row, departments).map((name) => (
+                          <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
+                        ))}
+                        {inviteStatusLabel(row.invite?.status) ? (
+                          <Text style={[styles.dept, { color: colors.ink, backgroundColor: colors.sunken }]}>
+                            {inviteStatusLabel(row.invite?.status)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
         </>
       ) : null}
 
@@ -1633,6 +1658,21 @@ export default function EmployeesScreen() {
           />
         </View>
       ) : null}
+      <RegisterEmployeeDialog
+        visible={registerOpen}
+        initialEmail={/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query.trim()) ? query.trim() : ''}
+        colors={colors}
+        employees={rows}
+        departments={departments}
+        canEditAccess={canEditAccess}
+        busy={busy}
+        onClose={() => { if (!busy) setRegisterOpen(false); }}
+        onOpenExisting={(row) => {
+          setRegisterOpen(false);
+          openDetail(row);
+        }}
+        onSubmit={registerEmployee}
+      />
     </ScrollView>
   );
 }

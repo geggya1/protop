@@ -18,6 +18,7 @@ import {
   levelById,
   levelIdFromRoleLabel,
   normalizeOverrides,
+  placedLevelId,
 } from '../access/companyAccess.js';
 import { normalizeInviteState } from './invite.js';
 import { normalizeUsageSummary } from './usage.js';
@@ -736,10 +737,27 @@ function haystack(employee, departments) {
   ].map(text).join(' ').toLowerCase();
 }
 
+export function employeeActivityTab(employee) {
+  const status = statusOf(employee?.company?.status);
+  if (status === 'deleted') return 'trash';
+  if (status === 'inactive' || status === 'former') return 'inactive';
+  return 'active';
+}
+
+export function employeeDirectoryBucket(employee) {
+  if (employeeActivityTab(employee) === 'trash') return 'trash';
+  const level = levelById(placedLevelId(employee));
+  if (level?.section === 'company' || level?.section === 'external') return level.section;
+  const kind = personnelKind(employee);
+  if (kind === 'external' || kind === 'innleid') return 'external';
+  return 'company';
+}
+
 export function filterEmployees(list, {
   query = '',
   kind = 'all',
   status = 'active',
+  level = 'all',
   departments = [],
   keepIds = [],
 } = {}) {
@@ -766,6 +784,7 @@ export function filterEmployees(list, {
       return haystack(row, departments).includes(q);
     }
     if (kindFilter && kindFilter !== 'all' && rowKind !== kindFilter) return false;
+    if (level && level !== 'all' && placedLevelId(row) !== level) return false;
     if (statusFilter && statusFilter !== 'all' && rowStatus !== statusFilter) return false;
     if (!q) return true;
     return haystack(row, departments).includes(q);

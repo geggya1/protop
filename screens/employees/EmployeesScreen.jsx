@@ -179,13 +179,14 @@ export default function EmployeesScreen() {
       return undefined;
     }
     let live = true;
+    // Del samme MEMORY-cache som Arbeid/Prosjekt, så timer ført der syns her.
     loadProjectState(familyId).then((loaded) => {
       if (live) setProjectState(loaded || emptyProjectState());
     }).catch(() => {
       if (live) setProjectState(emptyProjectState());
     });
     return () => { live = false; };
-  }, [familyId, view, selectedId]);
+  }, [familyId]);
 
   useEffect(() => {
     if (!uid) return undefined;

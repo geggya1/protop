@@ -26,6 +26,7 @@ import {
 import { defaultWorkSettings, PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel, PRICING_MODELS } from '../../src/project/projectFields.js';
+import { formatDate } from '../../src/economy/invoices.js';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
@@ -220,75 +221,81 @@ export default function ProjectDetail({
         {project.client ? ` (${project.client})` : ''}
       </Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
-        {TABS.map((row) => {
-          const on = tab === row.id;
-          return (
-            <TouchableOpacity
-              key={row.id}
-              onPress={() => setTab(row.id)}
-              style={[styles.tab, on && { borderBottomColor: colors.brand }]}
-            >
-              <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '600' : '400', fontSize: 13 }}>
-                {row.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View style={[styles.tabs, { borderBottomColor: colors.line }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsInner}>
+          {TABS.map((row) => {
+            const on = tab === row.id;
+            return (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => setTab(row.id)}
+                style={[styles.tab, on && { borderBottomColor: colors.brand }]}
+              >
+                <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '600' : '400', fontSize: 13 }}>
+                  {row.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
         {tab === 'hovedside' ? (
           <View style={styles.columns}>
             <View style={[styles.mainCol, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <View style={styles.blockHead}>
                 <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektinformasjon</Text>
               </View>
-              <Info label="Prosjektnummer" value={project.number} colors={colors} />
-              <Info label="Kunde" value={project.client || '—'} colors={colors} />
-              <Info label="Valuta" value="NOK" colors={colors} />
-              <Info label="Oppstartsdato" value={project.start || '—'} colors={colors} />
-              <Info label="Sluttdato" value={project.end || '—'} colors={colors} />
-              <Info label="Status" value={project.projectStatus || project.phase || 'Under arbeid'} colors={colors} />
-              <Info label="Prosjektleder" value={project.manager || '—'} colors={colors} />
+              <View style={styles.infoGrid}>
+                <Info label="Prosjektnummer" value={project.number} colors={colors} />
+                <Info label="Kunde" value={project.client || '—'} colors={colors} />
+                <Info label="Valuta" value="NOK" colors={colors} />
+                <Info label="Oppstartsdato" value={formatDate(project.start)} colors={colors} />
+                <Info label="Sluttdato" value={formatDate(project.end)} colors={colors} />
+                <Info label="Status" value={project.projectStatus || project.phase || 'Under arbeid'} colors={colors} />
+                <Info label="Prosjektleder" value={project.manager || '—'} colors={colors} wide />
+              </View>
               {project.description ? (
                 <Text style={{ color: colors.muted, marginTop: 12, lineHeight: 20 }}>{project.description}</Text>
               ) : null}
 
               <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Innstillinger for timeføring</Text>
-              <CheckRow
-                label="Vis prosjekt i alles timelister"
-                value={settings.showInAllTimesheets}
-                onChange={(v) => patchSettings('showInAllTimesheets', v)}
-                colors={colors}
-              />
-              <CheckRow
-                label="Ansatte kan legge seg selv inn på prosjektet"
-                value={settings.allowSelfJoin}
-                onChange={(v) => patchSettings('allowSelfJoin', v)}
-                colors={colors}
-              />
-              <CheckRow
-                label="Beskrivelse på timeføring er påkrevd"
-                value={settings.requireDescription}
-                onChange={(v) => patchSettings('requireDescription', v)}
-                colors={colors}
-              />
-              <CheckRow
-                label="Vis estimerte og planlagte timer i timelisten"
-                value={settings.showEstimatedHours}
-                onChange={(v) => patchSettings('showEstimatedHours', v)}
-                colors={colors}
-              />
-              <CheckRow
-                label="Varsle prosjektleder på e-post ved overskridelse"
-                value={settings.notifyOnOverrun}
-                onChange={(v) => patchSettings('notifyOnOverrun', v)}
-                colors={colors}
-              />
+              <View style={styles.settingsGrid}>
+                <CheckRow
+                  label="Vis prosjekt i alles timelister"
+                  value={settings.showInAllTimesheets}
+                  onChange={(v) => patchSettings('showInAllTimesheets', v)}
+                  colors={colors}
+                />
+                <CheckRow
+                  label="Ansatte kan legge seg selv inn på prosjektet"
+                  value={settings.allowSelfJoin}
+                  onChange={(v) => patchSettings('allowSelfJoin', v)}
+                  colors={colors}
+                />
+                <CheckRow
+                  label="Beskrivelse på timeføring er påkrevd"
+                  value={settings.requireDescription}
+                  onChange={(v) => patchSettings('requireDescription', v)}
+                  colors={colors}
+                />
+                <CheckRow
+                  label="Vis estimerte og planlagte timer i timelisten"
+                  value={settings.showEstimatedHours}
+                  onChange={(v) => patchSettings('showEstimatedHours', v)}
+                  colors={colors}
+                />
+                <CheckRow
+                  label="Varsle prosjektleder på e-post ved overskridelse"
+                  value={settings.notifyOnOverrun}
+                  onChange={(v) => patchSettings('notifyOnOverrun', v)}
+                  colors={colors}
+                />
+              </View>
             </View>
 
             <View style={styles.sideCol}>
@@ -330,11 +337,13 @@ export default function ProjectDetail({
               </View>
 
               <View style={[styles.sideCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <Text style={[styles.blockTitle, { color: colors.ink }]}>Nøkkeltall</Text>
-                <Info label="Timer jobbet" value={formatHours(summary.hours)} colors={colors} />
-                <Info label="Fakturerbare timer" value={formatHours(summary.billable)} colors={colors} />
-                <Info label="Ikke-fakturerbart" value={formatHours(summary.nonBillable)} colors={colors} />
-                <Info label="Antall føringer" value={String(summary.count)} colors={colors} />
+                <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Nøkkeltall</Text>
+                <View style={styles.kpiGrid}>
+                  <Kpi label="Timer jobbet" value={formatHours(summary.hours)} colors={colors} />
+                  <Kpi label="Fakturerbare" value={formatHours(summary.billable)} colors={colors} />
+                  <Kpi label="Ikke-fakturerbart" value={formatHours(summary.nonBillable)} colors={colors} />
+                  <Kpi label="Føringer" value={String(summary.count)} colors={colors} />
+                </View>
               </View>
             </View>
           </View>
@@ -583,11 +592,20 @@ export default function ProjectDetail({
   );
 }
 
-function Info({ label, value, colors }) {
+function Info({ label, value, colors, wide = false }) {
   return (
-    <View style={styles.infoRow}>
-      <Text style={{ color: colors.muted, fontSize: 12, width: 140 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontSize: 14, flex: 1 }}>{value}</Text>
+    <View style={[styles.infoCell, wide && styles.infoCellWide]}>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '500' }}>{value}</Text>
+    </View>
+  );
+}
+
+function Kpi({ label, value, colors }) {
+  return (
+    <View style={styles.kpiCell}>
+      <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
+      <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{value}</Text>
     </View>
   );
 }
@@ -607,7 +625,14 @@ const styles = StyleSheet.create({
   },
   crumb: { fontSize: 12, marginBottom: 4 },
   title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 8 },
-  tabs: { marginBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e2e8f0' },
+  tabs: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    maxHeight: 44,
+  },
+  tabsInner: { flexDirection: 'row', alignItems: 'center' },
   tab: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -615,14 +640,21 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
     marginRight: 4,
   },
-  columns: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-  mainCol: { flex: 1.4, minWidth: 280, borderWidth: 1, borderRadius: 10, padding: 16 },
-  sideCol: { flex: 1, minWidth: 240, gap: 12 },
+  bodyScroll: { flex: 1, minHeight: 0 },
+  bodyContent: { paddingBottom: 40, flexGrow: 0 },
+  columns: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' },
+  mainCol: { flex: 1.6, minWidth: 300, borderWidth: 1, borderRadius: 10, padding: 16 },
+  sideCol: { flex: 1, minWidth: 260, maxWidth: 420, gap: 12 },
   sideCard: { borderWidth: 1, borderRadius: 10, padding: 14 },
   panel: { borderWidth: 1, borderRadius: 10, padding: 16 },
   blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   blockTitle: { fontSize: 15, fontWeight: '700' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  infoCell: { width: '48%', minWidth: 140, paddingVertical: 8, paddingRight: 8, gap: 2 },
+  infoCellWide: { width: '100%' },
+  settingsGrid: { gap: 2 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  kpiCell: { width: '47%', minWidth: 100, gap: 2, paddingVertical: 6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

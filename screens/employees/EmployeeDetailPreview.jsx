@@ -6,6 +6,8 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/theme';
 import { applyEmployeeClassification, presentEmployee } from '../../src/employees/model';
+import { emptyProjectState } from '../../src/project/engine';
+import ProjectDetail from '../../components/project/ProjectDetail';
 import EmployeeDetailView from './EmployeeDetailView';
 
 function mockEmployee(id, overrides = {}) {
@@ -113,8 +115,69 @@ export default function EmployeeDetailPreview() {
   const [selectedId, setSelectedId] = useState(siblings[0].id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [people, setPeople] = useState(siblings);
+  const [openedId, setOpenedId] = useState('');
   const selected = people.find((row) => row.id === selectedId) || people[0];
   const departments = [{ id: 'dep-bygg', name: 'Bygg' }];
+  const projectState = useMemo(() => {
+    const now = new Date();
+    const recent = new Date(now);
+    recent.setMonth(recent.getMonth() - 1);
+    const old = new Date(now);
+    old.setMonth(old.getMonth() - 8);
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const base = emptyProjectState();
+    return {
+      ...base,
+      projects: [
+        { id: 'wp-1', number: '10417', name: 'Prismen (Ny)', client: 'Oslo kommune', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Under arbeid', start: '2019-08-01', end: '' },
+        { id: 'wp-2', number: '10201', name: 'Skolebygg Vest', client: 'Statsbygg', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Under arbeid', start: '2021-03-01', end: '' },
+        { id: 'wp-3', number: '9802', name: 'Kontorbygg Sentrum', client: 'Private', status: 'aktiv', manager: 'Geir Ove Andersen', projectStatus: 'Avsluttet', start: '2017-01-01', end: '2019-12-31' },
+        {
+          id: 'wp-4',
+          number: '10001',
+          name: 'Myklebust CB6-12-13 (1882)',
+          client: 'Sola Kommune',
+          status: 'aktiv',
+          manager: 'Geir Ove Andersen',
+          projectStatus: 'Avsluttet',
+          start: '42461',
+          end: '43334',
+        },
+      ],
+      members: [
+        { id: 'm1', projectId: 'wp-1', employeeId: siblings[0].id, employeeName: 'Geir Ove Andersen', role: 'Prosjektleder', active: true },
+        { id: 'm2', projectId: 'wp-2', employeeId: siblings[0].id, employeeName: 'Geir Ove Andersen', role: 'SHA-koordinator', active: true },
+        { id: 'm3', projectId: 'wp-3', employeeId: siblings[0].id, employeeName: 'Geir Ove Andersen', role: 'Prosjektmedlem', active: true },
+        { id: 'm4', projectId: 'wp-4', employeeId: siblings[0].id, employeeName: 'Geir Ove Andersen', role: 'Prosjektleder', active: true },
+      ],
+      timeEntries: [
+        { id: 't1', projectId: 'wp-1', employeeId: siblings[0].id, date: iso(recent), hours: 6, billableHours: 6, status: 'registrert' },
+        { id: 't2', projectId: 'wp-4', employeeId: siblings[0].id, date: iso(recent), hours: 3, billableHours: 3, status: 'registrert' },
+        { id: 't3', projectId: 'wp-3', employeeId: siblings[0].id, date: iso(old), hours: 10, billableHours: 10, status: 'registrert' },
+      ],
+    };
+  }, [siblings]);
+  const openedProject = projectState.projects.find((row) => row.id === openedId) || null;
+
+  if (openedProject) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+        <Text style={[styles.banner, { color: colors.muted, borderColor: colors.line, backgroundColor: colors.card, marginBottom: 12 }]}>
+          Forhåndsvisning · prosjekt åpnet fra medarbeider
+        </Text>
+        <ProjectDetail
+          state={projectState}
+          project={openedProject}
+          employees={people}
+          colors={colors}
+          isAdmin
+          uid="preview-user"
+          onChangeState={() => {}}
+          onBack={() => setOpenedId('')}
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.inner}>
@@ -126,6 +189,7 @@ export default function EmployeeDetailPreview() {
         colors={colors}
         companyName="Consult1"
         departments={departments}
+        projectState={projectState}
         reveal
         gaps={{
           register: [],
@@ -139,6 +203,7 @@ export default function EmployeeDetailPreview() {
         confirmDelete={confirmDelete}
         onBack={() => {}}
         onCv={() => {}}
+        onOpenProject={(project) => setOpenedId(project.id)}
         onSelect={(row) => setSelectedId(row.id)}
         onChange={(next) => {
           setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));

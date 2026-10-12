@@ -93,6 +93,8 @@ import EmployeeDetailView from './EmployeeDetailView';
 import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
+import { emptyProjectState } from '../../src/project/engine';
+import { loadProjectState } from '../../src/project/storage';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -134,6 +136,7 @@ export default function EmployeesScreen() {
 
   const [rows, setRows] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [projectState, setProjectState] = useState(() => emptyProjectState());
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
@@ -168,6 +171,21 @@ export default function EmployeesScreen() {
     return watchEmployees(familyId, setRows, (err) => {
       setError(err?.message || 'Kunne ikke hente medarbeidere.');
     });
+  }, [familyId]);
+
+  useEffect(() => {
+    if (!familyId) {
+      setProjectState(emptyProjectState());
+      return undefined;
+    }
+    let live = true;
+    // Del samme MEMORY-cache som Arbeid/Prosjekt, så timer ført der syns her.
+    loadProjectState(familyId).then((loaded) => {
+      if (live) setProjectState(loaded || emptyProjectState());
+    }).catch(() => {
+      if (live) setProjectState(emptyProjectState());
+    });
+    return () => { live = false; };
   }, [familyId]);
 
   useEffect(() => {
@@ -1328,6 +1346,7 @@ export default function EmployeesScreen() {
           busy={busy}
           onBack={openList}
           onCv={() => openCv(detailEmployee)}
+          projectState={projectState}
           onOpenProject={(project) => {
             if (!project?.id) return;
             requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });

@@ -1540,6 +1540,73 @@ export function importTimeEntries(state, drafts = []) {
   };
 }
 
+/** ISO-dato (YYYY-MM-DD) for N måneder tilbake. */
+export function monthsAgoIso(months = 3, now = new Date()) {
+  const d = new Date(now.getTime());
+  const day = d.getUTCDate();
+  d.setUTCMonth(d.getUTCMonth() - Math.max(0, Number(months) || 0));
+  // Klamp ved månedsovergang (f.eks. 31. mars → februar)
+  if (d.getUTCDate() !== day) d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Prosjekter der medarbeideren har ført timer.
+ * Flat liste (ingen rollegrupper), sortert på sist timeføring.
+ * @param {object} opts.since ISO-dato — kun timer på/etter denne datoen
+ * @param {boolean} opts.includeMembership når ingen timer matcher: inkluder aktive medlemskap
+ */
+export function projectsWithEmployeeHours(state, employeeId, {
+  since = '',
+  includeMembership = false,
+} = {}) {
+  const id = text(employeeId);
+  if (!id) return [];
+  const sinceKey = text(since);
+  const hoursByProject = new Map();
+  for (const row of state?.timeEntries || []) {
+    if (text(row.employeeId) !== id) continue;
+    if (parseHours(row.hours) <= 0) continue;
+    const date = text(row.date);
+    if (sinceKey && date && date < sinceKey) continue;
+    const projectId = text(row.projectId);
+    if (!projectId) continue;
+    const prev = hoursByProject.get(projectId) || { hours: 0, lastDate: '' };
+    prev.hours = roundHours(prev.hours + parseHours(row.hours));
+    if (date && date > prev.lastDate) prev.lastDate = date;
+    hoursByProject.set(projectId, prev);
+  }
+
+  const ids = new Set(hoursByProject.keys());
+  if (includeMembership) {
+    for (const row of state?.members || []) {
+      if (text(row.employeeId) !== id || row.active === false) continue;
+      const projectId = text(row.projectId);
+      if (projectId) ids.add(projectId);
+    }
+  }
+
+  const projectById = new Map(
+    (state?.projects || []).map((project) => [project.id, project]),
+  );
+  return [...ids]
+    .map((projectId) => {
+      const project = projectById.get(projectId);
+      if (!project || project.status === 'arkivert') return null;
+      const meta = hoursByProject.get(projectId) || { hours: 0, lastDate: '' };
+      return {
+        ...project,
+        recentHours: meta.hours,
+        lastHoursDate: meta.lastDate,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (
+      String(b.lastHoursDate || '').localeCompare(String(a.lastHoursDate || ''))
+      || String(a.name || '').localeCompare(String(b.name || ''), 'nb')
+    ));
+}
+
 /** Summer timer for prosjekt (timeEntries). */
 export function projectTimeSummary(state, projectId) {
   const rows = state.timeEntries.filter((row) => row.projectId === projectId);

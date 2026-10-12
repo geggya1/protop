@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import {
@@ -11,18 +11,19 @@ import {
   formAttention,
   insertField,
   insertionIndex,
+  isAnswerField,
   moveField,
   responsesToCsv,
   summarizeQuestion,
 } from '../../src/anbud/formBuilder';
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickImage } from '../../src/utils/media';
-import FormAnswer from './FormAnswer';
-import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+import FormDocument from './FormDocument';
 
 const PIE = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#AB47BC', '#00ACC1', '#FF7043', '#8D6E63'];
 const ICONS = {
   title: 'reader-outline',
+  note: 'document-outline',
   long: 'document-text-outline',
   text: 'create-outline',
   choice: 'radio-button-on-outline',
@@ -158,7 +159,7 @@ export default function FormStudio({
   companyLogo = null,
 }) {
   const [tab, setTab] = useState('questions');
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(-1);
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeFor, setTypeFor] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -171,6 +172,8 @@ export default function FormStudio({
   const [drag, setDrag] = useState(null);
   const [imageNote, setImageNote] = useState('');
   const [previewSeed, setPreviewSeed] = useState(1);
+  const [readOpen, setReadOpen] = useState(false);
+  const [paneWidth, setPaneWidth] = useState(0);
   const [rootNode, setRootNode] = useState(null);
   const sessionRef = useRef(null);
   const listenersRef = useRef(null);
@@ -241,8 +244,20 @@ export default function FormStudio({
   }
 
   function openTab(id) {
-    if (id === 'preview') setPreviewSeed((Date.now() % 100000) || 1);
+    if (id === 'preview') {
+      setPreviewSeed((Date.now() % 100000) || 1);
+      setTab('questions');
+      return;
+    }
     setTab(id);
+  }
+
+  function changeDocument(index, part) {
+    if (index < 0) {
+      onDraft({ ...draft, ...part });
+      return;
+    }
+    patch(index, part);
   }
 
   async function setCover() {
@@ -277,7 +292,7 @@ export default function FormStudio({
       setSendNote('Innlogging kreves før svaret kan sendes.');
       return;
     }
-    const fields = draft.fields.filter((field) => field.kind !== 'title');
+    const fields = draft.fields.filter((field) => isAnswerField(field));
     const missing = fields.find((field) => field.required && !answered(field, answers[field.id]));
     if (settings.collectEmail && !email.includes('@')) {
       setSendNote('Skriv inn e-postadressen.');
@@ -367,25 +382,12 @@ export default function FormStudio({
     : draft.fields;
   const attention = formAttention(draft);
 
-  function previewRows(fields) {
-    const rows = [];
-    for (let index = 0; index < fields.length; index += 1) {
-      const field = fields[index];
-      const next = fields[index + 1];
-      if (field.width === 'half' && next?.width === 'half' && field.kind !== 'title' && next.kind !== 'title') {
-        rows.push([field, next]);
-        index += 1;
-      } else rows.push([field]);
-    }
-    return rows;
-  }
-
   function optionsFor(field) {
     if (!field.shuffle || !(field.options || []).length) return field.options || [];
     return mixRows(field.options, previewSeed + String(field.id).length);
   }
 
-  const required = draft.fields.filter((field) => field.required);
+  const required = draft.fields.filter((field) => field.required && isAnswerField(field));
   const done = required.filter((field) => answered(field, answers[field.id])).length;
   const progress = required.length ? done / required.length : 1;
   const activePerson = responses[person] || null;
@@ -398,401 +400,190 @@ export default function FormStudio({
       onPointerCancel={(event) => pointerRef.current.up(event)}
       style={[styles.fill, fill && { flex: 1, minHeight: 0 }]}
     >
-      <View ref={canvasRef} style={{ flex: 1, minHeight: 0 }}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <View style={styles.center}>
-            <View style={styles.topRow}>
-              <TouchableOpacity onPress={onBack} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Alle skjema</Text>
+      <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setPaneWidth(event.nativeEvent.layout.width)}>
+        <View style={[styles.toolbar, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
+          <TouchableOpacity onPress={onBack} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Alle skjema</Text>
+          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={() => setReadOpen((open) => !open)} disabled={busy} accessibilityRole="button" accessibilityLabel="Les inn dokument">
+              <Text style={{ color: colors.brand }}>{busy ? 'Leser …' : 'Les inn'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => openTab(tab === 'responses' ? 'questions' : 'responses')} accessibilityRole="button" accessibilityLabel={tab === 'responses' ? 'Vis malen' : 'Vis svar'}>
+              <Text style={{ color: colors.brand }}>{tab === 'responses' ? 'Malen' : `Svar${responses.length ? ` (${responses.length})` : ''}`}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel="Innstillinger">
+              <Ionicons name="settings-outline" size={20} color={colors.ink} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onSave} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff' }}>Lagre</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {readOpen ? (
+          <View style={[styles.readPanel, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Les inn dokument</Text>
+            <Text style={{ color: colors.muted, lineHeight: 20 }}>Begge valgene leser malen med AI og lager et dokument du kan rette. Forskjellen er bare hvor filen kommer fra.</Text>
+            <TouchableOpacity onPress={() => { setReadOpen(false); onScan(); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Ta bilde av papir" style={[styles.readChoice, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Ta bilde av papir</Text>
+              <Text style={{ color: colors.muted }}>Åpner kameraet. Brukes når malen ligger foran deg.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setReadOpen(false); onImport(); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Last opp fil" style={[styles.readChoice, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Last opp fil</Text>
+              <Text style={{ color: colors.muted }}>PDF, Word, bilde eller tekst fra maskinen. Samme lesing, uten kamera.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setReadOpen(false)} accessibilityRole="button">
+              <Text style={{ color: colors.muted }}>Lukk</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {tab === 'questions' && attention.issues.length ? (
+          <View style={[styles.attention, { borderColor: '#9a6700', backgroundColor: colors.card, marginHorizontal: 16, marginTop: 8 }]}>
+            <Text style={{ color: '#9a6700', fontWeight: '700' }}>Se over før du lagrer</Text>
+            {attention.issues.map((issue) => (
+              <TouchableOpacity
+                key={`${issue.fieldId || 'note'}-${issue.text}`}
+                onPress={() => {
+                  const index = draft.fields.findIndex((field) => field.id === issue.fieldId);
+                  if (index >= 0) setSelected(index);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: '#9a6700', fontWeight: '600' }}>{issue.text}</Text>
               </TouchableOpacity>
-              <View style={styles.row}>
-                <TouchableOpacity onPress={onScan} disabled={busy} accessibilityRole="button" accessibilityLabel="AI-scan">
-                  <Text style={{ color: colors.brand }}>{busy ? 'Leser …' : 'AI-scan'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onImport} disabled={busy} accessibilityRole="button" accessibilityLabel="Importer">
-                  <Text style={{ color: colors.brand }}>Importer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel="Innstillinger">
-                  <Ionicons name="settings-outline" size={20} color={colors.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onSave} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-                  <Text style={{ color: '#fff' }}>Lagre</Text>
-                </TouchableOpacity>
-              </View>
+            ))}
+          </View>
+        ) : null}
+        {!!imageNote && <Text style={{ color: colors.danger, marginHorizontal: 16, marginTop: 8 }}>{imageNote}</Text>}
+        {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand, marginHorizontal: 16, marginTop: 8 }}>{note}</Text>}
+        {tab === 'responses' ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
+              <TouchableOpacity onPress={exportCsv} accessibilityRole="button" style={styles.menuRow}>
+                <Ionicons name="download-outline" size={18} color={colors.ink} />
+                <Text style={{ color: colors.ink }}>Eksporter til CSV</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { if (typeof window !== 'undefined') window.print(); }} accessibilityRole="button" style={styles.menuRow}>
+                <Ionicons name="print-outline" size={18} color={colors.ink} />
+                <Text style={{ color: colors.ink }}>Skriv ut</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onDraft({ ...draft, responses: [] })} accessibilityRole="button" style={styles.menuRow}>
+                <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                <Text style={{ color: colors.danger }}>Slette alle</Text>
+              </TouchableOpacity>
             </View>
-            {tab === 'questions' ? (
-              <>
-                <CompanyLogoChoice
-                  value={!!settings.useCompanyLogo}
-                  onChange={(useCompanyLogo) => onDraft({ ...draft, settings: { ...settings, useCompanyLogo } })}
-                  logo={companyLogo}
-                  colors={colors}
-                  subject="skjemaet"
-                />
-                <TouchableOpacity onPress={setCover} accessibilityRole="button" style={[styles.cover, { backgroundColor: colors.card, borderColor: colors.line }]}>
-                  {draft.cover ? <Image source={{ uri: draft.cover }} style={styles.coverImage} /> : (
-                    <Text style={{ color: colors.muted }}>Legg til forsidebilde</Text>
-                  )}
+            <View style={styles.row}>
+              {[['summary', 'Sammendrag'], ['question', 'Spørsmål'], ['person', 'Individuell']].map(([id, label]) => (
+                <TouchableOpacity key={id} onPress={() => setResponseTab(id)} accessibilityRole="button" style={[styles.typeChip, { backgroundColor: responseTab === id ? colors.brand : colors.sunken }]}>
+                  <Text style={{ color: responseTab === id ? '#fff' : colors.ink }}>{label}</Text>
                 </TouchableOpacity>
-                {attention.issues.length ? (
-                  <View style={[styles.attention, { borderColor: '#9a6700', backgroundColor: colors.card }]}>
-                    <Text style={{ color: '#9a6700', fontWeight: '700' }}>Se over før du lagrer</Text>
-                    {attention.issues.map((issue) => (
-                      <TouchableOpacity
-                        key={`${issue.fieldId || 'note'}-${issue.text}`}
-                        onPress={() => {
-                          const index = draft.fields.findIndex((field) => field.id === issue.fieldId);
-                          if (index >= 0) setSelected(index);
-                        }}
-                        accessibilityRole="button"
-                      >
-                        <Text style={{ color: '#9a6700', fontWeight: '600' }}>{issue.text}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : null}
-                <View style={[styles.card, styles.headerCard, { backgroundColor: colors.card, borderColor: colors.line, borderTopColor: colors.brand }]}>
-                  <TextInput
-                    value={draft.title}
-                    onChangeText={(title) => onDraft({ ...draft, title })}
-                    placeholder="Navn på skjemaet"
-                    placeholderTextColor={colors.placeholder}
-                    style={[styles.title, { color: colors.ink }]}
-                  />
-                  <TextInput
-                    value={draft.intro}
-                    onChangeText={(intro) => onDraft({ ...draft, intro })}
-                    placeholder="Beskrivelse"
-                    placeholderTextColor={colors.placeholder}
-                    multiline
-                    style={[styles.intro, { color: colors.ink }]}
-                  />
+              ))}
+            </View>
+            <Text style={{ color: colors.muted }}>{responses.length} svar</Text>
+            {responseTab === 'person' && !responses.length ? <Text style={{ color: colors.muted }}>Ingen svar ennå.</Text> : null}
+            {responseTab === 'person' && activePerson ? (
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 8 }]}>
+                <View style={styles.row}>
+                  <TouchableOpacity onPress={() => setPerson(Math.max(0, person - 1))} accessibilityRole="button"><Text style={{ color: colors.brand }}>Forrige</Text></TouchableOpacity>
+                  <Text style={{ color: colors.muted }}>{person + 1} / {responses.length}</Text>
+                  <TouchableOpacity onPress={() => setPerson(Math.min(responses.length - 1, person + 1))} accessibilityRole="button"><Text style={{ color: colors.brand }}>Neste</Text></TouchableOpacity>
                 </View>
-                {draft.fields.map((field, index) => {
-                  const on = index === selected;
-                  const meta = fieldType(field.kind);
-                  return (
-                    <View key={field.id}>
-                      <View style={[styles.gap, { height: drag?.active && drag.hover === index ? 64 : 0, borderWidth: drag?.active && drag.hover === index ? 1 : 0, backgroundColor: colors.brandSoft, borderColor: colors.brand }]}>
-                        {drag?.hover === index ? <Text style={{ color: colors.brand, fontWeight: '600' }}>Slipp feltet her</Text> : null}
-                      </View>
-                      <View
-                        ref={(node) => { fieldRefs.current[index] = node; }}
-                        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, borderLeftColor: on ? colors.brand : colors.line, borderLeftWidth: on ? 4 : 1 }]}
-                      >
-                        <View style={styles.questionHead}>
-                          <View
-                            onPointerDown={(event) => beginDrag(index, event)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Dra ${field.label || 'felt'}`}
-                            style={[styles.grip, { backgroundColor: colors.sunken }]}
-                          >
-                            <Ionicons name="reorder-three" size={18} color={colors.muted} />
-                          </View>
-                          {on && field.kind !== 'title' ? (
-                            <TextInput
-                              value={field.label}
-                              onChangeText={(label) => patch(index, { label })}
-                              placeholder="Spørsmål"
-                              placeholderTextColor={colors.placeholder}
-                              style={[styles.questionInput, { color: colors.ink, borderColor: colors.line }]}
-                            />
-                          ) : (
-                            <TouchableOpacity onPress={() => setSelected(index)} style={{ flex: 1 }} accessibilityRole="button">
-                              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: field.kind === 'title' ? 20 : 16 }}>{field.label || 'Spørsmål'}</Text>
-                            </TouchableOpacity>
-                          )}
-                          <TouchableOpacity
-                            onPress={() => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
-                            accessibilityRole="button"
-                            accessibilityLabel="Velg spørsmålstype"
-                            style={[styles.typeChip, { backgroundColor: colors.sunken }]}
-                          >
-                            <Ionicons name={ICONS[field.kind] || 'ellipse-outline'} size={16} color={colors.brand} />
-                            <Text style={{ color: colors.ink }}>{meta.label}</Text>
-                          </TouchableOpacity>
-                        </View>
-                        {on && field.kind === 'title' ? (
-                          <TextInput
-                            value={field.label}
-                            onChangeText={(label) => patch(index, { label })}
-                            placeholder="Seksjon"
-                            placeholderTextColor={colors.placeholder}
-                            style={[styles.questionInput, { color: colors.ink, borderColor: colors.line }]}
-                          />
-                        ) : null}
-                        {on && ['choice', 'checks', 'dropdown'].includes(field.kind) ? (
-                          <View style={{ gap: 8 }}>
-                            {(field.options || []).map((option, optionIndex) => (
-                              <View key={option.id} style={styles.optionRow}>
-                                <Ionicons name={field.kind === 'checks' ? 'square-outline' : field.kind === 'dropdown' ? 'chevron-down' : 'ellipse-outline'} size={16} color={colors.muted} />
-                                <TextInput
-                                  value={option.label}
-                                  onChangeText={(label) => patch(index, { options: field.options.map((row, i) => (i === optionIndex ? { ...row, label } : row)) })}
-                                  placeholder={`Alternativ ${optionIndex + 1}`}
-                                  placeholderTextColor={colors.placeholder}
-                                  style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]}
-                                />
-                                {option.image ? <Image source={{ uri: option.image }} style={styles.optionImage} /> : null}
-                                <TouchableOpacity onPress={() => setOptionImage(index, optionIndex)} accessibilityRole="button" accessibilityLabel="Bilde på alternativ">
-                                  <Ionicons name="image-outline" size={18} color={colors.brand} />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => patch(index, { options: field.options.filter((_, i) => i !== optionIndex) })} accessibilityRole="button" accessibilityLabel="Fjern alternativ">
-                                  <Ionicons name="remove-circle-outline" size={18} color={colors.danger} />
-                                </TouchableOpacity>
-                              </View>
-                            ))}
-                            {field.other ? <Text style={{ color: colors.muted }}>Annet…</Text> : null}
-                            <View style={styles.row}>
-                              <TouchableOpacity onPress={() => patch(index, { options: [...(field.options || []), { id: `${field.id}_${(field.options || []).length}`, label: '' }] })} accessibilityRole="button">
-                                <Text style={{ color: colors.brand }}>Legg til alternativ</Text>
-                              </TouchableOpacity>
-                              {field.kind !== 'dropdown' ? (
-                                <TouchableOpacity onPress={() => patch(index, { other: !field.other })} accessibilityRole="button">
-                                  <Text style={{ color: colors.brand }}>{field.other ? 'Fjern Annet' : 'eller legg til Annet'}</Text>
-                                </TouchableOpacity>
-                              ) : null}
-                            </View>
-                          </View>
-                        ) : null}
-                        {on && field.kind === 'scale' ? (
-                          <View style={{ gap: 8 }}>
-                            <Text style={{ color: colors.muted }}>Skala 1–{field.scaleMax || 5}</Text>
-                            <View style={styles.row}>
-                              {[3, 5, 7, 10].map((n) => (
-                                <TouchableOpacity key={n} onPress={() => patch(index, { scaleMax: n })} accessibilityRole="button" style={[styles.scaleN, { backgroundColor: field.scaleMax === n ? colors.brand : colors.sunken }]}>
-                                  <Text style={{ color: field.scaleMax === n ? '#fff' : colors.ink }}>{n}</Text>
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                            <TextInput value={field.lowLabel || ''} onChangeText={(lowLabel) => patch(index, { lowLabel })} placeholder="Etikett for 1" placeholderTextColor={colors.placeholder} style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]} />
-                            <TextInput value={field.highLabel || ''} onChangeText={(highLabel) => patch(index, { highLabel })} placeholder="Etikett for høyeste" placeholderTextColor={colors.placeholder} style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]} />
-                          </View>
-                        ) : null}
-                        {on && field.review ? (
-                          <View style={styles.row}>
-                            <Text style={{ color: '#9a6700', flex: 1 }}>{field.review}</Text>
-                            <TouchableOpacity onPress={() => patch(index, { review: '' })} accessibilityRole="button">
-                              <Text style={{ color: colors.brand }}>Sett som ferdig</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : null}
-                        {on && field.kind !== 'title' ? (
-                          <TextInput
-                            value={field.help || ''}
-                            onChangeText={(help) => patch(index, { help })}
-                            placeholder="Hjelpetekst"
-                            placeholderTextColor={colors.placeholder}
-                            style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]}
-                          />
-                        ) : null}
-                        {on && field.kind !== 'title' && !['check', 'choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
-                          <TextInput
-                            value={field.placeholder || ''}
-                            onChangeText={(placeholder) => patch(index, { placeholder })}
-                            placeholder="Tekst inne i feltet"
-                            placeholderTextColor={colors.placeholder}
-                            style={[styles.optionInput, { color: colors.ink, borderBottomColor: colors.line }]}
-                          />
-                        ) : null}
-                        {on ? (
-                          <View style={[styles.cardFoot, { borderTopColor: colors.line }]}>
-                            {field.kind !== 'title' ? (
-                              <View style={styles.switchRow}>
-                                <Text style={{ color: colors.ink }}>{field.width === 'half' ? 'Halv bredde' : 'Full bredde'}</Text>
-                                <Switch value={field.width === 'half'} onValueChange={(half) => patch(index, { width: half ? 'half' : 'full' })} />
-                              </View>
-                            ) : null}
-                            {field.kind !== 'title' ? (
-                              <View style={styles.switchRow}>
-                                <Text style={{ color: colors.ink }}>Obligatorisk</Text>
-                                <Switch value={!!field.required} onValueChange={(required) => patch(index, { required })} />
-                              </View>
-                            ) : null}
-                            {['choice', 'checks', 'dropdown'].includes(field.kind) ? (
-                              <View style={styles.switchRow}>
-                                <Text style={{ color: colors.ink }}>Tilfeldig rekkefølge</Text>
-                                <Switch value={!!field.shuffle} onValueChange={(shuffle) => patch(index, { shuffle })} />
-                              </View>
-                            ) : null}
-                            <View style={styles.row}>
-                              <TouchableOpacity onPress={() => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }} accessibilityRole="button" accessibilityLabel="Kopier spørsmål">
-                                <Ionicons name="copy-outline" size={18} color={colors.muted} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => { onDraft({ ...draft, fields: moveField(draft.fields, index, index - 1) }); setSelected(Math.max(0, index - 1)); }} accessibilityRole="button" accessibilityLabel="Flytt opp">
-                                <Ionicons name="arrow-up" size={18} color={colors.muted} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => { onDraft({ ...draft, fields: moveField(draft.fields, index, index + 1) }); setSelected(Math.min(draft.fields.length - 1, index + 1)); }} accessibilityRole="button" accessibilityLabel="Flytt ned">
-                                <Ionicons name="arrow-down" size={18} color={colors.muted} />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  const fields = draft.fields.filter((_, i) => i !== index);
-                                  onDraft({ ...draft, fields });
-                                  setSelected(Math.max(0, index - 1));
-                                }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Slett spørsmål"
-                              >
-                                <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  );
-                })}
-                <View style={[styles.gap, { height: drag?.active && drag.hover === draft.fields.length ? 64 : 0, borderWidth: drag?.active && drag.hover === draft.fields.length ? 1 : 0, backgroundColor: colors.brandSoft, borderColor: colors.brand }]}>
-                  {drag?.hover === draft.fields.length ? <Text style={{ color: colors.brand, fontWeight: '600' }}>Slipp feltet her</Text> : null}
-                </View>
-              </>
-            ) : null}
-            {tab === 'preview' ? (
-              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 12 }]}>
-                {settings.useCompanyLogo && companyLogo?.dataUrl ? (
-                  <Image source={{ uri: companyLogo.dataUrl }} style={styles.logo} resizeMode="contain" accessibilityLabel="Bedriftens logo" />
-                ) : null}
-                {settings.useCompanyLogo && !companyLogo?.dataUrl ? (
-                  <Text style={{ color: colors.muted }}>Bedriftens logo er valgt, men ikke lastet opp ennå.</Text>
-                ) : null}
-                {draft.cover ? <Image source={{ uri: draft.cover }} style={styles.coverImage} /> : null}
-                <Text style={[styles.title, { color: colors.ink }]}>{draft.title || 'Uten navn'}</Text>
-                {draft.intro ? <Text style={{ color: colors.muted }}>{draft.intro}</Text> : null}
-                {settings.progress ? (
-                  <View style={[styles.track, { backgroundColor: colors.sunken }]}>
-                    <View style={[styles.bar, { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.brand }]} />
-                  </View>
-                ) : null}
-                {settings.requireLogin ? <Text style={{ color: colors.muted }}>Innlogging kreves for å sende inn.</Text> : null}
-                {settings.collectEmail ? (
-                  <TextInput value={email} onChangeText={setEmail} placeholder="E-post" placeholderTextColor={colors.placeholder} autoCapitalize="none" keyboardType="email-address" style={[styles.questionInput, { color: colors.ink, borderColor: colors.line }]} />
-                ) : null}
-                {previewRows(previewFields).map((row) => (
-                  <View key={row.map((field) => field.id).join('-')} style={row.length > 1 ? styles.pair : undefined}>
-                    {row.map((field) => (
-                      <View key={field.id} style={row.length > 1 ? styles.pairItem : undefined}>
-                        <FormAnswer
-                          field={{
-                            ...field,
-                            options: optionsFor(field),
-                            value: answers[field.id] ?? (field.kind === 'check' ? false : field.kind === 'checks' ? [] : ''),
-                          }}
-                          colors={colors}
-                          onChange={(next) => setAnswers((current) => ({ ...current, [field.id]: next }))}
-                          onPickFile={() => setAnswers((current) => ({ ...current, [field.id]: { name: field.kind === 'image' ? 'bilde.jpg' : 'fil.pdf' } }))}
-                        />
-                      </View>
-                    ))}
+                {activePerson.email ? <Text style={{ color: colors.ink }}>{activePerson.email}</Text> : null}
+                {draft.fields.filter((field) => isAnswerField(field)).map((field) => (
+                  <View key={field.id}>
+                    <Text style={{ color: colors.muted }}>{field.label}</Text>
+                    <Text style={{ color: colors.ink }}>{displayAnswer(field, activePerson.answers?.[field.id]) || '—'}</Text>
                   </View>
                 ))}
-                {sent ? <Text style={{ color: colors.brand }}>{settings.confirmation || 'Svaret er sendt.'}</Text> : null}
-                {!!sendNote && <Text style={{ color: colors.danger }}>{sendNote}</Text>}
-                <View style={styles.row}>
-                  <TouchableOpacity onPress={submit} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
-                    <Text style={{ color: '#fff' }}>Send inn</Text>
-                  </TouchableOpacity>
-                  {sent && settings.anotherResponse ? (
-                    <TouchableOpacity onPress={() => { setSent(false); setAnswers({}); setEmail(''); }} accessibilityRole="button">
-                      <Text style={{ color: colors.brand }}>Send et annet svar</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {sent && settings.showSummary ? (
-                    <TouchableOpacity onPress={() => openTab('responses')} accessibilityRole="button">
-                      <Text style={{ color: colors.brand }}>Se sammendrag</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
               </View>
             ) : null}
-            {tab === 'responses' ? (
-              <View style={{ gap: 12 }}>
-                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-                  <TouchableOpacity onPress={exportCsv} accessibilityRole="button" style={styles.menuRow}>
-                    <Ionicons name="download-outline" size={18} color={colors.ink} />
-                    <Text style={{ color: colors.ink }}>Eksporter til CSV</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { if (typeof window !== 'undefined') window.print(); }} accessibilityRole="button" style={styles.menuRow}>
-                    <Ionicons name="print-outline" size={18} color={colors.ink} />
-                    <Text style={{ color: colors.ink }}>Skriv ut</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => onDraft({ ...draft, responses: [] })} accessibilityRole="button" style={styles.menuRow}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                    <Text style={{ color: colors.danger }}>Slette alle</Text>
-                  </TouchableOpacity>
+            {responseTab !== 'person' ? draft.fields.filter((field) => isAnswerField(field)).map((field) => {
+              const summary = summarizeQuestion(field, responses);
+              return (
+                <View key={field.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 8 }]}>
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>{field.label}</Text>
+                  <Text style={{ color: colors.muted }}>{summary.answered} svar</Text>
+                  {summary.counts && summary.answered ? <PieChart counts={summary.counts} colors={colors} /> : null}
+                  {field.kind === 'scale' && summary.answered ? <Text style={{ color: colors.ink }}>Snitt {summary.average}</Text> : null}
+                  {(summary.texts || []).map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
+                  {!summary.answered ? <Text style={{ color: colors.muted }}>Ingen svar ennå på dette spørsmålet.</Text> : null}
                 </View>
-                <View style={styles.row}>
-                  {[['summary', 'Sammendrag'], ['question', 'Spørsmål'], ['person', 'Individuell']].map(([id, label]) => (
-                    <TouchableOpacity key={id} onPress={() => setResponseTab(id)} accessibilityRole="button" style={[styles.typeChip, { backgroundColor: responseTab === id ? colors.brand : colors.sunken }]}>
-                      <Text style={{ color: responseTab === id ? '#fff' : colors.ink }}>{label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={{ color: colors.muted }}>{responses.length} svar</Text>
-                {responseTab === 'person' && !responses.length ? <Text style={{ color: colors.muted }}>Ingen svar ennå.</Text> : null}
-                {responseTab === 'person' && activePerson ? (
-                  <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 8 }]}>
-                    <View style={styles.row}>
-                      <TouchableOpacity onPress={() => setPerson(Math.max(0, person - 1))} accessibilityRole="button"><Text style={{ color: colors.brand }}>Forrige</Text></TouchableOpacity>
-                      <Text style={{ color: colors.muted }}>{person + 1} / {responses.length}</Text>
-                      <TouchableOpacity onPress={() => setPerson(Math.min(responses.length - 1, person + 1))} accessibilityRole="button"><Text style={{ color: colors.brand }}>Neste</Text></TouchableOpacity>
-                    </View>
-                    {activePerson.email ? <Text style={{ color: colors.ink }}>{activePerson.email}</Text> : null}
-                    {draft.fields.filter((field) => field.kind !== 'title').map((field) => (
-                      <View key={field.id}>
-                        <Text style={{ color: colors.muted }}>{field.label}</Text>
-                        <Text style={{ color: colors.ink }}>{displayAnswer(field, activePerson.answers?.[field.id]) || '—'}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-                {responseTab !== 'person' ? draft.fields.filter((field) => field.kind !== 'title').map((field) => {
-                  const summary = summarizeQuestion(field, responses);
-                  return (
-                    <View key={field.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, gap: 8 }]}>
-                      <Text style={{ color: colors.ink, fontWeight: '600' }}>{field.label}</Text>
-                      <Text style={{ color: colors.muted }}>{summary.answered} svar</Text>
-                      {summary.counts && summary.answered ? <PieChart counts={summary.counts} colors={colors} /> : null}
-                      {field.kind === 'scale' && summary.answered ? <Text style={{ color: colors.ink }}>Snitt {summary.average}</Text> : null}
-                      {(summary.texts || []).map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
-                      {!summary.answered ? <Text style={{ color: colors.muted }}>Ingen svar ennå på dette spørsmålet.</Text> : null}
-                    </View>
-                  );
-                }) : null}
+              );
+            }) : null}
+          </ScrollView>
+        ) : (
+          <View style={{ flex: 1, minHeight: 0, flexDirection: paneWidth >= 900 ? 'row' : 'column' }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+              <Text style={[styles.kicker, { color: colors.muted }]}>Malen</Text>
+              <View style={styles.row}>
+                <TouchableOpacity onPress={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })} accessibilityRole="button">
+                  <Text style={{ color: colors.brand }}>{settings.useCompanyLogo ? 'Skjul logo' : 'Vis logo'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={setCover} accessibilityRole="button">
+                  <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setTypeFor(null); setTypeOpen(true); }} accessibilityRole="button" accessibilityLabel="Legg til felt">
+                  <Text style={{ color: colors.brand }}>Legg til felt</Text>
+                </TouchableOpacity>
               </View>
-            ) : null}
-            {!!imageNote && <Text style={{ color: colors.danger }}>{imageNote}</Text>}
-            {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
+              <View ref={canvasRef}>
+                <FormDocument
+                  draft={draft}
+                  colors={colors}
+                  mode="edit"
+                  companyLogo={companyLogo}
+                  selected={selected}
+                  onSelect={setSelected}
+                  onPatch={changeDocument}
+                  onType={(index) => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
+                  onDuplicate={(index) => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }}
+                  onMove={(index, delta) => {
+                    onDraft({ ...draft, fields: moveField(draft.fields, index, index + delta) });
+                    setSelected(Math.max(0, Math.min(draft.fields.length - 1, index + delta)));
+                  }}
+                  onDelete={(index) => {
+                    const fields = draft.fields.filter((_, i) => i !== index);
+                    onDraft({ ...draft, fields });
+                    setSelected(Math.max(0, index - 1));
+                  }}
+                  onOptionImage={setOptionImage}
+                  onGrip={beginDrag}
+                  drag={drag}
+                  fieldRefs={fieldRefs}
+                />
+              </View>
+            </ScrollView>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+              <Text style={[styles.kicker, { color: colors.muted }]}>Forhåndsvisning</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Slik ser dokumentet ut når det fylles ut. Den ligger her hele tiden.</Text>
+              <FormDocument
+                draft={{ ...draft, fields: previewFields }}
+                colors={colors}
+                mode="fill"
+                companyLogo={companyLogo}
+                answers={answers}
+                onAnswer={(id, next) => setAnswers((current) => ({ ...current, [id]: next }))}
+                onPickFile={(field) => setAnswers((current) => ({ ...current, [field.id]: { name: field.kind === 'image' ? 'bilde.jpg' : 'fil.pdf' } }))}
+                optionsFor={optionsFor}
+                showSubmit
+                email={email}
+                onEmail={setEmail}
+                sent={sent}
+                sendNote={sendNote}
+                onSubmit={submit}
+                onAnother={() => { setSent(false); setAnswers({}); setEmail(''); }}
+                onSummary={() => openTab('responses')}
+                progress={progress}
+              />
+            </ScrollView>
           </View>
-        </ScrollView>
-      </View>
-      {tab === 'questions' ? (
-        <TouchableOpacity
-          onPress={() => { setTypeFor(null); setTypeOpen(true); }}
-          accessibilityRole="button"
-          accessibilityLabel="Nytt spørsmål"
-          style={[styles.fab, { backgroundColor: colors.brand }]}
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </TouchableOpacity>
-      ) : null}
-      <View style={[styles.tabs, { backgroundColor: colors.card, borderTopColor: colors.line }]}>
-        {[
-          ['questions', 'Spørsmål', 'list-outline'],
-          ['preview', 'Forhåndsvisning', 'eye-outline'],
-          ['responses', 'Svar', 'pie-chart-outline'],
-        ].map(([id, label, icon]) => (
-          <TouchableOpacity key={id} onPress={() => openTab(id)} accessibilityRole="button" style={styles.tab}>
-            <Ionicons name={icon} size={18} color={tab === id ? colors.brand : colors.muted} />
-            <Text style={{ color: tab === id ? colors.brand : colors.muted, fontSize: 12 }}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        )}
       </View>
       {typeOpen ? (
         <View style={styles.sheetWrap}>
           <TouchableOpacity style={styles.scrim} onPress={() => setTypeOpen(false)} accessibilityRole="button" accessibilityLabel="Lukk" />
           <View style={[styles.sheet, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg spørsmålstype</Text>
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg felttype</Text>
             <ScrollView>
               {FIELD_GROUPS.map((group) => (
                 <View key={group.id} style={{ gap: 4, marginBottom: 12 }}>
@@ -869,6 +660,10 @@ function displayAnswer(field, value) {
 const styles = StyleSheet.create({
   fill: { position: 'relative', minHeight: 560 },
   scroll: { padding: 12, paddingBottom: 96 },
+  column: { padding: 16, gap: 8, paddingBottom: 48 },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  readPanel: { marginHorizontal: 16, marginTop: 8, borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  readChoice: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
   center: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 12 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },

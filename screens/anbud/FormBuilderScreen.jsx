@@ -218,11 +218,11 @@ export default function FormBuilderScreen({
     <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
       <CreateMenu
         label="Nytt skjema"
-        title="Nytt skjema"
-        info="AI-scan og import leser bilde, PDF, Word eller tekst. Bokser, avkrysninger og kolonner blir felt du kan rette før du lagrer."
+        title="Les inn en mal"
+        info="Ta bilde når malen ligger på papir. Last opp fil når du har PDF, Word, bilde eller tekst. Begge leses med AI og blir et dokument du retter før du lagrer."
         actions={[
-          { id: 'scan', label: busy ? 'Leser …' : 'AI-scan', primary: true, onPress: () => readDocument('scan'), disabled: busy },
-          { id: 'import', label: busy ? 'Leser …' : 'Importer', onPress: () => readDocument('import'), disabled: busy },
+          { id: 'scan', label: busy ? 'Leser …' : 'Ta bilde av papir', hint: 'Åpner kameraet. Brukes når avtalen ligger foran deg.', primary: true, onPress: () => readDocument('scan'), disabled: busy },
+          { id: 'import', label: busy ? 'Leser …' : 'Last opp fil', hint: 'PDF, Word, bilde eller tekst fra maskinen. Samme lesing, uten kamera.', onPress: () => readDocument('import'), disabled: busy },
         ]}
       />
       <TextInput

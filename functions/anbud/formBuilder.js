@@ -2,6 +2,7 @@
 
 export const FIELD_TYPES = [
   { id: 'title', label: 'Seksjon', hint: 'Overskrift uten svarfelt' },
+  { id: 'note', label: 'Tekst i dokumentet', hint: 'Fast tekst som ikke skal fylles ut' },
   { id: 'long', label: 'Avsnitt', hint: 'Et lengre svar' },
   { id: 'text', label: 'Kort svar', hint: 'Ett svar på en linje' },
   { id: 'choice', label: 'Flervalg', hint: 'Ett av flere alternativer' },
@@ -17,8 +18,8 @@ export const FIELD_TYPES = [
 ];
 
 export const FIELD_GROUPS = [
-  { id: 'seksjon', label: 'Seksjon', types: ['title'] },
-  { id: 'sporsmal', label: 'Spørsmål', types: ['long', 'text', 'choice', 'checks', 'dropdown', 'scale', 'date', 'time', 'number', 'check', 'image', 'file'] },
+  { id: 'dokument', label: 'Dokument', types: ['title', 'note'] },
+  { id: 'sporsmal', label: 'Felt', types: ['long', 'text', 'choice', 'checks', 'dropdown', 'scale', 'date', 'time', 'number', 'check', 'image', 'file'] },
 ];
 
 export const FIELD_TYPE_IDS = new Set(FIELD_TYPES.map((row) => row.id));
@@ -38,12 +39,18 @@ export function fieldType(kind) {
   return FIELD_TYPES.find((row) => row.id === kind) || FIELD_TYPES.find((row) => row.id === 'text');
 }
 
+export function isAnswerField(field) {
+  const kind = field?.kind;
+  return kind !== 'title' && kind !== 'note';
+}
+
 export function blankField(kind = 'text') {
   const id = createId('felt');
   const type = FIELD_TYPE_IDS.has(kind) ? kind : 'text';
+  const label = type === 'title' ? 'Ny seksjon' : type === 'note' ? 'Ny tekst' : (type === 'choice' ? 'Spørsmål' : fieldType(type).label);
   return {
     id,
-    label: type === 'title' ? 'Ny seksjon' : (type === 'choice' ? 'Spørsmål' : fieldType(type).label),
+    label,
     kind: type,
     required: false,
     help: '',
@@ -122,7 +129,7 @@ function normalizeOptions(input) {
 }
 
 export function coerceAnswer(kind, value) {
-  if (kind === 'title') return '';
+  if (kind === 'title' || kind === 'note') return '';
   if (kind === 'check') return !!value;
   if (kind === 'scale') {
     const n = Number(value);
@@ -150,15 +157,16 @@ export function coerceAnswer(kind, value) {
 }
 
 export function normalizeBuilderField(raw) {
-  const label = text(raw?.label).slice(0, 120);
+  const kind = FIELD_TYPE_IDS.has(raw?.kind) ? raw.kind : 'text';
+  const label = text(raw?.label).slice(0, kind === 'note' ? 1500 : 120);
   const id = text(raw?.id).slice(0, 40) || createId('felt');
   if (!label) return null;
-  const kind = FIELD_TYPE_IDS.has(raw?.kind) ? raw.kind : 'text';
+  const staticKind = kind === 'title' || kind === 'note';
   return {
     id,
     label,
     kind,
-    required: kind === 'title' ? false : !!raw?.required,
+    required: staticKind ? false : !!raw?.required,
     help: text(raw?.help).slice(0, 180),
     shuffle: OPTION_KINDS.has(kind) ? !!raw?.shuffle : false,
     other: kind === 'choice' || kind === 'checks' ? !!raw?.other : false,
@@ -166,8 +174,8 @@ export function normalizeBuilderField(raw) {
     scaleMax: kind === 'scale' ? Math.max(2, Math.min(10, Number(raw?.scaleMax) || 5)) : 5,
     lowLabel: kind === 'scale' ? text(raw?.lowLabel).slice(0, 40) : '',
     highLabel: kind === 'scale' ? text(raw?.highLabel).slice(0, 40) : '',
-    placeholder: kind === 'title' ? '' : text(raw?.placeholder).slice(0, 120),
-    width: raw?.width === 'half' ? 'half' : 'full',
+    placeholder: staticKind ? '' : text(raw?.placeholder).slice(0, 120),
+    width: staticKind ? 'full' : (raw?.width === 'half' ? 'half' : 'full'),
     review: text(raw?.review).slice(0, 180),
     options: OPTION_KINDS.has(kind) ? normalizeOptions(raw?.options) : [],
     value: coerceAnswer(kind, raw?.value),
@@ -294,7 +302,7 @@ function csvCell(value) {
 }
 
 export function responsesToCsv(form) {
-  const fields = (form?.fields || []).filter((field) => field.kind !== 'title');
+  const fields = (form?.fields || []).filter((field) => isAnswerField(field));
   const collectEmail = !!form?.settings?.collectEmail;
   const headers = ['Tid', ...(collectEmail ? ['E-post'] : []), ...fields.map((field) => field.label)];
   const lines = [headers];
@@ -453,6 +461,7 @@ Returner KUN gyldig JSON:
 }
 Slik kjenner du igjen felt:
 - title er en overskrift eller seksjon som ikke skal fylles ut.
+- note er fast tekst som skal stå i dokumentet og ikke fylles ut: brevhode, dokument-id, org.nr, sidefot, lovtekst eller en hel setning. Hele teksten ligger i label.
 - text er én linje, en understrek eller en liten boks.
 - long er en stor tekstboks eller flere linjer.
 - date er et datofelt, også når det står dd.mm.åååå.
@@ -469,7 +478,10 @@ Slik kjenner du igjen felt:
 - required er true når feltet har stjerne eller «må fylles ut».
 - review fylles når typen er usikker, teksten er kuttet, alternativene mangler, eller et bilde i skjemaet ikke kan gjenskapes som felt.
 Utfyllingsfelter som er listet opp, er fasit for type. Bruk etiketten som står ved feltet, ikke interne navn som Text1.
-Ikke finn opp felter som ikke står i dokumentet. Ta med feltene i alle kolonner. Maks 80 felt.`;
+Brevhode, dokumentnavn, dokument-id, org.nr, nettadresse, utskriftstid og sidefot er note, ikke utfyllingsfelt.
+Tekst i klammer, som [Skriv inn prosjektnavn] eller [Dato], er placeholder. Etiketten er ordene foran klammen.
+Flere avkrysninger på samme linje, som ☐ EPOST ☐ EHF ☐ POST, er ett checks-felt.
+Ikke finn opp felter som ikke står i dokumentet. Ta med feltene i alle kolonner, og behold rekkefølgen fra dokumentet. Maks 80 felt.`;
 }
 
 /** Internt PDF-navn som Text1 eller Check Box 2 er ikke en etikett. */
@@ -565,7 +577,7 @@ function kindFromLabel(label, raw = '') {
   if (/bilde|foto|skisse|lim inn/i.test(label)) return 'image';
   if (/vedlegg|last opp|dokumentasjon/i.test(label)) return 'file';
   if (/\b(beløp|antall|pris|kr|m2|kvm|prosent)\b/i.test(label) || /\bsum\b/i.test(label)) return 'number';
-  if (/ja\s*\/\s*nei|kryss av|bekreft|avkrys/i.test(label)) return 'check';
+  if (/ja\s*\/\s*nei|kryss av|\bbekreft\b|avkrys/i.test(label)) return 'check';
   if (/_{20,}/.test(raw) || String(label || '').length > 80) return 'long';
   return 'text';
 }
@@ -577,11 +589,66 @@ function isHeading(line) {
   return value === value.toUpperCase() && /[A-ZÆØÅ]/.test(value);
 }
 
+function chromeLine(line) {
+  const value = String(line || '').trim();
+  if (!value || value.length > 220 || /\[[^\]]+\]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return false;
+  return /dokument\s*(navn|id)|dokumenteier|godkjent av|sentralbord|utskriftstidspunkt|sidetall|\bwww\.|org\.\s*\d{3}|ledelsessystem/i.test(value);
+}
+
+function sectionLine(line) {
+  const value = String(line || '').trim();
+  if (!value || value.length >= 48 || /[:[\]]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return false;
+  if (isHeading(value)) return true;
+  if (/^underskrifter$/i.test(value) || /bestemmelser$/i.test(value)) return true;
+  if (kindFromLabel(value, value) !== 'text') return false;
+  return /^(om|vedlegg|del|kapittel)\s+\S/i.test(value);
+}
+
+function proseLine(line) {
+  const value = String(line || '').trim();
+  if (value.length < 90 || /\[[^\]]+\]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return false;
+  return /[.!?]$/.test(value) || value.length > 160;
+}
+
+function plainTitle(line) {
+  const value = String(line || '').trim();
+  if (!value || value.length >= 40 || /[:[\]]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return false;
+  if (kindFromLabel(value, value) !== 'text') return false;
+  return value.split(/\s+/).length <= 4;
+}
+
+function checksFromBoxes(line) {
+  const marks = [...String(line || '').matchAll(/[☐☑☒□■]\s*([^☐☑☒□■]+)/g)];
+  if (marks.length < 2) return null;
+  const at = String(line).search(/[☐☑☒□■]/);
+  const label = stripDecor(String(line).slice(0, at)).slice(0, 120) || 'Valg';
+  const field = { ...blankField('checks'), label, options: [] };
+  for (const mark of marks) addOption(field, mark[1], 'checks');
+  return field.options.length >= 2 ? field : null;
+}
+
+function explodeBlanks(line) {
+  const raw = String(line || '').trim();
+  const boxes = raw.match(/[☐☑☒□■]/g) || [];
+  if (boxes.length >= 2) {
+    const field = checksFromBoxes(raw);
+    return field ? [field] : null;
+  }
+  if (!/\[[^\]]+\]/.test(raw)) return null;
+  const chunks = raw.split(/\s{2,}|(?<=\])\s+(?=\S)/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));
+  if (chunks.length < 2) return null;
+  const width = chunks.length === 2 ? 'half' : 'full';
+  const fields = chunks.map((part) => pushField(part, width)).filter(Boolean);
+  return fields.length ? fields : null;
+}
+
 function requiredOf(raw) {
   return /\*\s*$/.test(String(raw || '').trim()) || /\bobligatorisk\b/i.test(raw);
 }
 
 function placeholderOf(raw) {
+  const bracket = String(raw || '').match(/\[([^[\]]{1,80})\]/);
+  if (bracket) return text(bracket[1]).slice(0, 120);
   const match = String(raw || '').match(/\((?:f\.eks\.|for eksempel|eks\.|dd\.mm|tt:?mm|åååå)[^)]*\)/i);
   return match ? match[0].slice(1, -1).slice(0, 120) : '';
 }
@@ -589,6 +656,7 @@ function placeholderOf(raw) {
 function stripDecor(raw) {
   return text(raw)
     .replace(/^#{1,3}\s+/, '')
+    .replace(/\[[^[\]]{1,80}\]/g, ' ')
     .replace(/\((?:f\.eks\.|for eksempel|eks\.)[^)]*\)/gi, '')
     .replace(/[_·.]{3,}/g, ' ')
     .replace(/\s*\*+\s*$/, '')
@@ -640,10 +708,35 @@ export function formFromPlainText(source, titleHint = '') {
   const fields = [];
   let pending = null;
   let heading = '';
+  let lastWasChrome = false;
+  function pushTitle(line) {
+    const label = stripDecor(line).slice(0, 120);
+    if (!label) return;
+    if (!heading) heading = label;
+    fields.push({ ...blankField('title'), label });
+    pending = null;
+    lastWasChrome = false;
+  }
   for (const line of lines) {
+    const exploded = explodeBlanks(line);
+    if (exploded) {
+      pending = null;
+      lastWasChrome = false;
+      for (const field of exploded) fields.push(field);
+      const last = exploded[exploded.length - 1];
+      if (last && ['text', 'choice', 'checks'].includes(last.kind)) pending = last;
+      continue;
+    }
+    if (chromeLine(line)) {
+      pending = null;
+      lastWasChrome = true;
+      fields.push({ ...blankField('note'), label: stripDecor(line).slice(0, 1500) });
+      continue;
+    }
     const pair = line.split(/\t+|\s{3,}/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));
     if (pair.length === 2 && pair.every((part) => part.length < 70 && !BULLET.test(part) && !CHECK_MARK.test(part))) {
       pending = null;
+      lastWasChrome = false;
       for (const part of pair) {
         const field = pushField(part, 'half');
         if (field) fields.push(field);
@@ -667,10 +760,13 @@ export function formFromPlainText(source, titleHint = '') {
       }
     }
     pending = null;
-    if (isHeading(line)) {
-      const label = stripDecor(line).slice(0, 120);
-      if (!heading) heading = label;
-      fields.push({ ...blankField('title'), label });
+    if (sectionLine(line) || (lastWasChrome && plainTitle(line))) {
+      pushTitle(line);
+      continue;
+    }
+    lastWasChrome = false;
+    if (proseLine(line)) {
+      fields.push({ ...blankField('note'), label: stripDecor(line).slice(0, 1500) });
       continue;
     }
     const field = pushField(line);
@@ -828,7 +924,7 @@ export function applyImportedForm(current, incoming) {
 export function formAttention(form) {
   const fields = Array.isArray(form?.fields) ? form.fields : [];
   const issues = [];
-  if (!text(form?.title) || form.title === GENERIC_TITLE) {
+  if (form?.title === GENERIC_TITLE) {
     issues.push({ tone: 'warn', text: 'Gi skjemaet navnet som står på dokumentet.' });
   }
   if (!fields.length) issues.push({ tone: 'warn', text: 'Ingen felt er lest inn.' });

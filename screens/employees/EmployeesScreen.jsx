@@ -75,6 +75,7 @@ import {
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
+import ArbeidScreen from '../arbeid/ArbeidScreen';
 import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
@@ -656,6 +657,14 @@ export default function EmployeesScreen() {
     setView('cv');
   }
 
+  function openHours(row) {
+    resetMessage();
+    clearSectionEdit();
+    setSelectedId(row.id);
+    setDraft(presentEmployee(row));
+    setView('hours');
+  }
+
   async function importCvFile() {
     if (!draft || busy) return;
     setError('');
@@ -1160,12 +1169,21 @@ export default function EmployeesScreen() {
       nativeID="employees-page"
       id="employees-page"
       style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={[styles.inner, view === 'detail' && styles.innerWide]}
+      contentContainerStyle={[
+        styles.inner,
+        (view === 'detail' || view === 'hours') && styles.innerWide,
+        view === 'hours' && styles.innerHours,
+      ]}
       keyboardShouldPersistTaps="handled"
     >
       {view !== 'list' && view !== 'detail' ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-          {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'invite' ? 'Inviter brukere' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : (selected ? displayName(selected) : 'Ansatte')}
+          {view === 'mine' ? 'Min side'
+            : view === 'import' ? 'Kontroller import'
+              : view === 'invite' ? 'Inviter brukere'
+                : view === 'cv' && selected ? `CV · ${displayName(selected)}`
+                  : view === 'hours' && selected ? `Timeføring · ${displayName(selected)}`
+                    : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
       ) : null}
       {view === 'list' ? (
@@ -1304,11 +1322,17 @@ export default function EmployeesScreen() {
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {view === 'cv' && selected ? (
+          {(view === 'cv' || view === 'hours') && selected ? (
             <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Hovedside</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+
+      {view === 'hours' && selected ? (
+        <View style={styles.hoursHost} nativeID="employee-hours-view">
+          <ArbeidScreen lockedEmployeeId={selected.id} />
         </View>
       ) : null}
 
@@ -1371,13 +1395,7 @@ export default function EmployeesScreen() {
           busy={busy}
           onBack={openList}
           onCv={() => openCv(detailEmployee)}
-          onHours={() => {
-            if (!detailEmployee?.id) return;
-            requestShellTab?.('arbeid', 'timeliste', {
-              type: 'openTimesheet',
-              employeeId: detailEmployee.id,
-            });
-          }}
+          onHours={() => openHours(detailEmployee)}
           projectState={projectState}
           onOpenProject={(project) => {
             if (!project?.id) return;
@@ -1714,6 +1732,8 @@ function summaryNote(labels) {
 const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
+  innerHours: { maxWidth: 1400, flexGrow: 1 },
+  hoursHost: { minHeight: 720, width: '100%', alignSelf: 'stretch' },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },

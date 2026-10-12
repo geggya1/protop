@@ -72,12 +72,13 @@ function entryKey(projectId, date) {
   return `${projectId}|${date}`;
 }
 
-export default function ArbeidScreen() {
+export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
+  const lockedId = String(lockedEmployeeId || '').trim();
 
   const cached = peekProjectState(familyId);
   const [state, setState] = useState(() => cached || emptyProjectState());
@@ -141,18 +142,23 @@ export default function ArbeidScreen() {
     : canManageTimesheets({ isAdmin, employee: linked });
 
   useEffect(() => {
+    if (lockedId) {
+      setEmployeeId(lockedId);
+      return;
+    }
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
     else if (manager && employees[0]?.id) setEmployeeId(employees[0].id);
-  }, [linked, employees, manager, employeeId]);
+  }, [linked, employees, manager, employeeId, lockedId]);
 
   useEffect(() => {
+    if (lockedId) return;
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type !== 'openTimesheet') return;
     const id = String(shellIntent.employeeId || '').trim();
     if (id) setEmployeeId(id);
     clearShellIntent?.();
-  }, [shellIntent, clearShellIntent]);
+  }, [shellIntent, clearShellIntent, lockedId]);
 
   useEffect(() => {
     if (!empPickerOpen) setEmpPickerQuery('');
@@ -550,11 +556,13 @@ export default function ArbeidScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="arbeid-screen">
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timeføring</Text>
+          <Text style={[styles.crumb, { color: colors.muted }]}>
+            {lockedId ? 'Ansatte / Timeføring' : 'Arbeid / Timeføring'}
+          </Text>
           <TouchableOpacity
-            onPress={() => manager && setEmpPickerOpen(true)}
+            onPress={() => !lockedId && manager && setEmpPickerOpen(true)}
             style={styles.empBtn}
-            disabled={!manager}
+            disabled={!!lockedId || !manager}
             accessibilityRole="button"
           >
             {selectedEmployee?.person?.photoUrl ? (
@@ -565,7 +573,7 @@ export default function ArbeidScreen() {
               </View>
             )}
             <Text style={[styles.title, { color: colors.ink }]}>{selectedName}</Text>
-            {manager ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+            {!lockedId && manager ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
           </TouchableOpacity>
         </View>
         <View style={styles.monthNav}>

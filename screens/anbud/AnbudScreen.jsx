@@ -3,25 +3,42 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
+import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
+import { loadAnbudState } from '../../src/anbud/storage';
 import { useLayout } from '../../src/theme';
 import ScrollSheet from '../../components/ScrollSheet';
 import TenderAlert from './TenderAlert';
 import TenderInquiry from './TenderInquiry';
+import CurrentReview from './CurrentReview';
 import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { requestShellTab, shellIntent, clearShellIntent, family } = useApp();
   const [step, setStep] = useState(() => defaultAnbudSubView(subView));
   const [bids, setBids] = useState([]);
+  const [aktuellCount, setAktuellCount] = useState(0);
   const [focusBidId, setFocusBidId] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
+  const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
+  const reviewCount = aktuellCount + directQueueItems({ inquiries, inbox }).length;
 
   useEffect(() => {
     setStep(defaultAnbudSubView(subView));
   }, [subView]);
+
+  useEffect(() => {
+    let live = true;
+    loadAnbudState(company?.id).then((loaded) => {
+      if (!live) return;
+      setBids(loaded?.bids || []);
+      setAktuellCount(noticesAwaitingBid(loaded?.notices).length);
+    });
+    return () => { live = false; };
+  }, [company?.id]);
 
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object' || shellIntent.type !== 'openBid') return;
@@ -49,7 +66,11 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       <View style={styles.row}>
         {ANBUD_MENU.map((item) => {
           const on = step === item.id;
-          const extra = item.id === 'tilbud' && bids.length ? ` (${bids.length})` : '';
+          const extra = item.id === 'tilbud' && bids.length
+            ? ` (${bids.length})`
+            : item.id === 'vurdering' && reviewCount
+              ? ` (${reviewCount})`
+              : '';
           return (
             <TouchableOpacity
               key={item.id}
@@ -68,11 +89,24 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           colors={colors}
           units={units}
           onBids={setBids}
+          onReviewCount={setAktuellCount}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenBid={(bidId) => { go('tilbud'); setFocusBidId(bidId); }}
+          onOpenReview={() => go('vurdering')}
         />
       ) : null}
       {step === 'foresporsel' ? <TenderInquiry company={company} colors={colors} /> : null}
+      {step === 'vurdering' ? (
+        <CurrentReview
+          company={company}
+          colors={colors}
+          members={members}
+          units={units}
+          onNoticeCount={setAktuellCount}
+          onOpenBid={(bidId) => { go('tilbud'); setFocusBidId(bidId); }}
+          onOpenAlerts={() => go('varsling')}
+          onOpenInquiry={() => go('foresporsel')}
+        />
+      ) : null}
       {step === 'tilbud' ? (
         <BidDesk
           company={company}
@@ -85,6 +119,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onFocusHandled={() => setFocusBidId('')}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenAlerts={() => go('varsling')}
+          onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
           onSnapshot={(next) => setBids(next?.bids || [])}
         />

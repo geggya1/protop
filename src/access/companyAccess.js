@@ -599,7 +599,9 @@ export function companyTabAllowed(tab, subView, grants) {
   }
   if (tab === 'anbud') {
     if (subView === 'tilbud') return allows(grants, 'offers', 'see');
-    if (subView === 'varsling' || subView === 'foresporsel') return allows(grants, 'tenders', 'see');
+    if (subView === 'varsling' || subView === 'foresporsel' || subView === 'vurdering') {
+      return allows(grants, 'tenders', 'see');
+    }
     return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   }
   const resource = COMPANY_TAB_RESOURCE[tab];

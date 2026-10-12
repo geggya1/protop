@@ -890,10 +890,32 @@ export function seedDossier(notice) {
   };
 }
 
-function freshBid(notice, dossier) {
+function cleanAssignment(input) {
+  if (!input || typeof input !== 'object') return null;
+  const personId = text(input.personId).slice(0, 80);
+  const personName = text(input.personName).slice(0, 120);
+  const unitId = text(input.unitId).slice(0, 80);
+  const unitName = text(input.unitName).slice(0, 160);
+  if (!personId && !personName && !unitId && !unitName) return null;
+  return {
+    personId,
+    personName,
+    unitId,
+    unitName,
+    unitKind: text(input.unitKind).slice(0, 40),
+    companyId: text(input.companyId).slice(0, 80),
+    companyName: text(input.companyName).slice(0, 160),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function freshBid(notice, dossier, assignment) {
   return normalizeBidWork({
     id: `bid_${notice.id}`,
     noticeId: notice.id,
+    source: 'varsling',
+    originAt: notice.publishedAt || '',
+    interestAt: notice.interestAt || '',
     title: notice.title,
     buyer: notice.buyer,
     phase: 'trinn2',
@@ -901,10 +923,25 @@ function freshBid(notice, dossier) {
     strategy: normalizeStrategy(notice.consideration?.strategy),
     createdAt: new Date().toISOString(),
     dossier: dossier || notice.dossier || null,
+    assignment: assignment || null,
     folders: [],
     files: [],
     forms: [],
     questions: [],
+  });
+}
+
+function stampNoticeBid(bid, notice, assignment) {
+  return normalizeBidWork({
+    ...bid,
+    title: notice.title,
+    buyer: notice.buyer,
+    dossier: notice.dossier || bid.dossier,
+    strategy: normalizeStrategy(notice.consideration?.strategy || bid.strategy),
+    source: bid.source && bid.source !== 'manuell' ? bid.source : 'varsling',
+    originAt: bid.originAt || notice.publishedAt || '',
+    interestAt: bid.interestAt || notice.interestAt || '',
+    assignment: assignment ? { ...(bid.assignment || {}), ...assignment } : bid.assignment,
   });
 }
 
@@ -982,28 +1019,24 @@ export function registerInterest(state, id, dossier) {
   });
 }
 
-export function createBidWork(state, id) {
+export function createBidWork(state, id, assignment) {
   const decided = setNoticeDecision(state, id, 'tilbud');
   if (!decided.ok) return decided;
   const notice = noticeById(decided.state, id);
+  const stamped = cleanAssignment(assignment);
   const existing = (decided.state.bids || []).find((bid) => bid.noticeId === id);
   if (existing) {
     return ok({
       ...decided.state,
       bids: decided.state.bids.map((bid) => (
-        bid.noticeId === id
-          ? normalizeBidWork({
-            ...bid,
-            title: notice.title,
-            buyer: notice.buyer,
-            dossier: notice.dossier || bid.dossier,
-            strategy: normalizeStrategy(notice.consideration?.strategy || bid.strategy),
-          })
-          : bid
+        bid.noticeId === id ? stampNoticeBid(bid, notice, stamped) : bid
       )),
     });
   }
-  return ok({ ...decided.state, bids: [freshBid(notice, notice.dossier), ...(decided.state.bids || [])] });
+  return ok({
+    ...decided.state,
+    bids: [freshBid(notice, notice.dossier, stamped), ...(decided.state.bids || [])],
+  });
 }
 
 /** Manuelt tilbudsarbeid uten kunngjøring fra Doffin/TED. */
@@ -1014,15 +1047,37 @@ export function createManualBidWork(state, input = {}) {
   const deadline = text(input?.deadline).slice(0, 80);
   const questionDeadline = text(input?.questionDeadline).slice(0, 80);
   const description = text(input?.description).slice(0, 8000);
+  const inquiryId = text(input?.inquiryId).slice(0, 80);
+  const source = input?.source === 'protop' ? 'protop' : 'manuell';
+  const stamped = cleanAssignment(input?.assignment);
+  const bids = Array.isArray(state?.bids) ? state.bids : [];
+  if (inquiryId) {
+    const existing = bids.find((row) => row.inquiryId === inquiryId);
+    if (existing) {
+      return ok({
+        ...state,
+        bids: bids.map((row) => (
+          row.inquiryId === inquiryId
+            ? normalizeBidWork({ ...row, assignment: stamped || row.assignment })
+            : row
+        )),
+      });
+    }
+  }
   const bid = normalizeBidWork({
     id: `bid_manuell_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     noticeId: '',
-    source: 'manuell',
+    source,
+    inquiryId,
+    channel: text(input?.channel).slice(0, 40),
+    originAt: text(input?.originAt).slice(0, 40),
+    interestAt: text(input?.interestAt).slice(0, 40),
     title,
     buyer,
     phase: 'trinn2',
     stage: 'planlegging',
     createdAt: new Date().toISOString(),
+    assignment: stamped,
     dossier: {
       title,
       buyer,
@@ -1035,7 +1090,6 @@ export function createManualBidWork(state, input = {}) {
     forms: [],
     questions: [],
   });
-  const bids = Array.isArray(state?.bids) ? state.bids : [];
   if (bids.length >= 80) return fail(state, 'Bedriften har maks 80 tilbudsarbeid.');
   return ok({ ...state, bids: [bid, ...bids] });
 }

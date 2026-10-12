@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { locateNotice, mapFollowsList, mapPinsForNotices, nextMapPinIndex } from './noticePlace.js';
+import { locateNotice, mapFollowsList, mapPinsForNotices, nextMapPinIndex, noticeMapScope, unboundPlace } from './noticePlace.js';
 import { pinPopupHtml, tenderMapDocument } from './tenderMapHtml.js';
 
 assert.equal(locateNotice({ places: ['Nordland/Nordlánnda'] }).label, 'Nordland');
@@ -10,6 +10,22 @@ assert.equal(locateNotice({ title: 'Scanning av UNN Narvik Sykehus', places: [] 
 assert.equal(locateNotice({ buyer: 'Aura kommune', places: [] }).label, 'Aure');
 assert.equal(locateNotice({ places: ['NOR'] }).label, 'Norge');
 assert.equal(locateNotice({ places: [] }), null);
+assert.equal(unboundPlace({ places: ['Ikke stedbunden'] }), true);
+assert.equal(unboundPlace({ places: ['Oslo'] }), false);
+assert.equal(noticeMapScope({ title: 'Rammeavtale i Vågan', places: ['Ikke stedbunden'] }).coverage, 'land');
+assert.equal(noticeMapScope({ places: ['NOR'] }).coverage, 'land');
+assert.equal(noticeMapScope({ places: ['Oslo'] }).coverage, 'punkt');
+assert.equal(noticeMapScope({ places: [] }).label, 'Hele Norge');
+
+const national = mapPinsForNotices([
+  { id: 'n', title: 'Rammeavtale i Vågan', places: ['Ikke stedbunden'], decision: 'ubestemt' },
+  { id: 'o', title: 'Oslo bro', places: ['Oslo'], decision: 'ubestemt' },
+], { asShown: true });
+assert.equal(national.at(-1).id, 'n');
+assert.equal(national.find((row) => row.id === 'n').coverage, 'land');
+assert.equal(national.find((row) => row.id === 'n').label, 'Hele Norge');
+assert.equal(national.find((row) => row.id === 'o').label, 'Oslo');
+assert.notEqual(national.find((row) => row.id === 'n').precision, 'sted');
 
 const pins = mapPinsForNotices([
   { id: '1', title: 'Bro', places: ['Nordland'], decision: 'ubestemt' },
@@ -38,6 +54,19 @@ assert.equal(mapFollowsList('alle'), false);
 assert.equal(mapFollowsList('utlopt'), false);
 
 const html = tenderMapDocument(pins, { selectedId: '2' });
+const landDoc = tenderMapDocument([
+  { id: 'o', title: 'Oslo bro', lat: 59.9, lng: 10.7, kind: 'ny', label: 'Oslo', coverage: 'punkt' },
+  { id: 'n', title: 'Rammeavtale', lat: 64.5, lng: 12, kind: 'ny', label: 'Hele Norge', coverage: 'land' },
+], { selectedId: 'n' });
+assert.match(landDoc, /"coverage":"land"/);
+assert.match(landDoc, /L\.polygon\(NORWAY/);
+assert.match(landDoc, /ikke stedbunden/);
+assert.match(landDoc, /showCountry/);
+const landBubble = pinPopupHtml({
+  id: 'n', title: 'Rammeavtale', label: 'Hele Norge', coverage: 'land', kind: 'ny',
+}, 0, 2);
+assert.match(landBubble, /Hele Norge · ikke stedbunden/);
+
 assert.match(html, /openstreetmap\.org/);
 assert.match(html, /leaflet/);
 assert.match(html, /"id":"1"/);

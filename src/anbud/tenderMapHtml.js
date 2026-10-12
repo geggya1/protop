@@ -18,6 +18,11 @@ function decisionButtonsHtml(row) {
     </div>`;
 }
 
+function placeLine(row) {
+  if (row?.coverage === 'land') return 'Hele Norge · ikke stedbunden';
+  return row?.label || 'Sted';
+}
+
 export function pinPopupHtml(row, index, total) {
   const n = Number(index) || 0;
   const of = Math.max(1, Number(total) || 1);
@@ -28,7 +33,7 @@ export function pinPopupHtml(row, index, total) {
     row?.source ? escapeHtml(row.source) : '',
   ].filter(Boolean).join(' · ');
   return `<div class="bubble">
-    <div class="kicker">${kind} · ${escapeHtml(row?.label || 'Sted')}</div>
+    <div class="kicker">${kind} · ${escapeHtml(placeLine(row))}</div>
     ${decisionButtonsHtml(row)}
     <button type="button" class="jump" data-open="${escapeHtml(row?.id || '')}">${escapeHtml(row?.title || 'Kunngjøring')}</button>
     ${meta ? `<div class="meta">${meta}</div>` : ''}
@@ -51,9 +56,10 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
     buyer: String(row.buyer || '').slice(0, 80),
     deadline: String(row.deadline || ''),
     source: String(row.source || ''),
-    label: String(row.label || ''),
+    label: String(row.coverage === 'land' ? 'Hele Norge' : (row.label || '')),
     lat: Number(row.lat),
     lng: Number(row.lng),
+    coverage: row.coverage === 'land' ? 'land' : '',
     kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
   }))).replace(/</g, '\\u003c');
   return `<!doctype html>
@@ -96,6 +102,11 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
   .mark.aktuell.on { background: ${escapeHtml(brand)} !important; color: #fff !important; }
   .mark.uaktuell.on { background: ${escapeHtml(danger)} !important; color: #fff !important; }
   .open { background: ${escapeHtml(brand)} !important; color: #fff !important; font-weight: 600; }
+  .land-tip {
+    background: #fff; border: 0; border-radius: 8px; color: #1a2744; font-weight: 700;
+    padding: 4px 8px; box-shadow: 0 1px 4px rgba(15,23,42,.25);
+  }
+  .leaflet-tooltip-center.land-tip::before { display: none; }
   ${compact ? '.bar { display: none; }' : ''}
 </style>
 </head>
@@ -110,6 +121,8 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
 <script>
 const pins = ${payload};
 const selected = ${JSON.stringify(String(selectedId || ''))};
+const brandColor = ${JSON.stringify(String(brand || '#3D6B8A'))};
+const NORWAY = [[71.1855,28.1655],[70.4538,31.2934],[70.1863,30.0054],[69.5581,31.1011],[69.1569,29.3996],[69.0648,28.5919],[69.7665,29.0156],[70.1642,27.7323],[69.8253,26.1796],[69.0921,25.6892],[68.6496,24.7357],[68.8912,23.6621],[68.8417,22.3562],[69.3704,21.2449],[69.1062,20.6456],[69.0651,20.0253],[68.4072,19.8786],[68.5674,17.9939],[68.0106,17.7292],[68.0139,16.7689],[67.3025,16.1087],[66.1939,15.1084],[64.787,13.5557],[64.4454,13.9199],[64.0491,13.5719],[64.0662,12.5799],[63.1283,11.9306],[61.8004,11.9921],[61.2936,12.6311],[60.1179,12.3004],[59.4324,11.4683],[58.8561,11.0274],[59.4698,10.3566],[58.3133,8.382],[58.0789,7.0487],[58.5882,5.6658],[59.6632,5.3082],[61.971,4.9921],[62.6145,5.9129],[63.454,8.5534],[64.486,10.5277],[65.8797,12.3583],[67.8106,14.7611],[68.5632,16.4359],[69.8174,19.184],[70.2552,21.3784],[70.2021,23.0237],[71.0305,24.5465],[70.9863,26.37],[71.1855,28.1655]];
 const map = L.map('map', { zoomControl: true, attributionControl: true });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
@@ -128,9 +141,10 @@ function decisionRow(row) {
 }
 function popupHtml(row, index) {
   const kind = row.kind === 'aktuell' ? 'Aktuell' : row.kind === 'uaktuell' ? 'Uaktuell' : 'Ny';
+  const where = row.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : (row.label || 'Sted');
   const meta = [row.buyer, row.deadline ? ('Frist ' + row.deadline) : '', row.source].filter(Boolean).join(' · ');
   return '<div class="bubble">'
-    + '<div class="kicker">' + kind + ' · ' + esc(row.label || 'Sted') + '</div>'
+    + '<div class="kicker">' + kind + ' · ' + esc(where) + '</div>'
     + decisionRow(row)
     + '<button type="button" class="jump" data-open="' + esc(row.id) + '">' + esc(row.title) + '</button>'
     + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '')
@@ -144,6 +158,8 @@ const layer = L.featureGroup();
 const markers = [];
 let current = 0;
 let fitted = false;
+let country = null;
+let countryOn = false;
 const popupPad = ${compact ? '[8, 12]' : '[12, 64]'};
 const icon = (kind, on) => L.divIcon({
   className: '',
@@ -152,24 +168,62 @@ const icon = (kind, on) => L.divIcon({
   iconAnchor: [on ? 9 : 7, on ? 9 : 7],
 });
 function paint() {
-  markers.forEach((marker, i) => marker.setIcon(icon(pins[i].kind, i === current)));
+  markers.forEach((marker, i) => {
+    if (marker) marker.setIcon(icon(pins[i].kind, i === current));
+  });
   const row = pins[current];
   const title = document.getElementById('barTitle');
   const meta = document.getElementById('barMeta');
   if (row && title) title.textContent = row.title;
-  if (meta) meta.textContent = row ? ((current + 1) + ' / ' + pins.length + ' · ' + (row.label || '')) : '';
+  const where = row && row.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : (row && row.label) || '';
+  if (meta) meta.textContent = row ? ((current + 1) + ' / ' + pins.length + (where ? ' · ' + where : '')) : '';
+}
+function hideCountry() {
+  if (country) map.removeLayer(country);
+  country = null;
+  countryOn = false;
+}
+function showCountry(index, refit) {
+  const row = pins[index];
+  if (!row) return;
+  hideCountry();
+  country = L.polygon(NORWAY, {
+    color: brandColor,
+    weight: 2,
+    fillColor: brandColor,
+    fillOpacity: 0.22,
+    dashArray: '7 5',
+  }).addTo(map);
+  country.bindPopup(() => popupHtml(pins[index] || row, index), {
+    maxWidth: 280, maxHeight: 300, autoPanPadding: popupPad, keepInView: false,
+  });
+  country.bindTooltip('Hele Norge · ikke stedbunden', {
+    permanent: true, direction: 'center', className: 'land-tip',
+  });
+  country.on('click', () => tell('preview', row.id));
+  if (refit) map.fitBounds(country.getBounds().pad(0.04), { maxZoom: 5, animate: false });
+  countryOn = true;
+  country.openPopup();
 }
 function tell(type, id, extra) {
   if (window.parent) window.parent.postMessage(Object.assign({ type: type, tenderId: id }, extra || {}), '*');
 }
 function show(index, { jump, pan, silent } = {}) {
   if (!pins.length) return;
+  const prev = pins[current];
   current = (index + pins.length) % pins.length;
-  const marker = markers[current];
   const row = pins[current];
   paint();
-  if (pan !== false && marker) map.panTo(marker.getLatLng());
-  if (marker) marker.openPopup();
+  if (row.coverage === 'land') {
+    markers.forEach((marker) => { if (marker) marker.closePopup(); });
+    showCountry(current, !(prev && prev.coverage === 'land'));
+  } else {
+    hideCountry();
+    const marker = markers[current];
+    if (marker && prev && prev.coverage === 'land') map.setView(marker.getLatLng(), 8);
+    else if (pan !== false && marker) map.panTo(marker.getLatLng());
+    if (marker) marker.openPopup();
+  }
   if (!silent) tell('preview', row.id);
   if (jump) tell('open', row.id);
 }
@@ -183,6 +237,7 @@ function normalizePin(row) {
     label: String((row && row.label) || ''),
     lat: Number(row && row.lat),
     lng: Number(row && row.lng),
+    coverage: row && row.coverage === 'land' ? 'land' : '',
     kind: row && (row.kind === 'aktuell' || row.kind === 'uaktuell') ? row.kind : 'ny',
     busy: !!(row && row.busy),
   };
@@ -191,6 +246,7 @@ function sameIds(next) {
   if (next.length !== pins.length) return false;
   for (let i = 0; i < next.length; i += 1) {
     if (pins[i].id !== next[i].id) return false;
+    if ((pins[i].coverage || '') !== (next[i].coverage || '')) return false;
   }
   return true;
 }
@@ -204,6 +260,7 @@ function bindMarker(row) {
     const at = pins.findIndex((item) => item.id === row.id);
     if (at < 0) return;
     current = at;
+    hideCountry();
     paint();
     marker.openPopup();
     tell('preview', row.id);
@@ -218,20 +275,27 @@ function rebuild(next, focusId) {
   let shared = 0;
   next.forEach((row) => { if (prevIds.indexOf(row.id) >= 0) shared += 1; });
   const viewChanged = prevIds.length > 0 && shared === 0;
-  markers.forEach((marker) => layer.removeLayer(marker));
+  hideCountry();
+  markers.forEach((marker) => { if (marker) layer.removeLayer(marker); });
   markers.length = 0;
   pins.length = 0;
   next.forEach((row) => {
-    if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng) || !row.id) return;
+    if (!row.id) return;
+    if (row.coverage !== 'land' && (!Number.isFinite(row.lat) || !Number.isFinite(row.lng))) return;
     pins.push(row);
   });
   pins.forEach((row) => {
+    if (row.coverage === 'land') {
+      markers.push(null);
+      return;
+    }
     const marker = bindMarker(row);
     marker.addTo(layer);
     markers.push(marker);
   });
-  if (pins.length && !layer._map) layer.addTo(map);
-  if (pins.length && (!fitted || growing || viewChanged)) {
+  const placed = markers.filter(Boolean);
+  if (placed.length && !layer._map) layer.addTo(map);
+  if (placed.length && (!fitted || growing || viewChanged)) {
     map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
     fitted = true;
   }
@@ -251,6 +315,11 @@ function rebuild(next, focusId) {
   if (index < 0) index = Math.min(Math.max(current, 0), pins.length - 1);
   current = index;
   paint();
+  const row = pins[current];
+  if (row && row.coverage === 'land') {
+    showCountry(current, true);
+    return;
+  }
   const marker = markers[current];
   if (!marker) return;
   if (lost || (focusId && pins[current] && pins[current].id === focusId)) {
@@ -308,7 +377,7 @@ window.addEventListener('message', (event) => {
       if (row.lat !== src.lat || row.lng !== src.lng) {
         row.lat = src.lat;
         row.lng = src.lng;
-        markers[i].setLatLng([src.lat, src.lng]);
+        if (markers[i]) markers[i].setLatLng([src.lat, src.lng]);
         changed = true;
       }
       if (row.kind !== kind || !!row.busy !== busy || row.title !== src.title) {
@@ -326,6 +395,9 @@ window.addEventListener('message', (event) => {
       paint();
       const marker = markers[current];
       if (marker && marker.isPopupOpen()) marker.setPopupContent(popupHtml(pins[current], current));
+      if (pins[current] && pins[current].coverage === 'land' && country && country.isPopupOpen()) {
+        country.setPopupContent(popupHtml(pins[current], current));
+      }
     }
     return;
   }

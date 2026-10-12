@@ -11,7 +11,7 @@ import {
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
-import { locateNotice, mapFollowsList, mapPinsForNotices } from '../../src/anbud/noticePlace';
+import { locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
@@ -704,13 +704,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     () => mapPinsForNotices(mapRows, { asShown: true }),
     [mapRows],
   );
-  const missingPlaces = mapRows.filter((row) => !locateNotice(row)).length;
-  const missingKey = mapRows.filter((row) => !locateNotice(row)).map((row) => row.id).join(',');
+  const missingPlaces = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).length;
+  const missingKey = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).map((row) => row.id).join(',');
 
   useEffect(() => {
     if (!ready || !missingKey) return undefined;
     let live = true;
-    const unknown = mapRows.filter((row) => !locateNotice(row));
+    const unknown = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row));
     geocodeMissing(unknown, locateNotice, geocodeQuery).then((hits) => {
       if (!live || !hits.length) return;
       const byId = new Map(hits.map((row) => [row.id, row.geo]));

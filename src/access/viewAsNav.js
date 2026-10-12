@@ -1,5 +1,16 @@
-import { filterCompanyNav } from './companyAccess.js';
+import { COMPANY_TAB_IDS, filterCompanyNav } from './companyAccess.js';
 import { companyNavItems } from '../navigation/shellModules.js';
+
+/**
+ * Øyet hører til bedriftsmodulene.
+ * Når noen allerede ses som en annen, blir symbolet stående til visningen tilbakestilles,
+ * også om en er inne på en personlig side.
+ */
+export function viewAsChromeVisible({ canViewAs = false, tab = '', previewing = false } = {}) {
+  if (!canViewAs) return false;
+  if (previewing) return true;
+  return COMPANY_TAB_IDS.includes(tab);
+}
 
 function flatten(items) {
   const rows = [];

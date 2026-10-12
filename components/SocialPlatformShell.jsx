@@ -17,7 +17,9 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
-import ViewAsBar, { ViewAsModulePlaceholder } from './project/ViewAsBar';
+import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
+import { viewAsChromeVisible } from '../src/access/viewAsNav';
+import { useLayout } from '../src/theme';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
@@ -103,6 +105,7 @@ export default function SocialPlatformShell({ platformType }) {
   const route = useRoute();
   const { familyId, family, families, uid, selectFamily, members } = useApp();
   const companyAccess = useCompanyAccess();
+  const { isDesktop } = useLayout();
   const [tab, setTab] = useState(route.params?.module || 'home');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [groupDoc, setGroupDoc] = useState(family);
@@ -269,10 +272,14 @@ export default function SocialPlatformShell({ platformType }) {
         }
         onAddPress={addHandler}
         addLabel="Legg til"
+        viewAs={viewAsChromeVisible({
+          canViewAs: companyAccess?.canViewAs,
+          tab,
+          previewing: companyAccess?.previewing,
+        }) ? <ViewAsControl access={companyAccess} labeled={isDesktop} /> : null}
       />
 
       <View style={styles.body}>
-        <ViewAsBar access={companyAccess} />
         <View style={styles.bodyFill}>
           <ShellErrorBoundary>{body}</ShellErrorBoundary>
           <ModuleIntroHost scope={platformType} moduleId={tab} />

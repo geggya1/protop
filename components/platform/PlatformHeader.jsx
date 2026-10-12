@@ -19,6 +19,7 @@ export default function PlatformHeader({
   onAddPress,
   addIcon = 'add',
   addLabel = 'Legg til',
+  viewAs = null,
 }) {
   const c = config.theme;
   const { activeProfile } = useApp();
@@ -51,6 +52,7 @@ export default function PlatformHeader({
           </View>
 
           <View style={styles.actions}>
+            {viewAs}
             <HelpButton color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
             {!!rightLabel && !!onRightPress && (
               <TouchableOpacity style={styles.iconBtn} onPress={onRightPress} accessibilityLabel={rightLabel}>

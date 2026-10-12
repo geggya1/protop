@@ -23,7 +23,7 @@ import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor } from '../src/utils/grandparentAccess';
 import HelpTarget from './HelpTarget';
 
-/** Hoved åpen; app-mapper lukket til de åpnes eller inneholder aktiv side. */
+/** Personlig åpen; app-mapper lukket til de åpnes eller inneholder aktiv side. */
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
 function itemIcon(item, active) {

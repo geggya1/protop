@@ -4,7 +4,7 @@
  */
 
 export const CATEGORY_ORDER = [
-  { id: 'main', title: 'Hoved' },
+  { id: 'main', title: 'Personlig' },
   { id: 'food', title: 'Mat & innkjøp' },
   { id: 'memories', title: 'Minner' },
   { id: 'family', title: 'Familien' },

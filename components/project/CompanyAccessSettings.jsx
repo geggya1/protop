@@ -24,7 +24,7 @@ import {
   suggestedLevelId,
   toggleGrant,
 } from '../../src/access/companyAccess';
-import { displayName, initials, normalizeEmployee } from '../../src/employees/model';
+import { applyEmployeeClassification, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 
 function kindLabel(kind) {
   if (kind === 'external') return 'Eksternt · ikke fast ansatt';
@@ -630,17 +630,7 @@ export default function CompanyAccessSettings({
     if (!nextLevel || !employee) return;
     if (placedLevelId(employee) === nextLevel.id) return;
     setMovingId('');
-    const company = {
-      ...employee.company,
-      accessLevel: nextLevel.id,
-      accessRole: nextLevel.label,
-    };
-    if (nextLevel.kind === 'staff' && (company.personnelKind === 'external' || company.personnelKind === 'innleid')) {
-      company.personnelKind = 'staff';
-      company.external = false;
-      if (/^(ekstern|innleid|innleie)$/i.test(company.employmentType || '')) company.employmentType = 'Fast ansatt';
-    }
-    const next = normalizeEmployee({ ...employee, company });
+    const next = applyEmployeeClassification(employee, { accessLevel: nextLevel.id });
     savePerson(next, `${displayName(employee)} er nå ${nextLevel.label}.`);
   }
 

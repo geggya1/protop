@@ -22,6 +22,7 @@ import {
   ownerLabel,
   projectBelongsToCustomer,
   projectCountsByCustomer,
+  projectLinkSummary,
   relatedContractsForCustomer,
   relatedProjectsForCustomer,
   setCustomerOwner,
@@ -293,7 +294,14 @@ assert.match(screen, /enrichCustomerFromBrreg/);
 assert.match(screen, /Ingenting er lagret ennå/);
 assert.match(screen, /neste ledige er/);
 assert.match(screen, /Må rettes før fakturering/);
-assert.match(screen, /customer-filter-gap-invoice/);
+assert.match(screen, /projectLinkSummary/);
+assert.match(screen, /prosjekt på kunder/);
+assert.match(screen, /aktive i systemet/);
+assert.match(screen, /customer-filter-kind-all/);
+assert.match(screen, /customer-filter-kind-org/);
+assert.match(screen, /customer-filter-kind-person/);
+assert.equal(screen.includes('customer-filter-gap-invoice'), false);
+assert.equal(screen.includes('Alle opplysninger'), false);
 assert.match(screen, /Brønnøysund/);
 assert.match(screen, /onOpenExisting/);
 assert.match(screen, /action !== 'create' && row\.action !== 'update'/);
@@ -428,5 +436,10 @@ assert.deepEqual(forB.map((row) => row.id), ['p3', 'p4']);
 const counts = projectCountsByCustomer(prosjektListe, [kundeA, kundeB]);
 assert.equal(counts.get(kundeA.id), 2);
 assert.equal(counts.get(kundeB.id), 2);
+
+const linkSummary = projectLinkSummary(prosjektListe, [kundeA, kundeB]);
+assert.equal(linkSummary.linked, 4);
+assert.equal(linkSummary.total, 5); // p5 arkivert utelates; p6 er aktiv men fremmed kunde
+assert.equal(linkSummary.unlinked, 1);
 
 console.log('customers.test.mjs: ok');

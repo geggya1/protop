@@ -403,8 +403,8 @@ export function companyHourRow(input, {
   if (duplicate) {
     severity = 'existing';
     issues.push(duplicateInFile
-      ? 'Duplikat i importfilen — raden blir hoppet over.'
-      : 'Føringen finnes fra før — raden blir hoppet over.');
+      ? 'Duplikat i filen (samme dato, person, timer og beskrivelse) — hoppes over.'
+      : 'Finnes fra før (samme dato, person, timer og beskrivelse) — hoppes over.');
   }
   seenInFile.add(fingerprint);
 

@@ -3,6 +3,7 @@ import {
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
   accountDeactivated,
+  personDropChange,
   alignCompanyEmployment,
   allows,
   applyOverrides,
@@ -242,6 +243,22 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.equal(withPaused.buckets.ansatt.length, 3);
   assert.equal(accountDeactivated(paused), true);
   assert.equal(accountDeactivated(trashed), true);
+  const staff = { company: { accessLevel: 'ansatt', status: 'active', personnelKind: 'staff' } };
+  assert.deepEqual(personDropChange(staff, 'level:tilbud'), {
+    levelId: 'tilbud', clearLevel: false, activate: false, deactivate: false,
+  });
+  assert.equal(personDropChange(staff, 'level:ansatt'), null);
+  assert.deepEqual(personDropChange(staff, 'status:ansatt:inactive'), {
+    levelId: '', clearLevel: false, activate: false, deactivate: true,
+  });
+  assert.deepEqual(personDropChange(paused, 'status:tilbud:active'), {
+    levelId: 'tilbud', clearLevel: false, activate: true, deactivate: false,
+  });
+  assert.equal(personDropChange(paused, 'status:ansatt:inactive'), null);
+  assert.deepEqual(personDropChange(staff, 'status:unplaced:active'), {
+    levelId: '', clearLevel: true, activate: false, deactivate: false,
+  });
+  assert.equal(personDropChange(staff, 'level:ukjent'), null);
   assert.equal(grouped.buckets.ansatt.includes(kari), false);
   const actor = resolveActorAccess({ employees: [ada, nils], uid: 'nils' });
   assert.equal(actor.levelId, 'administrator');

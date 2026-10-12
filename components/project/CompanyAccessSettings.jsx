@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
+import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ACCESS_ACTIONS,
@@ -18,6 +19,8 @@ import {
   levelGrants,
   levelIsCustom,
   normalizeAccessPolicy,
+  parseDropId,
+  personDropChange,
   placedLevelId,
   resetLevel,
   setLevelGrant,
@@ -234,7 +237,15 @@ function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
   );
 }
 
-function MemberTabs({ tab, activeCount, inactiveCount, colors, onChange }) {
+function dropHint(dropId) {
+  const drop = parseDropId(dropId);
+  if (!drop) return 'Slipp på en gruppe';
+  const level = drop.levelId === 'unplaced' ? 'Ikke plassert' : (levelById(drop.levelId)?.label || '');
+  if (drop.kind === 'status') return drop.status === 'active' ? `Aktiv i ${level}` : `Deaktivert i ${level}`;
+  return level;
+}
+
+function MemberTabs({ tab, activeCount, inactiveCount, colors, dropKey, hotDrop, onChange }) {
   const tabs = [
     ['active', 'Aktive', activeCount],
     ['inactive', 'Deaktiverte', inactiveCount],
@@ -243,16 +254,21 @@ function MemberTabs({ tab, activeCount, inactiveCount, colors, onChange }) {
     <View style={styles.tabRow}>
       {tabs.map(([id, label, count]) => {
         const on = tab === id;
+        const hot = hotDrop === `status:${dropKey}:${id}`;
         return (
           <Pressable
             key={id}
+            dataSet={{ drop: `status:${dropKey}:${id}` }}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={`${label}, ${count}`}
             onPress={() => onChange(id)}
-            style={[styles.tabBtn, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+            style={[styles.tabBtn, {
+              borderColor: hot || on ? colors.brand : colors.line,
+              backgroundColor: hot || on ? colors.brandSoft : colors.card,
+            }]}
           >
-            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '600' }}>{label}</Text>
+            <Text style={{ color: hot || on ? colors.brand : colors.ink, fontWeight: '600' }}>{label}</Text>
             <Text style={[styles.levelCount, { color: colors.muted }]}>{count}</Text>
           </Pressable>
         );
@@ -261,17 +277,44 @@ function MemberTabs({ tab, activeCount, inactiveCount, colors, onChange }) {
   );
 }
 
+function StatusDrop({ dropKey, hotDrop, colors }) {
+  return (
+    <View style={styles.dropOverlay}>
+      <View
+        dataSet={{ drop: `status:${dropKey}:active` }}
+        style={[styles.dropChip, {
+          borderColor: hotDrop === `status:${dropKey}:active` ? colors.brand : colors.line,
+          backgroundColor: hotDrop === `status:${dropKey}:active` ? colors.brandSoft : colors.card,
+        }]}
+      >
+        <Text style={{ color: hotDrop === `status:${dropKey}:active` ? colors.brand : colors.ink, fontWeight: '600' }}>Aktiv</Text>
+      </View>
+      <View
+        dataSet={{ drop: `status:${dropKey}:inactive` }}
+        style={[styles.dropChip, {
+          borderColor: hotDrop === `status:${dropKey}:inactive` ? colors.brand : colors.line,
+          backgroundColor: hotDrop === `status:${dropKey}:inactive` ? colors.brandSoft : colors.card,
+        }]}
+      >
+        <Text style={{ color: hotDrop === `status:${dropKey}:inactive` ? colors.brand : colors.ink, fontWeight: '600' }}>Deaktivert</Text>
+      </View>
+    </View>
+  );
+}
+
 function LevelDrawer({
   nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
-  open, memberTab, settingsOpen, grants, custom, summary, onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset,
+  open, memberTab, settingsOpen, grants, custom, summary, dropKey, hotDrop, dragging,
+  onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset, onOpen,
 }) {
   const { active, inactive } = splitMembers(members);
   const tab = memberTab === 'inactive' ? 'inactive' : 'active';
   const shown = tab === 'inactive' ? inactive : active;
   const moving = shown.find((row) => row.id === movingId) || null;
+  const hot = !!hotDrop && (hotDrop === `level:${dropKey}` || String(hotDrop).startsWith(`status:${dropKey}:`));
   return (
-    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      <View style={styles.drawerHead}>
+    <View nativeID={nativeID} style={[styles.drawer, { borderColor: hot ? colors.brand : colors.line, backgroundColor: colors.card }]}>
+      <View dataSet={{ drop: `level:${dropKey}` }} style={[styles.drawerHead, hot && !String(hotDrop).startsWith(`status:${dropKey}:`) ? { backgroundColor: colors.brandSoft } : null]}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
@@ -297,6 +340,7 @@ function LevelDrawer({
             <Ionicons name="settings-outline" size={18} color={settingsOpen ? colors.brand : colors.ink} />
           </Pressable>
         ) : null}
+        {dragging && !open ? <StatusDrop dropKey={dropKey} hotDrop={hotDrop} colors={colors} /> : null}
       </View>
       {settingsOpen && grants ? (
         <View nativeID={`${nativeID}-settings`} style={[styles.drawerBody, { borderTopColor: colors.line }]}>
@@ -325,24 +369,42 @@ function LevelDrawer({
             activeCount={active.length}
             inactiveCount={inactive.length}
             colors={colors}
+            dropKey={dropKey}
+            hotDrop={hotDrop}
             onChange={onMemberTab}
           />
           {shown.map((employee) => {
             const mail = employeeMail(employee);
+            const name = displayName(employee);
             const customPerson = Object.keys(employee.company?.accessOverrides || {}).length > 0;
             const note = statusNote(employee);
             const movingThis = employee.id === movingId;
             return (
               <View key={employee.id} nativeID={`access-person-${employee.id}`} style={styles.memberLine}>
                 <View style={styles.memberRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
+                  {canEdit ? (
+                    <Pressable
+                      dataSet={{ drag: employee.id }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dra ${name}`}
+                      style={styles.dragHandle}
+                    >
+                      <Ionicons name="reorder-three-outline" size={22} color={colors.muted} />
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Åpne ${name}`}
+                    onPress={() => onOpen(employee)}
+                    style={{ flex: 1 }}
+                  >
+                    <Text style={[styles.personName, { color: colors.ink }]}>{name}</Text>
                     <Text style={[styles.kind, { color: colors.muted }]}>
                       {mail || 'Ingen e-post'}
                       {note ? ` · ${note}` : ''}
                       {customPerson ? ' · egen tilpasning' : ''}
                     </Text>
-                  </View>
+                  </Pressable>
                   {canEdit ? (
                     <Pressable
                       accessibilityRole="button"
@@ -566,6 +628,10 @@ export default function CompanyAccessSettings({
   const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [drag, setDrag] = useState(null);
+  const dropRef = useRef(() => {});
+  const employeesRef = useRef(employees);
+  employeesRef.current = employees;
 
   useEffect(() => {
     setPolicy(normalizeAccessPolicy(company?.accessPolicy));
@@ -582,7 +648,7 @@ export default function CompanyAccessSettings({
       .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
   }, [employees, query]);
 
-  const person = people.find((row) => row.id === personId) || null;
+  const person = employees.find((row) => row.id === personId) || null;
   const personLevel = person ? (placedLevelId(person) || '') : '';
   const personBase = person
     ? levelGrants(policy, placedLevelId(person) || effectiveLevelId(person))
@@ -633,6 +699,119 @@ export default function CompanyAccessSettings({
     const next = applyEmployeeClassification(employee, { accessLevel: nextLevel.id });
     savePerson(next, `${displayName(employee)} er nå ${nextLevel.label}.`);
   }
+
+  function dropPerson(employee, dropId) {
+    const change = personDropChange(employee, dropId);
+    if (!change || !employee) return;
+    const name = displayName(employee);
+    const patch = {};
+    if (change.levelId) patch.accessLevel = change.levelId;
+    if (change.activate) patch.status = 'active';
+    if (change.deactivate) {
+      patch.status = 'inactive';
+      patch.canLogin = false;
+    }
+    let next = Object.keys(patch).length ? applyEmployeeClassification(employee, patch) : employee;
+    if (change.clearLevel) {
+      next = normalizeEmployee({
+        ...next,
+        company: { ...next.company, accessLevel: '', accessRole: '' },
+      });
+    }
+    const levelName = change.clearLevel
+      ? 'Ikke plassert'
+      : (levelById(change.levelId)?.label || levelById(placedLevelId(employee))?.label || 'gruppen');
+    let success = `${name} er nå ${levelName}.`;
+    if (change.activate && (change.levelId || change.clearLevel)) success = `${name} er aktiv i ${levelName}.`;
+    else if (change.deactivate && (change.levelId || change.clearLevel)) success = `${name} er deaktivert i ${levelName}.`;
+    else if (change.activate) success = `${name} er aktiv.`;
+    else if (change.deactivate) success = `${name} er deaktivert.`;
+    const destination = change.clearLevel ? 'unplaced' : (change.levelId || placedLevelId(employee) || 'unplaced');
+    setOpenDrawers((current) => ({ ...current, [destination]: true }));
+    if (change.activate || change.deactivate) {
+      setMemberTabs((current) => ({ ...current, [destination]: change.deactivate ? 'inactive' : 'active' }));
+    }
+    setMovingId('');
+    savePerson(next, success);
+  }
+
+  dropRef.current = dropPerson;
+
+  function dropAt(x, y) {
+    if (typeof document === 'undefined' || !document.elementFromPoint) return '';
+    const el = document.elementFromPoint(x, y);
+    const zone = el && el.closest ? el.closest('[data-drop]') : null;
+    return zone ? zone.getAttribute('data-drop') || '' : '';
+  }
+
+  useEffect(() => {
+    if (!canEdit || typeof window === 'undefined') return undefined;
+    let employee = null;
+    let originX = 0;
+    let originY = 0;
+    let active = false;
+    let usingPointer = false;
+
+    function rowFrom(event) {
+      const handle = event.target && event.target.closest ? event.target.closest('[data-drag]') : null;
+      if (!handle) return null;
+      const id = handle.getAttribute('data-drag');
+      return employeesRef.current.find((row) => row.id === id) || null;
+    }
+    function down(event) {
+      if (busy) return;
+      if (event.type === 'mousedown') {
+        if (usingPointer || event.button !== 0) return;
+      } else {
+        usingPointer = true;
+      }
+      const row = rowFrom(event);
+      if (!row) return;
+      employee = row;
+      originX = event.pageX;
+      originY = event.pageY;
+      active = false;
+    }
+    function move(event) {
+      if (!employee) return;
+      if (event.type === 'mousemove' && usingPointer) return;
+      const dx = event.pageX - originX;
+      const dy = event.pageY - originY;
+      if (!active && dx * dx + dy * dy < 25) return;
+      active = true;
+      if (event.cancelable) event.preventDefault();
+      setDrag({
+        id: employee.id,
+        name: displayName(employee),
+        x: event.clientX,
+        y: event.clientY,
+        drop: dropAt(event.clientX, event.clientY),
+      });
+    }
+    function up(event) {
+      if (!employee) return;
+      if (event.type === 'mouseup' && usingPointer) return;
+      const row = employee;
+      const did = active;
+      employee = null;
+      active = false;
+      if (did) dropRef.current(row, dropAt(event.clientX, event.clientY));
+      setDrag(null);
+    }
+    const pairs = [
+      ['pointerdown', down],
+      ['mousedown', down],
+      ['pointermove', move],
+      ['mousemove', move],
+      ['pointerup', up],
+      ['mouseup', up],
+      ['pointercancel', up],
+    ];
+    for (const [type, handler] of pairs) window.addEventListener(type, handler, true);
+    return () => {
+      for (const [type, handler] of pairs) window.removeEventListener(type, handler, true);
+    };
+  }, [canEdit, busy]);
 
   function savePersonGrants() {
     if (!person || !personGrants || !personBase) return;
@@ -702,8 +881,8 @@ export default function CompanyAccessSettings({
         <View style={styles.stack}>
           <Text style={[styles.kind, { color: colors.muted }]}>
             {canEdit
-              ? 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk Flytt for å flytte en person til et annet nivå. Tannhjulet definerer tilgangen til modulene i gruppen.'
-              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Tannhjulet viser tilgangen til modulene i gruppen.'}
+              ? 'Trykk navnet for å åpne personen. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
+              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å se personen. Tannhjulet viser tilgangen til modulene.'}
           </Text>
           {ACCESS_LEVELS.map((row) => {
             const roster = [...(grouped.buckets[row.id] || [])].sort(byName);
@@ -722,6 +901,10 @@ export default function CompanyAccessSettings({
                 movingId={movingId}
                 excludeId={row.id}
                 open={!!openDrawers[row.id]}
+                dropKey={row.id}
+                hotDrop={drag?.drop || ''}
+                dragging={!!drag}
+                onOpen={(employee) => setPersonId(employee.id)}
                 memberTab={memberTabs[row.id]}
                 onMemberTab={(tab) => {
                   setMemberTabs((current) => ({ ...current, [row.id]: tab }));
@@ -762,6 +945,10 @@ export default function CompanyAccessSettings({
             excludeId=""
             suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
             open={!!openDrawers.unplaced}
+            dropKey="unplaced"
+            hotDrop={drag?.drop || ''}
+            dragging={!!drag}
+            onOpen={(employee) => setPersonId(employee.id)}
             memberTab={memberTabs.unplaced}
             onMemberTab={(tab) => {
               setMemberTabs((current) => ({ ...current, unplaced: tab }));
@@ -823,6 +1010,13 @@ export default function CompanyAccessSettings({
           <Text style={[styles.kind, { color: colors.muted }]}>Trykk en ansatt for å endre nivå og avvik.</Text>
         </View>
       )}
+      {drag && typeof document !== 'undefined' ? createPortal(
+        <View style={[styles.dragGhost, { left: drag.x + 14, top: drag.y + 16, borderColor: colors.brand, pointerEvents: 'none' }]}>
+          <Text style={[styles.personName, { color: colors.ink }]}>{drag.name}</Text>
+          <Text style={[styles.kind, { color: colors.brand }]}>{dropHint(drag.drop)}</Text>
+        </View>,
+        document.body,
+      ) : null}
       <PersonAccessPopup
         person={person}
         personLevel={personLevel}
@@ -903,6 +1097,10 @@ const styles = StyleSheet.create({
   memberLine: { gap: 8 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   moveLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  dragHandle: { width: 36, minHeight: 44, alignItems: 'center', justifyContent: 'center', cursor: 'grab' },
+  dropOverlay: { position: 'absolute', right: 56, top: 8, bottom: 8, width: 280, flexDirection: 'row', gap: 8 },
+  dropChip: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
+  dragGhost: { position: 'fixed', zIndex: 80, borderWidth: 1, borderRadius: 12, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8, maxWidth: 240 },
   avatarBtn: { position: 'relative', width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   avatarClip: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   avatarImg: { width: 28, height: 28 },

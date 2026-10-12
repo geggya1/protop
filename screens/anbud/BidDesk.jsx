@@ -311,6 +311,11 @@ export default function BidDesk({
                 <Text style={{ color: colors.brand, fontWeight: '600' }}>{statusLabel}</Text>
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
                 <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+                {bid.reviewNotes?.length ? (
+                  <Text style={{ color: colors.ink }} numberOfLines={2}>
+                    Notater fra vurderingen: {bid.reviewNotes.map((note) => note.text).join(' · ')}
+                  </Text>
+                ) : null}
                 <Text style={{ color: colors.muted }}>
                   {overview.assignee ? `Ansvarlig: ${overview.assignee} · ` : 'Ikke tildelt · '}
                   {`${overview.downloaded} dokumenter lastet`}

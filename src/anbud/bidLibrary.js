@@ -2,6 +2,7 @@
 
 import { MAX_FIELDS, coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
 import { deadlinePassedAt, parseDeadline } from './noticeText.js';
+import { normalizeReviewNotes } from './reviewNotes.js';
 
 export const GROUND_FOLDER_ID = 'grunnlag';
 export const GROUND_ATTACH_FOLDER_ID = 'grunnlag_vedlegg';
@@ -544,6 +545,7 @@ export function normalizeBidWork(raw) {
     assignment: normalizeAssignment(bid.assignment),
     interpretation: normalizeInterpretation(bid.interpretation),
     stepNotes: normalizeStepNotes(bid.stepNotes),
+    reviewNotes: normalizeReviewNotes(bid.reviewNotes),
     stepAi: normalizeStepAi(bid.stepAi),
     workItems: (Array.isArray(bid.workItems) ? bid.workItems : []).map(normalizeWorkItem).filter(Boolean).slice(0, 40),
     pendingWorkItems: (Array.isArray(bid.pendingWorkItems) ? bid.pendingWorkItems : []).map(normalizeWorkItem).filter(Boolean).slice(0, 40),
@@ -840,6 +842,7 @@ export function collectBidAiSource(bid, options = {}) {
     }
   }
   if (focus === 'arbeid') {
+    push('Notater fra vurderingen', (work.reviewNotes || []).map((row) => row.text).join('\n'));
     push('Egne notater grunnlag', work.stepNotes?.grunnlag);
     push('Egne notater spørsmål og svar', work.stepNotes?.qa);
     push('AI-oppsummering grunnlag', work.stepAi?.grunnlag?.summary);
@@ -1020,6 +1023,15 @@ export function toggleInterpretationCheck(state, bidId, checkId) {
       ...interpretation,
       checklist: interpretation.checklist.map((row) => (row.id === checkId ? { ...row, done: !row.done } : row)),
     },
+  }));
+}
+
+export function saveBidReviewNotes(state, bidId, notes) {
+  const { bid, error } = requireBid(state, bidId);
+  if (!bid) return fail(state, error);
+  return ok(replaceBid(state, bidId, {
+    ...bid,
+    reviewNotes: normalizeReviewNotes(notes),
   }));
 }
 

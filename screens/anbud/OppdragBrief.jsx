@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const PINNED = new Set(['deadline', 'value', 'place', 'procedure', 'nature', 'framework', 'dps', 'duration', 'ceiling']);
@@ -18,12 +18,32 @@ function weightNumber(raw) {
   return number;
 }
 
+function awardLine(awards) {
+  return (awards || [])
+    .map((row) => (weightNumber(row.weight) ? `${row.weight} % ${row.title}` : row.title))
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export default function OppdragBrief({ brief, colors, loading = false }) {
+  const [expanded, setExpanded] = useState(false);
   if (!brief) return null;
   const source = brief.source || 'Kunngjøringen';
   const facts = brief.facts || [];
   const pinned = facts.filter((row) => PINNED.has(row.id));
   const rest = facts.filter((row) => !PINNED.has(row.id));
+  const awards = awardLine(brief.awards);
+  const hasMore = !!(
+    rest.length
+    || brief.awards?.length
+    || brief.selection?.length
+    || brief.description
+    || brief.outline
+    || brief.extra
+    || brief.lots?.length
+    || brief.qa?.length
+    || brief.links?.length
+  );
   return (
     <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.bg }]}>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Om oppdraget</Text>
@@ -46,12 +66,27 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
           {pinned.map((row) => (
             <View key={row.id} style={[styles.pin, { backgroundColor: row.tone === 'danger' || row.tone === 'warn' ? colors.danger : colors.brandSoft }]}>
               <Text style={{ color: row.tone === 'danger' || row.tone === 'warn' ? '#fff' : colors.muted, fontSize: 12 }}>{row.label}</Text>
-              <Text style={{ color: row.tone === 'danger' || row.tone === 'warn' ? '#fff' : colors.ink, fontWeight: '600' }}>{row.value}</Text>
+              <Text numberOfLines={expanded ? undefined : 2} style={{ color: row.tone === 'danger' || row.tone === 'warn' ? '#fff' : colors.ink, fontWeight: '600' }}>{row.value}</Text>
             </View>
           ))}
         </View>
       ) : null}
-      {brief.awards?.length ? (
+      {!expanded && awards ? (
+        <Text style={{ color: colors.ink, lineHeight: 20 }} numberOfLines={2}>Tildeling: {awards}</Text>
+      ) : null}
+      {!expanded && !pinned.length && brief.description ? (
+        <Text style={{ color: colors.ink, lineHeight: 20 }} numberOfLines={3}>{brief.description}</Text>
+      ) : null}
+      {hasMore ? (
+        <TouchableOpacity
+          onPress={() => setExpanded((value) => !value)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+        >
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>{expanded ? 'Vis mindre' : 'Vis mer om oppdraget'}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {expanded && brief.awards?.length ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Tildelingskriterier</Text>
           {brief.awards.map((row) => {
@@ -71,7 +106,7 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
           })}
         </View>
       ) : null}
-      {brief.selection?.length ? (
+      {expanded && brief.selection?.length ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Kvalifikasjon</Text>
           {brief.selection.map((row) => (
@@ -82,7 +117,7 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
           ))}
         </View>
       ) : null}
-      {rest.length ? (
+      {expanded && rest.length ? (
         <View style={styles.facts}>
           {rest.map((row) => (
             <View key={row.id} style={styles.fact}>
@@ -94,31 +129,31 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
           ))}
         </View>
       ) : null}
-      {brief.description ? (
+      {expanded && brief.description ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Beskrivelse</Text>
           <Text style={{ color: colors.ink, lineHeight: 22 }}>{brief.description}</Text>
         </View>
       ) : null}
-      {brief.outline ? (
+      {expanded && brief.outline ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Hovedtrekk i prosedyren</Text>
           <Text style={{ color: colors.ink, lineHeight: 22 }}>{brief.outline}</Text>
         </View>
       ) : null}
-      {brief.extra ? (
+      {expanded && brief.extra ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Tilleggsinformasjon</Text>
           <Text style={{ color: colors.ink, lineHeight: 22 }}>{brief.extra}</Text>
         </View>
       ) : null}
-      {brief.lots?.length ? (
+      {expanded && brief.lots?.length ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Delkontrakter</Text>
           {brief.lots.map((lot) => <Text key={lot} style={{ color: colors.ink }}>{lot}</Text>)}
         </View>
       ) : null}
-      {brief.qa?.length ? (
+      {expanded && brief.qa?.length ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Spørsmål og svar</Text>
           {brief.qa.map((row) => (
@@ -128,7 +163,7 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
           ))}
         </View>
       ) : null}
-      {brief.links?.length ? (
+      {expanded && brief.links?.length ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Lenker</Text>
           {brief.links.map((link) => (

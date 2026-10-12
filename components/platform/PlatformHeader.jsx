@@ -5,6 +5,7 @@ import { useApp } from '../../src/context/AppContext';
 import { AvatarBubble } from '../AvatarPicker';
 import ProfileMenuModal from '../ProfileMenuModal';
 import HelpButton from '../HelpButton';
+import ViewAsButton from '../project/ViewAsBar';
 import HelpTarget from '../HelpTarget';
 
 /** Toppfelt for sosiale plattformskjell — konfigurerbart per type. */
@@ -51,6 +52,7 @@ export default function PlatformHeader({
           </View>
 
           <View style={styles.actions}>
+            <ViewAsButton />
             <HelpButton color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
             {!!rightLabel && !!onRightPress && (
               <TouchableOpacity style={styles.iconBtn} onPress={onRightPress} accessibilityLabel={rightLabel}>

@@ -6,6 +6,7 @@ import { useColors } from '../src/context/ThemeContext';
 import { useI18n } from '../src/i18n';
 import { useLayout } from '../src/theme';
 import HelpButton from './HelpButton';
+import ViewAsButton from './project/ViewAsBar';
 import HelpTarget from './HelpTarget';
 import { AvatarBubble } from './AvatarPicker';
 import ProfileMenuModal from './ProfileMenuModal';
@@ -90,6 +91,7 @@ export default function ShellHeader({
             )}
           </View>
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
+            <ViewAsButton compact />
             {!floatHelp ? (
               <HelpButton compact color={colors.ink} borderColor={colors.line} />
             ) : null}
@@ -152,6 +154,7 @@ export default function ShellHeader({
             {titleRight ? (
               <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
             ) : null}
+            <ViewAsButton compact />
             <HelpButton compact color={colors.ink} borderColor={colors.line} />
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
@@ -229,6 +232,7 @@ export default function ShellHeader({
           </View>
 
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
+            {!floatHelp || chromeOnly ? <ViewAsButton /> : null}
             {!floatHelp ? (
               <HelpButton color={colors.ink} borderColor={colors.line} />
             ) : null}
@@ -279,6 +283,7 @@ export default function ShellHeader({
                 </View>
                 {floatHelp ? (
                   <View style={styles.heroBelowRow} pointerEvents="box-none">
+                    <ViewAsButton />
                     <HelpButton floating color={colors.ink} borderColor={colors.line} />
                   </View>
                 ) : null}
@@ -301,7 +306,10 @@ export default function ShellHeader({
                         <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
                       ) : null}
                       {floatHelp ? (
-                        <HelpButton floating color={colors.ink} borderColor={colors.line} />
+                        <View style={styles.floatPair}>
+                          <ViewAsButton />
+                          <HelpButton floating color={colors.ink} borderColor={colors.line} />
+                        </View>
                       ) : null}
                     </View>
                   ) : null}
@@ -439,6 +447,11 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 20, fontWeight: '400', flex: 1, minWidth: 0 },
   titleRightCol: {
     flexShrink: 0,
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatPair: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },

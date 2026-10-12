@@ -21,7 +21,7 @@ import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
-import ViewAsBar, { ViewAsModulePlaceholder } from './project/ViewAsBar';
+import { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
@@ -728,18 +728,13 @@ function AppShellInner() {
   };
 
   const gatedBody = (
-    <View style={styles.viewAsFrame}>
-      {!kitchenMode ? <ViewAsBar access={companyAccess} /> : null}
-      <View style={styles.viewAsFrameBody}>
-        <ModuleActivationGate
-          moduleId={activationModuleId}
-          onBack={onActivationBack}
-          enabled={!kitchenMode}
-        >
-          {body}
-        </ModuleActivationGate>
-      </View>
-    </View>
+    <ModuleActivationGate
+      moduleId={activationModuleId}
+      onBack={onActivationBack}
+      enabled={!kitchenMode}
+    >
+      {body}
+    </ModuleActivationGate>
   );
 
   const showDeskAside = isDesktop && !kitchenMode
@@ -1080,8 +1075,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   bodyFill: { flex: 1, minHeight: 0, backgroundColor: 'transparent' },
-  viewAsFrame: { flex: 1, minHeight: 0, minWidth: 0 },
-  viewAsFrameBody: { flex: 1, minHeight: 0, minWidth: 0 },
   deskSplit: {
     flex: 1,
     flexDirection: 'row',

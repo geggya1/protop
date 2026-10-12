@@ -17,7 +17,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
-import ViewAsBar, { ViewAsModulePlaceholder } from './project/ViewAsBar';
+import { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
@@ -272,11 +272,8 @@ export default function SocialPlatformShell({ platformType }) {
       />
 
       <View style={styles.body}>
-        <ViewAsBar access={companyAccess} />
-        <View style={styles.bodyFill}>
-          <ShellErrorBoundary>{body}</ShellErrorBoundary>
-          <ModuleIntroHost scope={platformType} moduleId={tab} />
-        </View>
+        <ShellErrorBoundary>{body}</ShellErrorBoundary>
+        <ModuleIntroHost scope={platformType} moduleId={tab} />
       </View>
 
       <HelpTarget id="tabs">
@@ -319,7 +316,6 @@ export default function SocialPlatformShell({ platformType }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   body: { flex: 1, position: 'relative' },
-  bodyFill: { flex: 1, minHeight: 0 },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import {
   accountDeactivated,
   effectiveLevelId,
@@ -90,9 +91,10 @@ export function ViewAsModulePlaceholder({ access, tab, subView, colors }) {
   );
 }
 
-export default function ViewAsBar({ access }) {
+export default function ViewAsButton({ compact = false }) {
   const colors = useColors();
   const { uid, familyId } = useApp();
+  const access = useCompanyAccess();
   const selection = useViewAsSelection();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -123,125 +125,99 @@ export default function ViewAsBar({ access }) {
   const lens = selection.key === viewAsKey(uid, familyId) && selection.lens === 'companySettings'
     ? 'companySettings'
     : 'all';
+  const size = compact ? 32 : 36;
 
   function pick(employeeId) {
     setViewAsEmployee(uid, familyId, employeeId);
-    setOpen(true);
+    setOpen(false);
+  }
+
+  function backToSelf() {
+    clearViewAs();
+    setOpen(false);
   }
 
   return (
-    <View
-      nativeID="view-as-bar"
-      style={[styles.bar, { borderColor: colors.line, backgroundColor: colors.card }]}
-    >
-      <View style={styles.head}>
+    <>
+      <View nativeID="view-as-toggle" style={styles.slot}>
         <Pressable
-          nativeID="view-as-toggle"
           accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={previewing ? `Ser som ${name}` : 'Se som bruker'}
-          onPress={() => setOpen((current) => !current)}
-          style={styles.toggle}
+          accessibilityLabel={previewing ? `Du er ${name}. Bytt bruker.` : 'Se som bruker'}
+          onPress={() => setOpen(true)}
+          style={[
+            previewing ? styles.chip : styles.iconBtn,
+            {
+              height: size,
+              minWidth: size,
+              borderRadius: compact ? 6 : size / 2,
+              borderColor: previewing ? colors.brand : colors.line,
+              backgroundColor: previewing ? colors.brandSoft : colors.card,
+            },
+          ]}
         >
-          <Ionicons name="eye-outline" size={18} color={colors.brand} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.ink }]}>
-              {previewing ? `Ser som ${name}` : 'Se som bruker'}
+          <Ionicons name="eye-outline" size={compact ? 16 : 18} color={previewing ? colors.brand : colors.ink} />
+          {previewing ? (
+            <Text style={[styles.chipName, { color: colors.brand, maxWidth: compact ? 200 : 120 }]} numberOfLines={1}>
+              {`som ${name}`}
             </Text>
-            <Text style={[styles.meta, { color: colors.muted }]}>
-              {previewing
-                ? `${levelLabel(viewing)} · ${scope === 'companySettings' ? 'bedriftsinnstillinger' : 'alle moduler og apper'}`
-                : 'Se moduler og applikasjoner slik en valgt bruker ser dem'}
-            </Text>
-          </View>
-          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+          ) : null}
         </Pressable>
         {previewing ? (
           <Pressable
             nativeID="view-as-clear"
             accessibilityRole="button"
-            accessibilityLabel="Avslutt se som bruker"
-            onPress={() => clearViewAs()}
-            style={[styles.stop, { borderColor: colors.line }]}
+            accessibilityLabel="Tilbake til meg selv"
+            onPress={backToSelf}
+            style={[
+              styles.meBtn,
+              {
+                height: size,
+                borderRadius: compact ? 6 : size / 2,
+                borderColor: colors.brand,
+                backgroundColor: colors.card,
+              },
+            ]}
           >
-            <Text style={{ color: colors.ink }}>Avslutt</Text>
+            <Text style={[styles.meText, { color: colors.brand }]}>Meg</Text>
           </Pressable>
         ) : null}
       </View>
-
-      {previewing ? (
-        <View nativeID="view-as-summary" style={styles.summary}>
-          {scope === 'companySettings' ? (
-            <Text style={[styles.body, { color: colors.ink }]}>
-              Du tester bedriftsinnstillinger slik {name} ser dem. Øvrige moduler er dine.
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={styles.modalBg}>
+          <Pressable style={styles.modalDismiss} onPress={() => setOpen(false)} accessibilityLabel="Lukk se som bruker" />
+          <View nativeID="view-as-menu" style={[styles.menu, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Text style={[styles.title, { color: colors.ink }]}>
+              {previewing ? `Du er ${name}` : 'Se som bruker'}
             </Text>
-          ) : (
-            <Text style={[styles.body, { color: colors.ink }]}>
-              Menyen viser modulene og applikasjonene {name} ser.
-            </Text>
-          )}
-          <Text style={[styles.body, { color: colors.muted }]}>
-            Offentlig bedriftsinfo: {phrase(grants?.companyPublic)}.
-            {' '}Grunninnstillinger: {phrase(grants?.companyProfile)}.
-            {' '}Underenheter: {phrase(grants?.units)}.
-          </Text>
-          {scope === 'all' ? (
             <Text style={[styles.body, { color: colors.muted }]}>
-              Synlig: {visibleLabels.length ? visibleLabels.join(', ') : 'ingen bedriftsmoduler'}.
-              {hiddenLabels.length ? ` Skjult: ${hiddenLabels.join(', ')}.` : ' Ingenting i bedriftsmenyen er skjult.'}
+              {previewing
+                ? `${levelLabel(viewing)}. Alle sider og moduler følger denne brukeren til du går tilbake til deg selv.`
+                : 'Velg en bruker. Sidene viser modulene og applikasjonene slik den personen ser dem.'}
             </Text>
-          ) : null}
-            <Text style={[styles.body, { color: colors.muted }]}>
-              Endring er av i bedriftsmodulene du ser som denne brukeren.
-            </Text>
-        </View>
-      ) : null}
-
-      {open ? (
-        <View style={styles.panel}>
-          {capability === 'all' ? (
-            <View style={styles.lensRow}>
-              {[['all', 'Alle moduler'], ['companySettings', 'Bare bedriftsinnstillinger']].map(([id, label]) => {
-                const on = (previewing ? scope : lens) === id;
-                return (
-                  <Pressable
-                    key={id}
-                    nativeID={`view-as-lens-${id}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    onPress={() => setViewAsLens(uid, familyId, id)}
-                    style={[
-                      styles.lens,
-                      {
-                        borderColor: on ? colors.brand : colors.line,
-                        backgroundColor: on ? colors.brandSoft : colors.card,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={[styles.body, { color: colors.muted }]}>
-              Rettigheten din tester bare bedriftsinnstillinger. Lese eller høyere på Se som bruker viser alle moduler og apper.
-            </Text>
-          )}
-          <TextInput
-            nativeID="view-as-search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Søk etter ansatt"
-            placeholderTextColor={colors.placeholder || colors.muted}
-            style={[styles.search, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-          <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            {previewing ? (
+              <View nativeID="view-as-summary" style={styles.summary}>
+                {scope === 'companySettings' ? (
+                  <Text style={[styles.body, { color: colors.ink }]}>
+                    Du tester bedriftsinnstillinger slik {name} ser dem. Øvrige moduler er dine.
+                  </Text>
+                ) : (
+                  <Text style={[styles.body, { color: colors.ink }]}>
+                    Synlig: {visibleLabels.length ? visibleLabels.join(', ') : 'ingen bedriftsmoduler'}.
+                    {hiddenLabels.length ? ` Skjult: ${hiddenLabels.join(', ')}.` : ''}
+                  </Text>
+                )}
+                <Text style={[styles.body, { color: colors.muted }]}>
+                  Offentlig bedriftsinfo: {phrase(grants?.companyPublic)}.
+                  {' '}Grunninnstillinger: {phrase(grants?.companyProfile)}.
+                  {' '}Underenheter: {phrase(grants?.units)}.
+                </Text>
+              </View>
+            ) : null}
             <Pressable
               nativeID="view-as-self"
               accessibilityRole="button"
               accessibilityState={{ selected: !previewing }}
-              onPress={() => pick('')}
+              onPress={backToSelf}
               style={[
                 styles.person,
                 {
@@ -250,58 +226,125 @@ export default function ViewAsBar({ access }) {
                 },
               ]}
             >
-              <Text style={{ color: !previewing ? colors.brand : colors.ink }}>Meg selv</Text>
+              <Text style={{ color: !previewing ? colors.brand : colors.ink }}>Tilbake til meg selv</Text>
             </Pressable>
-            {active.map((person) => (
-              <PersonButton
-                key={person.id}
-                person={person}
-                active={viewing?.id === person.id}
-                colors={colors}
-                onPress={() => pick(person.id)}
-              />
-            ))}
-            {inactive.length ? (
-              <Text style={[styles.group, { color: colors.muted }]}>Deaktiverte</Text>
-            ) : null}
-            {inactive.map((person) => (
-              <PersonButton
-                key={person.id}
-                person={person}
-                active={viewing?.id === person.id}
-                colors={colors}
-                onPress={() => pick(person.id)}
-              />
-            ))}
-            {!people.length ? (
-              <Text style={[styles.body, { color: colors.muted }]}>Ingen ansatte å se som ennå.</Text>
-            ) : null}
-          </ScrollView>
+            {capability === 'all' ? (
+              <View style={styles.lensRow}>
+                {[['all', 'Alle moduler'], ['companySettings', 'Bare bedriftsinnstillinger']].map(([id, label]) => {
+                  const on = (previewing ? scope : lens) === id;
+                  return (
+                    <Pressable
+                      key={id}
+                      nativeID={`view-as-lens-${id}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => setViewAsLens(uid, familyId, id)}
+                      style={[
+                        styles.lens,
+                        {
+                          borderColor: on ? colors.brand : colors.line,
+                          backgroundColor: on ? colors.brandSoft : colors.card,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: on ? colors.brand : colors.ink }}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={[styles.body, { color: colors.muted }]}>
+                Rettigheten din tester bare bedriftsinnstillinger.
+              </Text>
+            )}
+            <TextInput
+              nativeID="view-as-search"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Søk etter ansatt"
+              placeholderTextColor={colors.placeholder || colors.muted}
+              style={[styles.search, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+              {active.map((person) => (
+                <PersonButton
+                  key={person.id}
+                  person={person}
+                  active={viewing?.id === person.id}
+                  colors={colors}
+                  onPress={() => pick(person.id)}
+                />
+              ))}
+              {inactive.length ? (
+                <Text style={[styles.group, { color: colors.muted }]}>Deaktiverte</Text>
+              ) : null}
+              {inactive.map((person) => (
+                <PersonButton
+                  key={person.id}
+                  person={person}
+                  active={viewing?.id === person.id}
+                  colors={colors}
+                  onPress={() => pick(person.id)}
+                />
+              ))}
+              {!people.length ? (
+                <Text style={[styles.body, { color: colors.muted }]}>Ingen ansatte å se som ennå.</Text>
+              ) : null}
+            </ScrollView>
+          </View>
         </View>
-      ) : null}
-    </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
+  slot: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  iconBtn: {
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    maxWidth: 220,
+  },
+  chipName: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  meBtn: {
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  meText: { fontSize: 13, fontWeight: '600' },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 64,
+    paddingRight: 16,
+    paddingLeft: 16,
+  },
+  modalDismiss: { ...StyleSheet.absoluteFillObject },
+  menu: {
+    width: '100%',
+    maxWidth: 420,
+    zIndex: 2,
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     gap: 8,
-    flexShrink: 0,
+    maxHeight: '80%',
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 16, fontWeight: '600' },
-  meta: { fontSize: 13, marginTop: 2 },
   body: { fontSize: 14, lineHeight: 20 },
   summary: { gap: 4 },
-  stop: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  panel: { gap: 8 },
   lensRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   lens: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   search: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },

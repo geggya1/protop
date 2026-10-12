@@ -129,6 +129,11 @@ export default function TenderHitCards({
                   {row.buyer || '—'}
                   <Text style={{ color: colors.muted }}>{` · ${place || '—'}`}</Text>
                 </Text>
+                {row.decision === 'ikke' && row.reviewNotes?.length ? (
+                  <Text style={{ color: colors.ink, lineHeight: 18 }} numberOfLines={open ? undefined : 2}>
+                    Hvorfor ikke gi tilbud: {row.reviewNotes.map((note) => note.text).join(' · ')}
+                  </Text>
+                ) : null}
                 <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
                   <Text style={{ color: soon ? colors.danger : colors.ink, fontWeight: soon ? '700' : '400' }}>
                     {deadline.headline}

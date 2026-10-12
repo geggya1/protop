@@ -37,6 +37,7 @@ import {
   renameBidFile,
   renameBidFolder,
   saveBidInterpretation,
+  saveBidReviewNotes,
   saveBidStepAi,
   saveBidStepNotes,
   setFormStatus,
@@ -72,6 +73,7 @@ import { pickDocument } from '../../src/utils/media';
 import { processStepsForBid } from '../../src/anbud/processTrail';
 import FormAnswer from './FormAnswer';
 import ProcessTrail from './ProcessTrail';
+import ReviewNotes from './ReviewNotes';
 
 const FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -388,6 +390,18 @@ export default function BidWorkspace({
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
+      {bid.reviewNotes?.length ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <ReviewNotes
+            notes={bid.reviewNotes || []}
+            colors={colors}
+            heading="Notater fra vurderingen"
+            hint="Notatene fulgte med fra vurderingen og kan fortsatt endres her."
+            onSave={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
+            onDelete={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
+          />
+        </View>
+      ) : null}
       <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
       <DeadlineBanner deadline={deadline} colors={colors} compact />
       {noticeUrl ? (

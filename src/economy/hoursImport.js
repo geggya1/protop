@@ -139,19 +139,45 @@ function normalizeStatus(value) {
   return 'registrert';
 }
 
-/** Stabil nøkkel for å unngå dobbeltføringer ved gjentatt import. */
+/**
+ * Personnøkkel for duplikatsjekk: samme menneske, uavhengig av prosjekt.
+ * Foretrekker ansatt-id (etter kobling), deretter ansattnummer, så navn.
+ */
+export function hourPersonKey(row = {}) {
+  return text(row.employeeId)
+    || text(row.employeeNumber)
+    || fold(row.employeeName);
+}
+
+/**
+ * Duplikat bare når dato, person, timer og beskrivelse er identiske.
+ * Prosjekt, aktivitet og ekstern id teller ikke — to like føringer på ulike
+ * prosjekt med samme tekst regnes som samme oppføring ved import.
+ */
 export function hourFingerprint(row = {}) {
-  const parts = [
-    parseDate(row.date) || text(row.date),
-    text(row.employeeNumber) || fold(row.employeeName),
-    text(row.projectNumber) || fold(row.projectName),
-    fold(row.activityName),
-    String(roundHours(row.hours ?? 0)),
-    String(roundHours(row.billableHours == null ? row.hours : row.billableHours)),
-    fold(row.description),
-    text(row.externalId),
-  ];
-  return parts.join('|');
+  const date = parseDate(row.date) || text(row.date);
+  const person = hourPersonKey(row);
+  const hours = String(roundHours(row.hours ?? 0));
+  const description = fold(row.description);
+  if (!date || !person) return '';
+  return [date, person, hours, description].join('|');
+}
+
+/** Samme kriterier som fingerprint — eksplisitt for tester og UI. */
+export function hoursLookDuplicate(left = {}, right = {}) {
+  const a = hourFingerprint(left);
+  const b = hourFingerprint(right);
+  return Boolean(a) && a === b;
+}
+
+/** Nøkler for eksisterende føringer — alltid fra feltene, ikke gammel fingerprint-streng. */
+export function collectHourFingerprints(entries) {
+  const keys = new Set();
+  for (const row of Array.isArray(entries) ? entries : []) {
+    const key = hourFingerprint(row);
+    if (key) keys.add(key);
+  }
+  return keys;
 }
 
 export function matchEmployee(employees, hint = {}) {
@@ -417,11 +443,7 @@ export function companyHourRow(input, {
 }
 
 export function planHourImport(existingEntries, employees, customers, projects, rows) {
-  const existingFingerprints = new Set(
-    (Array.isArray(existingEntries) ? existingEntries : [])
-      .map((row) => text(row.importFingerprint) || hourFingerprint(row))
-      .filter(Boolean),
-  );
+  const existingFingerprints = collectHourFingerprints(existingEntries);
   const seenInFile = new Set();
   const planned = [];
   for (const raw of Array.isArray(rows) ? rows : []) {

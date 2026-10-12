@@ -4,6 +4,7 @@ import {
   companyHourRow,
   hourColumnField,
   hourFingerprint,
+  hoursLookDuplicate,
   linkImportPlanEmployee,
   matchEmployee,
   planHourImport,
@@ -121,6 +122,74 @@ import {
     [raw],
   );
   assert.equal(second.rows[0].severity, 'existing');
+}
+
+{
+  // Duplikat krever dato + person + timer + beskrivelse — ikke bare dato/person.
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Geir', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '12' },
+  }];
+  const projects = [
+    { id: 'p1', number: '10857', name: 'Sikker skolevei' },
+    { id: 'p2', number: '10999', name: 'Annet prosjekt' },
+  ];
+  const base = {
+    date: '15.03.2023',
+    employeeNumber: '12',
+    employeeName: 'Geir Andersen',
+    projectNumber: '10857',
+    projectName: 'Sikker skolevei',
+    hours: '8',
+    description: 'Befaring',
+  };
+  assert.equal(hoursLookDuplicate(base, { ...base, projectNumber: '10999', projectName: 'Annet' }), true);
+  assert.equal(hoursLookDuplicate(base, { ...base, hours: '4' }), false);
+  assert.equal(hoursLookDuplicate(base, { ...base, description: 'Annet arbeid' }), false);
+  assert.equal(hoursLookDuplicate(base, { ...base, date: '16.03.2023' }), false);
+  assert.equal(hoursLookDuplicate(base, {
+    ...base, employeeNumber: '99', employeeName: 'Noen Andre',
+  }), false);
+
+  // Ulik beskrivelse / timer → ikke duplikat mot eksisterende, selv med gammel fingerprint-streng.
+  const existing = [{
+    date: '2023-03-15',
+    employeeId: 'emp1',
+    employeeNumber: '12',
+    employeeName: 'Geir Andersen',
+    hours: 8,
+    description: 'Befaring',
+    importFingerprint: 'gammel|kort|nokkel',
+  }];
+  const same = planHourImport(existing, employees, [], projects, [base]);
+  assert.equal(same.rows[0].severity, 'existing');
+
+  const differentHours = planHourImport(existing, employees, [], projects, [{ ...base, hours: '4' }]);
+  assert.equal(differentHours.rows[0].severity, 'ok');
+
+  const differentText = planHourImport(existing, employees, [], projects, [{
+    ...base, description: 'Tegningskontroll',
+  }]);
+  assert.equal(differentText.rows[0].severity, 'ok');
+
+  // Gammel fingerprint-streng alene skal ikke gi falske treff.
+  const stale = planHourImport([{
+    date: '2023-01-01',
+    employeeId: 'emp1',
+    employeeNumber: '12',
+    employeeName: 'Geir Andersen',
+    hours: 1,
+    description: 'X',
+    importFingerprint: hourFingerprint({
+      date: '15.03.2023',
+      employeeId: 'emp1',
+      employeeNumber: '12',
+      hours: 8,
+      description: 'Befaring',
+    }),
+  }], employees, [], projects, [base]);
+  assert.equal(stale.rows[0].severity, 'ok');
 }
 
 {

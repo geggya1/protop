@@ -18,6 +18,7 @@ import {
 } from './projectFields.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
+import { collectHourFingerprints, hourFingerprint } from '../economy/hoursImport.js';
 
 export function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1406,11 +1407,7 @@ export function importTimeEntries(state, drafts = []) {
   if (!list.length) return ok(state);
 
   let working = state;
-  const fingerprints = new Set(
-    (working.timeEntries || [])
-      .map((row) => text(row.importFingerprint))
-      .filter(Boolean),
-  );
+  const fingerprints = collectHourFingerprints(working.timeEntries);
   const added = [];
   const skipped = [];
   const touchedProjects = new Set();
@@ -1430,7 +1427,7 @@ export function importTimeEntries(state, drafts = []) {
       continue;
     }
 
-    const fingerprint = text(draft.importFingerprint);
+    const fingerprint = hourFingerprint(draft) || text(draft.importFingerprint);
     if (fingerprint && fingerprints.has(fingerprint)) {
       skipped.push({ reason: 'Duplikat', draft });
       continue;

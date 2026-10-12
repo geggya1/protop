@@ -143,6 +143,9 @@ export default function IntakePanel({ colors, company }) {
             <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
               <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
               <Text style={{ color: colors.muted }}>{row.fromName || 'En ProTop-bedrift'} · {inquiryStatusLabel(row.status)}</Text>
+              {row.status === 'ikke' && row.reviewNotes?.length ? (
+                <Text style={{ color: colors.ink }}>Hvorfor ikke gi tilbud: {row.reviewNotes.map((note) => note.text).join(' · ')}</Text>
+              ) : null}
             </View>
           ))}
         </View>
@@ -153,6 +156,9 @@ export default function IntakePanel({ colors, company }) {
           <Text style={{ color: colors.muted }}>
             {[inquiryStatusLabel(row.status), INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
           </Text>
+          {row.status === 'ikke' && row.reviewNotes?.length ? (
+            <Text style={{ color: colors.ink }}>Hvorfor ikke gi tilbud: {row.reviewNotes.map((note) => note.text).join(' · ')}</Text>
+          ) : null}
           {row.attachments?.length ? <Text style={{ color: colors.muted }}>{row.attachments.length} vedlegg</Text> : null}
         </View>
       ))}

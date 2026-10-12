@@ -1,5 +1,6 @@
 import { areaById, cpvByCode } from './catalog.js';
 import { normalizeFormTemplates, normalizeBidWork } from './bidLibrary.js';
+import { normalizeReviewNotes } from './reviewNotes.js';
 import { normalizeCustomers } from './customers.js';
 import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 
@@ -213,6 +214,7 @@ function pickReviewedNotice(left, right) {
     interest: winner.interest || other.interest || null,
     dossier: winner.dossier || other.dossier || null,
     consideration: winner.consideration || other.consideration || null,
+    reviewNotes: winner.reviewNotes?.length ? winner.reviewNotes : (other.reviewNotes || []),
     isNew: isDecided(winner.decision) ? false : !!(winner.isNew || other.isNew),
     matchedKeywords: normalizeKeywords([...(other.matchedKeywords || []), ...(winner.matchedKeywords || [])]),
   };
@@ -802,6 +804,7 @@ function normalizeNotice(raw) {
     decision,
     reviewedAt: row.reviewedAt || null,
     consideration: strategy ? { strategy } : null,
+    reviewNotes: normalizeReviewNotes(row.reviewNotes),
     aiFit: row.aiFit && typeof row.aiFit === 'object'
       ? {
         score: Math.max(0, Math.min(10, Number(row.aiFit.score) || 0)),
@@ -835,6 +838,16 @@ export function toggleConsideration(state, id, itemId) {
 
 function noticeById(state, id) {
   return (state.notices || []).find((row) => row.id === id) || null;
+}
+
+export function saveNoticeReviewNotes(state, id, notes) {
+  const notice = noticeById(state, id);
+  if (!notice) return fail(state, 'Kunngjøringen finnes ikke i lista.');
+  const reviewNotes = normalizeReviewNotes(notes);
+  return ok({
+    ...state,
+    notices: state.notices.map((row) => (row.id === id ? { ...row, reviewNotes } : row)),
+  });
 }
 
 export function setNoticeDecision(state, id, decision) {
@@ -924,6 +937,7 @@ function freshBid(notice, dossier, assignment) {
     createdAt: new Date().toISOString(),
     dossier: dossier || notice.dossier || null,
     assignment: assignment || null,
+    reviewNotes: normalizeReviewNotes(notice.reviewNotes),
     folders: [],
     files: [],
     forms: [],
@@ -942,6 +956,7 @@ function stampNoticeBid(bid, notice, assignment) {
     originAt: bid.originAt || notice.publishedAt || '',
     interestAt: bid.interestAt || notice.interestAt || '',
     assignment: assignment ? { ...(bid.assignment || {}), ...assignment } : bid.assignment,
+    reviewNotes: normalizeReviewNotes(notice.reviewNotes?.length ? notice.reviewNotes : bid.reviewNotes),
   });
 }
 
@@ -1058,7 +1073,11 @@ export function createManualBidWork(state, input = {}) {
         ...state,
         bids: bids.map((row) => (
           row.inquiryId === inquiryId
-            ? normalizeBidWork({ ...row, assignment: stamped || row.assignment })
+            ? normalizeBidWork({
+              ...row,
+              assignment: stamped || row.assignment,
+              reviewNotes: normalizeReviewNotes(input?.reviewNotes?.length ? input.reviewNotes : row.reviewNotes),
+            })
             : row
         )),
       });
@@ -1078,6 +1097,7 @@ export function createManualBidWork(state, input = {}) {
     stage: 'planlegging',
     createdAt: new Date().toISOString(),
     assignment: stamped,
+    reviewNotes: normalizeReviewNotes(input?.reviewNotes),
     dossier: {
       title,
       buyer,

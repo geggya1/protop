@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
-import { STRATEGY_ITEMS } from '../../src/anbud/lifecycle';
 import {
   attachDossier,
   createBidWork,
   createManualBidWork,
   releaseUntouchedBid,
+  saveNoticeReviewNotes,
   setNoticeDecision,
-  toggleConsideration,
 } from '../../src/anbud/model';
 import { fetchCompetitionFile } from '../../src/anbud/doffinClient';
 import { inquiryBrief, noticeBrief, noticeNeedsDossier } from '../../src/anbud/noticeBrief';
@@ -28,6 +27,7 @@ import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
 import ProcessTrail from './ProcessTrail';
 import OppdragBrief from './OppdragBrief';
+import ReviewNotes from './ReviewNotes';
 
 function peopleOf(members) {
   return (members || [])
@@ -86,37 +86,28 @@ function DecisionCard({
   onGive,
   onDecline,
   busy,
-  strategy,
-  onToggleStrategy,
+  notes,
+  onSaveNotes,
+  onDeleteNotes,
   brief,
   briefLoading,
   wide,
 }) {
   const missing = assignmentGap({ departments, people, unitId, personId });
+  const collectRef = React.useRef(() => notes || []);
   const decision = (
     <View style={styles.col}>
       <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{title}</Text>
       <Text style={{ color: colors.ink }}>{buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       {meta ? <Text style={{ color: colors.muted }}>{meta}</Text> : null}
       <ProcessTrail steps={steps} colors={colors} />
-      {strategy ? (
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Før dere gir tilbud</Text>
-          {STRATEGY_ITEMS.map((item) => {
-            const on = !!strategy[item.id];
-            return (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => onToggleStrategy(item.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }}
-              >
-                <Text style={{ color: on ? colors.ink : colors.muted }}>{on ? '✓' : '○'} {item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
+      <ReviewNotes
+        notes={notes}
+        colors={colors}
+        onSave={onSaveNotes}
+        onDelete={onDeleteNotes}
+        onCollect={(fn) => { collectRef.current = fn; }}
+      />
       <ChoiceChips
         label="Avdeling"
         colors={colors}
@@ -136,7 +127,7 @@ function DecisionCard({
       <Text style={{ color: missing.length ? colors.ink : colors.muted }}>{assignmentHint(missing)}</Text>
       <View style={styles.actions}>
         <TouchableOpacity
-          onPress={onGive}
+          onPress={() => onGive(collectRef.current())}
           disabled={busy || missing.length > 0}
           accessibilityRole="button"
           accessibilityState={{ disabled: busy || missing.length > 0 }}
@@ -147,7 +138,7 @@ function DecisionCard({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={onDecline}
+          onPress={() => onDecline(collectRef.current())}
           disabled={busy}
           accessibilityRole="button"
           style={[styles.decline, { borderColor: colors.line }]}
@@ -285,6 +276,7 @@ export default function CurrentReview({
       setError(result?.error || 'Kunne ikke lagre.');
       return null;
     }
+    stateRef.current = result.state;
     setState(result.state);
     setError('');
     await saveAnbudState(result.state, company?.id);
@@ -298,12 +290,30 @@ export default function CurrentReview({
     applyFamilyPatch?.(company.id, patch);
   }
 
-  async function weigh(id, itemId) {
-    const result = toggleConsideration(state, id, itemId);
-    await commitState(result);
+  async function saveNoticeNotes(notice, notes) {
+    const result = saveNoticeReviewNotes(stateRef.current, notice.id, notes);
+    const saved = await commitState(result);
+    return saved;
   }
 
-  async function giveNotice(notice) {
+  async function saveDirectNotes(item, notes) {
+    const sourceList = item.queueKind === 'protop' ? inbox : inquiries;
+    const patched = patchInquiry(sourceList, item.id, { reviewNotes: notes });
+    if (!patched.ok) {
+      setError(patched.error);
+      return false;
+    }
+    try {
+      await saveList(item.queueKind, patched.list);
+      setError('');
+      return true;
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke lagre notatet.');
+      return false;
+    }
+  }
+
+  async function giveNotice(notice, notes) {
     const missing = assignmentGap({
       departments,
       people,
@@ -316,7 +326,8 @@ export default function CurrentReview({
     }
     setBusyId(notice.id);
     setError('');
-    const made = await commitState(createBidWork(state, notice.id, chosenAssignment(notice.id)));
+    const noted = saveNoticeReviewNotes(stateRef.current, notice.id, notes);
+    const made = await commitState(createBidWork(noted.ok ? noted.state : stateRef.current, notice.id, chosenAssignment(notice.id)));
     setBusyId('');
     if (!made) return;
     const bid = (made.bids || []).find((row) => row.noticeId === notice.id);
@@ -324,9 +335,10 @@ export default function CurrentReview({
     if (bid) onOpenBid?.(bid.id);
   }
 
-  async function declineNotice(notice) {
+  async function declineNotice(notice, notes) {
     setBusyId(notice.id);
-    const decided = setNoticeDecision(state, notice.id, 'ikke');
+    const noted = saveNoticeReviewNotes(stateRef.current, notice.id, notes);
+    const decided = setNoticeDecision(noted.ok ? noted.state : stateRef.current, notice.id, 'ikke');
     if (!decided.ok) {
       setError(decided.error);
       setBusyId('');
@@ -337,7 +349,7 @@ export default function CurrentReview({
     setNote(`${notice.title} er satt til ikke gi tilbud.`);
   }
 
-  async function giveDirect(item) {
+  async function giveDirect(item, notes) {
     const missing = assignmentGap({
       departments,
       people,
@@ -350,7 +362,7 @@ export default function CurrentReview({
     }
     setBusyId(item.id);
     setError('');
-    const loaded = state || await loadAnbudState(company?.id);
+    const loaded = stateRef.current || await loadAnbudState(company?.id);
     const made = await commitState(createManualBidWork(loaded, {
       title: item.title,
       buyer: item.buyer || item.fromName,
@@ -362,6 +374,7 @@ export default function CurrentReview({
       channel: item.channel,
       originAt: item.createdAt,
       interestAt: item.interestAt || item.createdAt,
+      reviewNotes: notes,
     }));
     if (!made) {
       setBusyId('');
@@ -374,6 +387,7 @@ export default function CurrentReview({
       bidId: bid?.id || '',
       decidedAt: new Date().toISOString(),
       interestAt: item.interestAt || item.createdAt,
+      reviewNotes: notes,
     });
     if (!patched.ok) {
       setError(patched.error);
@@ -393,13 +407,14 @@ export default function CurrentReview({
     if (bid) onOpenBid?.(bid.id);
   }
 
-  async function declineDirect(item) {
+  async function declineDirect(item, notes) {
     setBusyId(item.id);
     setError('');
     const sourceList = item.queueKind === 'protop' ? inbox : inquiries;
     const patched = patchInquiry(sourceList, item.id, {
       status: 'ikke',
       decidedAt: new Date().toISOString(),
+      reviewNotes: notes,
     });
     if (!patched.ok) {
       setError(patched.error);
@@ -448,11 +463,12 @@ export default function CurrentReview({
               personId={selected.personId}
               onUnit={(unitId) => setPick(notice.id, { unitId })}
               onPerson={(personId) => setPick(notice.id, { personId })}
-              onGive={() => giveNotice(notice)}
-              onDecline={() => declineNotice(notice)}
+              onGive={(notes) => giveNotice(notice, notes)}
+              onDecline={(notes) => declineNotice(notice, notes)}
               busy={busyId === notice.id}
-              strategy={notice.consideration?.strategy || {}}
-              onToggleStrategy={(itemId) => weigh(notice.id, itemId)}
+              notes={notice.reviewNotes || []}
+              onSaveNotes={(notes) => saveNoticeNotes(notice, notes)}
+              onDeleteNotes={(notes) => saveNoticeNotes(notice, notes)}
               brief={noticeBrief(notice)}
               briefLoading={loadingIds.has(notice.id)}
               wide={wide}
@@ -488,8 +504,11 @@ export default function CurrentReview({
               people={people}
               unitId={selected.unitId}
               personId={selected.personId}
-              onGive={() => giveDirect(item)}
-              onDecline={() => declineDirect(item)}
+              onGive={(notes) => giveDirect(item, notes)}
+              onDecline={(notes) => declineDirect(item, notes)}
+              notes={item.reviewNotes || []}
+              onSaveNotes={(notes) => saveDirectNotes(item, notes)}
+              onDeleteNotes={(notes) => saveDirectNotes(item, notes)}
               onUnit={(unitId) => setPick(item.id, { unitId })}
               onPerson={(personId) => setPick(item.id, { personId })}
               busy={busyId === item.id}

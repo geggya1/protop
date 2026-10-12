@@ -39,6 +39,7 @@ import {
   ABSENCE_TYPES,
   canManageTimesheets,
   employeeDisplayName,
+  filterEmployeesForPicker,
   findLinkedEmployee,
 } from '../../src/arbeid/roles.js';
 import {
@@ -167,21 +168,10 @@ export default function ArbeidScreen({ lockedEmployeeId = '' } = {}) {
   const selectedEmployee = employees.find((row) => row.id === employeeId) || linked;
   const selectedName = employeeDisplayName(selectedEmployee) || 'Medarbeider';
 
-  const pickerEmployees = useMemo(() => {
-    const active = employees.filter((row) => row.company?.status !== 'former');
-    const q = empPickerQuery.trim().toLowerCase();
-    if (!q) return active;
-    return active.filter((row) => {
-      const hay = [
-        employeeDisplayName(row),
-        row.company?.accessRole,
-        row.company?.title,
-        row.company?.externalEmployeeNumber,
-        row.person?.email,
-      ].join(' ').toLowerCase();
-      return hay.includes(q);
-    });
-  }, [employees, empPickerQuery]);
+  const pickerEmployees = useMemo(
+    () => filterEmployeesForPicker(employees, empPickerQuery),
+    [employees, empPickerQuery],
+  );
 
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);

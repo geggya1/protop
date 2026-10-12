@@ -203,6 +203,7 @@ export default function EmployeeDetailPreview() {
         confirmDelete={confirmDelete}
         onBack={() => {}}
         onCv={() => {}}
+        onHours={() => setOpenedId('hours')}
         onOpenProject={(project) => setOpenedId(project.id)}
         onSelect={(row) => setSelectedId(row.id)}
         onChange={(next) => {

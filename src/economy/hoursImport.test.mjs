@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildHourImportReview,
   companyHourRow,
   hourColumnField,
   hourFingerprint,
@@ -167,6 +168,16 @@ import {
   const ok = review.find((row) => row.id === 'ok-group');
   const dropped = toggleHourReviewRow(new Set(), ok, plan);
   assert.equal(dropped.size, 2);
+
+  const built = buildHourImportReview(plan);
+  assert.equal(built.readyCount, 2);
+  assert.equal(built.okRows.length, 2);
+  assert.equal(built.blockCount, 1);
+  assert.match(built.cards.find((row) => row.severity === 'block').title, /Summeringsrad|Totalt|ugyldig/i);
+
+  const afterDrop = buildHourImportReview(plan, { dropped });
+  assert.equal(afterDrop.readyCount, 0);
+  assert.equal(afterDrop.okRows.every((row) => !row.included), true);
 }
 
 {

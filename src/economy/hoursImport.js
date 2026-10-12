@@ -264,7 +264,13 @@ function looksLikeTotalRow(mapped) {
     mapped.date, mapped.employeeName, mapped.employeeNumber,
     mapped.projectName, mapped.projectNumber, mapped.description,
   ].join(' '));
-  return blob === 'totalt' || blob === 'sum' || blob === 'total' || blob.startsWith('totalt');
+  if (blob === 'totalt' || blob === 'sum' || blob === 'total' || blob.startsWith('totalt')) return true;
+  // Moment/Excel summeringsrad: bare et stort tall uten dato/prosjekt/ansatt.
+  const bareNumber = /^\d+(\.\d+)?$/.test(text(mapped.employeeName) || text(mapped.hours));
+  const noContext = !parseDate(mapped.date) && !text(mapped.date)
+    && !text(mapped.projectNumber) && !text(mapped.projectName)
+    && !text(mapped.employeeNumber);
+  return bareNumber && noContext && !(text(mapped.employeeName) && /[a-zæøå]/i.test(mapped.employeeName));
 }
 
 export function companyHourRow(input, {
@@ -629,10 +635,22 @@ export async function readHourTable(bytes, filename = '', { columnFields } = {})
   return rows;
 }
 
-/** Kompakt gjennomgang: grupperte avvik + klare + duplikater. */
-export function reviewRowsForHourPlan(plan, { dropped = new Set(), okSample = 12 } = {}) {
+function includedIndexes(indexes, dropped) {
+  return (indexes || []).filter((index) => !dropped.has(String(index)));
+}
+
+function blockTitle(row) {
+  const label = text(row?.title);
+  if (!label || /^\d+(\.\d+)?$/.test(label)) return 'Summeringsrad eller ugyldig rad';
+  return label;
+}
+
+/**
+ * Gjennomgang for timeimport: kort for avvik + tabellrader for klare føringer.
+ * readyCount teller faktiske føringer, ikke kort.
+ */
+export function buildHourImportReview(plan, { dropped = new Set() } = {}) {
   const rows = Array.isArray(plan?.rows) ? plan.rows : [];
-  const out = [];
   const okIndexes = [];
   const blockIndexes = [];
   const existingIndexes = [];
@@ -659,26 +677,41 @@ export function reviewRowsForHourPlan(plan, { dropped = new Set(), okSample = 12
           issues: row.issues || [],
           indexes: [],
           sampleTitles: [],
+          needsEmployee: false,
+          needsProject: false,
+          needsCustomer: false,
+          employeeName: row.employeeName || '',
+          employeeNumber: row.employeeNumber || '',
+          projectNumber: row.projectNumber || '',
+          projectName: row.projectName || '',
+          customerName: row.customerName || '',
+          customerNumber: row.customerNumber || '',
+          rowIndex: index,
         });
       }
       const group = reviewGroups.get(issueKey);
       group.indexes.push(index);
       if (group.sampleTitles.length < 4) group.sampleTitles.push(row.title);
+      group.needsEmployee = group.needsEmployee || !row.employeeId;
+      group.needsProject = group.needsProject || !row.projectId;
+      group.needsCustomer = group.needsCustomer || !row.customerId;
       if (dropped.has(String(index))) group.included = false;
       return;
     }
     okIndexes.push(index);
   });
 
+  const cards = [];
   if (blockIndexes.length) {
-    const sample = blockIndexes.slice(0, 5).map((index) => rows[index]?.title).filter(Boolean);
-    out.push({
+    const sample = blockIndexes.slice(0, 5).map((index) => blockTitle(rows[index])).filter(Boolean);
+    cards.push({
       id: 'block-group',
       severity: 'block',
       included: false,
       locked: true,
+      count: blockIndexes.length,
       title: blockIndexes.length === 1
-        ? (rows[blockIndexes[0]]?.title || 'Blokkert rad')
+        ? blockTitle(rows[blockIndexes[0]])
         : `${blockIndexes.length} rader blir ikke importert`,
       meta: sample.join(', '),
       issues: [rows[blockIndexes[0]]?.issues?.[0] || 'Kan ikke importeres.'],
@@ -689,11 +722,12 @@ export function reviewRowsForHourPlan(plan, { dropped = new Set(), okSample = 12
 
   if (existingIndexes.length) {
     const sample = existingIndexes.slice(0, 5).map((index) => rows[index]?.title).filter(Boolean);
-    out.push({
+    cards.push({
       id: 'existing-group',
       severity: 'existing',
       included: false,
       locked: true,
+      count: existingIndexes.length,
       title: existingIndexes.length === 1
         ? (rows[existingIndexes[0]]?.title || 'Duplikat')
         : `${existingIndexes.length} duplikater hoppes over`,
@@ -701,41 +735,78 @@ export function reviewRowsForHourPlan(plan, { dropped = new Set(), okSample = 12
       issues: [rows[existingIndexes[0]]?.issues?.[0] || 'Finnes allerede.'],
       indexes: existingIndexes,
       rowIndex: existingIndexes[0],
-      count: existingIndexes.length,
     });
   }
 
-  for (const group of reviewGroups.values()) {
+  const reviewCards = [...reviewGroups.values()].map((group) => {
+    const active = includedIndexes(group.indexes, dropped);
     const count = group.indexes.length;
-    out.push({
-      id: group.id,
-      severity: 'review',
-      included: group.included && group.indexes.some((index) => !dropped.has(String(index))),
+    return {
+      ...group,
+      count,
+      included: active.length > 0,
       title: count === 1 ? group.title : `${count} føringer med samme avvik`,
       meta: group.sampleTitles.join(', '),
-      issues: group.issues,
-      indexes: group.indexes,
-      rowIndex: group.indexes[0],
-      count,
-    });
-  }
+    };
+  });
+  cards.push(...reviewCards);
 
+  const okRows = okIndexes.map((index) => {
+    const row = rows[index];
+    const entry = row?.entry || {};
+    return {
+      id: String(index),
+      index,
+      included: !dropped.has(String(index)),
+      title: row.title,
+      date: entry.date || '',
+      employeeName: entry.employeeName || row.employeeName || '',
+      customerName: entry.customerName || row.customerName || '',
+      projectNumber: entry.projectNumber || row.projectNumber || '',
+      projectName: entry.projectName || row.projectName || '',
+      activityName: entry.activityName || '',
+      hours: entry.hours,
+      billableHours: entry.billableHours,
+      description: entry.description || '',
+    };
+  });
+
+  const okActive = includedIndexes(okIndexes, dropped);
   if (okIndexes.length) {
-    const included = okIndexes.some((index) => !dropped.has(String(index)));
-    const sample = okIndexes.slice(0, okSample).map((index) => rows[index]?.title).filter(Boolean);
-    out.push({
+    cards.push({
       id: 'ok-group',
       severity: 'ok',
-      included,
+      included: okActive.length > 0,
+      count: okActive.length,
       title: `${okIndexes.length} timer klare uten avvik`,
-      meta: sample.join(', ') + (okIndexes.length > okSample ? ' …' : ''),
+      meta: '',
       issues: [],
       indexes: okIndexes,
-      count: okIndexes.length,
+      list: true,
     });
   }
 
-  return out;
+  let readyCount = 0;
+  rows.forEach((row, index) => {
+    if (row.severity === 'block' || row.severity === 'existing' || !row.entry) return;
+    if (dropped.has(String(index))) return;
+    if (!row.entry.employeeId || !row.entry.projectId) return;
+    readyCount += 1;
+  });
+
+  return {
+    cards,
+    okRows,
+    reviewCards,
+    existingCount: existingIndexes.length,
+    blockCount: blockIndexes.length,
+    readyCount,
+  };
+}
+
+/** Bakoverkompatibel wrapper for tester/eldre kall. */
+export function reviewRowsForHourPlan(plan, options = {}) {
+  return buildHourImportReview(plan, options).cards;
 }
 
 export function toggleHourReviewRow(dropped, reviewRow, plan) {

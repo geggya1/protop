@@ -4,14 +4,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
-import ImportReview, { ImportResult } from '../../components/ImportReview';
+import { ImportResult } from '../../components/ImportReview';
+import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { loadAnbudState } from '../../src/anbud/storage';
@@ -19,14 +19,12 @@ import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
   HOUR_IMPORT_ACCEPT,
+  buildHourImportReview,
   linkImportPlanCustomer,
   linkImportPlanEmployee,
   linkImportPlanProject,
-  reviewRowsForHourPlan,
-  suggestEmployees,
   toggleHourReviewRow,
 } from '../../src/economy/hoursImport.js';
-import { suggestCustomers } from '../../src/economy/invoiceImport.js';
 import {
   DEFAULT_HOUR_COLUMNS,
   HOUR_COLUMNS,
@@ -195,10 +193,11 @@ export default function EconomyHours({
     }
     return out;
   }, [groupBy, groups, pageRows, pageSize]);
-  const reviewRows = useMemo(
-    () => (importPlan ? reviewRowsForHourPlan(importPlan, { dropped }) : []),
+  const importReview = useMemo(
+    () => (importPlan ? buildHourImportReview(importPlan, { dropped }) : null),
     [importPlan, dropped],
   );
+  const importReadyCount = importReview?.readyCount || 0;
 
   useEffect(() => {
     if (!stackRows) return;
@@ -390,125 +389,49 @@ export default function EconomyHours({
     );
   }
 
-  if (view === 'import' && importPlan) {
+  if (view === 'import' && importPlan && importReview) {
     return (
       <ScrollView
         nativeID="economy-hours-import"
         style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.inner}
+        contentContainerStyle={styles.importInner}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.heading, { color: colors.ink }]}>Kontroller timeimport</Text>
-        <Text style={{ color: colors.muted }}>
-          Duplikater hoppes over. Medarbeidere legges automatisk inn på prosjektene ved lagring,
-          og timene oppdaterer prosjektets oppstilling.
-        </Text>
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
-        <ImportReview
+        <HoursImportReview
           colors={colors}
-          nativeID="hour-import-review"
-          lead="Fjern rader du ikke vil ha med. Grupper med samme avvik kan tas ut samlet."
-          rows={reviewRows}
+          review={importReview}
+          employees={employees}
+          customers={customers}
+          projects={projectList}
           busy={busy}
+          readyCount={importReadyCount}
+          linkQuery={linkQuery}
+          setLinkQuery={setLinkQuery}
+          title="Kontroller timeimport"
+          lead="Fjern rader du ikke vil ha med. Grupper med samme avvik kan tas ut samlet."
           confirmLabel={(count) => `Importer ${count} timer`}
-          onToggle={(id) => {
-            const row = reviewRows.find((item) => item.id === id);
-            if (!row) return;
-            setDropped((current) => toggleHourReviewRow(current, row, importPlan));
+          onToggleCard={(card) => {
+            setDropped((current) => toggleHourReviewRow(current, card, importPlan));
+          }}
+          onToggleOkRow={(id) => {
+            setDropped((current) => toggleHourReviewRow(current, { id }, importPlan));
+          }}
+          onLinkEmployee={(rowIndex, employee) => {
+            setImportPlan((current) => linkImportPlanEmployee(current, rowIndex, employee, { applyGroup: true }));
+            setNote(`Koblet til ${displayName(employee)}.`);
+          }}
+          onLinkProject={(rowIndex, project) => {
+            setImportPlan((current) => linkImportPlanProject(current, rowIndex, project));
+            setNote(`Koblet prosjekt ${project.number || project.name}.`);
+          }}
+          onLinkCustomer={(rowIndex, customer) => {
+            setImportPlan((current) => linkImportPlanCustomer(current, rowIndex, customer, { applyGroup: true }));
+            setNote(`Koblet til ${customer.name}.`);
           }}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}
-          renderRowExtra={(row) => {
-            if (row.severity === 'ok' || row.severity === 'existing') return null;
-            const planRow = importPlan.rows[row.rowIndex];
-            if (!planRow?.entry) return null;
-            const q = linkQuery[row.id] || '';
-            return (
-              <View style={{ gap: 6, marginTop: 4 }}>
-                {!planRow.employeeId ? (
-                  <>
-                    <TextInput
-                      value={q}
-                      onChangeText={(value) => setLinkQuery((current) => ({ ...current, [row.id]: value }))}
-                      placeholder="Søk medarbeider for å koble…"
-                      placeholderTextColor={colors.placeholder}
-                      style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-                    />
-                    {suggestEmployees(employees, {
-                      ...planRow,
-                      query: q || planRow.employeeName || planRow.employeeNumber,
-                    }, 6).map((employee) => (
-                      <TouchableOpacity
-                        key={employee.id}
-                        onPress={() => {
-                          setImportPlan((current) => linkImportPlanEmployee(current, row.rowIndex, employee, { applyGroup: true }));
-                          setNote(`Koblet til ${displayName(employee)}.`);
-                        }}
-                        accessibilityRole="button"
-                      >
-                        <Text style={{ color: colors.brand }}>
-                          {displayName(employee)}
-                          {employee.company?.externalEmployeeNumber
-                            ? ` · ${employee.company.externalEmployeeNumber}`
-                            : ''}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </>
-                ) : null}
-                {!planRow.projectId ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const hit = projectList.find((project) => (
-                        String(project.number) === String(planRow.projectNumber)
-                        || (planRow.projectName && project.name === planRow.projectName)
-                      ));
-                      if (hit) {
-                        setImportPlan((current) => linkImportPlanProject(current, row.rowIndex, hit));
-                        setNote(`Koblet prosjekt ${hit.number}.`);
-                      } else {
-                        setError('Fant ikke prosjektet i registeret. Importer prosjektlisten først.');
-                      }
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ color: colors.brand }}>Prøv å koble prosjekt fra registeret</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {!planRow.customerId ? (
-                  <>
-                    <TextInput
-                      value={linkQuery[`${row.id}-c`] || ''}
-                      onChangeText={(value) => setLinkQuery((current) => ({ ...current, [`${row.id}-c`]: value }))}
-                      placeholder="Søk kunde for å koble…"
-                      placeholderTextColor={colors.placeholder}
-                      style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-                    />
-                    {suggestCustomers(customers, {
-                      ...planRow,
-                      client: planRow.customerName,
-                      query: linkQuery[`${row.id}-c`] || '',
-                    }, 6).map((customer) => (
-                      <TouchableOpacity
-                        key={customer.id}
-                        onPress={() => {
-                          setImportPlan((current) => linkImportPlanCustomer(current, row.rowIndex, customer, { applyGroup: true }));
-                          setNote(`Koblet til ${customer.name}.`);
-                        }}
-                        accessibilityRole="button"
-                      >
-                        <Text style={{ color: colors.brand }}>
-                          {customer.name}
-                          {customer.customerNumber ? ` · ${customer.customerNumber}` : ''}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </>
-                ) : null}
-              </View>
-            );
-          }}
         />
       </ScrollView>
     );
@@ -728,6 +651,7 @@ export default function EconomyHours({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 1100, width: '100%', alignSelf: 'flex-start', gap: 14 },
+  importInner: { padding: 16, paddingBottom: 48, maxWidth: 1200, width: '100%', alignSelf: 'flex-start', gap: 14 },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
   phoneInner: { padding: 12, paddingBottom: 40, gap: 12 },
@@ -741,7 +665,6 @@ const styles = StyleSheet.create({
   primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   filters: { gap: 10 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minHeight: 42 },
   statusChips: { gap: 8, paddingVertical: 2 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },

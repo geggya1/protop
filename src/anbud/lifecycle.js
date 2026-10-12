@@ -491,7 +491,7 @@ export function markSubmitted(state, bidId) {
   return ok(record(replaceBid(state, bidId, {
     ...bid,
     stage: 'levert',
-    submittedAt: new Date().toISOString(),
+    submittedAt: bid.submittedAt || new Date().toISOString(),
   }), {
     bidId,
     action: 'tilbud-levert',
@@ -619,7 +619,11 @@ export function awardContract(state, bidId, input) {
     systemId: claimed.systemId,
     oppdragId: claimed.oppdragId,
   };
-  const next = record(replaceBid(state, bidId, { ...bid, stage: 'kontrakt' }), {
+  const next = record(replaceBid(state, bidId, {
+    ...bid,
+    stage: 'kontrakt',
+    closedAt: new Date().toISOString(),
+  }), {
     bidId,
     contractId: contract.id,
     action: 'kontrakt-registrert',
@@ -634,7 +638,11 @@ export function markOutcome(state, bidId, outcome) {
   if (outcome !== 'tapt' && outcome !== 'trukket') return fail(state, 'Ugyldig avslutning.');
   if (bid.stage === 'kontrakt') return fail(state, 'Kontrakten må avsluttes før konkurransen kan trekkes.');
   if (bid.stage === 'tapt' || bid.stage === 'trukket') return fail(state, 'Konkurransen er allerede avsluttet.');
-  return ok(record(replaceBid(state, bidId, { ...bid, stage: outcome }), {
+  return ok(record(replaceBid(state, bidId, {
+    ...bid,
+    stage: outcome,
+    closedAt: new Date().toISOString(),
+  }), {
     bidId,
     action: outcome === 'tapt' ? 'tilbud-tapt' : 'tilbud-trukket',
     detail: bid.title,

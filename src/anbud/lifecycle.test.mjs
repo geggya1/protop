@@ -97,17 +97,21 @@ assert.equal(markOutcome(state, 'bid_1', 'tapt').ok, false);
 const lost = markOutcome(readyBid(), 'bid_1', 'tapt');
 assert.equal(lost.ok, true);
 assert.equal(lost.state.bids[0].stage, 'tapt');
+assert.ok(lost.state.bids[0].closedAt);
 assert.equal(awardContract(lost.state, 'bid_1', { value: '10' }).ok, false);
 
 const submitted = markSubmitted(openExecution(readyBid(), 'bid_1', now).state, 'bid_1');
 assert.equal(submitted.ok, true, submitted.error);
 assert.equal(submitted.state.bids[0].stage, 'levert');
+assert.ok(submitted.state.bids[0].submittedAt);
 assert.equal(toggleStrategy(submitted.state, 'bid_1', 'fag').ok, false);
 const wonFromDelivered = awardContract(submitted.state, 'bid_1', {
   value: '900000', start: '2026-10-01', end: '2027-01-01',
 });
 assert.equal(wonFromDelivered.ok, true, wonFromDelivered.error);
 assert.equal(wonFromDelivered.state.bids[0].stage, 'kontrakt');
+assert.ok(wonFromDelivered.state.bids[0].closedAt);
+assert.equal(wonFromDelivered.state.bids[0].submittedAt, submitted.state.bids[0].submittedAt);
 assert.equal(markSubmitted(readyBid(), 'bid_1').ok, true);
 
 let contractId = state.contracts[0].id;

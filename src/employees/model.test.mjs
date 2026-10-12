@@ -16,6 +16,8 @@ import {
   directoryStats,
   displayName,
   employeeFromProfile,
+  employeeActivityTab,
+  employeeDirectoryBucket,
   employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
@@ -182,6 +184,17 @@ const FNR = sampleNationalId();
   const onLeave = applyEmployeeClassification(rows[2], { status: 'leave' });
   assert.equal(onLeave.company.status, 'leave');
   assert.deepEqual(filterEmployees([...rows.slice(0, 2), onLeave, rows[3]], { kind: 'staff', status: 'leave' }).map((row) => row.id), ['c']);
+  const dirTilbud = normalizeEmployee({ id: 't', person: { firstName: 'Tea' }, company: { accessLevel: 'tilbud', status: 'active' } });
+  const dirRegnskap = normalizeEmployee({ id: 'r', person: { firstName: 'Ron' }, company: { accessLevel: 'regnskap_ekstern', status: 'active' } });
+  const dirAndre = normalizeEmployee({ id: 'o', person: { firstName: 'Oda' }, company: { accessLevel: 'ansatt_andre_avdelinger', status: 'inactive' } });
+  const deletedRow = normalizeEmployee({ id: 'x', person: { firstName: 'Per' }, company: { accessLevel: 'ansatt', status: 'deleted' } });
+  assert.equal(employeeDirectoryBucket(dirTilbud), 'company');
+  assert.equal(employeeActivityTab(onLeave), 'active');
+  assert.equal(employeeDirectoryBucket(dirRegnskap), 'external');
+  assert.equal(employeeDirectoryBucket(dirAndre), 'external');
+  assert.equal(employeeActivityTab(dirAndre), 'inactive');
+  assert.equal(employeeDirectoryBucket(deletedRow), 'trash');
+  assert.deepEqual(filterEmployees([dirTilbud, dirRegnskap, dirAndre], { status: 'all', level: 'tilbud' }).map((row) => row.id), ['t']);
   const withNumber = normalizeEmployee({
     id: 'n',
     person: { firstName: 'Nils', lastName: 'Holm' },

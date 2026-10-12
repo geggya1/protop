@@ -34,9 +34,9 @@ import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import UsageRecorder from './UsageRecorder';
-import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
+import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultArbeidSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -440,7 +440,17 @@ function AppShellInner() {
       setTab('anbud');
       return;
     }
+    if (id === 'arbeid') {
+      setMoreSubView(defaultArbeidSubView(subView));
+      setTab('arbeid');
+      return;
+    }
     if (id === 'okonomi') {
+      if (subView === 'timer') {
+        setMoreSubView('timerapport');
+        setTab('arbeid');
+        return;
+      }
       setMoreSubView(defaultOkonomiSubView(subView));
       setTab('okonomi');
       return;
@@ -580,7 +590,7 @@ function AppShellInner() {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
-    if (tab === 'arbeid') return <ArbeidScreen />;
+    if (tab === 'arbeid') return <ArbeidHub subView={moreSubView} />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;

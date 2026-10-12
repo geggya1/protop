@@ -17,7 +17,10 @@ import { parseDate, fold, text } from './invoices.js';
 export { matchCustomer, matchProject, customerIdentityKey };
 
 const FIELD_ALIASES = [
-  ['date', ['dato', 'date', 'workdate', 'arbeidsdato', 'day']],
+  ['date', [
+    'dato', 'date', 'workdate', 'arbeidsdato', 'day',
+    'opprettetdato', 'createddate', 'startdato', 'fromdate', 'workday',
+  ]],
   ['employeeNumber', [
     'ansattnummer', 'ansattnr', 'ansattno', 'employeenumber', 'employeeno',
     'externalemployeenumber', 'eksterntansattnummer', 'resourceid', 'userid', 'brukerid',
@@ -25,6 +28,7 @@ const FIELD_ALIASES = [
   ['employeeName', [
     'ansatt', 'ansattnavn', 'medarbeider', 'medarbeidernavn', 'resource', 'ressurs',
     'user', 'bruker', 'employee', 'employeename', 'name', 'navn',
+    'medarbeidereksterntansattnummer', 'employeeexternalemployeenumber',
   ]],
   ['customerNumber', ['kundenummer', 'kundenr', 'customernumber', 'customerno']],
   ['customerName', ['kundenavn', 'kunde', 'customer', 'client', 'oppdragsgiver']],
@@ -32,21 +36,32 @@ const FIELD_ALIASES = [
   ['projectNumber', ['prosjektnummer', 'prosjektnr', 'projectnumber', 'projectno', 'projectid']],
   ['projectName', ['prosjekt', 'prosjektnavn', 'project', 'projectname']],
   ['activityName', ['aktivitet', 'aktivitetsnavn', 'activity', 'activityname', 'task']],
-  ['hours', ['timer', 'hours', 'quantity', 'antall', 'tid', 'time', 'registeredhours']],
-  ['billableHours', [
-    'fakturerbart', 'fakturerbaretimer', 'billable', 'billablehours',
-    'timerfakturerbart', 'hoursbillable',
+  ['hours', [
+    'timer', 'hours', 'quantity', 'antall', 'registeredhours',
+    'antalltimer', 'antalltimerivalgtperiode', 'numberofhoursinselectedperiod',
+    'hoursinselectedperiod', 'hoursinselectedperiod', 'quantityhours',
   ]],
+  ['billableHours', [
+    'fakturerbaretimer', 'billablehours', 'timerfakturerbart', 'hoursbillable',
+  ]],
+  ['billable', ['fakturerbart', 'billable', 'isfacturable', 'isfakturerbar']],
   ['description', ['beskrivelse', 'description', 'tekst', 'kommentar', 'comment', 'note', 'notes']],
   ['internalNote', [
     'internmerknad', 'internkommentar', 'internalnote', 'internalcomment',
-    'privatkommentar', 'privatnote',
+    'privatkommentar', 'privatnote', 'interntnotat',
   ]],
   ['department', ['avdeling', 'department']],
   ['status', ['status', 'godkjent', 'approved', 'approvalstatus']],
   ['rate', ['timepris', 'rate', 'hourlyrate', 'pris', 'enhetspris']],
   ['amount', ['belop', 'beløp', 'amount', 'sum', 'verdi']],
-  ['externalId', ['id', 'timeid', 'recordid', 'timerecordid', 'entryid', 'linjeid']],
+  ['externalId', ['timeid', 'recordid', 'timerecordid', 'entryid', 'linjeid']],
+];
+
+const SKIP_HEADERS = [
+  'opprettetav', 'createdby', 'sistendret', 'sistendretav', 'lastchanged', 'lastchangedby',
+  'lastmodified', 'tagger', 'tags', 'utsett', 'utsetttil', 'utsettelsensarsak',
+  'postpone', 'postponeuntil', 'overtid', 'overtime', 'rolle', 'role',
+  'aktivitetsnummer', 'activitynumber', 'activityno',
 ];
 
 export function hourColumnField(header) {
@@ -56,17 +71,56 @@ export function hourColumnField(header) {
     if (aliases.some((alias) => fold(alias) === key)) return field;
     if (fold(field) === key) return field;
   }
-  if (key.includes('fakturerbar') && key.includes('timer')) return 'billableHours';
-  if (key.includes('ansatt') && (key.includes('nr') || key.includes('nummer'))) return 'employeeNumber';
-  if (key.includes('prosjekt') && (key.includes('nr') || key.includes('nummer'))) return 'projectNumber';
-  if (key.includes('kunde') && (key.includes('nr') || key.includes('nummer'))) return 'customerNumber';
+  if (SKIP_HEADERS.some((skip) => key === skip || key.startsWith(skip))) return '';
+  if ((key.includes('fakturerbar') || key.includes('billable')) && (key.includes('timer') || key.includes('hour'))) {
+    return 'billableHours';
+  }
+  if (key === 'fakturerbart' || key === 'billable') return 'billable';
+  if (
+    key.includes('antalltimer')
+    || key.includes('timerivalgt')
+    || key.includes('hoursinselected')
+    || key.includes('numberofhours')
+    || key.includes('registeredhours')
+  ) return 'hours';
+  if (key.includes('timer') && !key.includes('aktivitet') && !key.includes('ansatt')) return 'hours';
+  if (key.includes('arbeidsdato') || key.includes('workdate') || key.includes('opprettetdato') || key.includes('createddate')) {
+    return 'date';
+  }
+  if ((key.endsWith('dato') || key.endsWith('date')) && !key.includes('utsett')) return 'date';
+  if (key.includes('intern') && (key.includes('notat') || key.includes('merknad') || key.includes('kommentar') || key.includes('note'))) {
+    return 'internalNote';
+  }
+  if (key.includes('eksterntansatt') || key.includes('externalemployee')) return 'employeeNumber';
+  if (key.includes('ansatt') && (key.includes('nr') || key.includes('nummer')) && !key.includes('medarbeider')) {
+    return 'employeeNumber';
+  }
+  if (key.includes('medarbeider') || key.includes('employeename') || key.includes('resourcename')) return 'employeeName';
+  if (key.includes('prosjekt') && (key.includes('nr') || key.includes('nummer') || key.endsWith('no'))) return 'projectNumber';
+  if (key.includes('kunde') && (key.includes('nr') || key.includes('nummer') || key.endsWith('no'))) return 'customerNumber';
+  if (key.includes('kundenavn')) return 'customerName';
+  if (key.includes('prosjektnavn')) return 'projectName';
   return '';
+}
+
+export function splitEmployeeHint(value) {
+  const raw = text(value);
+  const match = raw.match(/^(.*?)\s*[\(（]\s*([0-9]+)\s*[\)）]\s*$/);
+  if (!match) return { name: raw, number: '' };
+  return { name: text(match[1]), number: match[2] };
+}
+
+export function parseBillableFlag(value) {
+  const key = fold(value);
+  if (['ja', 'yes', 'true', '1', 'x', 'ok'].includes(key)) return true;
+  if (['nei', 'no', 'false', '0'].includes(key)) return false;
+  return null;
 }
 
 function headerIndex(table) {
   let best = -1;
   let score = 0;
-  for (let index = 0; index < Math.min(table.length, 12); index += 1) {
+  for (let index = 0; index < Math.min(table.length, 20); index += 1) {
     const rank = (table[index] || []).filter((cell) => hourColumnField(cell)).length;
     if (rank > score) {
       score = rank;
@@ -145,18 +199,29 @@ export function suggestEmployees(employees, hint = {}, limit = 8) {
   return scored.slice(0, limit).map((item) => item.row);
 }
 
+function resolveBillableHours(mapped, hours) {
+  const billedHoursFlag = parseBillableFlag(mapped.billableHours);
+  const billedFlag = parseBillableFlag(mapped.billable);
+  if (mapped.billableHours != null && mapped.billableHours !== '' && billedHoursFlag == null) {
+    return roundHours(parseHours(mapped.billableHours));
+  }
+  if (mapped.billable != null && mapped.billable !== '' && billedFlag == null) {
+    return roundHours(parseHours(mapped.billable));
+  }
+  if (billedFlag === false || billedHoursFlag === false) return 0;
+  return hours;
+}
+
 export function hourEntryFromMappedRow(mapped, originalValues = {}, meta = {}) {
   const date = parseDate(mapped.date) || text(mapped.date);
   const hours = roundHours(parseHours(mapped.hours));
-  const billableRaw = mapped.billableHours;
-  const billableHours = billableRaw == null || billableRaw === ''
-    ? hours
-    : roundHours(parseHours(billableRaw));
-  const employeeName = text(mapped.employeeName);
+  const billableHours = resolveBillableHours(mapped, hours);
+  const split = splitEmployeeHint(mapped.employeeName);
+  const employeeName = split.name || text(mapped.employeeName);
   const activityName = text(mapped.activityName) || 'Hovedaktivitet';
   const draft = {
     date,
-    employeeNumber: text(mapped.employeeNumber),
+    employeeNumber: text(mapped.employeeNumber) || split.number,
     employeeName,
     employeeId: text(mapped.employeeId),
     customerNumber: normalizeCustomerNumber(mapped.customerNumber) || text(mapped.customerNumber),
@@ -542,7 +607,7 @@ export async function readHourTable(bytes, filename = '', { columnFields } = {})
     return hourColumnField(cell);
   });
   if (!fields.includes('date') && !fields.includes('hours')) {
-    throw new Error('Listen mangler kolonne for dato eller timer.');
+    throw new Error('Listen mangler kolonne for dato eller timer. Bruk en eksport med «Dato»/«Opprettet dato» og «Timer»/«Antall timer i valgt periode».');
   }
   const importedAt = new Date().toISOString();
   const rows = [];

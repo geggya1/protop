@@ -137,6 +137,9 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Avtalesummer');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'faktura', t }), 'Faktura');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'indeks', t }), 'Indeksregulering');
+  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Arbeid');
+  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timeliste', t }), 'Timeliste');
+  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timerapport', t }), 'Timerapport');
 }
 
 console.log('shellHeaderTitle.test.mjs: ok');

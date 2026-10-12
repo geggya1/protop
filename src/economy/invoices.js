@@ -76,7 +76,7 @@ export function formatMoney(value, currency = 'NOK') {
 export function parseDate(value) {
   const raw = text(value);
   if (!raw) return '';
-  const dmy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  const dmy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
   if (dmy) {
     const day = dmy[1].padStart(2, '0');
     const month = dmy[2].padStart(2, '0');

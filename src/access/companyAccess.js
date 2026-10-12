@@ -549,7 +549,9 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
-  if (tab === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (tab === 'arbeid') {
+    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  }
   if (tab === 'anbud') {
     if (subView === 'tilbud') return allows(grants, 'offers', 'see');
     if (subView === 'varsling' || subView === 'foresporsel') return allows(grants, 'tenders', 'see');
@@ -562,7 +564,9 @@ export function companyTabAllowed(tab, subView, grants) {
 
 function navItemAllowed(id, grants) {
   if (id === 'tilgang') return allows(grants, 'companyProfile', 'read');
-  if (id === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (id === 'arbeid' || String(id).startsWith('arbeid-')) {
+    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
   if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');

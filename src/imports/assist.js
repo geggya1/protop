@@ -331,9 +331,11 @@ export async function readHourImport(bytes, filename, options = {}, ask) {
   const tables = await readSpreadsheetTables(raw, filename).catch(() => []);
   const table = hourHeaderSlice(tables[0]?.table || []);
   const gaps = columnsNeedingHelp(table, hourColumnField);
-  if (!gaps.length || !ask || !familyId) {
-    if (!rows?.length) throw localError || new Error('Fant ingen timeliste.');
+  if (rows?.length) {
     return planHourImport(existingEntries, employees, customers, projects, rows);
+  }
+  if (!gaps.length || !ask || !familyId) {
+    throw localError || new Error('Fant ingen timeliste.');
   }
   try {
     const preview = tablePreview(table);

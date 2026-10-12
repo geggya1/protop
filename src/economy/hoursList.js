@@ -346,6 +346,17 @@ export function employeeHourOptions(entries, employees = []) {
     .sort((left, right) => left.name.localeCompare(right.name, 'nb'));
 }
 
+/** Søk i medarbeiderlisten som åpnes når navnet trykkes. */
+export function filterEmployeeHourOptions(options, query = '') {
+  const rows = Array.isArray(options) ? options : [];
+  const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return rows;
+  return rows.filter((row) => {
+    const hay = String(row?.name || '').toLowerCase();
+    return tokens.every((token) => hay.includes(token));
+  });
+}
+
 /**
  * Prosjektrader for én dag (Moment-timeliste).
  * Viser medlemsprosjekter + prosjekter med føring den dagen.

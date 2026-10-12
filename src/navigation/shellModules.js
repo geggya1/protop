@@ -41,10 +41,31 @@ export function selskapMenuTitle(subView) {
 }
 
 /**
+ * Undermeny når Arbeid er valgt.
+ * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
+ */
+export const ARBEID_MENU = [
+  { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
+  { id: 'timerapport', icon: 'list', label: 'Timerapport' },
+];
+
+export const ARBEID_SUBVIEW_IDS = ARBEID_MENU.map((item) => item.id);
+
+export function defaultArbeidSubView(subView) {
+  return ARBEID_SUBVIEW_IDS.includes(subView) ? subView : 'timeliste';
+}
+
+export function arbeidMenuTitle(subView) {
+  const row = ARBEID_MENU.find((item) => item.id === subView);
+  return row?.label || 'Arbeid';
+}
+
+/**
  * Undermeny når Økonomi er valgt.
  * Kundesummer / Avtalesummer er økonomiske utsnitt — fulle registre ligger
  * som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
  * Undermenyen åpnes bare når Økonomi er aktiv, så Kunder synes tydelig på mobil.
+ * Timerapport ligger under Arbeid.
  */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
@@ -52,7 +73,6 @@ export const OKONOMI_MENU = [
   { id: 'avtaler', icon: 'cash', label: 'Avtalesummer' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
-  { id: 'timer', icon: 'time', label: 'Timer' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
   { id: 'kjorebok', icon: 'car', label: 'Kjørebok' },
   { id: 'produkter', icon: 'cube', label: 'Produkter' },
@@ -71,7 +91,6 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'avtaler') return 'Avtalesummer';
   if (subView === 'faktura') return 'Faktura';
   if (subView === 'fakturagrunnlag') return 'Fakturagrunnlag';
-  if (subView === 'timer') return 'Timer';
   if (subView === 'utlegg') return 'Utlegg';
   if (subView === 'kjorebok') return 'Kjørebok';
   if (subView === 'produkter') return 'Produkter';
@@ -118,7 +137,18 @@ export function companyNavItems() {
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
-    { id: 'arbeid', icon: 'time', label: 'Arbeid', action: { type: 'tab', tab: 'arbeid' } },
+    {
+      id: 'arbeid',
+      icon: 'time',
+      label: 'Arbeid',
+      action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
+      children: ARBEID_MENU.map((item) => ({
+        id: `arbeid-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: 'arbeid', subView: item.id },
+      })),
+    },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'okonomi',

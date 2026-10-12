@@ -6,7 +6,9 @@ import {
   linkImportPlanEmployee,
   matchEmployee,
   planHourImport,
+  readHourTable,
   reviewRowsForHourPlan,
+  splitEmployeeHint,
   toggleHourReviewRow,
 } from './hoursImport.js';
 import {
@@ -25,6 +27,16 @@ import {
   assert.equal(hourColumnField('Fakturerbare timer'), 'billableHours');
   assert.equal(hourColumnField('Beskrivelse'), 'description');
   assert.equal(hourColumnField('Aktivitet'), 'activityName');
+  assert.equal(hourColumnField('Opprettet dato'), 'date');
+  assert.equal(hourColumnField('Antall timer i valgt periode'), 'hours');
+  assert.equal(hourColumnField('Number of hours in selected period'), 'hours');
+  assert.equal(hourColumnField('Created date'), 'date');
+  assert.equal(hourColumnField('Medarbeider (Eksternt ansattnummer)'), 'employeeName');
+  assert.equal(hourColumnField('Fakturerbart'), 'billable');
+  assert.equal(hourColumnField('Internt notat'), 'internalNote');
+  assert.equal(hourColumnField('Opprettet av'), '');
+  assert.equal(splitEmployeeHint('Geir Andersen (12)').name, 'Geir Andersen');
+  assert.equal(splitEmployeeHint('Geir Andersen (12)').number, '12');
 }
 
 {
@@ -221,6 +233,31 @@ import {
     importFingerprint: 'fp-member',
   }]);
   assert.equal(result.state.members.filter((row) => row.active !== false).length, before);
+}
+
+{
+  const csv = [
+    'Opprettet dato;Medarbeider (Eksternt ansattnummer);Prosjektnummer;Prosjekt;Kundenavn;Aktivitet;Fakturerbart;Beskrivelse;Antall timer i valgt periode',
+    '02.01.2016 08:00;Geir Andersen (12);10563;Kvitsøy skole;Sandnes Kommune;Prosjektering;Ja;Tegning;7:30',
+  ].join('\n');
+  const rows = await readHourTable(new TextEncoder().encode(csv), 'hours 2016.csv');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].hours, '7:30');
+  assert.equal(rows[0].billable, 'Ja');
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Geir', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '12' },
+  }];
+  const projects = [{ id: 'p1', number: '10563', name: 'Kvitsøy skole', customerId: 'c1' }];
+  const customers = [{ id: 'c1', name: 'Sandnes Kommune', customerNumber: '10025' }];
+  const planned = planHourImport([], employees, customers, projects, rows);
+  assert.equal(planned.rows[0].severity, 'ok');
+  assert.equal(planned.rows[0].entry.date, '2016-01-02');
+  assert.equal(planned.rows[0].entry.hours, 7.5);
+  assert.equal(planned.rows[0].entry.billableHours, 7.5);
+  assert.equal(planned.rows[0].entry.employeeId, 'emp1');
+  assert.equal(planned.rows[0].entry.employeeNumber, '12');
 }
 
 console.log('hoursImport.test.mjs: ok');

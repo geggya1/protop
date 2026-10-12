@@ -8,10 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
+import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
+import { loadAnbudState } from '../../src/anbud/storage';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -25,13 +28,18 @@ import {
 } from '../../src/economy/hoursImport.js';
 import { suggestCustomers } from '../../src/economy/invoiceImport.js';
 import {
+  DEFAULT_HOUR_COLUMNS,
+  HOUR_COLUMNS,
   dayTimesheetRows,
   employeeHourOptions,
   filterHours,
   formatDate,
   formatHours,
+  groupHours,
+  hourFacets,
   hourTotals,
   shiftDateKey,
+  sortHours,
 } from '../../src/economy/hoursList.js';
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
@@ -53,26 +61,7 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-const PERIODS = [
-  { id: 'all', label: 'Alle' },
-  { id: '7', label: 'Siste 7 dager' },
-  { id: '30', label: 'Siste 30 dager' },
-  { id: '100', label: 'Siste 100 dager' },
-  { id: 'year', label: 'I år' },
-];
-
-const COLUMNS = [
-  { key: 'date', label: 'Dato', width: 96 },
-  { key: 'employeeName', label: 'Medarbeider', flex: true, minWidth: 140 },
-  { key: 'customerName', label: 'Kunde', flex: true, minWidth: 140 },
-  { key: 'projectName', label: 'Prosjekt', flex: true, minWidth: 160 },
-  { key: 'activityName', label: 'Aktivitet', width: 120 },
-  { key: 'hours', label: 'Timer', width: 72 },
-  { key: 'billableHours', label: 'Fakt.', width: 72 },
-  { key: 'description', label: 'Beskrivelse', flex: true, minWidth: 160 },
-];
-
-const TABLE_MIN = COLUMNS.reduce((sum, column) => sum + (column.minWidth || column.width), 0);
+const TABLE_MIN_FALLBACK = 720;
 
 function columnStyle(column) {
   if (column.flex) {
@@ -81,25 +70,47 @@ function columnStyle(column) {
   return { width: column.width, flexGrow: 0, flexShrink: 0 };
 }
 
+function toggleColumn(keys, key) {
+  const current = keys?.length ? keys : DEFAULT_HOUR_COLUMNS;
+  if (current.includes(key)) {
+    const next = current.filter((item) => item !== key);
+    return next.length ? next : current;
+  }
+  return [...current, key];
+}
+
 export default function EconomyHours({
   familyId,
-  customers = [],
-  projects = [],
+  customers: customersProp = [],
+  projects: projectsProp = [],
   onOpenCustomer,
   onOpenProject,
 }) {
   const colors = useColors();
+  const { familyId: appFamilyId, requestShellTab } = useApp();
+  const resolvedFamilyId = familyId || appFamilyId;
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
 
   const [state, setState] = useState(emptyProjectState());
   const [employees, setEmployees] = useState([]);
+  const [anbudCustomers, setAnbudCustomers] = useState([]);
   const [ready, setReady] = useState(false);
   const [view, setView] = useState('list');
   const [query, setQuery] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [activityFilter, setActivityFilter] = useState('');
+  const [billableFilter, setBillableFilter] = useState('');
   const [period, setPeriod] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [groupBy, setGroupBy] = useState('none');
+  const [sort, setSort] = useState('date-desc');
+  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_HOUR_COLUMNS);
+  const [panelOpen, setPanelOpen] = useState(!isPhone);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -114,37 +125,76 @@ export default function EconomyHours({
 
   useEffect(() => {
     let live = true;
-    loadProjectState(familyId).then((loaded) => {
+    loadProjectState(resolvedFamilyId).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
     });
     return () => { live = false; };
-  }, [familyId]);
+  }, [resolvedFamilyId]);
 
   useEffect(() => {
-    const stop = watchEmployees(familyId, setEmployees, () => {});
+    const stop = watchEmployees(resolvedFamilyId, setEmployees, () => {});
     return stop;
-  }, [familyId]);
+  }, [resolvedFamilyId]);
+
+  useEffect(() => {
+    if (customersProp.length) return undefined;
+    let live = true;
+    loadAnbudState(resolvedFamilyId).then((loaded) => {
+      if (!live) return;
+      setAnbudCustomers(loaded?.customers || []);
+    });
+    return () => { live = false; };
+  }, [resolvedFamilyId, customersProp.length]);
 
   const entries = state.timeEntries || [];
-  const projectList = projects.length ? projects : (state.projects || []);
+  const customers = customersProp.length ? customersProp : anbudCustomers;
+  const projectList = projectsProp.length ? projectsProp : (state.projects || []);
+  const openProject = onOpenProject || ((projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId }));
 
-  const visible = useMemo(() => filterHours(entries, {
+  const scoped = useMemo(() => filterHours(entries, {
     query,
-    employeeId: employeeFilter,
+    customerId: customerFilter,
+    projectId: projectFilter,
+    activityName: activityFilter,
     period,
-  }).slice().sort((left, right) => (
-    String(right.date || '').localeCompare(String(left.date || ''))
-    || String(left.employeeName || '').localeCompare(String(right.employeeName || ''), 'nb')
-  )), [entries, query, employeeFilter, period]);
+    fromDate,
+    toDate,
+    billable: billableFilter,
+  }), [entries, query, customerFilter, projectFilter, activityFilter, period, fromDate, toDate, billableFilter]);
 
+  const visible = useMemo(() => sortHours(filterHours(scoped, {
+    employeeId: employeeFilter,
+  }), sort), [scoped, employeeFilter, sort]);
+
+  const groups = useMemo(() => groupHours(visible, groupBy), [visible, groupBy]);
   const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
   const totals = useMemo(() => hourTotals(visible), [visible]);
   const employeeOptions = useMemo(
-    () => employeeHourOptions(entries, employees),
-    [entries, employees],
+    () => employeeHourOptions(scoped, employees),
+    [scoped, employees],
   );
+  const facets = useMemo(() => hourFacets(scoped), [scoped]);
+  const columns = useMemo(() => {
+    const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_HOUR_COLUMNS);
+    const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key));
+    return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key));
+  }, [visibleColumns]);
+  const tableMin = columns.reduce((sum, column) => sum + (column.minWidth || column.width || 80), 0) || TABLE_MIN_FALLBACK;
+  const groupedList = useMemo(() => {
+    if (groupBy === 'none') return pageRows.map((row) => ({ type: 'row', id: row.id, row }));
+    const out = [];
+    let remaining = pageSize;
+    for (const group of groups) {
+      if (remaining <= 0) break;
+      out.push({ type: 'header', id: `g-${group.id}`, label: group.label, hours: group.hours, count: group.rows.length });
+      const slice = group.rows.slice(0, remaining);
+      remaining -= slice.length;
+      slice.forEach((row) => out.push({ type: 'row', id: row.id, row }));
+    }
+    return out;
+  }, [groupBy, groups, pageRows, pageSize]);
   const reviewRows = useMemo(
     () => (importPlan ? reviewRowsForHourPlan(importPlan, { dropped }) : []),
     [importPlan, dropped],
@@ -154,7 +204,6 @@ export default function EconomyHours({
     if (!stackRows) return;
     if (employeeFilter) return;
     if (employeeOptions[0]?.id) setEmployeeFilter(employeeOptions[0].id);
-    else if (employees[0]?.id) setEmployeeFilter(employees[0].id);
   }, [stackRows, employeeFilter, employeeOptions, employees]);
 
   const daySheet = useMemo(() => dayTimesheetRows({
@@ -167,11 +216,31 @@ export default function EconomyHours({
 
   useEffect(() => {
     setPageSize(80);
-  }, [query, employeeFilter, period, entries.length]);
+  }, [query, employeeFilter, customerFilter, projectFilter, activityFilter, period, fromDate, toDate, billableFilter, sort, entries.length]);
+
+  useEffect(() => {
+    if (!employeeFilter) return;
+    if (!employeeOptions.some((row) => row.id === employeeFilter)) setEmployeeFilter('');
+  }, [employeeFilter, employeeOptions]);
+
+  function resetOrganize() {
+    setQuery('');
+    setEmployeeFilter('');
+    setCustomerFilter('');
+    setProjectFilter('');
+    setActivityFilter('');
+    setBillableFilter('');
+    setPeriod('all');
+    setFromDate('');
+    setToDate('');
+    setGroupBy('none');
+    setSort('date-desc');
+    setVisibleColumns(DEFAULT_HOUR_COLUMNS);
+  }
 
   function persist(next) {
     setState(next);
-    const job = saveChain.current.then(() => saveProjectState(next, familyId));
+    const job = saveChain.current.then(() => saveProjectState(next, resolvedFamilyId));
     saveChain.current = job.catch(() => {});
     return job;
   }
@@ -185,7 +254,7 @@ export default function EconomyHours({
     try {
       const bytes = await bytesFromFile(file);
       const plan = await readHourImport(bytes, file.name, {
-        familyId,
+        familyId: resolvedFamilyId,
         existingEntries: entries,
         employees,
         customers,
@@ -274,7 +343,7 @@ export default function EconomyHours({
       for (const row of [...latestByEmployee.values()].slice(0, 20)) {
         recordUsage({
           type: 'hour',
-          companyId: familyId,
+          companyId: resolvedFamilyId,
           employeeId: row.employeeId,
           summary: ['Import', row.hours != null ? `${row.hours} t` : '', row.date, row.projectName].filter(Boolean).join(' · '),
           detail: {
@@ -308,11 +377,11 @@ export default function EconomyHours({
   function renderListRow({ item: row }) {
     return (
       <View style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
-        {COLUMNS.map((column) => (
+        {columns.map((column) => (
           <Text
             key={column.key}
             style={[styles.td, columnStyle(column), { color: colors.ink }]}
-            numberOfLines={column.key === 'description' || column.key === 'projectName' ? 2 : 1}
+            numberOfLines={column.key === 'description' || column.key === 'projectName' || column.key === 'internalNote' ? 2 : 1}
           >
             {cellValue(row, column.key)}
           </Text>
@@ -461,15 +530,15 @@ export default function EconomyHours({
       >
         <View style={styles.phoneTop}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.crumb, { color: colors.muted }]}>Økonomi / Timeliste</Text>
+            <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
             <Text style={[styles.heading, { color: colors.ink }]} numberOfLines={1}>{selectedEmployeeName}</Text>
           </View>
           <TouchableOpacity
             onPress={importFile}
-            disabled={busy || !familyId}
+            disabled={busy || !resolvedFamilyId}
             accessibilityRole="button"
             accessibilityLabel="Importer timer"
-            style={[styles.primaryBtn, styles.primaryBtnCompact, { backgroundColor: colors.brand, opacity: busy || !familyId ? 0.6 : 1 }]}
+            style={[styles.primaryBtn, styles.primaryBtnCompact, { backgroundColor: colors.brand, opacity: busy || !resolvedFamilyId ? 0.6 : 1 }]}
           >
             <Text style={styles.primaryBtnText}>{busy ? '…' : 'Importer'}</Text>
           </TouchableOpacity>
@@ -504,7 +573,7 @@ export default function EconomyHours({
             : 'Velg medarbeider for å se timelisten.'}
           rows={daySheet.rows.map((row) => ({
             ...row,
-            onPress: row.id ? () => onOpenProject?.(row.id) : undefined,
+            onPress: row.id ? () => openProject?.(row.id) : undefined,
             testID: `economy-timesheet-${row.number || row.id}`,
           }))}
         />
@@ -512,25 +581,75 @@ export default function EconomyHours({
     );
   }
 
+  const organizePanel = (
+    <HoursOrganizePanel
+      colors={colors}
+      query={query}
+      onQuery={(value) => {
+        setQuery(value);
+        if (importReport) setImportReport(null);
+      }}
+      period={period}
+      onPeriod={setPeriod}
+      fromDate={fromDate}
+      toDate={toDate}
+      onFromDate={setFromDate}
+      onToDate={setToDate}
+      groupBy={groupBy}
+      onGroupBy={setGroupBy}
+      sort={sort}
+      onSort={setSort}
+      visibleColumns={visibleColumns}
+      onToggleColumn={(key) => setVisibleColumns((current) => toggleColumn(current, key))}
+      onResetColumns={() => setVisibleColumns(DEFAULT_HOUR_COLUMNS)}
+      employeeId={employeeFilter}
+      onEmployee={setEmployeeFilter}
+      employees={employeeOptions}
+      customerId={customerFilter}
+      onCustomer={setCustomerFilter}
+      customers={facets.customers}
+      projectId={projectFilter}
+      onProject={setProjectFilter}
+      projects={facets.projects}
+      activityName={activityFilter}
+      onActivity={setActivityFilter}
+      activities={facets.activities}
+      billable={billableFilter}
+      onBillable={setBillableFilter}
+      onReset={resetOrganize}
+      onClose={stackRows ? () => setPanelOpen(false) : undefined}
+    />
+  );
+
   const table = (
     <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ minWidth: TABLE_MIN }}>
+        <View style={{ minWidth: tableMin }}>
           <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-            {COLUMNS.map((column) => (
+            {columns.map((column) => (
               <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
             ))}
           </View>
           <FlatList
-            data={pageRows}
-            keyExtractor={(row) => row.id}
-            renderItem={renderListRow}
+            data={groupedList}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              if (item.type === 'header') {
+                return (
+                  <View style={[styles.groupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}>
+                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.label}</Text>
+                    <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
+                  </View>
+                );
+              }
+              return renderListRow({ item: item.row });
+            }}
             style={{ maxHeight: 720 }}
             initialNumToRender={24}
             ListEmptyComponent={(
               <View style={{ padding: 16 }}>
                 <Text style={{ color: colors.muted }}>
-                  Ingen timer ennå. Bruk «Importer Excel» for å hente timeføringer fra regnskapssystemet.
+                  Ingen timer i dette utvalget. Juster filteret til høyre, eller importer en timeliste.
                 </Text>
               </View>
             )}
@@ -553,82 +672,54 @@ export default function EconomyHours({
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours">
-      <View style={styles.inner}>
-        <View style={styles.toolbar}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={[styles.heading, { color: colors.ink }]}>Timer</Text>
-            <Text style={{ color: colors.muted }}>
-              {ready
-                ? `${entries.length} registrerte føringer · ${formatHours(totals.hours)} vist`
-                : 'Laster timer…'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={importFile}
-            disabled={busy || !familyId}
-            accessibilityRole="button"
-            accessibilityLabel="Importer timer"
-            style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: busy || !familyId ? 0.6 : 1 }]}
-          >
-            <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-        {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
-        <ImportResult colors={colors} result={importReport} />
-
-        <View style={styles.filters}>
-          <TextInput
-            value={query}
-            onChangeText={(value) => {
-              setQuery(value);
-              if (importReport) setImportReport(null);
-            }}
-            placeholder="Søk på ansatt, kunde, prosjekt, beskrivelse…"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { flex: 1, color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-            {PERIODS.map((item) => (
+      <View style={styles.desk}>
+        <View style={styles.mainCol}>
+          <View style={styles.toolbar}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+              <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
+              <Text style={{ color: colors.muted }}>
+                {ready
+                  ? `${entries.length} registrerte føringer · ${formatHours(totals.hours)} vist`
+                  : 'Laster timer…'}
+              </Text>
+            </View>
+            {stackRows ? (
               <TouchableOpacity
-                key={item.id}
-                onPress={() => setPeriod(item.id)}
-                style={[styles.chip, { borderColor: colors.line, backgroundColor: period === item.id ? colors.brand : colors.card }]}
+                onPress={() => setPanelOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityLabel="Organiser visningen"
+                nativeID="hours-organize-toggle"
+                style={[styles.ghostBtn, { borderColor: colors.line }]}
               >
-                <Text style={{ color: period === item.id ? '#fff' : colors.ink }}>{item.label}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>Organiser</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
+            ) : null}
             <TouchableOpacity
-              onPress={() => setEmployeeFilter('')}
-              style={[styles.chip, { borderColor: colors.line, backgroundColor: !employeeFilter ? colors.brand : colors.card }]}
+              onPress={importFile}
+              disabled={busy || !resolvedFamilyId}
+              accessibilityRole="button"
+              accessibilityLabel="Importer timer"
+              style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: busy || !resolvedFamilyId ? 0.6 : 1 }]}
             >
-              <Text style={{ color: !employeeFilter ? '#fff' : colors.ink }}>Alle ansatte</Text>
+              <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
             </TouchableOpacity>
-            {employeeOptions.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => setEmployeeFilter(item.id)}
-                style={[styles.chip, { borderColor: colors.line, backgroundColor: employeeFilter === item.id ? colors.brand : colors.card }]}
-              >
-                <Text style={{ color: employeeFilter === item.id ? '#fff' : colors.ink }}>
-                  {item.name} · {formatHours(item.hours)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+          </View>
 
-        <View style={styles.summaryRow}>
-          <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
-          <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>
-          <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
-        </View>
+          {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+          {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
+          {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
+          <ImportResult colors={colors} result={importReport} />
 
-        {table}
+          <View style={styles.summaryRow}>
+            <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
+            <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>
+            <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
+          </View>
+
+          {table}
+        </View>
+        {(!stackRows || panelOpen) ? organizePanel : null}
       </View>
     </View>
   );
@@ -637,10 +728,14 @@ export default function EconomyHours({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 1100, width: '100%', alignSelf: 'flex-start', gap: 14 },
+  desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
+  mainCol: { flex: 1, minWidth: 0, gap: 14 },
   phoneInner: { padding: 12, paddingBottom: 40, gap: 12 },
   phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
+  ghostBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  groupHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, minWidth: 480 },
   heading: { fontSize: 22, fontWeight: '700' },
   primaryBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },

@@ -3,7 +3,6 @@ import {
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
   accountDeactivated,
-  companyForAccessLevel,
   personDropChange,
   alignCompanyEmployment,
   allows,
@@ -260,13 +259,6 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     levelId: '', clearLevel: true, activate: false, deactivate: false,
   });
   assert.equal(personDropChange(staff, 'level:ukjent'), null);
-  const moved = companyForAccessLevel(staff.company, 'regnskap_ekstern');
-  assert.equal(moved.accessLevel, 'regnskap_ekstern');
-  assert.equal(moved.personnelKind, 'external');
-  assert.equal(moved.external, true);
-  const back = companyForAccessLevel(moved, 'ansatt');
-  assert.equal(back.personnelKind, 'staff');
-  assert.equal(back.external, false);
   assert.equal(grouped.buckets.ansatt.includes(kari), false);
   const actor = resolveActorAccess({ employees: [ada, nils], uid: 'nils' });
   assert.equal(actor.levelId, 'administrator');

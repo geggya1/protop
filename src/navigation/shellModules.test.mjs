@@ -100,8 +100,15 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
   assert.deepEqual(
+    companyItems.find((i) => i.id === 'arbeid').children.map((i) => i.label),
+    ['Timeliste', 'Timerapport'],
+  );
+  assert.equal(companyItems.find((i) => i.id === 'arbeid').action.subView, 'timeliste');
+  assert.equal(companyItems.find((i) => i.id === 'arbeid').children[1].action.tab, 'arbeid');
+  assert.equal(companyItems.find((i) => i.id === 'arbeid').children[1].action.subView, 'timerapport');
+  assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Timer', 'Utlegg', 'Kjørebok', 'Produkter', 'Indeksregulering'],
+    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Kjørebok', 'Produkter', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
@@ -365,8 +372,14 @@ assert.match(economyCustomers, /phoneName/);
 assert.match(economyCustomers, /stackRows/);
 assert.match(economyCustomers, /minWidth: 280/);
 assert.match(economyScreen, /EconomyContracts/);
-assert.match(economyScreen, /EconomyHours/);
-assert.match(economyScreen, /page === 'timer'/);
+assert.equal(economyScreen.includes('EconomyHours'), false);
+assert.equal(economyScreen.includes("page === 'timer'"), false);
+assert.match(shellSrc, /defaultArbeidSubView/);
+assert.match(shellSrc, /ArbeidHub/);
+assert.match(
+  readFileSync(new URL('../../screens/arbeid/ArbeidHub.jsx', import.meta.url), 'utf8'),
+  /timerapport/,
+);
 const economyContracts = readFileSync(new URL('../../screens/economy/EconomyContracts.jsx', import.meta.url), 'utf8');
 assert.equal(economyContracts.includes('System-ID'), false);
 assert.equal(economyContracts.includes('systemId'), false);

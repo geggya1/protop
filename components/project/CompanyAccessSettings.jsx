@@ -9,7 +9,6 @@ import {
   ACCESS_GROUPS,
   ACCESS_LEVELS,
   accountDeactivated,
-  companyForAccessLevel,
   applyOverrides,
   checksFromGrant,
   compactOverrides,
@@ -28,7 +27,7 @@ import {
   suggestedLevelId,
   toggleGrant,
 } from '../../src/access/companyAccess';
-import { displayName, initials, normalizeEmployee } from '../../src/employees/model';
+import { applyEmployeeClassification, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 
 function kindLabel(kind) {
   if (kind === 'external') return 'Eksternt · ikke fast ansatt';
@@ -692,34 +691,32 @@ export default function CompanyAccessSettings({
     }
   }
 
-  function applyCompanyChange(employee, company, success) {
-    const next = normalizeEmployee({ ...employee, company });
-    savePerson(next, success);
-  }
-
   function assignLevel(employee, nextLevelId) {
     const nextLevel = levelById(nextLevelId);
     if (!nextLevel || !employee) return;
     if (placedLevelId(employee) === nextLevel.id) return;
     setMovingId('');
-    applyCompanyChange(employee, companyForAccessLevel(employee.company, nextLevel.id), `${displayName(employee)} er nå ${nextLevel.label}.`);
+    const next = applyEmployeeClassification(employee, { accessLevel: nextLevel.id });
+    savePerson(next, `${displayName(employee)} er nå ${nextLevel.label}.`);
   }
 
   function dropPerson(employee, dropId) {
     const change = personDropChange(employee, dropId);
     if (!change || !employee) return;
-    const company = { ...employee.company };
     const name = displayName(employee);
-    if (change.clearLevel) {
-      company.accessLevel = '';
-      company.accessRole = '';
-    } else if (change.levelId) {
-      Object.assign(company, companyForAccessLevel(company, change.levelId));
-    }
-    if (change.activate) company.status = 'active';
+    const patch = {};
+    if (change.levelId) patch.accessLevel = change.levelId;
+    if (change.activate) patch.status = 'active';
     if (change.deactivate) {
-      company.status = 'inactive';
-      company.canLogin = false;
+      patch.status = 'inactive';
+      patch.canLogin = false;
+    }
+    let next = Object.keys(patch).length ? applyEmployeeClassification(employee, patch) : employee;
+    if (change.clearLevel) {
+      next = normalizeEmployee({
+        ...next,
+        company: { ...next.company, accessLevel: '', accessRole: '' },
+      });
     }
     const levelName = change.clearLevel
       ? 'Ikke plassert'
@@ -735,7 +732,7 @@ export default function CompanyAccessSettings({
       setMemberTabs((current) => ({ ...current, [destination]: change.deactivate ? 'inactive' : 'active' }));
     }
     setMovingId('');
-    applyCompanyChange(employee, company, success);
+    savePerson(next, success);
   }
 
   dropRef.current = dropPerson;

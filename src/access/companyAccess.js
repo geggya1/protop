@@ -515,29 +515,6 @@ export function accountDeactivated(employee) {
   return status === 'inactive' || status === 'deleted' || status === 'former';
 }
 
-export function companyForAccessLevel(company = {}, levelId) {
-  const level = levelById(levelId);
-  if (!level) return { ...company };
-  const next = {
-    ...company,
-    accessLevel: level.id,
-    accessRole: level.label,
-  };
-  if (level.kind === 'external') {
-    next.personnelKind = 'external';
-    next.external = true;
-  } else if (level.kind === 'innleid') {
-    next.personnelKind = 'innleid';
-    next.external = false;
-    if (!/innleid|innleie/.test(String(next.employmentType || '').toLowerCase())) next.employmentType = 'Innleid';
-  } else if (next.personnelKind === 'external' || next.personnelKind === 'innleid') {
-    next.personnelKind = 'staff';
-    next.external = false;
-    if (/^(ekstern|innleid|innleie)$/i.test(next.employmentType || '')) next.employmentType = 'Fast ansatt';
-  }
-  return next;
-}
-
 export function parseDropId(value) {
   const parts = String(value || '').split(':');
   if (parts[0] === 'level' && parts[1]) return { kind: 'level', levelId: parts[1] };
@@ -596,7 +573,9 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
-  if (tab === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (tab === 'arbeid') {
+    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  }
   if (tab === 'anbud') {
     if (subView === 'tilbud') return allows(grants, 'offers', 'see');
     if (subView === 'varsling' || subView === 'foresporsel') return allows(grants, 'tenders', 'see');
@@ -609,7 +588,9 @@ export function companyTabAllowed(tab, subView, grants) {
 
 function navItemAllowed(id, grants) {
   if (id === 'tilgang') return allows(grants, 'companyProfile', 'read');
-  if (id === 'arbeid') return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (id === 'arbeid' || String(id).startsWith('arbeid-')) {
+    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
   if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');

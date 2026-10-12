@@ -458,7 +458,7 @@ function normalizeCompany(raw) {
   company.periodFrom = text(source.periodFrom);
   company.periodTo = text(source.periodTo);
   company.comment = text(source.comment);
-  return alignCompanyEmployment(company);
+  return company;
 }
 
 export function normalizeEmployee(raw) {
@@ -504,10 +504,83 @@ export function normalizeProfile(raw) {
   return profile;
 }
 
+function emailsOf(employee) {
+  const out = [];
+  for (const value of [employee?.person?.email, employee?.company?.email]) {
+    const email = text(value).toLowerCase();
+    if (!email || !email.includes('@') || out.includes(email)) continue;
+    out.push(email);
+  }
+  return out;
+}
+
 export function displayName(employee) {
   const person = employee?.person || {};
   const parts = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean);
   return parts.join(' ') || 'Uten navn';
+}
+
+function namesFromHint(value) {
+  const parts = text(value).split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+/** Finn innlogget persons ansettelse, også når personUid ikke er satt. */
+export function ownEmployee(list, { uid = '', emails = [], name = '' } = {}) {
+  const rows = list || [];
+  const actor = text(uid);
+  if (actor) {
+    const linked = rows.find((row) => text(row.personUid) === actor);
+    if (linked) return linked;
+  }
+  const wanted = new Set(
+    (Array.isArray(emails) ? emails : [emails])
+      .map((value) => text(value).toLowerCase())
+      .filter((value) => value.includes('@')),
+  );
+  if (wanted.size) {
+    const hits = rows.filter((row) => emailsOf(row).some((email) => wanted.has(email)));
+    if (hits.length === 1) return hits[0];
+  }
+  const label = text(name).toLowerCase();
+  if (label && label !== 'uten navn') {
+    const hits = rows.filter((row) => displayName(row).toLowerCase() === label);
+    if (hits.length === 1) return hits[0];
+  }
+  return null;
+}
+
+export function employeeFromProfile(profile, {
+  id = '',
+  uid = '',
+  displayNameHint = '',
+  accessLevel = '',
+} = {}) {
+  const prof = normalizeProfile(profile);
+  const person = { ...prof.person };
+  if (!text(person.firstName) || !text(person.lastName)) {
+    const hint = namesFromHint(displayNameHint);
+    if (!text(person.firstName)) person.firstName = hint.firstName;
+    if (!text(person.lastName)) person.lastName = hint.lastName;
+  }
+  const level = levelById(canonicalLevelId(accessLevel));
+  return normalizeEmployee({
+    id: text(id) || newId('emp'),
+    personUid: text(uid),
+    person,
+    cv: prof.cv,
+    customFields: prof.customFields,
+    company: {
+      personnelKind: 'staff',
+      status: 'active',
+      canLogin: true,
+      title: text(prof.cv.headline),
+      accessLevel: level?.id || '',
+      accessRole: level?.label || '',
+    },
+  });
 }
 
 export function initials(employee) {
@@ -627,6 +700,10 @@ function applyAccessLevel(company, levelId) {
     company.external = false;
     if (/^(ekstern|innleid|innleie)$/i.test(text(company.employmentType))) company.employmentType = 'Fast ansatt';
   }
+  const aligned = alignCompanyEmployment(company);
+  company.personnelKind = aligned.personnelKind;
+  company.external = aligned.external;
+  company.employmentType = aligned.employmentType;
 }
 
 function alignAccessLevelToKind(company) {
@@ -664,6 +741,7 @@ export function filterEmployees(list, {
   kind = 'all',
   status = 'active',
   departments = [],
+  keepIds = [],
 } = {}) {
   const q = text(query).toLowerCase();
   // Eldre kall brukte status=innleid/external som kategori.
@@ -677,9 +755,16 @@ export function filterEmployees(list, {
   } else if (status === 'former') {
     statusFilter = 'inactive';
   }
+  const keep = new Set((Array.isArray(keepIds) ? keepIds : [keepIds]).map(text).filter(Boolean));
   const filtered = (list || []).filter((row) => {
     const rowKind = personnelKind(row);
     const rowStatus = statusOf(row.company?.status);
+    const pinned = keep.has(text(row.id));
+    if (pinned) {
+      if (rowStatus === 'deleted' && statusFilter !== 'deleted' && statusFilter !== 'all') return false;
+      if (!q) return true;
+      return haystack(row, departments).includes(q);
+    }
     if (kindFilter && kindFilter !== 'all' && rowKind !== kindFilter) return false;
     if (statusFilter && statusFilter !== 'all' && rowStatus !== statusFilter) return false;
     if (!q) return true;

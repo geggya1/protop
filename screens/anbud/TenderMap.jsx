@@ -24,7 +24,7 @@ export default function TenderMap({
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
   const [cursorId, setCursorId] = useState(selectedId);
-  const pinKey = pins.map((row) => row.id).join(',');
+  const pinKey = pins.map((row) => `${row.id}:${row.coverage || ''}`).join(',');
   const kindKey = pins.map((row) => `${row.id}:${row.kind || 'ny'}`).join(',');
   const html = useMemo(
     () => tenderMapDocument(pins, {
@@ -81,6 +81,7 @@ export default function TenderMap({
         label: row.label,
         lat: row.lat,
         lng: row.lng,
+        coverage: row.coverage === 'land' ? 'land' : '',
         kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
       })),
       busyId: busyId || '',
@@ -111,6 +112,8 @@ export default function TenderMap({
   }
 
   const count = pins.length;
+  const national = pins.filter((row) => row.coverage === 'land').length;
+  const placed = count - national;
   const legend = view === 'aktuelle'
     ? [{ label: 'Aktuelle', color: colors.brand }]
     : view === 'uaktuelle'
@@ -126,7 +129,9 @@ export default function TenderMap({
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.head}>
         <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{count} nål{count === 1 ? '' : 'er'}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {`${placed} nål${placed === 1 ? '' : 'er'}${national ? ` · ${national} hele landet` : ''}`}
+        </Text>
       </View>
       {legend.length ? (
         <View style={styles.legend}>
@@ -136,6 +141,12 @@ export default function TenderMap({
               <Text style={{ color: colors.ink, fontSize: 12 }}>{item.label}</Text>
             </View>
           ))}
+          {national ? (
+            <View style={styles.legendItem}>
+              <View style={[styles.landSwatch, { backgroundColor: colors.brand, borderColor: colors.brand }]} />
+              <Text style={{ color: colors.ink, fontSize: 12 }}>Hele Norge</Text>
+            </View>
+          ) : null}
         </View>
       ) : (
         <Text style={{ color: colors.muted, fontSize: 13 }}>{emptyMap}</Text>
@@ -160,7 +171,7 @@ export default function TenderMap({
             },
           })}
         </View>
-      ) : current ? (
+      ) : current && current.coverage !== 'land' ? (
         <TouchableOpacity
           onPress={() => Linking.openURL(mapsUrl({ lat: current.lat, lng: current.lng, label: current.label }))}
           accessibilityRole="button"
@@ -169,13 +180,15 @@ export default function TenderMap({
           <Ionicons name="map-outline" size={18} color={colors.brand} />
           <Text style={{ color: colors.ink }}>Åpne kart</Text>
         </TouchableOpacity>
+      ) : current ? (
+        <Text style={{ color: colors.ink }}>Ikke stedbunden · gjelder hele Norge</Text>
       ) : (
         <Text style={{ color: colors.muted }}>Ingen stedfestede treff å vise ennå.</Text>
       )}
       {current ? (
         <View style={[styles.bubble, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
           <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
-            {current.kind === 'aktuell' ? 'Aktuell' : 'Ny'} · {current.label}
+            {current.kind === 'aktuell' ? 'Aktuell' : 'Ny'} · {current.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : current.label}
           </Text>
           <View style={styles.decisions}>
             <TouchableOpacity
@@ -237,6 +250,7 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   legendItem: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   dot: { width: 10, height: 10, borderRadius: 99 },
+  landSwatch: { width: 14, height: 10, borderRadius: 2, borderWidth: 1, opacity: 0.45 },
   map: { height: 440, borderRadius: 12, overflow: 'hidden' },
   open: { flexDirection: 'row', gap: 8, alignItems: 'center', borderRadius: 10, padding: 10 },
   bubble: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },

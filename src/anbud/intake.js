@@ -95,6 +95,36 @@ export function createManualInquiry(input, attachments = []) {
   };
 }
 
+export function intakeChannelLabel(channel) {
+  return INTAKE_CHANNELS.find((row) => row.id === channel)?.label || '';
+}
+
+export function inquiryStatusLabel(status) {
+  if (status === 'tilbud') return 'Tilbudsarbeid';
+  if (status === 'ikke') return 'Ikke gi tilbud';
+  if (status === 'aktuell') return 'Aktuell';
+  return 'Venter på vurdering';
+}
+
+/** Åpen for beslutning i steg 2. Allerede tildelt tilbudsarbeid er ute av køen. */
+export function inquiryOpenForBid(inquiry) {
+  if (!inquiry?.id || inquiry.bidId) return false;
+  const status = inquiry.status || 'mottatt';
+  return status === 'mottatt' || status === 'aktuell';
+}
+
+export function patchInquiry(list, id, patch) {
+  const rows = Array.isArray(list) ? list : [];
+  const current = rows.find((row) => row?.id === id);
+  if (!current) return { ok: false, error: 'Henvendelsen finnes ikke.', list: rows };
+  const inquiry = { ...current, ...(patch || {}) };
+  return {
+    ok: true,
+    inquiry,
+    list: rows.map((row) => (row?.id === id ? inquiry : row)),
+  };
+}
+
 export function createDirectInquiry(input) {
   const title = text(input?.title, 160);
   const toOrgnr = String(input?.toOrgnr || '').replace(/\D/g, '').slice(0, 9);

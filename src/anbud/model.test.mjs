@@ -247,7 +247,18 @@ assert.equal(filed.bids[0].dossier.procedure, 'Åpen');
 const bidState = createBidWork(withFile, withFile.notices[0].id).state;
 assert.equal(bidState.bids[0].phase, 'trinn2');
 assert.equal(bidState.bids[0].noticeId, withFile.notices[0].id);
+assert.equal(bidState.bids[0].source, 'varsling');
 assert.equal(bidState.notices.find((row) => row.id === withFile.notices[0].id).decision, 'tilbud');
+const assigned = createBidWork(withFile, withFile.notices[0].id, {
+  personId: 'ada',
+  personName: 'Ada Nord',
+  unitId: 'avd1',
+  unitName: 'Rådgivning',
+  unitKind: 'avdeling',
+}).state;
+assert.equal(assigned.bids[0].assignment.personName, 'Ada Nord');
+assert.equal(assigned.bids[0].assignment.unitName, 'Rådgivning');
+assert.equal(assigned.notices.find((row) => row.id === withFile.notices[0].id).decision, 'tilbud');
 
 const watchProfile = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',

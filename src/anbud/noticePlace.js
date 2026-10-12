@@ -234,6 +234,41 @@ function partsFrom(values) {
   return out;
 }
 
+const UNBOUND_KEYS = new Set([
+  'ikkestedbunden',
+  'ikkestedbundet',
+  'ikkestedsbunden',
+  'ikkestedsbundet',
+  'anyw',
+  'anywhere',
+  'helelandet',
+  'helenorge',
+  'nasjonal',
+  'nasjonalt',
+]);
+
+function isUnboundLabel(raw) {
+  const key = token(raw);
+  if (!key) return false;
+  if (UNBOUND_KEYS.has(key)) return true;
+  const land = LAND_BY_KEY.get(key);
+  return !!(land && land.label === 'Norge');
+}
+
+/** Kunngjøringen gjelder hele Norge, ikke ett utførelsessted. */
+export function unboundPlace(notice) {
+  const parts = partsFrom(notice?.places);
+  return parts.length > 0 && parts.every((part) => isUnboundLabel(part));
+}
+
+export function noticeMapScope(notice) {
+  if (unboundPlace(notice)) return { coverage: 'land', label: 'Hele Norge' };
+  const hit = locateNotice(notice);
+  if (!hit) return { coverage: 'land', label: 'Hele Norge' };
+  if (hit.precision === 'land' && hit.label === 'Norge') return { coverage: 'land', label: 'Hele Norge' };
+  return { coverage: 'punkt', ...hit };
+}
+
 function lookupKey(raw) {
   const key = token(raw);
   if (!key || key.length < 2) return null;
@@ -358,34 +393,52 @@ function dayLabel(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
+function pinBase(row) {
+  return {
+    id: row.id,
+    title: String(row.title || 'Kunngjøring').slice(0, 120),
+    buyer: String(row.buyer || '').slice(0, 80),
+    deadline: dayLabel(row.deadline),
+    source: row.source === 'ted' ? 'TED' : 'Doffin',
+    kind: mapPinKind(row.decision),
+  };
+}
+
 export function mapPinsForNotices(notices, { expired, asShown = false } = {}) {
   const rows = asShown
     ? (Array.isArray(notices) ? notices : []).filter((row) => (row?.decision || 'ubestemt') !== 'tilbud')
     : mapCandidateNotices(notices, expired);
   const counts = new Map();
-  const pins = [];
+  const points = [];
+  const lands = [];
   for (const row of rows) {
-    const hit = locateNotice(row);
-    if (!hit) continue;
-    const bucket = `${hit.lat.toFixed(3)},${hit.lng.toFixed(3)}`;
+    const scope = noticeMapScope(row);
+    if (scope.coverage === 'land') {
+      lands.push({
+        ...pinBase(row),
+        coverage: 'land',
+        label: 'Hele Norge',
+        lat: 64.5,
+        lng: 12,
+        precision: 'land',
+      });
+      continue;
+    }
+    const bucket = `${scope.lat.toFixed(3)},${scope.lng.toFixed(3)}`;
     const n = counts.get(bucket) || 0;
     counts.set(bucket, n + 1);
-    const point = n ? offset(hit.lat, hit.lng, n) : hit;
-    pins.push({
-      id: row.id,
-      title: String(row.title || 'Kunngjøring').slice(0, 120),
-      buyer: String(row.buyer || '').slice(0, 80),
-      deadline: dayLabel(row.deadline),
-      source: row.source === 'ted' ? 'TED' : 'Doffin',
-      label: hit.label,
+    const point = n ? offset(scope.lat, scope.lng, n) : scope;
+    points.push({
+      ...pinBase(row),
+      coverage: 'punkt',
+      label: scope.label,
       lat: point.lat,
       lng: point.lng,
-      precision: hit.precision,
-      kind: mapPinKind(row.decision),
+      precision: scope.precision,
     });
   }
-  pins.sort((a, b) => b.lat - a.lat || a.lng - b.lng);
-  return pins;
+  points.sort((a, b) => b.lat - a.lat || a.lng - b.lng);
+  return [...points, ...lands];
 }
 
 export { FYLKER };

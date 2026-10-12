@@ -109,6 +109,8 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(allows(tilbud, 'tenders', 'write'), false);
   assert.equal(companyTabAllowed('anbud', 'tilbud', tilbud), true);
   assert.equal(companyTabAllowed('anbud', 'varsling', tilbud), true);
+  assert.equal(companyTabAllowed('anbud', 'vurdering', tilbud), true);
+  assert.equal(companyTabAllowed('anbud', 'vurdering', { ...tilbud, tenders: 'none' }), false);
   assert.equal(companyTabAllowed('okonomi', null, tilbud), false);
 }
 
@@ -300,7 +302,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.deepEqual(ansattNav.children.map((child) => child.id), ['underenheter']);
   const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
     .find((item) => item.id === 'anbud');
-  assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-tilbud']);
+  assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud']);
   const offersOnly = { ...standardGrants('tilbud'), tenders: 'none' };
   const offersNav = filterCompanyNav(companyNavItems(), offersOnly)
     .find((item) => item.id === 'anbud');

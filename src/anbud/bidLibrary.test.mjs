@@ -249,5 +249,26 @@ assert.equal(manual.ok, true);
 assert.equal(manual.state.bids[0].source, 'manuell');
 assert.equal(manual.state.bids[0].noticeId, '');
 assert.equal(createManualBidWork(emptyAnbudState(), { title: '' }).ok, false);
+const fromInquiry = createManualBidWork(emptyAnbudState(), {
+  title: 'Direkte forespørsel',
+  buyer: 'Aukra kommune',
+  inquiryId: 'in_1',
+  source: 'protop',
+  channel: 'protop',
+  originAt: '2026-10-01T08:00:00.000Z',
+  assignment: { personId: 'p1', personName: 'Kari', unitId: 'u1', unitName: 'Vei' },
+});
+assert.equal(fromInquiry.ok, true);
+assert.equal(fromInquiry.state.bids[0].source, 'protop');
+assert.equal(fromInquiry.state.bids[0].inquiryId, 'in_1');
+assert.equal(fromInquiry.state.bids[0].assignment.personName, 'Kari');
+assert.equal(fromInquiry.state.bids[0].assignment.unitName, 'Vei');
+const reused = createManualBidWork(fromInquiry.state, {
+  title: 'Direkte forespørsel',
+  inquiryId: 'in_1',
+  assignment: { personId: 'p2', personName: 'Per', unitId: 'u1', unitName: 'Vei' },
+});
+assert.equal(reused.state.bids.length, 1);
+assert.equal(reused.state.bids[0].assignment.personName, 'Per');
 
 console.log('bid library ok');

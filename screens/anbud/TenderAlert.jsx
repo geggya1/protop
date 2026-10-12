@@ -7,19 +7,19 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-    alignDepartmentAreas, attachDossier, createBidWork, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, toggleConsideration, watchFingerprint, watchQuery,
+    alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
-import { locateNotice, mapFollowsList, mapPinsForNotices } from '../../src/anbud/noticePlace';
+import { locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
+import NextStep from './NextStep';
 import TenderMap from './TenderMap';
-import BidDecision from './BidDecision';
 import RegionCoverage from './RegionCoverage';
 import FilterMenu from '../../components/FilterMenu';
 import {
@@ -140,7 +140,9 @@ function NoticeBody({ row, colors }) {
   );
 }
 
-export default function TenderAlert({ company, colors, onBids, onOpenSettings, onOpenBid, units = [] }) {
+export default function TenderAlert({
+  company, colors, onBids, onOpenSettings, onOpenReview, onReviewCount, units = [],
+}) {
   const { width } = useWindowDimensions();
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
@@ -288,6 +290,11 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
   useEffect(() => {
     onBids?.(state.bids || []);
   }, [state.bids, onBids]);
+
+  useEffect(() => {
+    const waiting = (state.notices || []).filter((row) => row.decision === 'aktuell').length;
+    onReviewCount?.(waiting);
+  }, [state.notices, onReviewCount]);
 
   const notices = state.notices || [];
 
@@ -514,64 +521,9 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
       const stored = adopted.state.notices.find((row) => row.id === id)?.dossier || dossier;
       const files = (stored?.portalFiles?.length || 0) + (stored?.documents?.length || 0);
       const answers = stored?.qa?.length || 0;
-      setSavedNote(`${still.title || 'Konkurransen'} er merket aktuell. ${files ? `${files} dokumenter` : 'Ingen vedlegg'} og ${answers ? `${answers} spørsmål og svar` : 'ingen spørsmål og svar'} er hentet inn. Neste steg er å gi tilbud eller la det være.`);
+      setSavedNote(`${still.title || 'Konkurransen'} er merket aktuell. ${files ? `${files} dokumenter` : 'Ingen vedlegg'} og ${answers ? `${answers} spørsmål og svar` : 'ingen spørsmål og svar'} er hentet inn. Neste steg er 2. Vurdering av aktuelle.`);
     }
     setPullingId('');
-  }
-
-  async function giveBid(id) {
-    setPullingId(id);
-    setError('');
-    let base = stateRef.current;
-    const notice = (base.notices || []).find((row) => row.id === id);
-    let dossier = notice?.dossier || null;
-    try {
-      if (/^\d{4}-\d+$/.test(String(id))) {
-        const file = await fetchCompetitionFile(id);
-        dossier = file?.dossier || dossier;
-        if (dossier) dossier = await attachPortalCatalog(dossier);
-        if (dossier) dossier = await storeReachableFiles(dossier);
-      }
-    } catch (err) {
-      setError(err?.message || 'Kunne ikke hente hele grunnlaget. Teksten som finnes, blir med.');
-    }
-    if (!dossier && notice) dossier = seedDossier(notice);
-    if (dossier) {
-      const attached = attachDossier(base, id, dossier);
-      if (attached.ok) base = attached.state;
-    }
-    const made = createBidWork(base, id);
-    if (!made.ok) {
-      setError(made.error);
-      setPullingId('');
-      return;
-    }
-    await saveAnbudState(made.state, company?.id);
-    commitState(made.state);
-    const bid = made.state.bids.find((row) => row.noticeId === id);
-    setPullingId('');
-    if (bid) onOpenBid?.(bid.id);
-  }
-
-  function declineBid(id) {
-    const decided = setNoticeDecision(stateRef.current, id, 'ikke');
-    if (!decided.ok) {
-      setError(decided.error);
-      return;
-    }
-    const released = releaseUntouchedBid(decided.state, id);
-    setError('');
-    commitState(released.state);
-    setSavedNote('Konkurransen er satt til ikke gi tilbud.');
-  }
-
-  function weigh(id, itemId) {
-    const result = toggleConsideration(stateRef.current, id, itemId);
-    if (!result.ok) setError(result.error);
-    else {
-      setError('');
-      commitState(result.state);
-    }
   }
 
   const departmentList = useMemo(
@@ -704,13 +656,13 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
     () => mapPinsForNotices(mapRows, { asShown: true }),
     [mapRows],
   );
-  const missingPlaces = mapRows.filter((row) => !locateNotice(row)).length;
-  const missingKey = mapRows.filter((row) => !locateNotice(row)).map((row) => row.id).join(',');
+  const missingPlaces = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).length;
+  const missingKey = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).map((row) => row.id).join(',');
 
   useEffect(() => {
     if (!ready || !missingKey) return undefined;
     let live = true;
-    const unknown = mapRows.filter((row) => !locateNotice(row));
+    const unknown = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row));
     geocodeMissing(unknown, locateNotice, geocodeQuery).then((hits) => {
       if (!live || !hits.length) return;
       const byId = new Map(hits.map((row) => [row.id, row.geo]));
@@ -940,15 +892,8 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
             focusId={mapFocusId}
             onToggle={(id) => setOpenId(openId === id ? '' : id)}
             onMark={mark}
-            renderDecision={(row) => (
-              <BidDecision
-                notice={row}
-                colors={colors}
-                busy={pullingId === row.id}
-                onToggle={(itemId) => weigh(row.id, itemId)}
-                onGive={() => giveBid(row.id)}
-                onDecline={() => declineBid(row.id)}
-              />
+            renderDecision={() => (
+              <NextStep colors={colors} onOpenReview={onOpenReview} />
             )}
             matchWatch={matchWatch}
             syncing={syncing}
@@ -1058,16 +1003,7 @@ export default function TenderAlert({ company, colors, onBids, onOpenSettings, o
                   <View style={{ padding: 8, gap: 8 }}>
                     <NoticeBody row={row} colors={colors} />
                     {pullingId === row.id ? <Text style={{ color: colors.muted }}>Henter tekst, vedlegg og spørsmål …</Text> : null}
-                    {aktuell ? (
-                      <BidDecision
-                        notice={row}
-                        colors={colors}
-                        busy={pullingId === row.id}
-                        onToggle={(itemId) => weigh(row.id, itemId)}
-                        onGive={() => giveBid(row.id)}
-                        onDecline={() => declineBid(row.id)}
-                      />
-                    ) : null}
+                    {aktuell ? <NextStep colors={colors} onOpenReview={onOpenReview} /> : null}
                   </View>
                 ) : null}
               </View>

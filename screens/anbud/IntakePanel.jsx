@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { updateGroup } from '../../src/utils/groups';
-import { INTAKE_CHANNELS, createManualInquiry } from '../../src/anbud/intake';
+import { INTAKE_CHANNELS, createManualInquiry, inquiryStatusLabel } from '../../src/anbud/intake';
 import { fileToDataUrl, mergeScan, scanAnbudFile } from '../../src/anbud/intakeClient';
 import { pickImages } from '../../src/utils/media';
 
@@ -142,7 +142,7 @@ export default function IntakePanel({ colors, company }) {
           {inbox.slice(0, 8).map((row) => (
             <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
               <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
-              <Text style={{ color: colors.muted }}>{row.fromName || 'En ProTop-bedrift'} · {row.status || 'mottatt'}</Text>
+              <Text style={{ color: colors.muted }}>{row.fromName || 'En ProTop-bedrift'} · {inquiryStatusLabel(row.status)}</Text>
             </View>
           ))}
         </View>
@@ -151,7 +151,7 @@ export default function IntakePanel({ colors, company }) {
         <View key={row.id} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 12, gap: 4 }}>
           <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.title}</Text>
           <Text style={{ color: colors.muted }}>
-            {[INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
+            {[inquiryStatusLabel(row.status), INTAKE_CHANNELS.find((item) => item.id === row.channel)?.label, row.contactName, row.email, row.phone].filter(Boolean).join(' · ')}
           </Text>
           {row.attachments?.length ? <Text style={{ color: colors.muted }}>{row.attachments.length} vedlegg</Text> : null}
         </View>

@@ -13,7 +13,8 @@ import { filterCompanyNav } from '../access/companyAccess.js';
 export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
   { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
-  { id: 'tilbud', icon: 'document-text', label: '2. Tilbud' },
+  { id: 'vurdering', icon: 'options', label: '2. Vurdering av aktuelle' },
+  { id: 'tilbud', icon: 'document-text', label: '3. Tilbud' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);

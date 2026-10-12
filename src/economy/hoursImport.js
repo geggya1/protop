@@ -37,7 +37,8 @@ const FIELD_ALIASES = [
   ]],
   ['employeeEmail', [
     'ansattepost', 'ansattmail', 'medarbeiderepost', 'medarbeidermail',
-    'employeeemail', 'workemail', 'arbeidsepost', 'epost', 'email', 'mail',
+    'employeeemail', 'workemail', 'arbeidsepost', 'epostarbeid',
+    'epost', 'email', 'mail',
   ]],
   ['customerNumber', ['kundenummer', 'kundenr', 'customernumber', 'customerno']],
   ['customerName', ['kundenavn', 'kunde', 'customer', 'client', 'oppdragsgiver']],
@@ -121,6 +122,11 @@ export function hourColumnField(header) {
     return 'internalNote';
   }
   if (key.includes('eksterntansatt') || key.includes('externalemployee')) return 'employeeNumber';
+  if ((key.includes('epost') || key.includes('email') || key.includes('mail'))
+    && (key.includes('ansatt') || key.includes('medarbeider') || key.includes('employee')
+      || key.includes('arbeid') || key.includes('work') || key === 'epost' || key === 'email' || key === 'mail')) {
+    return 'employeeEmail';
+  }
   if (key.includes('ansatt') && (key.includes('nr') || key.includes('nummer')) && !key.includes('medarbeider')) {
     return 'employeeNumber';
   }

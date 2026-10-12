@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,6 +35,7 @@ import {
   groupHours,
   hourFacets,
   hourTotals,
+  hydrateHourEntry,
   shiftDateKey,
   sortHours,
 } from '../../src/economy/hoursList.js';
@@ -102,7 +102,8 @@ export default function EconomyHours({
   const [projectFilter, setProjectFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState('');
   const [billableFilter, setBillableFilter] = useState('');
-  const [period, setPeriod] = useState('all');
+  // Standard: inneværende år — unngår å filtrere/sortere alle ~30k føringer.
+  const [period, setPeriod] = useState('year');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [groupBy, setGroupBy] = useState('none');
@@ -117,7 +118,7 @@ export default function EconomyHours({
   const [dropped, setDropped] = useState(new Set());
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
-  const [pageSize, setPageSize] = useState(80);
+  const [pageSize, setPageSize] = useState(60);
   const [selectedDay, setSelectedDay] = useState(() => toDateKey(new Date()));
   const saveChain = useRef(Promise.resolve());
 
@@ -151,6 +152,33 @@ export default function EconomyHours({
   const projectList = projectsProp.length ? projectsProp : (state.projects || []);
   const openProject = onOpenProject || ((projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId }));
 
+  const employeesById = useMemo(() => {
+    const map = new Map();
+    for (const employee of employees) {
+      if (employee?.id) map.set(employee.id, employee);
+    }
+    return map;
+  }, [employees]);
+  const projectsById = useMemo(() => {
+    const map = new Map();
+    for (const project of projectList) {
+      if (project?.id) map.set(project.id, project);
+    }
+    return map;
+  }, [projectList]);
+  const customersById = useMemo(() => {
+    const map = new Map();
+    for (const customer of customers) {
+      if (customer?.id) map.set(customer.id, customer);
+    }
+    return map;
+  }, [customers]);
+  const hydrateOpts = useMemo(() => ({
+    employeesById,
+    projectsById,
+    customersById,
+  }), [employeesById, projectsById, customersById]);
+
   const scoped = useMemo(() => filterHours(entries, {
     query,
     customerId: customerFilter,
@@ -167,7 +195,10 @@ export default function EconomyHours({
   }), sort), [scoped, employeeFilter, sort]);
 
   const groups = useMemo(() => groupHours(visible, groupBy), [visible, groupBy]);
-  const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
+  const pageRows = useMemo(
+    () => visible.slice(0, pageSize).map((row) => hydrateHourEntry(row, hydrateOpts)),
+    [visible, pageSize, hydrateOpts],
+  );
   const totals = useMemo(() => hourTotals(visible), [visible]);
   const employeeOptions = useMemo(
     () => employeeHourOptions(scoped, employees),
@@ -187,12 +218,12 @@ export default function EconomyHours({
     for (const group of groups) {
       if (remaining <= 0) break;
       out.push({ type: 'header', id: `g-${group.id}`, label: group.label, hours: group.hours, count: group.rows.length });
-      const slice = group.rows.slice(0, remaining);
+      const slice = group.rows.slice(0, remaining).map((row) => hydrateHourEntry(row, hydrateOpts));
       remaining -= slice.length;
       slice.forEach((row) => out.push({ type: 'row', id: row.id, row }));
     }
     return out;
-  }, [groupBy, groups, pageRows, pageSize]);
+  }, [groupBy, groups, pageRows, pageSize, hydrateOpts]);
   const importReview = useMemo(
     () => (importPlan ? buildHourImportReview(importPlan, { dropped }) : null),
     [importPlan, dropped],
@@ -214,7 +245,7 @@ export default function EconomyHours({
   }), [entries, projectList, state.members, selectedDay, employeeFilter]);
 
   useEffect(() => {
-    setPageSize(80);
+    setPageSize(60);
   }, [query, employeeFilter, customerFilter, projectFilter, activityFilter, period, fromDate, toDate, billableFilter, sort, entries.length]);
 
   useEffect(() => {
@@ -229,7 +260,7 @@ export default function EconomyHours({
     setProjectFilter('');
     setActivityFilter('');
     setBillableFilter('');
-    setPeriod('all');
+    setPeriod('year');
     setFromDate('');
     setToDate('');
     setGroupBy('none');
@@ -423,7 +454,10 @@ export default function EconomyHours({
             setNote(`Koblet til ${displayName(employee)}.`);
           }}
           onLinkProject={(rowIndex, project) => {
-            setImportPlan((current) => linkImportPlanProject(current, rowIndex, project));
+            setImportPlan((current) => linkImportPlanProject(current, rowIndex, project, {
+              applyGroup: true,
+              customers,
+            }));
             setNote(`Koblet prosjekt ${project.number || project.name}.`);
           }}
           onLinkCustomer={(rowIndex, customer) => {
@@ -553,41 +587,46 @@ export default function EconomyHours({
               <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
             ))}
           </View>
-          <FlatList
-            data={groupedList}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => {
-              if (item.type === 'header') {
+          {/* Enkel liste (paginert) — FlatList i horizontal ScrollView virtualiserer dårlig og bruker mer minne. */}
+          <View style={{ maxHeight: 720 }} nativeID="economy-hours-table-body">
+            <ScrollView nestedScrollEnabled>
+              {!groupedList.length ? (
+                <View style={{ padding: 16 }}>
+                  <Text style={{ color: colors.muted }}>
+                    Ingen timer i dette utvalget. Juster filteret til høyre, eller importer en timeliste.
+                  </Text>
+                </View>
+              ) : groupedList.map((item) => {
+                if (item.type === 'header') {
+                  return (
+                    <View
+                      key={item.id}
+                      style={[styles.groupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}
+                    >
+                      <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.label}</Text>
+                      <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
+                    </View>
+                  );
+                }
                 return (
-                  <View style={[styles.groupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}>
-                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.label}</Text>
-                    <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
+                  <View key={item.id}>
+                    {renderListRow({ item: item.row })}
                   </View>
                 );
-              }
-              return renderListRow({ item: item.row });
-            }}
-            style={{ maxHeight: 720 }}
-            initialNumToRender={24}
-            ListEmptyComponent={(
-              <View style={{ padding: 16 }}>
-                <Text style={{ color: colors.muted }}>
-                  Ingen timer i dette utvalget. Juster filteret til høyre, eller importer en timeliste.
-                </Text>
-              </View>
-            )}
-            ListFooterComponent={visible.length > pageRows.length ? (
-              <TouchableOpacity
-                onPress={() => setPageSize((n) => n + 80)}
-                accessibilityRole="button"
-                style={{ padding: 14, alignItems: 'center' }}
-              >
-                <Text style={{ color: colors.brand, fontWeight: '600' }}>
-                  Vis flere ({pageRows.length} av {visible.length})
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          />
+              })}
+              {visible.length > pageRows.length ? (
+                <TouchableOpacity
+                  onPress={() => setPageSize((n) => n + 60)}
+                  accessibilityRole="button"
+                  style={{ padding: 14, alignItems: 'center' }}
+                >
+                  <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                    Vis flere ({pageRows.length} av {visible.length})
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </ScrollView>
+          </View>
         </View>
       </ScrollView>
     </View>

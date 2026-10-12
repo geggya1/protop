@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import { reviewHeadline } from '../../src/imports/review';
 import { formatDate, formatHours } from '../../src/economy/hoursList.js';
 import { suggestEmployees } from '../../src/economy/hoursImport.js';
-import { suggestCustomers } from '../../src/economy/invoiceImport.js';
+import { suggestCustomers, suggestProjects } from '../../src/economy/invoiceImport.js';
 import { displayName } from '../../src/employees/model.js';
 
 const AMBER = '#9a6700';
@@ -203,11 +203,19 @@ export default function HoursImportReview({
           {reviewCards.slice(0, reviewPage).map((card) => {
             const qEmployee = linkQuery[`${card.id}:employee`] || '';
             const qCustomer = linkQuery[`${card.id}:customer`] || '';
+            const qProject = linkQuery[`${card.id}:project`] || '';
             const employeeHits = card.needsEmployee
               ? suggestEmployees(employees, {
                 employeeName: card.employeeName,
                 employeeNumber: card.employeeNumber,
                 query: qEmployee || card.employeeName || card.employeeNumber,
+              }, 6)
+              : [];
+            const projectHits = card.needsProject
+              ? suggestProjects(projects, {
+                projectNumber: card.projectNumber,
+                projectName: card.projectName,
+                query: qProject || card.projectNumber || card.projectName,
               }, 6)
               : [];
             const customerHits = card.needsCustomer
@@ -256,18 +264,27 @@ export default function HoursImportReview({
                 ) : null}
 
                 {card.needsProject ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const hit = projects.find((project) => (
-                        String(project.number) === String(card.projectNumber)
-                        || (card.projectName && project.name === card.projectName)
-                      ));
-                      if (hit) onLinkProject(card.rowIndex, hit);
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ color: colors.brand }}>Prøv å koble prosjekt fra registeret</Text>
-                  </TouchableOpacity>
+                  <View style={{ gap: 6, marginTop: 4 }}>
+                    <Text style={{ color: colors.muted, fontWeight: '600' }}>Koble prosjekt</Text>
+                    <TextInput
+                      value={qProject}
+                      onChangeText={(value) => setLinkQuery((current) => ({ ...current, [`${card.id}:project`]: value }))}
+                      placeholder="Søk prosjektnr eller navn…"
+                      placeholderTextColor={colors.placeholder}
+                      style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                    />
+                    {projectHits.map((project) => (
+                      <TouchableOpacity
+                        key={project.id}
+                        onPress={() => onLinkProject(card.rowIndex, project)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ color: colors.brand }}>
+                          {[project.number, project.name, project.client].filter(Boolean).join(' · ')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 ) : null}
 
                 {card.needsCustomer ? (

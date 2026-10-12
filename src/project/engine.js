@@ -1493,9 +1493,9 @@ export function importTimeEntries(state, drafts = []) {
       employeeId,
       employeeName: text(draft.employeeName),
       employeeNumber: text(draft.employeeNumber),
-      customerId: text(draft.customerId),
-      customerNumber: text(draft.customerNumber),
-      customerName: text(draft.customerName),
+      customerId: text(draft.customerId) || text(gate.project.customerId),
+      customerNumber: text(draft.customerNumber) || text(gate.project.customerNumber),
+      customerName: text(draft.customerName) || text(gate.project.client),
       projectNumber: text(draft.projectNumber) || text(gate.project.number),
       projectName: text(draft.projectName) || text(gate.project.name),
       activityId,
@@ -1518,10 +1518,17 @@ export function importTimeEntries(state, drafts = []) {
       skipped.push({ reason: 'Ugyldig timeføring.', draft });
       continue;
     }
-    working = { ...working, timeEntries: [row, ...working.timeEntries] };
-    if (fingerprint) fingerprints.add(fingerprint);
+    // Samle nye rader og append én gang — unngår O(n²) ved store importer.
     added.push(row);
+    if (fingerprint) fingerprints.add(fingerprint);
     touchedProjects.add(projectId);
+  }
+
+  if (added.length) {
+    working = {
+      ...working,
+      timeEntries: added.concat(working.timeEntries),
+    };
   }
 
   for (const projectId of touchedProjects) {

@@ -6,6 +6,7 @@ import {
   hourFingerprint,
   hoursLookDuplicate,
   linkImportPlanEmployee,
+  linkImportPlanProject,
   matchEmployee,
   planHourImport,
   readHourTable,
@@ -50,6 +51,88 @@ import {
   const hit = matchEmployee(employees, { employeeNumber: '12', employeeName: 'Geir Andersen' });
   assert.equal(hit.id, 'emp1');
   assert.equal(matchEmployee(employees, { employeeName: 'Geir Andersen' }).id, 'emp1');
+}
+
+{
+  // Nummer som peker på Tom skal ikke vinne over Geirs navn.
+  const employees = [
+    {
+      id: 'tom',
+      person: { firstName: 'Tom', middleName: 'Kåre', lastName: 'Hestvåg' },
+      company: { externalEmployeeNumber: '12' },
+    },
+    {
+      id: 'geir',
+      person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' },
+      company: { externalEmployeeNumber: '99' },
+    },
+  ];
+  const byName = matchEmployee(employees, {
+    employeeNumber: '12',
+    employeeName: 'Geir Ove Andersen',
+  });
+  assert.equal(byName?.id, 'geir');
+  assert.equal(matchEmployee(employees, {
+    employeeNumber: '12',
+    employeeName: 'Tom Kåre Hestvåg',
+  })?.id, 'tom');
+}
+
+{
+  // Prosjekt-treff uten kundekolonner fyller kunde fra prosjekt + register.
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Geir', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '12' },
+  }];
+  const customers = [{ id: 'c1', name: 'Sola Kommune', customerNumber: '10010', orgnr: '123' }];
+  const projects = [{
+    id: 'p1', number: '10857', name: 'Sikker skolevei', customerId: 'c1', client: 'Sola Kommune',
+  }];
+  const row = companyHourRow({
+    date: '06.10.2026',
+    employeeNumber: '12',
+    employeeName: 'Geir Andersen',
+    projectNumber: '10857',
+    projectName: 'Sikker skolevei',
+    hours: '8',
+    description: 'Arbeid',
+  }, { employees, customers, projects });
+  assert.equal(row.severity, 'ok');
+  assert.equal(row.entry.projectId, 'p1');
+  assert.equal(row.entry.customerId, 'c1');
+  assert.equal(row.entry.customerName, 'Sola Kommune');
+  assert.equal(row.entry.customerNumber, '10010');
+}
+
+{
+  // Manuell prosjektkobling gjelder hele gruppen med samme prosjektnr.
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Geir', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '12' },
+  }];
+  const customers = [{ id: 'c1', name: 'Sola Kommune', customerNumber: '10010' }];
+  const projects = [{
+    id: 'p1', number: '10857', name: 'Sikker skolevei', customerId: 'c1', client: 'Sola Kommune',
+  }];
+  const plan = planHourImport([], employees, [], [], [
+    {
+      date: '06.10.2026', employeeNumber: '12', employeeName: 'Geir Andersen',
+      projectNumber: '10857', projectName: 'Sikker skolevei', hours: '4', description: 'A',
+    },
+    {
+      date: '07.10.2026', employeeNumber: '12', employeeName: 'Geir Andersen',
+      projectNumber: '10857', projectName: 'Sikker skolevei', hours: '4', description: 'B',
+    },
+  ]);
+  assert.equal(plan.rows.every((row) => row.severity === 'review'), true);
+  const linked = linkImportPlanProject(plan, 0, projects[0], { applyGroup: true, customers });
+  assert.equal(linked.rows[0].projectId, 'p1');
+  assert.equal(linked.rows[1].projectId, 'p1');
+  assert.equal(linked.rows[0].customerName, 'Sola Kommune');
+  assert.equal(linked.rows[1].customerName, 'Sola Kommune');
+  assert.equal(linked.rows.every((row) => row.severity === 'ok'), true);
 }
 
 {
@@ -329,6 +412,35 @@ import {
   assert.equal(again.added.length, 0);
   assert.equal(again.skipped.length, 1);
   assert.equal(again.state.timeEntries.length, 1);
+}
+
+{
+  // Batch-append: mange rader uten O(n²), og kunde fylles fra prosjekt.client.
+  let state = emptyProjectState();
+  state = createProject(state, {
+    name: 'Batch',
+    number: '20',
+    client: 'Batch Kunde',
+    customerId: 'c-batch',
+    pricingModel: 'hourly',
+  }).state;
+  const projectId = state.activeProjectId;
+  const drafts = Array.from({ length: 200 }, (_, index) => ({
+    projectId,
+    employeeId: 'emp1',
+    employeeName: 'Ada Lovelace',
+    date: `2023-04-${String((index % 28) + 1).padStart(2, '0')}`,
+    hours: 1,
+    description: `Rad ${index}`,
+    importFingerprint: `batch-${index}`,
+  }));
+  const result = importTimeEntries(state, drafts);
+  assert.equal(result.ok, true);
+  assert.equal(result.added.length, 200);
+  assert.equal(result.state.timeEntries.length, 200);
+  assert.equal(result.added[0].customerName, 'Batch Kunde');
+  assert.equal(result.added[0].projectNumber, '20');
+  assert.equal(result.added[199].customerName, 'Batch Kunde');
 }
 
 {

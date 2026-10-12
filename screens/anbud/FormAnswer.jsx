@@ -1,13 +1,32 @@
 import React from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { fieldType } from '../../src/anbud/formBuilder';
+
+const FACE = Platform.OS === 'web' ? { fontFamily: 'Carlito, Calibri, "Segoe UI", Helvetica, Arial, sans-serif' } : null;
 
 function signatureField(field) {
   return field?.kind === 'image' && /signatur|underskrift/i.test(`${field.label || ''} ${field.review || ''}`);
 }
 
+function bracketPlaceholder(field) {
+  const raw = String(field?.placeholder || '').trim();
+  if (raw) return raw.startsWith('[') ? raw : `[${raw}]`;
+  if (field?.kind === 'date') return '[Dato]';
+  if (field?.kind === 'time') return '[TT:MM]';
+  return '';
+}
+
+function Mark({ on, radio, colors }) {
+  return (
+    <View style={[styles.mark, radio && styles.markRound, { borderColor: colors.ink }]}>
+      {on ? <View style={[styles.markFill, radio && styles.markFillRound, { backgroundColor: colors.ink }]} /> : null}
+    </View>
+  );
+}
+
 export default function FormAnswer({ field, colors, onChange, onPickFile, variant = 'stacked' }) {
-  const doc = variant === 'document';
+  const cell = variant === 'cell';
+  const doc = variant === 'document' || cell;
   if (field?.kind === 'note') {
     return <Text style={[styles.note, { color: colors.ink }]}>{field.label}</Text>;
   }
@@ -15,6 +34,69 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
     return <Text style={[doc ? styles.docSection : styles.title, { color: colors.ink, borderBottomColor: colors.line }]}>{field?.label}</Text>;
   }
   const label = `${field.label}${field.required ? ' *' : ''}`;
+  if (cell && signatureField(field)) {
+    return field.value?.name
+      ? <Text style={{ color: colors.ink, fontSize: 12 }}>{field.value.name}</Text>
+      : <View style={styles.cellSign} />;
+  }
+  if (cell && (field.kind === 'choice' || field.kind === 'checks' || field.kind === 'dropdown' || field.kind === 'check')) {
+    if (field.kind === 'check') {
+      return (
+        <TouchableOpacity onPress={() => onChange(!field.value)} accessibilityRole="checkbox" accessibilityState={{ checked: !!field.value }} style={styles.cellOption}>
+          <Mark on={!!field.value} colors={colors} />
+          <Text style={styles.cellText}>{field.value ? 'Ja' : 'Nei'}</Text>
+        </TouchableOpacity>
+      );
+    }
+    const many = field.kind === 'checks';
+    const selected = many ? (field.value || []) : field.value;
+    return (
+      <View style={styles.cellOptions}>
+        {(field.options || []).map((option) => {
+          const on = many ? selected.includes(option.id) : selected === option.id;
+          return (
+            <TouchableOpacity
+              key={option.id}
+              onPress={() => {
+                if (!many) onChange(option.id);
+                else onChange(on ? selected.filter((id) => id !== option.id) : [...selected, option.id]);
+              }}
+              accessibilityRole={many ? 'checkbox' : 'radio'}
+              accessibilityState={{ checked: on }}
+              style={styles.cellOption}
+            >
+              <Mark on={on} radio={!many && field.kind !== 'dropdown'} colors={colors} />
+              <Text style={styles.cellText}>{option.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
+  if (cell && field.kind !== 'long' && field.kind !== 'scale' && field.kind !== 'image' && field.kind !== 'file') {
+    return (
+      <TextInput
+        value={String(field.value || '')}
+        onChangeText={onChange}
+        placeholder={bracketPlaceholder(field)}
+        placeholderTextColor={colors.placeholder}
+        keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
+        style={[styles.cellInput, { color: colors.ink }]}
+      />
+    );
+  }
+  if (cell && field.kind === 'long') {
+    return (
+      <TextInput
+        value={String(field.value || '')}
+        onChangeText={onChange}
+        placeholder={bracketPlaceholder(field) || 'Skriv her'}
+        placeholderTextColor={colors.placeholder}
+        multiline
+        style={[styles.cellArea, { color: colors.ink }]}
+      />
+    );
+  }
   if (doc && signatureField(field)) {
     return (
       <View style={styles.signature}>
@@ -178,4 +260,14 @@ const styles = StyleSheet.create({
   long: { minHeight: 80, textAlignVertical: 'top' },
   scale: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   optionImage: { width: 36, height: 36, borderRadius: 6 },
+  mark: { width: 11, height: 11, borderWidth: 1, borderRadius: 1, alignItems: 'center', justifyContent: 'center' },
+  markRound: { borderRadius: 6 },
+  markFill: { width: 6, height: 6 },
+  markFillRound: { borderRadius: 3 },
+  cellText: { fontSize: 12, lineHeight: 16, ...FACE },
+  cellOption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cellOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  cellInput: { fontSize: 12, lineHeight: 16, paddingVertical: 0, paddingHorizontal: 0, minHeight: 18, ...FACE },
+  cellArea: { fontSize: 12, lineHeight: 16, minHeight: 48, paddingVertical: 0, paddingHorizontal: 0, textAlignVertical: 'top', ...FACE },
+  cellSign: { minHeight: 36, justifyContent: 'flex-end' },
 });

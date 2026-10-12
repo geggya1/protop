@@ -14,6 +14,8 @@ import { isCalendarOauthReturn } from './src/utils/calendarOAuthCapture';
 import { markBiometricUnlocked } from './src/utils/biometricLock';
 import { linking, setLinkingSignedIn, isAuthEntryPath } from './src/navigation/linking';
 import { capturePendingAddFriendFromLocation, peekPendingAddFriend, persistPendingAddFriend } from './src/utils/pendingAddFriend';
+import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
+import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
 import { platformHomeRoute } from './src/utils/groupTypes';
 import {
   upgradeFamilyMembership,
@@ -339,6 +341,7 @@ export default function App() {
     if (!isWeb || typeof window === 'undefined') return;
     try {
       capturePendingAddFriendFromLocation(window.location.href);
+      captureAgreementLinkFromLocation(window.location.href);
     } catch { /* ignore */ }
   }, [isWeb]);
 
@@ -652,6 +655,7 @@ export default function App() {
               }
             }}
           />
+          <AgreementLinkHost />
           <HelpOverlay />
           <HelpModuleCard />
           </ChatDockProvider>

@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import { getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
+import { getPathFromState as defaultGetPathFromState, getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
 import { isAuthEntryPath, resolveAuthEntryLinkState } from './authEntryPaths';
 import { queueChatDockThread } from '../utils/chatDockBridge';
 import { parseFriendAddUsername } from '../utils/friendsLogic';
@@ -9,6 +9,7 @@ import { GAME_TYPE_SCREENS } from '../utils/familyGamesShared';
 import { gameInviteNavParams } from '../utils/gameInviteNav';
 import { formatWebDocumentTitle } from './webDocumentTitle';
 import { linkingPrefixes } from '../utils/hostingChannel';
+import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/agreementLink';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -112,7 +113,11 @@ function parseAddFriendFromPath(path) {
 
 export const linking = {
   prefixes,
+  getPathFromState(state, options) {
+    return withAgreementQuery(defaultGetPathFromState(state, options));
+  },
   getStateFromPath(path, options) {
+    try { captureAgreementLinkFromLocation(path); } catch { /* ignore */ }
     const invite = parseFamilyInviteFromPath(path);
     if (invite) {
       return {

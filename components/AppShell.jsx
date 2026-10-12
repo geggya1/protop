@@ -27,7 +27,6 @@ import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
-import AgreementLinkHost from '../screens/anbud/AgreementLinkHost';
 import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
@@ -976,7 +975,6 @@ function AppShellInner() {
         />
       </View>
 
-      <AgreementLinkHost />
       {!simpleChildUi && !kitchenMode && (
         <ShellDrawer
           visible={drawerOpen}

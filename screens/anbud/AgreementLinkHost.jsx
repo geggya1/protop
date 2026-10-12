@@ -2,24 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { loadAgreementShare } from '../../src/anbud/agreementClient';
+import { captureAgreementLinkFromLocation, consumeAgreementToken } from '../../src/anbud/agreementLink';
 import AgreementTreatment from './AgreementTreatment';
 
 function tokenFromLocation() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
-  const params = new URLSearchParams(window.location.search || '');
-  return String(params.get('avtale') || '').trim();
+  return captureAgreementLinkFromLocation(window.location.href);
 }
 
 export default function AgreementLinkHost() {
   const colors = useColors();
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(tokenFromLocation);
   const [row, setRow] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const found = tokenFromLocation();
+    const found = token || tokenFromLocation();
     if (!found) return undefined;
-    setToken(found);
+    if (found !== token) setToken(found);
     let live = true;
     loadAgreementShare(found).then((result) => {
       if (!live) return;
@@ -34,9 +34,13 @@ export default function AgreementLinkHost() {
   if (!token) return null;
 
   function close() {
+    consumeAgreementToken();
     setToken('');
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.history.replaceState({}, '', `${window.location.origin}${window.location.pathname}`);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('avtale');
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, '', next || '/');
     }
   }
 
@@ -44,6 +48,9 @@ export default function AgreementLinkHost() {
     <View style={[styles.overlay, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.inner}>
         <Text onPress={close} accessibilityRole="button" style={{ color: colors.brand }}>Lukk avtalen</Text>
+        <Text style={{ color: colors.muted }}>
+          Lenken åpner avtalen direkte. Lukk den hvis du heller vil logge inn.
+        </Text>
         {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
         {row ? (
           <AgreementTreatment
@@ -60,6 +67,6 @@ export default function AgreementLinkHost() {
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 2000 },
   inner: { padding: 16, gap: 12, paddingBottom: 48 },
 });

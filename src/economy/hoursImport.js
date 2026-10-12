@@ -190,10 +190,8 @@ export function hourPersonKey(row = {}) {
 }
 
 /**
- * Duplikat bare når dato, person, prosjekt, timer og beskrivelse er 100 % like.
- * Samme dag/person med ulike prosjekt (typisk SHA-befaring på flere bygg)
- * er ikke duplikat. Oppstykkede føringer samme prosjekt er lov når timer
- * eller beskrivelse avviker.
+ * Nøkkel for treff mot allerede lagrede føringer (dato, person, prosjekt,
+ * timer, beskrivelse). Brukes ikke til å stryke like rader inne i eksportfilen.
  */
 export function hourFingerprint(row = {}) {
   const date = parseDate(row.date) || text(row.date);
@@ -401,7 +399,6 @@ export function companyHourRow(input, {
   customers = [],
   projects = [],
   existingFingerprints = new Set(),
-  seenInFile = new Set(),
 } = {}) {
   const mapped = input && typeof input === 'object' ? input : {};
   const originalValues = mapped._sourceValues && typeof mapped._sourceValues === 'object'
@@ -501,16 +498,12 @@ export function companyHourRow(input, {
 
   const fingerprint = hourFingerprint(entry);
   entry.importFingerprint = fingerprint;
-  const duplicateInFile = seenInFile.has(fingerprint);
-  const duplicateExisting = existingFingerprints.has(fingerprint);
-  const duplicate = duplicateInFile || duplicateExisting;
+  // Kun mot allerede lagrede føringer — like rader i eksportfilen er lov (bokført/fakturert).
+  const duplicate = Boolean(fingerprint) && existingFingerprints.has(fingerprint);
   if (duplicate) {
     severity = 'existing';
-    issues.push(duplicateInFile
-      ? 'Duplikat i filen (samme dato, person, prosjekt, timer og beskrivelse) — hoppes over.'
-      : 'Finnes fra før (samme dato, person, prosjekt, timer og beskrivelse) — hoppes over.');
+    issues.push('Finnes allerede i systemet (samme dato, person, prosjekt, timer og beskrivelse) — hoppes over.');
   }
-  seenInFile.add(fingerprint);
 
   const title = [
     entry.date || 'Uten dato',
@@ -548,7 +541,6 @@ export function companyHourRow(input, {
 
 export function planHourImport(existingEntries, employees, customers, projects, rows) {
   const existingFingerprints = collectHourFingerprints(existingEntries);
-  const seenInFile = new Set();
   const planned = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
     planned.push(companyHourRow(raw, {
@@ -556,7 +548,6 @@ export function planHourImport(existingEntries, employees, customers, projects, 
       customers,
       projects,
       existingFingerprints,
-      seenInFile,
     }));
   }
   return { rows: planned };

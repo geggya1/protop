@@ -138,8 +138,8 @@ export default function HoursImportReview({
         </Text>
       ) : null}
       <Text style={{ color: colors.muted }}>
-        Duplikat bare ved helt like føringer (samme dato, person, prosjekt, timer og beskrivelse).
-        Samme dag på ulike prosjekt, eller oppstykkede timer, beholdes. Medarbeidere legges inn på prosjektene ved lagring.
+        Hoppes over bare hvis føringen allerede finnes i systemet (samme dato, person, prosjekt, timer og beskrivelse).
+        Like rader i eksportfilen beholdes. Medarbeidere legges inn på prosjektene ved lagring.
       </Text>
 
       {cards.filter((card) => card.severity === 'existing' || card.severity === 'block').map((card) => (

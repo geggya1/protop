@@ -205,10 +205,10 @@ import {
     hours: '8',
     description: 'Arbeid',
   };
+  // Like rader i samme eksportfil er lov — bare treff mot systemet hoppes over.
   const first = planHourImport([], employees, [], projects, [raw, raw]);
   assert.equal(first.rows[0].severity, 'ok');
-  assert.equal(first.rows[1].severity, 'existing');
-  assert.match(first.rows[1].issues.join(' '), /Duplikat/);
+  assert.equal(first.rows[1].severity, 'ok');
 
   const fp = hourFingerprint(first.rows[0].entry);
   const second = planHourImport(
@@ -219,6 +219,7 @@ import {
     [raw],
   );
   assert.equal(second.rows[0].severity, 'existing');
+  assert.match(second.rows[0].issues.join(' '), /Finnes allerede i systemet/);
 }
 
 {
@@ -322,11 +323,21 @@ import {
   assert.equal(split.rows.filter((row) => row.severity === 'ok').length, 3);
   assert.equal(split.rows.some((row) => row.severity === 'existing'), false);
 
-  // Kun helt identisk rad (dato+person+timer+beskrivelse) er duplikat.
+  // Identisk rad i filen beholdes (ekte eksport / bokført).
   const withClone = planHourImport([], employees, [], projects, [...chunks, chunks[0]]);
-  assert.equal(withClone.rows.filter((row) => row.severity === 'ok').length, 3);
-  assert.equal(withClone.rows.filter((row) => row.severity === 'existing').length, 1);
-  assert.match(withClone.rows.find((row) => row.severity === 'existing').issues.join(' '), /dato, person, prosjekt, timer og beskrivelse/);
+  assert.equal(withClone.rows.filter((row) => row.severity === 'ok').length, 4);
+  assert.equal(withClone.rows.filter((row) => row.severity === 'existing').length, 0);
+
+  // Samme fingerprint mot lagret føring hoppes over.
+  const againstSystem = planHourImport(
+    [{ ...withClone.rows[0].entry }],
+    employees,
+    [],
+    projects,
+    [chunks[0]],
+  );
+  assert.equal(againstSystem.rows[0].severity, 'existing');
+  assert.match(againstSystem.rows[0].issues.join(' '), /Finnes allerede i systemet/);
 }
 
 {
@@ -455,6 +466,23 @@ import {
   assert.equal(again.added.length, 0);
   assert.equal(again.skipped.length, 1);
   assert.equal(again.state.timeEntries.length, 1);
+
+  // Identiske rader i samme importbatch lagres begge (ikke in-file-skip).
+  const twinDraft = {
+    projectId,
+    employeeId: 'emp1',
+    employeeName: 'Ada Lovelace',
+    employeeNumber: '1',
+    projectNumber: '10',
+    projectName: 'Demo',
+    date: '2023-02-02',
+    hours: 4,
+    description: 'Dobbel bokført',
+  };
+  const twins = importTimeEntries(result.state, [twinDraft, twinDraft]);
+  assert.equal(twins.added.length, 2);
+  assert.equal(twins.skipped.length, 0);
+  assert.equal(twins.state.timeEntries.length, 3);
 }
 
 {

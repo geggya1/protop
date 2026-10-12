@@ -19,11 +19,14 @@ export default function ImportReview({
 }) {
   const danger = colors.danger || '#b42318';
   const sections = reviewSections(rows);
-  const ready = (rows || []).filter((row) => (
-    row.severity !== 'block'
-    && row.included
-    && row.ready !== false
-  )).length;
+  const ready = (rows || []).reduce((sum, row) => {
+    if (!row || row.severity === 'block' || row.severity === 'existing' || row.included === false || row.ready === false) {
+      return sum;
+    }
+    if (Number(row.count) > 0) return sum + Number(row.count);
+    if (Array.isArray(row.indexes) && row.indexes.length) return sum + row.indexes.length;
+    return sum + 1;
+  }, 0);
   return (
     <View nativeID={nativeID} style={{ gap: 12 }}>
       <Text style={{ color: colors.ink }}>{reviewHeadline(rows)}</Text>

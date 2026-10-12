@@ -150,9 +150,10 @@ export function hourPersonKey(row = {}) {
 }
 
 /**
- * Duplikat bare når dato, person, timer og beskrivelse er identiske.
- * Prosjekt, aktivitet og ekstern id teller ikke — to like føringer på ulike
- * prosjekt med samme tekst regnes som samme oppføring ved import.
+ * Duplikat bare når dato, person, timer og beskrivelse er 100 % identiske.
+ * Flere oppstykkede føringer samme dag (og samme prosjekt) er lov — ulikt
+ * timeantall eller ulik beskrivelse betyr ikke duplikat. Prosjekt/aktivitet
+ * inngår ikke i nøkkelen.
  */
 export function hourFingerprint(row = {}) {
   const date = parseDate(row.date) || text(row.date);

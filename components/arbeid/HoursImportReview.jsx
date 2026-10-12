@@ -138,8 +138,8 @@ export default function HoursImportReview({
         </Text>
       ) : null}
       <Text style={{ color: colors.muted }}>
-        Duplikater hoppes over. Medarbeidere legges automatisk inn på prosjektene ved lagring.
-        Klare føringer vises i tabell.
+        Duplikat bare ved helt like føringer (samme dato, person, timer og beskrivelse).
+        Flere oppstykkede føringer samme dag beholdes. Medarbeidere legges inn på prosjektene ved lagring.
       </Text>
 
       {cards.filter((card) => card.severity === 'existing' || card.severity === 'block').map((card) => (

@@ -193,6 +193,42 @@ import {
 }
 
 {
+  // Oppstykkede føringer samme dag og samme prosjekt er OK når timer/tekst avviker.
+  const employees = [{
+    id: 'emp1',
+    person: { firstName: 'Geir', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '12' },
+  }];
+  const projects = [{ id: 'p1', number: '10857', name: 'Sikker skolevei' }];
+  const chunks = [
+    {
+      date: '15.03.2023', employeeNumber: '12', employeeName: 'Geir Andersen',
+      projectNumber: '10857', projectName: 'Sikker skolevei',
+      hours: '2', description: 'Befaring formiddag',
+    },
+    {
+      date: '15.03.2023', employeeNumber: '12', employeeName: 'Geir Andersen',
+      projectNumber: '10857', projectName: 'Sikker skolevei',
+      hours: '3', description: 'Befaring ettermiddag',
+    },
+    {
+      date: '15.03.2023', employeeNumber: '12', employeeName: 'Geir Andersen',
+      projectNumber: '10857', projectName: 'Sikker skolevei',
+      hours: '3', description: 'Tegningskontroll',
+    },
+  ];
+  const split = planHourImport([], employees, [], projects, chunks);
+  assert.equal(split.rows.filter((row) => row.severity === 'ok').length, 3);
+  assert.equal(split.rows.some((row) => row.severity === 'existing'), false);
+
+  // Kun helt identisk rad (dato+person+timer+beskrivelse) er duplikat.
+  const withClone = planHourImport([], employees, [], projects, [...chunks, chunks[0]]);
+  assert.equal(withClone.rows.filter((row) => row.severity === 'ok').length, 3);
+  assert.equal(withClone.rows.filter((row) => row.severity === 'existing').length, 1);
+  assert.match(withClone.rows.find((row) => row.severity === 'existing').issues.join(' '), /dato, person, timer og beskrivelse/);
+}
+
+{
   const plan = planHourImport([], [], [], [], [{
     date: '01.01.2023',
     employeeName: 'Ukjent Person',

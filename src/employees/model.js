@@ -15,8 +15,10 @@ import {
 import {
   alignCompanyEmployment,
   canonicalLevelId,
+  employeeLevelIds,
   levelById,
   levelIdFromRoleLabel,
+  normalizeEmployeeLevelIds,
   normalizeOverrides,
   placedLevelId,
 } from '../access/companyAccess.js';
@@ -112,6 +114,7 @@ export function emptyCompany() {
     title: '',
     accessRole: '',
     accessLevel: '',
+    accessLevels: [],
     accessOverrides: {},
     permissions: [],
     canHandleLegal: false,
@@ -443,7 +446,12 @@ function normalizeCompany(raw) {
   company.accessRole = text(source.accessRole);
   const fromRole = levelIdFromRoleLabel(company.accessRole);
   const explicitLevel = canonicalLevelId(source.accessLevel);
-  company.accessLevel = fromRole || explicitLevel || '';
+  const single = fromRole || explicitLevel || '';
+  const listed = Array.isArray(source.accessLevels) ? normalizeEmployeeLevelIds(source.accessLevels) : [];
+  company.accessLevels = listed.length ? listed : (single ? [single] : []);
+  const primary = levelById(company.accessLevels[company.accessLevels.length - 1]);
+  company.accessLevel = primary?.id || '';
+  company.accessRole = primary?.label || '';
   company.accessOverrides = normalizeOverrides(source.accessOverrides);
   company.permissions = stringList(source.permissions);
   company.canHandleLegal = bool(source.canHandleLegal);
@@ -690,6 +698,7 @@ function applyAccessLevel(company, levelId) {
   if (!level) return;
   company.accessLevel = level.id;
   company.accessRole = level.label;
+  company.accessLevels = [level.id];
   if (level.kind === 'external') {
     company.personnelKind = 'external';
     company.external = true;
@@ -712,12 +721,15 @@ function alignAccessLevelToKind(company) {
   if (company.personnelKind === 'external' && current?.kind !== 'external') {
     company.accessLevel = 'regnskap_ekstern';
     company.accessRole = 'Regnskap eksternt';
+    company.accessLevels = ['regnskap_ekstern'];
   } else if (company.personnelKind === 'innleid' && current?.kind !== 'innleid') {
     company.accessLevel = 'innleie_ekstern';
     company.accessRole = 'Innleie eksternt';
+    company.accessLevels = ['innleie_ekstern'];
   } else if (company.personnelKind === 'staff' && (!current || current.kind !== 'staff')) {
     company.accessLevel = 'ansatt';
     company.accessRole = 'Ansatt';
+    company.accessLevels = ['ansatt'];
   }
 }
 
@@ -753,6 +765,16 @@ export function employeeDirectoryBucket(employee) {
   return 'company';
 }
 
+/** Ansatt-tabellen og eksternt-tabellen kan begge vise samme person. */
+export function employeeShowsInSection(employee, sectionId) {
+  if (employeeActivityTab(employee) === 'trash') return false;
+  const sections = employeeLevelIds(employee)
+    .map((id) => levelById(id)?.section)
+    .filter(Boolean);
+  if (sections.length) return sections.includes(sectionId);
+  return employeeDirectoryBucket(employee) === sectionId;
+}
+
 export function filterEmployees(list, {
   query = '',
   kind = 'all',
@@ -784,7 +806,7 @@ export function filterEmployees(list, {
       return haystack(row, departments).includes(q);
     }
     if (kindFilter && kindFilter !== 'all' && rowKind !== kindFilter) return false;
-    if (level && level !== 'all' && placedLevelId(row) !== level) return false;
+    if (level && level !== 'all' && !employeeLevelIds(row).includes(level)) return false;
     if (statusFilter && statusFilter !== 'all' && rowStatus !== statusFilter) return false;
     if (!q) return true;
     return haystack(row, departments).includes(q);

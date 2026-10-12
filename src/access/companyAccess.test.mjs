@@ -20,13 +20,16 @@ import {
   effectiveLevelId,
   filterCompanyNav,
   grantsEqual,
+  employeeLevelIds,
   grantsForEmployee,
+  grantsForLevelIds,
   groupEmployeesByLevel,
   hoursOnAssignedOnly,
   levelGrants,
   levelIsCustom,
   normalizeAccessPolicy,
   placedLevelId,
+  withToggledLevel,
   resetLevel,
   resolveActorAccess,
   setLevelGrant,
@@ -442,6 +445,27 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   );
   assert.equal(readOnly.viewAs, 'write');
   assert.equal(readOnly.economy, 'none');
+}
+
+{
+  const staff = {
+    id: 'frank',
+    person: { firstName: 'Frank', lastName: 'Ingvartsen' },
+    company: { accessLevel: 'ansatt', accessRole: 'Ansatt', status: 'active', personnelKind: 'staff' },
+  };
+  const both = withToggledLevel(staff, 'tilbud', true);
+  assert.deepEqual(employeeLevelIds(both), ['ansatt', 'tilbud']);
+  assert.equal(both.company.personnelKind, 'staff');
+  assert.equal(placedLevelId(both), 'tilbud');
+  const grants = grantsForEmployee(null, both);
+  assert.equal(grants.offers, 'write');
+  assert.equal(grants.hours, 'write');
+  assert.equal(grantsForLevelIds(null, ['ansatt']).offers, 'none');
+  const onlyAnsatt = withToggledLevel(both, 'tilbud', false);
+  assert.deepEqual(employeeLevelIds(onlyAnsatt), ['ansatt']);
+  const cleared = withToggledLevel(onlyAnsatt, 'ansatt', false);
+  assert.deepEqual(employeeLevelIds(cleared), []);
+  assert.equal(cleared.company.accessLevel, '');
 }
 
 console.log('companyAccess.test.mjs: ok');

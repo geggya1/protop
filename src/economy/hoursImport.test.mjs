@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import {
   buildHourImportReview,
   companyHourRow,
+  employeeCoreName,
   hourColumnField,
   hourFingerprint,
   hoursLookDuplicate,
   linkImportPlanEmployee,
   linkImportPlanProject,
   matchEmployee,
+  normalizeEmployeeNumber,
   parseImportHours,
   planHourImport,
   readHourTable,
@@ -90,6 +92,60 @@ import {
     employeeNumber: '12',
     employeeName: 'Tom Kåre Hestvåg',
   })?.id, 'tom');
+}
+
+{
+  assert.equal(normalizeEmployeeNumber('02'), '2');
+  assert.equal(normalizeEmployeeNumber('2'), '2');
+  assert.equal(employeeCoreName('Geir Ove Andersen'), 'geir andersen');
+  assert.equal(employeeCoreName('Geir Andersen'), 'geir andersen');
+
+  // Duplikat i Ansatte (aktiv + inaktiv) skal fortsatt treffe — aktiv foretrekkes.
+  const dupes = [
+    {
+      id: 'goa-old',
+      person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' },
+      company: { externalEmployeeNumber: '', status: 'inactive' },
+    },
+    {
+      id: 'goa',
+      person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' },
+      company: { externalEmployeeNumber: '2', status: 'active' },
+    },
+    {
+      id: 'got',
+      person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Tørnkvist' },
+      company: { externalEmployeeNumber: '3', status: 'active' },
+    },
+  ];
+  assert.equal(matchEmployee(dupes, {
+    employeeName: 'Geir Ove Andersen',
+    employeeNumber: '2',
+  })?.id, 'goa');
+  assert.equal(matchEmployee(dupes, {
+    employeeName: 'Geir Ove Andersen',
+  })?.id, 'goa');
+  // Uten nummer i filen, men «02» i registeret.
+  assert.equal(matchEmployee([{
+    id: 'goa',
+    person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' },
+    company: { externalEmployeeNumber: '02', status: 'leave' },
+  }], { employeeName: 'Geir Ove Andersen', employeeNumber: '2' })?.id, 'goa');
+  // Kort navn i filen, fullt navn i Ansatte.
+  assert.equal(matchEmployee(dupes, { employeeName: 'Geir Andersen' })?.id, 'goa');
+  // Soft-søsken med samme fornavn/mellomnavn skal ikke stjele treffet.
+  assert.equal(matchEmployee(dupes, { employeeName: 'Geir Ove Tørnkvist' })?.id, 'got');
+  // Inaktiv / permisjon / slettet er fortsatt gyldige treff.
+  assert.equal(matchEmployee([{
+    id: 'ellen',
+    person: { firstName: 'Ellen', middleName: 'Rønneberg', lastName: 'Hidle' },
+    company: { externalEmployeeNumber: '101', status: 'inactive' },
+  }], { employeeName: 'Ellen Rønneberg Hidle', employeeNumber: '101' })?.id, 'ellen');
+  assert.equal(matchEmployee([{
+    id: 'ellen',
+    person: { firstName: 'Ellen', lastName: 'Hidle' },
+    company: { externalEmployeeNumber: '101', status: 'deleted' },
+  }], { employeeName: 'Ellen Rønneberg Hidle', employeeNumber: '101' })?.id, 'ellen');
 }
 
 {

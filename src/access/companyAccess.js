@@ -515,6 +515,53 @@ export function accountDeactivated(employee) {
   return status === 'inactive' || status === 'deleted' || status === 'former';
 }
 
+export function companyForAccessLevel(company = {}, levelId) {
+  const level = levelById(levelId);
+  if (!level) return { ...company };
+  const next = {
+    ...company,
+    accessLevel: level.id,
+    accessRole: level.label,
+  };
+  if (level.kind === 'external') {
+    next.personnelKind = 'external';
+    next.external = true;
+  } else if (level.kind === 'innleid') {
+    next.personnelKind = 'innleid';
+    next.external = false;
+    if (!/innleid|innleie/.test(String(next.employmentType || '').toLowerCase())) next.employmentType = 'Innleid';
+  } else if (next.personnelKind === 'external' || next.personnelKind === 'innleid') {
+    next.personnelKind = 'staff';
+    next.external = false;
+    if (/^(ekstern|innleid|innleie)$/i.test(next.employmentType || '')) next.employmentType = 'Fast ansatt';
+  }
+  return next;
+}
+
+export function parseDropId(value) {
+  const parts = String(value || '').split(':');
+  if (parts[0] === 'level' && parts[1]) return { kind: 'level', levelId: parts[1] };
+  if (parts[0] === 'status' && parts[1] && (parts[2] === 'active' || parts[2] === 'inactive')) {
+    return { kind: 'status', levelId: parts[1], status: parts[2] };
+  }
+  return null;
+}
+
+/** Hva et slipp gjør med personen. Null når slippunktet ikke endrer noe. */
+export function personDropChange(employee, dropId) {
+  const drop = parseDropId(dropId);
+  if (!drop || !employee) return null;
+  if (drop.levelId !== 'unplaced' && !levelById(drop.levelId)) return null;
+  const placed = placedLevelId(employee) || '';
+  const deactivated = accountDeactivated(employee);
+  const setLevel = drop.levelId !== 'unplaced' && drop.levelId !== placed;
+  const clearLevel = drop.levelId === 'unplaced' && placed !== '';
+  const activate = drop.kind === 'status' && drop.status === 'active' && deactivated;
+  const deactivate = drop.kind === 'status' && drop.status === 'inactive' && !deactivated;
+  if (!setLevel && !clearLevel && !activate && !deactivate) return null;
+  return { levelId: setLevel ? drop.levelId : '', clearLevel, activate, deactivate };
+}
+
 export function groupEmployeesByLevel(employees) {
   const buckets = Object.fromEntries(ACCESS_LEVELS.map((level) => [level.id, []]));
   const unplaced = [];

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
+import EmployeeDirectory from '../employees/EmployeeDirectory';
 import {
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
@@ -16,6 +17,8 @@ import {
   compactOverrides,
   compactPolicy,
   effectiveLevelId,
+  employeeLevelIds,
+  grantsForLevelIds,
   groupEmployeesByLevel,
   levelById,
   levelGrants,
@@ -28,14 +31,21 @@ import {
   setLevelGrant,
   suggestedLevelId,
   toggleGrant,
+  withToggledLevel,
 } from '../../src/access/companyAccess';
-import { applyEmployeeClassification, displayName, initials, normalizeEmployee } from '../../src/employees/model';
+import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 
 function kindLabel(level) {
   if (level?.id === 'ansatt_andre_avdelinger') return 'Andre avdelinger · ikke ansatt i bedriften';
   if (level?.kind === 'external') return 'Eksternt · ikke fast ansatt';
   if (level?.kind === 'innleid') return 'Innleie · ikke fast ansatt';
   return 'Ansatt i bedriften';
+}
+
+function personBaseGrants(policy, employee) {
+  const ids = employeeLevelIds(employee);
+  if (ids.length) return grantsForLevelIds(policy, ids);
+  return levelGrants(policy, effectiveLevelId(employee));
 }
 
 function companyHeadingName(company) {
@@ -446,42 +456,8 @@ function LevelDrawer({
   );
 }
 
-function LevelChips({ levelId, onPick, colors, counts }) {
-  return (
-    <View style={styles.levelRow}>
-      {ACCESS_LEVELS.map((level) => {
-        const on = level.id === levelId;
-        const count = counts ? (counts[level.id] || 0) : null;
-        return (
-          <Pressable
-            key={level.id}
-            nativeID={`company-access-level-${level.id}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            onPress={() => onPick(level.id)}
-            style={[
-              styles.levelChip,
-              {
-                borderColor: on ? colors.brand : colors.line,
-                backgroundColor: on ? colors.brandSoft : colors.card,
-              },
-            ]}
-          >
-            <Text style={[styles.levelOrder, { color: on ? colors.brand : colors.muted }]}>{level.order}</Text>
-            <Text style={[styles.levelName, { color: on ? colors.brand : colors.ink }]}>{level.label}</Text>
-            {count == null ? null : (
-              <Text style={[styles.levelCount, { color: colors.muted }]}>{count}</Text>
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 export function PersonAccessSheet({
   person,
-  personLevel,
   personGrants,
   personBase,
   colors,
@@ -491,7 +467,6 @@ export function PersonAccessSheet({
   compact,
   scrollMax,
   onClose,
-  onPickLevel,
   onToggleGrant,
   onSave,
   onClear,
@@ -519,16 +494,8 @@ export function PersonAccessSheet({
       </View>
       <ScrollView style={{ maxHeight: scrollMax }} contentContainerStyle={styles.stack}>
         <Text style={[styles.kind, { color: colors.muted }]}>
-          {canEdit
-            ? 'Trykk et nivå for å flytte personen dit. Avvikene under gjelder bare denne personen.'
-            : 'Avvikene under gjelder bare denne personen.'}
+          Avvikene under gjelder bare denne personen, oppå nivåene som er krysset av.
         </Text>
-        <LevelChips
-          levelId={personLevel}
-          onPick={onPickLevel}
-          colors={colors}
-          counts={null}
-        />
         <Matrix
           grants={personGrants}
           base={personBase}
@@ -608,6 +575,7 @@ export default function CompanyAccessSettings({
   const [dirty, setDirty] = useState(false);
   const [mode, setMode] = useState(initialMode);
   const [query, setQuery] = useState('');
+  const [levelDrafts, setLevelDrafts] = useState({});
   const [personId, setPersonId] = useState(initialPersonId);
   const [personGrants, setPersonGrants] = useState(null);
   const [personDirty, setPersonDirty] = useState(false);
@@ -638,6 +606,8 @@ export default function CompanyAccessSettings({
   const [drag, setDrag] = useState(null);
   const dropRef = useRef(() => {});
   const employeesRef = useRef(employees);
+  const levelWrites = useRef(new Map());
+  const draftsRef = useRef({});
   employeesRef.current = employees;
 
   useEffect(() => {
@@ -645,21 +615,41 @@ export default function CompanyAccessSettings({
     setDirty(false);
   }, [policyKey]);
 
+  useEffect(() => {
+    setLevelDrafts((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const [id, draft] of Object.entries(current)) {
+        const live = employees.find((row) => row.id === id);
+        if (!live) continue;
+        const same = employeeLevelIds(live).join('|') === employeeLevelIds(draft).join('|');
+        if (same) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      if (changed) draftsRef.current = next;
+      return changed ? next : current;
+    });
+  }, [employees]);
+
   const grouped = useMemo(() => groupEmployeesByLevel(employees), [employees]);
+
+  const roster = useMemo(
+    () => employees.map((row) => levelDrafts[row.id] || row),
+    [employees, levelDrafts],
+  );
 
   const people = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return employees
+    return roster
       .filter((row) => row?.company?.status !== 'deleted')
-      .filter((row) => !q || displayName(row).toLowerCase().includes(q))
+      .filter((row) => !q || displayName(row).toLowerCase().includes(q) || contactLine(row).toLowerCase().includes(q))
       .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
-  }, [employees, query]);
+  }, [roster, query]);
 
-  const person = employees.find((row) => row.id === personId) || null;
-  const personLevel = person ? (placedLevelId(person) || '') : '';
-  const personBase = person
-    ? levelGrants(policy, placedLevelId(person) || effectiveLevelId(person))
-    : null;
+  const person = roster.find((row) => row.id === personId) || null;
+  const personBase = person ? personBaseGrants(policy, person) : null;
 
   useEffect(() => {
     if (!person) {
@@ -667,7 +657,7 @@ export default function CompanyAccessSettings({
       setPersonDirty(false);
       return;
     }
-    const base = levelGrants(policy, placedLevelId(person) || effectiveLevelId(person));
+    const base = personBaseGrants(policy, person);
     setPersonGrants(applyOverrides(base, person.company?.accessOverrides));
     setPersonDirty(false);
   }, [personId, policyKey, person?.updatedAt]);
@@ -842,12 +832,49 @@ export default function CompanyAccessSettings({
     savePerson(next, `${displayName(person)} følger nivået igjen.`);
   }
 
+  function togglePersonLevel(employee, levelId, checked) {
+    if (!canEdit || !employee?.id || !onSaveEmployee) return;
+    const id = employee.id;
+    const previous = levelWrites.current.get(id) || Promise.resolve();
+    const job = previous.catch(() => {}).then(async () => {
+      const current = draftsRef.current[id] || employeesRef.current.find((row) => row.id === id) || employee;
+      const next = withToggledLevel(current, levelId, checked);
+      const result = commitEmployee(next, { scope: 'company' });
+      if (!result.ok) {
+        setNote('');
+        setError(result.errors.join('\n'));
+        return;
+      }
+      draftsRef.current = { ...draftsRef.current, [id]: result.employee };
+      setLevelDrafts(draftsRef.current);
+      setError('');
+      try {
+        const saved = await onSaveEmployee(result.employee);
+        const stored = saved?.id ? saved : result.employee;
+        draftsRef.current = { ...draftsRef.current, [id]: stored };
+        setLevelDrafts({ ...draftsRef.current });
+        const levelNames = employeeLevelIds(stored).map((item) => levelById(item)?.label).filter(Boolean);
+        setNote(levelNames.length
+          ? `${displayName(stored)} har ${levelNames.join(', ')}. Rettighetene fra alle avhukede nivå gjelder.`
+          : `${displayName(stored)} har ingen tilgangsnivå.`);
+      } catch (err) {
+        const copy = { ...draftsRef.current };
+        delete copy[id];
+        draftsRef.current = copy;
+        setLevelDrafts(copy);
+        setNote('');
+        setError(err?.message || 'Kunne ikke lagre tilgangsnivået.');
+      }
+    });
+    levelWrites.current.set(id, job);
+  }
+
   return (
     <View nativeID="company-access-page" id="company-access-page" style={styles.page}>
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
-        Åtte standardnivåer ligger til grunn og kan tilpasses. Hver ansatt hører til ett nivå.
-        Åpne et nivå og velg Aktive eller Deaktiverte. Tannhjulet på gruppen setter se, lese, skrive og slette for modulene.
+        Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer.
+        Rettighetene fra alle avhukede nivå gjelder. Tannhjulet på et nivå setter se, lese, skrive og slette for modulene.
         En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
       </Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
@@ -996,32 +1023,40 @@ export default function CompanyAccessSettings({
             accessibilityLabel="Søk etter ansatt"
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          {people.map((employee) => {
-            const placed = placedLevelId(employee);
-            const label = placed ? levelById(placed)?.label : 'Ikke plassert';
-            const on = employee.id === personId;
-            const custom = Object.keys(employee.company?.accessOverrides || {}).length > 0;
-            const note = statusNote(employee);
-            return (
-              <Pressable
-                key={employee.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`Endre ${displayName(employee)}`}
-                onPress={() => setPersonId(employee.id)}
-                style={[styles.person, { borderColor: on ? colors.brand : colors.line, backgroundColor: colors.card }]}
-              >
-                <AvatarFace employee={employee} colors={colors} active={on} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
-                  <Text style={[styles.kind, { color: colors.muted }]}>
-                    {label}{note ? ` · ${note}` : ''}{custom ? ' · egen tilpasning' : ''}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-          <Text style={[styles.kind, { color: colors.muted }]}>Trykk en ansatt for å endre nivå og avvik.</Text>
+          {!people.length ? (
+            <Text style={[styles.kind, { color: colors.muted }]}>Ingen ansatte matcher søket.</Text>
+          ) : (
+            <EmployeeDirectory
+              rows={people}
+              companyName={companyHeadingName(company)}
+              colors={colors}
+              variant="levels"
+              canEditLevels={canEdit && !busy}
+              onToggleLevel={togglePersonLevel}
+              renderIdentity={(employee) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Åpne ${displayName(employee)}`}
+                  onPress={() => setPersonId(employee.id)}
+                  style={styles.memberRow}
+                >
+                  <AvatarFace employee={employee} colors={colors} active={employee.id === personId} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(employee)}</Text>
+                    {!!contactLine(employee) && (
+                      <Text style={[styles.kind, { color: colors.muted }]}>{contactLine(employee)}</Text>
+                    )}
+                    <Text style={[styles.kind, { color: colors.muted }]}>
+                      {cardSubtitle(employee, companyHeadingName(company))}
+                    </Text>
+                  </View>
+                </Pressable>
+              )}
+            />
+          )}
+          <Text style={[styles.kind, { color: colors.muted }]}>
+            Kryss av nivåene som passer. Trykk navnet for egne avvik på modulene.
+          </Text>
         </View>
       )}
       {drag && typeof document !== 'undefined' ? createPortal(
@@ -1033,7 +1068,6 @@ export default function CompanyAccessSettings({
       ) : null}
       <PersonAccessPopup
         person={person}
-        personLevel={personLevel}
         personGrants={personGrants}
         personBase={personBase}
         colors={colors}
@@ -1042,7 +1076,6 @@ export default function CompanyAccessSettings({
         dirty={personDirty}
         compact={compact}
         onClose={() => setPersonId('')}
-        onPickLevel={(id) => canEdit && assignLevel(person, id)}
         onToggleGrant={(resourceId, action, on) => {
           const next = toggleGrant(personGrants[resourceId], action, on);
           setPersonGrants({ ...personGrants, [resourceId]: next });

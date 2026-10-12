@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import ContractFollowUp from './ContractFollowUp';
 import AgreementTreatment from './AgreementTreatment';
+import AgreementPathSwitch from './AgreementPathSwitch';
 
 export default function ContractScreen() {
   const colors = useColors();
@@ -17,21 +18,15 @@ export default function ContractScreen() {
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      <View style={styles.switch}>
-        {[['register', 'Registrer inngått'], ['behandling', 'Behandling']].map(([id, label]) => {
-          const on = part === id;
-          return (
-            <TouchableOpacity key={id} onPress={() => setPart(id)} accessibilityRole="button" style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        {part === 'register'
-          ? 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'
-          : 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'}
-      </Text>
+      <AgreementPathSwitch
+        colors={colors}
+        value={part === 'register' ? 'inngatt' : 'behandling'}
+        onChange={(id) => setPart(id === 'inngatt' ? 'register' : 'behandling')}
+        options={[
+          ['inngatt', 'Registrer inngått', 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'],
+          ['behandling', 'Behandle med motpart', 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'],
+        ]}
+      />
       {part === 'behandling' ? (
         <AgreementTreatment
           companyId={familyId}
@@ -64,6 +59,4 @@ const styles = StyleSheet.create({
   screenPhone: { maxWidth: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerPhone: { maxWidth: '100%', minWidth: 0 },
-  switch: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
 });

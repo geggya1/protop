@@ -16,6 +16,7 @@ import PipelineBoard from './PipelineBoard';
 import CalloffInbox from './CalloffInbox';
 import { setNoticeDecision } from '../../src/anbud/model';
 import AgreementTreatment from './AgreementTreatment';
+import AgreementPathSwitch from './AgreementPathSwitch';
 import ContractFollowUp from './ContractFollowUp';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
@@ -149,21 +150,15 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       ) : null}
       {step === 'avtale' ? (
         <View style={{ gap: 12 }}>
-          <View style={styles.row}>
-            {[['behandling', 'Behandle med motpart'], ['inngatt', 'Registrer inngått']].map(([id, label]) => {
-              const on = avtalePart === id;
-              return (
-                <TouchableOpacity key={id} onPress={() => setAvtalePart(id)} accessibilityRole="button" style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}>
-                  <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            {avtalePart === 'inngatt'
-              ? 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'
-              : 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'}
-          </Text>
+          <AgreementPathSwitch
+            colors={colors}
+            value={avtalePart}
+            onChange={setAvtalePart}
+            options={[
+              ['behandling', 'Behandle med motpart', 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'],
+              ['inngatt', 'Registrer inngått', 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'],
+            ]}
+          />
           {avtalePart === 'inngatt' ? (
             <ContractFollowUp
               colors={colors}

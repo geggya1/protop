@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -36,6 +36,13 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
+
+function statusTone(status, colors) {
+  if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };
+  if (status === 'merknader') return { bg: colors.starSoft, ink: colors.warn };
+  if (status === 'hos-motpart') return { bg: colors.brandSoft, ink: colors.brand };
+  return { bg: colors.sunken, ink: colors.muted };
+}
 
 function showValue(field) {
   const value = field?.value;
@@ -101,8 +108,10 @@ export default function AgreementTreatment({
   });
   const [composer, setComposer] = useState('');
   const [editingNote, setEditingNote] = useState('');
+  const [editBody, setEditBody] = useState('');
   const [signerName, setSignerName] = useState('');
   const [fieldDrafts, setFieldDrafts] = useState({});
+  const fieldDraftRef = useRef({});
   const actorName = party === 'motpart'
     ? (signerName || sharedRow?.counterparty?.personName || 'Motpart')
     : (user?.displayName || user?.email || 'Avsender');
@@ -206,15 +215,62 @@ export default function AgreementTreatment({
       });
       if (!result?.ok) {
         say(result?.error || 'Motparten fikk ikke oppdatert avtalen.', true);
-        return;
+        return false;
       }
       onShared?.(result.row);
       say(result.mailed === false && result.error ? `Lagret. ${result.error}` : 'Sendt.');
+      return true;
     } catch (error) {
       say(error?.message || 'Kunne ikke sende.', true);
+      return false;
     } finally {
       setBusy(false);
     }
+  }
+
+  function commitField(field, raw) {
+    const value = raw ?? fieldDraftRef.current[field.id] ?? fieldDrafts[field.id];
+    if (value == null || String(value) === showValue(field)) return;
+    if (party === 'motpart') {
+      commitRemote('setField', { fieldId: field.id, value });
+      return;
+    }
+    const result = setAgreementField(state, view.id, { party, fieldId: field.id, value, actorName, actorUid });
+    if (!result.ok) {
+      say(result.error, true);
+      return;
+    }
+    commitLocal(result);
+  }
+
+  async function submitNote(kind) {
+    const body = composer.trim();
+    if (!body) {
+      say('Skriv en merknad eller en melding.', true);
+      return;
+    }
+    if (party === 'motpart') {
+      const ok = await commitRemote('addNote', { body, kind });
+      if (ok) setComposer('');
+      return;
+    }
+    const saved = await commitLocal(addAgreementNote(state, view.id, { party, body, kind, actorName, actorUid }));
+    if (saved) setComposer('');
+  }
+
+  async function saveEdit(item) {
+    const body = editBody.trim();
+    if (!body) {
+      say('Merknaden kan ikke være tom. Slett den om den skal bort.', true);
+      return;
+    }
+    if (party === 'motpart') {
+      const ok = await commitRemote('editNote', { noteId: item.id, body });
+      if (ok) { setEditingNote(''); setEditBody(''); }
+      return;
+    }
+    const saved = await commitLocal(editAgreementNote(state, view.id, { party, noteId: item.id, body, actorName, actorUid }));
+    if (saved) { setEditingNote(''); setEditBody(''); }
   }
 
   async function createCase(partial = {}) {
@@ -384,41 +440,45 @@ export default function AgreementTreatment({
 
       {view && version ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{view.title}</Text>
+          <View style={styles.row}>
+            <Text style={{ color: colors.ink, fontSize: 18, flexShrink: 1 }}>{view.title}</Text>
+            <View style={[styles.badge, { backgroundColor: statusTone(view.status, colors).bg }]}>
+              <Text style={{ color: statusTone(view.status, colors).ink, fontSize: 12 }}>{statusLabel(view.status)}</Text>
+            </View>
+          </View>
           <Text style={{ color: colors.muted }}>
-            {kindCaseLabel(view.kind)} · {statusLabel(view.status)} · {view.sender?.name} og {view.counterparty?.name}
+            {kindCaseLabel(view.kind)} · {view.sender?.name || 'Avsender'} og {view.counterparty?.name || 'Motpart'}
           </Text>
           <View style={styles.row}>
             {(view.versions || []).map((item) => (
               <Chip key={item.number} colors={colors} label={`Versjon ${item.number}`} on={item.number === version.number} onPress={() => setVersionNo(item.number)} />
             ))}
           </View>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>
-            Låst versjon {version.number}{version.digest ? ` · ${version.digest}` : ''}
-          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Låst versjon {version.number}. PDF og Word er denne teksten.</Text>
           <View style={[styles.paper, { borderColor: colors.line, backgroundColor: colors.bg }]}>
             {(version.fields || []).map((field) => (
-              <View key={field.id} style={{ gap: 2 }}>
-                {field.kind === 'title' || field.kind === 'note' ? (
-                  <Text style={{ color: colors.ink, fontWeight: field.kind === 'title' ? '700' : '400' }}>{field.label}</Text>
-                ) : (
-                  <Text style={{ color: colors.ink }}>{field.label}: {showValue(field) || '—'}</Text>
-                )}
-              </View>
+              field.kind === 'title' || field.kind === 'note' ? (
+                <Text key={field.id} style={{ color: colors.ink, marginTop: 6 }}>{field.label}</Text>
+              ) : (
+                <View key={field.id} style={[styles.fieldRow, { borderBottomColor: colors.line }]}>
+                  <Text style={[styles.fieldLabel, { color: colors.muted }]}>{field.label}</Text>
+                  <Text style={{ color: colors.ink, flex: 1 }}>{showValue(field) || '—'}</Text>
+                </View>
+              )
             ))}
           </View>
           <View style={styles.row}>
-            <TouchableOpacity onPress={() => download(`${agreementFileBase(view, version.number)}.pdf`, 'application/pdf', agreementToPdf(view, version.number))} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Last ned PDF</Text>
+            <TouchableOpacity onPress={() => download(`${agreementFileBase(view, version.number)}.pdf`, 'application/pdf', agreementToPdf(view, version.number))} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Last ned PDF</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => download(`${agreementFileBase(view, version.number)}.doc`, 'application/msword', agreementToWordHtml(view, version.number))} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Last ned Word</Text>
+            <TouchableOpacity onPress={() => download(`${agreementFileBase(view, version.number)}.doc`, 'application/msword', agreementToWordHtml(view, version.number))} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Last ned Word</Text>
             </TouchableOpacity>
           </View>
 
           {showingCurrent && (view.status === 'utkast' || view.status === 'merknader' || (party === 'motpart' && view.status === 'hos-motpart')) ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{party === 'motpart' ? 'Felt du kan endre' : 'Arbeidskopi'}</Text>
+              <Text style={{ color: colors.ink }}>{party === 'motpart' ? 'Felt du kan endre' : 'Arbeidskopi'}</Text>
               {fields.filter((field) => field.kind !== 'title' && field.kind !== 'note').map((field) => {
                 const editable = field.editor === 'begge' || field.editor === party || (party === 'avsender' && field.editor === 'avsender') || (party === 'motpart' && field.editor === 'motpart');
                 if (!editable) return null;
@@ -426,19 +486,14 @@ export default function AgreementTreatment({
                   <TextInput
                     key={field.id}
                     value={fieldDrafts[field.id] ?? showValue(field)}
-                    onChangeText={(value) => setFieldDrafts((current) => ({ ...current, [field.id]: value }))}
-                    onEndEditing={(event) => {
-                      const value = event?.nativeEvent?.text ?? fieldDrafts[field.id] ?? '';
-                      if (party === 'motpart') {
-                        commitRemote('setField', { fieldId: field.id, value });
-                        return;
-                      }
-                      const result = setAgreementField(state, view.id, { party, fieldId: field.id, value, actorName, actorUid });
-                      if (result.ok) commitLocal(result);
+                    onChangeText={(value) => {
+                      fieldDraftRef.current[field.id] = value;
+                      setFieldDrafts((current) => ({ ...current, [field.id]: value }));
                     }}
+                    onBlur={() => commitField(field)}
                     placeholder={field.label}
                     placeholderTextColor={colors.placeholder}
-                    style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                    style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
                   />
                 );
               })}
@@ -446,40 +501,44 @@ export default function AgreementTreatment({
           ) : null}
 
           {proposals.length ? (
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Foreslåtte feltendringer</Text>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.ink }}>Foreslåtte feltendringer</Text>
               {proposals.map((item) => (
                 <Text key={item.id} style={{ color: colors.ink }}>{item.label}: {item.before || '—'} → {item.after || '—'}</Text>
               ))}
               {party === 'avsender' && view.status === 'merknader' ? (
-                <TouchableOpacity onPress={() => run({ local: () => acceptProposals(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button">
+                <TouchableOpacity onPress={() => run({ local: () => acceptProposals(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.brand }]}>
                   <Text style={{ color: colors.brand }}>Ta inn forslagene i arbeidskopien</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
           ) : null}
 
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Merknader og meldinger</Text>
-          {notes.map((item) => (
-            <View key={item.id} style={{ gap: 2 }}>
-              <Text style={{ color: colors.muted }}>{item.authorName || (item.authorParty === 'motpart' ? 'Motpart' : 'Avsender')} · {item.createdAt?.replace('T', ' ').slice(0, 16)} · v{item.version}{item.sentAt ? '' : ' · ikke sendt'}</Text>
+          <Text style={{ color: colors.ink }}>Merknader og meldinger</Text>
+          {notes.length ? notes.map((item) => (
+            <View key={item.id} style={[styles.note, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {item.authorName || (item.authorParty === 'motpart' ? 'Motpart' : 'Avsender')} · {item.createdAt?.replace('T', ' ').slice(0, 16)} · v{item.version}{item.sentAt ? '' : ' · ikke sendt'}
+              </Text>
               {editingNote === item.id ? (
                 <TextInput
-                  value={composer}
-                  onChangeText={setComposer}
-                  style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                  value={editBody}
+                  onChangeText={setEditBody}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                 />
               ) : (
                 <Text style={{ color: colors.ink }}>{item.body}</Text>
               )}
               {!item.sentAt && item.authorParty === party ? (
                 <View style={styles.row}>
-                  <TouchableOpacity onPress={() => { setEditingNote(item.id); setComposer(item.body); }} accessibilityRole="button"><Text style={{ color: colors.brand }}>Endre</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => run({
-                    name: 'editNote',
-                    extra: { noteId: item.id, body: composer },
-                    local: () => editAgreementNote(state, view.id, { party, noteId: item.id, body: composer, actorName, actorUid }),
-                  })} accessibilityRole="button"><Text style={{ color: colors.brand }}>Lagre</Text></TouchableOpacity>
+                  {editingNote === item.id ? (
+                    <>
+                      <TouchableOpacity onPress={() => saveEdit(item)} accessibilityRole="button"><Text style={{ color: colors.brand }}>Lagre</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setEditingNote(''); setEditBody(''); }} accessibilityRole="button"><Text style={{ color: colors.muted }}>Avbryt</Text></TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity onPress={() => { setEditingNote(item.id); setEditBody(item.body); }} accessibilityRole="button"><Text style={{ color: colors.brand }}>Endre</Text></TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => run({
                     name: 'deleteNote',
                     extra: { noteId: item.id },
@@ -488,41 +547,41 @@ export default function AgreementTreatment({
                 </View>
               ) : null}
             </View>
-          ))}
+          )) : (
+            <Text style={{ color: colors.muted }}>Ingen merknader på denne versjonen.</Text>
+          )}
           {view.status !== 'signert' ? (
             <View style={{ gap: 6 }}>
               <TextInput
-                value={editingNote ? '' : composer}
+                value={composer}
                 onChangeText={setComposer}
                 placeholder="Merknad eller melding. Tom liste er i orden hvis avtalen kan signeres."
                 placeholderTextColor={colors.placeholder}
                 multiline
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, minHeight: 64 }]}
+                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg, minHeight: 64 }]}
               />
               <View style={styles.row}>
-                <TouchableOpacity disabled={busy} onPress={() => run({
-                  name: 'addNote',
-                  extra: { body: composer, kind: 'merknad' },
-                  local: () => addAgreementNote(state, view.id, { party, body: composer, kind: 'merknad', actorName, actorUid }),
-                })} accessibilityRole="button"><Text style={{ color: colors.brand }}>Legg inn merknad</Text></TouchableOpacity>
-                <TouchableOpacity disabled={busy} onPress={() => run({
-                  name: 'addNote',
-                  extra: { body: composer, kind: 'melding' },
-                  local: () => addAgreementNote(state, view.id, { party, body: composer, kind: 'melding', actorName, actorUid }),
-                })} accessibilityRole="button"><Text style={{ color: colors.brand }}>Legg inn melding</Text></TouchableOpacity>
+                <TouchableOpacity disabled={busy} onPress={() => submitNote('merknad')} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink }}>Legg inn merknad</Text>
+                </TouchableOpacity>
+                <TouchableOpacity disabled={busy} onPress={() => submitNote('melding')} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink }}>Legg inn melding</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ) : null}
 
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Tidslinje</Text>
-          {movements.map((event) => (
-            <Text key={event.id} style={{ color: colors.ink }}>
-              {event.at?.replace('T', ' ').slice(0, 16)} · {event.actorName || event.actorParty} · {event.detail || event.action}
-            </Text>
-          ))}
+          <Text style={{ color: colors.ink }}>Tidslinje</Text>
+          <View style={[styles.timeline, { borderLeftColor: colors.line }]}>
+            {movements.map((event) => (
+              <Text key={event.id} style={{ color: colors.ink }}>
+                {event.at?.replace('T', ' ').slice(0, 16)} · {event.actorName || event.actorParty} · {event.detail || event.action}
+              </Text>
+            ))}
+          </View>
 
           {party === 'motpart' ? (
-            <TextInput value={signerName} onChangeText={setSignerName} placeholder="Navn som skal stå på signaturen" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} />
+            <TextInput value={signerName} onChangeText={setSignerName} placeholder="Navn som skal stå på signaturen" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]} />
           ) : null}
           <View style={styles.row}>
             {party === 'avsender' && view.status === 'utkast' ? (
@@ -530,22 +589,25 @@ export default function AgreementTreatment({
                 <Text style={{ color: '#fff' }}>Send til motpart</Text>
               </TouchableOpacity>
             ) : null}
-            {party === 'motpart' && (view.status === 'hos-motpart' || view.status === 'merknader') ? (
+            {party === 'motpart' && (view.status === 'hos-motpart' || view.status === 'merknader') && (notes.some((item) => !item.sentAt) || (view.proposals || []).some((item) => !item.sentAt)) ? (
               <TouchableOpacity disabled={busy} onPress={() => commitRemote('return')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
                 <Text style={{ color: '#fff' }}>Send merknader i retur</Text>
               </TouchableOpacity>
             ) : null}
+            {party === 'motpart' && (view.status === 'hos-motpart' || view.status === 'merknader') && !notes.some((item) => !item.sentAt) && !(view.proposals || []).some((item) => !item.sentAt) ? (
+              <Text style={{ color: colors.muted }}>Ingen merknader. Signer hvis avtalen er i orden.</Text>
+            ) : null}
             {party === 'avsender' && view.status === 'merknader' ? (
-              <TouchableOpacity onPress={() => run({ local: () => acceptRemarks(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Godta uten ny versjon</Text>
+              <TouchableOpacity onPress={() => run({ local: () => acceptRemarks(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>Godta uten ny versjon</Text>
               </TouchableOpacity>
             ) : null}
             {party === 'avsender' && view.status === 'merknader' ? (
-              <TouchableOpacity onPress={() => run({ local: () => publishAgreementVersion(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Lås ny versjon</Text>
+              <TouchableOpacity onPress={() => run({ local: () => publishAgreementVersion(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>Lås ny versjon</Text>
               </TouchableOpacity>
             ) : null}
-            {view.status !== 'utkast' && view.status !== 'signert' ? (
+            {view.status !== 'utkast' && view.status !== 'signert' && !(party === 'avsender' && (notes.some((item) => item.sentAt && !item.resolvedAt) || proposals.some((item) => !item.handledAt))) ? (
               <>
                 <TouchableOpacity disabled={busy} onPress={() => run({
                   name: 'sign',
@@ -560,14 +622,17 @@ export default function AgreementTreatment({
                   movement: 'signert',
                   extra: { method: 'bankid' },
                   local: () => signAgreement(state, view.id, { party, actorName, actorUid, method: 'bankid' }),
-                })} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>Signer med BankID</Text>
+                })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.brand }]}>
+                  <Text style={{ color: colors.brand }}>Signer med BankID-valg</Text>
                 </TouchableOpacity>
               </>
             ) : null}
           </View>
+          {party === 'avsender' && (notes.some((item) => item.sentAt && !item.resolvedAt) || proposals.some((item) => !item.handledAt)) ? (
+            <Text style={{ color: colors.muted, lineHeight: 18 }}>Godta merknadene eller lås en ny versjon før du signerer.</Text>
+          ) : null}
           <Text style={{ color: colors.muted, lineHeight: 18 }}>
-            BankID-leverandør er ikke tilkoblet. Valget legger et forpliktende segl på den låste versjonen, med navn, tidspunkt og versjonslås. Forpliktende segl gjør det samme uten BankID-merket.
+            BankID-leverandør er ikke tilkoblet. Begge valgene legger et forpliktende segl med navn, tidspunkt og versjonslås.
           </Text>
           {(view.signatures || []).map((sign) => (
             <Text key={`${sign.party}-${sign.at}`} style={{ color: colors.ink }}>
@@ -581,10 +646,16 @@ export default function AgreementTreatment({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  paper: { borderWidth: 1, borderRadius: 8, padding: 12, gap: 6 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 10 },
+  paper: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
+  fieldRow: { flexDirection: 'row', gap: 12, paddingVertical: 8, borderBottomWidth: 1, alignItems: 'flex-start' },
+  fieldLabel: { width: 148, fontSize: 13 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  primary: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  primary: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  quiet: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  note: { borderWidth: 1, borderRadius: 8, padding: 10, gap: 4 },
+  timeline: { borderLeftWidth: 2, paddingLeft: 10, gap: 6, marginLeft: 2 },
 });

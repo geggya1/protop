@@ -299,4 +299,86 @@ assert.equal(normalizeAnbudState({}).agreementCases.length, 0);
 const op = applyAgreementOp(base, { op: 'ukjent' }, ctx);
 assert.equal(op.ok, false);
 
+const badMail = createAgreementCase(base, {
+  template,
+  customer: { name: 'Feil AS', email: 'ikke-en-epost' },
+  company: { name: 'Consult1 AS' },
+  actorName: 'Ola',
+}, ctx);
+assert.equal(badMail.ok, false);
+
+const emptyNote = addAgreementNote(sent.state, caseId, { party: 'motpart', body: '   ', actorName: 'Kari' }, ctx);
+assert.equal(emptyNote.ok, false);
+
+const senderWhileAway = addAgreementNote(sent.state, caseId, { party: 'avsender', body: 'Hei', actorName: 'Ola' }, ctx);
+assert.equal(senderWhileAway.ok, false);
+
+const onlyField = setAgreementField(sent.state, caseId, {
+  party: 'motpart', fieldId: 'f_mail', value: 'ny@byggherre.no', actorName: 'Kari',
+}, ctx);
+assert.equal(onlyField.ok, true);
+const returnedField = returnAgreement(onlyField.state, caseId, { party: 'motpart', actorName: 'Kari' }, ctx);
+assert.equal(returnedField.ok, true, returnedField.error);
+assert.equal(returnedField.row.proposals.some((item) => item.after === 'ny@byggherre.no' && item.sentAt), true);
+
+const nothingBack = returnAgreement(sent.state, caseId, { party: 'motpart', actorName: 'Kari' }, ctx);
+assert.equal(nothingBack.ok, false);
+
+const motpartSend = sendAgreement(sent.state, caseId, { party: 'motpart', actorName: 'Kari' }, ctx);
+assert.equal(motpartSend.ok, false);
+
+const afterReturn = returnedField.state;
+const fieldAfterReturn = setAgreementField(afterReturn, caseId, {
+  party: 'motpart', fieldId: 'f_mail', value: 'enda@byggherre.no', actorName: 'Kari',
+}, ctx);
+assert.equal(fieldAfterReturn.ok, false);
+
+const earlyVersion = publishAgreementVersion(created.state, caseId, { party: 'avsender', actorName: 'Ola' }, ctx);
+assert.equal(earlyVersion.ok, false);
+
+const named = signAgreement(quietSent.state, quiet.row.id, { party: 'motpart', method: 'forpliktende', actorName: '' }, ctx);
+assert.equal(named.ok, false);
+const once = signAgreement(quietSent.state, quiet.row.id, { party: 'motpart', method: 'forpliktende', actorName: 'Kari' }, ctx);
+const twice = signAgreement(once.state, quiet.row.id, { party: 'motpart', method: 'forpliktende', actorName: 'Kari' }, ctx);
+assert.equal(twice.ok, false);
+
+const signedThenRemark = signAgreement(sent.state, caseId, { party: 'avsender', method: 'forpliktende', actorName: 'Ola' }, ctx);
+assert.equal(signedThenRemark.ok, true, signedThenRemark.error);
+const changedAfterSign = setAgreementField(signedThenRemark.state, caseId, {
+  party: 'motpart', fieldId: 'f_mail', value: 'etter@byggherre.no', actorName: 'Kari',
+}, ctx);
+const wiped = returnAgreement(changedAfterSign.state, caseId, { party: 'motpart', actorName: 'Kari' }, ctx);
+assert.equal(wiped.ok, true, wiped.error);
+assert.equal(wiped.row.signatures.length, 0);
+
+const otherEdit = editAgreementNote(again.state, caseId, {
+  party: 'avsender', noteId: again.row.notes.at(-1).id, body: 'Overtatt', actorName: 'Ola',
+}, ctx);
+assert.equal(otherEdit.ok, false);
+const sentNote = again.row.notes.at(-1);
+const lockedEdit = editAgreementNote(
+  { ...again.state, agreementCases: again.state.agreementCases.map((row) => ({ ...row, notes: row.notes.map((note) => ({ ...note, sentAt: note.sentAt || ctx.now })) })) },
+  caseId,
+  { party: 'motpart', noteId: sentNote.id, body: 'For sent', actorName: 'Kari' },
+  ctx,
+);
+assert.equal(lockedEdit.ok, false);
+
+const dropped = deleteAgreementNote(again.state, caseId, { party: 'motpart', noteId: again.row.notes.at(-1).id, actorName: 'Kari' }, ctx);
+const privacy = splitCounterpartyPrivacy(dropped.row);
+assert.equal(privacy.pending.notes.some((note) => note.deletedAt), false);
+assert.equal(privacy.pending.notes.some((note) => note.body === 'Vi vil justere kontakten'), false);
+
+const bothField = setAgreementField(
+  { ...created.state, agreementCases: created.state.agreementCases.map((row) => ({ ...row, fields: row.fields.map((field) => (field.id === 'f_honorar' ? { ...field, editor: 'begge' } : field)) })) },
+  caseId,
+  { party: 'avsender', fieldId: 'f_honorar', value: '10', actorName: 'Ola' },
+  ctx,
+);
+assert.equal(bothField.ok, true, bothField.error);
+
+const pdfLetters = agreementToPdf({ ...sent.row, title: 'Bræøå' });
+assert.match(pdfLetters, /\\346\\370\\345/);
+assert.equal(pdfLetters.includes('Bræ'), false);
+
 console.log('agreementCase.test.mjs ok');

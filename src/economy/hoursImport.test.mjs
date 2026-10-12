@@ -23,6 +23,7 @@ import {
   importTimeEntries,
   addProjectMember,
 } from '../project/engine.js';
+import { displayName } from '../employees/model.js';
 
 {
   assert.equal(hourColumnField('Dato'), 'date');
@@ -146,6 +147,38 @@ import {
     person: { firstName: 'Ellen', lastName: 'Hidle' },
     company: { externalEmployeeNumber: '101', status: 'deleted' },
   }], { employeeName: 'Ellen Rønneberg Hidle', employeeNumber: '101' })?.id, 'ellen');
+
+  // To e-poster: både person og arbeid må kunne treffe (uten ansattnr).
+  const dualMail = {
+    id: 'goa',
+    person: {
+      firstName: 'Geir Ove',
+      middleName: 'Ove',
+      lastName: 'Andersen',
+      email: 'goa@invest-as.no',
+    },
+    company: {
+      email: 'goa@consult1.no',
+      externalEmployeeNumber: '',
+      status: 'active',
+      personnelKind: 'external',
+    },
+  };
+  assert.equal(displayName(dualMail), 'Geir Ove Andersen');
+  assert.equal(matchEmployee([dualMail], {
+    employeeName: 'Geir Ove Andersen',
+    employeeNumber: '2',
+  })?.id, 'goa');
+  assert.equal(matchEmployee([dualMail], {
+    employeeEmail: 'goa@invest-as.no',
+  })?.id, 'goa');
+  assert.equal(matchEmployee([dualMail], {
+    employeeEmail: 'goa@consult1.no',
+    employeeName: 'Noen Andre',
+  })?.id, undefined, 'e-post + motstridende navn skal ikke tvinge treff');
+  assert.equal(matchEmployee([dualMail], {
+    employeeEmail: 'goa@consult1.no',
+  })?.id, 'goa');
 }
 
 {

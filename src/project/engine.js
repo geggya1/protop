@@ -1408,7 +1408,8 @@ export function importTimeEntries(state, drafts = []) {
   if (!list.length) return ok(state);
 
   let working = state;
-  const fingerprints = collectHourFingerprints(working.timeEntries);
+  // Baseline før denne importen — like rader i samme fil skal begge lagres.
+  const existingFingerprints = collectHourFingerprints(working.timeEntries);
   const added = [];
   const skipped = [];
   const touchedProjects = new Set();
@@ -1435,8 +1436,8 @@ export function importTimeEntries(state, drafts = []) {
       projectName: text(draft.projectName) || text(gate.project.name),
       projectId,
     }) || text(draft.importFingerprint);
-    if (fingerprint && fingerprints.has(fingerprint)) {
-      skipped.push({ reason: 'Duplikat', draft });
+    if (fingerprint && existingFingerprints.has(fingerprint)) {
+      skipped.push({ reason: 'Duplikat mot eksisterende føring', draft });
       continue;
     }
 
@@ -1527,7 +1528,6 @@ export function importTimeEntries(state, drafts = []) {
     }
     // Samle nye rader og append én gang — unngår O(n²) ved store importer.
     added.push(row);
-    if (fingerprint) fingerprints.add(fingerprint);
     touchedProjects.add(projectId);
   }
 

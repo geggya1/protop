@@ -311,7 +311,7 @@ export default function EconomyHours({
       const engine = plan.interpretation?.engine;
       setNote(engine && engine !== 'lokal'
         ? `Listen er tolket (${engine}). Kontroller koblinger før import.`
-        : 'Duplikater hoppes over automatisk. Kontroller medarbeider og prosjekt før lagring.');
+        : 'Føringer som allerede finnes i systemet hoppes over. Kontroller medarbeider og prosjekt før lagring.');
       setView('import');
       setProgress('');
     } catch (cause) {

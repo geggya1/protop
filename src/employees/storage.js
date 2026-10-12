@@ -1,13 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { employeeListKey, persistEmployeeList } from './localCache.js';
 import { newId, normalizeEmployee, normalizeProfile, sortEmployees } from './model.js';
 
-const LIST_KEY = 'protop.employees.v1';
 const PROFILE_KEY = 'protop.professionalProfile.v1';
 
 function listKey(companyId) {
-  return `${LIST_KEY}.${companyId}`;
+  return employeeListKey(companyId);
 }
 
 function profileKey(uid) {
@@ -28,7 +28,7 @@ async function readLocal(companyId) {
 
 async function writeLocal(companyId, rows) {
   if (!companyId) return;
-  await AsyncStorage.setItem(listKey(companyId), JSON.stringify(rows));
+  await persistEmployeeList(AsyncStorage, listKey(companyId), rows);
 }
 
 function employeeRef(companyId, employeeId) {
@@ -65,8 +65,12 @@ export async function saveEmployee(companyId, employee) {
     createdAt: employee?.createdAt || new Date().toISOString(),
   });
   await setDoc(employeeRef(companyId, next.id), next);
-  const current = await readLocal(companyId);
-  await writeLocal(companyId, sortEmployees([...current.filter((row) => row.id !== next.id), next]));
+  try {
+    const current = await readLocal(companyId);
+    await writeLocal(companyId, sortEmployees([...current.filter((row) => row.id !== next.id), next]));
+  } catch {
+    // Tilgangen ligger i Firestore. En full lokal kopi skal ikke vises som feil.
+  }
   return next;
 }
 
@@ -74,8 +78,12 @@ export async function removeEmployee(companyId, employeeId) {
   const id = String(employeeId || '');
   if (!companyId || !id) return;
   await deleteDoc(employeeRef(companyId, id));
-  const current = await readLocal(companyId);
-  await writeLocal(companyId, current.filter((row) => row.id !== id));
+  try {
+    const current = await readLocal(companyId);
+    await writeLocal(companyId, current.filter((row) => row.id !== id));
+  } catch {
+    // Slettingen ligger i Firestore.
+  }
 }
 
 async function readProfileLocal(uid) {

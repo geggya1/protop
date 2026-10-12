@@ -145,6 +145,9 @@ export default function EmployeesScreen() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
+  const rowsRef = useRef(rows);
+  const levelWrites = useRef(new Map());
+  rowsRef.current = rows;
 
   function showError(message) {
     setNote('');
@@ -889,30 +892,45 @@ export default function EmployeesScreen() {
     setError('');
   }
 
+  function rememberRows(nextRows) {
+    const sorted = sortEmployees(nextRows);
+    rowsRef.current = sorted;
+    setRows(sorted);
+  }
+
   async function toggleListedLevel(employee, levelId, checked) {
-    if (!canEditAccess || busy || !familyId || !employee) return;
-    const next = withToggledLevel(employee, levelId, checked);
-    const result = commitEmployee(next, { scope: 'company' });
-    if (!result.ok) {
-      showError(result.errors.join('\n'));
-      return;
-    }
-    setBusy(true);
-    try {
-      const saved = await saveEmployee(familyId, result.employee);
-      setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
-      if (draft?.id === saved.id) setDraft(presentEmployee(saved));
-      const levelNames = employeeLevelIds(saved).map((id) => levelById(id)?.label).filter(Boolean);
-      setNote(levelNames.length
-        ? `${displayName(saved)} har ${levelNames.join(', ')}.`
-        : `${displayName(saved)} har ingen tilgangsnivå.`);
-      const section = levelById(levelId)?.section || '';
-      if (section) setFocusSection(section);
-    } catch (err) {
-      showError(err?.message || 'Kunne ikke lagre tilgangsnivået.');
-    } finally {
-      setBusy(false);
-    }
+    if (!canEditAccess || !familyId || !employee?.id) return;
+    const id = employee.id;
+    const previous = levelWrites.current.get(id) || Promise.resolve();
+    const job = previous.catch(() => {}).then(async () => {
+      const current = rowsRef.current.find((row) => row.id === id) || employee;
+      const next = withToggledLevel(current, levelId, checked);
+      const result = commitEmployee(next, { scope: 'company' });
+      if (!result.ok) {
+        showError(result.errors.join('\n'));
+        return;
+      }
+      rememberRows([...rowsRef.current.filter((row) => row.id !== id), result.employee]);
+      setError('');
+      try {
+        const saved = await saveEmployee(familyId, result.employee);
+        rememberRows([...rowsRef.current.filter((row) => row.id !== saved.id), saved]);
+        setDraft((open) => (open?.id === saved.id ? presentEmployee(saved) : open));
+        const levelNames = employeeLevelIds(saved).map((level) => levelById(level)?.label).filter(Boolean);
+        setNote(levelNames.length
+          ? `${displayName(saved)} har ${levelNames.join(', ')}. Rettighetene fra alle avhukede nivå gjelder.`
+          : `${displayName(saved)} har ingen tilgangsnivå.`);
+        const section = levelById(levelId)?.section || '';
+        if (section) setFocusSection(section);
+      } catch (err) {
+        rememberRows([...rowsRef.current.filter((row) => row.id !== id), current]);
+        const quota = /quota/i.test(String(err?.message || '')) || err?.name === 'QuotaExceededError';
+        showError(quota
+          ? 'Kunne ikke lagre tilgangsnivået. Nettleseren er full.'
+          : (err?.message || 'Kunne ikke lagre tilgangsnivået.'));
+      }
+    });
+    levelWrites.current.set(id, job);
   }
 
   async function classifyEmployee(patch) {

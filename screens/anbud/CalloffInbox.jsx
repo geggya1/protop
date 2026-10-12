@@ -7,10 +7,6 @@ export default function CalloffInbox({ state, colors, onCommit, onOpenBid }) {
   const frames = (state?.contracts || []).filter((row) => row.kind === 'rammeavtale');
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 18 }}>Avrop</Text>
-      <Text style={{ color: colors.muted }}>
-        Avrop som er publisert åpent på Doffin. Interesse og tilbud melder bedriften selv i portalen, med sitt eget brukernavn.
-      </Text>
       {rows.map((row) => {
         const suggested = suggestFramework(row, state?.contracts);
         const linked = (state?.contracts || []).find((item) => item.id === row.frameworkId) || suggested;

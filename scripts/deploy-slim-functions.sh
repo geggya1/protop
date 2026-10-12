@@ -41,6 +41,7 @@ deploy_entry() {
 }
 
 deploy_entry tenderIndex.js functions:tenderProxy
+deploy_entry anbudDigestIndex.js functions:anbudDigestDaily
 deploy_entry anbudFormIndex.js functions:generateCompanyForm
 deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
 deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp

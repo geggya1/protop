@@ -41,7 +41,7 @@ function matchLine(row, watched, keywords) {
   return parts.join(' · ') || 'CPV-søk';
 }
 
-export function buildTenderAlert({ companyName, cpvCodes, keywords, notices } = {}) {
+export function buildTenderAlert({ companyName, cpvCodes, keywords, notices, lead } = {}) {
   const name = text(companyName) || 'Bedriften';
   const rows = (Array.isArray(notices) ? notices : []).slice(0, 40);
   const watched = (Array.isArray(cpvCodes) ? cpvCodes : []).map((row) => text(row?.code || row)).filter(Boolean);
@@ -51,6 +51,7 @@ export function buildTenderAlert({ companyName, cpvCodes, keywords, notices } = 
   const lines = [
     'Hei',
     `Her er de siste treffene for ${name}:`,
+    lead || 'Treffene kommer fra åpne kunngjøringer på Doffin og TED.',
     '',
     `${name} — ${fresh} ny`,
     'Konkurranser',
@@ -62,6 +63,7 @@ export function buildTenderAlert({ companyName, cpvCodes, keywords, notices } = 
     lines.push(row.title || 'Kunngjøring');
     lines.push(row.buyer || 'Ukjent oppdragsgiver');
     if (row.places?.length) lines.push(row.places.join(', '));
+    if (row.brief?.summary) lines.push(clip(row.brief.summary, 220));
     if (row.description) lines.push(clip(row.description));
     if (row.url) lines.push(row.url);
     lines.push(`Matcher: ${matchLine(row, watched, words)}`);
@@ -77,13 +79,14 @@ export function buildTenderAlert({ companyName, cpvCodes, keywords, notices } = 
       <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;">
         <a href="${row.url || '#'}" style="color:#0b57d0;text-decoration:none;">${row.title || 'Kunngjøring'}</a>
         <div style="color:#333;margin-top:4px;">${row.buyer || ''}</div>
-        <div style="color:#667;margin-top:4px;">${clip(row.description, 140)}</div>
+        <div style="color:#667;margin-top:4px;">${clip(row.brief?.summary || row.description, 140)}</div>
         <div style="margin-top:6px;">Matcher: ${matchLine(row, watched, words)}</div>
       </td>
     </tr>`).join('');
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1a1a1a;">
     <p>Hei</p>
     <p>Her er de siste treffene for profilen din:</p>
+    <p>${lead || 'Treffene kommer fra åpne kunngjøringer på Doffin og TED.'}</p>
     <p><strong>${name}</strong> — ${fresh} ny</p>
     <p>Konkurranser</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">

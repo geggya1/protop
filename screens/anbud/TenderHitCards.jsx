@@ -36,6 +36,7 @@ export default function TenderHitCards({
   onToggle,
   onMark,
   renderDecision,
+  renderInsight,
   matchWatch,
   syncing,
   emptyText = '',
@@ -182,6 +183,7 @@ export default function TenderHitCards({
                   <Text style={{ color: colors.muted }}>Offisiell kunngjøring mangler lenke.</Text>
                 )}
                 {aktuell && renderDecision ? renderDecision(row) : null}
+                {renderInsight ? renderInsight(row) : null}
               </View>
             ) : null}
           </View>

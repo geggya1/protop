@@ -3,6 +3,7 @@ import { normalizeFormTemplates, normalizeBidWork } from './bidLibrary.js';
 import { normalizeReviewNotes } from './reviewNotes.js';
 import { normalizeCustomers } from './customers.js';
 import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
+import { classifyNotice, ensureProfiles, normalizeBidDesk, normalizeLibrary, normalizeNoticeDesk, rememberActiveProfile } from './desk.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -113,6 +114,9 @@ export function emptyAnbudState() {
     formTemplates: null,
     formTemplatesAt: '',
     supplierProfile: null,
+    profiles: [],
+    activeProfileId: '',
+    library: [],
     syncedAt: null,
     queryKey: '',
   };
@@ -122,7 +126,7 @@ export function normalizeAnbudState(raw) {
   const base = emptyAnbudState();
   const src = raw && typeof raw === 'object' ? raw : {};
   const watch = src.watch && typeof src.watch === 'object' ? src.watch : {};
-  return {
+  const normalized = {
     watch: {
       ...base.watch,
       ...watch,
@@ -137,16 +141,20 @@ export function normalizeAnbudState(raw) {
       profile: normalizeWatchProfile(watch.profile),
     },
     notices: Array.isArray(src.notices) ? src.notices.map(normalizeNotice) : [],
-    bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidWork(normalizeBidRecord(row))),
+    bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidDesk(normalizeBidWork(normalizeBidRecord(row)))),
     contracts: normalizeContracts(src.contracts),
     customers: normalizeCustomers(src.customers),
     audit: normalizeAudit(src.audit),
     formTemplates: normalizeFormTemplates(src.formTemplates),
     formTemplatesAt: text(src.formTemplatesAt).slice(0, 40),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
+    profiles: Array.isArray(src.profiles) ? src.profiles : [],
+    activeProfileId: text(src.activeProfileId),
+    library: normalizeLibrary(src.library),
     syncedAt: src.syncedAt || null,
     queryKey: text(src.queryKey),
   };
+  return ensureProfiles(normalized);
 }
 
 const DECISIONS = new Set(['ubestemt', 'aktuell', 'arkiv', 'forkastet', 'ikke', 'tilbud']);
@@ -214,6 +222,14 @@ function pickReviewedNotice(left, right) {
     interest: winner.interest || other.interest || null,
     dossier: winner.dossier || other.dossier || null,
     consideration: winner.consideration || other.consideration || null,
+    brief: winner.brief || other.brief || null,
+    excerpts: (winner.excerpts || other.excerpts || []).slice(0, 3),
+    updates: [...(other.updates || []), ...(winner.updates || [])].slice(-20),
+    awardContext: winner.awardContext || other.awardContext || null,
+    qualification: winner.qualification || other.qualification || [],
+    frameworkId: winner.frameworkId || other.frameworkId || '',
+    kind: winner.kind || other.kind || '',
+    profileIds: [...new Set([...(other.profileIds || []), ...(winner.profileIds || [])])],
     reviewNotes: winner.reviewNotes?.length ? winner.reviewNotes : (other.reviewNotes || []),
     isNew: isDecided(winner.decision) ? false : !!(winner.isNew || other.isNew),
     matchedKeywords: normalizeKeywords([...(other.matchedKeywords || []), ...(winner.matchedKeywords || [])]),
@@ -349,6 +365,9 @@ export function mergeAnbudStates(left, right) {
     customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
     ...mergeFormTemplates(a, b),
+    profiles: mergeById(a.profiles, b.profiles),
+    library: mergeById(a.library, b.library),
+    activeProfileId: b.activeProfileId || a.activeProfileId || '',
     supplierProfile: (Date.parse(b.supplierProfile?.savedAt || '') || 0) > (Date.parse(a.supplierProfile?.savedAt || '') || 0)
       ? b.supplierProfile
       : (a.supplierProfile || b.supplierProfile),
@@ -463,7 +482,7 @@ export function saveTenderWatch(state, input) {
   const departmentAreas = normalizeDepartmentAreas(
     input?.departmentAreas ?? state.watch?.departmentAreas,
   );
-  return ok({
+  const saved = ok({
     ...state,
     watch: {
       companyName,
@@ -482,6 +501,8 @@ export function saveTenderWatch(state, input) {
       profile,
     },
   });
+  if (!saved.ok) return saved;
+  return { ...saved, state: rememberActiveProfile(saved.state) };
 }
 
 function normalizeChannels(input) {
@@ -738,6 +759,9 @@ export function normalizeDoffinHit(hit) {
     locationIds: asList(hit?.locationId),
     amount: Number.isFinite(amount) ? amount : null,
     currency: text(hit?.estimatedValue?.currencyCode) || 'NOK',
+    winner: asList(hit?.awardedNames || hit?.winner).join(', '),
+    profileIds: (Array.isArray(hit?.profileIds) ? hit.profileIds : []).map((row) => text(row)).filter(Boolean).slice(0, 8),
+    kind: classifyNotice(hit),
     status: text(hit?.status) || 'ACTIVE',
     publishedAt: text(hit?.publicationDate) || text(hit?.issueDate),
     deadline: text(hit?.deadline),
@@ -778,6 +802,14 @@ export function mergeTenderNotices(state, hits, fetchedAt) {
       matchedKeywords: normalizeKeywords([...(kept?.matchedKeywords || []), ...(row.matchedKeywords || [])]),
       aiFit: kept?.aiFit || row.aiFit || null,
       geo: kept?.geo || row.geo || null,
+      brief: kept?.brief || null,
+      excerpts: kept?.excerpts || [],
+      updates: kept?.updates || [],
+      awardContext: kept?.awardContext || null,
+      qualification: kept?.qualification || [],
+      frameworkId: kept?.frameworkId || '',
+      kind: kept?.kind || row.kind || '',
+      profileIds: [...new Set([...(kept?.profileIds || []), ...(row.profileIds || [])])],
     });
   }
   for (const kept of previousRows) {
@@ -821,6 +853,7 @@ function normalizeNotice(raw) {
         source: text(row.geo.source).slice(0, 20),
       }
       : null,
+    ...normalizeNoticeDesk(row),
   };
 }
 

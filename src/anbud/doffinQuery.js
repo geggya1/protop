@@ -21,11 +21,21 @@ function publishedFromOf(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
 }
 
+function typesOf(values) {
+  const allowed = new Set(['COMPETITION', 'RESULT']);
+  const rows = (Array.isArray(values) ? values : ['COMPETITION'])
+    .map((row) => String(row || '').trim())
+    .filter((row) => allowed.has(row));
+  return rows.length ? [...new Set(rows)] : ['COMPETITION'];
+}
+
 export function buildDoffinBody({
-  cpvCodes, locationIds, page = 1, numHitsPerPage = 50, searchString = '', publishedFrom = '',
+  cpvCodes, locationIds, page = 1, numHitsPerPage = 50, searchString = '', publishedFrom = '', types,
 } = {}) {
   const codes = codesOf(cpvCodes);
   const query = String(searchString || '').trim().slice(0, 80);
+  const noticeTypes = typesOf(types);
+  const activeOnly = noticeTypes.length === 1 && noticeTypes[0] === 'COMPETITION';
   if (!codes.length && !query) {
     const error = new Error('Minst én CPV-kode eller et søkeord må følge med.');
     error.code = 'invalid-argument';
@@ -39,8 +49,8 @@ export function buildDoffinBody({
     facets: {
       cpvCodesLabel: { checkedItems: [] },
       cpvCodesId: { checkedItems: codes },
-      type: { checkedItems: ['COMPETITION'] },
-      status: { checkedItems: ['ACTIVE'] },
+      type: { checkedItems: noticeTypes },
+      status: { checkedItems: activeOnly ? ['ACTIVE'] : [] },
       contractNature: { checkedItems: [] },
       procurementStrategicLabels: { checkedItems: [] },
       publicationDate: { from: publishedFromOf(publishedFrom), to: null },

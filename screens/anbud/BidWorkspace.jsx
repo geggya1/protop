@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import BidCollab from './BidCollab';
 import {
   BID_STEPS,
   GROUND_ATTACH_FOLDER_ID,
@@ -404,6 +405,14 @@ export default function BidWorkspace({
       ) : null}
       <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
       <DeadlineBanner deadline={deadline} colors={colors} compact />
+      <BidCollab
+        bid={bid}
+        state={state}
+        notice={notice}
+        colors={colors}
+        members={members}
+        onCommit={commit}
+      />
       {noticeUrl ? (
         <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
           <Text style={{ color: colors.brand }}>Åpne på {source}</Text>

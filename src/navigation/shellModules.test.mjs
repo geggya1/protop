@@ -89,7 +89,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
-    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud'],
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', 'Avrop', 'Pipeline'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
   assert.equal(companyItems.find((i) => i.id === 'ansatte').label, 'Ansatte');

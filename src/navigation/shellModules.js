@@ -15,6 +15,8 @@ export const ANBUD_MENU = [
   { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
   { id: 'vurdering', icon: 'options', label: '2. Vurdering av aktuelle' },
   { id: 'tilbud', icon: 'document-text', label: '3. Tilbud' },
+  { id: 'avrop', icon: 'file-tray', label: 'Avrop' },
+  { id: 'pipeline', icon: 'grid', label: 'Pipeline' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);

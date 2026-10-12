@@ -423,6 +423,7 @@ function normalizeTemplate(row) {
   return {
     id,
     title,
+    category: row?.category === 'avtale' ? 'avtale' : 'skjema',
     intro: text(row?.intro).slice(0, 280),
     cover: cleanCover(row?.cover),
     settings: normalizeSettings(row?.settings),
@@ -1205,6 +1206,7 @@ export function saveFormTemplate(state, input) {
   const next = normalizeTemplate({
     id,
     title,
+    category: input?.category === 'avtale' ? 'avtale' : 'skjema',
     intro: text(input?.intro).slice(0, 280),
     cover: input?.cover,
     settings: input?.settings,

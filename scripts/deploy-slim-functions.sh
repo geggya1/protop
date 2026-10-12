@@ -43,6 +43,9 @@ deploy_entry() {
 deploy_entry tenderIndex.js functions:tenderProxy
 deploy_entry anbudDigestIndex.js functions:anbudDigestDaily
 deploy_entry anbudFormIndex.js functions:generateCompanyForm
+deploy_entry agreementIndex.js functions:agreementTreatment
+NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 agreementtreatment \
+  || echo "::warning::Klarte ikke å åpne agreementTreatment for innloggede kall"
 deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
 deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 deploy_entry friendListIndex.js functions:friendListHttp

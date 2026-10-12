@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { compactAnbudState, emptyAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 
@@ -73,11 +73,22 @@ async function writeLocal(companyId, state) {
 async function writeRemote(companyId, state) {
   const ref = anbudDoc(companyId);
   if (!ref) return;
-  await setDoc(ref, {
-    state,
-    digestEnabled: !!(state.watch?.notify?.email && (state.watch?.emails || []).length),
+  const payload = compactAnbudState(state);
+  const bodyOf = (next) => ({
+    state: next,
+    digestEnabled: !!(next.watch?.notify?.email && (next.watch?.emails || []).length),
     updatedAt: serverTimestamp(),
-  }, { merge: true });
+  });
+  try {
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      const remote = snap.exists() ? (snap.data()?.state || {}) : {};
+      const merged = compactAnbudState(mergeAnbudStates(remote, payload));
+      transaction.set(ref, bodyOf(merged), { merge: true });
+    });
+  } catch {
+    await setDoc(ref, bodyOf(payload), { merge: true });
+  }
 }
 
 function queueRemote(companyId, state) {
@@ -109,6 +120,18 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
   } finally {
     if (inflight.get(key) === pending) inflight.delete(key);
   }
+}
+
+export async function flushAnbudState(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const timer = remoteTimers.get(id);
+  if (timer) clearTimeout(timer);
+  remoteTimers.delete(id);
+  const pending = remotePending.get(id);
+  remotePending.delete(id);
+  const state = pending || MEMORY.get(memoryKey(companyId));
+  if (state) await writeRemote(id, state);
 }
 
 export async function saveAnbudState(state, companyId) {

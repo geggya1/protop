@@ -69,6 +69,7 @@ export function blankField(kind = 'text') {
         { id: `${id}_b`, label: 'Alternativ 2' },
       ]
       : [],
+    editor: type === 'title' || type === 'note' ? 'fast' : 'avsender',
     value: emptyAnswer(type),
   };
 }
@@ -93,6 +94,7 @@ export function blankForm() {
   return {
     id: '',
     title: '',
+    category: 'skjema',
     intro: '',
     cover: '',
     settings: blankSettings(),
@@ -177,6 +179,9 @@ export function normalizeBuilderField(raw) {
     placeholder: staticKind ? '' : text(raw?.placeholder).slice(0, 120),
     width: staticKind ? 'full' : (raw?.width === 'half' ? 'half' : 'full'),
     review: text(raw?.review).slice(0, 180),
+    editor: staticKind
+      ? 'fast'
+      : (['fast', 'avsender', 'motpart', 'begge'].includes(raw?.editor) ? raw.editor : 'avsender'),
     options: OPTION_KINDS.has(kind) ? normalizeOptions(raw?.options) : [],
     value: coerceAnswer(kind, raw?.value),
   };

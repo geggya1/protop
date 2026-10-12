@@ -305,11 +305,11 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.deepEqual(ansattNav.children.map((child) => child.id), ['underenheter']);
   const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
     .find((item) => item.id === 'anbud');
-  assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-avrop', 'anbud-pipeline']);
+  assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-avrop', 'anbud-pipeline', 'anbud-avtale']);
   const offersOnly = { ...standardGrants('tilbud'), tenders: 'none' };
   const offersNav = filterCompanyNav(companyNavItems(), offersOnly)
     .find((item) => item.id === 'anbud');
-  assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud', 'anbud-pipeline']);
+  assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud', 'anbud-pipeline', 'anbud-avtale']);
   assert.equal(offersNav.action.subView, 'tilbud');
   const andreNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger')).map((item) => item.id);
   assert.ok(andreNav.includes('underenheter') === false);

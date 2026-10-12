@@ -1097,6 +1097,7 @@ export { fetchOpenFeed, fetchOpenFeedHttp } from './openFeed.js';
 export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
 export { tenderProxy } from './tenderProxy.js';
 export { sendTenderAlert } from './anbudAlert.js';
+export { agreementTreatment } from './agreementTreatment.js';
 export { sendAnbudRequest, scanAnbudDocument } from './anbudIntake.js';
 export { interpretIndeksAvtale, indeksSsbDaily } from './indeksreguleringAi.js';
 export { interpretAvtaleHttp } from './interpretAvtaleHttp.js';

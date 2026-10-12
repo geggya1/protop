@@ -15,6 +15,7 @@ import WatchSettings from './WatchSettings';
 import PipelineBoard from './PipelineBoard';
 import CalloffInbox from './CalloffInbox';
 import { setNoticeDecision } from '../../src/anbud/model';
+import AgreementTreatment from './AgreementTreatment';
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
@@ -142,6 +143,14 @@ export default function AnbudScreen({ company, subView, members = [], units = []
             }
             go('vurdering');
           }}
+        />
+      ) : null}
+      {step === 'avtale' ? (
+        <AgreementTreatment
+          companyId={company?.id}
+          company={company}
+          members={members}
+          colors={colors}
         />
       ) : null}
       {step === 'pipeline' && desk ? (

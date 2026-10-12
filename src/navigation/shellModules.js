@@ -17,6 +17,7 @@ export const ANBUD_MENU = [
   { id: 'tilbud', icon: 'document-text', label: '3. Tilbud' },
   { id: 'avrop', icon: 'file-tray', label: 'Avrop' },
   { id: 'pipeline', icon: 'grid', label: 'Pipeline' },
+  { id: 'avtale', icon: 'ribbon', label: '4. Avtale' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);

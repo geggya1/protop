@@ -11,6 +11,7 @@ import {
   isFriendsType, isCongregationType, isDaycareType, isFlexGroupType, isCompanyType, isOrganizationType,
 } from '../src/utils/groupTypes';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
+import AgreementLinkHost from '../screens/anbud/AgreementLinkHost';
 import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
@@ -304,6 +305,7 @@ export default function SocialPlatformShell({ platformType }) {
         </View>
       </HelpTarget>
 
+      <AgreementLinkHost />
       <PlatformDrawer
         config={config}
         visible={drawerOpen}

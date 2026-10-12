@@ -4,6 +4,7 @@ import { normalizeReviewNotes } from './reviewNotes.js';
 import { normalizeCustomers } from './customers.js';
 import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 import { classifyNotice, ensureProfiles, normalizeBidDesk, normalizeLibrary, normalizeNoticeDesk, rememberActiveProfile } from './desk.js';
+import { mergeAgreementCases, normalizeAgreementCases } from './agreementCase.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -113,6 +114,7 @@ export function emptyAnbudState() {
     audit: [],
     formTemplates: null,
     formTemplatesAt: '',
+    agreementCases: [],
     supplierProfile: null,
     profiles: [],
     activeProfileId: '',
@@ -147,6 +149,7 @@ export function normalizeAnbudState(raw) {
     audit: normalizeAudit(src.audit),
     formTemplates: normalizeFormTemplates(src.formTemplates),
     formTemplatesAt: text(src.formTemplatesAt).slice(0, 40),
+    agreementCases: normalizeAgreementCases(src.agreementCases),
     supplierProfile: normalizeSupplierProfile(src.supplierProfile),
     profiles: Array.isArray(src.profiles) ? src.profiles : [],
     activeProfileId: text(src.activeProfileId),
@@ -365,6 +368,7 @@ export function mergeAnbudStates(left, right) {
     customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
     ...mergeFormTemplates(a, b),
+    agreementCases: mergeAgreementCases(a.agreementCases, b.agreementCases),
     profiles: mergeById(a.profiles, b.profiles),
     library: mergeById(a.library, b.library),
     activeProfileId: b.activeProfileId || a.activeProfileId || '',

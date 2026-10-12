@@ -129,6 +129,23 @@ function Inspector({ field, index, colors, onPatch, onType, onDuplicate, onMove,
             <Switch value={!!field.required} onValueChange={(required) => onPatch(index, { required })} />
           </View>
         ) : null}
+        {field.kind !== 'title' && field.kind !== 'note' ? (
+          <View style={styles.tools}>
+            {[
+              ['fast', 'Fast'],
+              ['avsender', 'Avsender'],
+              ['motpart', 'Motpart'],
+              ['begge', 'Begge'],
+            ].map(([id, label]) => {
+              const on = (field.editor || 'avsender') === id;
+              return (
+                <TouchableOpacity key={id} onPress={() => onPatch(index, { editor: id })} accessibilityRole="button" style={[styles.chip, { backgroundColor: on ? colors.brand : colors.card }]}>
+                  <Text style={{ color: on ? '#fff' : colors.ink }}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
       {field.review ? (
         <View style={styles.tools}>
@@ -269,6 +286,21 @@ export default function FormDocument({
       ) : (
         <Text style={[styles.docTitle, { color: colors.ink, borderBottomColor: colors.ink }]}>{draft.title || 'Uten navn'}</Text>
       )}
+      {editing ? (
+        <View style={styles.tools}>
+          {[
+            ['skjema', 'Skjema'],
+            ['avtale', 'Avtalemal'],
+          ].map(([id, label]) => {
+            const on = (draft.category || 'skjema') === id;
+            return (
+              <TouchableOpacity key={id} onPress={() => onPatch(-1, { category: id })} accessibilityRole="button" style={[styles.chip, { backgroundColor: on ? colors.brand : colors.card }]}>
+                <Text style={{ color: on ? '#fff' : colors.ink }}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
       {editing ? (
         <TextInput
           value={draft.intro}

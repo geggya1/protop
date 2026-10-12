@@ -40,6 +40,7 @@ function draftFromTemplate(template, { copy = false } = {}) {
     id: copy ? '' : template.id,
     title: copy ? `${template.title} kopi`.slice(0, 80) : template.title,
     intro: template.intro || '',
+    category: template.category === 'avtale' ? 'avtale' : 'skjema',
     cover: template.cover || '',
     settings: normalizeSettings(template.settings),
     responses: copy ? [] : (template.responses || []).map((row) => ({ ...row, answers: { ...(row.answers || {}) } })),
@@ -255,6 +256,7 @@ export default function FormBuilderScreen({
           <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
             <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
             <Text style={{ color: colors.muted }}>
+              {template.category === 'avtale' ? 'Avtalemal · ' : ''}
               {template.fields.length} spørsmål
               {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
               {template.intro ? ` · ${template.intro}` : ''}

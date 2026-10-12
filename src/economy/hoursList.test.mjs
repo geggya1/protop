@@ -6,6 +6,7 @@ import {
   groupHours,
   hourFacets,
   hydrateHourEntry,
+  periodBounds,
   shiftDateKey,
   sortHours,
 } from './hoursList.js';
@@ -112,6 +113,24 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   assert.ok(facets.projects[0].id.startsWith('number:'));
   assert.equal(filterHours(entries, { customerId: facets.customers[0].id }).length, 1);
   assert.equal(filterHours(entries, { projectId: facets.projects[0].id }).length, 1);
+}
+
+{
+  // Egen periode med norsk datoformat må filtrere ISO-rader.
+  const bounds = periodBounds('custom', '01.01.2016', '31.12.2016');
+  assert.equal(bounds.minDate, '2016-01-01');
+  assert.equal(bounds.maxDate, '2016-12-31');
+  const entries = [
+    { id: '1', employeeId: 'a', date: '2016-06-15', hours: 8 },
+    { id: '2', employeeId: 'a', date: '2026-10-10', hours: 8 },
+  ];
+  const filtered = filterHours(entries, {
+    period: 'custom',
+    fromDate: '01.01.2016',
+    toDate: '31.12.2016',
+  });
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].id, '1');
 }
 
 console.log('hoursList.test.mjs: ok');

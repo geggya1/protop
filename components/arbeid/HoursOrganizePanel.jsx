@@ -53,6 +53,8 @@ export default function HoursOrganizePanel({
   toDate,
   onFromDate,
   onToDate,
+  onFromDateBlur,
+  onToDateBlur,
   groupBy,
   onGroupBy,
   sort,
@@ -126,7 +128,8 @@ export default function HoursOrganizePanel({
               <TextInput
                 value={fromDate}
                 onChangeText={onFromDate}
-                placeholder="Fra (ÅÅÅÅ-MM-DD)"
+                onBlur={onFromDateBlur}
+                placeholder="Fra (dd.mm.åååå)"
                 placeholderTextColor={colors.placeholder}
                 nativeID="hours-from-date"
                 style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
@@ -134,7 +137,8 @@ export default function HoursOrganizePanel({
               <TextInput
                 value={toDate}
                 onChangeText={onToDate}
-                placeholder="Til (ÅÅÅÅ-MM-DD)"
+                onBlur={onToDateBlur}
+                placeholder="Til (dd.mm.åååå)"
                 placeholderTextColor={colors.placeholder}
                 nativeID="hours-to-date"
                 style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}

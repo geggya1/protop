@@ -42,10 +42,12 @@ import {
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { loadProjectState, persistProjectState, putProjectState } from '../../src/project/storage';
+import { saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
 import { watchEmployees } from '../../src/employees/storage';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
+import { parseDate } from '../../src/economy/invoices.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 
 async function bytesFromFile(file) {
@@ -124,9 +126,13 @@ export default function EconomyHours({
 
   useEffect(() => {
     let live = true;
-    loadProjectState(resolvedFamilyId).then((loaded) => {
+    loadProjectState(resolvedFamilyId, { force: true }).then((loaded) => {
       if (!live) return;
       setState(loaded);
+      setReady(true);
+    }).catch((cause) => {
+      if (!live) return;
+      setError(String(cause?.message || '') || 'Kunne ikke laste timer.');
       setReady(true);
     });
     return () => { live = false; };
@@ -201,8 +207,11 @@ export default function EconomyHours({
   );
   const totals = useMemo(() => hourTotals(visible), [visible]);
   const employeeOptions = useMemo(
-    () => employeeHourOptions(scoped, employees),
-    [scoped, employees],
+    () => employeeHourOptions(
+      scoped.map((row) => hydrateHourEntry(row, hydrateOpts)),
+      employees,
+    ),
+    [scoped, employees, hydrateOpts],
   );
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
@@ -270,7 +279,8 @@ export default function EconomyHours({
 
   function persist(next) {
     setState(next);
-    const job = saveChain.current.then(() => saveProjectState(next, resolvedFamilyId));
+    putProjectState(next, resolvedFamilyId);
+    const job = saveChain.current.then(() => persistProjectState(next, resolvedFamilyId));
     saveChain.current = job.catch(() => {});
     return job;
   }
@@ -349,10 +359,22 @@ export default function EconomyHours({
     }
     setBusy(true);
     setError('');
+    setProgress(`Lagrer ${chosen.length} timer…`);
     try {
       const result = importTimeEntries(state, chosen.map((row) => row.entry));
       if (!result.ok) throw new Error(result.error || 'Kunne ikke importere timer.');
-      await persist(result.state);
+      // Først egen subcollection (tåler store volumer), deretter prosjektstate uten timeEntries-blob.
+      putProjectState(result.state, resolvedFamilyId);
+      setState(result.state);
+      await saveTimeEntryImport(resolvedFamilyId, result.added, {
+        onProgress: (done, total) => setProgress(`Lagrer timer… ${done}/${total}`),
+      });
+      try {
+        await persistProjectState(result.state, resolvedFamilyId);
+      } catch (projectError) {
+        // Timene ligger allerede i timeEntries-subcollection — ikke mist dem.
+        console.warn('Prosjektstate etter timeimport', projectError);
+      }
       const withIssues = chosen.filter((row) => (row.issues || []).length).length;
       const report = importResult(
         [{ name: `${result.added.length} timeføringer`, issues: withIssues ? [`${withIssues} med avvik`] : [] }],
@@ -364,7 +386,7 @@ export default function EconomyHours({
       setImportReport(report);
       setImportPlan(null);
       setDropped(new Set());
-      setNote(`${result.added.length} timer er lagret. Medarbeidere er lagt til på prosjektene, og oppstillingene er oppdatert.`);
+      setNote(`${result.added.length} timer er lagret i skyen. Medarbeidere er lagt til på prosjektene.`);
       const latestByEmployee = new Map();
       for (const row of result.added || []) {
         const current = latestByEmployee.get(row.employeeId);
@@ -386,7 +408,14 @@ export default function EconomyHours({
       }
       setView('list');
     } catch (cause) {
-      setError(String(cause?.message || '') || 'Kunne ikke lagre timene.');
+      const message = String(cause?.message || cause?.code || '');
+      setError(
+        /permission|insufficient/i.test(message)
+          ? 'Mangler tilgang til å lagre timer i skyen.'
+          : /exceeds|too big|size|invalid-argument/i.test(message)
+            ? 'Kunne ikke lagre: dataene er for store eller ugyldige. Prøv færre rader, eller last siden på nytt og importer igjen.'
+            : (message || 'Kunne ikke lagre timene i skyen. Sjekk nettverket og prøv igjen.'),
+      );
     } finally {
       setBusy(false);
       setProgress('');
@@ -550,8 +579,10 @@ export default function EconomyHours({
       onPeriod={setPeriod}
       fromDate={fromDate}
       toDate={toDate}
-      onFromDate={setFromDate}
-      onToDate={setToDate}
+      onFromDate={(value) => setFromDate(value)}
+      onToDate={(value) => setToDate(value)}
+      onFromDateBlur={() => setFromDate((current) => parseDate(current) || current)}
+      onToDateBlur={() => setToDate((current) => parseDate(current) || current)}
       groupBy={groupBy}
       onGroupBy={setGroupBy}
       sort={sort}

@@ -289,6 +289,10 @@ export default function EconomyHours({
     setError('');
     const file = await pickDocument({ accept: HOUR_IMPORT_ACCEPT });
     if (!file) return;
+    if (!employees.length) {
+      setError('Fant ingen medarbeidere i Ansatte ennå. Vent til listen er lastet, eller åpne Ansatte og prøv igjen.');
+      return;
+    }
     setBusy(true);
     setProgress('Leser fil…');
     try {

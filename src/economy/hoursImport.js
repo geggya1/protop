@@ -223,51 +223,134 @@ export function collectHourFingerprints(entries) {
   return keys;
 }
 
+/** Normaliser ansattnummer: «02» og «2» er samme. */
+export function normalizeEmployeeNumber(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (/^\d+$/.test(raw)) return String(Number(raw));
+  return raw;
+}
+
+/** Lowercase/æøå-fold som beholder ordmellomrom (ulikt invoice-fold som stripper alt). */
+function foldName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .replace(/å/g, 'a')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function employeeStatusRank(employee) {
+  const status = foldName(employee?.company?.status || 'active');
+  if (status === 'active' || status === 'current') return 0;
+  if (status === 'leave') return 1;
+  if (status === 'inactive' || status === 'former') return 2;
+  if (status === 'deleted') return 3;
+  return 2;
+}
+
+function nameTokens(value) {
+  return foldName(value)
+    .split(/\s+/)
+    .filter((part) => part.length >= 2);
+}
+
+/** Fornavn + etternavn — mellomnavn ignoreres (Geir Ove Andersen ↔ Geir Andersen). */
+export function employeeCoreName(value) {
+  const tokens = nameTokens(value);
+  if (!tokens.length) return '';
+  if (tokens.length === 1) return tokens[0];
+  return `${tokens[0]} ${tokens[tokens.length - 1]}`;
+}
+
 function employeeNameMatches(employee, name) {
   if (!name) return true;
   const label = displayName(employee);
-  return fold(label) === fold(name) || namesLikelyMatch(label, name);
+  if (fold(label) === fold(name) || namesLikelyMatch(label, name)) return true;
+  const core = employeeCoreName(name);
+  return Boolean(core) && employeeCoreName(label) === core;
 }
 
-function matchEmployeeByName(list, name) {
+/** Velg beste treff blant flere: ansattnr, deretter aktiv > permisjon > inaktiv > slettet. */
+export function pickBestEmployee(candidates, hint = {}) {
+  const list = (Array.isArray(candidates) ? candidates : []).filter(Boolean);
+  if (!list.length) return null;
+  if (list.length === 1) return list[0];
+  const number = normalizeEmployeeNumber(hint.employeeNumber);
+  return [...list].sort((left, right) => {
+    const leftNum = number && normalizeEmployeeNumber(left?.company?.externalEmployeeNumber) === number ? 0 : 1;
+    const rightNum = number && normalizeEmployeeNumber(right?.company?.externalEmployeeNumber) === number ? 0 : 1;
+    if (leftNum !== rightNum) return leftNum - rightNum;
+    const byStatus = employeeStatusRank(left) - employeeStatusRank(right);
+    if (byStatus) return byStatus;
+    return displayName(left).localeCompare(displayName(right), 'nb');
+  })[0];
+}
+
+function matchEmployeeByName(list, name, hint = {}) {
   if (!name) return null;
-  const exact = list.filter((row) => fold(displayName(row)) === fold(name));
-  if (exact.length === 1) return exact[0];
+  const folded = fold(name);
+  const exact = list.filter((row) => fold(displayName(row)) === folded);
+  if (exact.length) return pickBestEmployee(exact, hint);
+
+  // Samme synlige navn med ulik mellomrom/tegnsetting.
+  const spaced = foldName(name);
+  const exactSpaced = list.filter((row) => foldName(displayName(row)) === spaced);
+  if (exactSpaced.length) return pickBestEmployee(exactSpaced, hint);
+
+  const core = employeeCoreName(name);
+  if (core) {
+    const byCore = list.filter((row) => employeeCoreName(displayName(row)) === core);
+    if (byCore.length) return pickBestEmployee(byCore, hint);
+  }
+
   const soft = list.filter((row) => namesLikelyMatch(displayName(row), name));
+  if (!soft.length) return null;
   if (soft.length === 1) return soft[0];
+
+  // Flere myke treff (f.eks. Geir Ove Andersen / Geir Ove Tørnkvist): krev etternavn.
+  const last = nameTokens(name).slice(-1)[0];
+  const byLast = last
+    ? soft.filter((row) => nameTokens(displayName(row)).includes(last))
+    : [];
+  if (byLast.length) return pickBestEmployee(byLast, hint);
   return null;
 }
 
 /**
  * Match medarbeider på ansattnummer og/eller navn.
- * Nummer alene brukes bare når navnet ikke motstrider treffet — ellers
- * prioriteres unik navnematch, så vi ikke kobler Geirs timer til Tom.
+ * Alle statuser (aktiv, permisjon, inaktiv, slettet) er med — aktiv foretrekkes
+ * ved flere treff. Nummer alene brukes bare når navnet ikke motstrider.
  */
 export function matchEmployee(employees, hint = {}) {
   const list = Array.isArray(employees) ? employees : [];
-  const number = text(hint.employeeNumber);
+  const number = normalizeEmployeeNumber(hint.employeeNumber);
   const name = text(hint.employeeName);
   if (number) {
     const byNumber = list.filter((row) => (
-      text(row?.company?.externalEmployeeNumber) === number
+      normalizeEmployeeNumber(row?.company?.externalEmployeeNumber) === number
     ));
     if (byNumber.length === 1) {
       const hit = byNumber[0];
       if (employeeNameMatches(hit, name)) return hit;
       // Nummer peker på annen person enn navnet — stol på unik navnematch.
-      return matchEmployeeByName(list, name);
+      return matchEmployeeByName(list, name, hint);
     }
     if (byNumber.length > 1) {
       if (name) {
         const named = byNumber.filter((row) => employeeNameMatches(row, name));
-        if (named.length === 1) return named[0];
-        if (named.length > 1) return named[0];
+        if (named.length) return pickBestEmployee(named, hint);
       }
-      // Ambiguøst nummer uten klart navnetreff — ikke gjett.
-      return matchEmployeeByName(list, name);
+      // Ambiguøst nummer uten klart navnetreff — prøv navn på hele listen.
+      return matchEmployeeByName(list, name, hint);
     }
   }
-  return matchEmployeeByName(list, name);
+  return matchEmployeeByName(list, name, hint);
 }
 
 /** Fyll kundenavn/-nummer fra register eller prosjektets client-felt. */
@@ -298,15 +381,27 @@ export function applyCustomerFromProject(entry, project, customers = []) {
 export function suggestEmployees(employees, hint = {}, limit = 8) {
   const list = Array.isArray(employees) ? employees : [];
   const q = fold(hint.query || hint.employeeName || hint.employeeNumber);
-  if (!q) return list.slice(0, limit);
+  const qNumber = normalizeEmployeeNumber(hint.query || hint.employeeNumber);
+  if (!q) {
+    return [...list]
+      .sort((left, right) => (
+        employeeStatusRank(left) - employeeStatusRank(right)
+        || displayName(left).localeCompare(displayName(right), 'nb')
+      ))
+      .slice(0, limit);
+  }
   const scored = list.map((row) => {
     const name = fold(displayName(row));
-    const number = fold(row?.company?.externalEmployeeNumber);
+    const number = normalizeEmployeeNumber(row?.company?.externalEmployeeNumber);
+    const numberFold = fold(row?.company?.externalEmployeeNumber);
     let score = 0;
-    if (number && number === q) score += 100;
+    if (number && qNumber && number === qNumber) score += 100;
     if (name === q) score += 80;
+    if (employeeCoreName(name) && employeeCoreName(name) === employeeCoreName(q)) score += 60;
     if (name.includes(q) || q.includes(name)) score += 40;
-    if (number.includes(q)) score += 30;
+    if (numberFold && numberFold.includes(q)) score += 30;
+    if (namesLikelyMatch(name, q)) score += 20;
+    score -= employeeStatusRank(row);
     return { row, score };
   }).filter((item) => item.score > 0)
     .sort((left, right) => right.score - left.score || displayName(left.row).localeCompare(displayName(right.row), 'nb'));

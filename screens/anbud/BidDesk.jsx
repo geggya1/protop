@@ -8,6 +8,9 @@ import {
   sortBidsByDeadline,
 } from '../../src/anbud/bidLibrary';
 import { createManualBidWork } from '../../src/anbud/model';
+import { assignmentFromChoice, assignmentGap, assignmentHint, processStepsForBid } from '../../src/anbud/processTrail';
+import { departmentsOf } from '../../src/project/companyUnits';
+import ProcessTrail from './ProcessTrail';
 import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
@@ -31,7 +34,7 @@ const SORTS = [
 ];
 
 export default function BidDesk({
-  company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenContracts, onSnapshot,
+  company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenReview, onOpenContracts, onSnapshot,
   members = [], units = [], companies = [],
 }) {
   const [state, setState] = useState(null);
@@ -45,6 +48,8 @@ export default function BidDesk({
   const [draftTitle, setDraftTitle] = useState('');
   const [draftBuyer, setDraftBuyer] = useState('');
   const [draftDeadline, setDraftDeadline] = useState('');
+  const [draftUnitId, setDraftUnitId] = useState('');
+  const [draftPersonId, setDraftPersonId] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -112,18 +117,43 @@ export default function BidDesk({
     setBusyId('');
   }
 
+  const departments = departmentsOf(units).map((row) => ({ id: row.id, name: row.name, kind: row.kind || 'avdeling' }));
+  const people = (members || [])
+    .filter((row) => row && row.role !== 'child' && (row.uid || row.id))
+    .map((person) => ({
+      id: person.uid || person.id,
+      name: person.name || person.displayName || 'Uten navn',
+    }));
+
   async function createManual() {
+    const missing = assignmentGap({
+      departments, people, unitId: draftUnitId, personId: draftPersonId,
+    });
+    if (missing.length) {
+      setNote(assignmentHint(missing));
+      return;
+    }
     const loaded = state || await loadAnbudState(company?.id);
+    const now = new Date().toISOString();
     const result = await commit(createManualBidWork(loaded, {
       title: draftTitle,
       buyer: draftBuyer,
       deadline: draftDeadline,
+      source: 'manuell',
+      originAt: now,
+      interestAt: now,
+      assignment: assignmentFromChoice({
+        unit: departments.find((row) => row.id === draftUnitId) || null,
+        person: people.find((row) => row.id === draftPersonId) || null,
+      }),
     }));
     if (!result?.ok) return;
     const created = result.state.bids[0];
     setDraftTitle('');
     setDraftBuyer('');
     setDraftDeadline('');
+    setDraftUnitId('');
+    setDraftPersonId('');
     setCreating(false);
     setOpenId(created.id);
   }
@@ -172,7 +202,7 @@ export default function BidDesk({
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card, gap: 8 }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt tilbudsarbeid</Text>
           <Text style={{ color: colors.muted }}>
-            Opprett et tilbud manuelt når konkurransen ikke kommer fra varslingen.
+            Registrerte forespørsler vurderes under 2. Vurdering av aktuelle. Her oppretter du et tilbud som ikke har en henvendelse fra før, og velger hvem som skal arbeide med det.
           </Text>
           <TextInput
             value={draftTitle}
@@ -195,6 +225,40 @@ export default function BidDesk({
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
           />
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Avdeling</Text>
+          <View style={styles.toolbar}>
+            {departments.map((unit) => {
+              const on = draftUnitId === unit.id;
+              return (
+                <TouchableOpacity
+                  key={unit.id}
+                  onPress={() => setDraftUnitId(on ? '' : unit.id)}
+                  accessibilityRole="button"
+                  style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                >
+                  <Text style={{ color: on ? '#fff' : colors.ink }}>{unit.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {!departments.length ? <Text style={{ color: colors.muted }}>Ingen avdelinger er registrert.</Text> : null}
+          </View>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Person</Text>
+          <View style={styles.toolbar}>
+            {people.map((person) => {
+              const on = draftPersonId === person.id;
+              return (
+                <TouchableOpacity
+                  key={person.id}
+                  onPress={() => setDraftPersonId(on ? '' : person.id)}
+                  accessibilityRole="button"
+                  style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
+                >
+                  <Text style={{ color: on ? '#fff' : colors.ink }}>{person.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {!people.length ? <Text style={{ color: colors.muted }}>Ingen ansatte er registrert.</Text> : null}
+          </View>
           <TouchableOpacity onPress={createManual} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff' }}>Opprett og åpne</Text>
           </TouchableOpacity>
@@ -261,6 +325,10 @@ export default function BidDesk({
                 <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'right' }}>{deadline.detail}</Text>
               </View>
             </TouchableOpacity>
+            <ProcessTrail
+              colors={colors}
+              steps={processStepsForBid(bid, (state?.notices || []).find((row) => row.id === bid.noticeId))}
+            />
             <View style={styles.actions}>
               <TouchableOpacity
                 onPress={() => setOpenId(bid.id)}
@@ -276,10 +344,10 @@ export default function BidDesk({
       {!rows.length ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.muted }}>
-            Ingen tilbud er opprettet. Bruk Ny, eller merk en konkurranse som aktuell og velg Gi tilbud.
+            Ingen tilbud er opprettet. Merk en konkurranse som aktuell, og ta stilling under 2. Vurdering av aktuelle.
           </Text>
-          <TouchableOpacity onPress={onOpenAlerts} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff' }}>Gå til treffene</Text>
+          <TouchableOpacity onPress={onOpenReview || onOpenAlerts} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff' }}>Gå til vurdering</Text>
           </TouchableOpacity>
         </View>
       ) : null}

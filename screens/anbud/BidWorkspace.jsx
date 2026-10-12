@@ -69,7 +69,9 @@ import {
   sourceLabel,
 } from '../../src/anbud/noticeText';
 import { pickDocument } from '../../src/utils/media';
+import { processStepsForBid } from '../../src/anbud/processTrail';
 import FormAnswer from './FormAnswer';
+import ProcessTrail from './ProcessTrail';
 
 const FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -385,6 +387,7 @@ export default function BidWorkspace({
       </View>
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+      <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
       <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
       <DeadlineBanner deadline={deadline} colors={colors} compact />
       {noticeUrl ? (

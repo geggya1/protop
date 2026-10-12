@@ -99,9 +99,16 @@ export default function CreateMenu({
               action.disabled && styles.disabled,
             ]}
           >
-            <Text style={{ color: action.primary ? '#fff' : colors.ink, fontWeight: '500' }}>
-              {action.label}
-            </Text>
+            <View style={styles.actionText}>
+              <Text style={{ color: action.primary ? '#fff' : colors.ink, fontWeight: '600' }}>
+                {action.label}
+              </Text>
+              {action.hint ? (
+                <Text style={{ color: action.primary ? 'rgba(255,255,255,0.88)' : colors.muted, fontSize: 13, lineHeight: 18 }}>
+                  {action.hint}
+                </Text>
+              ) : null}
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -205,10 +212,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minHeight: 44,
     paddingHorizontal: 14,
-    alignItems: 'center',
+    paddingVertical: 10,
+    alignItems: 'flex-start',
     justifyContent: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
+  actionText: { gap: 2 },
   disabled: { opacity: 0.55 },
   close: { alignSelf: 'flex-start', paddingVertical: 4 },
 });

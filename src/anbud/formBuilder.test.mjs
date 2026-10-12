@@ -229,6 +229,31 @@ assert.equal(adopted.fields.find((row) => row.label === 'Adresse').id, 'navn');
 assert.equal(adopted.responses.length, 1);
 assert.equal(adopted.title, 'Gammel mal');
 
+const contract = formFromPlainText(`Consult1 AS - Ledelsessystem
+Dokument navn Oppdragsbekreftelse Opprettet 25.06.19 Sist endret 12.10.23
+Oppdragsbekreftelse
+Om oppdraget
+Oppdrag [Skriv inn prosjektnavn] Eksternt PO. nr:
+Faktura Velg foretrukket mottak: ☐ EPOST ☐ EHF ☐ POST
+Underskrifter
+Sted:  Dato: [Dato]
+Denne avtalen gjelder bare når begge parter har signert dokumentet og vedleggene som følger med oppdragsbekreftelsen i sin helhet, og den er ikke gyldig før det.`, 'Avtale');
+assert.equal(contract.ok, true);
+assert.equal(contract.form.fields.find((row) => row.label.startsWith('Dokument navn')).kind, 'note');
+assert.equal(contract.form.fields.find((row) => row.label === 'Oppdragsbekreftelse').kind, 'title');
+assert.equal(contract.form.fields.find((row) => row.label === 'Om oppdraget').kind, 'title');
+assert.equal(contract.form.fields.find((row) => row.label === 'Oppdrag').placeholder, 'Skriv inn prosjektnavn');
+assert.equal(contract.form.fields.find((row) => row.label === 'Oppdrag').width, 'half');
+const invoice = contract.form.fields.find((row) => row.kind === 'checks');
+assert.deepEqual(invoice.options.map((row) => row.label), ['EPOST', 'EHF', 'POST']);
+assert.equal(contract.form.fields.find((row) => row.label === 'Underskrifter').kind, 'title');
+assert.equal(contract.form.fields.some((row) => row.kind === 'note' && row.label.length > 80), true);
+const noteField = normalizeBuilderField({ label: 'Brevhode '.repeat(20), kind: 'note', required: true, width: 'half' });
+assert.equal(noteField.kind, 'note');
+assert.equal(noteField.required, false);
+assert.equal(noteField.width, 'full');
+assert.equal(noteField.label.length > 120, true);
+
 assert.equal(technicalFieldName('Text1'), true);
 assert.equal(technicalFieldName('Oppdragsgiver'), false);
 const widgets = formFromWidgets([

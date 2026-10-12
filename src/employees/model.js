@@ -19,6 +19,8 @@ import {
   levelIdFromRoleLabel,
   normalizeOverrides,
 } from '../access/companyAccess.js';
+import { normalizeInviteState } from './invite.js';
+import { normalizeUsageSummary } from './usage.js';
 
 const DATE_PATHS = ['person.birthDate', 'company.periodFrom', 'company.periodTo'];
 const EMAIL_PATHS = ['person.email', 'company.email', 'person.kinEmail'];
@@ -150,6 +152,8 @@ export function emptyEmployee(id = '') {
     cv: emptyCv(),
     customFields: [],
     extras: {},
+    invite: normalizeInviteState(null),
+    usage: normalizeUsageSummary(null),
   };
 }
 
@@ -473,6 +477,8 @@ export function normalizeEmployee(raw) {
   employee.extras = source.extras && typeof source.extras === 'object' && !Array.isArray(source.extras)
     ? clone(source.extras)
     : {};
+  employee.invite = normalizeInviteState(source.invite);
+  employee.usage = normalizeUsageSummary(source.usage);
   return employee;
 }
 

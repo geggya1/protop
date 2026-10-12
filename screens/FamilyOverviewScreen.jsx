@@ -25,6 +25,7 @@ import {
   declineFamilyMemberInvite,
 } from '../src/utils/groups';
 import { archiveEmptyDuplicateClassrooms } from '../src/utils/classroom';
+import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import HelpTarget from '../components/HelpTarget';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { AvatarBubble } from '../components/AvatarPicker';
@@ -202,6 +203,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
     setInviteError('');
     try {
       const res = await acceptFamilyMemberInvite({ familyId, inviteId, uid: user.uid });
+      await claimEmployeeSeat(familyId).catch(() => {});
       if (res?.familyId) {
         await selectFamily(res.familyId, {
           name: res.familyName || inv.familyName,

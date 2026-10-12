@@ -232,6 +232,8 @@ export const linking = {
         path: 'login',
         parse: {
           addFriend: (v) => (v ? String(v) : ''),
+          email: (v) => (v ? String(v) : ''),
+          familyId: (v) => (v ? String(v) : ''),
         },
       },
       PickLanguage: 'language',

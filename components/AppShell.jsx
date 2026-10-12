@@ -33,6 +33,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
+import UsageRecorder from './UsageRecorder';
 import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { defaultAnbudSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
@@ -779,6 +780,7 @@ function AppShellInner() {
     <ModuleAsideProvider>
     <ShellTitleRightContext.Provider value={shellTitleApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
+      <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
       {immersiveHome ? (
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}

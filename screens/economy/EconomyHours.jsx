@@ -38,6 +38,7 @@ import { askImportInterpret } from '../../src/imports/interpretClient';
 import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
+import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 
@@ -265,6 +266,25 @@ export default function EconomyHours({
       setImportPlan(null);
       setDropped(new Set());
       setNote(`${result.added.length} timer er lagret. Medarbeidere er lagt til på prosjektene, og oppstillingene er oppdatert.`);
+      const latestByEmployee = new Map();
+      for (const row of result.added || []) {
+        const current = latestByEmployee.get(row.employeeId);
+        if (!current || String(row.date) >= String(current.date)) latestByEmployee.set(row.employeeId, row);
+      }
+      for (const row of [...latestByEmployee.values()].slice(0, 20)) {
+        recordUsage({
+          type: 'hour',
+          companyId: familyId,
+          employeeId: row.employeeId,
+          summary: ['Import', row.hours != null ? `${row.hours} t` : '', row.date, row.projectName].filter(Boolean).join(' · '),
+          detail: {
+            hours: row.hours,
+            date: row.date || '',
+            projectName: row.projectName || '',
+            entryId: row.id || '',
+          },
+        }).catch(() => {});
+      }
       setView('list');
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke lagre timene.');

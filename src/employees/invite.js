@@ -1,0 +1,318 @@
+/**
+ * Invitasjon av medarbeidere inn i bedriften.
+ * Personer kan legges klare i kø. E-post går først når Inviter trykkes,
+ * og da gjennom den vanlige invitasjonen (registrering eller godkjenning).
+ * Rettigheten ligger på ansettelsen og følges når personen kommer inn.
+ */
+import {
+  canonicalLevelId,
+  levelById,
+  levelIdFromRoleLabel,
+} from '../access/companyAccess.js';
+
+const STATUSES = new Set(['none', 'queued', 'sent', 'accepted']);
+
+function text(value) {
+  return String(value ?? '').trim();
+}
+
+export function emptyInvite() {
+  return {
+    status: 'none',
+    email: '',
+    accessLevel: '',
+    queuedAt: '',
+    sentAt: '',
+    acceptedAt: '',
+    acceptedUid: '',
+    parentKey: '',
+    error: '',
+  };
+}
+
+export function employeeContactEmail(employee) {
+  return text(employee?.invite?.email || employee?.company?.email || employee?.person?.email).toLowerCase();
+}
+
+export function normalizeInviteState(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const invite = emptyInvite();
+  const status = text(source.status);
+  invite.status = STATUSES.has(status) ? status : 'none';
+  invite.email = text(source.email).toLowerCase();
+  invite.accessLevel = canonicalLevelId(source.accessLevel) || levelIdFromRoleLabel(source.accessLevel);
+  invite.queuedAt = text(source.queuedAt);
+  invite.sentAt = text(source.sentAt);
+  invite.acceptedAt = text(source.acceptedAt);
+  invite.acceptedUid = text(source.acceptedUid);
+  invite.parentKey = text(source.parentKey);
+  invite.error = text(source.error).slice(0, 280);
+  return invite;
+}
+
+export function placedAccessLevel(employee) {
+  return canonicalLevelId(employee?.company?.accessLevel)
+    || levelIdFromRoleLabel(employee?.company?.accessRole)
+    || canonicalLevelId(employee?.invite?.accessLevel)
+    || '';
+}
+
+export function inviteStatusLabel(status) {
+  if (status === 'queued') return 'Klar til invitasjon';
+  if (status === 'sent') return 'Invitasjon sendt';
+  if (status === 'accepted') return 'Inne i bedriften';
+  return '';
+}
+
+export function matchEmployeeByEmail(rows, email) {
+  const needle = text(email).toLowerCase();
+  if (!needle) return null;
+  return (rows || []).find((row) => employeeContactEmail(row) === needle) || null;
+}
+
+function splitName(name) {
+  const parts = text(name).split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts.shift() || '',
+    lastName: parts.join(' '),
+  };
+}
+
+export function draftInviteEmployee({
+  firstName = '',
+  lastName = '',
+  email = '',
+  accessLevel = '',
+  at = '',
+  id = '',
+} = {}) {
+  const level = levelById(canonicalLevelId(accessLevel));
+  const address = text(email).toLowerCase();
+  const names = {
+    firstName: text(firstName),
+    lastName: text(lastName),
+  };
+  if (!names.firstName && !names.lastName) {
+    const parsed = splitName(`${firstName} ${lastName}`);
+    names.firstName = parsed.firstName;
+    names.lastName = parsed.lastName;
+  }
+  return {
+    id: text(id),
+    createdAt: text(at),
+    person: {
+      firstName: names.firstName,
+      lastName: names.lastName,
+      email: address,
+    },
+    company: {
+      status: 'active',
+      personnelKind: level?.kind === 'external' ? 'external' : level?.kind === 'innleid' ? 'innleid' : 'staff',
+      canLogin: false,
+      email: address,
+      accessLevel: level?.id || '',
+      accessRole: level?.label || '',
+    },
+    invite: {
+      ...emptyInvite(),
+      status: 'queued',
+      email: address,
+      accessLevel: level?.id || '',
+      queuedAt: text(at),
+    },
+  };
+}
+
+export function queueEmployeeInvite(employee, { at = '', accessLevel = '' } = {}) {
+  const email = employeeContactEmail(employee);
+  const levelId = canonicalLevelId(accessLevel) || placedAccessLevel(employee);
+  const level = levelById(levelId);
+  const status = text(employee?.company?.status || 'active');
+  if (status === 'deleted') return { ok: false, error: 'Medarbeideren ligger i papirkurven.' };
+  if (status === 'inactive' || status === 'former') return { ok: false, error: 'Medarbeideren er deaktivert.' };
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: 'E-post mangler eller er ugyldig.' };
+  }
+  if (!level) return { ok: false, error: 'Velg tilgangsnivå før invitasjon.' };
+  const current = normalizeInviteState(employee?.invite);
+  if (current.status === 'accepted' || (text(employee?.personUid) && current.status === 'accepted')) {
+    return { ok: false, error: 'Personen er allerede inne i bedriften.' };
+  }
+  if (text(employee?.personUid) && current.status !== 'sent' && current.status !== 'queued') {
+    return { ok: false, error: 'Personen er allerede knyttet til en bruker.' };
+  }
+  const nextStatus = current.status === 'sent' ? 'sent' : 'queued';
+  return {
+    ok: true,
+    employee: {
+      ...employee,
+      person: {
+        ...(employee?.person || {}),
+        email: text(employee?.person?.email).toLowerCase() || email,
+      },
+      company: {
+        ...(employee?.company || {}),
+        email: text(employee?.company?.email).toLowerCase() || email,
+        accessLevel: level.id,
+        accessRole: level.label,
+      },
+      invite: {
+        ...current,
+        status: nextStatus,
+        email,
+        accessLevel: level.id,
+        queuedAt: current.queuedAt || text(at) || new Date().toISOString(),
+        error: '',
+      },
+    },
+  };
+}
+
+export function unqueueEmployeeInvite(employee) {
+  const current = normalizeInviteState(employee?.invite);
+  if (current.status !== 'queued') {
+    return { ok: false, error: 'Bare invitasjoner som ikke er sendt kan tas ut av køen.' };
+  }
+  return {
+    ok: true,
+    employee: {
+      ...employee,
+      invite: emptyInvite(),
+    },
+  };
+}
+
+export function invitesAwaitingSend(rows) {
+  return (rows || []).filter((row) => normalizeInviteState(row?.invite).status === 'queued');
+}
+
+export function invitesAwaitingAccept(rows) {
+  return (rows || []).filter((row) => normalizeInviteState(row?.invite).status === 'sent');
+}
+
+/** Samme registreringslenke som den vanlige vokseninvitasjonen. */
+export function employeeRegisterUrl({ email, companyId }) {
+  const to = text(email).toLowerCase();
+  const familyId = text(companyId);
+  return `https://www.protop.no/register?email=${encodeURIComponent(to)}&familyId=${encodeURIComponent(familyId)}`;
+}
+
+export function inviteDeliveryError(error) {
+  const code = text(error?.message || error);
+  if (/contact-required/i.test(code)) return 'E-post mangler.';
+  if (/already-member/i.test(code)) return 'Personen er allerede med i bedriften.';
+  if (/invite-pending/i.test(code)) return 'Invitasjonen venter allerede. Bruk Send på nytt.';
+  if (/cannot-invite-self/i.test(code)) return 'Du kan ikke invitere deg selv.';
+  if (/user-not-found/i.test(code)) return 'Fant ikke brukeren.';
+  if (/not-found|missing-parent/i.test(code)) return 'Invitasjonen finnes ikke lenger.';
+  if (/Kun administrator|Bare admin|permission-denied/i.test(code)) return 'Bare administrator kan sende invitasjonen.';
+  const cleaned = code.replace(/^FirebaseError:\s*/i, '').trim();
+  return cleaned.slice(0, 280) || 'Kunne ikke sende invitasjonen.';
+}
+
+export function applyInviteSendResult(employee, result, { at = '' } = {}) {
+  const current = normalizeInviteState(employee?.invite);
+  const parentKey = text(result?.invitee?.uid || result?.key || current.parentKey);
+  const emailSent = result?.emailSent === true;
+  const stamp = text(at) || new Date().toISOString();
+  const error = text(result?.emailError).slice(0, 280);
+  return {
+    ...employee,
+    invite: {
+      ...current,
+      parentKey,
+      status: emailSent ? 'sent' : (current.status === 'none' ? 'queued' : current.status),
+      sentAt: emailSent ? stamp : current.sentAt,
+      error: emailSent ? '' : error,
+    },
+  };
+}
+
+function employmentOpen(employee) {
+  const status = text(employee?.company?.status || 'active');
+  return status !== 'deleted' && status !== 'inactive' && status !== 'former';
+}
+
+function acceptedPatch(employee, actor, email, stamp) {
+  const levelId = placedAccessLevel(employee);
+  const currentInvite = normalizeInviteState(employee.invite);
+  return {
+    personUid: actor,
+    company: {
+      ...(employee.company || {}),
+      canLogin: true,
+    },
+    invite: {
+      ...currentInvite,
+      status: 'accepted',
+      email: email || currentInvite.email,
+      accessLevel: levelId || currentInvite.accessLevel,
+      acceptedAt: stamp,
+      acceptedUid: actor,
+      error: '',
+    },
+  };
+}
+
+/**
+ * Knytt innlogget bruker til medarbeideren med samme e-post.
+ * Treff krever at invitasjonen er sendt. Kø uten utsendt e-post hoppes over.
+ */
+export function claimEmployeeSeatPlan({
+  employees,
+  uid,
+  authEmail,
+  now,
+  companyId,
+} = {}) {
+  const actor = text(uid);
+  const email = text(authEmail).toLowerCase();
+  const stamp = text(now) || new Date().toISOString();
+  if (!actor) return { ok: false, error: 'Du må være innlogget.' };
+  if (!email) return { ok: true, skipped: true };
+  const matches = (employees || []).filter((row) => employeeContactEmail(row) === email);
+  if (!matches.length) return { ok: true, skipped: true };
+
+  const accepted = matches.find((row) => (
+    text(row.personUid) === actor && normalizeInviteState(row.invite).status === 'accepted'
+  ));
+  if (accepted) {
+    return {
+      ok: true,
+      already: true,
+      skipped: false,
+      companyId: text(companyId),
+      employeeId: text(accepted.id),
+      accessLevel: placedAccessLevel(accepted),
+    };
+  }
+
+  const eligible = matches.filter((row) => {
+    const linked = text(row.personUid);
+    if (linked && linked !== actor) return false;
+    const status = normalizeInviteState(row.invite).status;
+    return status === 'sent' || (linked === actor && status !== 'accepted');
+  });
+  const rank = (row) => (normalizeInviteState(row.invite).status === 'sent' ? 2 : 1);
+  eligible.sort((a, b) => rank(b) - rank(a));
+  const employee = eligible[0];
+  if (!employee) {
+    const taken = matches.some((row) => {
+      const linked = text(row.personUid);
+      return linked && linked !== actor;
+    });
+    if (taken) return { ok: false, error: 'Medarbeideren er knyttet til en annen bruker.' };
+    return { ok: true, skipped: true };
+  }
+  if (!employmentOpen(employee)) return { ok: false, error: 'Ansettelsen er ikke aktiv.' };
+  const levelId = placedAccessLevel(employee);
+  return {
+    ok: true,
+    already: false,
+    skipped: false,
+    companyId: text(companyId),
+    employeeId: text(employee.id),
+    accessLevel: levelId,
+    employeePatch: acceptedPatch(employee, actor, email, stamp),
+  };
+}

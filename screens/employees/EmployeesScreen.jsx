@@ -4,6 +4,19 @@ import {
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { levelById } from '../../src/access/companyAccess';
+import {
+  applyInviteSendResult,
+  draftInviteEmployee,
+  employeeContactEmail,
+  inviteDeliveryError,
+  inviteStatusLabel,
+  matchEmployeeByEmail,
+  placedAccessLevel,
+  queueEmployeeInvite,
+  unqueueEmployeeInvite,
+} from '../../src/employees/invite';
+import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
+import { recordUsage } from '../../src/employees/usageClient';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
@@ -76,6 +89,8 @@ import {
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import EmployeeFields from './EmployeeFields';
+import EmployeeInvitePanel from './EmployeeInvitePanel';
+import EmployeeUsagePanel from './EmployeeUsagePanel';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -94,6 +109,7 @@ export default function EmployeesScreen() {
   const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab } = useApp();
   const access = useCompanyAccess();
   const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.can('employees', 'write'));
+  const canInvite = isAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = family?.company?.navn || family?.name || '';
@@ -355,6 +371,181 @@ export default function EmployeesScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function openInvite() {
+    resetMessage();
+    clearSectionEdit();
+    setView('invite');
+  }
+
+  async function rememberInvite(next) {
+    const committed = commitEmployee(next, { scope: 'company' });
+    if (!committed.ok) {
+      showError(committed.errors.join('\n'));
+      return null;
+    }
+    const saved = await saveEmployee(familyId, committed.employee);
+    setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+    return saved;
+  }
+
+  async function addInvitePerson(draft) {
+    if (!canInvite || busy || !familyId) return;
+    setBusy(true);
+    setError('');
+    try {
+      const existing = matchEmployeeByEmail(rows, draft.email);
+      const base = existing || draftInviteEmployee({ ...draft, at: new Date().toISOString() });
+      const accessLevel = existing && !canEditAccess
+        ? (placedAccessLevel(existing) || draft.accessLevel)
+        : draft.accessLevel;
+      const queued = queueEmployeeInvite({
+        ...base,
+        person: {
+          ...(base.person || {}),
+          firstName: base.person?.firstName || draft.firstName,
+          lastName: base.person?.lastName || draft.lastName,
+          email: draft.email,
+        },
+      }, { accessLevel, at: new Date().toISOString() });
+      if (!queued.ok) {
+        showError(queued.error);
+        return;
+      }
+      const saved = await rememberInvite(queued.employee);
+      if (saved) setNote(`${displayName(saved)} er lagt klar. E-post sendes når du trykker Inviter.`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke legge til personen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeInvitePerson(employee) {
+    if (!canInvite || busy) return;
+    const removed = unqueueEmployeeInvite(employee);
+    if (!removed.ok) {
+      showError(removed.error);
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await rememberInvite(removed.employee);
+      if (saved) setNote(`${displayName(saved)} er tatt ut av invitasjonskøen.`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke ta personen ut.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deliverInvites(ids) {
+    const employeeIds = (ids || []).filter(Boolean);
+    if (!canInvite || busy || !familyId) return;
+    if (!employeeIds.length) {
+      showError('Ingen personer er klare til invitasjon.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const sent = [];
+    const failed = [];
+    const at = new Date().toISOString();
+    try {
+      for (const id of employeeIds) {
+        const row = rows.find((item) => item.id === id);
+        if (!row) {
+          failed.push('Fant ikke medarbeideren.');
+          continue;
+        }
+        let current = row;
+        if (current.invite?.status !== 'queued' && current.invite?.status !== 'sent') {
+          const queued = queueEmployeeInvite(current, { at });
+          if (!queued.ok) {
+            failed.push(queued.error);
+            continue;
+          }
+          const saved = await rememberInvite(queued.employee);
+          if (!saved) {
+            failed.push('Kunne ikke lagre personen.');
+            continue;
+          }
+          current = saved;
+        }
+        const email = employeeContactEmail(current);
+        const name = displayName(current);
+        try {
+          const result = current.invite?.parentKey
+            ? await resendAdultInvite({
+              familyId,
+              parentId: current.invite.parentKey,
+              familyName: companyName,
+              groupType: family?.type || 'organization',
+            })
+            : await inviteAdultSmart({
+              familyId,
+              name,
+              email,
+              familyName: companyName,
+              groupType: family?.type || 'organization',
+              createdBy: uid,
+              asAdmin: placedAccessLevel(current) === 'administrator',
+            });
+          const next = applyInviteSendResult(current, result, { at });
+          await rememberInvite(next);
+          if (result?.emailSent) {
+            sent.push(id);
+            recordUsage({
+              type: 'invite_sent',
+              companyId: familyId,
+              employeeId: id,
+              summary: `Invitasjon sendt til ${email}`,
+              detail: { accessLevel: placedAccessLevel(current) },
+            }).catch(() => {});
+          } else {
+            failed.push(result?.emailError || `${name || email}: e-post ble ikke sendt.`);
+          }
+        } catch (err) {
+          failed.push(inviteDeliveryError(err));
+        }
+      }
+      if (failed.length) setError(failed.filter(Boolean).join('\n'));
+      else setError('');
+      if (sent.length) {
+        setNote(sent.length === 1
+          ? 'Invitasjonen er sendt.'
+          : `${sent.length} invitasjoner er sendt.`);
+      }
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke sende invitasjonen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function inviteEmployee(employee) {
+    if (!employee || !canInvite) return;
+    let current = employee;
+    if (current.invite?.status !== 'queued' && current.invite?.status !== 'sent') {
+      const queued = queueEmployeeInvite(current, { at: new Date().toISOString() });
+      if (!queued.ok) {
+        showError(queued.error);
+        return;
+      }
+      setBusy(true);
+      try {
+        const saved = await rememberInvite(queued.employee);
+        if (!saved) return;
+        current = saved;
+      } catch (err) {
+        showError(err?.message || 'Kunne ikke legge personen klar.');
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    await deliverInvites([current.id]);
   }
 
   function openNew() {
@@ -719,6 +910,12 @@ export default function EmployeesScreen() {
       setDraft(presentEmployee(saved));
       setView('detail');
       setNote('Medarbeideren er lagret.');
+      recordUsage({
+        type: 'change',
+        companyId: familyId,
+        employeeId: saved.id,
+        summary: 'Oppdaterte medarbeider',
+      }).catch(() => {});
       return true;
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
@@ -828,7 +1025,7 @@ export default function EmployeesScreen() {
     >
       {view !== 'list' && view !== 'detail' ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-          {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : (selected ? displayName(selected) : 'Ansatte')}
+          {view === 'mine' ? 'Min side' : view === 'import' ? 'Kontroller import' : view === 'invite' ? 'Inviter brukere' : view === 'cv' && selected ? `CV · ${displayName(selected)}` : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
       ) : null}
       {view === 'list' ? (
@@ -838,6 +1035,7 @@ export default function EmployeesScreen() {
           info={isAdmin ? 'Kontakt, utdanning og CV fyller den ansatte ut selv. Ansettelse, avdeling og tilgang fyller bedriften ut.' : ''}
           actions={isAdmin ? [
             { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },
+            { id: 'invite', nativeID: 'employees-invite', label: 'Inviter brukere', onPress: openInvite },
             { id: 'import', nativeID: 'employees-import', label: busy ? 'Tolker filen…' : 'Importer liste', onPress: openImport, disabled: busy },
             { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },
           ] : [
@@ -935,6 +1133,11 @@ export default function EmployeesScreen() {
                   {departmentLabels(row, departments).map((name) => (
                     <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
                   ))}
+                  {inviteStatusLabel(row.invite?.status) ? (
+                    <Text style={[styles.dept, { color: colors.ink, backgroundColor: colors.sunken }]}>
+                      {inviteStatusLabel(row.invite?.status)}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </TouchableOpacity>
@@ -1030,6 +1233,29 @@ export default function EmployeesScreen() {
           onCancelDelete={() => setConfirmDelete(false)}
           onDestroy={destroy}
           onRestore={restoreEmployee}
+          canInvite={canInvite}
+          onInvite={() => inviteEmployee(detailEmployee)}
+        />
+      ) : null}
+      {view === 'detail' && detailEmployee ? (
+        <EmployeeUsagePanel
+          companyId={familyId}
+          employee={detailEmployee}
+          colors={colors}
+          enabled={isAdmin || detailEmployee.personUid === uid}
+        />
+      ) : null}
+
+      {view === 'invite' && canInvite ? (
+        <EmployeeInvitePanel
+          colors={colors}
+          employees={rows}
+          canEditAccess={canEditAccess}
+          busy={busy}
+          onAdd={addInvitePerson}
+          onRemove={removeInvitePerson}
+          onSend={deliverInvites}
+          onResend={(row) => deliverInvites([row.id])}
         />
       ) : null}
 

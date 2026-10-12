@@ -228,9 +228,7 @@ function accountDeactivated(employee) {
 }
 
 function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin, onClassify }) {
-  const status = employee.company?.status || 'active';
   const deactivated = accountDeactivated(employee);
-  const onLeave = status === 'leave';
   const locked = !canEdit || busy || !isAdmin;
   const danger = colors.danger || '#dc2626';
   const success = colors.success || '#16a34a';
@@ -269,13 +267,6 @@ function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin
       <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>Følger tilgangsnivået.</Text>
       {!deactivated ? (
         <View style={styles.chipRow}>
-          <FlagChip
-            label="Permisjon"
-            on={onLeave}
-            disabled={locked}
-            onPress={!locked ? () => onClassify?.({ status: onLeave ? 'active' : 'leave' }) : undefined}
-            colors={colors}
-          />
           <FlagChip
             label="Kan logge inn"
             on={!!employee.company?.canLogin}

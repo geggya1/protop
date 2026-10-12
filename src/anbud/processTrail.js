@@ -1,24 +1,100 @@
-/** Stegene fra forespørsel til tilbudsarbeid, felles for varsling og direkte henvendelser. */
+/** Hele tilbudsprosessen, fra inngang til konkurransens utfall.
+ *  1.1 Anbudsvarsling og 1.2 Anbudsforespørsel er to innganger. Løpet viser den saken kom fra.
+ */
 
 import { inquiryOpenForBid, intakeChannelLabel } from './intake.js';
+
+const WORK_CLOSED = new Set(['levert', 'kontrakt', 'tapt', 'trukket']);
 
 function step(id, label, detail, at, done) {
   return { id, label, detail: detail || '', at: at || '', done: !!done };
 }
 
-function assigneeDetail(bid, started) {
+function assigneeName(bid) {
+  return [bid?.assignment?.unitName, bid?.assignment?.personName].filter(Boolean).join(' · ');
+}
+
+function workClosed(bid) {
+  return WORK_CLOSED.has(bid?.stage || '');
+}
+
+function workDetail(bid, started) {
   if (!started) return 'Ikke startet';
-  const name = [bid?.assignment?.unitName, bid?.assignment?.personName].filter(Boolean).join(' · ');
-  return name || 'Startet';
+  const name = assigneeName(bid);
+  const phase = workClosed(bid) ? 'Avsluttet' : 'Pågår';
+  return name ? `${phase} · ${name}` : phase;
+}
+
+function delivered(bid) {
+  if (!bid) return false;
+  if (bid.submittedAt) return true;
+  const stage = bid.stage || '';
+  return stage === 'levert' || stage === 'kontrakt';
+}
+
+function outcomeDetail(bid) {
+  const stage = bid?.stage || '';
+  if (stage === 'kontrakt') return 'Vunnet';
+  if (stage === 'tapt') return 'Tapt';
+  if (stage === 'trukket') return 'Trukket';
+  if (delivered(bid)) return 'Venter på avgjørelse';
+  return '';
+}
+
+function outcomeDone(bid) {
+  const stage = bid?.stage || '';
+  return stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
+}
+
+/** Stegene etter vurderingen. Like for kunngjøring og direkte forespørsel. */
+function laterSteps(bid, started, workAt) {
+  const sent = delivered(bid);
+  const decided = outcomeDone(bid);
+  return [
+    step('arbeid', 'Tilbudsarbeid', workDetail(bid, started), started ? workAt : '', started),
+    step('levert', 'Tilbud levert', sent ? 'Levert' : '', sent ? (bid?.submittedAt || '') : '', sent),
+    step('status', 'Status konkurranse', outcomeDetail(bid), decided ? (bid?.closedAt || '') : '', decided),
+  ];
+}
+
+function noticeReview(notice, bid) {
+  if (bid || notice?.decision === 'tilbud') {
+    return { detail: 'Gi tilbud', at: notice?.reviewedAt || bid?.createdAt || notice?.interestAt || '', done: true };
+  }
+  if (notice?.decision === 'forkastet' || notice?.decision === 'ikke') {
+    return { detail: 'Ikke gi tilbud', at: notice?.reviewedAt || notice?.interestAt || '', done: true };
+  }
+  if (notice?.decision === 'aktuell') {
+    return { detail: 'Under vurdering', at: notice?.interestAt || '', done: true };
+  }
+  return { detail: '', at: '', done: false };
 }
 
 export function processStepsForNotice(notice, bid = null) {
-  const decided = notice?.decision === 'aktuell' || notice?.decision === 'tilbud' || !!bid;
+  const review = noticeReview(notice, bid);
+  const started = !!bid;
   return [
     step('opphav', 'Anbudsvarsling', notice?.source === 'ted' ? 'TED' : 'Doffin', notice?.publishedAt, true),
-    step('aktuell', 'Aktuell', decided ? 'Merket aktuell' : 'Venter', notice?.interestAt, decided),
-    step('arbeid', 'Tilbudsarbeid', assigneeDetail(bid, !!bid), bid?.createdAt, !!bid),
+    step('vurdering', 'Vurdering', review.detail, review.at, review.done),
+    ...laterSteps(bid, started, bid?.createdAt || ''),
   ];
+}
+
+function inquiryReview(inquiry, bid) {
+  if (bid || inquiry?.status === 'tilbud') {
+    return {
+      detail: 'Gi tilbud',
+      at: inquiry?.decidedAt || bid?.createdAt || inquiry?.interestAt || inquiry?.createdAt || '',
+      done: true,
+    };
+  }
+  if (inquiry?.status === 'ikke') {
+    return { detail: 'Ikke gi tilbud', at: inquiry?.decidedAt || inquiry?.interestAt || '', done: true };
+  }
+  if (inquiry) {
+    return { detail: 'Under vurdering', at: inquiry?.interestAt || inquiry?.createdAt || '', done: true };
+  }
+  return { detail: '', at: '', done: false };
 }
 
 export function processStepsForInquiry(inquiry, bid = null) {
@@ -26,22 +102,17 @@ export function processStepsForInquiry(inquiry, bid = null) {
   const channel = intakeChannelLabel(inquiry?.channel);
   const started = inquiry?.status === 'tilbud' || !!bid;
   const originDetail = channel || inquiry?.fromName || (protop ? 'Direkte' : 'Registrert selv');
+  const review = inquiryReview(inquiry, bid);
   return [
     step(
       'opphav',
-      protop ? 'Mottatt i ProTop' : 'Manuelt registrert',
+      'Anbudsforespørsel',
       originDetail,
       inquiry?.createdAt || inquiry?.originAt,
       true,
     ),
-    step('aktuell', 'Aktuell', 'Tatt inn', inquiry?.interestAt || inquiry?.createdAt, inquiry?.status !== 'ikke'),
-    step(
-      'arbeid',
-      'Tilbudsarbeid',
-      assigneeDetail(bid, started),
-      bid?.createdAt || (started ? inquiry?.decidedAt : ''),
-      started,
-    ),
+    step('vurdering', 'Vurdering', review.detail, review.at, review.done),
+    ...laterSteps(bid, started, bid?.createdAt || (started ? inquiry?.decidedAt : '') || ''),
   ];
 }
 

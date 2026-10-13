@@ -5,6 +5,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
 import EmployeeDirectory from '../employees/EmployeeDirectory';
+import InfoButton from '../InfoButton';
 import {
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
@@ -35,6 +36,36 @@ import {
 } from '../../src/access/companyAccess';
 import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+
+const ACCESS_LEADS = [
+  'Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer. Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte. Tannhjulet på et nivå setter se, lese, skrive og slette for modulene. Høyere rettighet tar med dem under.',
+  'Se som bruker, under Visning, er standard for administrator og øverste leder. Se tester bare bedriftsinnstillinger. Lese eller høyere viser alle moduler og applikasjoner. Nivå og personavvik kan gi funksjonen til andre.',
+];
+
+const ACCESS_VIEW_ONLY = 'Du kan se oppsettet. Bare administrator kan endre nivåer, hvem som hører til hvor, og personavvik.';
+
+const ACCESS_PEOPLE_HINT = 'Kryss av nivåene som passer. Trykk navnet for å åpne den ansatte. Deaktiverte har ingen rettigheter.';
+
+function accessLevelsHint(canEdit) {
+  return canEdit
+    ? 'Trykk navnet for å åpne den ansatte. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
+    : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å åpne den ansatte. Tannhjulet viser tilgangen til modulene.';
+}
+
+function AccessHelpCopy({ colors, canEdit, mode }) {
+  const paragraphs = [
+    ...ACCESS_LEADS,
+    ...(canEdit ? [] : [ACCESS_VIEW_ONLY]),
+    mode === 'people' ? ACCESS_PEOPLE_HINT : accessLevelsHint(canEdit),
+  ];
+  return (
+    <View style={styles.helpCopy}>
+      {paragraphs.map((paragraph) => (
+        <Text key={paragraph} style={[styles.summary, { color: colors.ink }]}>{paragraph}</Text>
+      ))}
+    </View>
+  );
+}
 
 function kindLabel(level) {
   if (level?.id === 'ansatt_andre_avdelinger') return 'Andre avdelinger · ikke ansatt i bedriften';
@@ -884,21 +915,19 @@ export default function CompanyAccessSettings({
 
   return (
     <View nativeID="company-access-page" id="company-access-page" style={styles.page}>
-      <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer.
-        Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte.
-        Tannhjulet på et nivå setter se, lese, skrive og slette for modulene. Høyere rettighet tar med dem under.
-      </Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Se som bruker, under Visning, er standard for administrator og øverste leder.
-        Se tester bare bedriftsinnstillinger. Lese eller høyere viser alle moduler og applikasjoner.
-        Nivå og personavvik kan gi funksjonen til andre.
-      </Text>
-      {!canEdit ? (
-        <Text style={[styles.lead, { color: colors.muted }]}>
-          Du kan se oppsettet. Bare administrator kan endre nivåer, hvem som hører til hvor, og personavvik.
-        </Text>
+      <View style={styles.titleRow}>
+        <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, styles.titleFlex, { color: colors.ink }]}>Tilgang</Text>
+        {compact ? (
+          <InfoButton title="Om tilgang">
+            <AccessHelpCopy colors={colors} canEdit={canEdit} mode={mode} />
+          </InfoButton>
+        ) : null}
+      </View>
+      {compact ? null : ACCESS_LEADS.map((paragraph) => (
+        <Text key={paragraph} style={[styles.lead, { color: colors.muted }]}>{paragraph}</Text>
+      ))}
+      {!canEdit && !compact ? (
+        <Text style={[styles.lead, { color: colors.muted }]}>{ACCESS_VIEW_ONLY}</Text>
       ) : null}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
       {!!note && <Text style={[styles.note, { color: colors.brand }]}>{note}</Text>}
@@ -926,11 +955,9 @@ export default function CompanyAccessSettings({
 
       {mode === 'levels' ? (
         <View style={styles.stack}>
-          <Text style={[styles.kind, { color: colors.muted }]}>
-            {canEdit
-              ? 'Trykk navnet for å åpne den ansatte. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
-              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å åpne den ansatte. Tannhjulet viser tilgangen til modulene.'}
-          </Text>
+          {compact ? null : (
+            <Text style={[styles.kind, { color: colors.muted }]}>{accessLevelsHint(canEdit)}</Text>
+          )}
           {accessLevelSections().map((section) => (
             <View key={section.id} nativeID={`company-access-section-${section.id}`} style={styles.section}>
               <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.ink }]}>
@@ -1072,9 +1099,9 @@ export default function CompanyAccessSettings({
               )}
             />
           )}
-          <Text style={[styles.kind, { color: colors.muted }]}>
-            Kryss av nivåene som passer. Trykk navnet for å åpne den ansatte. Deaktiverte har ingen rettigheter.
-          </Text>
+          {compact ? null : (
+            <Text style={[styles.kind, { color: colors.muted }]}>{ACCESS_PEOPLE_HINT}</Text>
+          )}
         </View>
       )}
       {drag && typeof document !== 'undefined' ? createPortal(
@@ -1110,6 +1137,9 @@ export default function CompanyAccessSettings({
 const styles = StyleSheet.create({
   denied: { flex: 1, padding: 24, gap: 8, maxWidth: 560 },
   page: { alignSelf: 'flex-start', width: '100%', maxWidth: 980, gap: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleFlex: { flex: 1 },
+  helpCopy: { gap: 12 },
   stack: { gap: 10 },
   section: { gap: 10 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 8 },

@@ -5,14 +5,7 @@ import { useLayout } from '../../src/theme';
 import InfoButton from '../../components/InfoButton';
 import ScrollSheet from '../../components/ScrollSheet';
 
-/** Åpne avrop på Doffin. Samme valg under 4. Avtale og under Kontrakt / avtale. */
-export const AVROP_PATH = [
-  'avrop',
-  'Avrop',
-  'Avrop som er publisert åpent på Doffin. Interesse og tilbud melder bedriften selv i portalen, med sitt eget brukernavn.',
-];
-
-/** Veier under avtale: behandle utkast, registrere inngått avtale, eller avrop. */
+/** Veier under Kontrakt / avtale: behandle utkast eller registrere en avtale som allerede er inngått. */
 export default function AgreementPathSwitch({ colors, value, onChange, options }) {
   const { isPhone } = useLayout();
   const [open, setOpen] = useState(false);

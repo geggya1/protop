@@ -10,16 +10,15 @@ import { isOrganizationType } from '../utils/groupTypes.js';
 import { filterCompanyNav } from '../access/companyAccess.js';
 
 /**
- * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet.
- * Avrop er et valg i avtale-menyen (4. Avtale og Kontrakt / avtale), ikke et eget steg.
- * Status på tilbud ligger i 3. Tilbud.
+ * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet
+ * frem til tilbudet. Når tilbudsarbeidet er ferdig, er neste ledd
+ * Kontrakt / avtale i bedriftsmenyen, ikke et fjerde steg under Anbud.
  */
 export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
   { id: 'foresporsel', icon: 'mail-open', label: '1.2 Anbudsforespørsel' },
   { id: 'vurdering', icon: 'options', label: '2. Vurdering av aktuelle' },
   { id: 'tilbud', icon: 'document-text', label: '3. Tilbud' },
-  { id: 'avtale', icon: 'ribbon', label: '4. Avtale' },
 ];
 
 export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);
@@ -29,7 +28,6 @@ export function defaultAnbudSubView(subView) {
 }
 
 export function anbudMenuTitle(subView) {
-  if (subView === 'avrop') return '4. Avtale';
   if (subView === 'pipeline') return '3. Tilbud';
   const row = ANBUD_MENU.find((item) => item.id === subView);
   return row?.label || 'Anbud';

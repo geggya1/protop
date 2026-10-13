@@ -458,11 +458,18 @@ const treatment = readFileSync(new URL('../../screens/anbud/AgreementTreatment.j
 const picker = readFileSync(new URL('../../screens/anbud/AgreementCustomerField.jsx', import.meta.url), 'utf8');
 const createModal = readFileSync(new URL('../../screens/customers/CustomerCreateModal.jsx', import.meta.url), 'utf8');
 assert.equal(treatment.includes('(state?.customers || []).slice(0, 12)'), false);
+assert.equal(treatment.includes('people.slice(0, 12)'), false);
 assert.match(treatment, /AgreementCustomerField/);
+assert.match(treatment, /AgreementPersonField/);
 assert.match(picker, /rankCustomerMatches/);
+assert.match(picker, /ScrollSheet/);
 assert.match(picker, /agreement-customer-search/);
 assert.match(picker, /Ny kunde/);
 assert.match(picker, /CustomerCreateModal/);
+const personPicker = readFileSync(new URL('../../screens/anbud/AgreementPersonField.jsx', import.meta.url), 'utf8');
+assert.match(personPicker, /ScrollSheet/);
+assert.match(personPicker, /agreement-person-search/);
+assert.equal(personPicker.includes('people.slice'), false);
 assert.match(createModal, /upsertCustomer/);
 assert.match(createModal, /searchBrregCompanies/);
 assert.match(createModal, /identityFieldsForKind/);

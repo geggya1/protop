@@ -21,7 +21,7 @@ const SYSTEM_FOLDER_IDS = new Set([
 export const BID_STEPS = [
   { id: 'grunnlag', label: '1 Konkurransegrunnlag' },
   { id: 'qa', label: '2 Spørsmål og svar' },
-  { id: 'arbeid', label: '3 Tilbudsarbeid' },
+  { id: 'arbeid', label: '3 Tilbud' },
 ];
 
 export const WORK_ITEM_KINDS = [
@@ -541,8 +541,10 @@ export function normalizeBidWork(raw) {
     };
   });
   const own = stored.filter((row) => row.kind === 'egen' && row.folderId !== GROUND_FOLDER_ID && row.folderId !== QA_FOLDER_ID);
+  const parked = bid.parked === 'vurdering' || bid.parked === 'uaktuell' ? bid.parked : '';
   return {
     ...bid,
+    parked,
     assignment: normalizeAssignment(bid.assignment),
     interpretation: normalizeInterpretation(bid.interpretation),
     stepNotes: normalizeStepNotes(bid.stepNotes),

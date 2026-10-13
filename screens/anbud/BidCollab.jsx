@@ -24,8 +24,10 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState('');
+  const [open, setOpen] = useState(false);
   const reads = pageReadSummary(bid);
   const tasks = bid?.tasks || [];
+  const openTasks = tasks.filter((task) => task.status !== 'ferdig').length;
 
   function commit(result) {
     if (!result?.ok) {
@@ -38,6 +40,21 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
 
   return (
     <View style={{ gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 }}>
+      <TouchableOpacity
+        onPress={() => setOpen((value) => !value)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={{ gap: 2 }}
+      >
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{open ? '▾' : '▸'} Samarbeid og svarbibliotek</Text>
+        <Text style={{ color: colors.muted }}>
+          {openTasks
+            ? `${openTasks} åpne oppgaver`
+            : 'Oppgaver, leste sider og gjenbrukte svar. Trykk for å åpne.'}
+        </Text>
+      </TouchableOpacity>
+      {open ? (
+      <View style={{ gap: 8 }}>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Samarbeid</Text>
       {(notice?.updates || []).length ? (
         <Text style={{ color: colors.ink }}>
@@ -127,6 +144,9 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
       </TouchableOpacity>
       {draft ? <Text style={{ color: colors.ink }}>{draft}</Text> : null}
       {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
+      </View>
+      ) : null}
+      {!open && note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
     </View>
   );
 }

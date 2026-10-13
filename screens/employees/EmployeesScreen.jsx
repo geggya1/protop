@@ -897,7 +897,15 @@ export default function EmployeesScreen() {
     const current = draft && draft.id === selectedId ? draft : selected;
     if (!current) return;
     const next = levelSet
-      ? { ...current, company: { ...(current.company || {}), accessLevels: patch.accessLevels } }
+      ? {
+        ...current,
+        company: {
+          ...(current.company || {}),
+          accessLevels: patch.accessLevels,
+          accessLevel: '',
+          accessRole: '',
+        },
+      }
       : applyEmployeeClassification(current, patch);
     setDraft(next);
     const result = commitEmployee(next, { scope: 'company' });

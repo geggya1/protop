@@ -9,6 +9,7 @@ import {
   parseStoredVisibleColumns,
   projectColumnValue,
   projectMatchesColumnFilters,
+  projectPhoneLines,
   tableMinWidth,
   toggleVisibleColumn,
   visibleColumnsOf,
@@ -75,5 +76,27 @@ const toggledOn = toggleVisibleColumn(['number', 'client'], 'name', true);
 assert.deepEqual(toggledOn, ['number', 'name', 'client']);
 
 assert.equal(PROJECT_LIST_COLUMNS.length >= 10, true);
+
+const phone = projectPhoneLines(
+  {
+    number: '10001',
+    name: 'Myklebust CB6-12-13 (1882)',
+    client: 'Lagret kunde',
+    projectStatus: 'Avsluttet',
+    orgnr: '948243113',
+    department: '2,Bygg',
+    manager: 'Geir Ove Andersen',
+  },
+  { customerName: 'Sola Kommune', missingAgreement: true },
+);
+assert.equal(phone.title, '10001 · Myklebust CB6-12-13 (1882)');
+assert.equal(phone.meta, 'Sola Kommune · Avsluttet');
+assert.equal(phone.missingAgreement, true);
+
+const sparse = projectPhoneLines({ number: '7', name: 'Kai' });
+assert.equal(sparse.title, '7 · Kai');
+assert.equal(sparse.meta, '');
+assert.equal(sparse.missingAgreement, false);
+assert.equal(projectPhoneLines({}).title, 'Prosjekt');
 
 console.log('listColumns.test.mjs: ok');

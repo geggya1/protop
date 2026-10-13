@@ -88,8 +88,10 @@ export default function HoursOrganizePanel({
     >
       <View style={styles.panelHead}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.panelTitle, { color: colors.ink }]}>Organiser</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Sorter, filtrer og vis kolonner</Text>
+          <Text style={[styles.panelTitle, { color: colors.ink }]}>Filtrer</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Periode laster flere timer. Søk, sorter og kolonner gjelder utvalget.
+          </Text>
         </View>
         {onClose ? (
           <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk organisering">

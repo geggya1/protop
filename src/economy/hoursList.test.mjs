@@ -8,6 +8,7 @@ import {
   hourFacets,
   hydrateHourEntry,
   periodBounds,
+  periodLoadRange,
   shiftDateKey,
   sortHours,
 } from './hoursList.js';
@@ -139,6 +140,19 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   });
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].id, '1');
+}
+
+{
+  const now = new Date(2026, 9, 13, 12, 0, 0);
+  const week = periodLoadRange('7', '', '', now);
+  assert.equal(week.fromDate, '2026-10-06');
+  assert.equal(week.toDate, '2026-10-13');
+  assert.deepEqual(periodLoadRange('all', '', '', now), { all: true });
+  assert.equal(periodLoadRange('custom', '', '', now), null);
+  assert.deepEqual(
+    periodLoadRange('custom', '01.01.2016', '31.12.2016', now),
+    { fromDate: '2016-01-01', toDate: '2016-12-31' },
+  );
 }
 
 console.log('hoursList.test.mjs: ok');

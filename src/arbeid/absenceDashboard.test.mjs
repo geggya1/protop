@@ -119,4 +119,82 @@ const employees = [
   assert.equal(dash.months.at(-1).ferie, 1);
 }
 
+{
+  const dash = buildAbsenceDashboard({
+    employees,
+    employeeId: '',
+    category: 'ferie',
+    today: '2026-10-13',
+    fullDayHours: 7.5,
+    absences: [
+      { id: 'f1', employeeId: 'e1', type: 'ferie', date: '2026-05-04', hours: 7.5 },
+      { id: 'f2', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-13', hours: 7.5 },
+      { id: 's2', employeeId: 'e1', type: 'egenmelding', date: '2026-08-03', hours: 7.5 },
+      { id: 'p1', employeeId: 'e2', type: 'foreldre', date: '2026-09-14', hours: 7.5 },
+      { id: 'o1', employeeId: 'e1', type: 'annet', date: '2026-06-02', hours: 7.5 },
+      { id: 'old', employeeId: 'e1', type: 'ferie', date: '2026-01-05', hours: 7.5 },
+    ],
+  });
+  assert.deepEqual(dash.recentMonths.map((month) => month.label), ['Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt']);
+  assert.equal(dash.recentMonths.find((month) => month.label === 'Jul').ferie, 1);
+  assert.equal(dash.recentMonths.find((month) => month.label === 'Okt').sykdom, 1);
+  assert.equal(dash.recentMonths.find((month) => month.label === 'Jun').annet, 1);
+  assert.equal(dash.recentMonths.some((month) => month.label === 'Jan'), false);
+  assert.equal(dash.allowance, 50);
+  assert.equal(dash.summary.used, 3);
+  assert.equal(dash.sickNow, 1);
+  assert.equal(dash.hasQuota, true);
+  assert.equal(dash.focusTitle, 'Ferie');
+  assert.equal(dash.year, '2026');
+}
+
+{
+  const sick = buildAbsenceDashboard({
+    employees,
+    category: 'sykdom',
+    today: '2026-10-13',
+    fullDayHours: 7.5,
+    absences: [
+      { id: 's1', employeeId: 'e1', type: 'syk_melding', date: '2026-10-01', hours: 7.5 },
+      { id: 's2', employeeId: 'e1', type: 'egenmelding', date: '2026-10-02', hours: 7.5 },
+      { id: 'f1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+    ],
+  });
+  assert.equal(sick.summary.used, 2);
+  assert.equal(sick.focusTitle, 'Sykdom');
+  assert.equal(sick.hasQuota, false);
+  assert.equal(sick.recentMonths.find((month) => month.label === 'Jul').ferie, 1);
+}
+
+{
+  const leave = buildAbsenceDashboard({
+    employees,
+    category: 'permisjon',
+    today: '2026-10-13',
+    fullDayHours: 7.5,
+    absences: [
+      { id: 'p1', employeeId: 'e1', type: 'foreldre', date: '2026-09-01', hours: 7.5 },
+      { id: 'p2', employeeId: 'e1', type: 'permisjon', date: '2026-09-02', hours: 7.5 },
+      { id: 'f1', employeeId: 'e1', type: 'ferie', date: '2026-09-03', hours: 7.5 },
+    ],
+  });
+  assert.equal(leave.summary.used, 2);
+  assert.equal(leave.focusTitle, 'Permisjon');
+  assert.equal(leave.periods.every((row) => row.type !== 'ferie'), true);
+}
+
+{
+  const windowed = buildAbsenceDashboard({
+    employees: [{ id: 'e1', company: { status: 'active' } }],
+    employeeId: 'e1',
+    category: 'ferie',
+    today: '2026-03-01',
+    absences: [{ id: 'd1', employeeId: 'e1', type: 'ferie', date: '2025-12-14', hours: 7.5 }],
+  });
+  assert.deepEqual(windowed.recentMonths.map((month) => month.label), ['Okt', 'Nov', 'Des', 'Jan', 'Feb', 'Mar']);
+  assert.equal(windowed.recentMonths.find((month) => month.key === '2025-12').ferie, 1);
+  assert.equal(windowed.recentMonths.find((month) => month.key === '2026-01').ferie, 0);
+}
+
 console.log('absenceDashboard ok');

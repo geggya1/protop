@@ -19,6 +19,7 @@ import { dateKey } from '../../src/utils/dates';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
+import { CompanyAbsenceView } from './CompanyAbsenceView';
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');
@@ -85,6 +86,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   const { workspace, pickedId, setPickedId } = usePeople(lockedEmployeeId);
   const { family, families, liveFamilies, selectFamily, familyId } = useApp();
   const [typeId, setTypeId] = useState('');
+  const [category, setCategory] = useState('ferie');
   const [opening, setOpening] = useState('');
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const today = toDateKey(new Date());
@@ -107,17 +109,20 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     return map;
   }, [visiblePeople]);
 
+  const companyMode = !locked;
   const dashboard = useMemo(() => buildAbsenceDashboard({
     employees: visiblePeople,
     employeeId,
-    typeId,
+    typeId: companyMode ? '' : typeId,
+    category: companyMode ? (category || 'ferie') : '',
     absences: workspace.state.absences,
     adjustments: workspace.state.absenceAdjustments,
     fullDayHours: fullDay,
     today,
     names,
   }), [
-    visiblePeople, employeeId, typeId, workspace.state.absences, workspace.state.absenceAdjustments,
+    visiblePeople, employeeId, typeId, category, companyMode,
+    workspace.state.absences, workspace.state.absenceAdjustments,
     fullDay, today, names,
   ]);
 
@@ -182,6 +187,25 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     workspace.setState(state);
     workspace.setError('');
     return true;
+  }
+
+  if (companyMode) {
+    return (
+      <CompanyAbsenceView
+        companyName={companyLabel(family)}
+        companies={companies}
+        companyId={familyId}
+        onSelectCompany={(id) => selectFamily?.(id)}
+        employees={visiblePeople.map((row) => ({ id: row.id, name: employeeDisplayName(row) }))}
+        employeeId={employeeId}
+        canChooseEmployee={canChooseEmployee}
+        onSelectEmployee={setPickedId}
+        category={category || 'ferie'}
+        onSelectCategory={setCategory}
+        dashboard={dashboard}
+        error={workspace.error}
+      />
+    );
   }
 
   return (
@@ -389,7 +413,7 @@ export function AbsenceOverviewView({
         </View>
 
         <View style={[styles.beachCard, wide && styles.columnSide]}>
-          <Image source={BEACH} resizeMode="cover" style={[styles.beachImage, wide && styles.beachImageWide]} />
+          <Image source={BEACH} resizeMode="contain" style={[styles.beachImage, wide && styles.beachImageWide]} />
           <View style={styles.beachCopy}>
             <Text style={styles.beachTitle}>
               {spotlight
@@ -857,8 +881,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 168,
   },
-  beachImage: { width: 132, height: '100%', minHeight: 168 },
-  beachImageWide: { width: '46%', minHeight: 240 },
+  beachImage: { width: 148, height: 156 },
+  beachImageWide: { width: 240, height: 210 },
   beachCopy: { flex: 1, paddingVertical: 16, paddingRight: 16, paddingLeft: 12, gap: 8 },
   beachTitle: { color: ui.ink, fontSize: 16, fontWeight: '800', lineHeight: 21 },
   beachBody: { color: '#66758A', fontSize: 13, lineHeight: 18 },

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
 import { importResult } from '../../src/imports/review';
@@ -502,7 +503,7 @@ export default function EconomyInvoices({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState('');
+  const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
   const [importReport, setImportReport] = useState(null);
@@ -560,7 +561,7 @@ export default function EconomyInvoices({
     const file = await pickDocument({ accept: INVOICE_IMPORT_ACCEPT });
     if (!file) return;
     setBusy(true);
-    setProgress('Leser fil…');
+    setProgress({ label: 'Leser fil…' });
     try {
       const bytes = await bytesFromFile(file);
       const plan = await readInvoiceImport(bytes, file.name, {
@@ -582,7 +583,7 @@ export default function EconomyInvoices({
         ? `Listen er tolket (${engine}). Kontroller koblinger før import.`
         : '');
       setView('import');
-      setProgress('');
+      setProgress(null);
     } catch (cause) {
       const message = String(cause?.message || '');
       setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
@@ -590,7 +591,7 @@ export default function EconomyInvoices({
         : (message || 'Kunne ikke lese fakturalisten.'));
     } finally {
       setBusy(false);
-      setProgress('');
+      setProgress(null);
     }
   }
 
@@ -619,11 +620,12 @@ export default function EconomyInvoices({
     }
     setBusy(true);
     setError('');
+    setProgress({ label: 'Lagrer fakturaer…', done: 0, total: chosen.length });
     try {
       const result = await saveInvoiceImport(
         familyId,
         chosen.map((row) => row.invoice),
-        { onProgress: (done, total) => setProgress(`Lagrer ${done} av ${total}…`) },
+        { onProgress: (done, total) => setProgress({ label: 'Lagrer fakturaer…', done, total }) },
       );
       const withIssues = chosen.filter((row) => (row.issues || []).length).length;
       const without = chosen.length - withIssues;
@@ -653,9 +655,19 @@ export default function EconomyInvoices({
       setError(String(cause?.message || '') || 'Kunne ikke lagre fakturaene.');
     } finally {
       setBusy(false);
-      setProgress('');
+      setProgress(null);
     }
   }
+
+  const busyOverlay = (
+    <BrandBusyOverlay
+      visible={busy || uploading}
+      label={uploading ? 'Laster opp PDF…' : (progress?.label || 'Jobber…')}
+      detail="Vent til operasjonen er ferdig før du går videre."
+      done={progress?.done}
+      total={progress?.total}
+    />
+  );
 
   async function uploadPdf() {
     if (!selected || !familyId || uploading || typeof saveInvoice !== 'function') return;
@@ -814,12 +826,14 @@ export default function EconomyInvoices({
           onUploadPdf={uploadPdf}
           uploading={uploading}
         />
+        {busyOverlay}
       </View>
     );
   }
 
   if (view === 'import' && importPlan && importReview) {
     return (
+      <>
       <ScrollView
         nativeID="economy-invoices-import"
         style={[styles.screen, { backgroundColor: colors.bg }]}
@@ -827,7 +841,6 @@ export default function EconomyInvoices({
         keyboardShouldPersistTaps="handled"
       >
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
         <InvoiceImportReview
           colors={colors}
           review={importReview}
@@ -862,6 +875,8 @@ export default function EconomyInvoices({
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}
         />
       </ScrollView>
+      {busyOverlay}
+      </>
     );
   }
 
@@ -934,7 +949,6 @@ export default function EconomyInvoices({
 
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-        {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
         <ImportResult colors={colors} result={importReport} />
 
         <View style={styles.filters}>
@@ -998,6 +1012,7 @@ export default function EconomyInvoices({
           </ScrollView>
         )}
       </View>
+      {busyOverlay}
     </View>
   );
 }

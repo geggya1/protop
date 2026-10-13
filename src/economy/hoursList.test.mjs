@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   dayTimesheetRows,
   employeeHourOptions,
+  filterEmployeeHourOptions,
   filterHours,
   groupHours,
   hourFacets,
@@ -61,7 +62,7 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
 }
 
 {
-  // Chip-navn fra register; tabell hydreres så Tom-filter ikke viser Geir-navn.
+  // Navn fra register; tabell hydreres så Tom-filter ikke viser Geir-navn.
   const employees = [
     { id: 'tom', person: { firstName: 'Tom', middleName: 'Kåre', lastName: 'Hestvåg' } },
     { id: 'geir', person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen' } },
@@ -81,6 +82,13 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   const options = employeeHourOptions(entries, employees);
   assert.equal(options[0].id, 'tom');
   assert.equal(options[0].name, 'Tom Kåre Hestvåg');
+  const people = [
+    { id: 'tom', name: 'Tom Kåre Hestvåg', hours: 8 },
+    { id: 'geir', name: 'Geir Ove Andersen', hours: 4 },
+  ];
+  assert.deepEqual(filterEmployeeHourOptions(people, 'kåre').map((row) => row.id), ['tom']);
+  assert.deepEqual(filterEmployeeHourOptions(people, 'andersen geir').map((row) => row.id), ['geir']);
+  assert.equal(filterEmployeeHourOptions(people, '').length, 2);
   const filtered = filterHours(entries, { employeeId: 'tom' });
   assert.equal(filtered.length, 1);
   const hydrated = hydrateHourEntry(filtered[0], {

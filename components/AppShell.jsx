@@ -36,6 +36,7 @@ import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import UsageRecorder from './UsageRecorder';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
+import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { defaultAnbudSubView, defaultArbeidSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
@@ -601,6 +602,7 @@ function AppShellInner() {
       );
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
+    if (tab === 'timeliste') return <PersonalTimesheet />;
     if (tab === 'arbeid') return <ArbeidHub subView={moreSubView} />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;

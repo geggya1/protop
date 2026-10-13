@@ -8,7 +8,7 @@ import {
   const rows = [
     {
       id: 'a',
-      person: { firstName: 'Aina', lastName: 'Helen Jespersen', email: 'aina@example.com' },
+      person: { firstName: 'Aina', middleName: 'Berg', lastName: 'Helen Jespersen', email: 'aina@example.com' },
       company: { status: 'active', accessRole: 'Regnskap eksternt', externalEmployeeNumber: '11' },
     },
     {
@@ -29,6 +29,8 @@ import {
   assert.deepEqual(filterEmployeesForPicker(rows, '11').map((row) => row.id), ['a']);
   assert.deepEqual(filterEmployeesForPicker(rows, 'aina@').map((row) => row.id), ['a']);
   assert.equal(filterEmployeesForPicker(rows, 'hestvåg').length, 0);
+  assert.deepEqual(filterEmployeesForPicker(rows, 'jespersen aina').map((row) => row.id), ['a']);
+  assert.deepEqual(filterEmployeesForPicker(rows, 'berg').map((row) => row.id), ['a']);
   assert.equal(employeeDisplayName(rows[1]), 'Anders Rolandsen');
 }
 

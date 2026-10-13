@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -29,6 +33,7 @@ import {
   HOUR_COLUMNS,
   dayTimesheetRows,
   employeeHourOptions,
+  filterEmployeeHourOptions,
   filterHours,
   formatDate,
   formatHours,
@@ -100,6 +105,9 @@ export default function EconomyHours({
   const [view, setView] = useState('list');
   const [query, setQuery] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [empPickerOpen, setEmpPickerOpen] = useState(false);
+  const [empPickerQuery, setEmpPickerQuery] = useState('');
+  const pickerSearchRef = useRef(null);
   const [customerFilter, setCustomerFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState('');
@@ -213,6 +221,10 @@ export default function EconomyHours({
     ),
     [scoped, employees, hydrateOpts],
   );
+  const pickerEmployees = useMemo(
+    () => filterEmployeeHourOptions(employeeOptions, empPickerQuery),
+    [employeeOptions, empPickerQuery],
+  );
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
     const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_HOUR_COLUMNS);
@@ -261,6 +273,15 @@ export default function EconomyHours({
     if (!employeeFilter) return;
     if (!employeeOptions.some((row) => row.id === employeeFilter)) setEmployeeFilter('');
   }, [employeeFilter, employeeOptions]);
+
+  useEffect(() => {
+    if (!empPickerOpen) {
+      setEmpPickerQuery('');
+      return undefined;
+    }
+    const timer = setTimeout(() => pickerSearchRef.current?.focus?.(), 60);
+    return () => clearTimeout(timer);
+  }, [empPickerOpen]);
 
   function resetOrganize() {
     setQuery('');
@@ -510,8 +531,11 @@ export default function EconomyHours({
       || 'Medarbeider')
     : 'Velg medarbeider';
 
+  const canSwitchEmployee = employeeOptions.length > 1;
+
   if (stackRows && view === 'list') {
     return (
+      <>
       <ScrollView
         style={[styles.screen, { backgroundColor: colors.bg }]}
         contentContainerStyle={styles.phoneInner}
@@ -521,7 +545,20 @@ export default function EconomyHours({
         <View style={styles.phoneTop}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
-            <Text style={[styles.heading, { color: colors.ink }]} numberOfLines={1}>{selectedEmployeeName}</Text>
+            <TouchableOpacity
+              onPress={() => canSwitchEmployee && setEmpPickerOpen(true)}
+              disabled={!canSwitchEmployee}
+              activeOpacity={canSwitchEmployee ? 0.7 : 1}
+              accessibilityRole="button"
+              accessibilityLabel={canSwitchEmployee ? 'Skift person' : selectedEmployeeName}
+              nativeID="economy-employee-name"
+              style={styles.nameBtn}
+            >
+              <Text style={[styles.heading, { color: colors.ink, flexShrink: 1 }]} numberOfLines={2}>
+                {selectedEmployeeName}
+              </Text>
+              {canSwitchEmployee ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             onPress={importFile}
@@ -537,20 +574,6 @@ export default function EconomyHours({
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
         <ImportResult colors={colors} result={importReport} />
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-          {employeeOptions.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => setEmployeeFilter(item.id)}
-              style={[styles.chip, { borderColor: colors.line, backgroundColor: employeeFilter === item.id ? colors.brand : colors.card }]}
-            >
-              <Text style={{ color: employeeFilter === item.id ? '#fff' : colors.ink }} numberOfLines={1}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         <TimesheetDayView
           colors={colors}
@@ -568,6 +591,69 @@ export default function EconomyHours({
           }))}
         />
       </ScrollView>
+      <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
+        <View style={styles.modalBg}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setEmpPickerOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk medarbeidervelger"
+          />
+          <View
+            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
+            accessibilityViewIsModal
+          >
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
+            <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                ref={pickerSearchRef}
+                value={empPickerQuery}
+                onChangeText={setEmpPickerQuery}
+                placeholder="Søk medarbeider"
+                placeholderTextColor={colors.placeholder}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.pickerSearchInput, { color: colors.ink }]}
+                accessibilityLabel="Søk medarbeider"
+                nativeID="economy-employee-picker-search"
+              />
+              {empPickerQuery ? (
+                <TouchableOpacity
+                  onPress={() => setEmpPickerQuery('')}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tøm søk"
+                >
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              {pickerEmployees.length ? pickerEmployees.map((row) => (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => { setEmployeeFilter(row.id); setEmpPickerOpen(false); }}
+                  style={[styles.sheetRow, { borderColor: colors.line }]}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: row.id === employeeFilter ? '700' : '400' }}>
+                    {row.name}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{formatHours(row.hours)}</Text>
+                </TouchableOpacity>
+              )) : (
+                <Text style={{ color: colors.muted, paddingVertical: 12 }}>
+                  {empPickerQuery.trim()
+                    ? `Ingen treff for «${empPickerQuery.trim()}».`
+                    : 'Ingen medarbeidere å velge.'}
+                </Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      </>
     );
   }
 
@@ -730,6 +816,7 @@ const styles = StyleSheet.create({
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
   phoneInner: { padding: 12, paddingBottom: 40, gap: 12 },
   phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  nameBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0, alignSelf: 'flex-start' },
   crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   ghostBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
@@ -739,9 +826,41 @@ const styles = StyleSheet.create({
   primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   filters: { gap: 10 },
-  statusChips: { gap: 8, paddingVertical: 2 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '80%',
+    zIndex: 2,
+    position: 'relative',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  pickerSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  pickerSearchInput: { flex: 1, fontSize: 14, outlineStyle: 'none', minHeight: 22 },
+  sheetRow: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    gap: 2,
+  },
   tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tr: { flexDirection: 'row', alignItems: 'flex-start', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 10, gap: 8 },
   head: { paddingVertical: 8 },

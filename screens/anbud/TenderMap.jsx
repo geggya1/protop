@@ -27,6 +27,8 @@ export default function TenderMap({
   mapTitle = 'Kart over nye og aktuelle treff',
   showHeading = true,
   requireSelection = false,
+  brief = false,
+  onExpand,
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
@@ -149,9 +151,21 @@ export default function TenderMap({
       {showHeading ? (
         <View style={styles.head}>
           <Text style={[styles.h, { color: colors.ink }]}>Kart</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {`${placed} nål${placed === 1 ? '' : 'er'}${national ? ` · ${national} hele landet` : ''}`}
-          </Text>
+          <View style={styles.headTools}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {`${placed} nål${placed === 1 ? '' : 'er'}${national ? ` · ${national} hele landet` : ''}`}
+            </Text>
+            {onExpand ? (
+              <TouchableOpacity
+                onPress={onExpand}
+                accessibilityRole="button"
+                accessibilityLabel="Større kart. Dra inn fra høyre marg, eller trykk her."
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>Større</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       ) : (
         <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -210,7 +224,7 @@ export default function TenderMap({
       ) : (
         <Text style={{ color: colors.muted }}>Ingen stedfestede treff å vise ennå.</Text>
       )}
-      {showCurrent ? (
+      {!brief && showCurrent ? (
         <View style={[styles.bubble, {
           borderColor: current.id === (cursorId || selectedId) ? colors.brand : colors.line,
           backgroundColor: current.id === (cursorId || selectedId) ? colors.brandSoft : colors.sunken,
@@ -261,7 +275,7 @@ export default function TenderMap({
             <Text style={{ color: '#fff', fontWeight: '600' }}>{openLabel}</Text>
           </TouchableOpacity>
         </View>
-      ) : requireSelection ? (
+      ) : !brief && requireSelection ? (
         <Text style={{ color: colors.muted, fontSize: 13 }}>
           {selectedId
             ? 'Oppdraget er valgt i listen, men er ikke plassert på kartet.'
@@ -280,7 +294,8 @@ export default function TenderMap({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  headTools: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   h: { fontSize: 16, fontWeight: '600' },
   legend: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   legendItem: { flexDirection: 'row', gap: 6, alignItems: 'center' },

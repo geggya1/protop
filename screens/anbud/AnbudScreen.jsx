@@ -13,6 +13,7 @@ import TenderInquiry from './TenderInquiry';
 import CurrentReview from './CurrentReview';
 import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
+import { bidListedOnDesk } from '../../src/anbud/model';
 
 function stepLabel(item, bids, reviewCount) {
   const extra = item.id === 'tilbud' && bids.length
@@ -92,7 +93,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
     let live = true;
     loadAnbudState(company?.id).then((loaded) => {
       if (!live) return;
-      setBids(loaded?.bids || []);
+      setBids((loaded?.bids || []).filter((bid) => bidListedOnDesk(bid)));
       setAktuellCount(noticesAwaitingBid(loaded?.notices).length);
     });
     return () => { live = false; };
@@ -178,7 +179,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
-          onSnapshot={(next) => setBids(next?.bids || [])}
+          onSnapshot={(next) => setBids((next?.bids || []).filter((bid) => bidListedOnDesk(bid)))}
         />
       ) : null}
       <ScrollSheet

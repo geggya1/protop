@@ -380,13 +380,27 @@ export function mergeAnbudStates(left, right) {
   });
 }
 
-function stripHeavy(value) {
-  if (Array.isArray(value)) return value.map(stripHeavy);
+function stripHeavy(value, seen = new WeakSet()) {
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return [];
+    seen.add(value);
+    try {
+      return value.map((item) => stripHeavy(item, seen));
+    } finally {
+      seen.delete(value);
+    }
+  }
   if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return null;
+  seen.add(value);
   const out = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (key === 'dataUrl' || key === 'base64') continue;
-    out[key] = stripHeavy(item);
+  try {
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'dataUrl' || key === 'base64') continue;
+      out[key] = stripHeavy(item, seen);
+    }
+  } finally {
+    seen.delete(value);
   }
   return out;
 }
@@ -394,6 +408,161 @@ function stripHeavy(value) {
 /** Fjerner tunge filinnhold slik at valg overlever lagringsgrenser. */
 export function compactAnbudState(raw) {
   return stripHeavy(normalizeAnbudState(raw));
+}
+
+/** Firestore sitt dokumenttak, med plass til tidsstempel og digest-flagget. */
+export const ANBUD_STORAGE_BYTES = 800_000;
+
+function asPlain(value) {
+  if (typeof value === 'bigint') return value.toString();
+  if (!value || typeof value !== 'object') return value;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value;
+  const proto = Object.getPrototypeOf(value);
+  if (proto && proto !== Object.prototype && typeof value.toJSON === 'function') {
+    try {
+      return value.toJSON();
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
+function clipDeep(value, max, seen) {
+  const plain = asPlain(value);
+  if (typeof plain === 'string') return plain.length > max ? plain.slice(0, max) : plain;
+  if (!plain || typeof plain !== 'object') return plain;
+  if (seen.has(plain)) return null;
+  seen.add(plain);
+  try {
+    if (Array.isArray(plain)) return plain.map((item) => clipDeep(item, max, seen));
+    const out = {};
+    for (const [key, item] of Object.entries(plain)) {
+      if (item === undefined || typeof item === 'function') continue;
+      if (key === 'dataUrl' || key === 'base64' || key === 'bytes') continue;
+      out[key] = clipDeep(item, max, seen);
+    }
+    return out;
+  } finally {
+    seen.delete(plain);
+  }
+}
+
+function decidedNotice(row) {
+  return !!row?.decision && row.decision !== 'ubestemt';
+}
+
+function lightNotice(row, limit) {
+  const clipped = clipDeep(row, decidedNotice(row) ? Math.max(limit, 1200) : limit, new WeakSet());
+  if (!clipped || decidedNotice(clipped) || limit > 600) return clipped;
+  const { description, ...rest } = clipped;
+  delete rest.dossier;
+  delete rest.excerpts;
+  delete rest.updates;
+  delete rest.brief;
+  return {
+    ...rest,
+    description: String(description || '').slice(0, 180),
+  };
+}
+
+function clipState(state, limit) {
+  return {
+    ...state,
+    watch: clipDeep(state.watch, Math.max(limit, 4000), new WeakSet()),
+    notices: (state.notices || []).map((row) => lightNotice(row, limit)),
+    bids: clipDeep(state.bids || [], limit, new WeakSet()),
+    contracts: clipDeep(state.contracts || [], limit, new WeakSet()),
+    customers: clipDeep(state.customers || [], Math.max(limit, 400), new WeakSet()),
+    agreementCases: clipDeep(state.agreementCases || [], Math.max(limit, 800), new WeakSet()),
+    audit: clipDeep((state.audit || []).slice(0, 100), Math.max(limit, 200), new WeakSet()),
+    library: clipDeep(state.library || [], limit, new WeakSet()),
+    formTemplates: clipDeep(state.formTemplates, limit, new WeakSet()),
+    profiles: clipDeep(state.profiles || [], Math.max(limit, 2000), new WeakSet()),
+    supplierProfile: clipDeep(state.supplierProfile, Math.max(limit, 400), new WeakSet()),
+  };
+}
+
+function encodedBytes(value) {
+  try {
+    const json = JSON.stringify(value);
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(json).length;
+    return json.length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function dropOldestUndecided(state, maxBytes) {
+  let notices = [...(state.notices || [])];
+  let next = { ...state, notices };
+  for (let round = 0; round < 24 && encodedBytes(next) > maxBytes; round += 1) {
+    const open = [];
+    notices.forEach((row, index) => {
+      if (!decidedNotice(row)) open.push(index);
+    });
+    if (!open.length) break;
+    const step = encodedBytes(next) - maxBytes > 100_000
+      ? Math.max(1, Math.ceil(open.length / 2))
+      : 1;
+    const remove = new Set(open.slice(-step));
+    notices = notices.filter((_, index) => !remove.has(index));
+    next = { ...state, notices };
+  }
+  return next;
+}
+
+function shrinkToBudget(state, maxBytes) {
+  let next = dropOldestUndecided(state, maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = {
+    ...next,
+    contracts: (next.contracts || []).map((row) => ({
+      ...row,
+      documents: (row.documents || []).map((doc) => ({
+        ...doc,
+        text: String(doc.text || '').slice(0, 180),
+      })),
+    })),
+    bids: (next.bids || []).map((bid) => ({
+      ...bid,
+      dossier: bid.dossier ? {
+        id: bid.dossier.id,
+        title: bid.dossier.title,
+        submissionDeadline: bid.dossier.submissionDeadline,
+        documentsUrl: bid.dossier.documentsUrl,
+        noticeUrl: bid.dossier.noticeUrl,
+      } : null,
+      files: (bid.files || []).map((file) => ({
+        id: file.id,
+        name: file.name,
+        url: file.url,
+        storagePath: file.storagePath,
+        mimeType: file.mimeType,
+      })),
+    })),
+  };
+  if (encodedBytes(next) <= maxBytes) return next;
+  let notices = [...(next.notices || [])];
+  while (notices.length > 20 && encodedBytes({ ...next, notices }) > maxBytes) {
+    notices = notices.slice(0, Math.ceil(notices.length * 0.6));
+  }
+  return { ...next, notices };
+}
+
+/**
+ * Tilstand som får plass i Firestore og i nettleseren.
+ * Vurderinger, søk og avtaler beholdes. Filinnhold og gamle ubehandlede treff slippes når plassen er brukt opp.
+ */
+export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
+  const base = compactAnbudState(raw);
+  let fitted = base;
+  for (const limit of [8000, 2000, 600, 160]) {
+    fitted = clipState(base, limit);
+    if (encodedBytes(fitted) <= maxBytes) return fitted;
+  }
+  return shrinkToBudget(fitted, maxBytes);
 }
 
 export const LOGIN_PORTALS = [

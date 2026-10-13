@@ -257,7 +257,15 @@ export default function TenderAlert({
   }, [company?.id]);
 
   useEffect(() => {
-    if (ready) saveAnbudState(state, company?.id).catch(() => setError('Kunne ikke lagre varslingen.'));
+    if (!ready) return undefined;
+    let live = true;
+    saveAnbudState(state, company?.id).then(() => {
+      if (!live) return;
+      setError((current) => (current === 'Kunne ikke lagre varslingen.' ? '' : current));
+    }).catch(() => {
+      if (live) setError('Kunne ikke lagre varslingen.');
+    });
+    return () => { live = false; };
   }, [state, ready, company?.id]);
 
   useEffect(() => {

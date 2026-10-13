@@ -1,7 +1,14 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-/** To tydelige veier: behandle utkast med motpart, eller registrere en avtale som allerede er inngått. */
+/** Åpne avrop på Doffin. Samme valg under 4. Avtale og under Kontrakt / avtale. */
+export const AVROP_PATH = [
+  'avrop',
+  'Avrop',
+  'Avrop som er publisert åpent på Doffin. Interesse og tilbud melder bedriften selv i portalen, med sitt eget brukernavn.',
+];
+
+/** Veier under avtale: behandle utkast, registrere inngått avtale, eller avrop. */
 export default function AgreementPathSwitch({ colors, value, onChange, options }) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

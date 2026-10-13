@@ -437,6 +437,16 @@ function AppShellInner() {
       return;
     }
     if (id === 'anbud') {
+      if (subView === 'pipeline') {
+        setMoreSubView('tilbud');
+        setTab('anbud');
+        return;
+      }
+      if (subView === 'avrop') {
+        setMoreSubView('avrop');
+        setTab('anbud');
+        return;
+      }
       setMoreSubView(defaultAnbudSubView(subView));
       setTab('anbud');
       return;

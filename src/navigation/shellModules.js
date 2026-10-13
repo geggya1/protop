@@ -71,9 +71,9 @@ export function arbeidMenuTitle(subView) {
  * Undermeny når Økonomi er valgt.
  * Kundesummer / Avtalesummer er økonomiske utsnitt — fulle registre ligger
  * som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
- * I mobilskuffen har raden en ekspander, så undermenyen kan åpnes uten å
- * velge Økonomi. Den er lukket til modulen er valgt eller ekspanderen trykkes,
- * så Kunder i bedriftsmenyen ikke blandes med Kundesummer.
+ * I mobilskuffen har hver rad med undermeny en ekspander, så valgene kan
+ * åpnes uten å velge raden. Økonomi er lukket til modulen er valgt eller
+ * ekspanderen trykkes, så Kunder ikke blandes med Kundesummer.
  * Timerapport ligger under Arbeid.
  */
 export const OKONOMI_MENU = [
@@ -174,17 +174,15 @@ export function companyNavItems() {
   ];
 }
 
-/** Mobilskuff: disse radene kan åpne undermenyen uten å velge raden. */
-export const DRAWER_SUBMENU_IDS = ['selskap', 'okonomi'];
-
+/** Mobilskuff: rad med undermeny kan åpnes uten å velge raden. */
 export function drawerHasSubmenuToggle(item) {
-  return DRAWER_SUBMENU_IDS.includes(item?.id) && (item?.children || []).length > 0;
+  return (item?.children || []).length > 0;
 }
 
 /**
  * Om undermenyen vises i mobilskuffen.
  * Et trykk på ekspanderen lagres i `overrides` og vinner over standarden.
- * Standard er åpen når modulen er valgt, og for Selskap som er forceOpen.
+ * Standard er åpen når modulen er valgt, og når raden er forceOpen.
  */
 export function drawerSubmenuOpen(item, activeTab, overrides = {}) {
   if (!drawerHasSubmenuToggle(item)) return false;

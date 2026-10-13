@@ -432,6 +432,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 4,
     paddingBottom: 2,
+    width: '100%',
   },
   pageTitleRow: {
     flexDirection: 'row',

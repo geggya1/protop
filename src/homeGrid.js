@@ -91,11 +91,12 @@ export function nextSpanForType(type, gw, gh) {
   return nextSpan(gw, gh);
 }
 
-/** How many grid rows a timeline needs for N items (dense rows, max 2). */
-export function preferredTimelineGh(itemCount) {
-  const n = Math.max(0, Number(itemCount) || 0);
-  // gh:1 (64px) clips the header plus even one row — measured cards are ~77px for 2 items.
-  if (n <= 0) return 1;
+/**
+ * Avtaler always take two rows in view, including the empty state.
+ * That matches the 5×2 footprint shown in edit mode. A saved 5×1 stays 1
+ * via timelineDisplayGh's cap.
+ */
+export function preferredTimelineGh(_itemCount) {
   return MAX_CONTENT_WIDGET_GH;
 }
 
@@ -400,7 +401,8 @@ export function fitHomeWidgets(widgets, counts = {}, { compact = false } = {}) {
 /**
  * Widgets shown on the home grid.
  * Clamp content widgets to type max (lists ≤2, dense ≤3); overflow scrolls.
- * Edit mode keeps saved col/row; view mode may shrink empty timelines further.
+ * Edit mode keeps saved col/row. View mode keeps avtaler at the saved
+ * height (two rows unless the user chose 5×1).
  */
 export function displayHomeWidgets(widgets, counts = {}, { editing = false } = {}) {
   const list = (Array.isArray(widgets) ? widgets : []).map(clampContentWidgetHeight);

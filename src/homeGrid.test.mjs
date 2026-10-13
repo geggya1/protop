@@ -44,12 +44,14 @@ assert.deepEqual(nextSpan(5, 1), GRID_SPANS.wide);
 assert.deepEqual(nextSpan(5, 2), GRID_SPANS.tall);
 assert.deepEqual(nextSpan(5, 3), GRID_SPANS.square);
 
-assert.equal(preferredTimelineGh(0), 1);
+assert.equal(preferredTimelineGh(0), 2);
 assert.equal(preferredTimelineGh(2), 2);
 assert.equal(preferredTimelineGh(3), 2);
 assert.equal(preferredTimelineGh(5), 2);
 assert.equal(timelineDisplayGh(3, 2), 2);
+assert.equal(timelineDisplayGh(2, 0), 2);
 assert.equal(timelineDisplayGh(1, 5), 1);
+assert.equal(timelineDisplayGh(1, 0), 1);
 assert.equal(preferredTasksGh(0), 2);
 assert.equal(preferredTasksGh(1), 2);
 assert.equal(preferredTasksGh(2), 2);
@@ -150,14 +152,14 @@ const fitted = fitTimelineWidgets(board, 2);
 assert.equal(fitted.find((w) => w.id === 'tl').gh, 2);
 assert.equal(fitted.find((w) => w.id === 'sq').row, 2);
 const fittedEmpty = fitTimelineWidgets(board, 0);
-assert.equal(fittedEmpty.find((w) => w.id === 'tl').gh, 1);
+assert.equal(fittedEmpty.find((w) => w.id === 'tl').gh, 2);
 assert.equal(fittedEmpty.find((w) => w.id === 'sq').row, 2);
 const fittedPacked = fitTimelineWidgets([
   { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'sq', type: 'shortcuts', col: 0, row: 3, gw: 2, gh: 2 },
 ], 0, { compact: true });
-assert.equal(fittedPacked.find((w) => w.id === 'tl').gh, 1);
-assert.equal(fittedPacked.find((w) => w.id === 'sq').row, 1);
+assert.equal(fittedPacked.find((w) => w.id === 'tl').gh, 2);
+assert.equal(fittedPacked.find((w) => w.id === 'sq').row, 3);
 
 const shot = [
   { id: 'kids', type: 'kids', col: 0, row: 0, gw: 5, gh: 2 },
@@ -166,8 +168,25 @@ const shot = [
   { id: 'b', type: 'shortcuts', col: 1, row: 5, gw: 1, gh: 1 },
 ];
 const shotKeep = fitTimelineWidgets(shot, 0);
-assert.equal(shotKeep.find((w) => w.id === 'tl').gh, 1);
+assert.equal(shotKeep.find((w) => w.id === 'tl').gh, 2);
 assert.equal(shotKeep.find((w) => w.id === 'a').row, 5);
+
+const emptyAppointments = displayHomeWidgets([
+  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'tasks', type: 'tasks', col: 0, row: 2, gw: 3, gh: 2 },
+  { id: 'notes', type: 'notes', col: 3, row: 2, gw: 2, gh: 3 },
+], { timeline: 0, tasks: 0 }, { editing: false });
+assert.equal(emptyAppointments.find((w) => w.id === 'tl').gh, 2);
+assert.equal(emptyAppointments.find((w) => w.id === 'tl').gw, 5);
+assert.equal(emptyAppointments.find((w) => w.id === 'tasks').row, 2);
+const editingAppointments = displayHomeWidgets([
+  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
+], { timeline: 0 }, { editing: true });
+assert.equal(editingAppointments.find((w) => w.id === 'tl').gh, 2);
+const slimAppointments = displayHomeWidgets([
+  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 1 },
+], { timeline: 0 }, { editing: false });
+assert.equal(slimAppointments.find((w) => w.id === 'tl').gh, 1);
 
 const childSparse = [
   { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },

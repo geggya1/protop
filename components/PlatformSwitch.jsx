@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
 import { useColors } from '../src/context/ThemeContext';
 import {
   applyPlatformSwitch,
-  platformSwitchSide,
+  platformSegmentActive,
+  platformSwitchSegments,
 } from '../src/utils/platformSwitch';
 
 /**
@@ -20,7 +21,8 @@ export default function PlatformSwitch({ compact = false }) {
   const [busy, setBusy] = useState(false);
 
   const list = liveFamilies?.length ? liveFamilies : families;
-  const side = platformSwitchSide(family);
+  const segments = useMemo(() => platformSwitchSegments(list), [list]);
+  const many = segments.length > 2;
   const hidden = !isParent || isChild || isActingAsChild;
 
   const webSet = useMemo(
@@ -30,8 +32,8 @@ export default function PlatformSwitch({ compact = false }) {
 
   if (hidden) return null;
 
-  const onPick = async (next) => {
-    if (busy || next === side) return;
+  const onPick = async (segment) => {
+    if (busy || !segment || platformSegmentActive(segment, family)) return;
     setBusy(true);
     try {
       await applyPlatformSwitch({
@@ -39,45 +41,56 @@ export default function PlatformSwitch({ compact = false }) {
         selectFamily,
         families: list,
         family,
-        side: next,
+        side: segment.side,
+        groupId: segment.groupId,
       });
     } finally {
       setBusy(false);
     }
   };
 
-  return (
+  const control = (
     <View
       style={[
         styles.wrap,
         compact && styles.wrapCompact,
+        many && styles.wrapMany,
         { borderColor: colors.line, backgroundColor: colors.sunken || '#f4f6f9' },
       ]}
       accessibilityRole="tablist"
-      accessibilityLabel="Bytt mellom privat og bedrift"
+      accessibilityLabel={many ? 'Bytt mellom privat og bedrifter' : 'Bytt mellom privat og bedrift'}
       {...webSet}
     >
-      <Seg
-        label="Privat"
-        active={side === 'personal'}
-        compact={compact}
-        colors={colors}
-        disabled={busy}
-        onPress={() => onPick('personal')}
-      />
-      <Seg
-        label="Bedrift"
-        active={side === 'company'}
-        compact={compact}
-        colors={colors}
-        disabled={busy}
-        onPress={() => onPick('company')}
-      />
+      {segments.map((segment) => (
+        <Seg
+          key={segment.id}
+          label={segment.label}
+          active={platformSegmentActive(segment, family)}
+          compact={compact}
+          wideLabel={many && segment.side === 'company'}
+          colors={colors}
+          disabled={busy}
+          onPress={() => onPick(segment)}
+        />
+      ))}
     </View>
+  );
+
+  if (!many) return control;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroller}
+      contentContainerStyle={styles.scrollerContent}
+    >
+      {control}
+    </ScrollView>
   );
 }
 
-function Seg({ label, active, compact, colors, disabled, onPress }) {
+function Seg({ label, active, compact, wideLabel, colors, disabled, onPress }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -85,6 +98,7 @@ function Seg({ label, active, compact, colors, disabled, onPress }) {
       style={[
         styles.seg,
         compact && styles.segCompact,
+        wideLabel && styles.segWide,
         active && { backgroundColor: colors.card },
         active && styles.segActive,
       ]}
@@ -96,6 +110,7 @@ function Seg({ label, active, compact, colors, disabled, onPress }) {
         style={[
           styles.label,
           compact && styles.labelCompact,
+          wideLabel && styles.labelWide,
           { color: active ? colors.ink : colors.muted },
           active && styles.labelActive,
         ]}
@@ -122,6 +137,19 @@ const styles = StyleSheet.create({
     padding: 2,
     maxWidth: 200,
   },
+  wrapMany: {
+    maxWidth: '100%',
+    flexGrow: 0,
+  },
+  scroller: {
+    maxWidth: '100%',
+    flexGrow: 0,
+    alignSelf: 'center',
+  },
+  scrollerContent: {
+    flexGrow: 0,
+    justifyContent: 'center',
+  },
   seg: {
     flex: 1,
     minWidth: 72,
@@ -136,6 +164,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 5,
+  },
+  segWide: {
+    flex: 0,
+    minWidth: 72,
+    maxWidth: 168,
+  },
+  labelWide: {
+    maxWidth: 148,
   },
   segActive: {
     shadowColor: '#0f172a',

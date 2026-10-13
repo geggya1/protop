@@ -21,9 +21,12 @@ import { resetCostGuards } from '../utils/costGuards';
 import { listenFriends } from '../utils/friends';
 import { friendProfileOwnerUid } from '../utils/friendsLogic';
 import { preferAuthUid } from '../utils/inviteAuthUid';
+import { isLiveOrganization } from '../project/companyOffer';
+import { resolveLoginLanding } from '../utils/platformSwitch';
 
 const Ctx = createContext(null);
 const FAMILY_KEY = 'weekplan.familyId';
+const COMPANY_KEY = 'weekplan.companyId';
 const PROFILE_KEY = 'weekplan.activeProfile';
 const PROFILE_CACHE_KEY = 'weekplan.profileCache';
 
@@ -53,6 +56,26 @@ async function writeStoredFamilyId(uid, id) {
   } catch { /* ignore */ }
 }
 
+function companyStorageKey(uid) {
+  return uid ? `${COMPANY_KEY}.${uid}` : COMPANY_KEY;
+}
+
+async function readStoredCompanyId(uid) {
+  try {
+    if (!uid) return '';
+    return (await AsyncStorage.getItem(companyStorageKey(uid))) || '';
+  } catch {
+    return '';
+  }
+}
+
+async function writeStoredCompanyId(uid, id) {
+  try {
+    if (!uid || !id) return;
+    await AsyncStorage.setItem(companyStorageKey(uid), id);
+  } catch { /* ignore */ }
+}
+
 function colorFor(i) {
   return MEMBER_COLORS[i % MEMBER_COLORS.length];
 }
@@ -61,6 +84,9 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   const [families, setFamilies] = useState([]);
   const userRef = useRef(user);
   userRef.current = user;
+  const familiesRef = useRef(families);
+  familiesRef.current = families;
+  const familyPickRef = useRef(false);
   const [familyId, setFamilyIdState] = useState(childFamilyId || null);
   const [family, setFamily] = useState(null);
   const [parents, setParents] = useState([]);
@@ -110,6 +136,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
 
   useEffect(() => {
     let alive = true;
+    familyPickRef.current = false;
     (async () => {
       if (!uid) {
         setFamilies([]);
@@ -147,22 +174,19 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           return;
         }
 
-        // Vis shell raskt med sist brukte familie + cachet gruppeliste mens Firestore-søk kjører.
+        // Vis shell raskt fra cache mens Firestore-søk kjører.
+        // Land på bedrift når personen er tilknyttet et firma, ellers privat.
         // Ikke sett familiesReady her — ellers flasher ProfileSetup før listene er hentet.
+        let storedId = '';
+        let preferredCompanyId = '';
         try {
-          const scopedEarly = await AsyncStorage.getItem(familyStorageKey(uid));
-          const legacyEarly = scopedEarly ? null : await AsyncStorage.getItem(FAMILY_KEY);
-          const earlyId = scopedEarly || legacyEarly;
-          if (alive && earlyId) {
-            // Legacy id is only used for a fast shell; membershipHints still require proof.
-            setFamilyIdState((cur) => cur || earlyId);
-            setLoading(false);
-          } else if (alive) {
-            setFamilyIdState(null);
-          }
+          storedId = (await readStoredFamilyId(uid)) || '';
+          preferredCompanyId = await readStoredCompanyId(uid);
           const cached = peekFamilyListCache(uid) || await loadFamilyListCache(uid);
           if (alive && cached?.families?.length) {
+            const landing = resolveLoginLanding(cached.families, storedId, preferredCompanyId);
             setFamilies(cached.families);
+            if (landing?.id) setFamilyIdState(landing.id);
             setLoading(false);
           }
         } catch { /* ignore */ }
@@ -312,24 +336,18 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           putFamilyListCache(uid, list);
         }
 
-        const stored = await readStoredFamilyId(uid);
-        const effective = list.length ? list : (map.size ? [...map.values()] : []);
-        // Prefer current families state if we kept cache
-        setFamilyIdState((cur) => {
-          const pool = list.length ? list : effective;
-          const livePool = pool.filter((f) => f.archived !== true && f.active !== false);
-          const next = livePool.find((f) => f.id === stored)?.id
-            || livePool.find((f) => f.id === cur)?.id
-            || livePool[0]?.id
-            || null;
-          // Do not keep a stale cur familyId when this user has no accessible families.
-          return next;
-        });
-        if (list.length) {
-          const pick = list.find((f) => f.archived !== true && f.active !== false) || list[0];
-          if (pick?.id) writeStoredFamilyId(uid, pick.id).catch(() => {});
-        } else {
-          writeStoredFamilyId(uid, '').catch(() => {});
+        const keptCache = listFailed && list.length === 0 && membershipHints.size > 0;
+        if (!keptCache && !familyPickRef.current) {
+          const pool = list.length ? list : (map.size ? [...map.values()] : []);
+          const landing = resolveLoginLanding(pool, storedId, preferredCompanyId);
+          const landingId = landing?.id || null;
+          if (alive) setFamilyIdState(landingId);
+          if (landingId) {
+            writeStoredFamilyId(uid, landingId).catch(() => {});
+            if (isLiveOrganization(landing)) writeStoredCompanyId(uid, landingId).catch(() => {});
+          } else {
+            writeStoredFamilyId(uid, '').catch(() => {});
+          }
         }
       } catch (err) {
         console.warn('[AppContext] family boot failed', err?.message || err);
@@ -509,8 +527,12 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         return [next, ...prev.filter((f) => f.id !== id)];
       });
     }
+    familyPickRef.current = true;
     setFamilyIdState(id);
     await writeStoredFamilyId(uid, id || '');
+    const known = familiesRef.current.find((f) => f.id === id);
+    const group = preview && typeof preview === 'object' ? { ...known, ...preview, id } : known;
+    if (isLiveOrganization(group)) writeStoredCompanyId(uid, id).catch(() => {});
   }, [user, uid]);
 
   const applyFamilyPatch = useCallback((id, patch) => {

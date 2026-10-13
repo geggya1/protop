@@ -8,16 +8,17 @@ import {
   Text,
   View,
 } from 'react-native';
-import BrandLogo from './BrandLogo';
+import BrandMarkBusy from './BrandMarkBusy';
 import OperationProgress from './OperationProgress';
 import { useColors } from '../src/context/ThemeContext';
 
 const NATIVE = Platform.OS !== 'web';
+const NAVY = '#07274C';
 
 /**
- * Full-screen busy state: dims the page, blocks interaction, and dances the
- * ProTop mark in the center. Optional done/total shows a progress bar under
- * the logo. Reuse for imports, saves, and other long operations.
+ * Full-screen busy state: lightens/dims the page, blocks interaction, and
+ * bubbles the ProTop mark pieces in the center. Optional done/total shows a
+ * progress bar under the logo. Reuse for imports, saves, and other long ops.
  */
 export default function BrandBusyOverlay({
   visible,
@@ -28,68 +29,25 @@ export default function BrandBusyOverlay({
   testID = 'brand-busy-overlay',
 }) {
   const colors = useColors();
-  const pulse = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!visible) {
       fade.setValue(0);
-      pulse.stopAnimation();
-      pulse.setValue(0);
       return undefined;
     }
 
-    Animated.timing(fade, {
+    const anim = Animated.timing(fade, {
       toValue: 1,
       duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: NATIVE,
-    }).start();
-
-    const dance = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 640,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: NATIVE,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 640,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: NATIVE,
-        }),
-      ]),
-    );
-    dance.start();
-    return () => {
-      dance.stop();
-    };
-  }, [visible, fade, pulse]);
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [visible, fade]);
 
   if (!visible) return null;
-
-  const scale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1.1],
-  });
-  const rotate = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-6deg', '6deg'],
-  });
-  const lift = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, -14],
-  });
-  const halo = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.28, 0.55],
-  });
-  const haloScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.86, 1.22],
-  });
 
   const hasMeter = Number(total) > 0;
   const progressLabel = hasMeter
@@ -120,33 +78,11 @@ export default function BrandBusyOverlay({
           pointerEvents="auto"
         />
         <View style={styles.center} pointerEvents="none">
-          <View style={styles.stage}>
-            <Animated.View
-              style={[
-                styles.halo,
-                {
-                  backgroundColor: colors.brandSoft || '#E5F6FE',
-                  opacity: halo,
-                  transform: [{ scale: haloScale }],
-                },
-              ]}
-            />
-            <Animated.View
-              style={{
-                transform: [
-                  { translateY: lift },
-                  { scale },
-                  { rotate },
-                ],
-              }}
-            >
-              <BrandLogo variant="mark" height={96} accessible={false} />
-            </Animated.View>
-          </View>
+          <BrandMarkBusy height={120} playing={visible} />
 
-          <Text style={[styles.caption, { color: colors.ink }]}>{label}</Text>
+          <Text style={[styles.caption, { color: NAVY }]}>{label}</Text>
           {!!detail && !hasMeter ? (
-            <Text style={[styles.detail, { color: colors.muted }]}>{detail}</Text>
+            <Text style={[styles.detail, { color: colors.muted || '#5b6b82' }]}>{detail}</Text>
           ) : null}
 
           {hasMeter ? (
@@ -160,30 +96,10 @@ export default function BrandBusyOverlay({
                 compact
               />
             </View>
-          ) : (
-            <View style={[styles.pulseDots, { backgroundColor: colors.brandSoft || '#E5F6FE' }]}>
-              <PulseDots color={colors.brand || '#1099F4'} pulse={pulse} />
-            </View>
-          )}
+          ) : null}
         </View>
       </Animated.View>
     </Modal>
-  );
-}
-
-function PulseDots({ color, pulse }) {
-  const a = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
-  const b = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.7, 1, 0.35] });
-  const c = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] });
-  return (
-    <View style={styles.dots}>
-      {[a, b, c].map((opacity, index) => (
-        <Animated.View
-          key={index}
-          style={[styles.dot, { backgroundColor: color, opacity }]}
-        />
-      ))}
-    </View>
   );
 }
 
@@ -194,13 +110,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // Light frost so the full-colour mark stays vivid (no white mono needed).
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+    backgroundColor: 'rgba(236, 242, 248, 0.78)',
   },
   scrimWeb: {
-    backdropFilter: 'blur(7px) saturate(0.85)',
-    WebkitBackdropFilter: 'blur(7px) saturate(0.85)',
+    backdropFilter: 'blur(10px) saturate(0.92)',
+    WebkitBackdropFilter: 'blur(10px) saturate(0.92)',
   },
   center: {
     alignItems: 'center',
@@ -209,23 +126,12 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     width: '100%',
   },
-  stage: {
-    width: 168,
-    height: 168,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  halo: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 999,
-  },
   caption: {
     fontSize: 18,
     fontWeight: '600',
     letterSpacing: -0.3,
     textAlign: 'center',
+    marginTop: 4,
   },
   detail: {
     fontSize: 14,
@@ -236,22 +142,5 @@ const styles = StyleSheet.create({
   meter: {
     width: '100%',
     marginTop: 4,
-  },
-  pulseDots: {
-    marginTop: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
   },
 });

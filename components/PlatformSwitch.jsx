@@ -114,7 +114,7 @@ function Seg({ label, active, compact, wideLabel, colors, disabled, onPress }) {
           { color: active ? colors.ink : colors.muted },
           active && styles.labelActive,
         ]}
-        numberOfLines={1}
+        numberOfLines={wideLabel ? 2 : 1}
       >
         {label}
       </Text>
@@ -167,11 +167,15 @@ const styles = StyleSheet.create({
   },
   segWide: {
     flex: 0,
-    minWidth: 72,
-    maxWidth: 168,
+    minWidth: 88,
+    maxWidth: 220,
+    paddingVertical: 4,
   },
   labelWide: {
-    maxWidth: 148,
+    maxWidth: 200,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 15,
   },
   segActive: {
     shadowColor: '#0f172a',

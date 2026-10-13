@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  companySwitchLabel,
   companyWorkspaces,
   liveWorkspaces,
   personalWorkspace,
@@ -59,6 +60,53 @@ assert.equal(resolveLoginLanding([personal, company, extra], personal.id, 'org-1
 assert.equal(resolveLoginLanding([personal, company, extra], 'org-1')?.id, 'org-1');
 assert.equal(resolveLoginLanding([company, extra], '')?.id, 'org-2');
 assert.equal(resolveLoginLanding([], ''), null);
+
+const parent = {
+  id: 'parent-as',
+  type: 'organization',
+  name: 'CONSULT1 AS',
+  active: true,
+  company: {
+    navn: 'CONSULT1 AS',
+    organisasjonsnummer: '916538804',
+    organisasjonsform: 'Aksjeselskap',
+    subUnits: [{ id: 'u1', kind: 'underenhet', name: 'Avdeling' }],
+  },
+};
+const child = {
+  id: 'child-bedr',
+  type: 'organization',
+  name: 'CONSULT1 AS',
+  active: true,
+  parentCompanyId: 'parent-as',
+  company: {
+    navn: 'CONSULT1 AS',
+    organisasjonsnummer: '916570783',
+    organisasjonsform: 'Underenhet til næringsdrivende og offentlig forvaltning',
+    organisasjonsformKode: 'BEDR',
+  },
+};
+assert.deepEqual(companyWorkspaces([child, parent]).map((g) => g.id), ['parent-as', 'child-bedr']);
+assert.equal(companySwitchLabel(parent), 'CONSULT1 AS · 916538804');
+assert.equal(companySwitchLabel(child), 'CONSULT1 AS · 916570783');
+assert.equal(resolveLoginLanding([child, parent], child.id, child.id)?.id, 'parent-as');
+assert.equal(resolveLoginLanding([child, parent], '')?.id, 'parent-as');
+assert.equal(resolveLoginLanding([personal, child, parent], personal.id)?.id, 'parent-as');
+const filledChild = {
+  ...child,
+  id: 'filled-bedr',
+  parentCompanyId: '',
+  company: {
+    ...child.company,
+    subUnits: [{ id: 'own', kind: 'avdeling', name: 'Egen' }],
+  },
+};
+assert.equal(resolveLoginLanding([filledChild, parent], filledChild.id)?.id, 'filled-bedr');
+const named = platformSwitchSegments([personal, parent, child]);
+assert.deepEqual(named.filter((s) => s.side === 'company').map((s) => s.label), [
+  'CONSULT1 AS · 916538804',
+  'CONSULT1 AS · 916570783',
+]);
 
 const oneCompany = platformSwitchSegments([personal, company]);
 assert.deepEqual(oneCompany.map((s) => s.label), ['Privat', 'Bedrift']);

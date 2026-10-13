@@ -7,6 +7,7 @@ import {
 import {
   attachTimeEntriesToState,
   diffTimeEntries,
+  filterRemovalsToLoadedWindow,
   mergeEntryLists,
   removeTimeEntry,
   saveTimeEntries,
@@ -28,6 +29,8 @@ const loadMeta = new Map();
 const SYNCED_ENTRIES = new Map();
 /** 'partial' når bare et datovindu er lastet — da skal sync ikke slette øvrige id-er. */
 const HOURS_MODE = new Map();
+/** Siste vindu som faktisk er lest fra Firestore. Styrer hvilke slettinger som er trygge. */
+const HOURS_WINDOW = new Map();
 /** Inflight for ensureProjectHours per selskap+vindu. */
 const hoursInflight = new Map();
 
@@ -65,6 +68,21 @@ function baselineTimeEntries(companyId) {
   const key = memoryKey(companyId);
   if (SYNCED_ENTRIES.has(key)) return SYNCED_ENTRIES.get(key) || [];
   return MEMORY.get(key)?.timeEntries || [];
+}
+
+function noteHoursWindow(companyId, hoursOpts) {
+  const key = hoursModeKey(companyId);
+  if (!hoursOpts || hoursOpts.hours === false) return;
+  if (hoursOpts.all) {
+    HOURS_WINDOW.set(key, { all: true });
+    return;
+  }
+  HOURS_WINDOW.set(key, {
+    all: false,
+    fromDate: String(hoursOpts.fromDate || ''),
+    toDate: String(hoursOpts.toDate || ''),
+    employeeId: String(hoursOpts.employeeId || ''),
+  });
 }
 
 function setHoursMode(companyId, mode) {
@@ -251,10 +269,15 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
   if (!id) return;
   const { changed, removed } = diffTimeEntries(previousEntries, nextEntries);
   if (changed.length) await saveTimeEntries(id, changed);
-  if (allowRemovals) {
-    for (const entryId of removed) {
+  const removable = allowRemovals
+    ? filterRemovalsToLoadedWindow(previousEntries, removed, HOURS_WINDOW.get(id) || null)
+    : [];
+  if (removable.length) {
+    for (const entryId of removable) {
       await removeTimeEntry(id, entryId);
     }
+  }
+  if (allowRemovals && (HOURS_WINDOW.get(id)?.all === true)) {
     markTimeEntriesSynced(id, nextEntries);
   } else {
     // Delvis vindu: aldri slett id-er som ikke er i minnet.
@@ -300,6 +323,7 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
   const healedSlice = hoursOpts?.all
     ? healed
     : healed.filter((row) => attachedIds.has(row.id));
+  noteHoursWindow(companyId, hoursOpts);
   if (hoursOpts?.all) {
     setHoursMode(companyId, 'all');
     markTimeEntriesSynced(companyId, healed);
@@ -474,6 +498,7 @@ export function clearProjectStateMemory(companyId) {
     loadMeta.delete(key);
     SYNCED_ENTRIES.delete(key);
     HOURS_MODE.delete(key);
+    HOURS_WINDOW.delete(key);
     return;
   }
   MEMORY.clear();
@@ -481,5 +506,6 @@ export function clearProjectStateMemory(companyId) {
   loadMeta.clear();
   SYNCED_ENTRIES.clear();
   HOURS_MODE.clear();
+  HOURS_WINDOW.clear();
   hoursInflight.clear();
 }

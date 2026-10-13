@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   attachTimeEntriesToState,
   diffTimeEntries,
+  filterRemovalsToLoadedWindow,
   filterTimeEntriesByRange,
 } from './timeEntryStorage.js';
 import {
@@ -112,6 +113,30 @@ import { deleteTimeEntry, emptyProjectState } from '../project/engine.js';
   const slim = stripTimeEntriesFromState(state);
   assert.equal(slim.timeEntries.length, 0);
   assert.equal(slim.projects.length, 1);
+}
+
+{
+  const previous = [
+    { id: 'old', projectId: 'p', employeeId: 'e1', date: '2026-01-15', hours: 7.5, updatedAt: 'a' },
+    { id: 'week', projectId: 'p', employeeId: 'e1', date: '2026-10-12', hours: 7.5, updatedAt: 'a' },
+    { id: 'other', projectId: 'p', employeeId: 'e2', date: '2026-10-12', hours: 4, updatedAt: 'a' },
+  ];
+  const next = [];
+  const { removed } = diffTimeEntries(previous, next);
+  const window = { all: false, fromDate: '2026-10-06', toDate: '2026-10-13' };
+  assert.deepEqual(
+    filterRemovalsToLoadedWindow(previous, removed, window),
+    ['week', 'other'],
+  );
+  assert.deepEqual(
+    filterRemovalsToLoadedWindow(previous, removed, { ...window, employeeId: 'e1' }),
+    ['week'],
+  );
+  assert.deepEqual(filterRemovalsToLoadedWindow(previous, removed, null), []);
+  assert.deepEqual(
+    filterRemovalsToLoadedWindow(previous, removed, { all: true }),
+    ['old', 'week', 'other'],
+  );
 }
 
 console.log('timeEntryStorage.test.mjs: ok');

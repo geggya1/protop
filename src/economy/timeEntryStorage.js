@@ -348,4 +348,35 @@ export function diffTimeEntries(previous = [], next = []) {
   return { changed, removed };
 }
 
+/**
+ * Id-er som kan slettes i Firestore uten å ta med timer utenfor vinduet som er lastet.
+ * Uten vindu slettes ingenting. full historikk (`all`) kan slette det som mangler i neste liste.
+ * Et delvis vindu sletter bare rader som faktisk ligger i det vinduet.
+ */
+export function filterRemovalsToLoadedWindow(previous = [], removedIds = [], window = null) {
+  const removed = (Array.isArray(removedIds) ? removedIds : []).map((id) => text(id)).filter(Boolean);
+  if (!window || !removed.length) return [];
+  if (window.all === true) return removed;
+  const fromDate = text(window.fromDate);
+  const toDate = text(window.toDate);
+  const employeeId = text(window.employeeId);
+  if (!fromDate && !toDate && !employeeId) return [];
+  const byId = new Map(
+    (Array.isArray(previous) ? previous : [])
+      .map((row) => normalizeTimeEntryRow(row))
+      .filter(Boolean)
+      .map((row) => [row.id, row]),
+  );
+  return removed.filter((id) => {
+    const row = byId.get(id);
+    if (!row) return false;
+    if (employeeId && text(row.employeeId) !== employeeId) return false;
+    const date = text(row.date);
+    if (!date) return false;
+    if (fromDate && date < fromDate) return false;
+    if (toDate && date > toDate) return false;
+    return true;
+  });
+}
+
 export { mergeEntryLists };

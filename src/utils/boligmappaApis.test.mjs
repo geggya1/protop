@@ -7,6 +7,7 @@ import {
   normalizeKartverketEiendom,
   normalizeBrregEnhet,
   mergeBrregHits,
+  selectBrregHitForStoredOrg,
   buildSeeiendomUrl,
   buildOsmMapUrl,
   buildBrregUrl,
@@ -125,6 +126,17 @@ const under = normalizeBrregEnhet({
     poststed: 'SANDNES',
   },
 });
+const hovedHit = { ...enhet, kind: 'enhet', organisasjonsnummer: '916538804', navn: 'CONSULT1 AS' };
+const underHit = { ...under, organisasjonsnummer: '916570783', navn: 'CONSULT1 AS' };
+assert.equal(
+  selectBrregHitForStoredOrg([underHit, hovedHit], '916538804').organisasjonsnummer,
+  '916538804',
+);
+assert.equal(selectBrregHitForStoredOrg([underHit], '916538804'), null);
+assert.equal(
+  selectBrregHitForStoredOrg([underHit, hovedHit], '916570783').organisasjonsnummer,
+  '916570783',
+);
 assert.equal(under.kind, 'underenhet');
 assert.match(under.addressLabel, /Svanholmen 7/);
 assert.deepEqual(

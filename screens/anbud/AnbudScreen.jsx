@@ -14,7 +14,7 @@ import CurrentReview from './CurrentReview';
 import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
 import CalloffInbox from './CalloffInbox';
-import { setNoticeDecision } from '../../src/anbud/model';
+import { bidListedOnDesk, setNoticeDecision } from '../../src/anbud/model';
 import AgreementTreatment from './AgreementTreatment';
 import AgreementPathSwitch, { AVROP_PATH } from './AgreementPathSwitch';
 import ContractFollowUp from './ContractFollowUp';
@@ -101,7 +101,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
     let live = true;
     loadAnbudState(company?.id).then((loaded) => {
       if (!live) return;
-      setBids(loaded?.bids || []);
+      setBids((loaded?.bids || []).filter((bid) => bidListedOnDesk(bid)));
       setAktuellCount(noticesAwaitingBid(loaded?.notices).length);
       setDesk(loaded);
     });
@@ -188,7 +188,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
-          onSnapshot={(next) => setBids(next?.bids || [])}
+          onSnapshot={(next) => setBids((next?.bids || []).filter((bid) => bidListedOnDesk(bid)))}
         />
       ) : null}
       {step === 'avtale' ? (

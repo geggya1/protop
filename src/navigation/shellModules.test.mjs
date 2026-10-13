@@ -108,7 +108,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'arbeid').children.map((i) => i.label),
-    ['Timeliste', 'Timerapport'],
+    ['Timeliste', 'Timerapport', 'Timesaldo', 'Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær', 'Min oversikt', 'Prosjektutlegg', 'Mine produktsalg', 'Prosjektledelse', 'Godkjenninger'],
   );
   assert.equal(companyItems.find((i) => i.id === 'arbeid').action.subView, 'timeliste');
   assert.equal(companyItems.find((i) => i.id === 'arbeid').children[1].action.tab, 'arbeid');

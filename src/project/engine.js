@@ -18,6 +18,7 @@ import {
 } from './projectFields.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
+import { isDateLocked, lockThroughDate } from '../arbeid/locks.js';
 import { collectHourFingerprints, hourFingerprint } from '../economy/hoursImport.js';
 import { parseDate } from '../economy/invoices.js';
 
@@ -60,6 +61,14 @@ export function emptyProjectState() {
     products: [],
     sales: [],
     absences: [],
+    /** Lås frem til dato, røde dager, saldo- og feriejusteringer. */
+    timesheetLocks: [],
+    balanceAdjustments: [],
+    absenceAdjustments: [],
+    redDays: [],
+    timesheetPins: [],
+    hiddenTimesheetProjects: [],
+    fullDayHours: 7.5,
     board: [],
     sja: [],
     incidents: [],
@@ -220,9 +229,13 @@ export function normalizeProjectState(raw) {
     syncedAt: text(src.syncedAt),
   };
   for (const key of Object.keys(base)) {
-    if (key === 'activeProjectId' || key === 'syncedAt') continue;
+    if (key === 'activeProjectId' || key === 'syncedAt' || key === 'fullDayHours') continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
+  const fullDay = Number(String(next.fullDayHours ?? '').replace(',', '.'));
+  next.fullDayHours = Number.isFinite(fullDay) && fullDay > 0 && fullDay <= 24
+    ? Math.round(fullDay * 100) / 100
+    : 7.5;
   next.deletedProjects = next.deletedProjects.map(normalizeDeletedProject).filter(Boolean);
   const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
   next.projects = next.projects.filter((row) => row?.id && !deletedIds.has(row.id));
@@ -312,6 +325,8 @@ export function normalizeTimeEntryRow(row) {
     billableHours,
     description: text(row.description),
     internalNote: text(row.internalNote),
+    clockIn: text(row.clockIn),
+    clockOut: text(row.clockOut),
     department: text(row.department),
     timeType: text(row.timeType) || 'ordinary',
     invoiceId: text(row.invoiceId) || null,
@@ -338,6 +353,7 @@ function normalizeAbsenceRow(row) {
     hours: roundHours(row.hours),
     type: text(row.type) || 'ferie',
     description: text(row.description),
+    status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
     createdAt: text(row.createdAt) || '',
     createdByUid: text(row.createdByUid),
   };
@@ -1421,6 +1437,9 @@ export function upsertTimeEntry(state, input) {
   if (existing?.status === 'låst' || existing?.invoiceId) {
     return fail(working, 'Føringen er låst/fakturert og kan ikke endres.');
   }
+  if (isDateLocked(lockThroughDate(working.timesheetLocks, employeeId), date)) {
+    return fail(working, 'Dagen er låst. Timene er klare for fakturering.');
+  }
 
   // Slett når timer settes til 0 uten beskrivelse
   if (existing && hours === 0 && !description) {
@@ -1449,6 +1468,8 @@ export function upsertTimeEntry(state, input) {
     billableHours,
     description,
     internalNote: text(input.internalNote !== undefined ? input.internalNote : existing?.internalNote),
+    clockIn: text(input.clockIn !== undefined ? input.clockIn : existing?.clockIn),
+    clockOut: text(input.clockOut !== undefined ? input.clockOut : existing?.clockOut),
     timeType: text(input.timeType) || existing?.timeType || 'ordinary',
     invoiceId: existing?.invoiceId || null,
     status: ['registrert', 'godkjent', 'låst'].includes(input.status)
@@ -1468,7 +1489,9 @@ export function upsertTimeEntry(state, input) {
 export function deleteTimeEntry(state, entryId) {
   const current = state.timeEntries.find((row) => row.id === entryId);
   if (!current) return fail(state, 'Føringen finnes ikke.');
-  if (current.status === 'låst') return fail(state, 'Føringen er låst og kan ikke slettes.');
+  if (current.status === 'låst' || isDateLocked(lockThroughDate(state.timesheetLocks, current.employeeId), current.date)) {
+    return fail(state, 'Føringen er låst og kan ikke slettes.');
+  }
   const next = {
     ...state,
     timeEntries: state.timeEntries.filter((row) => row.id !== entryId),
@@ -1497,18 +1520,27 @@ export function addAbsence(state, input) {
   if (!date) return fail(state, 'Velg dato.');
   const hours = roundHours(input.hours);
   if (!(hours > 0)) return fail(state, 'Fravær må ha timer.');
+  if (isDateLocked(lockThroughDate(state.timesheetLocks, employeeId), date)) {
+    return fail(state, 'Dagen er låst. Timene er klare for fakturering.');
+  }
+  const existing = text(input.id) ? state.absences.find((row) => row.id === input.id) : null;
+  if (existing?.status === 'låst') return fail(state, 'Fraværet er låst og kan ikke endres.');
   const row = normalizeAbsenceRow({
-    id: createId('fra'),
+    id: existing?.id || createId('fra'),
     employeeId,
-    employeeName: text(input.employeeName),
+    employeeName: text(input.employeeName) || existing?.employeeName,
     date,
     hours,
-    type: text(input.type) || 'ferie',
+    type: text(input.type) || existing?.type || 'ferie',
     description: text(input.description),
-    createdAt: stamp(),
-    createdByUid: text(input.createdByUid),
+    status: existing?.status || 'registrert',
+    createdAt: existing?.createdAt || stamp(),
+    createdByUid: text(input.createdByUid) || existing?.createdByUid,
   });
-  return ok({ ...state, absences: [row, ...state.absences] });
+  const absences = existing
+    ? state.absences.map((item) => (item.id === existing.id ? row : item))
+    : [row, ...state.absences];
+  return ok({ ...state, absences });
 }
 
 export function deleteAbsence(state, absenceId) {
@@ -1821,6 +1853,7 @@ export function mergeProjectStates(left, right) {
     && key !== 'syncedAt'
     && key !== 'procedures'
     && key !== 'deletedProjects'
+    && key !== 'fullDayHours'
   ));
   const next = emptyProjectState();
   for (const key of keys) {
@@ -1835,6 +1868,7 @@ export function mergeProjectStates(left, right) {
   const mergeRemap = new Map();
   next.projects = dedupeProjectsByNumber(next.projects, mergeRemap);
   Object.assign(next, healOrphanProjectRefs(next, mergeRemap));
+  next.fullDayHours = (bSync >= aSync ? b.fullDayHours : a.fullDayHours) || a.fullDayHours || b.fullDayHours || 7.5;
   next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
   next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
   next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)

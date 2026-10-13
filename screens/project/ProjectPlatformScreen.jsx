@@ -19,6 +19,7 @@ import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/pro
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import CompanyLanding from './CompanyLanding';
+import CompanyCalendarSettings from '../../components/arbeid/CompanyCalendarSettings';
 
 const PAGES = [
   ['oversikt', 'Forside'],
@@ -302,6 +303,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               requestShellTab?.('selskap');
             }}
           />
+          <CompanyCalendarSettings familyId={familyId} colors={colors} canEdit={canEdit} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
           <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
           <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>

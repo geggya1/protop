@@ -9,13 +9,7 @@ export const PROJECT_ROLES = [
   'Annet',
 ];
 
-export const ABSENCE_TYPES = [
-  { id: 'ferie', label: 'Ferie' },
-  { id: 'sykdom', label: 'Sykdom' },
-  { id: 'permisjon', label: 'Permisjon' },
-  { id: 'avspasering', label: 'Avspasering' },
-  { id: 'annet', label: 'Annet fravær' },
-];
+export { ABSENCE_TYPES, absenceTypeById, absencePickerTypes } from './absenceCatalog.js';
 
 export const TIME_ENTRY_STATUS = [
   { id: 'registrert', label: 'Registrert' },

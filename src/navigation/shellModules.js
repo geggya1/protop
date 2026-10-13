@@ -54,6 +54,15 @@ export function selskapMenuTitle(subView) {
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
   { id: 'timerapport', icon: 'list', label: 'Timerapport' },
+  { id: 'timesaldo', icon: 'hourglass', label: 'Timesaldo' },
+  { id: 'fravaer', icon: 'sunny', label: 'Fraværsoversikt' },
+  { id: 'fravaersrapport', icon: 'bar-chart', label: 'Fraværsrapport' },
+  { id: 'planlagt', icon: 'calendar-outline', label: 'Planlagt fravær' },
+  { id: 'oversikt', icon: 'grid', label: 'Min oversikt' },
+  { id: 'utlegg', icon: 'card', label: 'Prosjektutlegg' },
+  { id: 'salg', icon: 'cube', label: 'Mine produktsalg' },
+  { id: 'ledelse', icon: 'people', label: 'Prosjektledelse' },
+  { id: 'godkjenning', icon: 'checkmark-done', label: 'Godkjenninger' },
 ];
 
 export const ARBEID_SUBVIEW_IDS = ARBEID_MENU.map((item) => item.id);

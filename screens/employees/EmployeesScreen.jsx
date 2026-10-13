@@ -1243,10 +1243,11 @@ export default function EmployeesScreen() {
         styles.inner,
         (view === 'detail' || view === 'hours' || view === 'report' || view === 'settings') && styles.innerWide,
         (view === 'hours' || view === 'report') && styles.innerHours,
+        view === 'absence' && styles.innerAbsence,
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      {view !== 'list' && view !== 'detail' ? (
+      {view !== 'list' && view !== 'detail' && view !== 'absence' ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side'
             : view === 'import' ? 'Kontroller import'
@@ -1366,7 +1367,7 @@ export default function EmployeesScreen() {
         </>
       ) : null}
 
-      {view !== 'list' && view !== 'detail' ? (
+      {view !== 'list' && view !== 'detail' && view !== 'absence' ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
@@ -1396,8 +1397,12 @@ export default function EmployeesScreen() {
       ) : null}
 
       {view === 'absence' && selected ? (
-        <View nativeID="employee-absence-view">
-          <AbsenceOverviewScreen lockedEmployeeId={selected.id} />
+        <View nativeID="employee-absence-view" style={styles.absenceHost}>
+          <AbsenceOverviewScreen
+            lockedEmployeeId={selected.id}
+            embedded
+            onBack={() => openDetail(selected)}
+          />
         </View>
       ) : null}
 
@@ -1804,7 +1809,9 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
   innerHours: { maxWidth: 1400, flexGrow: 1 },
+  innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { minHeight: 720, width: '100%', alignSelf: 'stretch' },
+  absenceHost: { width: '100%', alignSelf: 'stretch' },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },

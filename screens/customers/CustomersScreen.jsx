@@ -15,6 +15,7 @@ import {
   identityFieldsForKind,
   customerImportReviewRows,
   customerInvoiceGaps,
+  customersFromProjectLinks,
   importCustomers,
   maskPersonnummer,
   nextCustomerNumber,
@@ -37,8 +38,9 @@ import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
+import { withCustomers } from '../../src/anbud/customerRegistry';
 import { formatNumberId } from '../../src/anbud/numbering';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState, loadCustomerList, peekAnbudState, saveAnbudState, saveCustomers } from '../../src/anbud/storage';
 import { loadProjectState } from '../../src/project/storage';
 import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
@@ -138,14 +140,74 @@ export default function CustomersScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [kindFilter, setKindFilter] = useState('');
+  const [loadProblem, setLoadProblem] = useState(false);
+  const [listReady, setListReady] = useState(false);
   const lookupRef = useRef('');
   const numberSave = useRef('');
 
   useEffect(() => {
-    loadAnbudState(familyId, { force: true }).then(setState);
+    if (!familyId) {
+      setState(null);
+      setProjects([]);
+      setLoadProblem(false);
+      setListReady(false);
+      return undefined;
+    }
+    let live = true;
+    setLoadProblem(false);
+    const peeked = peekAnbudState(familyId);
+    if (peeked?.customers?.length) {
+      setState(peeked);
+      setListReady(true);
+    } else {
+      setListReady(false);
+    }
+    loadCustomerList(familyId, {
+      onCache: (rows) => {
+        if (!live || !rows.length) return;
+        setState((current) => withCustomers(current, rows));
+        setListReady(true);
+        setLoadProblem(false);
+      },
+    }).then(async (picked) => {
+      if (!live) return;
+      if (picked.customers.length) {
+        setState((current) => withCustomers(current, picked.customers));
+        setListReady(true);
+        setLoadProblem(false);
+        return;
+      }
+      setListReady(true);
+      if (picked.status === 'error') {
+        setLoadProblem(true);
+        return;
+      }
+      const projectState = await loadProjectState(familyId).catch(() => ({ projects: [] }));
+      if (!live) return;
+      const recovered = customersFromProjectLinks(projectState?.projects || []);
+      if (recovered.length) {
+        setState((current) => withCustomers(current, recovered));
+        setNote('Kundelisten er hentet inn igjen fra prosjektene.');
+        saveCustomers(familyId, recovered).catch(() => {});
+        return;
+      }
+      const loaded = await loadAnbudState(familyId);
+      if (!live) return;
+      if (loaded?.customers?.length) {
+        setState(loaded);
+        setLoadProblem(false);
+      }
+    }).catch(() => {
+      if (!live) return;
+      setListReady(true);
+      setLoadProblem(true);
+    });
     loadProjectState(familyId).then((loaded) => {
-      setProjects(loaded?.projects || []);
-    }).catch(() => setProjects([]));
+      if (live) setProjects(loaded?.projects || []);
+    }).catch(() => {
+      if (live) setProjects([]);
+    });
+    return () => { live = false; };
   }, [familyId]);
 
   useEffect(() => {
@@ -214,22 +276,22 @@ export default function CustomersScreen() {
   const upcomingNumber = nextCustomerNumber(numbered);
 
   useEffect(() => {
-    if (!state || !familyId) return undefined;
+    if (!state || !familyId || loadProblem) return undefined;
     const next = withCustomerNumbers(state.customers || []);
     const before = (state.customers || []).map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
     const after = next.map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
     if (before === after || numberSave.current === after) return undefined;
     numberSave.current = after;
     let live = true;
-    saveAnbudState({ ...state, customers: next }, familyId).then((saved) => {
-      if (live) setState(saved);
+    saveCustomers(familyId, next).then((customers) => {
+      if (live) setState((current) => withCustomers(current, customers));
     }).catch(() => {
       numberSave.current = '';
     });
     return () => {
       live = false;
     };
-  }, [state, familyId]);
+  }, [state, familyId, loadProblem]);
   const selected = numbered.find((row) => row.id === selectedId) || null;
   const related = selected ? relatedContractsForCustomer(contracts, selected) : [];
   const relatedProjects = selected ? relatedProjectsForCustomer(projects, selected) : [];
@@ -521,14 +583,18 @@ export default function CustomersScreen() {
             ]}
           />
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
-            {` · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet`}
-            {projectSummary.unlinked
-              ? ` (${projectSummary.unlinked} uten kunde)`
-              : ''}
-            {` · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
+            {!listReady
+              ? 'Henter kunder…'
+              : loadProblem
+                ? `Kunderegisteret ble ikke hentet · ${projectSummary.total} aktive i systemet`
+                : `${visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`} · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet${projectSummary.unlinked ? ` (${projectSummary.unlinked} uten kunde)` : ''} · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
           </Text>
-          {!numbered.length ? (
+          {loadProblem ? (
+            <Text style={{ color: colors.danger || '#b42318' }}>
+              Kunne ikke hente kunderegisteret. Last siden på nytt.
+            </Text>
+          ) : null}
+          {listReady && !loadProblem && !numbered.length ? (
             <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
           ) : null}
           {numbered.length && !visible.length ? (

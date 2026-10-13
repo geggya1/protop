@@ -10,8 +10,8 @@ import {
     alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
-import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
-import { locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
+import { geocodeMissing } from '../../src/anbud/geocodePlace';
+import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
@@ -25,6 +25,7 @@ import NextStep from './NextStep';
 import TenderMap from './TenderMap';
 import RegionCoverage from './RegionCoverage';
 import FilterMenu from '../../components/FilterMenu';
+import InfoButton from '../../components/InfoButton';
 import {
   deadlineInfo,
   formatNoticeText,
@@ -740,20 +741,25 @@ export default function TenderAlert({
     : (viewCoverage.areas.map((row) => row.name).join(', ') || 'Ingen fylker valgt');
   const channelLabel = [...channels].map((id) => (id === 'ted' ? 'TED' : 'Doffin')).join(', ') || 'Ingen kanal';
 
+  const profileSummary = state.watch?.profile?.summary || '';
+  const summaryFacts = `${cpvCount} CPV · ${searchTermCount} søkeord · ${companyTrades.length} næringskoder · ${areaLabel} · ${channelLabel}`;
   const summary = (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.summaryHead}>
         <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
-        <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button" accessibilityLabel="Åpne innstillinger for CPV og søk">
-          <Ionicons name="settings-outline" size={20} color={colors.ink} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {phone && profileSummary ? (
+            <InfoButton title="Oppsummering">{profileSummary}</InfoButton>
+          ) : null}
+          <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button" accessibilityLabel="Åpne innstillinger for CPV og søk">
+            <Ionicons name="settings-outline" size={20} color={colors.ink} />
+          </TouchableOpacity>
+        </View>
       </View>
       <Text style={{ color: colors.ink }}>{company?.name || 'Bedriften'}</Text>
-      <Text style={{ color: colors.muted }}>
-        {cpvCount} CPV · {searchTermCount} søkeord · {companyTrades.length} næringskoder · {areaLabel} · {channelLabel}
-      </Text>
-      {state.watch?.profile?.summary ? (
-        <Text style={{ color: colors.ink }}>{state.watch.profile.summary}</Text>
+      <Text style={{ color: colors.muted }}>{summaryFacts}</Text>
+      {!phone && profileSummary ? (
+        <Text style={{ color: colors.ink }}>{profileSummary}</Text>
       ) : null}
       <Text style={{ color: colors.muted }}>
         {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`}
@@ -838,6 +844,7 @@ export default function TenderAlert({
         {phone ? null : regionBox}
         <View style={styles.row}>
           <FilterMenu
+            marked={phone && !!queryText.trim()}
             groups={[
               {
                 id: 'status',
@@ -871,7 +878,14 @@ export default function TenderAlert({
                 },
               ] : []),
             ]}
-          />
+          >
+            {phone ? (
+              <View style={{ gap: 10 }}>
+                {searchField}
+                {regionBox}
+              </View>
+            ) : null}
+          </FilterMenu>
           {!phone ? (
             <Chip
               label="Kilde og område"
@@ -917,8 +931,6 @@ export default function TenderAlert({
           />
         ) : null}
         {phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
-        {phone ? searchField : null}
-        {phone ? regionBox : null}
         {phone ? (
           <TenderHitCards
             rows={rows}

@@ -393,18 +393,25 @@ function dayLabel(value) {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
+function pinSource(row) {
+  if (row?.source === 'ted') return 'TED';
+  if (row?.source === 'protop') return 'ProTop';
+  if (row?.source === 'manuell') return 'Direkte';
+  return 'Doffin';
+}
+
 function pinBase(row) {
   return {
     id: row.id,
     title: String(row.title || 'Kunngjøring').slice(0, 120),
     buyer: String(row.buyer || '').slice(0, 80),
     deadline: dayLabel(row.deadline),
-    source: row.source === 'ted' ? 'TED' : 'Doffin',
+    source: pinSource(row),
     kind: mapPinKind(row.decision),
   };
 }
 
-export function mapPinsForNotices(notices, { expired, asShown = false } = {}) {
+export function mapPinsForNotices(notices, { expired, asShown = false, unknownAsLand = true } = {}) {
   const rows = asShown
     ? (Array.isArray(notices) ? notices : []).filter((row) => (row?.decision || 'ubestemt') !== 'tilbud')
     : mapCandidateNotices(notices, expired);
@@ -413,6 +420,7 @@ export function mapPinsForNotices(notices, { expired, asShown = false } = {}) {
   const lands = [];
   for (const row of rows) {
     const scope = noticeMapScope(row);
+    if (scope.coverage === 'land' && !unknownAsLand && !unboundPlace(row)) continue;
     if (scope.coverage === 'land') {
       lands.push({
         ...pinBase(row),

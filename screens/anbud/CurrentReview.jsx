@@ -25,9 +25,26 @@ import {
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
+import { useLayout } from '../../src/theme';
+import InfoButton from '../../components/InfoButton';
+import { applyGeoHits, reviewMapRows } from '../../src/anbud/workMap';
 import ProcessTrail from './ProcessTrail';
 import OppdragBrief from './OppdragBrief';
 import ReviewNotes from './ReviewNotes';
+import MapRail, { revealAnbudRow } from './MapRail';
+
+function SectionHeading({ title, hint, colors }) {
+  const { isPhone } = useLayout();
+  return (
+    <View style={{ gap: isPhone ? 0 : 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{title}</Text>
+        {isPhone ? <InfoButton title={title}>{hint}</InfoButton> : null}
+      </View>
+      {isPhone ? null : <Text style={{ color: colors.muted }}>{hint}</Text>}
+    </View>
+  );
+}
 
 function peopleOf(members) {
   return (members || [])
@@ -92,6 +109,8 @@ function DecisionCard({
   brief,
   briefLoading,
   wide,
+  selected,
+  anchorId,
 }) {
   const missing = assignmentGap({ departments, people, unitId, personId });
   const collectRef = React.useRef(() => notes || []);
@@ -149,7 +168,14 @@ function DecisionCard({
     </View>
   );
   return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View
+      dataSet={anchorId ? { anbudId: anchorId } : undefined}
+      style={[styles.card, {
+        borderColor: selected ? colors.brand : colors.line,
+        backgroundColor: selected ? colors.brandSoft : colors.card,
+        borderWidth: selected ? 2 : 1,
+      }]}
+    >
       <View style={wide ? styles.split : styles.stack}>
         {decision}
         <OppdragBrief brief={brief} colors={colors} loading={briefLoading} />
@@ -175,10 +201,12 @@ export default function CurrentReview({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [loadingIds, setLoadingIds] = useState(() => new Set());
+  const [focusId, setFocusId] = useState('');
   const fetchedIds = useRef(new Set());
   const stateRef = useRef(null);
   stateRef.current = state;
   const { width } = useWindowDimensions();
+  const { isPhone } = useLayout();
   const wide = width >= 1080;
 
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
@@ -199,6 +227,7 @@ export default function CurrentReview({
 
   const notices = noticesAwaitingBid(state?.notices);
   const direct = directQueueItems({ inquiries, inbox });
+  const mapRows = useMemo(() => reviewMapRows({ notices, direct }), [notices, direct]);
 
   useEffect(() => {
     onNoticeCount?.(notices.length);
@@ -251,6 +280,32 @@ export default function CurrentReview({
       }
     };
   }, [noticeKey, company?.id]);
+
+  function focusRow(id) {
+    setFocusId(id);
+    revealAnbudRow(id);
+  }
+
+  async function persistGeo(hits) {
+    const current = stateRef.current;
+    if (current) {
+      const applied = applyGeoHits(current.notices, hits);
+      if (applied.changed) {
+        const next = { ...current, notices: applied.rows };
+        stateRef.current = next;
+        setState(next);
+        saveAnbudState(next, company?.id);
+      }
+    }
+    for (const item of direct) {
+      const hit = (hits || []).find((row) => row.id === item.id);
+      if (!hit?.geo || item.geo) continue;
+      const sourceList = item.queueKind === 'protop' ? inbox : inquiries;
+      const patched = patchInquiry(sourceList, item.id, { geo: hit.geo });
+      if (!patched.ok) continue;
+      try { await saveList(item.queueKind, patched.list); } catch { /* kartet viser stedet likevel */ }
+    }
+  }
 
   function pick(id) {
     return choice[id] || { unitId: '', personId: '' };
@@ -432,20 +487,42 @@ export default function CurrentReview({
 
   return (
     <View style={{ gap: 14 }}>
-      <View style={[styles.lead, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Vurdering av aktuelle</Text>
-        <Text style={{ color: colors.muted, lineHeight: 20 }}>
-          Steg 1 merker konkurransen som aktuell eller uaktuell. Her tar dere stilling til om det skal gis tilbud, og hvem som skal arbeide med det. Gi tilbud flytter saken til 3. Tilbud. Merkingen er lagret, så en annen kan fortsette.
-        </Text>
-      </View>
+      <MapRail
+        rows={mapRows}
+        colors={colors}
+        selectedId={focusId}
+        legendLabel="Aktuelle"
+        kindLabel="Aktuell"
+        openLabel="Vis i vurderingen"
+        mapTitle="Kart over aktuelle"
+        onSelect={focusRow}
+        onPreview={focusRow}
+        onGeocode={persistGeo}
+      />
+      {isPhone ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Vurdering av aktuelle</Text>
+          <InfoButton title="Vurdering av aktuelle">
+            Steg 1 merker konkurransen som aktuell eller uaktuell. Her tar dere stilling til om det skal gis tilbud, og hvem som skal arbeide med det. Gi tilbud flytter saken til 3. Tilbud. Merkingen er lagret, så en annen kan fortsette.
+          </InfoButton>
+        </View>
+      ) : (
+        <View style={[styles.lead, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Vurdering av aktuelle</Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            Steg 1 merker konkurransen som aktuell eller uaktuell. Her tar dere stilling til om det skal gis tilbud, og hvem som skal arbeide med det. Gi tilbud flytter saken til 3. Tilbud. Merkingen er lagret, så en annen kan fortsette.
+          </Text>
+        </View>
+      )}
       {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
 
       <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Fra anbudsvarsling</Text>
-        <Text style={{ color: colors.muted }}>
-          Offentlige kunngjøringer som allerede er merket aktuelle.
-        </Text>
+        <SectionHeading
+          title="Fra anbudsvarsling"
+          hint="Offentlige kunngjøringer som allerede er merket aktuelle."
+          colors={colors}
+        />
         {notices.map((notice) => {
           const selected = pick(notice.id);
           const deadline = deadlineInfo(notice.deadline);
@@ -472,6 +549,8 @@ export default function CurrentReview({
               brief={noticeBrief(notice)}
               briefLoading={loadingIds.has(notice.id)}
               wide={wide}
+              selected={focusId === notice.id}
+              anchorId={notice.id}
             />
           );
         })}
@@ -486,10 +565,11 @@ export default function CurrentReview({
       </View>
 
       <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>Direkte registrert</Text>
-        <Text style={{ color: colors.muted }}>
-          Forespørsler som er registrert selv, eller mottatt direkte i ProTop.
-        </Text>
+        <SectionHeading
+          title="Direkte registrert"
+          hint="Forespørsler som er registrert selv, eller mottatt direkte i ProTop."
+          colors={colors}
+        />
         {direct.map((item) => {
           const selected = pick(item.id);
           return (
@@ -514,6 +594,8 @@ export default function CurrentReview({
               busy={busyId === item.id}
               brief={inquiryBrief(item)}
               wide={wide}
+              selected={focusId === item.id}
+              anchorId={item.id}
             />
           );
         })}

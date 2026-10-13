@@ -39,7 +39,7 @@ function OkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
   return (
     <View style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="hour-import-ok-table">
       <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-        {['Dato', 'Medarbeider', 'Kunde', 'Prosjekt', 'Aktivitet', 'Timer', 'Fakt.', 'Beskrivelse', ''].map((label) => (
+        {['Dato', 'Medarbeider', 'Kunde', 'Prosjekt', 'Aktivitet', 'Timer', 'Fakturerbare timer', 'Beskrivelse', ''].map((label) => (
           <Text key={label || 'act'} style={[styles.th, { color: colors.muted }]}>{label}</Text>
         ))}
       </View>

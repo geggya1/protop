@@ -35,8 +35,14 @@ import {
 
 const DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
+  { id: 'hours', label: 'Timer' },
+  { id: 'report', label: 'Timerapport' },
+  { id: 'files', label: 'Filer' },
+  { id: 'absence', label: 'Fraværsoversikt' },
+  { id: 'saldo', label: 'Timesaldo' },
+  { id: 'expenses', label: 'Prosjektutlegg' },
+  { id: 'settings', label: 'Innstillinger' },
   { id: 'cv', label: 'CV' },
-  { id: 'hours', label: 'Timeføring' },
 ];
 
 const MAIN_FACT_KEYS = [
@@ -459,6 +465,12 @@ export default function EmployeeDetailView({
   onBack,
   onCv,
   onHours,
+  onReport,
+  onFiles,
+  onAbsence,
+  onSaldo,
+  onExpenses,
+  onSettings,
   onOpenProject,
   projectState = null,
   onSelect,
@@ -618,6 +630,12 @@ export default function EmployeeDetailView({
     if (id === 'home') return;
     if (id === 'cv') onCv?.();
     if (id === 'hours') onHours?.();
+    if (id === 'report') onReport?.();
+    if (id === 'files') onFiles?.();
+    if (id === 'absence') onAbsence?.();
+    if (id === 'saldo') onSaldo?.();
+    if (id === 'expenses') onExpenses?.();
+    if (id === 'settings') onSettings?.();
   }
 
   function canEditOwner(owner) {

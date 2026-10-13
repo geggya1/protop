@@ -77,6 +77,11 @@ import {
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
+import EconomyHours from '../economy/EconomyHours';
+import TimesaldoScreen from '../arbeid/TimesaldoScreen';
+import { AbsenceOverviewScreen } from '../arbeid/AbsenceScreens';
+import { ProjectExpensesScreen } from '../arbeid/OpsScreens';
+import EmployeeWorkViews from './EmployeeWorkViews';
 import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
@@ -674,6 +679,22 @@ export default function EmployeesScreen() {
     setView('hours');
   }
 
+  function openWork(row, nextView) {
+    resetMessage();
+    clearSectionEdit();
+    setSelectedId(row.id);
+    setDraft(presentEmployee(row));
+    setView(nextView);
+  }
+
+  async function saveWork(employee) {
+    const saved = await saveEmployee(familyId, employee);
+    setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+    setSelectedId(saved.id);
+    setDraft(presentEmployee(saved));
+    noteSaved('Innstillingene er lagret.');
+  }
+
   async function importCvFile() {
     if (!draft || busy) return;
     setError('');
@@ -1201,8 +1222,8 @@ export default function EmployeesScreen() {
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={[
         styles.inner,
-        (view === 'detail' || view === 'hours') && styles.innerWide,
-        view === 'hours' && styles.innerHours,
+        (view === 'detail' || view === 'hours' || view === 'report' || view === 'settings') && styles.innerWide,
+        (view === 'hours' || view === 'report') && styles.innerHours,
       ]}
       keyboardShouldPersistTaps="handled"
     >
@@ -1213,7 +1234,9 @@ export default function EmployeesScreen() {
               : view === 'invite' ? 'Inviter brukere'
                 : view === 'cv' && selected ? `CV · ${displayName(selected)}`
                   : view === 'hours' && selected ? `Timeføring · ${displayName(selected)}`
-                    : (selected ? displayName(selected) : 'Ansatte')}
+                    : view === 'report' && selected ? `Timerapport · ${displayName(selected)}`
+                      : view === 'settings' && selected ? `Innstillinger · ${displayName(selected)}`
+                        : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
       ) : null}
       {view === 'list' ? (
@@ -1329,7 +1352,7 @@ export default function EmployeesScreen() {
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {(view === 'cv' || view === 'hours') && selected ? (
+          {(view === 'cv' || view === 'hours' || view === 'report' || view === 'files' || view === 'absence' || view === 'saldo' || view === 'expenses' || view === 'settings') && selected ? (
             <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Hovedside</Text>
             </TouchableOpacity>
@@ -1341,6 +1364,44 @@ export default function EmployeesScreen() {
         <View style={styles.hoursHost} nativeID="employee-hours-view">
           <ArbeidScreen lockedEmployeeId={selected.id} />
         </View>
+      ) : null}
+
+      {view === 'report' && selected ? (
+        <View style={styles.hoursHost} nativeID="employee-report-view">
+          <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} />
+        </View>
+      ) : null}
+
+      {view === 'files' && selected ? (
+        <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
+      ) : null}
+
+      {view === 'absence' && selected ? (
+        <View nativeID="employee-absence-view">
+          <AbsenceOverviewScreen lockedEmployeeId={selected.id} />
+        </View>
+      ) : null}
+
+      {view === 'saldo' && selected ? (
+        <View nativeID="employee-saldo-view">
+          <TimesaldoScreen lockedEmployeeId={selected.id} />
+        </View>
+      ) : null}
+
+      {view === 'expenses' && selected ? (
+        <View nativeID="employee-expenses-view">
+          <ProjectExpensesScreen lockedEmployeeId={selected.id} />
+        </View>
+      ) : null}
+
+      {view === 'settings' && selected ? (
+        <EmployeeWorkViews
+          mode="settings"
+          employee={draft || selected}
+          colors={colors}
+          canEdit={isAdmin || selected.personUid === uid}
+          onSave={saveWork}
+        />
       ) : null}
 
       {view === 'import' && importPlan ? (
@@ -1403,6 +1464,12 @@ export default function EmployeesScreen() {
           onBack={openList}
           onCv={() => openCv(detailEmployee)}
           onHours={() => openHours(detailEmployee)}
+          onReport={() => openWork(detailEmployee, 'report')}
+          onFiles={() => openWork(detailEmployee, 'files')}
+          onAbsence={() => openWork(detailEmployee, 'absence')}
+          onSaldo={() => openWork(detailEmployee, 'saldo')}
+          onExpenses={() => openWork(detailEmployee, 'expenses')}
+          onSettings={() => openWork(detailEmployee, 'settings')}
           projectState={projectState}
           onOpenProject={(project) => {
             if (!project?.id) return;

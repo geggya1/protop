@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,6 +17,8 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
 import HourPhoneRow from '../../components/arbeid/HourPhoneRow';
+import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
+import { toDateKey } from '../../src/arbeid/calendar.js';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
 import { loadAnbudState } from '../../src/anbud/storage';
@@ -91,6 +94,8 @@ export default function EconomyHours({
   familyId,
   customers: customersProp = [],
   projects: projectsProp = [],
+  lockedEmployeeId = '',
+  hideBillable = false,
 }) {
   const colors = useColors();
   const { familyId: appFamilyId } = useApp();
@@ -107,7 +112,9 @@ export default function EconomyHours({
   /** Mobil: listekort vs tabell. */
   const [displayMode, setDisplayMode] = useState('list');
   const [query, setQuery] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState('');
+  const [employeeFilter, setEmployeeFilter] = useState(lockedEmployeeId || '');
+  const [empPickerOpen, setEmpPickerOpen] = useState(false);
+  const [empQuery, setEmpQuery] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState('');
@@ -249,9 +256,9 @@ export default function EconomyHours({
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
     const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_HOUR_COLUMNS);
-    const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key));
-    return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key));
-  }, [visibleColumns]);
+    const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key) && !(hideBillable && column.key === 'billableHours'));
+    return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key) && !(hideBillable && column.key === 'billableHours'));
+  }, [visibleColumns, hideBillable]);
   const tableMin = columns.reduce((sum, column) => sum + (column.minWidth || column.width || 80), 0) || TABLE_MIN_FALLBACK;
   const groupedList = useMemo(() => {
     if (groupBy === 'none') return pageRows.map((row) => ({ type: 'row', id: row.id, row }));
@@ -281,13 +288,18 @@ export default function EconomyHours({
   }, [query, employeeFilter, customerFilter, projectFilter, activityFilter, period, fromDate, toDate, billableFilter, sort, entries.length]);
 
   useEffect(() => {
+    if (lockedEmployeeId) setEmployeeFilter(lockedEmployeeId);
+  }, [lockedEmployeeId]);
+
+  useEffect(() => {
+    if (lockedEmployeeId) return;
     if (!employeeFilter) return;
     if (!employeeOptions.some((row) => row.id === employeeFilter)) setEmployeeFilter('');
-  }, [employeeFilter, employeeOptions]);
+  }, [employeeFilter, employeeOptions, lockedEmployeeId]);
 
   function resetOrganize() {
     setQuery('');
-    setEmployeeFilter('');
+    setEmployeeFilter(lockedEmployeeId || '');
     setCustomerFilter('');
     setProjectFilter('');
     setActivityFilter('');
@@ -717,6 +729,56 @@ export default function EconomyHours({
     </View>
   );
 
+  const pickedEmployee = employees.find((row) => row.id === (lockedEmployeeId || employeeFilter));
+  const employeeChoices = employees.filter((row) => {
+    const q = empQuery.trim().toLowerCase();
+    if (!q) return true;
+    return displayName(row).toLowerCase().includes(q);
+  });
+  const employeeHeading = (
+    <>
+      <TouchableOpacity
+        onPress={() => { if (!lockedEmployeeId) setEmpPickerOpen(true); }}
+        disabled={!!lockedEmployeeId}
+        nativeID="economy-employee-name"
+        accessibilityRole="button"
+        accessibilityLabel={pickedEmployee ? displayName(pickedEmployee) : 'Velg medarbeider'}
+      >
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>
+          {pickedEmployee ? displayName(pickedEmployee) : 'Alle medarbeidere'}
+        </Text>
+      </TouchableOpacity>
+      <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
+        <Pressable style={styles.pickerBg} onPress={() => setEmpPickerOpen(false)}>
+          <Pressable style={[styles.pickerSheet, { backgroundColor: colors.card, borderColor: colors.line }]} onPress={() => {}}>
+            <TextInput
+              value={empQuery}
+              onChangeText={setEmpQuery}
+              placeholder="Søk medarbeider"
+              placeholderTextColor={colors.placeholder}
+              nativeID="economy-employee-picker-search"
+              style={[styles.pickerInput, { color: colors.ink, borderColor: colors.line }]}
+            />
+            <ScrollView style={{ maxHeight: 280 }}>
+              <TouchableOpacity onPress={() => { setEmployeeFilter(''); setEmpPickerOpen(false); }} style={styles.pickerRow}>
+                <Text style={{ color: colors.ink }}>Alle medarbeidere</Text>
+              </TouchableOpacity>
+              {employeeChoices.map((row) => (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => { setEmployeeFilter(row.id); setEmpPickerOpen(false); }}
+                  style={styles.pickerRow}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: row.id === employeeFilter ? '700' : '400' }}>{displayName(row)}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+
   if (isPhone && view === 'list') {
     return (
       <>
@@ -730,6 +792,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
               <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
+              {employeeHeading}
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {!ready || hoursLoading
                   ? 'Laster timer…'
@@ -767,10 +830,19 @@ export default function EconomyHours({
 
           <View style={styles.summaryRow}>
             <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
-            <Text style={{ color: colors.muted }}>Fakt. {formatHours(totals.billable)}</Text>
+            {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakt. {formatHours(totals.billable)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
 
+          {hideBillable ? (
+            <TimesheetDayView
+              colors={colors}
+              dateKey={toDateKey(new Date())}
+              totalHours={totals.hours}
+              rows={[]}
+              emptyText="Føringene for perioden står under."
+            />
+          ) : null}
           {displayMode === 'table' ? table : phoneList}
         </ScrollView>
         {filterModal}
@@ -787,6 +859,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
               <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
+              {employeeHeading}
               <Text style={{ color: colors.muted }}>
                 {!ready || hoursLoading
                   ? 'Laster timer…'
@@ -822,7 +895,7 @@ export default function EconomyHours({
 
           <View style={styles.summaryRow}>
             <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
-            <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>
+            {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
 
@@ -906,6 +979,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.45)',
     justifyContent: 'flex-end',
   },
+  pickerBg: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  pickerSheet: { borderWidth: 1, borderRadius: 12, padding: 12, maxWidth: 420, width: '100%', alignSelf: 'center' },
+  pickerInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  pickerRow: { paddingVertical: 10 },
   filterSheet: {
     maxHeight: '88%',
     zIndex: 2,

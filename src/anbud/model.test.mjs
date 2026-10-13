@@ -219,6 +219,39 @@ assert.equal(fat.watch.companyName, 'CONSULT1 AS');
 assert.equal(fat.watch.profile.summary, keptSummary);
 assert.equal(fat.agreementCases[0].title, 'Rammeavtale');
 
+const checkedTail = [
+  ...Array.from({ length: 25 }, (_, index) => ({
+    id: `ny-${index}`,
+    title: `Ny ${index}`,
+    buyer: 'Kommune',
+    publishedAt: '2026-10-12',
+    decision: 'ubestemt',
+    description: 'N'.repeat(3000),
+  })),
+  ...Array.from({ length: 12 }, (_, index) => ({
+    id: `aktuell-${index}`,
+    title: `Aktuell ${index}`,
+    buyer: 'Oppdragsgiver',
+    publishedAt: '2026-01-02',
+    decision: 'aktuell',
+    description: 'A'.repeat(3000),
+    dossier: { description: 'B'.repeat(4000) },
+  })),
+];
+const shortRefresh = mergeTenderNotices({
+  notices: checkedTail,
+  syncedAt: '2026-10-01T00:00:00.000Z',
+  watch: { companyName: 'CONSULT1 AS', savedAt: '2026-10-12T07:47:00.000Z' },
+}, [
+  { id: 'bare-ett', heading: 'Ett nytt treff', status: 'ACTIVE', publicationDate: '2026-10-13' },
+], '2026-10-13T12:00:00.000Z').state;
+assert.equal(shortRefresh.notices.filter((row) => row.decision === 'aktuell').length, 12);
+const savedShort = fitAnbudState(shortRefresh, 12_000);
+assert.equal(savedShort.notices.filter((row) => row.decision === 'aktuell').length, 12);
+for (let index = 0; index < 12; index += 1) {
+  assert.equal(savedShort.notices.find((row) => row.id === `aktuell-${index}`).decision, 'aktuell');
+}
+
 const withWords = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',
   cpvCodes: ['45000000'],

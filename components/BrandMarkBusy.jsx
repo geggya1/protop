@@ -8,24 +8,24 @@ const BASE_W = 422;
 const BASE_H = 447;
 
 /**
- * Segmented ProTop mark parts cropped from the approved PNG.
- * Positions are in source-pixel space (422×447).
+ * Natural connected components from the approved PNG (no artificial cuts).
+ * Cubes stay separate; each pillar/group is one continuous piece so tops
+ * are not torn off the body during the bubble wave.
  */
 const PARTS = [
-  { key: 'c0', kind: 'cube', x: 18, y: 276, w: 29, h: 26, src: require('../assets/brand-busy/00-cube.png') },
+  { key: 'c0', kind: 'cube', x: 22, y: 278, w: 25, h: 22, src: require('../assets/brand-busy/00-cube.png') },
   { key: 'c1', kind: 'cube', x: 58, y: 236, w: 39, h: 37, src: require('../assets/brand-busy/01-cube.png') },
-  { key: 'c2', kind: 'cube', x: 59, y: 320, w: 39, h: 38, src: require('../assets/brand-busy/02-cube.png') },
-  { key: 'c3', kind: 'cube', x: 101, y: 168, w: 39, h: 37, src: require('../assets/brand-busy/03-cube.png') },
-  { key: 'c4', kind: 'cube', x: 101, y: 272, w: 45, h: 43, src: require('../assets/brand-busy/04-cube.png') },
-  { key: 'c5', kind: 'cube', x: 136, y: 211, w: 50, h: 47, src: require('../assets/brand-busy/05-cube.png') },
-  { key: 'p0', kind: 'pillar', x: 152, y: 236, w: 65, h: 143, src: require('../assets/brand-busy/06-pillar.png') },
-  { key: 'p1', kind: 'pillar', x: 186, y: 92, w: 84, h: 308, src: require('../assets/brand-busy/07-pillar.png') },
-  { key: 'p2', kind: 'pillar', x: 231, y: 48, w: 89, h: 362, src: require('../assets/brand-busy/08-pillar.png') },
-  { key: 'p3', kind: 'pillar', x: 276, y: 19, w: 128, h: 341, src: require('../assets/brand-busy/09-pillar.png') },
+  { key: 'c2', kind: 'cube', x: 59, y: 320, w: 39, h: 36, src: require('../assets/brand-busy/02-cube.png') },
+  { key: 'c3', kind: 'cube', x: 101, y: 168, w: 36, h: 35, src: require('../assets/brand-busy/03-cube.png') },
+  { key: 'c4', kind: 'cube', x: 101, y: 274, w: 41, h: 41, src: require('../assets/brand-busy/04-cube.png') },
+  { key: 'c5', kind: 'cube', x: 136, y: 211, w: 51, h: 43, src: require('../assets/brand-busy/05-cube.png') },
+  { key: 'p0', kind: 'pillar', x: 152, y: 243, w: 65, h: 136, src: require('../assets/brand-busy/06-pillar.png') },
+  { key: 'p1', kind: 'pillar', x: 188, y: 94, w: 136, h: 326, src: require('../assets/brand-busy/07-pillar.png') },
+  { key: 'p2', kind: 'pillar', x: 275, y: 19, w: 129, h: 338, src: require('../assets/brand-busy/08-pillar.png') },
 ];
 
 /** Bubble order: small cubes flow into the rising pillars. */
-const WAVE = ['c0', 'c2', 'c1', 'c4', 'c5', 'c3', 'p0', 'p1', 'p2', 'p3'];
+const WAVE = ['c0', 'c2', 'c1', 'c4', 'c5', 'c3', 'p0', 'p1', 'p2'];
 
 /**
  * Approved ProTop mark, rebuilt as separate PNG pieces so cubes/pillars can

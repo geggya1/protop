@@ -5,6 +5,8 @@ import {
   buildParentDashboardApps,
   buildChildDashboardApps,
   companyNavItems,
+  drawerHasSubmenuToggle,
+  drawerSubmenuOpen,
   isNavItemActive,
   normalizeShellSelection,
 } from './shellModules.js';
@@ -365,10 +367,27 @@ assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
 const moreHubSrc = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
 assert.match(moreHubSrc, /item\.forceOpen && item\.children/);
-assert.match(
-  readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8'),
-  /item\.forceOpen/,
-);
+const drawerSrc = readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8');
+assert.match(drawerSrc, /item\.forceOpen/);
+assert.match(drawerSrc, /drawerSubmenuOpen/);
+assert.match(drawerSrc, /module-nav-expand-/);
+assert.match(drawerSrc, /onToggle=\{expandable/);
+{
+  const items = companyNavItems();
+  const selskap = items.find((item) => item.id === 'selskap');
+  const okonomi = items.find((item) => item.id === 'okonomi');
+  const anbud = items.find((item) => item.id === 'anbud');
+  assert.equal(drawerHasSubmenuToggle(selskap), true);
+  assert.equal(drawerHasSubmenuToggle(okonomi), true);
+  assert.equal(drawerHasSubmenuToggle(anbud), false);
+  assert.equal(drawerSubmenuOpen(selskap, 'home'), true);
+  assert.equal(drawerSubmenuOpen(okonomi, 'home'), false);
+  assert.equal(drawerSubmenuOpen(okonomi, 'okonomi'), true);
+  assert.equal(drawerSubmenuOpen(okonomi, 'home', { okonomi: true }), true);
+  assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', { okonomi: false }), false);
+  assert.equal(drawerSubmenuOpen(selskap, 'selskap', { selskap: false }), false);
+  assert.equal(drawerSubmenuOpen(anbud, 'anbud'), false);
+}
 assert.match(
   readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8'),
   /Kundesummer/,

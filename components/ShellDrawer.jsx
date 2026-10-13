@@ -11,7 +11,7 @@ import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
-import { buildShellModules, isNavItemActive } from '../src/navigation/shellModules';
+import { buildShellModules, drawerHasSubmenuToggle, drawerSubmenuOpen, isNavItemActive } from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
 import { useAiPlanImport } from '../src/hooks/useAiPlanImport';
@@ -27,7 +27,9 @@ import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 const DRAWER_WIDTH = 268;
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
-function DrawerRow({ item, active, onPress, badgeCount = 0, nested = false }) {
+function DrawerRow({
+  item, active, onPress, badgeCount = 0, nested = false, expanded = false, onToggle,
+}) {
   const colors = useColors();
   const highlight = !!item.highlight;
   const base = item.icon || 'ellipse';
@@ -35,46 +37,72 @@ function DrawerRow({ item, active, onPress, badgeCount = 0, nested = false }) {
   const iconName = highlight || active || alreadyOutline
     ? (alreadyOutline && (highlight || active) ? base.replace(/-outline$/, '') : base)
     : `${base}-outline`;
+  const expandable = typeof onToggle === 'function';
   return (
-    <TouchableOpacity
-      onPress={onPress}
+    <View
       style={[
         styles.row,
         nested && styles.rowChild,
         active && styles.rowActive,
         highlight && styles.rowHighlight,
       ]}
-      accessibilityRole="button"
-      accessibilityLabel={item.label}
-      accessibilityState={{ selected: !!active }}
-      nativeID={`module-nav-${item.id}`}
-      id={`module-nav-${item.id}`}
     >
-      <View style={[
-        styles.iconWrap,
-        active && styles.iconWrapActive,
-        highlight && styles.iconWrapHighlight,
-      ]}
+      <TouchableOpacity
+        onPress={onPress}
+        style={styles.rowMain}
+        accessibilityRole="button"
+        accessibilityLabel={item.label}
+        accessibilityState={{ selected: !!active }}
+        nativeID={`module-nav-${item.id}`}
+        id={`module-nav-${item.id}`}
       >
-        <IconBadge count={badgeCount} size={14} offset={-6} borderColor={highlight ? colors.brand : '#fff'}>
+        <View style={[
+          styles.iconWrap,
+          active && styles.iconWrapActive,
+          highlight && styles.iconWrapHighlight,
+        ]}
+        >
+          <IconBadge count={badgeCount} size={14} offset={-6} borderColor={highlight ? colors.brand : '#fff'}>
+            <Ionicons
+              name={iconName}
+              size={16}
+              color={highlight ? '#fff' : active ? colors.brand : colors.ink}
+            />
+          </IconBadge>
+        </View>
+        <Text
+          style={[
+            styles.rowLabel,
+            active && styles.rowLabelActive,
+            highlight && styles.rowLabelHighlight,
+          ]}
+          numberOfLines={1}
+        >
+          {item.label}
+        </Text>
+      </TouchableOpacity>
+      {expandable ? (
+        <TouchableOpacity
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            onToggle();
+          }}
+          style={[styles.expandBtn, highlight && styles.expandBtnHighlight]}
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? 'Skjul' : 'Vis'} undermeny, ${item.label}`}
+          accessibilityState={{ expanded: !!expanded }}
+          nativeID={`module-nav-expand-${item.id}`}
+          id={`module-nav-expand-${item.id}`}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+        >
           <Ionicons
-            name={iconName}
-            size={16}
+            name={expanded ? 'chevron-down' : 'chevron-forward'}
+            size={18}
             color={highlight ? '#fff' : active ? colors.brand : colors.ink}
           />
-        </IconBadge>
-      </View>
-      <Text
-        style={[
-          styles.rowLabel,
-          active && styles.rowLabelActive,
-          highlight && styles.rowLabelHighlight,
-        ]}
-        numberOfLines={1}
-      >
-        {item.label}
-      </Text>
-    </TouchableOpacity>
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
@@ -111,6 +139,7 @@ export default function ShellDrawer({
   const asParent = isParent && !isActingAsChild;
   const companyAccess = useCompanyAccess();
   const [open, setOpen] = useState(DEFAULT_OPEN);
+  const [submenuOpen, setSubmenuOpen] = useState({});
 
   const activeKids = useMemo(
     () => (kids || []).filter((k) => k.active !== false),
@@ -398,7 +427,13 @@ export default function ShellDrawer({
                     )}
                     {expanded ? section.items.map((item) => {
                       const kids = item.children || [];
-                      const showKids = kids.length > 0 && (item.action?.tab === activeTab || item.forceOpen);
+                      const expandable = drawerHasSubmenuToggle(item);
+                      const submenuExpanded = drawerSubmenuOpen(item, activeTab, submenuOpen);
+                      const showKids = kids.length > 0 && (
+                        expandable
+                          ? submenuExpanded
+                          : (item.action?.tab === activeTab || item.forceOpen)
+                      );
                       const parentOn = isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab);
                       return (
                       <View
@@ -413,6 +448,11 @@ export default function ShellDrawer({
                           item={item}
                           active={parentOn}
                           badgeCount={countForItem(unreadByModule, item)}
+                          expanded={submenuExpanded}
+                          onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                            ...prev,
+                            [item.id]: !drawerSubmenuOpen(item, activeTab, prev),
+                          })) : undefined}
                           onPress={() => runAction(item.action)}
                         />
                         {showKids ? kids.map((child) => (
@@ -554,11 +594,31 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 7, paddingHorizontal: 8,
+    flexDirection: 'row', alignItems: 'center',
     borderRadius: 8, marginBottom: 1,
   },
-  rowChild: { paddingLeft: 22 },
+  rowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 7,
+    paddingLeft: 8,
+    paddingRight: 8,
+    minHeight: 40,
+  },
+  expandBtn: {
+    width: 36,
+    height: 36,
+    marginRight: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+    flexShrink: 0,
+  },
+  expandBtnHighlight: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  rowChild: { paddingLeft: 14 },
   rowActive: { backgroundColor: colors.brandSoft },
   rowHighlight: { backgroundColor: colors.brand },
   iconWrap: {

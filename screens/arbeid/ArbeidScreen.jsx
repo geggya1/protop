@@ -28,6 +28,7 @@ import {
   projectsForEmployee,
   toggleMemberStar,
   upsertTimeEntry,
+  deleteAbsence,
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
@@ -39,7 +40,6 @@ import {
 } from '../../src/project/storage';
 import { removeTimeEntry } from '../../src/economy/timeEntryStorage.js';
 import {
-  ABSENCE_TYPES,
   canManageTimesheets,
   employeeDisplayName,
   filterEmployeesForPicker,
@@ -51,7 +51,6 @@ import {
   timesheetIdentity,
 } from '../../src/arbeid/timesheetIdentity.js';
 import {
-  agreedHoursForDay,
   buildMonthGrid,
   monthDateRange,
   monthLabel,
@@ -68,10 +67,23 @@ import {
 } from '../../src/arbeid/reports.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
+import MonthJump from '../../components/arbeid/MonthJump';
+import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
+import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
+import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
+import { agreedHoursForDate, redDayMap } from '../../src/arbeid/holidays.js';
+import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
+import { payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { isDateLocked } from '../../src/arbeid/locks.js';
+import {
+  hideTimesheetProject,
+  lockThroughDate,
+  setAbsencePins,
+  toggleTimesheetLock,
+} from '../../src/arbeid/timesheetState.js';
+import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
 
-const CELL_W = 44;
-const LABEL_W = 280;
-const TOTAL_W = 64;
 const DAILY = 7.5;
 
 function dayLabel(day) {
@@ -118,7 +130,10 @@ export default function ArbeidScreen({
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
   const [empPickerQuery, setEmpPickerQuery] = useState('');
   const pickerSearchRef = useRef(null);
-  const [absenceForm, setAbsenceForm] = useState({ type: 'ferie', hours: '7:30', description: '', date: '' });
+  const [absenceForm, setAbsenceForm] = useState({ id: '', type: 'ferie', hours: '7:30', description: '', date: '' });
+  const [monthJump, setMonthJump] = useState(false);
+  const [typePicker, setTypePicker] = useState(false);
+  const [sideForm, setSideForm] = useState(null);
 
   // Prosjekt/medlemskap først — ikke vent på hele timehistorikken.
   useEffect(() => {
@@ -286,29 +301,56 @@ export default function ArbeidScreen({
       .filter((project) => !mine.has(project.id));
   }, [state, employeeId, myProjects, assignedOnly, monthFromDate, monthToDate]);
 
-  const entriesByCell = useMemo(() => {
+  const entriesForCell = useMemo(() => {
     const map = new Map();
     for (const row of state.timeEntries) {
       if (row.employeeId !== employeeId) continue;
       const key = entryKey(row.projectId, row.date);
-      const prev = map.get(key);
-      if (!prev) map.set(key, { ...row });
-      else {
-        map.set(key, {
-          ...prev,
-          hours: roundHours(parseHours(prev.hours) + parseHours(row.hours)),
-          ids: [...(prev.ids || [prev.id]), row.id],
-        });
-      }
+      const list = map.get(key) || [];
+      list.push(row);
+      map.set(key, list);
     }
     return map;
   }, [state.timeEntries, employeeId]);
 
+  const entriesByCell = useMemo(() => {
+    const map = new Map();
+    for (const [key, list] of entriesForCell) {
+      const hours = list.reduce((sum, row) => sum + parseHours(row.hours), 0);
+      map.set(key, { ...list[0], hours: roundHours(hours), ids: list.map((row) => row.id) });
+    }
+    return map;
+  }, [entriesForCell]);
+
+  const fullDayHours = Number(state.fullDayHours) > 0 ? Number(state.fullDayHours) : DAILY;
+  const timeSettings = timeSettingsOf(selectedEmployee);
+  const lockThrough = lockThroughDate(state.timesheetLocks, employeeId);
+  const markedDays = useMemo(() => {
+    const marks = redDayMap(state.redDays);
+    return days.map((day) => {
+      const mark = marks.get(day.key);
+      return {
+        ...day,
+        red: !!mark || day.weekend,
+        half: mark?.portion === 'half',
+        name: mark?.name || '',
+      };
+    });
+  }, [days, state.redDays]);
+
   const agreedByDay = useMemo(() => {
     const map = new Map();
-    for (const day of days) map.set(day.key, agreedHoursForDay(day.date, DAILY));
+    for (const day of markedDays) {
+      const schedule = scheduledHours(selectedEmployee, day.date, fullDayHours);
+      const agreed = agreedHoursForDate(day.date, {
+        fullDayHours,
+        redDays: state.redDays,
+        scheduleHours: schedule,
+      });
+      map.set(day.key, agreed.hours);
+    }
     return map;
-  }, [days]);
+  }, [markedDays, selectedEmployee, fullDayHours, state.redDays]);
 
   const workedByDay = useMemo(() => {
     const map = new Map();
@@ -325,6 +367,31 @@ export default function ArbeidScreen({
     }
     return map;
   }, [state.timeEntries, state.absences, employeeId, days]);
+
+  const hiddenIds = useMemo(() => new Set(
+    (state.hiddenTimesheetProjects || [])
+      .filter((row) => row.employeeId === employeeId)
+      .map((row) => row.projectId),
+  ), [state.hiddenTimesheetProjects, employeeId]);
+  const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
+  const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
+  const pinnedTypes = (state.timesheetPins || [])
+    .filter((row) => row.employeeId === employeeId)
+    .map((row) => row.typeId);
+
+  const payrollByDay = useMemo(() => {
+    const map = new Map();
+    for (const day of markedDays) {
+      map.set(day.key, payrollHoursOnDate({
+        entries: state.timeEntries,
+        absences: state.absences,
+        employeeId,
+        date: day.key,
+        flexCountsAsPay: timeSettings.flexCountsAsPay,
+      }));
+    }
+    return map;
+  }, [markedDays, state.timeEntries, state.absences, employeeId, timeSettings.flexCountsAsPay]);
 
   const balanceCells = useMemo(() => {
     // Månedsbalanse ut fra lastet vindu (ikke hele historikken — den lastes ikke lenger).
@@ -376,87 +443,214 @@ export default function ArbeidScreen({
 
   function openCell(project, day) {
     const key = entryKey(project.id, day.key);
-    const existing = entriesByCell.get(key);
     const activities = state.activities.filter((row) => row.projectId === project.id);
     setEditor({
       project,
       day,
-      entry: existing,
+      entries: entriesForCell.get(key) || [],
       activities,
+      locked: isDateLocked(lockThrough, day.key),
     });
   }
 
-  function saveEntry(payload) {
-    if (!editor || !employeeId) return;
-    const result = upsertTimeEntry(state, {
-      id: payload.id || editor.entry?.id,
-      projectId: editor.project.id,
-      employeeId,
-      employeeName: selectedName,
-      date: editor.day.key,
-      hours: payload.hours,
-      description: payload.description,
-      internalNote: payload.internalNote,
-      activityId: payload.activityId,
-      activityName: payload.activityName,
-      timeType: payload.timeType || 'ordinary',
-      createdByUid: uid,
-    });
-    if (!result.ok) {
-      setError(result.error);
-      return;
+  function applyResult(result, success) {
+    if (!result?.ok) {
+      setError(result?.error || 'Kunne ikke lagre.');
+      return false;
     }
     setState(result.state);
+    setError('');
+    if (success) {
+      setNote(success);
+      showSaveToast(success);
+    }
+    return true;
+  }
+
+  async function purgeCloudEntries(ids) {
+    for (const id of ids) {
+      if (!workspaceId || !id) continue;
+      try {
+        await removeTimeEntry(workspaceId, id);
+      } catch (cause) {
+        setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function saveEntry(blocks) {
+    if (!editor || !employeeId) return;
+    const list = Array.isArray(blocks) ? blocks : [blocks];
+    const previous = entriesForCell.get(entryKey(editor.project.id, editor.day.key)) || [];
+    const kept = new Set(list.filter((row) => row?.id && parseHours(row.hours) > 0).map((row) => row.id));
+    let next = state;
+    for (const payload of list) {
+      const hours = parseHours(payload.hours);
+      if (!(hours > 0)) continue;
+      const result = upsertTimeEntry(next, {
+        id: payload.id,
+        projectId: editor.project.id,
+        employeeId,
+        employeeName: selectedName,
+        date: editor.day.key,
+        hours,
+        description: payload.description,
+        internalNote: payload.internalNote,
+        activityId: payload.activityId,
+        activityName: payload.activityName,
+        timeType: payload.timeType || 'ordinary',
+        clockIn: payload.clockIn,
+        clockOut: payload.clockOut,
+        createdByUid: uid,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      next = result.state;
+    }
+    const removed = [];
+    for (const row of previous) {
+      if (kept.has(row.id)) continue;
+      const result = deleteTimeEntry(next, row.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      next = result.state;
+      removed.push(row.id);
+    }
+    setState(next);
     setEditor(null);
     setNote('Timer lagret.');
     showSaveToast('Timer lagret.');
     setError('');
-    const hours = Number(payload.hours);
+    if (!(await purgeCloudEntries(removed))) return;
+    const hours = list.reduce((sum, row) => sum + parseHours(row.hours), 0);
     recordUsage({
       type: 'hour',
       companyId: workspaceId,
       employeeId,
-      summary: [
-        Number.isFinite(hours) ? `${hours} t` : 'Timer',
-        editor.day?.key,
-        editor.project?.name,
-      ].filter(Boolean).join(' · '),
+      summary: [`${roundHours(hours)} t`, editor.day?.key, editor.project?.name].filter(Boolean).join(' · '),
       detail: {
-        hours: Number.isFinite(hours) ? hours : '',
+        hours: roundHours(hours),
         date: editor.day?.key || '',
         projectName: editor.project?.name || '',
-        entryId: payload.id || editor.entry?.id || '',
       },
     }).catch(() => {});
   }
 
-  async function removeEntry(id) {
-    const result = deleteTimeEntry(state, id);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+  async function removeEntry(ids) {
+    const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+    let next = state;
+    for (const id of list) {
+      const result = deleteTimeEntry(next, id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      next = result.state;
     }
-    setState(result.state);
+    setState(next);
     setEditor(null);
     setNote('Føring slettet.');
     showSaveToast('Føring slettet.');
     setError('');
-    // Slett direkte i timeEntries-subcollection — saveProjectState-diff alene
-    // feilet tidligere når putProjectState kjørte først i useEffect.
-    try {
-      if (workspaceId && id) await removeTimeEntry(workspaceId, id);
-    } catch (cause) {
-      setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
-      setNote('');
-      return;
-    }
+    if (!(await purgeCloudEntries(list))) return;
     recordUsage({
       type: 'hour_deleted',
       companyId: workspaceId,
       employeeId,
       summary: 'Slettet timeføring',
-      detail: { entryId: id || '' },
+      detail: { entryId: list.join(',') },
     }).catch(() => {});
+  }
+
+  function moveEntries({ ids, date, projectId }) {
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) return;
+    let next = state;
+    for (const id of list) {
+      const row = next.timeEntries.find((item) => item.id === id);
+      if (!row) continue;
+      const result = upsertTimeEntry(next, {
+        ...row,
+        date: date || row.date,
+        projectId: projectId || row.projectId,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      next = result.state;
+    }
+    if (applyResult({ ok: true, state: next }, 'Føringen er flyttet.')) setEditor(null);
+  }
+
+  function toggleLock(dateKey) {
+    const result = toggleTimesheetLock(state, {
+      employeeId,
+      throughDate: dateKey,
+      lockedByUid: uid,
+    });
+    const through = result.ok ? lockThroughDate(result.state.timesheetLocks, employeeId) : '';
+    applyResult(result, through
+      ? `Timelisten er låst til ${through}. Klar for fakturering.`
+      : 'Timelisten er låst opp.');
+  }
+
+  function hideProject(projectId, hidden) {
+    applyResult(hideTimesheetProject(state, { employeeId, projectId, hidden }));
+  }
+
+  function savePins(typeIds) {
+    if (applyResult(setAbsencePins(state, { employeeId, typeIds }), 'Fraværskategorier oppdatert.')) {
+      setTypePicker(false);
+    }
+  }
+
+  function saveSide(payload) {
+    if (!sideForm) return;
+    const project = state.projects.find((row) => row.id === sideForm.projectId);
+    const base = {
+      date: sideForm.date,
+      employeeId,
+      employeeName: selectedName,
+      projectId: sideForm.projectId || '',
+      projectNumber: project?.number || '',
+      projectName: project?.name || '',
+      customerName: project?.client || '',
+    };
+    let result;
+    if (sideForm.kind === 'expense') {
+      result = upsertExpense(state, {
+        ...base,
+        description: payload.description,
+        category: payload.category,
+        amountInclVat: Number(String(payload.amount).replace(',', '.')),
+      });
+    } else if (sideForm.kind === 'sale') {
+      result = upsertSale(state, {
+        ...base,
+        name: payload.name || payload.description,
+        quantity: 1,
+        unitPrice: payload.unitPrice,
+      });
+    } else {
+      result = upsertTrip(state, {
+        ...base,
+        from: payload.from,
+        to: payload.to,
+        km: payload.km,
+        notes: payload.notes,
+        purpose: 'duty',
+      });
+    }
+    if (applyResult(result, sideForm.kind === 'expense' ? 'Utlegg lagret.' : (sideForm.kind === 'sale' ? 'Produktsalg lagret.' : 'Bilgodtgjørelse lagret.'))) {
+      setSideForm(null);
+    }
   }
 
   function joinProject(project) {
@@ -484,25 +678,48 @@ export default function ArbeidScreen({
     if (result.ok) setState(result.state);
   }
 
+  function openAbsenceCell(row, day) {
+    const existing = (state.absences || []).find((item) => (
+      item.employeeId === employeeId && item.date === day.key && (item.type || 'ferie') === row.id
+    ));
+    const agreed = agreedByDay.get(day.key) || fullDayHours;
+    setAbsenceForm({
+      id: existing?.id || '',
+      type: row.id,
+      hours: existing ? formatHours(existing.hours) : formatHours(agreed || fullDayHours),
+      description: existing?.description || '',
+      date: day.key,
+    });
+    setAbsenceOpen(true);
+  }
+
   function saveAbsence() {
     const date = absenceForm.date || selectedDay || todayKey;
+    const hours = parseHours(absenceForm.hours);
+    if (!(hours > 0) && absenceForm.id) {
+      const removed = deleteAbsence(state, absenceForm.id);
+      if (applyResult(removed, 'Fravær fjernet.')) setAbsenceOpen(false);
+      return;
+    }
     const result = addAbsence(state, {
+      id: absenceForm.id,
       employeeId,
       employeeName: selectedName,
       date,
-      hours: parseHours(absenceForm.hours),
+      hours,
       type: absenceForm.type,
       description: absenceForm.description,
       createdByUid: uid,
     });
-    if (!result.ok) {
-      setError(result.error);
+    if (applyResult(result, 'Fravær registrert.')) setAbsenceOpen(false);
+  }
+
+  function printSelection() {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.print) {
+      window.print();
       return;
     }
-    setState(result.state);
-    setAbsenceOpen(false);
-    setNote('Fravær registrert.');
-    showSaveToast('Fravær registrert.');
+    setNote('Utskrift er tilgjengelig i nettleseren.');
   }
 
   function monthNav(delta) {
@@ -510,8 +727,6 @@ export default function ArbeidScreen({
     setYear(next.year);
     setMonthIndex(next.monthIndex);
   }
-
-  const gridMinWidth = LABEL_W + days.length * CELL_W + TOTAL_W;
 
   if (!ready) {
     return (
@@ -598,10 +813,7 @@ export default function ArbeidScreen({
       </TouchableOpacity>
       )}
       <TouchableOpacity
-        onPress={() => {
-          setAbsenceForm({ type: 'ferie', hours: '7:30', description: '', date: activeKey || todayKey });
-          setAbsenceOpen(true);
-        }}
+        onPress={() => setTypePicker(true)}
         style={[styles.cta, { backgroundColor: '#0f766e' }, isPhone && styles.ctaPhone]}
         accessibilityRole="button"
       >
@@ -626,7 +838,7 @@ export default function ArbeidScreen({
   const identity = timesheetIdentity({ personal, compact: isPhone });
 
   return (
-    <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
+    <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.crumb, { color: colors.muted }]}>
@@ -673,12 +885,43 @@ export default function ArbeidScreen({
           <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
-          <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{monthLabel(year, monthIndex)}</Text>
+          <TouchableOpacity
+            onPress={() => setMonthJump(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Velg måned og år"
+            nativeID="timesheet-month-label"
+          >
+            <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{monthLabel(year, monthIndex)}</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
+          {isPhone ? null : (
+            <TouchableOpacity
+              onPress={printSelection}
+              accessibilityRole="button"
+              accessibilityLabel="Skriv ut utvalg"
+              nativeID="timesheet-print"
+              style={[styles.ctaGhost, { borderColor: colors.line, marginLeft: 8, flexDirection: 'row', gap: 6 }]}
+            >
+              <Ionicons name="print-outline" size={16} color={colors.ink} />
+              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+      <MonthJump
+        visible={monthJump}
+        year={year}
+        monthIndex={monthIndex}
+        colors={colors}
+        onYear={(delta) => setYear((current) => current + delta)}
+        onPick={(index) => {
+          setMonthIndex(index);
+          setMonthJump(false);
+        }}
+        onClose={() => setMonthJump(false)}
+      />
 
       {hoursLoading ? <Text style={{ color: colors.muted, marginBottom: 6 }}>Laster timer for måneden…</Text> : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
@@ -735,194 +978,92 @@ export default function ArbeidScreen({
           <TimesheetDayView
             colors={colors}
             dateKey={activeKey}
-            totalHours={workedByDay.get(activeKey) || 0}
-            locked={false}
+            totalHours={payrollByDay.get(activeKey) || workedByDay.get(activeKey) || 0}
+            locked={isDateLocked(lockThrough, activeKey)}
+            onToggleLock={() => toggleLock(activeKey)}
             onPrevDay={() => shiftSelected(-1)}
             onNextDay={() => shiftSelected(1)}
             emptyText="Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet."
-            rows={myProjects.map(({ project, member }) => {
-              const cell = entriesByCell.get(entryKey(project.id, activeKey));
-              const hours = cell ? parseHours(cell.hours) : 0;
-              const day = activeDay?.key === activeKey
-                ? activeDay
-                : phoneWeek.find((item) => item.key === activeKey) || activeDay;
-              return {
-                id: project.id,
-                number: project.number,
-                name: project.name,
-                customer: project.client || '',
-                role: member?.role || 'Deltaker',
-                hours,
-                onPress: () => openCell(project, day),
-                testID: `timesheet-row-${project.number || project.id}`,
-              };
-            })}
+            rows={[
+              ...pinnedTypes.map((typeId) => {
+                const type = absenceTypeById(typeId);
+                const hours = (state.absences || []).reduce((sum, row) => (
+                  row.employeeId === employeeId && row.date === activeKey && (row.type || 'ferie') === typeId
+                    ? sum + parseHours(row.hours)
+                    : sum
+                ), 0);
+                const day = markedDays.find((item) => item.key === activeKey) || activeDay;
+                return {
+                  id: `abs-${typeId}`,
+                  name: type.label,
+                  customer: 'Fravær',
+                  role: '',
+                  hours,
+                  onPress: () => openAbsenceCell({ id: typeId, label: type.label }, day),
+                  testID: `timesheet-absence-${typeId}`,
+                };
+              }),
+              ...shownProjects.map(({ project, member }) => {
+                const cell = entriesByCell.get(entryKey(project.id, activeKey));
+                const hours = cell ? parseHours(cell.hours) : 0;
+                const day = activeDay?.key === activeKey
+                  ? activeDay
+                  : phoneWeek.find((item) => item.key === activeKey) || activeDay;
+                return {
+                  id: project.id,
+                  number: project.number,
+                  name: project.name,
+                  customer: project.client || '',
+                  role: member?.role || 'Deltaker',
+                  hours,
+                  onPress: () => openCell(project, day),
+                  testID: `timesheet-row-${project.number || project.id}`,
+                };
+              }),
+            ]}
           />
           {actions}
         </ScrollView>
       ) : null}
       {!isPhone ? (
-      <ScrollView
-        horizontal
-        nestedScrollEnabled
-        style={[styles.gridScroll, { borderColor: colors.line, backgroundColor: colors.card }]}
-        contentContainerStyle={{ minWidth: gridMinWidth }}
-      >
-        <ScrollView nestedScrollEnabled>
-          {/* Uker */}
-          <View style={styles.row}>
-            <View style={[styles.labelCell, { width: LABEL_W, borderColor: colors.line }]} />
-            {weeks.map((week) => (
-              <View
-                key={`w-${week.week}`}
-                style={[
-                  styles.weekCell,
-                  { width: week.span * CELL_W, borderColor: colors.line, backgroundColor: colors.sunken || colors.bg },
-                ]}
-              >
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Uke {week.week}</Text>
-              </View>
-            ))}
-            <View style={[styles.totalHead, { width: TOTAL_W, borderColor: colors.line }]}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Sum</Text>
-            </View>
-          </View>
-
-          {/* Dager */}
-          <View style={styles.row}>
-            <View style={[styles.labelCell, { width: LABEL_W, borderColor: colors.line }]}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
-            </View>
-            {days.map((day) => {
-              const on = day.key === selectedDay;
-              const isToday = day.key === todayKey;
-              return (
-                <TouchableOpacity
-                  key={day.key}
-                  onPress={() => setSelectedDay(day.key)}
-                  style={[
-                    styles.dayHead,
-                    {
-                      width: CELL_W,
-                      borderColor: colors.line,
-                      backgroundColor: on || isToday ? `${colors.brand}14` : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={{ color: day.weekend ? (colors.danger || '#dc2626') : colors.muted, fontSize: 11 }}>
-                    {dayLabel(day)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            <View style={[styles.totalHead, { width: TOTAL_W, borderColor: colors.line }]} />
-          </View>
-
-          {/* Avtalte timer */}
-          <View style={[styles.row, { backgroundColor: colors.sunken || colors.bg }]}>
-            <View style={[styles.labelCell, { width: LABEL_W, borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Avtalte timer</Text>
-            </View>
-            {days.map((day) => (
-              <View key={`a-${day.key}`} style={[styles.cell, { width: CELL_W, borderColor: colors.line }]}>
-                <Text style={styles.cellText}>
-                  {agreedByDay.get(day.key) ? formatHours(agreedByDay.get(day.key)) : ''}
-                </Text>
-              </View>
-            ))}
-            <View style={[styles.totalCell, { width: TOTAL_W, borderColor: colors.line }]}>
-              <Text style={styles.cellText}>
-                {formatHours([...agreedByDay.values()].reduce((s, n) => s + n, 0))}
-              </Text>
-            </View>
-          </View>
-
-          {/* Timebalanse */}
-          <View style={styles.row}>
-            <View style={[styles.labelCell, { width: LABEL_W, borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Timebalanse</Text>
-            </View>
-            {balanceCells.map((value, index) => (
-              <View key={`b-${days[index].key}`} style={[styles.cell, { width: CELL_W, borderColor: colors.line }]}>
-                <Text style={[styles.cellText, { color: value >= 0 ? (colors.success || '#16a34a') : (colors.danger || '#dc2626'), fontSize: 10 }]}>
-                  {days[index].workday || value !== balanceCells[index - 1] ? formatHours(value, { signed: true, empty: '0:00' }) : ''}
-                </Text>
-              </View>
-            ))}
-            <View style={[styles.totalCell, { width: TOTAL_W, borderColor: colors.line }]}>
-              <Text style={[styles.cellText, { color: (balanceCells.at(-1) || 0) >= 0 ? (colors.success || '#16a34a') : (colors.danger || '#dc2626') }]}>
-                {formatHours(balanceCells.at(-1) || 0, { signed: true })}
-              </Text>
-            </View>
-          </View>
-
-          {/* Prosjektrader */}
-          {myProjects.map(({ project, member, starred }) => {
-            let monthSum = 0;
-            return (
-              <View key={project.id} style={styles.row}>
-                <View style={[styles.labelCell, styles.projectLabel, { width: LABEL_W, borderColor: colors.line }]}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
-                      #{project.number} {project.name}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                      {project.client || '—'} · {member?.role || 'Deltaker'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => starProject(member?.id)} hitSlop={6}>
-                    <Ionicons
-                      name={starred ? 'star' : 'star-outline'}
-                      size={16}
-                      color={starred ? (colors.star || '#e2a325') : colors.muted}
-                    />
-                  </TouchableOpacity>
-                </View>
-                {days.map((day) => {
-                  const cell = entriesByCell.get(entryKey(project.id, day.key));
-                  const hours = cell ? parseHours(cell.hours) : 0;
-                  monthSum += hours;
-                  const on = day.key === selectedDay;
-                  return (
-                    <TouchableOpacity
-                      key={`${project.id}-${day.key}`}
-                      onPress={() => openCell(project, day)}
-                      style={[
-                        styles.cell,
-                        styles.cellBtn,
-                        {
-                          width: CELL_W,
-                          borderColor: colors.line,
-                          backgroundColor: on ? `${colors.brand}10` : (hours ? `${colors.brand}08` : 'transparent'),
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Registrer timer ${project.name} ${day.key}`}
-                    >
-                      <Text style={[styles.cellText, hours ? { color: colors.ink, fontWeight: '600' } : { color: colors.placeholder }]}>
-                        {hours ? formatHours(hours) : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                <View style={[styles.totalCell, { width: TOTAL_W, borderColor: colors.line }]}>
-                  <Text style={[styles.cellText, { fontWeight: '600', color: colors.ink }]}>
-                    {formatHours(monthSum)}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-
-          {!myProjects.length ? (
-            <View style={{ padding: 24 }}>
-              <Text style={{ color: colors.muted }}>
-                Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet.
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-      </ScrollView>
+        <TimesheetGrid
+          colors={colors}
+          days={markedDays}
+          weeks={weeks}
+          projects={shownProjects.map(({ project, member, starred }) => ({
+            project,
+            member,
+            starred,
+            hoursFor: (day) => {
+              const cell = entriesByCell.get(entryKey(project.id, day.key));
+              return cell ? parseHours(cell.hours) : 0;
+            },
+          }))}
+          hiddenProjects={hiddenProjects}
+          absenceRows={pinnedTypes.map((typeId) => ({
+            id: typeId,
+            label: absenceTypeById(typeId).label,
+            hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
+              row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
+                ? sum + parseHours(row.hours)
+                : sum
+            ), 0),
+          }))}
+          agreedByDay={agreedByDay}
+          balanceCells={balanceCells}
+          payrollByDay={payrollByDay}
+          selectedDay={selectedDay}
+          todayKey={todayKey}
+          lockThrough={lockThrough}
+          showFlex={timeSettings.showFlexInTimesheet}
+          onSelectDay={setSelectedDay}
+          onToggleLock={toggleLock}
+          onOpenProject={openCell}
+          onOpenAbsence={openAbsenceCell}
+          onToggleStar={starProject}
+          onHideProject={(projectId) => hideProject(projectId, true)}
+          onShowProject={(projectId) => hideProject(projectId, false)}
+        />
       ) : null}
 
       {isPhone ? null : actions}
@@ -931,13 +1072,35 @@ export default function ArbeidScreen({
         visible={!!editor}
         colors={colors}
         project={editor?.project}
+        dateKey={editor?.day?.key || ''}
         dateLabel={editor ? `${dayLabel(editor.day)} · ${editor.day.key}` : ''}
         activities={editor?.activities || []}
-        initial={editor?.entry}
+        entries={editor?.entries || []}
+        projects={myProjects.map((row) => row.project)}
         requireDescription={editor?.project?.workSettings?.requireDescription !== false}
+        requireClock={timeSettings.requireClockTimes}
+        locked={!!editor?.locked}
         onSave={saveEntry}
         onDelete={removeEntry}
         onClose={() => setEditor(null)}
+        onMove={moveEntries}
+        onAddExpense={() => setSideForm({ kind: 'expense', date: editor?.day?.key || '', projectId: editor?.project?.id || '' })}
+        onAddSale={() => setSideForm({ kind: 'sale', date: editor?.day?.key || '', projectId: editor?.project?.id || '' })}
+        onAddMileage={() => setSideForm({ kind: 'mileage', date: editor?.day?.key || '', projectId: editor?.project?.id || '' })}
+      />
+      <TimesheetSideForm
+        kind={sideForm?.kind || ''}
+        colors={colors}
+        date={sideForm?.date || ''}
+        onClose={() => setSideForm(null)}
+        onSave={saveSide}
+      />
+      <AbsenceTypeModal
+        visible={typePicker}
+        colors={colors}
+        selected={pinnedTypes}
+        onClose={() => setTypePicker(false)}
+        onSave={savePins}
       />
 
       {/* Ansattvelger for leder */}
@@ -1030,25 +1193,10 @@ export default function ArbeidScreen({
       <Modal transparent visible={absenceOpen} animationType="fade" onRequestClose={() => setAbsenceOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setAbsenceOpen(false)}>
           <Pressable style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]} onPress={() => {}}>
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Legg til fravær / ferie</Text>
-            <Text style={{ color: colors.muted, marginBottom: 6 }}>Type</Text>
-            <View style={styles.chipRow}>
-              {ABSENCE_TYPES.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => setAbsenceForm((f) => ({ ...f, type: row.id }))}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: absenceForm.type === row.id ? colors.brand : colors.line,
-                      backgroundColor: absenceForm.type === row.id ? `${colors.brand}18` : colors.bg,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 13 }}>{row.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>{absenceTypeById(absenceForm.type).label}</Text>
+            <Text style={{ color: colors.muted, marginBottom: 8 }}>
+              {isDateLocked(lockThrough, absenceForm.date) ? 'Dagen er låst.' : 'Timer på denne dagen'}
+            </Text>
             <Text style={{ color: colors.muted, marginBottom: 6, marginTop: 10 }}>Dato (ÅÅÅÅ-MM-DD)</Text>
             <TextInput
               value={absenceForm.date}

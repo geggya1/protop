@@ -13,6 +13,7 @@ import {
   mapHeightForRail,
   mapHeightForSide,
   railMaxWidth,
+  alertRailIsOpen,
   settleRailWidth,
   sideWidthFromDrag,
 } from './sideWidth.js';
@@ -93,6 +94,9 @@ assert.equal(clampSideWidth('nei'), 360);
 assert.equal(mapHeightForSide(360), 440);
 assert.ok(mapHeightForSide(700) > 440);
 assert.equal(mapHeightForSide(840), 680);
+assert.equal(alertRailIsOpen(44), false);
+assert.equal(alertRailIsOpen(90), false);
+assert.equal(alertRailIsOpen(93), true);
 assert.equal(settleRailWidth(44), 44);
 assert.equal(settleRailWidth(90), 44);
 assert.equal(settleRailWidth(93), 280);

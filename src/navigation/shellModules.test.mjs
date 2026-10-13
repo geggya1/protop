@@ -306,9 +306,18 @@ assert.match(tenderAlert, /Godt treff/);
 assert.match(tenderAlert, /Vurder treff med AI/);
 assert.match(tenderAlert, /\['nye', 'Nye', 'emphasis'\]/);
 assert.match(tenderAlert, /TenderMap/);
+assert.match(tenderAlert, /InfoButton title="Oppsummering"/);
+assert.match(tenderAlert, /PhoneMapDock/);
+assert.match(tenderAlert, /PHONE_PREVIEW_MAP_HEIGHT/);
+assert.match(tenderAlert, /brief/);
+assert.equal(tenderAlert.includes('{phone ? summary : null}'), false);
+const phoneMapDock = readFileSync(new URL('../../screens/anbud/PhoneMapDock.jsx', import.meta.url), 'utf8');
+assert.match(phoneMapDock, /Dra inn fra høyre marg/);
+assert.match(phoneMapDock, /Mindre visning/);
 assert.match(tenderAlert, /\['uaktuelle', 'Uaktuelle', 'plain'\]/);
 
 const tenderMap = readFileSync(new URL('../../screens/anbud/TenderMap.jsx', import.meta.url), 'utf8');
+assert.match(tenderMap, /brief/);
 assert.match(tenderMap, /OpenStreetMap/);
 assert.match(tenderMap, /Kartverket/);
 assert.match(tenderMap, /Åpne i listen/);

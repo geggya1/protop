@@ -1,7 +1,10 @@
 export const SIDE_WIDTH_KEY = 'protop.anbud.sideWidth';
 export const RAIL_WIDTH_KEY = 'protop.anbud.railWidth';
 export const RAIL_PREF_KEY = 'protop.anbud.railOpenWidth';
+export const ALERT_RAIL_PREF_KEY = 'protop.anbud.alertRailPref';
 export const RAIL_PEEK = 44;
+/** Karthøyde i den lave mobilvisningen på anbudsvarsling, så listen får plass under. */
+export const PHONE_PREVIEW_MAP_HEIGHT = 160;
 
 export function clampSideWidth(width, min = 280, max = 840) {
   const n = Number(width);
@@ -21,6 +24,12 @@ export function railMaxWidth(viewportWidth, { cap = 840, gutter = 12 } = {}) {
   const width = Number(viewportWidth);
   if (!Number.isFinite(width) || width <= 0) return cap;
   return Math.min(cap, Math.max(RAIL_PEEK, Math.round(width - gutter)));
+}
+
+/** Mobilvarsling: kartet hviler i den lave visningen til det dras tydelig inn fra høyre. */
+export function alertRailIsOpen(width, { peek = RAIL_PEEK, slop = 48 } = {}) {
+  const n = Number(width);
+  return Number.isFinite(n) && n > peek + slop;
 }
 
 /** Et kort drag slippes tilbake i margen. Et tydelig drag åpner kartet, og kan dras videre bredere. */

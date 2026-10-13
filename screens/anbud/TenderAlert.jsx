@@ -16,13 +16,14 @@ import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import { SIDE_WIDTH_KEY, clampSideWidth, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
+import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
 import TenderHitCards from './TenderHitCards';
 import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
 import TenderMap from './TenderMap';
+import PhoneMapDock from './PhoneMapDock';
 import RegionCoverage from './RegionCoverage';
 import FilterMenu from '../../components/FilterMenu';
 import InfoButton from '../../components/InfoButton';
@@ -186,6 +187,7 @@ export default function TenderAlert({
   const [openId, setOpenId] = useState('');
   const [mapFocusId, setMapFocusId] = useState('');
   const [mapFollow, setMapFollow] = useState({ id: '', at: 0 });
+  const [mapDockOpen, setMapDockOpen] = useState(false);
   const [mapNote, setMapNote] = useState('');
   const [pullingId, setPullingId] = useState('');
   const [ranking, setRanking] = useState(false);
@@ -743,27 +745,35 @@ export default function TenderAlert({
 
   const profileSummary = state.watch?.profile?.summary || '';
   const summaryFacts = `${cpvCount} CPV · ${searchTermCount} søkeord · ${companyTrades.length} næringskoder · ${areaLabel} · ${channelLabel}`;
+  const summaryBody = (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.ink, fontWeight: '600' }}>{company?.name || 'Bedriften'}</Text>
+      <Text style={{ color: colors.muted, lineHeight: 20 }}>{summaryFacts}</Text>
+      {profileSummary ? <Text style={{ color: colors.ink, lineHeight: 22 }}>{profileSummary}</Text> : null}
+      <Text style={{ color: colors.muted }}>
+        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`}
+      </Text>
+    </View>
+  );
+  function settingsGear() {
+    return (
+      <TouchableOpacity
+        onPress={() => onOpenSettings?.()}
+        accessibilityRole="button"
+        accessibilityLabel="Åpne innstillinger for CPV og søk"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="settings-outline" size={22} color={colors.ink} />
+      </TouchableOpacity>
+    );
+  }
   const summary = (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.summaryHead}>
         <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {phone && profileSummary ? (
-            <InfoButton title="Oppsummering">{profileSummary}</InfoButton>
-          ) : null}
-          <TouchableOpacity onPress={() => onOpenSettings?.()} accessibilityRole="button" accessibilityLabel="Åpne innstillinger for CPV og søk">
-            <Ionicons name="settings-outline" size={20} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
+        {settingsGear()}
       </View>
-      <Text style={{ color: colors.ink }}>{company?.name || 'Bedriften'}</Text>
-      <Text style={{ color: colors.muted }}>{summaryFacts}</Text>
-      {!phone && profileSummary ? (
-        <Text style={{ color: colors.ink }}>{profileSummary}</Text>
-      ) : null}
-      <Text style={{ color: colors.muted }}>
-        {syncing ? 'Søker …' : ranking ? 'AI vurderer treff …' : `${scopedNotices.length} treff i listen.`}
-      </Text>
+      {summaryBody}
     </View>
   );
 
@@ -815,11 +825,14 @@ export default function TenderAlert({
   return (
     <View style={[styles.layout, !phone && styles.layoutDesktop]}>
       <View style={styles.main}>
-        {phone ? summary : null}
         {!phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
         <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
-            <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
+            <View style={styles.headIcons}>
+              <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
+              {phone ? <InfoButton title="Oppsummering">{summaryBody}</InfoButton> : null}
+              {phone ? settingsGear() : null}
+            </View>
             {state.syncedAt ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {`Oppdatert ${formatWhen(state.syncedAt)}.`}
@@ -913,22 +926,55 @@ export default function TenderAlert({
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
-        {phone ? (
+        {phone && !mapDockOpen ? (
+          <View style={Platform.OS === 'web' ? { marginRight: 40 } : null}>
           <TenderMap
             pins={pins}
             selectedId={openId}
             colors={colors}
             missing={missingPlaces}
             compact
+            brief
+            mapHeight={PHONE_PREVIEW_MAP_HEIGHT}
             note={mapNote}
             followId={mapFollow.id}
             followAt={mapFollow.at}
             view={mapFollowsList(filter) ? filter : ''}
+            onExpand={Platform.OS === 'web' ? () => setMapDockOpen(true) : undefined}
             onSelect={focusNotice}
             onPreview={(id) => highlightFromMap(id, { scroll: false, followList: false })}
             onMark={markOnMap}
             busyId={pullingId}
           />
+          </View>
+        ) : null}
+        {phone ? (
+          <PhoneMapDock
+            colors={colors}
+            open={mapDockOpen}
+            onOpenChange={setMapDockOpen}
+            pinCount={pins.length}
+          >
+            {({ width: dockWidth, viewportHeight, bottomNav }) => (
+              <TenderMap
+                pins={pins}
+                selectedId={openId}
+                colors={colors}
+                missing={missingPlaces}
+                compact={dockWidth < 420}
+                mapHeight={mapHeightForRail(dockWidth, viewportHeight - bottomNav)}
+                showHeading={false}
+                note={mapNote}
+                followId={mapFollow.id}
+                followAt={mapFollow.at}
+                view={mapFollowsList(filter) ? filter : ''}
+                onSelect={focusNotice}
+                onPreview={(id) => highlightFromMap(id, { scroll: false, followList: false })}
+                onMark={markOnMap}
+                busyId={pullingId}
+              />
+            )}
+          </PhoneMapDock>
         ) : null}
         {phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
         {phone ? (
@@ -1132,7 +1178,8 @@ const styles = StyleSheet.create({
     gap: 12,
     ...(Platform.OS === 'web' ? { position: 'sticky', top: 12, alignSelf: 'flex-start' } : null),
   },
-  summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  headIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tableScroll: {
     width: '100%',
     maxWidth: '100%',

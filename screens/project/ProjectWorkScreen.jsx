@@ -17,6 +17,7 @@ import { useLayout } from '../../src/theme';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { linkProject } from '../../src/anbud/lifecycle';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
@@ -1714,17 +1715,29 @@ export default function ProjectWorkScreen() {
     );
   }
 
+  const busyOverlay = (
+    <BrandBusyOverlay
+      visible={importing}
+      label={importPlan ? 'Lagrer prosjekter…' : 'Leser fil…'}
+      detail="Vent til operasjonen er ferdig før du går videre."
+    />
+  );
+
   if (listDesk) {
     return (
+      <>
       <View style={[styles.screen, styles.listDesk, { backgroundColor: colors.bg }]}>
         <View style={[styles.inner, styles.innerDesk]}>
           {listBody}
         </View>
       </View>
+      {busyOverlay}
+      </>
     );
   }
 
   return (
+    <>
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
@@ -1756,6 +1769,8 @@ export default function ProjectWorkScreen() {
       {(view === 'create' || view === 'edit') ? formBody : null}
       {listBody}
     </ScrollView>
+    {busyOverlay}
+    </>
   );
 }
 

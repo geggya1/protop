@@ -34,6 +34,7 @@ import { EMPLOYEE_IMPORT_ACCEPT, employeeImportMatchLabel } from '../../src/empl
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import EmployeeDirectory from '../../components/employees/EmployeeDirectory';
@@ -1161,7 +1162,17 @@ export default function EmployeesScreen() {
   const detailEmployee = (view === 'detail' && draft && draft.id === selectedId) ? draft : selected;
   const gaps = (detailEmployee || selected) ? gapReport(detailEmployee || selected) : null;
 
+  const showBusyOverlay = busy && (
+    busyKind === 'save'
+    || busyKind === 'cv'
+    || busyKind === 'projects'
+    || busyKind === 'pdf'
+    || view === 'import'
+    || !busyKind
+  );
+
   return (
+    <>
     <ScrollView
       ref={scrollRef}
       nativeID="employees-page"
@@ -1499,42 +1510,6 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
-          {busy && (busyKind === 'save' || busyKind === 'cv' || busyKind === 'projects' || busyKind === 'pdf') ? (
-            <View
-              nativeID="employee-cv-progress"
-              accessibilityLiveRegion="polite"
-              style={[styles.progressBanner, { backgroundColor: colors.card, borderColor: colors.brand }]}
-            >
-              <ActivityIndicator color={colors.brand} />
-              <View style={styles.grow}>
-                <Text style={[styles.progressTitle, { color: colors.ink }]}>
-                  {busyKind === 'cv' ? 'Leser CV…'
-                    : busyKind === 'projects' ? 'Leser prosjekter…'
-                      : busyKind === 'pdf' ? 'Lager PDF…'
-                        : 'Lagrer CV…'}
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  {saveProgress?.label
-                    || (busyKind === 'save'
-                      ? 'Jobber med bilder og lagring. Ikke lukk fanen.'
-                      : 'Dette kan ta litt tid på store filer.')}
-                </Text>
-                {saveProgress?.total ? (
-                  <View style={[styles.progressTrack, { backgroundColor: colors.line }]}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          backgroundColor: colors.brand,
-                          width: `${Math.max(4, Math.round((saveProgress.done / Math.max(saveProgress.total, 1)) * 100))}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
           <CvAttention draft={cvEmployee} colors={colors} />
           <EmployeeCvView
             cv={cv}
@@ -1674,6 +1649,18 @@ export default function EmployeesScreen() {
         onSubmit={registerEmployee}
       />
     </ScrollView>
+    <BrandBusyOverlay
+      visible={!!showBusyOverlay}
+      label={busyLabel('Jobber…')}
+      detail={
+        busyKind === 'save'
+          ? 'Jobber med bilder og lagring. Ikke lukk fanen.'
+          : 'Vent til operasjonen er ferdig før du går videre.'
+      }
+      done={saveProgress?.done}
+      total={saveProgress?.total}
+    />
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import OperationProgress from './OperationProgress';
 import { issueNeedsAction, issueTally, reviewHeadline, reviewSections } from '../src/imports/review';
 
 const AMBER = '#9a6700';
@@ -113,13 +114,21 @@ export default function ImportReview({
 export function ImportResult({ colors, result }) {
   if (!result) return null;
   const danger = colors.danger || '#b42318';
+  const status = result.complete
+    ? 'success'
+    : (result.missed?.length ? 'error' : 'partial');
+  const label = result.complete
+    ? `Alle ${result.saved} er importert`
+    : `Importert ${result.saved} av ${result.total}`;
+
   return (
-    <View nativeID="import-result" style={{ borderWidth: 1, borderColor: result.complete ? colors.line : danger, borderRadius: 12, padding: 12, gap: 6, backgroundColor: colors.card }}>
-      <Text style={{ color: result.complete ? colors.ink : danger, fontWeight: '700' }}>
-        {result.complete
-          ? `Alle ${result.saved} er importert.`
-          : `Importert ${result.saved} av ${result.total}.`}
-      </Text>
+    <OperationProgress
+      nativeID="import-result"
+      value={result.saved}
+      total={result.total}
+      label={label}
+      status={status}
+    >
       {issueTally(result.attention).map(([issue, count]) => (
         <Text key={issue} style={{ color: issueNeedsAction(issue) ? danger : AMBER, fontWeight: '600' }}>
           {`${count} · ${issue}`}
@@ -137,6 +146,6 @@ export function ImportResult({ colors, result }) {
           {`${row.name}: ${row.issues.join(' ')}`}
         </Text>
       ))}
-    </View>
+    </OperationProgress>
   );
 }

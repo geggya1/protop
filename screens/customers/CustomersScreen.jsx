@@ -33,6 +33,7 @@ import { CUSTOMER_IMPORT_ACCEPT } from '../../src/anbud/customerImport';
 import { readCustomerImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { importResult } from '../../src/imports/review';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
@@ -506,6 +507,7 @@ export default function CustomersScreen() {
   const customerReviewRows = customerImportReviewRows(importPlan?.rows, dropped);
 
   return (
+    <>
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }, isPhone && styles.screenPhone]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
@@ -886,6 +888,12 @@ export default function CustomersScreen() {
         </View>
       ) : null}
     </ScrollView>
+    <BrandBusyOverlay
+      visible={importing}
+      label={importPlan ? 'Lagrer kunder…' : 'Leser fil…'}
+      detail="Vent til operasjonen er ferdig før du går videre."
+    />
+    </>
   );
 }
 

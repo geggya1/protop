@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
@@ -123,7 +124,7 @@ export default function EconomyHours({
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState('');
+  const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
   const [importReport, setImportReport] = useState(null);
@@ -315,7 +316,7 @@ export default function EconomyHours({
       return;
     }
     setBusy(true);
-    setProgress('Leser fil…');
+    setProgress({ label: 'Leser fil…' });
     try {
       const bytes = await bytesFromFile(file);
       const plan = await readHourImport(bytes, file.name, {
@@ -338,7 +339,7 @@ export default function EconomyHours({
         ? `Listen er tolket (${engine}). Kontroller koblinger før import.`
         : 'Føringer som allerede finnes i systemet hoppes over. Kontroller medarbeider og prosjekt før lagring.');
       setView('import');
-      setProgress('');
+      setProgress(null);
     } catch (cause) {
       const message = String(cause?.message || '');
       setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
@@ -346,7 +347,7 @@ export default function EconomyHours({
         : (message || 'Kunne ikke lese timelisten.'));
     } finally {
       setBusy(false);
-      setProgress('');
+      setProgress(null);
     }
   }
 
@@ -384,7 +385,7 @@ export default function EconomyHours({
     }
     setBusy(true);
     setError('');
-    setProgress(`Lagrer ${chosen.length} timer…`);
+    setProgress({ label: 'Lagrer timer…', done: 0, total: chosen.length });
     try {
       const result = importTimeEntries(state, chosen.map((row) => row.entry));
       if (!result.ok) throw new Error(result.error || 'Kunne ikke importere timer.');
@@ -392,7 +393,7 @@ export default function EconomyHours({
       putProjectState(result.state, resolvedFamilyId);
       setState(result.state);
       await saveTimeEntryImport(resolvedFamilyId, result.added, {
-        onProgress: (done, total) => setProgress(`Lagrer timer… ${done}/${total}`),
+        onProgress: (done, total) => setProgress({ label: 'Lagrer timer…', done, total }),
       });
       try {
         await persistProjectState(result.state, resolvedFamilyId);
@@ -443,7 +444,7 @@ export default function EconomyHours({
       );
     } finally {
       setBusy(false);
-      setProgress('');
+      setProgress(null);
     }
   }
 
@@ -474,8 +475,19 @@ export default function EconomyHours({
     );
   }
 
+  const busyOverlay = (
+    <BrandBusyOverlay
+      visible={busy}
+      label={progress?.label || 'Jobber…'}
+      detail="Vent til operasjonen er ferdig før du går videre."
+      done={progress?.done}
+      total={progress?.total}
+    />
+  );
+
   if (view === 'import' && importPlan && importReview) {
     return (
+      <>
       <ScrollView
         nativeID="economy-hours-import"
         style={[styles.screen, { backgroundColor: colors.bg }]}
@@ -483,7 +495,6 @@ export default function EconomyHours({
         keyboardShouldPersistTaps="handled"
       >
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
         <HoursImportReview
           colors={colors}
           review={importReview}
@@ -522,6 +533,8 @@ export default function EconomyHours({
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}
         />
       </ScrollView>
+      {busyOverlay}
+      </>
     );
   }
 
@@ -653,6 +666,7 @@ export default function EconomyHours({
           </View>
         </View>
       </Modal>
+      {busyOverlay}
       </>
     );
   }
@@ -791,7 +805,6 @@ export default function EconomyHours({
 
           {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
           {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-          {!!progress && <Text style={{ color: colors.muted }}>{progress}</Text>}
           <ImportResult colors={colors} result={importReport} />
 
           <View style={styles.summaryRow}>
@@ -804,6 +817,7 @@ export default function EconomyHours({
         </View>
         {(!stackRows || panelOpen) ? organizePanel : null}
       </View>
+      {busyOverlay}
     </View>
   );
 }

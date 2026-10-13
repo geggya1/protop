@@ -17,6 +17,11 @@ import {
   releaseUntouchedBid,
   seedDossier,
   createBidWork,
+  createManualBidWork,
+  returnBidToReview,
+  markBidUaktuell,
+  bidListedOnDesk,
+  bidCanReturnToReview,
   registerInterest,
   saveSupplierProfile,
   watchQuery,
@@ -323,6 +328,53 @@ const assigned = createBidWork(withFile, withFile.notices[0].id, {
 assert.equal(assigned.bids[0].assignment.personName, 'Ada Nord');
 assert.equal(assigned.bids[0].assignment.unitName, 'Rådgivning');
 assert.equal(assigned.notices.find((row) => row.id === withFile.notices[0].id).decision, 'tilbud');
+
+const worked = createBidWork(withFile, withFile.notices[0].id).state;
+const workedBid = worked.bids[0];
+const workedNotice = worked.notices.find((row) => row.id === withFile.notices[0].id);
+assert.equal(bidListedOnDesk(workedBid, workedNotice), true);
+assert.equal(bidCanReturnToReview(workedBid), true);
+const sentBack = returnBidToReview(worked, workedBid.id);
+assert.equal(sentBack.ok, true);
+assert.equal(sentBack.state.notices.find((row) => row.id === workedNotice.id).decision, 'aktuell');
+assert.equal(sentBack.state.bids[0].parked, 'vurdering');
+assert.equal(sentBack.state.bids[0].dossier.procedure, 'Åpen');
+assert.equal(bidListedOnDesk(sentBack.state.bids[0], sentBack.state.notices[0]), false);
+const resumed = createBidWork(sentBack.state, workedNotice.id);
+assert.equal(resumed.ok, true);
+assert.equal(resumed.state.bids.length, 1);
+assert.equal(resumed.state.bids[0].id, workedBid.id);
+assert.equal(resumed.state.bids[0].parked, '');
+assert.equal(resumed.state.notices.find((row) => row.id === workedNotice.id).decision, 'tilbud');
+assert.equal(bidListedOnDesk(resumed.state.bids[0], resumed.state.notices.find((row) => row.id === workedNotice.id)), true);
+const irrelevant = markBidUaktuell(worked, workedBid.id);
+assert.equal(irrelevant.ok, true);
+assert.equal(irrelevant.state.notices.find((row) => row.id === workedNotice.id).decision, 'forkastet');
+assert.equal(irrelevant.state.bids[0].parked, 'uaktuell');
+assert.equal(bidListedOnDesk(irrelevant.state.bids[0], irrelevant.state.notices[0]), false);
+assert.equal(normalizeAnbudState(irrelevant.state).bids[0].parked, 'uaktuell');
+for (const stage of ['levert', 'kontrakt', 'tapt', 'trukket']) {
+  const closed = { ...worked, bids: [{ ...workedBid, stage }] };
+  assert.equal(returnBidToReview(closed, workedBid.id).ok, false);
+  assert.equal(markBidUaktuell(closed, workedBid.id).ok, false);
+  assert.equal(closed.bids[0].stage, stage);
+}
+const direct = createManualBidWork(emptyAnbudState(), {
+  title: 'Direkte oppdrag',
+  inquiryId: 'inq-1',
+  source: 'manuell',
+}).state;
+const directBack = returnBidToReview(direct, direct.bids[0].id);
+assert.equal(directBack.ok, true);
+assert.equal(directBack.state.bids[0].parked, 'vurdering');
+assert.equal(bidListedOnDesk(directBack.state.bids[0]), false);
+const directOff = markBidUaktuell(direct, direct.bids[0].id);
+assert.equal(directOff.ok, true);
+assert.equal(directOff.state.bids[0].parked, 'uaktuell');
+const lone = createManualBidWork(emptyAnbudState(), { title: 'Uten henvendelse', source: 'manuell' }).state;
+assert.equal(returnBidToReview(lone, lone.bids[0].id).ok, false);
+assert.equal(markBidUaktuell(lone, lone.bids[0].id).ok, true);
+assert.equal(returnBidToReview(worked, 'mangler').ok, false);
 
 const watchProfile = saveTenderWatch(emptyAnbudState(), {
   companyName: 'Nord Bygg',

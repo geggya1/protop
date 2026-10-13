@@ -1167,6 +1167,7 @@ function stampNoticeBid(bid, notice, assignment) {
     interestAt: bid.interestAt || notice.interestAt || '',
     assignment: assignment ? { ...(bid.assignment || {}), ...assignment } : bid.assignment,
     reviewNotes: normalizeReviewNotes(notice.reviewNotes?.length ? notice.reviewNotes : bid.reviewNotes),
+    parked: '',
   });
 }
 
@@ -1264,6 +1265,75 @@ export function createBidWork(state, id, assignment) {
   });
 }
 
+const DESK_CLOSED = new Set(['levert', 'kontrakt', 'tapt', 'trukket']);
+
+function bidById(state, bidId) {
+  return (state?.bids || []).find((row) => row.id === bidId) || null;
+}
+
+/** Leverte og avsluttede konkurranser blir stående i 3. Tilbud. */
+export function bidCanLeaveDesk(bid) {
+  return !!bid?.id && !DESK_CLOSED.has(bid.stage || 'planlegging');
+}
+
+/** Kun saker som kom fra varsling eller en forespørsel har en vurdering å gå tilbake til. */
+export function bidCanReturnToReview(bid) {
+  return bidCanLeaveDesk(bid) && !!(bid.noticeId || bid.inquiryId);
+}
+
+function parkBid(state, bidId, parked) {
+  return {
+    ...state,
+    bids: (state.bids || []).map((row) => (row.id === bidId ? { ...row, parked } : row)),
+  };
+}
+
+/**
+ * Tar saken ett steg tilbake til 2. Vurdering av aktuelle.
+ * Tilbudsarbeidet beholdes, slik at filer og notater følger med om det gis tilbud igjen.
+ */
+export function returnBidToReview(state, bidId) {
+  const bid = bidById(state, bidId);
+  if (!bid) return fail(state, 'Tilbudet finnes ikke.');
+  if (!bidCanLeaveDesk(bid)) {
+    return fail(state, 'Leverte og avsluttede tilbud kan ikke flyttes tilbake til vurdering.');
+  }
+  if (!bid.noticeId && !bid.inquiryId) {
+    return fail(state, 'Tilbudet er opprettet direkte og har ingen vurdering å gå tilbake til.');
+  }
+  let next = state;
+  if (bid.noticeId) {
+    const decided = setNoticeDecision(next, bid.noticeId, 'aktuell');
+    if (!decided.ok) return decided;
+    next = decided.state;
+  }
+  return ok(parkBid(next, bidId, 'vurdering'));
+}
+
+/** Melder saken som uaktuell og tar den ut av både tilbudsarbeid og vurdering. */
+export function markBidUaktuell(state, bidId) {
+  const bid = bidById(state, bidId);
+  if (!bid) return fail(state, 'Tilbudet finnes ikke.');
+  if (!bidCanLeaveDesk(bid)) {
+    return fail(state, 'Leverte og avsluttede tilbud kan ikke meldes som uaktuelle.');
+  }
+  let next = state;
+  if (bid.noticeId) {
+    const decided = setNoticeDecision(next, bid.noticeId, 'forkastet');
+    if (!decided.ok) return decided;
+    next = decided.state;
+  }
+  return ok(parkBid(next, bidId, 'uaktuell'));
+}
+
+/** 3. Tilbud viser bare saker som fortsatt er i tilbudsarbeid. */
+export function bidListedOnDesk(bid, notice = null) {
+  if (!bid) return false;
+  if (bid.parked === 'vurdering' || bid.parked === 'uaktuell') return false;
+  if (bid.noticeId && notice && notice.decision !== 'tilbud') return false;
+  return true;
+}
+
 /** Manuelt tilbudsarbeid uten kunngjøring fra Doffin/TED. */
 export function createManualBidWork(state, input = {}) {
   const title = text(input?.title).slice(0, 200);
@@ -1285,6 +1355,7 @@ export function createManualBidWork(state, input = {}) {
           row.inquiryId === inquiryId
             ? normalizeBidWork({
               ...row,
+              parked: '',
               assignment: stamped || row.assignment,
               reviewNotes: normalizeReviewNotes(input?.reviewNotes?.length ? input.reviewNotes : row.reviewNotes),
             })

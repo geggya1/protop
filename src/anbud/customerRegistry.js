@@ -20,3 +20,26 @@ export function resolveCustomerLoad({
   else if (hasCustomers) status = 'local';
   return { state, status };
 }
+
+/** Lister kundene fra det lille registeret, uten å lese hele anbudsdokumentet. */
+export function pickCustomerList({ cached = [], registryCustomers = [], registryOk = false } = {}) {
+  if (registryOk && registryCustomers.length) {
+    const customers = mergeAnbudStates(
+      { customers: cached },
+      { customers: registryCustomers },
+    ).customers;
+    return { customers, status: 'ok', refreshRegistry: false };
+  }
+  if (cached.length) {
+    return {
+      customers: cached,
+      status: registryOk ? 'ok' : 'local',
+      refreshRegistry: registryOk,
+    };
+  }
+  return { customers: [], status: registryOk ? 'ok' : 'error', refreshRegistry: false };
+}
+
+export function withCustomers(state, customers) {
+  return mergeAnbudStates(state || emptyAnbudState(), { customers: customers || [] });
+}

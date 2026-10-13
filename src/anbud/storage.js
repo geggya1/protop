@@ -2,11 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { anbudLocalKey, ANBUD_LOCAL_KEY, storeAnbudPayload } from './localStore.js';
-import { resolveCustomerLoad } from './customerRegistry.js';
+import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { normalizeCustomers } from './customers.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 
 const KEY = ANBUD_LOCAL_KEY;
+const CUSTOMER_KEY = 'protop.customers.v1';
 const REMOTE_AUTH_MS = 8000;
 const remoteTimers = new Map();
 const remotePending = new Map();
@@ -99,6 +100,31 @@ async function readRemote(companyId) {
   }
 }
 
+function customerCacheKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${CUSTOMER_KEY}.${id}` : CUSTOMER_KEY;
+}
+
+async function readCustomerCache(companyId) {
+  try {
+    const raw = await AsyncStorage.getItem(customerCacheKey(companyId));
+    if (!raw) return [];
+    return normalizeCustomers(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+async function writeCustomerCache(companyId, customers) {
+  const list = normalizeCustomers(customers);
+  if (!list.length) return;
+  try {
+    await AsyncStorage.setItem(customerCacheKey(companyId), JSON.stringify(list));
+  } catch {
+    /* nettleseren kan være full — registeret i skyen er fasit */
+  }
+}
+
 async function readCustomerRegistry(companyId) {
   const ref = customerDoc(companyId);
   if (!ref) return { ok: true, customers: [], missing: true };
@@ -119,15 +145,52 @@ async function writeCustomerRegistry(companyId, customers) {
   if (!ref || !list.length) return;
   const authed = await ensureRemoteAuth();
   if (!authed) return;
+  let stored = list;
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     const remote = snap.exists() ? normalizeCustomers(snap.data()?.customers) : [];
-    const merged = mergeAnbudStates({ customers: remote }, { customers: list }).customers;
+    stored = mergeAnbudStates({ customers: remote }, { customers: list }).customers;
     transaction.set(ref, {
-      customers: JSON.parse(JSON.stringify(merged)),
+      customers: JSON.parse(JSON.stringify(stored)),
       updatedAt: serverTimestamp(),
     });
   });
+  await writeCustomerCache(companyId, stored);
+}
+
+/**
+ * Kundelisten alene. Lokal kopi tegnes med en gang, deretter det lille skydokumentet.
+ * Hele anbudsdokumentet leses ikke.
+ */
+export async function loadCustomerList(companyId, { onCache } = {}) {
+  const cachePromise = readCustomerCache(companyId).then((rows) => {
+    if (rows.length) onCache?.(rows);
+    return rows;
+  });
+  const [cached, registry] = await Promise.all([
+    cachePromise,
+    readCustomerRegistry(companyId),
+  ]);
+  const picked = pickCustomerList({
+    cached,
+    registryCustomers: registry.customers,
+    registryOk: registry.ok,
+  });
+  loadMeta.set(memoryKey(companyId), picked.status);
+  if (picked.customers.length) writeCustomerCache(companyId, picked.customers).catch(() => {});
+  if (picked.refreshRegistry) writeCustomerRegistry(companyId, picked.customers).catch(() => {});
+  return picked;
+}
+
+/** Lagrer kundene uten å lese eller skrive resten av anbudsdokumentet. */
+export async function saveCustomers(companyId, customers) {
+  const list = normalizeCustomers(customers);
+  if (!companyId || !list.length) return list;
+  await writeCustomerCache(companyId, list);
+  await writeCustomerRegistry(companyId, list).catch(() => {});
+  const current = MEMORY.get(memoryKey(companyId));
+  if (current) putAnbudMemory(companyId, { ...current, customers: list });
+  return list;
 }
 
 function plainState(state) {
@@ -207,6 +270,9 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
       registryOk: registry.ok,
     });
     loadMeta.set(key, resolved.status);
+    if (resolved.state.customers.length) {
+      writeCustomerCache(companyId, resolved.state.customers).catch(() => {});
+    }
     if (
       companyId
       && registry.ok
@@ -240,6 +306,7 @@ export async function flushAnbudState(companyId) {
 
 export async function saveAnbudState(state, companyId) {
   const { next, registryOk } = await mergedForSave(state, companyId);
+  if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
   if (companyId && registryOk) await writeCustomerRegistry(companyId, next.customers).catch(() => {});
   try {
     await writeLocal(companyId, next);
@@ -256,6 +323,7 @@ export async function saveAnbudState(state, companyId) {
 export async function persistAnbudState(state, companyId) {
   const { next, registryOk } = await mergedForSave(state, companyId);
   const id = String(companyId || '').trim();
+  if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
   if (id && registryOk) await writeCustomerRegistry(id, next.customers);
   try {
     await writeLocal(companyId, next);

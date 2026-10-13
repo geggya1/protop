@@ -217,9 +217,17 @@ export default function ArbeidScreen({
   );
   const assignedOnly = selectedGrants ? hoursOnAssignedOnly(selectedGrants) : false;
 
+  const monthFromDate = days[0]?.key || '';
+  const monthToDate = days[days.length - 1]?.key || '';
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
-    const list = projectsForEmployee(state, employeeId, { assignedOnly });
+    const list = projectsForEmployee(state, employeeId, {
+      assignedOnly,
+      fromDate: monthFromDate,
+      toDate: monthToDate,
+      includeHourProjects: true,
+    });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
     const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
@@ -241,14 +249,19 @@ export default function ArbeidScreen({
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery, assignedOnly]);
+  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate]);
 
   const joinable = useMemo(() => {
     if (!employeeId || assignedOnly) return [];
     const mine = new Set(myProjects.map((row) => row.project.id));
-    return projectsForEmployee(state, employeeId, { includeJoinable: true })
+    return projectsForEmployee(state, employeeId, {
+      includeJoinable: true,
+      fromDate: monthFromDate,
+      toDate: monthToDate,
+      includeHourProjects: true,
+    })
       .filter((project) => !mine.has(project.id));
-  }, [state, employeeId, myProjects, assignedOnly]);
+  }, [state, employeeId, myProjects, assignedOnly, monthFromDate, monthToDate]);
 
   const entriesByCell = useMemo(() => {
     const map = new Map();

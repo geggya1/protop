@@ -3,7 +3,7 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
+import { accessLevelSections, accessSectionTitle, employeeLevelIds, levelById, placedLevelId, withToggledLevel } from '../../src/access/companyAccess';
 import { inviteStatusLabel } from '../../src/employees/invite';
 import {
   cardSubtitle,
@@ -184,11 +184,18 @@ function accountDeactivated(employee) {
   return status === 'inactive' || status === 'deleted' || status === 'former';
 }
 
-function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin, onClassify }) {
+function EmploymentChips({ employee, colors, companyName, busy, canEdit, canEditAccess, isAdmin, onClassify }) {
   const deactivated = accountDeactivated(employee);
   const locked = !canEdit || busy || !isAdmin;
+  const levelLocked = !canEditAccess || busy;
+  const selected = employeeLevelIds(employee);
   const danger = colors.danger || '#dc2626';
   const success = colors.success || '#16a34a';
+  function toggleLevel(levelId) {
+    if (levelLocked) return;
+    const next = withToggledLevel(employee, levelId, !selected.includes(levelId));
+    onClassify?.({ accessLevels: next.company?.accessLevels || [] });
+  }
   return (
     <View nativeID="employee-classification" style={styles.classify}>
       <Text style={[styles.classifyLabel, { color: colors.muted }]}>Konto</Text>
@@ -221,7 +228,45 @@ function EmploymentChips({ employee, colors, companyName, busy, canEdit, isAdmin
       </Text>
       <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
       <Text style={{ color: colors.ink, fontSize: 15 }}>{personnelKindLabel(personnelKind(employee), companyName)}</Text>
-      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>Følger tilgangsnivået.</Text>
+      <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
+      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+        Kryss av nivåene som passer for denne ansatte. Rettighetene fra alle avhukede nivå gjelder.
+      </Text>
+      {accessLevelSections().map((section) => (
+        <View key={section.id} nativeID={`employee-levels-${section.id}`} style={styles.levelGroup}>
+          <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700' }}>
+            {accessSectionTitle(section.id, companyName)}
+          </Text>
+          {section.levels.map((level) => {
+            const on = selected.includes(level.id);
+            return (
+              <TouchableOpacity
+                key={level.id}
+                nativeID={`employee-level-${employee.id}-${level.id}`}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on, disabled: levelLocked }}
+                accessibilityLabel={level.label}
+                disabled={levelLocked}
+                onPress={() => toggleLevel(level.id)}
+                style={styles.levelChoice}
+              >
+                <View style={[
+                  styles.levelBox,
+                  {
+                    borderColor: on ? colors.brand : colors.line,
+                    backgroundColor: on ? colors.brand : colors.card,
+                    opacity: levelLocked ? 0.6 : 1,
+                  },
+                ]}
+                >
+                  {on ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+                </View>
+                <Text style={{ color: colors.ink, fontSize: 15, flex: 1 }}>{level.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
       {!deactivated ? (
         <View style={styles.chipRow}>
           <FlagChip
@@ -925,17 +970,18 @@ export default function EmployeeDetailView({
             badge={OWNER_LABEL.company}
             onEdit={canEdit && isAdmin ? () => startSection('employment') : undefined}
           >
+            <EmploymentChips
+              employee={employee}
+              colors={colors}
+              companyName={companyName}
+              busy={busy}
+              canEdit={canEdit}
+              canEditAccess={canEditAccess}
+              isAdmin={isAdmin}
+              onClassify={onClassify}
+            />
             {editingSection === 'employment' ? sectionEditor('employment') : (
               <>
-                <EmploymentChips
-                  employee={employee}
-                  colors={colors}
-                  companyName={companyName}
-                  busy={busy}
-                  canEdit={canEdit}
-                  isAdmin={isAdmin}
-                  onClassify={onClassify}
-                />
                 {employmentRows.map((row, i) => (
                   <FactRow
                     key={row.key}
@@ -1304,7 +1350,9 @@ const styles = StyleSheet.create({
   accessGear: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   accessMenu: { borderWidth: 1, borderRadius: 12, padding: 8, gap: 4, minWidth: 220 },
   accessOption: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8 },
-  levelBox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  levelBox: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  levelGroup: { gap: 4, marginTop: 4 },
+  levelChoice: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
   panelKicker: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   editBtn: {
     flexDirection: 'row',

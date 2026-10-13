@@ -10,8 +10,8 @@ import {
     alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
-import { geocodeMissing, geocodeQuery } from '../../src/anbud/geocodePlace';
-import { locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
+import { geocodeMissing } from '../../src/anbud/geocodePlace';
+import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';

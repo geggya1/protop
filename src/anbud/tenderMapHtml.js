@@ -23,10 +23,10 @@ function placeLine(row) {
   return row?.label || 'Sted';
 }
 
-export function pinPopupHtml(row, index, total) {
+export function pinPopupHtml(row, index, total, { showMark = true, openLabel = 'Åpne i listen', kindLabel = '' } = {}) {
   const n = Number(index) || 0;
   const of = Math.max(1, Number(total) || 1);
-  const kind = row?.kind === 'aktuell' ? 'Aktuell' : row?.kind === 'uaktuell' ? 'Uaktuell' : 'Ny';
+  const kind = kindLabel || (row?.kind === 'aktuell' ? 'Aktuell' : row?.kind === 'uaktuell' ? 'Uaktuell' : 'Ny');
   const meta = [
     row?.buyer ? escapeHtml(row.buyer) : '',
     row?.deadline ? `Frist ${escapeHtml(row.deadline)}` : '',
@@ -34,7 +34,7 @@ export function pinPopupHtml(row, index, total) {
   ].filter(Boolean).join(' · ');
   return `<div class="bubble">
     <div class="kicker">${kind} · ${escapeHtml(placeLine(row))}</div>
-    ${decisionButtonsHtml(row)}
+    ${showMark ? decisionButtonsHtml(row) : ''}
     <button type="button" class="jump" data-open="${escapeHtml(row?.id || '')}">${escapeHtml(row?.title || 'Kunngjøring')}</button>
     ${meta ? `<div class="meta">${meta}</div>` : ''}
     <div class="row">
@@ -42,11 +42,19 @@ export function pinPopupHtml(row, index, total) {
       <span class="count">${n + 1} / ${of}</span>
       <button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button>
     </div>
-    <button type="button" class="open" data-open="${escapeHtml(row?.id || '')}">Åpne i listen</button>
+    <button type="button" class="open" data-open="${escapeHtml(row?.id || '')}">${escapeHtml(openLabel)}</button>
   </div>`;
 }
 
-export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', danger = '#dc2626', compact = false } = {}) {
+export function tenderMapDocument(pins, {
+  selectedId = '',
+  brand = '#3D6B8A',
+  danger = '#dc2626',
+  compact = false,
+  showMark = true,
+  openLabel = 'Åpne i listen',
+  kindLabel = '',
+} = {}) {
   const rows = (Array.isArray(pins) ? pins : []).filter((row) => (
     Number.isFinite(Number(row?.lat)) && Number.isFinite(Number(row?.lng))
   ));
@@ -122,6 +130,9 @@ export function tenderMapDocument(pins, { selectedId = '', brand = '#3D6B8A', da
 const pins = ${payload};
 const selected = ${JSON.stringify(String(selectedId || ''))};
 const brandColor = ${JSON.stringify(String(brand || '#3D6B8A'))};
+const showMark = ${showMark === false ? 'false' : 'true'};
+const openLabel = ${JSON.stringify(String(openLabel || 'Åpne i listen'))};
+const kindLabel = ${JSON.stringify(String(kindLabel || ''))};
 const NORWAY = [[71.1855,28.1655],[70.4538,31.2934],[70.1863,30.0054],[69.5581,31.1011],[69.1569,29.3996],[69.0648,28.5919],[69.7665,29.0156],[70.1642,27.7323],[69.8253,26.1796],[69.0921,25.6892],[68.6496,24.7357],[68.8912,23.6621],[68.8417,22.3562],[69.3704,21.2449],[69.1062,20.6456],[69.0651,20.0253],[68.4072,19.8786],[68.5674,17.9939],[68.0106,17.7292],[68.0139,16.7689],[67.3025,16.1087],[66.1939,15.1084],[64.787,13.5557],[64.4454,13.9199],[64.0491,13.5719],[64.0662,12.5799],[63.1283,11.9306],[61.8004,11.9921],[61.2936,12.6311],[60.1179,12.3004],[59.4324,11.4683],[58.8561,11.0274],[59.4698,10.3566],[58.3133,8.382],[58.0789,7.0487],[58.5882,5.6658],[59.6632,5.3082],[61.971,4.9921],[62.6145,5.9129],[63.454,8.5534],[64.486,10.5277],[65.8797,12.3583],[67.8106,14.7611],[68.5632,16.4359],[69.8174,19.184],[70.2552,21.3784],[70.2021,23.0237],[71.0305,24.5465],[70.9863,26.37],[71.1855,28.1655]];
 const map = L.map('map', { zoomControl: true, attributionControl: true });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -132,6 +143,7 @@ function esc(value) {
   return String(value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function decisionRow(row) {
+  if (!showMark) return '';
   const on = row.kind === 'aktuell';
   const label = row.busy ? 'Henter …' : 'Aktuell';
   return '<div class="decisions">'
@@ -140,7 +152,7 @@ function decisionRow(row) {
     + '</div>';
 }
 function popupHtml(row, index) {
-  const kind = row.kind === 'aktuell' ? 'Aktuell' : row.kind === 'uaktuell' ? 'Uaktuell' : 'Ny';
+  const kind = kindLabel || (row.kind === 'aktuell' ? 'Aktuell' : row.kind === 'uaktuell' ? 'Uaktuell' : 'Ny');
   const where = row.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : (row.label || 'Sted');
   const meta = [row.buyer, row.deadline ? ('Frist ' + row.deadline) : '', row.source].filter(Boolean).join(' · ');
   return '<div class="bubble">'
@@ -152,7 +164,7 @@ function popupHtml(row, index) {
     + '<button type="button" class="nav" data-act="prev" aria-label="Forrige sted">Forrige</button>'
     + '<span class="count">' + (index + 1) + ' / ' + pins.length + '</span>'
     + '<button type="button" class="nav" data-act="next" aria-label="Neste sted">Neste</button></div>'
-    + '<button type="button" class="open" data-open="' + esc(row.id) + '">Åpne i listen</button></div>';
+    + '<button type="button" class="open" data-open="' + esc(row.id) + '">' + esc(openLabel) + '</button></div>';
 }
 const layer = L.featureGroup();
 const markers = [];

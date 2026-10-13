@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { customersFromProjectLinks } from './customers.js';
-import { resolveCustomerLoad } from './customerRegistry.js';
+import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates } from './model.js';
 
 const lyse = {
@@ -92,5 +93,35 @@ assert.equal(fitted.customers.length, 1);
 assert.equal(fitted.customers[0].name, 'Lyse Neo AS');
 assert.equal(fitted.customers[0].email, 'post@lyse.no');
 assert.ok(fitted.notices.length < fat.notices.length);
+
+const fast = pickCustomerList({
+  cached: [{ ...lyse, email: '' }],
+  registryCustomers: [lyse],
+  registryOk: true,
+});
+assert.equal(fast.status, 'ok');
+assert.equal(fast.customers.length, 1);
+assert.equal(fast.customers[0].email, 'post@lyse.no');
+assert.equal(fast.refreshRegistry, false);
+
+const cachedOnly = pickCustomerList({
+  cached: [lyse],
+  registryCustomers: [],
+  registryOk: false,
+});
+assert.equal(cachedOnly.status, 'local');
+assert.equal(cachedOnly.customers[0].name, 'Lyse Neo AS');
+
+const stillWaiting = pickCustomerList({ cached: [], registryCustomers: [], registryOk: false });
+assert.equal(stillWaiting.status, 'error');
+assert.equal(stillWaiting.customers.length, 0);
+
+const screen = readFileSync(new URL('../../screens/customers/CustomersScreen.jsx', import.meta.url), 'utf8');
+const openList = screen.slice(screen.indexOf('loadCustomerList(familyId'), screen.indexOf('shellIntent?.type'));
+assert.match(screen, /Henter kunder/);
+assert.ok(openList.includes('loadCustomerList'));
+assert.equal(openList.includes('Promise.all'), false);
+assert.equal(openList.includes('force: true'), false);
+assert.ok(openList.indexOf('picked.customers.length') < openList.indexOf('loadAnbudState(familyId)'));
 
 console.log('customerRegistry.test.mjs ok');

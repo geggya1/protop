@@ -7,12 +7,62 @@ import {
   addProjectMember,
   createProject,
   emptyProjectState,
+  healOrphanProjectRefs,
+  importTimeEntries,
   mergeProjectStates,
+  normalizeProjectState,
   projectsForEmployee,
   upsertTimeEntry,
   deleteTimeEntry,
   projectTimeSummary,
 } from '../project/engine.js';
+
+function entryKey(projectId, date) {
+  return `${projectId}|${date}`;
+}
+
+/** Same lookup path as ArbeidScreen grid cells. */
+function gridHoursForMonth(state, employeeId, monthPrefix) {
+  const fromDate = `${monthPrefix}-01`;
+  const toDate = `${monthPrefix}-31`;
+  const myProjects = projectsForEmployee(state, employeeId, {
+    fromDate,
+    toDate,
+    includeHourProjects: true,
+  });
+  const entriesByCell = new Map();
+  for (const row of state.timeEntries) {
+    if (row.employeeId !== employeeId) continue;
+    const key = entryKey(row.projectId, row.date);
+    const prev = entriesByCell.get(key);
+    if (!prev) entriesByCell.set(key, { ...row });
+    else {
+      entriesByCell.set(key, {
+        ...prev,
+        hours: parseHours(prev.hours) + parseHours(row.hours),
+      });
+    }
+  }
+  let gridHours = 0;
+  const cells = [];
+  for (const project of myProjects) {
+    for (const [key, cell] of entriesByCell) {
+      if (!key.startsWith(`${project.id}|`)) continue;
+      const date = key.slice(project.id.length + 1);
+      if (!date.startsWith(monthPrefix)) continue;
+      const hours = parseHours(cell.hours);
+      gridHours += hours;
+      cells.push({
+        projectId: project.id,
+        projectNumber: project.number,
+        date,
+        hours,
+        description: cell.description,
+      });
+    }
+  }
+  return { myProjects, gridHours, cells, entriesByCell };
+}
 
 assert.equal(parseHours('8:00'), 8);
 assert.equal(parseHours('1:30'), 1.5);
@@ -115,6 +165,8 @@ assert.ok(merged.members.length >= 1);
   const arbeidSrc = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
   assert.match(arbeidSrc, /TimesheetDayView/);
   assert.match(arbeidSrc, /Lønnsgrunnlag|arbeid-phone-timeliste/);
+  assert.match(arbeidSrc, /includeHourProjects:\s*true/);
+  assert.match(arbeidSrc, /fromDate:\s*monthFromDate/);
   const economySrc = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
   assert.match(economySrc, /TimesheetDayView/);
   assert.match(economySrc, /Arbeid \/ Timerapport/);
@@ -130,6 +182,161 @@ assert.ok(merged.members.length >= 1);
   const dayViewSrc = readFileSync(new URL('../../components/arbeid/TimesheetDayView.jsx', import.meta.url), 'utf8');
   assert.match(dayViewSrc, /Lønnsgrunnlag/);
   assert.match(dayViewSrc, /TimesheetProjectRow/);
+}
+
+// Orphan projectId after dedupe: heal via projectNumber so grid cells resolve.
+{
+  const raw = {
+    ...emptyProjectState(),
+    projects: [
+      {
+        id: 'proj-keeper',
+        number: '10374',
+        name: 'Foss Eikeland',
+        client: 'Mg',
+        status: 'aktiv',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        workSettings: {},
+      },
+      {
+        id: 'proj-stale',
+        number: '10374',
+        name: 'Foss Eikeland (old)',
+        client: 'Mg',
+        status: 'aktiv',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        workSettings: {},
+      },
+    ],
+    members: [{
+      id: 'mem-stale',
+      projectId: 'proj-stale',
+      employeeId: 'emp1',
+      employeeName: 'Geir',
+      role: 'Prosjektleder',
+      active: true,
+    }],
+    timeEntries: [{
+      id: 'tid-orphan',
+      projectId: 'proj-stale',
+      projectNumber: '10374',
+      projectName: 'Foss Eikeland',
+      employeeId: 'emp1',
+      employeeName: 'Geir',
+      date: '2026-07-15',
+      hours: 188,
+      billableHours: 188,
+      description: 'Importert juli',
+      status: 'registrert',
+    }],
+  };
+  const normalized = normalizeProjectState(raw);
+  assert.equal(normalized.projects.length, 1);
+  assert.equal(normalized.projects[0].id, 'proj-keeper');
+  assert.equal(normalized.timeEntries[0].projectId, 'proj-keeper');
+  assert.equal(normalized.members[0].projectId, 'proj-keeper');
+  const grid = gridHoursForMonth(normalized, 'emp1', '2026-07');
+  assert.equal(grid.gridHours, 188);
+  assert.equal(grid.cells.length, 1);
+  assert.equal(grid.cells[0].description, 'Importert juli');
+  assert.ok(grid.myProjects.some((p) => p.id === 'proj-keeper'));
+}
+
+// Hours without membership still surface in grid lookup for visible month.
+{
+  const raw = normalizeProjectState({
+    ...emptyProjectState(),
+    projects: [{
+      id: 'proj-live',
+      number: '20001',
+      name: 'Uten medlemskap',
+      client: 'X',
+      status: 'aktiv',
+      workSettings: { showInAllTimesheets: false, allowSelfJoin: false },
+    }],
+    members: [],
+    timeEntries: [{
+      id: 'tid-nomember',
+      projectId: 'proj-live',
+      projectNumber: '20001',
+      employeeId: 'emp1',
+      date: '2026-07-02',
+      hours: 8,
+      description: 'Import uten membership',
+      status: 'registrert',
+    }],
+  });
+  assert.equal(projectsForEmployee(raw, 'emp1', { includeHourProjects: false }).length, 0);
+  const visible = projectsForEmployee(raw, 'emp1', {
+    fromDate: '2026-07-01',
+    toDate: '2026-07-31',
+    includeHourProjects: true,
+  });
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].id, 'proj-live');
+  const grid = gridHoursForMonth(raw, 'emp1', '2026-07');
+  assert.equal(grid.gridHours, 8);
+  assert.equal(grid.cells[0].description, 'Import uten membership');
+}
+
+// Direct heal helper + import membership path still works.
+{
+  let state = normalizeProjectState({
+    ...emptyProjectState(),
+    projects: [{
+      id: 'proj-import',
+      number: '30001',
+      name: 'Import-mål',
+      client: 'Y',
+      status: 'aktiv',
+      workSettings: { showInAllTimesheets: false },
+    }],
+  });
+  const orphaned = {
+    ...state,
+    timeEntries: [{
+      id: 'tid-x',
+      projectId: 'missing-id',
+      projectNumber: '30001',
+      employeeId: 'emp1',
+      date: '2026-07-04',
+      hours: 3,
+      description: 'Stale id',
+      status: 'registrert',
+    }],
+  };
+  const healed = healOrphanProjectRefs(orphaned);
+  assert.equal(healed.timeEntries[0].projectId, 'proj-import');
+
+  // projectId satt til prosjektnummer (uten projectNumber-felt) skal også heales.
+  const byNumberId = healOrphanProjectRefs({
+    ...state,
+    timeEntries: [{
+      id: 'tid-num',
+      projectId: '30001',
+      employeeId: 'emp1',
+      date: '2026-07-05',
+      hours: 4,
+      description: 'Nummer som id',
+      status: 'registrert',
+    }],
+  });
+  assert.equal(byNumberId.timeEntries[0].projectId, 'proj-import');
+
+  const imported = importTimeEntries(state, [{
+    projectId: 'proj-import',
+    projectNumber: '30001',
+    employeeId: 'emp1',
+    employeeName: 'Geir',
+    date: '2026-07-03',
+    hours: 7.5,
+    description: 'Ny import',
+  }]);
+  assert.equal(imported.ok, true);
+  assert.equal(imported.state.members.length, 1);
+  const grid = gridHoursForMonth(imported.state, 'emp1', '2026-07');
+  assert.equal(grid.gridHours, 7.5);
+  assert.equal(grid.cells[0].description, 'Ny import');
 }
 
 console.log('hours.test.mjs: ok');

@@ -90,8 +90,19 @@ function normalizeDeletedProject(row) {
   };
 }
 
-function dedupeProjectsByNumber(projects) {
+/**
+ * Dedupe projects by number. When idRemap is provided, maps discarded ids → kept id
+ * so members/timeEntries can be healed after collapse.
+ */
+function dedupeProjectsByNumber(projects, idRemap = null) {
   const map = new Map();
+  const remember = (fromId, toId) => {
+    if (!idRemap || !fromId || !toId || fromId === toId) return;
+    idRemap.set(fromId, toId);
+    for (const [src, dest] of idRemap) {
+      if (dest === fromId) idRemap.set(src, toId);
+    }
+  };
   for (const row of Array.isArray(projects) ? projects : []) {
     if (!row?.id) continue;
     const key = projectNumberKey(row.number) || row.id;
@@ -102,15 +113,101 @@ function dedupeProjectsByNumber(projects) {
     }
     const prevArchived = prev.status === 'arkivert';
     const rowArchived = row.status === 'arkivert';
+    let keep = prev;
+    let drop = row;
     if (prevArchived !== rowArchived) {
-      map.set(key, rowArchived ? prev : row);
-      continue;
+      keep = rowArchived ? prev : row;
+      drop = keep === prev ? row : prev;
+    } else {
+      const tPrev = Date.parse(prev.updatedAt || prev.createdAt || '') || 0;
+      const tRow = Date.parse(row.updatedAt || row.createdAt || '') || 0;
+      keep = tRow >= tPrev ? row : prev;
+      drop = keep === prev ? row : prev;
     }
-    const tPrev = Date.parse(prev.updatedAt || prev.createdAt || '') || 0;
-    const tRow = Date.parse(row.updatedAt || row.createdAt || '') || 0;
-    map.set(key, tRow >= tPrev ? row : prev);
+    map.set(key, keep);
+    remember(drop.id, keep.id);
   }
   return [...map.values()];
+}
+
+/**
+ * Remap project-scoped rows whose projectId no longer exists.
+ * Prefer explicit idRemap (from dedupe), then projectNumber → live project.
+ */
+export function healOrphanProjectRefs(state, idRemap = null) {
+  const projects = Array.isArray(state?.projects) ? state.projects : [];
+  const byId = new Map(projects.map((project) => [project.id, project]));
+  const byNumber = new Map();
+  for (const project of projects) {
+    const key = projectNumberKey(project.number);
+    if (key && !byNumber.has(key)) byNumber.set(key, project);
+  }
+
+  const resolveId = (projectId, projectNumber) => {
+    const id = text(projectId);
+    if (!id) return id;
+    if (byId.has(id)) return id;
+    const mapped = idRemap?.get(id);
+    if (mapped && byId.has(mapped)) return mapped;
+    // projectNumber-felt, eller projectId som egentlig er prosjektnummer (Moment m.m.).
+    const key = projectNumberKey(projectNumber) || projectNumberKey(id);
+    if (key) {
+      const hit = byNumber.get(key);
+      if (hit) return hit.id;
+    }
+    return id;
+  };
+
+  const remapRows = (rows, { withNumber = false } = {}) => (
+    (Array.isArray(rows) ? rows : []).map((row) => {
+      if (!row || typeof row !== 'object') return row;
+      const nextId = resolveId(row.projectId, withNumber ? row.projectNumber : '');
+      if (!nextId || nextId === row.projectId) return row;
+      const patch = { ...row, projectId: nextId };
+      if (withNumber) {
+        const project = byId.get(nextId);
+        if (project) {
+          if (!text(patch.projectNumber)) patch.projectNumber = text(project.number);
+          if (!text(patch.projectName)) patch.projectName = text(project.name);
+        }
+      }
+      return patch;
+    })
+  );
+
+  const next = { ...state };
+  for (const key of PROJECT_SCOPED_KEYS) {
+    if (key === 'timeEntries') {
+      next.timeEntries = remapRows(state.timeEntries, { withNumber: true });
+      continue;
+    }
+    if (key === 'members') {
+      const remapped = remapRows(state.members);
+      // Collapse duplicate membership after id heal.
+      const seen = new Map();
+      for (const row of remapped) {
+        if (!row?.projectId || !row?.employeeId) continue;
+        const k = `${row.projectId}|${row.employeeId}`;
+        const prev = seen.get(k);
+        if (!prev) {
+          seen.set(k, row);
+          continue;
+        }
+        seen.set(k, {
+          ...prev,
+          ...row,
+          starred: !!(prev.starred || row.starred),
+          active: !(prev.active === false && row.active === false),
+          role: text(row.role) || text(prev.role) || 'Prosjektmedlem',
+        });
+      }
+      next.members = [...seen.values()];
+      continue;
+    }
+    next[key] = remapRows(state[key]);
+  }
+
+  return next;
 }
 
 export function normalizeProjectState(raw) {
@@ -136,7 +233,8 @@ export function normalizeProjectState(raw) {
     ...project,
     workSettings: defaultWorkSettings(project?.workSettings),
   }));
-  next.projects = dedupeProjectsByNumber(next.projects);
+  const idRemap = new Map();
+  next.projects = dedupeProjectsByNumber(next.projects, idRemap);
   next.activities = next.activities.map((row) => normalizeActivityRow(row));
   next.members = next.members.map((row) => normalizeMemberRow(row)).filter(Boolean);
   next.timeEntries = next.timeEntries.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
@@ -145,8 +243,9 @@ export function normalizeProjectState(raw) {
   next.mileageTrips = (next.mileageTrips || []).filter((row) => row && typeof row === 'object');
   next.products = (next.products || []).filter((row) => row && typeof row === 'object');
   next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
+  const healed = healOrphanProjectRefs(next, idRemap);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
-  return scrubProjectState(next);
+  return scrubProjectState(healed);
 }
 
 function normalizeActivityRow(row) {
@@ -1239,18 +1338,42 @@ export function toggleMemberStar(state, memberId) {
 
 /**
  * Prosjekter synlige i timesheet for en ansatt:
- * medlemskap, showInAllTimesheets, eller allowSelfJoin (kan legges til).
+ * medlemskap, egne timeføringer (valgfri datoperiode), showInAllTimesheets,
+ * eller allowSelfJoin (kan legges til).
  */
-export function projectsForEmployee(state, employeeId, { includeJoinable = false, assignedOnly = false } = {}) {
+export function projectsForEmployee(state, employeeId, {
+  includeJoinable = false,
+  assignedOnly = false,
+  fromDate = '',
+  toDate = '',
+  includeHourProjects = true,
+} = {}) {
   const id = text(employeeId);
   const memberIds = new Set(
     state.members
       .filter((row) => row.employeeId === id && row.active !== false)
       .map((row) => row.projectId),
   );
+  const projectIds = new Set((state.projects || []).map((p) => p.id));
+  const hourProjectIds = new Set();
+  const fromKey = text(fromDate);
+  const toKey = text(toDate);
+  if (includeHourProjects) {
+    for (const row of state.timeEntries || []) {
+      if (text(row.employeeId) !== id) continue;
+      if (parseHours(row.hours) <= 0) continue;
+      const date = text(row.date);
+      if (fromKey && date && date < fromKey) continue;
+      if (toKey && date && date > toKey) continue;
+      const pid = text(row.projectId);
+      if (pid && projectIds.has(pid)) hourProjectIds.add(pid);
+    }
+  }
   return state.projects.filter((project) => {
     if (project.status === 'arkivert') return false;
     if (memberIds.has(project.id)) return true;
+    // Importerte / historiske timer skal synes i grid selv uten medlemskap.
+    if (hourProjectIds.has(project.id)) return true;
     if (assignedOnly) return false;
     const settings = defaultWorkSettings(project.workSettings);
     if (settings.showInAllTimesheets) return true;
@@ -1709,7 +1832,9 @@ export function mergeProjectStates(left, right) {
   for (const key of PROJECT_SCOPED_KEYS) {
     next[key] = (next[key] || []).filter((row) => !deletedIds.has(row.projectId));
   }
-  next.projects = dedupeProjectsByNumber(next.projects);
+  const mergeRemap = new Map();
+  next.projects = dedupeProjectsByNumber(next.projects, mergeRemap);
+  Object.assign(next, healOrphanProjectRefs(next, mergeRemap));
   next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
   next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
   next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)

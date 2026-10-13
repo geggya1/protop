@@ -151,13 +151,14 @@ export default function CompanyLanding({
   const roles = live?.roles || [];
   const accounts = live?.accounts || null;
   const signature = live?.signature || null;
+  const parentLabel = [live?.parent?.navn, live?.parent?.organisasjonsnummer].filter(Boolean).join(' · ');
   const overview = useMemo(() => groupOverview({
     konsern: profile?.konsern === true,
     morselskap: accounts?.morselskap === true,
-    parentCompanyName: stored?.parentCompanyName,
+    parentCompanyName: parentLabel || stored?.parentCompanyName,
     publicUnits: live?.units || [],
     registered: stored?.subUnits,
-  }), [profile?.konsern, accounts?.morselskap, stored?.parentCompanyName, stored?.subUnits, live?.units]);
+  }), [profile?.konsern, accounts?.morselskap, parentLabel, stored?.parentCompanyName, stored?.subUnits, live?.units]);
 
   const weatherCard = (
     <Card colors={colors}>
@@ -292,6 +293,9 @@ export default function CompanyLanding({
             <Text style={[styles.lead, { color: colors.ink }]}>
               {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || 'Manuell bedrift'}
             </Text>
+            {parentLabel ? (
+              <Text style={[styles.mutedLine, { color: colors.muted }]}>Overordnet enhet: {parentLabel}</Text>
+            ) : null}
             {profile?.formaal?.length ? (
               <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
             ) : null}
@@ -300,6 +304,7 @@ export default function CompanyLanding({
             ) : null}
             <View style={styles.factGrid}>
               <Fact label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
+              <Fact label="Oppstart" value={profile?.stiftelsesdato ? '' : nbDate(profile?.oppstart)} colors={colors} />
               <Fact label="I Enhetsregisteret" value={nbDate(profile?.registrert)} colors={colors} />
               <Fact label="Målform" value={profile?.maalform} colors={colors} />
               <Fact label="Sektor" value={[profile?.sektorKode, profile?.sektor].filter(Boolean).join(' · ')} colors={colors} />

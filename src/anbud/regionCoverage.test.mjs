@@ -8,7 +8,14 @@ import {
   watchFingerprint,
   watchQuery,
 } from './model.js';
-import { clampSideWidth, mapHeightForSide, sideWidthFromDrag } from './sideWidth.js';
+import {
+  clampSideWidth,
+  mapHeightForRail,
+  mapHeightForSide,
+  railMaxWidth,
+  settleRailWidth,
+  sideWidthFromDrag,
+} from './sideWidth.js';
 
 const departments = [
   { id: 'd-nord', name: 'Nord' },
@@ -86,5 +93,18 @@ assert.equal(clampSideWidth('nei'), 360);
 assert.equal(mapHeightForSide(360), 440);
 assert.ok(mapHeightForSide(700) > 440);
 assert.equal(mapHeightForSide(840), 680);
+assert.equal(settleRailWidth(44), 44);
+assert.equal(settleRailWidth(90), 44);
+assert.equal(settleRailWidth(93), 280);
+assert.equal(settleRailWidth(360), 360);
+assert.equal(settleRailWidth(900, { max: 840 }), 840);
+assert.equal(settleRailWidth(200, { max: 220 }), 220);
+assert.equal(settleRailWidth('nei'), 44);
+assert.equal(railMaxWidth(390), 378);
+assert.equal(railMaxWidth(2000), 840);
+assert.equal(railMaxWidth(80), 68);
+assert.equal(sideWidthFromDrag(44, 400, 80, { min: 44, max: 378 }), 364);
+assert.equal(mapHeightForRail(360, 800), 306);
+assert.equal(mapHeightForRail(360, 640), 269);
 
 console.log('regionCoverage.test.mjs ok');

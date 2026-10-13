@@ -98,7 +98,7 @@ async function bytesFromFile(file) {
 
 export default function EmployeesScreen() {
   const colors = useColors();
-  const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab } = useApp();
+  const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.can('employees', 'write'));
   const canInvite = isAdmin;
@@ -642,6 +642,21 @@ export default function EmployeesScreen() {
     setDraft(presentEmployee(row));
     setView('detail');
   }
+
+  const pendingEmployeeId = useRef('');
+  useEffect(() => {
+    if (!shellIntent || shellIntent.type !== 'openEmployee') return;
+    pendingEmployeeId.current = String(shellIntent.employeeId || '');
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
+  useEffect(() => {
+    const id = pendingEmployeeId.current;
+    if (!id) return;
+    const row = rows.find((item) => item.id === id);
+    if (!row) return;
+    pendingEmployeeId.current = '';
+    openDetail(row);
+  }, [rows]);
 
   function openCv(row) {
     resetMessage();

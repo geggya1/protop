@@ -530,8 +530,8 @@ function employmentStatus(employee) {
 
 export function grantsForEmployee(policy, employee) {
   const status = employmentStatus(employee);
-  if (status === 'inactive' || status === 'deleted') {
-    return { ...blankGrants(), companyPublic: 'read' };
+  if (status === 'inactive' || status === 'deleted' || status === 'former') {
+    return blankGrants();
   }
   const ids = employeeLevelIds(employee);
   const base = ids.length
@@ -558,8 +558,8 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
     && row.personUid === uid
     && employmentStatus(row) !== 'deleted'
   )) || null;
-  if (linked && (employmentStatus(linked) === 'inactive')) {
-    const grants = { ...blankGrants(), companyPublic: 'read' };
+  if (linked && (employmentStatus(linked) === 'inactive' || employmentStatus(linked) === 'former')) {
+    const grants = blankGrants();
     return {
       levelId: '',
       grants,

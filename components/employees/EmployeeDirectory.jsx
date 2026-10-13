@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { accessLevelSections, accessSectionTitle, employeeLevelIds } from '../../src/access/companyAccess';
+import { accessLevelSections, accessSectionTitle, accountDeactivated, employeeLevelIds } from '../../src/access/companyAccess';
 import { displayName, employeeActivityTab, employeeShowsInSection } from '../../src/employees/model';
 
 const COLUMN_LABEL = {
@@ -107,11 +107,12 @@ function LevelTable({
         {rows.map((row) => {
           const selected = employeeLevelIds(row);
           const name = displayName(row);
+          const retired = accountDeactivated(row);
           return (
             <View
               key={row.id}
               nativeID={`employee-row-${row.id}`}
-              style={[styles.dataRow, { borderBottomColor: colors.line }]}
+              style={[styles.dataRow, { borderBottomColor: colors.line, opacity: retired ? 0.92 : 1 }]}
             >
               <View style={styles.personCell}>{renderIdentity(row)}</View>
               {levels.map((level) => {
@@ -121,22 +122,34 @@ function LevelTable({
                     key={level.id}
                     nativeID={`employee-level-${row.id}-${level.id}`}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on, disabled: !canEditLevels }}
-                    accessibilityLabel={`${name}, ${level.label}`}
-                    disabled={!canEditLevels}
-                    onPress={() => onToggleLevel?.(row, level.id, !on)}
+                    accessibilityState={{ checked: false, disabled: retired || !canEditLevels }}
+                    accessibilityLabel={retired
+                      ? `${name}, ${level.label}, deaktivert uten rettigheter`
+                      : `${name}, ${level.label}`}
+                    disabled={retired || !canEditLevels}
+                    onPress={() => {
+                      if (retired) return;
+                      onToggleLevel?.(row, level.id, !on);
+                    }}
                     style={styles.levelCell}
                   >
                     <View style={[
                       styles.box,
+                      retired && on && styles.retiredBox,
                       {
-                        borderColor: on ? colors.brand : colors.line,
-                        backgroundColor: on ? colors.brand : colors.card,
-                        opacity: canEditLevels ? 1 : 0.7,
+                        borderColor: on ? (retired ? colors.muted : colors.brand) : colors.line,
+                        backgroundColor: on ? (retired ? (colors.sunken || '#f8fafc') : colors.brand) : colors.card,
+                        borderStyle: retired ? 'dashed' : 'solid',
+                        opacity: retired ? 0.72 : (canEditLevels ? 1 : 0.7),
                       },
                     ]}
                     >
-                      {on ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                      {retired && on ? <View style={[styles.hatch, { backgroundColor: colors.muted }]} /> : null}
+                      {on ? (
+                        retired
+                          ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 15 }}>✓</Text>
+                          : <Ionicons name="checkmark" size={14} color="#fff" />
+                      ) : null}
                     </View>
                   </Pressable>
                 );
@@ -228,8 +241,10 @@ export default function EmployeeDirectory({
           onChange={setCompanyTab}
         />
         {withLevels ? (
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Kryss av nivåene som passer. En ansatt kan ha flere.
+          <Text nativeID="employees-level-hint-company" style={{ color: companyTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
+            {companyTab === 'inactive'
+              ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
+              : 'Kryss av nivåene som passer. En ansatt kan ha flere.'}
           </Text>
         ) : null}
         {listing(
@@ -255,8 +270,10 @@ export default function EmployeeDirectory({
           onChange={setExternalTab}
         />
         {withLevels ? (
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Kryss av nivåene som passer. En person kan ha flere.
+          <Text nativeID="employees-level-hint-external" style={{ color: externalTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
+            {externalTab === 'inactive'
+              ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
+              : 'Kryss av nivåene som passer. En person kan ha flere.'}
           </Text>
         ) : null}
         {listing(
@@ -301,5 +318,12 @@ const styles = StyleSheet.create({
   personCell: { width: 280, paddingVertical: 8, paddingRight: 8 },
   levelHead: { width: 108, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   levelCell: { width: 108, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
-  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  retiredBox: { position: 'relative' },
+  hatch: {
+    position: 'absolute',
+    width: 30,
+    height: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
 });

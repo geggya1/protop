@@ -286,7 +286,12 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     uid: 'x',
   });
   assert.equal(stopped.grants.economy, 'none');
-  assert.equal(stopped.grants.companyPublic, 'read');
+  assert.equal(stopped.grants.companyPublic, 'none');
+  assert.equal(stopped.grants.employees, 'none');
+  const pausedGrants = grantsForEmployee(null, paused);
+  assert.equal(pausedGrants.companyPublic, 'none');
+  assert.equal(pausedGrants.employees, 'none');
+  assert.deepEqual(employeeLevelIds(paused), ['ansatt']);
   assert.equal(grantsForEmployee(null, kari).economy, 'read');
 }
 

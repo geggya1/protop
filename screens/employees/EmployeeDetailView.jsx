@@ -165,14 +165,21 @@ function AccessCorner({ employee, colors }) {
   const selectedIds = employeeLevelIds(employee);
   const currentId = placedLevelId(employee);
   const symbol = ACCESS_SYMBOLS[currentId] || 'ellipse-outline';
-  const label = selectedIds.map((id) => levelById(id)?.label).filter(Boolean).join(', ') || 'Ikke valgt';
+  const deactivated = accountDeactivated(employee);
+  const label = deactivated
+    ? 'Deaktivert. Ingen rettigheter.'
+    : (selectedIds.map((id) => levelById(id)?.label).filter(Boolean).join(', ') || 'Ikke valgt');
   return (
     <View nativeID="employee-access-level" style={styles.accessCorner}>
       <View
         accessibilityLabel={label}
-        style={[styles.accessSymbol, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+        style={[styles.accessSymbol, {
+          borderColor: deactivated ? colors.muted : colors.brand,
+          backgroundColor: deactivated ? colors.sunken : colors.brandSoft,
+          opacity: deactivated ? 0.7 : 1,
+        }]}
       >
-        <Ionicons name={symbol} size={18} color={colors.brand} />
+        <Ionicons name={symbol} size={18} color={deactivated ? colors.muted : colors.brand} />
       </View>
       <Text style={{ color: colors.muted, fontSize: 12, maxWidth: 140 }}>{label}</Text>
     </View>
@@ -187,7 +194,7 @@ function accountDeactivated(employee) {
 function EmploymentChips({ employee, colors, companyName, busy, canEdit, canEditAccess, isAdmin, onClassify }) {
   const deactivated = accountDeactivated(employee);
   const locked = !canEdit || busy || !isAdmin;
-  const levelLocked = !canEditAccess || busy;
+  const levelLocked = deactivated || !canEditAccess || busy;
   const selected = employeeLevelIds(employee);
   const danger = colors.danger || '#dc2626';
   const success = colors.success || '#16a34a';
@@ -223,14 +230,16 @@ function EmploymentChips({ employee, colors, companyName, busy, canEdit, canEdit
       </View>
       <Text style={{ color: deactivated ? danger : colors.muted, fontSize: 13, lineHeight: 18 }}>
         {deactivated
-          ? 'Ansatt er deaktivert og har ikke vanlig tilgang.'
+          ? 'Deaktivert. Ingen rettigheter.'
           : 'Kontoen er aktiv.'}
       </Text>
       <Text style={[styles.classifyLabel, { color: colors.muted }]}>Personell</Text>
       <Text style={{ color: colors.ink, fontSize: 15 }}>{personnelKindLabel(personnelKind(employee), companyName)}</Text>
       <Text style={[styles.classifyLabel, { color: colors.muted }]}>Rettigheter</Text>
-      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-        Kryss av nivåene som passer for denne ansatte. Rettighetene fra alle avhukede nivå gjelder.
+      <Text style={{ color: deactivated ? danger : colors.muted, fontSize: 13, lineHeight: 18 }}>
+        {deactivated
+          ? 'Deaktivert. Ingen rettigheter. De skraverte nivåene er de personen hadde.'
+          : 'Kryss av nivåene som passer for denne ansatte. Rettighetene fra alle avhukede nivå gjelder.'}
       </Text>
       {accessLevelSections().map((section) => (
         <View key={section.id} nativeID={`employee-levels-${section.id}`} style={styles.levelGroup}>
@@ -253,15 +262,20 @@ function EmploymentChips({ employee, colors, companyName, busy, canEdit, canEdit
                 <View style={[
                   styles.levelBox,
                   {
-                    borderColor: on ? colors.brand : colors.line,
-                    backgroundColor: on ? colors.brand : colors.card,
-                    opacity: levelLocked ? 0.6 : 1,
+                    borderColor: on ? (deactivated ? colors.muted : colors.brand) : colors.line,
+                    backgroundColor: on ? (deactivated ? (colors.sunken || '#f8fafc') : colors.brand) : colors.card,
+                    borderStyle: deactivated ? 'dashed' : 'solid',
+                    opacity: deactivated ? 0.72 : (levelLocked ? 0.6 : 1),
                   },
                 ]}
                 >
-                  {on ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+                  {on ? (
+                    deactivated
+                      ? <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 14 }}>✓</Text>
+                      : <Ionicons name="checkmark" size={12} color="#fff" />
+                  ) : null}
                 </View>
-                <Text style={{ color: colors.ink, fontSize: 15, flex: 1 }}>{level.label}</Text>
+                <Text style={{ color: deactivated ? colors.muted : colors.ink, fontSize: 15, flex: 1 }}>{level.label}</Text>
               </TouchableOpacity>
             );
           })}

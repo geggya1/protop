@@ -688,6 +688,10 @@ export function applyEmployeeClassification(employee, patch = {}) {
   if (Object.prototype.hasOwnProperty.call(patch, 'canLogin')) {
     company.canLogin = bool(patch.canLogin);
   }
+  if (company.status === 'inactive' || company.status === 'former' || company.status === 'deleted') {
+    company.canLogin = false;
+    if (Object.prototype.hasOwnProperty.call(patch, 'status')) company.accessOverrides = {};
+  }
   // Bakoverkompatibilitet for eldre kall som bruker innleid/external.
   if (Object.prototype.hasOwnProperty.call(patch, 'innleid') && !Object.prototype.hasOwnProperty.call(patch, 'personnelKind')) {
     company.personnelKind = patch.innleid ? 'innleid' : (company.personnelKind === 'innleid' ? 'staff' : company.personnelKind);

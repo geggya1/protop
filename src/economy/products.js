@@ -127,6 +127,8 @@ export function normalizeSale(input = {}) {
     projectId: text(row.projectId),
     projectNumber: text(row.projectNumber),
     projectName: text(row.projectName),
+    employeeId: text(row.employeeId),
+    employeeName: text(row.employeeName),
     status,
     invoiceId: text(row.invoiceId),
     createdAt: text(row.createdAt),

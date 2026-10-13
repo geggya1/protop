@@ -200,7 +200,7 @@ function employeeMail(employee) {
 function statusNote(employee) {
   const status = employee?.company?.status || 'active';
   if (status === 'deleted') return 'Papirkurv';
-  if (status === 'inactive' || status === 'former') return 'Deaktivert';
+  if (status === 'inactive' || status === 'former') return 'Deaktivert. Ingen rettigheter.';
   if (status === 'leave') return 'Permisjon';
   return '';
 }
@@ -563,6 +563,7 @@ export default function CompanyAccessSettings({
   busy = false,
   onSavePolicy,
   onSaveEmployee,
+  onOpenEmployee,
   layout = '',
   initialMovingId = '',
   initialDrawerId = '',
@@ -835,8 +836,13 @@ export default function CompanyAccessSettings({
     savePerson(next, `${displayName(person)} følger nivået igjen.`);
   }
 
+  function openEmployee(employee) {
+    if (!employee?.id) return;
+    onOpenEmployee?.(employee);
+  }
+
   function togglePersonLevel(employee, levelId, checked) {
-    if (!canEdit || !employee?.id || !onSaveEmployee) return;
+    if (!canEdit || !employee?.id || !onSaveEmployee || accountDeactivated(employee)) return;
     const id = employee.id;
     const previous = levelWrites.current.get(id) || Promise.resolve();
     const job = previous.catch(() => {}).then(async () => {
@@ -881,8 +887,8 @@ export default function CompanyAccessSettings({
       <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Tilgang</Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer.
-        Rettighetene fra alle avhukede nivå gjelder. Tannhjulet på et nivå setter se, lese, skrive og slette for modulene.
-        En person kan i tillegg få egne avvik. Høyere rettighet tar med dem under.
+        Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte.
+        Tannhjulet på et nivå setter se, lese, skrive og slette for modulene. Høyere rettighet tar med dem under.
       </Text>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Se som bruker, under Visning, er standard for administrator og øverste leder.
@@ -922,8 +928,8 @@ export default function CompanyAccessSettings({
         <View style={styles.stack}>
           <Text style={[styles.kind, { color: colors.muted }]}>
             {canEdit
-              ? 'Trykk navnet for å åpne personen. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
-              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å se personen. Tannhjulet viser tilgangen til modulene.'}
+              ? 'Trykk navnet for å åpne den ansatte. Dra i håndtaket og slipp på en annen gruppe, eller på Aktiv eller Deaktivert. Tannhjulet definerer tilgangen til modulene.'
+              : 'Åpne gruppen og velg Aktive eller Deaktiverte. Trykk navnet for å åpne den ansatte. Tannhjulet viser tilgangen til modulene.'}
           </Text>
           {accessLevelSections().map((section) => (
             <View key={section.id} nativeID={`company-access-section-${section.id}`} style={styles.section}>
@@ -950,7 +956,7 @@ export default function CompanyAccessSettings({
                     dropKey={row.id}
                     hotDrop={drag?.drop || ''}
                     dragging={!!drag}
-                    onOpen={(employee) => setPersonId(employee.id)}
+                    onOpen={openEmployee}
                     memberTab={memberTabs[row.id]}
                     onMemberTab={(tab) => {
                       setMemberTabs((current) => ({ ...current, [row.id]: tab }));
@@ -996,7 +1002,7 @@ export default function CompanyAccessSettings({
             dropKey="unplaced"
             hotDrop={drag?.drop || ''}
             dragging={!!drag}
-            onOpen={(employee) => setPersonId(employee.id)}
+            onOpen={openEmployee}
             memberTab={memberTabs.unplaced}
             onMemberTab={(tab) => {
               setMemberTabs((current) => ({ ...current, unplaced: tab }));
@@ -1044,7 +1050,7 @@ export default function CompanyAccessSettings({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Åpne ${displayName(employee)}`}
-                  onPress={() => setPersonId(employee.id)}
+                  onPress={() => openEmployee(employee)}
                   style={styles.memberRow}
                 >
                   <AvatarFace employee={employee} colors={colors} active={employee.id === personId} />
@@ -1056,13 +1062,18 @@ export default function CompanyAccessSettings({
                     <Text style={[styles.kind, { color: colors.muted }]}>
                       {cardSubtitle(employee, companyHeadingName(company))}
                     </Text>
+                    {accountDeactivated(employee) ? (
+                      <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>
+                        Deaktivert. Ingen rettigheter.
+                      </Text>
+                    ) : null}
                   </View>
                 </Pressable>
               )}
             />
           )}
           <Text style={[styles.kind, { color: colors.muted }]}>
-            Kryss av nivåene som passer. Trykk navnet for egne avvik på modulene.
+            Kryss av nivåene som passer. Trykk navnet for å åpne den ansatte. Deaktiverte har ingen rettigheter.
           </Text>
         </View>
       )}

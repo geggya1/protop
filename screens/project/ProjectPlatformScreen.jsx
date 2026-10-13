@@ -241,6 +241,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               await savePatch(familyId, { company: { ...company, accessPolicy } });
             }}
             onSaveEmployee={(employee) => saveEmployee(familyId, employee)}
+            onOpenEmployee={(employee) => requestShellTab?.('ansatte', null, {
+              type: 'openEmployee',
+              employeeId: employee?.id,
+            })}
           />
         ) : (
           <CompanyAccessDenied colors={colors} />

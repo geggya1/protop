@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { filterCustomers, formatOrgnr } from '../../src/anbud/customers';
+import { formatOrgnr, rankCustomerMatches } from '../../src/anbud/customers';
 import CustomerCreateModal from '../customers/CustomerCreateModal';
 
 function meta(item) {
@@ -26,7 +26,7 @@ export default function AgreementCustomerField({
   const matches = useMemo(() => {
     const needle = query.trim();
     if (!needle) return [];
-    return filterCustomers(customers, needle);
+    return rankCustomerMatches(customers, needle);
   }, [customers, query]);
   const shown = matches.slice(0, 8);
 

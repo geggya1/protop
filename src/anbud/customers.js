@@ -339,6 +339,25 @@ export function filterCustomers(customers, query = '', { kind = '', gap = '' } =
   ));
 }
 
+/** Søketreff i kundevalg: navn, org.nr og kundenummer før treff bare i sted eller notat. */
+export function rankCustomerMatches(customers, query = '') {
+  const rows = filterCustomers(customers, query);
+  const needle = fold(query);
+  if (!needle) return rows;
+  const score = (row) => {
+    const name = fold(row.name);
+    const org = fold(row.orgnr);
+    const number = fold(row.customerNumber);
+    const email = fold(row.email);
+    if (name.startsWith(needle) || org.startsWith(needle) || number === needle) return 0;
+    if (name.includes(needle) || email.includes(needle) || org.includes(needle)) return 1;
+    return 2;
+  };
+  return [...rows].sort((left, right) => score(left) - score(right)
+    || Number(left.customerNumber || 0) - Number(right.customerNumber || 0)
+    || left.name.localeCompare(right.name, 'nb'));
+}
+
 function sameName(left, right) {
   return fold(left) && fold(left) === fold(right);
 }

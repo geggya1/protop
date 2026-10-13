@@ -387,11 +387,13 @@ export default function AgreementTreatment({
             customerId={draft.customerId}
             companyId={companyId}
             people={people}
-            onSelect={(customer) => setDraft((current) => ({
-              ...current,
-              customerId: customer?.id || '',
-              email: customer ? (customer.email || '') : current.email,
-            }))}
+            onSelect={(customer) => setDraft((current) => {
+              const previous = (state?.customers || []).find((row) => row.id === current.customerId);
+              const email = customer
+                ? (customer.email || '')
+                : (previous?.email && current.email === previous.email ? '' : current.email);
+              return { ...current, customerId: customer?.id || '', email };
+            })}
             onSavedState={(saved) => setState(saved)}
           />
           <Text style={{ color: colors.muted }}>Ansvarlig</Text>

@@ -25,6 +25,14 @@ export function monthLabel(year, monthIndex) {
   return `${MONTHS[monthIndex] || ''} ${year}`.trim();
 }
 
+/** Første og siste dag i måneden som YYYY-MM-DD (for timeEntry-vindu). */
+export function monthDateRange(year, monthIndex) {
+  const fromDate = `${year}-${pad2(monthIndex + 1)}-01`;
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const toDate = `${year}-${pad2(monthIndex + 1)}-${pad2(lastDay)}`;
+  return { fromDate, toDate };
+}
+
 const MONTH_SHORT = [
   'jan', 'feb', 'mar', 'apr', 'mai', 'jun',
   'jul', 'aug', 'sep', 'okt', 'nov', 'des',

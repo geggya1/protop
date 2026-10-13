@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   attachTimeEntriesToState,
   diffTimeEntries,
+  filterTimeEntriesByRange,
 } from './timeEntryStorage.js';
 import {
   markTimeEntriesSynced,
@@ -11,6 +12,26 @@ import {
   clearProjectStateMemory,
 } from '../project/storage.js';
 import { deleteTimeEntry, emptyProjectState } from '../project/engine.js';
+
+{
+  const rows = [
+    { id: '1', projectId: 'p', employeeId: 'a', date: '2026-07-01', hours: 1 },
+    { id: '2', projectId: 'p', employeeId: 'a', date: '2026-08-01', hours: 1 },
+    { id: '3', projectId: 'p', employeeId: 'b', date: '2026-07-15', hours: 1 },
+  ];
+  assert.deepEqual(
+    filterTimeEntriesByRange(rows, { fromDate: '2026-07-01', toDate: '2026-07-31' }).map((r) => r.id),
+    ['1', '3'],
+  );
+  assert.deepEqual(
+    filterTimeEntriesByRange(rows, {
+      fromDate: '2026-07-01',
+      toDate: '2026-07-31',
+      employeeId: 'a',
+    }).map((r) => r.id),
+    ['1'],
+  );
+}
 
 {
   const prev = [{

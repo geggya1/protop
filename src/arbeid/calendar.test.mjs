@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { weekAround } from './calendar.js';
+import { monthDateRange, weekAround } from './calendar.js';
 
 {
   // 1. oktober 2026 er en torsdag. Uken skal være hel, mandag–søndag.
@@ -16,6 +16,11 @@ import { weekAround } from './calendar.js';
     '2026-10-04',
   ]);
   assert.equal(new Set(week.map((day) => day.week)).size, 1);
+}
+
+{
+  assert.deepEqual(monthDateRange(2026, 6), { fromDate: '2026-07-01', toDate: '2026-07-31' });
+  assert.deepEqual(monthDateRange(2024, 1), { fromDate: '2024-02-01', toDate: '2024-02-29' });
 }
 
 console.log('calendar.test.mjs: ok');

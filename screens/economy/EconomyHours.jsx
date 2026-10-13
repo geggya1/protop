@@ -136,7 +136,12 @@ export default function EconomyHours({
 
   useEffect(() => {
     let live = true;
-    loadProjectState(resolvedFamilyId, { force: true }).then((loaded) => {
+    const y = new Date().getFullYear();
+    // Standard: inneværende år — ikke hele selskapshistorikken (~30k rader).
+    loadProjectState(resolvedFamilyId, {
+      force: true,
+      hours: { fromDate: `${y}-01-01`, toDate: `${y}-12-31` },
+    }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);

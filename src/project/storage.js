@@ -7,6 +7,7 @@ import {
 import {
   attachTimeEntriesToState,
   diffTimeEntries,
+  mergeEntryLists,
   removeTimeEntry,
   saveTimeEntries,
 } from '../economy/timeEntryStorage.js';
@@ -25,6 +26,10 @@ const loadMeta = new Map();
  * kaller putProjectState før saveProjectState og da blir slettinger usynlige.
  */
 const SYNCED_ENTRIES = new Map();
+/** 'partial' når bare et datovindu er lastet — da skal sync ikke slette øvrige id-er. */
+const HOURS_MODE = new Map();
+/** Inflight for ensureProjectHours per selskap+vindu. */
+const hoursInflight = new Map();
 
 const REMOTE_AUTH_MS = 8000;
 const REMOTE_READ_MS = 12000;
@@ -37,6 +42,10 @@ function cloneEntries(entries) {
   return (Array.isArray(entries) ? entries : []).slice();
 }
 
+function hoursModeKey(companyId) {
+  return memoryKey(companyId);
+}
+
 export function peekSyncedTimeEntries(companyId) {
   return SYNCED_ENTRIES.get(memoryKey(companyId)) || null;
 }
@@ -45,10 +54,31 @@ export function markTimeEntriesSynced(companyId, entries) {
   SYNCED_ENTRIES.set(memoryKey(companyId), cloneEntries(entries));
 }
 
+/** Slå sammen inn i SYNCED-baseline (delvis lasting). */
+export function markTimeEntriesSyncedMerge(companyId, entries) {
+  const key = memoryKey(companyId);
+  const merged = mergeEntryLists(SYNCED_ENTRIES.get(key) || [], entries || []);
+  SYNCED_ENTRIES.set(key, merged);
+}
+
 function baselineTimeEntries(companyId) {
   const key = memoryKey(companyId);
   if (SYNCED_ENTRIES.has(key)) return SYNCED_ENTRIES.get(key) || [];
   return MEMORY.get(key)?.timeEntries || [];
+}
+
+function setHoursMode(companyId, mode) {
+  const key = hoursModeKey(companyId);
+  if (mode === 'all') HOURS_MODE.set(key, 'all');
+  else if (mode === 'partial') {
+    if (HOURS_MODE.get(key) !== 'all') HOURS_MODE.set(key, 'partial');
+  } else if (mode === 'none') {
+    if (!HOURS_MODE.has(key)) HOURS_MODE.set(key, 'none');
+  }
+}
+
+export function peekHoursMode(companyId) {
+  return HOURS_MODE.get(hoursModeKey(companyId)) || 'none';
 }
 
 function localKey(companyId) {
@@ -216,35 +246,78 @@ function queueRemote(companyId, state) {
   }, 400));
 }
 
-async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries) {
+async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
   const id = String(companyId || '').trim();
   if (!id) return;
   const { changed, removed } = diffTimeEntries(previousEntries, nextEntries);
   if (changed.length) await saveTimeEntries(id, changed);
-  for (const entryId of removed) {
-    await removeTimeEntry(id, entryId);
+  if (allowRemovals) {
+    for (const entryId of removed) {
+      await removeTimeEntry(id, entryId);
+    }
+    markTimeEntriesSynced(id, nextEntries);
+  } else {
+    // Delvis vindu: aldri slett id-er som ikke er i minnet.
+    markTimeEntriesSyncedMerge(id, nextEntries);
   }
-  markTimeEntriesSynced(id, nextEntries);
+}
+
+function resolveHoursOpts(hours) {
+  if (hours === false || hours === 'none') return { hours: false };
+  if (hours === true || hours === 'all') return { all: true };
+  if (hours && typeof hours === 'object') {
+    return {
+      fromDate: String(hours.fromDate || '').trim(),
+      toDate: String(hours.toDate || '').trim(),
+      employeeId: String(hours.employeeId || '').trim(),
+      all: false,
+    };
+  }
+  // Standard: ikke last titusenvis av timer — kallere som trenger timer ber eksplisitt.
+  return { hours: false };
 }
 
 /**
  * Koble timeEntries, heal orphan projectId (via normalize/put), og synk
  * remappede id-er tilbake til subcollection når de avviker fra lastet liste.
  */
-async function loadStateWithHealedHours(companyId, baseState) {
-  const withHours = await attachTimeEntriesToState(companyId, baseState);
+async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
+  if (hoursOpts?.hours === false) {
+    const existing = MEMORY.get(memoryKey(companyId))?.timeEntries || [];
+    const stored = putProjectState({ ...baseState, timeEntries: existing }, companyId);
+    setHoursMode(companyId, existing.length ? peekHoursMode(companyId) : 'none');
+    return stored;
+  }
+  const withHours = await attachTimeEntriesToState(companyId, baseState, hoursOpts);
   const attached = withHours.timeEntries || [];
-  const stored = putProjectState(withHours, companyId);
+  const existing = MEMORY.get(memoryKey(companyId))?.timeEntries || [];
+  const mergedAttach = hoursOpts?.all
+    ? withHours
+    : { ...withHours, timeEntries: mergeEntryLists(existing, attached) };
+  const stored = putProjectState(mergedAttach, companyId);
   const healed = stored.timeEntries || [];
-  markTimeEntriesSynced(companyId, healed);
-  // Persistér heal (stale id → riktig prosjekt) uten å blokkere UI.
-  syncTimeEntriesRemote(companyId, attached, healed).catch(() => {});
+  const attachedIds = new Set(attached.map((row) => row.id));
+  const healedSlice = hoursOpts?.all
+    ? healed
+    : healed.filter((row) => attachedIds.has(row.id));
+  if (hoursOpts?.all) {
+    setHoursMode(companyId, 'all');
+    markTimeEntriesSynced(companyId, healed);
+  } else {
+    setHoursMode(companyId, 'partial');
+    markTimeEntriesSyncedMerge(companyId, healedSlice);
+  }
+  syncTimeEntriesRemote(companyId, attached, healedSlice, {
+    allowRemovals: !!hoursOpts?.all,
+  }).catch(() => {});
   return stored;
 }
 
 /**
  * Last prosjektstate. companyId anbefales for synk mellom brukere.
- * Bakoverkompatibel: loadProjectState() eller loadProjectState({ force }).
+ * @param {string|object} companyIdOrOpts
+ * @param {{ force?: boolean, hours?: false|'none'|'all'|true|{ fromDate?: string, toDate?: string, employeeId?: string } }} [maybeOpts]
+ * hours standard er false (kun prosjekt/medlemskap) — Arbeid/Timerapport ber om vindu.
  */
 export async function loadProjectState(companyIdOrOpts, maybeOpts) {
   let companyId = '';
@@ -257,12 +330,16 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     companyId = '';
   }
   const { force = false } = opts;
+  const hoursOpts = resolveHoursOpts(opts.hours);
   const key = memoryKey(companyId);
-  if (!force && MEMORY.has(key)) {
+  if (!force && MEMORY.has(key) && hoursOpts.hours === false) {
     loadMeta.set(key, 'ok');
     return MEMORY.get(key);
   }
-  if (!force && inflight.has(key)) return inflight.get(key);
+  if (!force && MEMORY.has(key) && !hoursOpts.all && (hoursOpts.fromDate || hoursOpts.toDate || hoursOpts.employeeId)) {
+    return ensureProjectHours(companyId, hoursOpts);
+  }
+  if (!force && inflight.has(key) && hoursOpts.hours === false) return inflight.get(key);
 
   const pending = (async () => {
     const local = await readLocal(companyId);
@@ -273,14 +350,13 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     const applied = applyRemoteProjectRead(local, await readRemote(companyId));
     loadMeta.set(key, applied.meta);
     if (!applied.cache) {
-      return loadStateWithHealedHours(companyId, applied.state);
+      return loadStateWithHealedHours(companyId, applied.state, hoursOpts);
     }
     if (applied.upload) {
       queueRemote(companyId, { ...stripTimeEntriesFromState(applied.state), syncedAt: new Date().toISOString() });
     }
-    const stored = await loadStateWithHealedHours(companyId, applied.state);
-    // Rydd legacy timeEntries ut av monolitten når de er migrert.
-    if ((applied.state.timeEntries || []).length && stored.timeEntries?.length) {
+    const stored = await loadStateWithHealedHours(companyId, applied.state, hoursOpts);
+    if ((applied.state.timeEntries || []).length && (hoursOpts.all || hoursOpts.fromDate)) {
       queueRemote(companyId, {
         ...stripTimeEntriesFromState(stored),
         syncedAt: new Date().toISOString(),
@@ -289,11 +365,40 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     return stored;
   })();
 
-  inflight.set(key, pending);
+  if (hoursOpts.hours === false || hoursOpts.all) {
+    inflight.set(key, pending);
+  }
   try {
     return await pending;
   } finally {
     if (inflight.get(key) === pending) inflight.delete(key);
+  }
+}
+
+/**
+ * Hent/merge timeføringer for et datovindu uten å laste hele selskapshistorikken.
+ */
+export async function ensureProjectHours(companyId, range = {}) {
+  const id = String(companyId || '').trim();
+  if (!id) return putProjectState(emptyProjectState(), '');
+  const hoursOpts = resolveHoursOpts(range.all ? 'all' : range);
+  const inflightKey = `${id}:${hoursOpts.fromDate || ''}:${hoursOpts.toDate || ''}:${hoursOpts.employeeId || ''}:${hoursOpts.all ? 'all' : 'w'}`;
+  if (hoursInflight.has(inflightKey)) return hoursInflight.get(inflightKey);
+
+  const pending = (async () => {
+    let base = MEMORY.get(memoryKey(id));
+    if (!base) {
+      base = await loadProjectState(id, { hours: false });
+    }
+    // Unngå å re-normalize hele timeEntries-lista bare for å hente et nytt vindu.
+    return loadStateWithHealedHours(id, { ...base, timeEntries: [] }, hoursOpts);
+  })();
+
+  hoursInflight.set(inflightKey, pending);
+  try {
+    return await pending;
+  } finally {
+    if (hoursInflight.get(inflightKey) === pending) hoursInflight.delete(inflightKey);
   }
 }
 
@@ -307,12 +412,12 @@ export async function saveProjectState(state, companyId) {
   const nextSlim = companyId
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
+  const allowRemovals = peekHoursMode(companyId) === 'all';
 
   if (companyId) {
     try {
-      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || []);
+      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
     } catch (error) {
-      // Behold minne, men signaliser feil til kallere som await-er.
       putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
       throw error;
     }
@@ -334,9 +439,10 @@ export async function persistProjectState(state, companyId) {
   const nextSlim = companyId
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
+  const allowRemovals = peekHoursMode(companyId) === 'all';
 
   if (companyId) {
-    await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || []);
+    await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
   }
 
   await writeLocal(companyId, nextSlim);
@@ -367,10 +473,13 @@ export function clearProjectStateMemory(companyId) {
     inflight.delete(key);
     loadMeta.delete(key);
     SYNCED_ENTRIES.delete(key);
+    HOURS_MODE.delete(key);
     return;
   }
   MEMORY.clear();
   inflight.clear();
   loadMeta.clear();
   SYNCED_ENTRIES.clear();
+  HOURS_MODE.clear();
+  hoursInflight.clear();
 }

@@ -31,6 +31,7 @@ import {
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
+  ensureProjectHours,
   loadProjectState,
   peekProjectState,
   putProjectState,
@@ -52,6 +53,7 @@ import {
 import {
   agreedHoursForDay,
   buildMonthGrid,
+  monthDateRange,
   monthLabel,
   parseDateKey,
   shiftMonth,
@@ -99,6 +101,7 @@ export default function ArbeidScreen({
   const [state, setState] = useState(() => cached || emptyProjectState());
   const [employees, setEmployees] = useState([]);
   const [ready, setReady] = useState(!!cached);
+  const [hoursLoading, setHoursLoading] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const skipSave = useRef(true);
@@ -117,6 +120,7 @@ export default function ArbeidScreen({
   const pickerSearchRef = useRef(null);
   const [absenceForm, setAbsenceForm] = useState({ type: 'ferie', hours: '7:30', description: '', date: '' });
 
+  // Prosjekt/medlemskap først — ikke vent på hele timehistorikken.
   useEffect(() => {
     let live = true;
     const warm = peekProjectState(workspaceId);
@@ -125,7 +129,7 @@ export default function ArbeidScreen({
       setReady(true);
       skipSave.current = true;
     }
-    loadProjectState(workspaceId).then((loaded) => {
+    loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
@@ -133,6 +137,24 @@ export default function ArbeidScreen({
     });
     return () => { live = false; };
   }, [workspaceId]);
+
+  // Timer kun for synlig måned (merge i minne ved månedsbytte).
+  useEffect(() => {
+    if (!ready || !workspaceId) return undefined;
+    let live = true;
+    const range = monthDateRange(year, monthIndex);
+    setHoursLoading(true);
+    ensureProjectHours(workspaceId, range).then((loaded) => {
+      if (!live) return;
+      setState(loaded);
+      skipSave.current = true;
+      setHoursLoading(false);
+    }).catch(() => {
+      if (!live) return;
+      setHoursLoading(false);
+    });
+    return () => { live = false; };
+  }, [ready, workspaceId, year, monthIndex]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -305,17 +327,8 @@ export default function ArbeidScreen({
   }, [state.timeEntries, state.absences, employeeId, days]);
 
   const balanceCells = useMemo(() => {
+    // Månedsbalanse ut fra lastet vindu (ikke hele historikken — den lastes ikke lenger).
     let running = 0;
-    // Startbalanse: sum før denne måneden
-    for (const row of state.timeEntries) {
-      if (row.employeeId !== employeeId) continue;
-      if (row.date < days[0]?.key) running += parseHours(row.hours);
-    }
-    for (const row of state.absences) {
-      if (row.employeeId !== employeeId) continue;
-      if (row.date < days[0]?.key) running += parseHours(row.hours);
-    }
-    // Trekk avtalte arbeidsdager før måneden (forenklet: bare månedlig delta)
     const cells = [];
     for (const day of days) {
       const delta = (workedByDay.get(day.key) || 0) - (agreedByDay.get(day.key) || 0);
@@ -323,7 +336,7 @@ export default function ArbeidScreen({
       cells.push(running);
     }
     return cells;
-  }, [state.timeEntries, state.absences, employeeId, days, workedByDay, agreedByDay]);
+  }, [days, workedByDay, agreedByDay]);
 
   const monthEntries = useMemo(() => {
     const fromDate = days[0]?.key || '';
@@ -667,6 +680,7 @@ export default function ArbeidScreen({
         </View>
       </View>
 
+      {hoursLoading ? <Text style={{ color: colors.muted, marginBottom: 6 }}>Laster timer for måneden…</Text> : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 

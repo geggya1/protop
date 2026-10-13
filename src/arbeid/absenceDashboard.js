@@ -3,7 +3,7 @@
  * månedsfordeling og sammenhengende fraværsperioder.
  */
 
-import { absenceTypeById } from './absenceCatalog.js';
+import { ABSENCE_TYPES, absenceTypeById } from './absenceCatalog.js';
 import { hoursToDays, buildAbsenceOverview } from './balance.js';
 
 export const STATUTORY_VACATION_DAYS = 25;
@@ -11,6 +11,14 @@ export const STATUTORY_VACATION_DAYS = 25;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const SICK = new Set(['syk_melding', 'egenmelding', 'sykdom', 'syk_uten']);
+const LEAVE = new Set(['foreldre', 'permisjon']);
+
+const CATEGORY_TITLE = {
+  ferie: 'Ferie',
+  sykdom: 'Sykdom',
+  permisjon: 'Permisjon',
+  annet: 'Annet fravær',
+};
 
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -47,6 +55,60 @@ export function absenceBucket(typeId) {
   if (id === 'ferie') return 'ferie';
   if (SICK.has(id)) return 'sykdom';
   return 'annet';
+}
+
+/** Ferie, sykdom og permisjon er egne valg. Alt annet samles som annet. */
+export function absenceCategory(typeId) {
+  const id = String(typeId || 'ferie');
+  if (id === 'ferie') return 'ferie';
+  if (SICK.has(id)) return 'sykdom';
+  if (LEAVE.has(id)) return 'permisjon';
+  return 'annet';
+}
+
+export function matchesCategory(typeId, category) {
+  if (!category) return true;
+  if (category === 'ferie' || category === 'sykdom' || category === 'permisjon' || category === 'annet') {
+    return absenceCategory(typeId) === category;
+  }
+  return String(typeId || 'ferie') === String(category);
+}
+
+export function recentMonthSlots(today, count = 6) {
+  const base = parseIsoDate(today) || new Date();
+  const slots = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const date = new Date(base.getFullYear(), base.getMonth() - offset, 1);
+    slots.push({
+      key: `${date.getFullYear()}-${pad(date.getMonth() + 1)}`,
+      label: MONTHS[date.getMonth()],
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      ferie: 0,
+      sykdom: 0,
+      annet: 0,
+    });
+  }
+  return slots;
+}
+
+function balanceTypeIds(category, scoped, adjustments, selectedIds) {
+  if (category === 'ferie') return ['ferie'];
+  if (category === 'sykdom') return [...SICK];
+  if (category === 'permisjon') return [...LEAVE];
+  if (category === 'annet') {
+    const ids = new Set(
+      ABSENCE_TYPES.filter((row) => absenceCategory(row.id) === 'annet').map((row) => row.id),
+    );
+    for (const row of scoped) {
+      if (selectedIds.has(row.employeeId) && absenceCategory(row.type) === 'annet') ids.add(row.type || 'annet');
+    }
+    for (const row of adjustments || []) {
+      if (selectedIds.has(row.employeeId) && absenceCategory(row.typeId) === 'annet') ids.add(row.typeId || 'annet');
+    }
+    return [...ids];
+  }
+  return [category];
 }
 
 export function eachWeekday(from, to) {
@@ -146,6 +208,7 @@ export function buildAbsenceDashboard({
   employees = [],
   employeeId = '',
   typeId = '',
+  category = '',
   absences = [],
   adjustments = [],
   fullDayHours = 7.5,
@@ -155,8 +218,16 @@ export function buildAbsenceDashboard({
   const people = activeEmployees(employees);
   const selected = employeeId ? people.filter((row) => row.id === employeeId) : people;
   const selectedIds = new Set(selected.map((row) => row.id));
-  const balanceType = !typeId || typeId === 'ferie' ? 'ferie' : typeId;
+  const categoryOn = !!category;
+  const balanceType = categoryOn
+    ? category
+    : (!typeId || typeId === 'ferie' ? 'ferie' : typeId);
+  const ferieBalance = categoryOn ? category === 'ferie' : balanceType === 'ferie';
   const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
+  const scoped = (absences || []).filter((row) => selectedIds.has(row.employeeId));
+  const typeIds = categoryOn
+    ? balanceTypeIds(category, scoped, adjustments, selectedIds)
+    : [balanceType];
 
   let used = 0;
   let earned = 0;
@@ -164,33 +235,41 @@ export function buildAbsenceDashboard({
   let opening = 0;
   let allowance = 0;
   for (const person of selected) {
-    const overview = buildAbsenceOverview({
-      employeeId: person.id,
-      typeId: balanceType,
-      absences,
-      adjustments,
-      fullDayHours: dayHours,
-      today,
-    });
-    const summary = overview.summary;
-    used = round2(used + summary.used);
-    earned = round2(earned + summary.earned);
-    planned = round2(planned + summary.planned);
-    opening = round2(opening + summary.opening);
-    if (balanceType === 'ferie') {
-      allowance = round2(allowance + (summary.earned > 0 ? summary.earned : STATUTORY_VACATION_DAYS));
+    let personEarned = 0;
+    for (const type of typeIds) {
+      const overview = buildAbsenceOverview({
+        employeeId: person.id,
+        typeId: type,
+        absences,
+        adjustments,
+        fullDayHours: dayHours,
+        today,
+      });
+      const summary = overview.summary;
+      used = round2(used + summary.used);
+      earned = round2(earned + summary.earned);
+      personEarned = round2(personEarned + summary.earned);
+      planned = round2(planned + summary.planned);
+      opening = round2(opening + summary.opening);
+    }
+    if (ferieBalance) {
+      allowance = round2(allowance + (personEarned > 0 ? personEarned : STATUTORY_VACATION_DAYS));
     }
   }
-  if (!selected.length && balanceType === 'ferie') allowance = STATUTORY_VACATION_DAYS;
-  if (balanceType !== 'ferie') allowance = round2(Math.max(earned, used));
+  if (!selected.length && ferieBalance) allowance = STATUTORY_VACATION_DAYS;
+  if (!ferieBalance) allowance = round2(Math.max(earned, used));
 
   const remaining = round2(earned - used);
   const unplanned = round2(remaining - planned);
   const summary = { used, remaining, planned, unplanned, earned, opening };
+  const hasQuota = ferieBalance || earned > 0;
 
-  const scoped = (absences || []).filter((row) => selectedIds.has(row.employeeId));
-  const filtered = typeId ? scoped.filter((row) => (row.type || 'ferie') === typeId) : scoped;
-  const balanceRows = scoped.filter((row) => (row.type || 'ferie') === balanceType);
+  const filtered = categoryOn
+    ? scoped.filter((row) => matchesCategory(row.type, category))
+    : (typeId ? scoped.filter((row) => (row.type || 'ferie') === typeId) : scoped);
+  const balanceRows = categoryOn
+    ? filtered
+    : scoped.filter((row) => (row.type || 'ferie') === balanceType);
 
   const year = String(today || '').slice(0, 4) || String(new Date().getFullYear());
   const months = MONTHS.map((label, index) => ({
@@ -216,6 +295,17 @@ export function buildAbsenceDashboard({
   });
   const visibleMonths = months.slice(0, Math.min(12, lastMonth));
 
+  const recentMonths = recentMonthSlots(today, 6);
+  const recentByKey = new Map(recentMonths.map((slot) => [slot.key, slot]));
+  for (const row of scoped) {
+    const slot = recentByKey.get(String(row.date || '').slice(0, 7));
+    if (!slot) continue;
+    const bucket = absenceBucket(row.type || 'ferie');
+    const days = hoursToDays(row.hours, dayHours);
+    slot[bucket] = round2(slot[bucket] + days);
+  }
+  const recentChartHasData = recentMonths.some((month) => month.ferie || month.sykdom || month.annet);
+
   const todayRows = scoped.filter((row) => row.date === today);
   const countPeople = (pick) => new Set(todayRows.filter(pick).map((row) => row.employeeId)).size;
 
@@ -234,17 +324,26 @@ export function buildAbsenceDashboard({
   });
 
   const balanceTypeMeta = absenceTypeById(balanceType);
+  const focusTitle = categoryOn
+    ? (CATEGORY_TITLE[category] || absenceTypeById(category).label)
+    : balanceTypeMeta.label;
   return {
     balanceType,
-    balanceTitle: balanceTypeMeta.label,
+    balanceTitle: categoryOn ? focusTitle : balanceTypeMeta.label,
+    focusTitle,
+    category: categoryOn ? category : (ferieBalance ? 'ferie' : balanceType),
+    year,
     allowance,
+    hasQuota,
     summary,
     headcount: people.length,
     onVacation: countPeople((row) => (row.type || 'ferie') === 'ferie'),
     sickNow: countPeople((row) => SICK.has(row.type)),
-    otherNow: countPeople((row) => (row.type || 'ferie') !== 'ferie' && !SICK.has(row.type)),
+    otherNow: countPeople((row) => absenceCategory(row.type) === 'annet'),
     months: visibleMonths,
     chartHasData,
+    recentMonths,
+    recentChartHasData,
     periods,
     hasBalanceRows: balanceRows.length > 0,
     hasRows: filtered.length > 0,

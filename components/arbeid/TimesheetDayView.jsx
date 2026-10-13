@@ -16,6 +16,7 @@ export function TimesheetDayNav({
   hasHours = false,
   locked = false,
   onComment,
+  onToggleLock,
 }) {
   return (
     <View style={styles.dayNav} nativeID="timesheet-day-nav">
@@ -34,9 +35,20 @@ export function TimesheetDayNav({
           <Text style={[styles.dayLabel, { color: colors.ink }]}>{shortDayLabel(dateKey)}</Text>
           {hasHours ? <View style={[styles.statusDot, { backgroundColor: '#22c55e' }]} /> : null}
         </View>
-        <View style={styles.navHit}>
-          {locked ? <Ionicons name="lock-closed-outline" size={18} color={colors.muted} /> : null}
-        </View>
+        <TouchableOpacity
+          onPress={onToggleLock}
+          disabled={!onToggleLock}
+          accessibilityRole="button"
+          accessibilityLabel={locked ? 'Lås opp timeliste' : 'Lås timeliste'}
+          style={styles.navHit}
+          nativeID="timesheet-day-lock"
+        >
+          <Ionicons
+            name={locked ? 'lock-closed' : 'lock-open-outline'}
+            size={18}
+            color={locked ? '#0f766e' : colors.muted}
+          />
+        </TouchableOpacity>
       </View>
       <TouchableOpacity onPress={onNext} accessibilityRole="button" accessibilityLabel="Neste dag" style={styles.navHit}>
         <Ionicons name="chevron-forward" size={22} color={colors.ink} />
@@ -95,6 +107,7 @@ export default function TimesheetDayView({
   onPrevDay,
   onNextDay,
   locked = false,
+  onToggleLock,
   emptyText = 'Ingen prosjekt i listen.',
   headerRight = null,
 }) {
@@ -110,6 +123,7 @@ export default function TimesheetDayView({
         onNext={onNextDay}
         hasHours={totalHours > 0}
         locked={locked}
+        onToggleLock={onToggleLock}
       />
       <View style={[styles.sectionHead, { backgroundColor: colors.sunken || '#f3f4f6', borderColor: colors.line }]}>
         <Text style={[styles.sectionTitle, { color: colors.ink }]}>Lønnsgrunnlag</Text>

@@ -29,7 +29,7 @@ export const HOUR_COLUMNS = [
   { key: 'projectName', label: 'Prosjekt', flex: true, minWidth: 160 },
   { key: 'activityName', label: 'Aktivitet', width: 120 },
   { key: 'hours', label: 'Timer', width: 72 },
-  { key: 'billableHours', label: 'Fakt.', width: 72 },
+  { key: 'billableHours', label: 'Fakturerbare timer', width: 120 },
   { key: 'description', label: 'Beskrivelse', flex: true, minWidth: 160 },
   { key: 'status', label: 'Status', width: 100 },
   { key: 'internalNote', label: 'Internt notat', flex: true, minWidth: 140 },

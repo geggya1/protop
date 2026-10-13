@@ -36,6 +36,7 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
+import AgreementCustomerField from './AgreementCustomerField';
 
 function statusTone(status, colors) {
   if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };
@@ -380,12 +381,19 @@ export default function AgreementTreatment({
               ))}
             </View>
           )}
-          <Text style={{ color: colors.muted }}>Kunde</Text>
-          <View style={styles.row}>
-            {(state?.customers || []).slice(0, 12).map((item) => (
-              <Chip key={item.id} colors={colors} label={item.name} on={draft.customerId === item.id} onPress={() => setDraft({ ...draft, customerId: item.id, email: item.email || '' })} />
-            ))}
-          </View>
+          <AgreementCustomerField
+            colors={colors}
+            customers={state?.customers || []}
+            customerId={draft.customerId}
+            companyId={companyId}
+            people={people}
+            onSelect={(customer) => setDraft((current) => ({
+              ...current,
+              customerId: customer?.id || '',
+              email: customer ? (customer.email || '') : current.email,
+            }))}
+            onSavedState={(saved) => setState(saved)}
+          />
           <Text style={{ color: colors.muted }}>Ansvarlig</Text>
           <View style={styles.row}>
             {people.slice(0, 12).map((item) => (

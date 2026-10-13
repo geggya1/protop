@@ -442,4 +442,21 @@ assert.equal(linkSummary.linked, 4);
 assert.equal(linkSummary.total, 5); // p5 arkivert utelates; p6 er aktiv men fremmed kunde
 assert.equal(linkSummary.unlinked, 1);
 
+const treatment = readFileSync(new URL('../../screens/anbud/AgreementTreatment.jsx', import.meta.url), 'utf8');
+const picker = readFileSync(new URL('../../screens/anbud/AgreementCustomerField.jsx', import.meta.url), 'utf8');
+const createModal = readFileSync(new URL('../../screens/customers/CustomerCreateModal.jsx', import.meta.url), 'utf8');
+assert.equal(treatment.includes('(state?.customers || []).slice(0, 12)'), false);
+assert.match(treatment, /AgreementCustomerField/);
+assert.match(picker, /filterCustomers/);
+assert.match(picker, /agreement-customer-search/);
+assert.match(picker, /Ny kunde/);
+assert.match(picker, /CustomerCreateModal/);
+assert.match(createModal, /upsertCustomer/);
+assert.match(createModal, /searchBrregCompanies/);
+assert.match(createModal, /identityFieldsForKind/);
+assert.match(createModal, /Brønnøysund/);
+assert.match(createModal, /Virksomhet/);
+assert.match(createModal, /Privatkunde/);
+assert.match(createModal, /Lagre kunde/);
+
 console.log('customers.test.mjs: ok');

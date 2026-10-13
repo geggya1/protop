@@ -592,18 +592,18 @@ export default function ArbeidScreen({
   const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
-  const identity = timesheetIdentity({ personal });
+  const identity = timesheetIdentity({ personal, compact: isPhone });
 
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
-      <View style={[styles.topBar, personal && styles.topBarPersonal]}>
+      <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.crumb, { color: colors.muted }]}>
             {crumb}
           </Text>
           <TouchableOpacity
             onPress={() => canSwitchPerson && setEmpPickerOpen(true)}
-            style={[styles.empBtn, personal && styles.empBtnPersonal]}
+            style={[styles.empBtn, (personal || isPhone) && styles.empBtnPersonal]}
             disabled={!canSwitchPerson}
             activeOpacity={canSwitchPerson ? 0.7 : 1}
             accessibilityRole="button"
@@ -627,22 +627,22 @@ export default function ArbeidScreen({
                   color: colors.ink,
                   fontSize: identity.fontSize,
                   fontWeight: identity.fontWeight,
-                  flexShrink: personal ? 1 : undefined,
-                  letterSpacing: personal ? 0 : -0.3,
+                  flexShrink: personal || isPhone ? 1 : undefined,
+                  letterSpacing: personal || isPhone ? 0 : -0.3,
                 },
               ]}
               numberOfLines={identity.numberOfLines}
             >
               {selectedName}
             </Text>
-            {canSwitchPerson ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+            {canSwitchPerson ? <Ionicons name="chevron-down" size={isPhone ? 16 : 18} color={colors.muted} /> : null}
           </TouchableOpacity>
         </View>
         <View style={styles.monthNav}>
           <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
-          <Text style={[styles.monthLabel, { color: colors.ink }]}>{monthLabel(year, monthIndex)}</Text>
+          <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{monthLabel(year, monthIndex)}</Text>
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
@@ -1062,6 +1062,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   topBarPersonal: { alignItems: 'center' },
+  topBarPhone: { marginBottom: 6, gap: 8 },
   crumb: { fontSize: 12, marginBottom: 4 },
   title: { letterSpacing: -0.3 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1070,6 +1071,7 @@ const styles = StyleSheet.create({
   monthNav: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   navHit: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   monthLabel: { fontSize: 16, fontWeight: '600', minWidth: 140, textAlign: 'center' },
+  monthLabelPhone: { fontSize: 15, minWidth: 0 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

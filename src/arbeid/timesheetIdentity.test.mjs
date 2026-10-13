@@ -7,10 +7,14 @@ import {
 
 {
   const own = timesheetIdentity({ personal: true });
+  const phone = timesheetIdentity({ compact: true });
   const admin = timesheetIdentity({ personal: false });
   assert.equal(own.fontSize, 13);
-  assert.equal(own.numberOfLines, 2);
-  assert.ok(admin.fontSize > own.fontSize + 6);
+  assert.equal(own.numberOfLines, 1);
+  assert.equal(phone.fontSize, 15);
+  assert.equal(phone.numberOfLines, 1);
+  assert.equal(phone.avatar, 22);
+  assert.ok(admin.fontSize > phone.fontSize);
   assert.equal(admin.fontSize, 22);
   assert.equal(admin.fontWeight, '700');
   assert.equal(canSwitchTimesheetPerson({ personal: true, manager: true }), false);

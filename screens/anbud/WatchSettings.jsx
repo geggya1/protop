@@ -8,6 +8,7 @@ import { addProfile, selectProfile } from '../../src/anbud/desk';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { updateGroup } from '../../src/utils/groups';
 import PortalSettings from './PortalSettings';
 import RegionCoverage from './RegionCoverage';
@@ -209,6 +210,7 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
       setNote(saved.warning
         ? `Lagret. ${saved.warning}`
         : 'Lagret. Gå til Anbudsvarsling og trykk Oppdater nå.');
+      showSaveToast(saved.warning ? `Lagret. ${saved.warning}` : 'Søkekriteriene er lagret.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke lagre innstillingene.');
     } finally {
@@ -311,6 +313,7 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
                 setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
                 setDepartmentAreas(watch.departmentAreas || []);
                 setNote(`Profilen ${profile.name} er valgt.`);
+                showSaveToast(`Profilen ${profile.name} er valgt.`);
               }}
               accessibilityRole="button"
               style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
@@ -339,6 +342,7 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
             setState(next);
             setProfileName('');
             setNote('Profilen er lagret. Juster CPV og søkeord, og lagre kriteriene.');
+            showSaveToast('Profilen er lagret.');
           }}
           accessibilityRole="button"
           style={[styles.chip, { backgroundColor: colors.brand }]}

@@ -14,6 +14,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { linkProject } from '../../src/anbud/lifecycle';
@@ -526,6 +527,7 @@ export default function ProjectWorkScreen() {
       setConfirmBulkDelete(false);
       setConfirmEditDelete(false);
       setNote(successNote);
+      showSaveToast(successNote);
       if (ids.includes(selectedId)) {
         setSelectedId('');
         setView('list');
@@ -788,6 +790,7 @@ export default function ProjectWorkScreen() {
       setState(result.state);
       await syncContractLink(result.state.activeProjectId, payload.contractId, '');
       setNote('Prosjektet er opprettet.');
+      showSaveToast('Prosjektet er opprettet.');
       setView('list');
       return;
     }
@@ -801,6 +804,7 @@ export default function ProjectWorkScreen() {
     setState(result.state);
     await syncContractLink(selected.id, payload.contractId, previous);
     setNote('Prosjektet er lagret.');
+    showSaveToast('Prosjektet er lagret.');
     setView('list');
   }
 
@@ -858,6 +862,7 @@ export default function ProjectWorkScreen() {
       return next;
     });
     setNote(`Koblet til ${customer.name}. Samme kunde i listen er oppdatert.`);
+    showSaveToast(`Koblet til ${customer.name}.`);
   }
 
   async function confirmImport() {
@@ -922,6 +927,9 @@ export default function ProjectWorkScreen() {
       setDropped(new Set());
       setNote(result.skipped?.length
         ? `${result.created.length} nye. ${result.skipped.length} fantes allerede og ble hoppet over.`
+        : `${result.created.length} nye prosjekter importert.`);
+      showSaveToast(result.skipped?.length
+        ? `${result.created.length} nye prosjekter. ${result.skipped.length} fantes allerede.`
         : `${result.created.length} nye prosjekter importert.`);
       setView('list');
     } catch (cause) {
@@ -1058,6 +1066,7 @@ export default function ProjectWorkScreen() {
         }));
       }
       setNote(`${rows.length} avtaledokument${rows.length === 1 ? '' : 'er'} lastet opp.`);
+      showSaveToast(`${rows.length} avtaledokument${rows.length === 1 ? '' : 'er'} lastet opp.`);
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke laste opp dokumentene.');
     } finally {
@@ -1089,6 +1098,7 @@ export default function ProjectWorkScreen() {
       }));
     }
     setNote('Tilbudsdokumenter er overført til prosjektet.');
+    showSaveToast('Tilbudsdokumenter er overført til prosjektet.');
   }
 
   function removeDoc(docId, kind) {
@@ -1356,6 +1366,7 @@ export default function ProjectWorkScreen() {
                   setState(result.state);
                   setView('list');
                   setNote('Prosjektet er arkivert.');
+                  showSaveToast('Prosjektet er arkivert.');
                 } else setError(result.error);
               }}
               accessibilityRole="button"

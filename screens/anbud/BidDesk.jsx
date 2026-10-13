@@ -7,7 +7,17 @@ import {
   normalizeBidWork,
   sortBidsByDeadline,
 } from '../../src/anbud/bidLibrary';
-import { createManualBidWork } from '../../src/anbud/model';
+import {
+  bidCanLeaveDesk,
+  bidCanReturnToReview,
+  bidListedOnDesk,
+  createManualBidWork,
+  markBidUaktuell,
+  returnBidToReview,
+} from '../../src/anbud/model';
+import { patchInquiry } from '../../src/anbud/intake';
+import { updateGroup } from '../../src/utils/groups';
+import { useApp } from '../../src/context/AppContext';
 import { assignmentFromChoice, assignmentGap, assignmentHint, processStepsForBid } from '../../src/anbud/processTrail';
 import { departmentsOf } from '../../src/project/companyUnits';
 import ProcessTrail from './ProcessTrail';
@@ -15,6 +25,7 @@ import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
 import MapRail, { revealAnbudRow } from './MapRail';
 import BidWorkspace from './BidWorkspace';
@@ -55,6 +66,7 @@ export default function BidDesk({
   const [draftUnitId, setDraftUnitId] = useState('');
   const [draftPersonId, setDraftPersonId] = useState('');
   const { isPhone } = useLayout();
+  const { applyFamilyPatch, family } = useApp();
   const [mapFocusId, setMapFocusId] = useState('');
   const stateRef = useRef(null);
   stateRef.current = state;
@@ -122,6 +134,7 @@ export default function BidDesk({
     const downloaded = (stored?.files || []).filter((row) => row.status === 'lastet').length;
     const answers = stored?.dossier?.qa?.length || 0;
     setNote(`${downloaded} dokumenter er lagret i tilbudet. ${answers ? `${answers} spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}.`);
+    showSaveToast(`${downloaded} dokumenter er lagret i tilbudet.`);
     setBusyId('');
   }
 
@@ -156,6 +169,7 @@ export default function BidDesk({
       }),
     }));
     if (!result?.ok) return;
+    showSaveToast('Tilbudet er opprettet.');
     const created = result.state.bids[0];
     setDraftTitle('');
     setDraftBuyer('');
@@ -166,7 +180,77 @@ export default function BidDesk({
     setOpenId(created.id);
   }
 
-  const rows = state?.bids || bids || [];
+  const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
+  const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
+  const noticeById = new Map((state?.notices || []).map((row) => [row.id, row]));
+  const rows = (state?.bids || bids || []).filter((bid) => bidListedOnDesk(bid, noticeById.get(bid.noticeId)));
+
+  async function writeInquiry(bid, patch) {
+    if (!bid?.inquiryId) return true;
+    const manualHit = inquiries.some((row) => row?.id === bid.inquiryId);
+    const inboxHit = inbox.some((row) => row?.id === bid.inquiryId);
+    const kind = inboxHit && !manualHit ? 'protop' : 'manuell';
+    const sourceList = kind === 'protop' ? inbox : inquiries;
+    let list = sourceList;
+    let usedKind = kind;
+    if (!list.some((row) => row?.id === bid.inquiryId)) {
+      usedKind = kind === 'protop' ? 'manuell' : 'protop';
+      list = usedKind === 'protop' ? inbox : inquiries;
+    }
+    if (!list.some((row) => row?.id === bid.inquiryId)) {
+      setNote('Henvendelsen finnes ikke, så den kunne ikke flyttes.');
+      return false;
+    }
+    const patched = patchInquiry(list, bid.inquiryId, patch);
+    if (!patched.ok) {
+      setNote(patched.error || 'Kunne ikke oppdatere henvendelsen.');
+      return false;
+    }
+    if (!company?.id) {
+      setNote('Bedriften mangler.');
+      return false;
+    }
+    const familyPatch = usedKind === 'protop'
+      ? { anbudInbox: patched.list }
+      : { anbudInquiries: patched.list };
+    await updateGroup(company.id, familyPatch);
+    applyFamilyPatch?.(company.id, familyPatch);
+    return true;
+  }
+
+  async function leaveDesk(bid, mode) {
+    if (!state || !bid) return;
+    setBusyId(bid.id);
+    const result = mode === 'review'
+      ? returnBidToReview(state, bid.id)
+      : markBidUaktuell(state, bid.id);
+    if (!result.ok) {
+      setNote(result.error || 'Kunne ikke flytte tilbudet.');
+      setBusyId('');
+      return;
+    }
+    if (bid.inquiryId) {
+      try {
+        const patched = await writeInquiry(bid, mode === 'review'
+          ? { status: 'aktuell', bidId: '', decidedAt: '' }
+          : { status: 'ikke', bidId: '', decidedAt: new Date().toISOString() });
+        if (!patched) {
+          setBusyId('');
+          return;
+        }
+      } catch (err) {
+        setNote(err?.message || 'Kunne ikke oppdatere henvendelsen.');
+        setBusyId('');
+        return;
+      }
+    }
+    await commit(result);
+    setOpenId('');
+    setBusyId('');
+    setNote(mode === 'review'
+      ? `${bid.title} er flyttet tilbake til vurdering av aktuelle.`
+      : `${bid.title} er meldt som uaktuell.`);
+  }
   const counts = bidStatusCounts(rows);
   const visible = sortBidsByDeadline(
     rows.filter((bid) => {
@@ -233,6 +317,8 @@ export default function BidDesk({
           onBack={() => { setOpenId(''); setNote(''); }}
           onCommit={commit}
           onRefresh={() => refreshFiles(openBidRow)}
+          onReturnToReview={() => leaveDesk(openBidRow, 'review')}
+          onMarkUaktuell={() => leaveDesk(openBidRow, 'uaktuell')}
         />
       </View>
     );
@@ -408,6 +494,26 @@ export default function BidDesk({
               >
                 <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne</Text>
               </TouchableOpacity>
+              {bidCanReturnToReview(bid) ? (
+                <TouchableOpacity
+                  onPress={() => leaveDesk(bid, 'review')}
+                  disabled={busyId === bid.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Flytt ${bid.title} tilbake til vurdering`}
+                >
+                  <Text style={{ color: colors.brand }}>Tilbake til vurdering</Text>
+                </TouchableOpacity>
+              ) : null}
+              {bidCanLeaveDesk(bid) ? (
+                <TouchableOpacity
+                  onPress={() => leaveDesk(bid, 'uaktuell')}
+                  disabled={busyId === bid.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Meld ${bid.title} som uaktuell`}
+                >
+                  <Text style={{ color: colors.danger }}>Uaktuell</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         );

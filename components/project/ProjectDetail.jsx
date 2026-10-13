@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   addActivity,
   addProjectMember,
@@ -120,6 +121,7 @@ export default function ProjectDetail({
     if (result.ok) {
       onChangeState(result.state);
       setNote('Innstilling lagret.');
+      showSaveToast('Innstilling lagret.');
     } else setError(result.error);
   }
 
@@ -145,6 +147,7 @@ export default function ProjectDetail({
     setMemberOpen(false);
     setPickEmployeeId('');
     setNote(`${employeeDisplayName(emp)} lagt til som ${memberRole}.`);
+    showSaveToast(`${employeeDisplayName(emp)} lagt til som ${memberRole}.`);
   }
 
   function dropMember(memberId) {
@@ -152,12 +155,16 @@ export default function ProjectDetail({
     if (result.ok) {
       onChangeState(result.state);
       setNote('Deltaker fjernet.');
+      showSaveToast('Deltaker fjernet.');
     } else setError(result.error);
   }
 
   function changeRole(memberId, role) {
     const result = updateProjectMember(state, memberId, { role });
-    if (result.ok) onChangeState(result.state);
+    if (result.ok) {
+      onChangeState(result.state);
+      showSaveToast('Rollen er oppdatert.');
+    }
   }
 
   function createActivity() {
@@ -179,11 +186,15 @@ export default function ProjectDetail({
     setActivityOpen(false);
     setActivityName('');
     setNote('Aktivitet opprettet.');
+    showSaveToast('Aktivitet opprettet.');
   }
 
   function approveEntry(entryId) {
     const result = setTimeEntryStatus(state, entryId, 'godkjent');
-    if (result.ok) onChangeState(result.state);
+    if (result.ok) {
+      onChangeState(result.state);
+      showSaveToast('Timen er godkjent.');
+    }
   }
 
   const membersByRole = useMemo(() => {

@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
@@ -648,6 +649,7 @@ export default function EconomyInvoices({
       setImportPlan(null);
       setDropped(new Set());
       setNote(`${result.saved} fakturaer er lagret.`);
+      showSaveToast(`${result.saved} fakturaer er lagret.`);
       setView('list');
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke lagre fakturaene.');
@@ -699,6 +701,7 @@ export default function EconomyInvoices({
       });
       setSelected(next);
       setNote('PDF-vedlegg er lagret på fakturaen.');
+      showSaveToast('PDF-vedlegg er lagret på fakturaen.');
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke laste opp PDF.');
     } finally {
@@ -859,11 +862,13 @@ export default function EconomyInvoices({
           onLinkCustomer={(rowIndex, customer) => {
             setImportPlan((current) => linkImportPlanCustomer(current, rowIndex, customer, { applyGroup: true }));
             setNote(`Koblet til ${customer.name}.`);
+            showSaveToast(`Koblet til ${customer.name}.`);
             setError('');
           }}
           onLinkProject={(rowIndex, project) => {
             setImportPlan((current) => linkImportPlanProject(current, rowIndex, project, { applyGroup: true }));
             setNote(`Koblet prosjekt ${project.number || project.name}.`);
+            showSaveToast(`Koblet prosjekt ${project.number || project.name}.`);
             setError('');
           }}
           onConfirm={confirmImport}

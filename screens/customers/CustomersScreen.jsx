@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   applyCustomerKind,
   companyFollowUpPeople,
@@ -357,6 +358,7 @@ export default function CustomersScreen() {
     setSelectedId(result.customer.id);
     setView('detail');
     setNote('Kunden er lagret.');
+    showSaveToast('Kunden er lagret.');
     setError('');
   }
 
@@ -824,6 +826,7 @@ export default function CustomersScreen() {
                 const saved = await saveAnbudState(result.state, familyId);
                 setState(saved);
                 setNote(person ? `Ansvarlig: ${person.name}.` : 'Ansvarlig er fjernet.');
+                showSaveToast(person ? `Ansvarlig: ${person.name}.` : 'Ansvarlig er fjernet.');
               }}
             />
             {selected.notes ? <Text style={{ color: colors.muted }}>{selected.notes}</Text> : null}

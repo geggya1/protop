@@ -5,7 +5,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState } from '../../src/anbud/storage';
 import { useLayout } from '../../src/theme';
 import ScrollSheet from '../../components/ScrollSheet';
 import TenderAlert from './TenderAlert';
@@ -13,11 +13,7 @@ import TenderInquiry from './TenderInquiry';
 import CurrentReview from './CurrentReview';
 import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
-import CalloffInbox from './CalloffInbox';
-import { setNoticeDecision } from '../../src/anbud/model';
-import AgreementTreatment from './AgreementTreatment';
-import AgreementPathSwitch, { AVROP_PATH } from './AgreementPathSwitch';
-import ContractFollowUp from './ContractFollowUp';
+import { bidListedOnDesk } from '../../src/anbud/model';
 
 function stepLabel(item, bids, reviewCount) {
   const extra = item.id === 'tilbud' && bids.length
@@ -70,23 +66,19 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const { isPhone } = useLayout();
   const { requestShellTab, shellIntent, clearShellIntent, family } = useApp();
   const [step, setStep] = useState(() => (
-    subView === 'avrop' ? 'avtale' : subView === 'pipeline' ? 'tilbud' : defaultAnbudSubView(subView)
+    subView === 'pipeline' ? 'tilbud' : defaultAnbudSubView(subView)
   ));
   const [bids, setBids] = useState([]);
   const [aktuellCount, setAktuellCount] = useState(0);
   const [focusBidId, setFocusBidId] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [avtalePart, setAvtalePart] = useState(() => (subView === 'avrop' ? 'avrop' : 'behandling'));
-  const [desk, setDesk] = useState(null);
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
   const reviewCount = aktuellCount + directQueueItems({ inquiries, inbox }).length;
 
   useEffect(() => {
-    if (subView === 'avrop') {
-      setStep('avtale');
-      setAvtalePart('avrop');
-      requestShellTab?.('anbud', 'avtale');
+    if (subView === 'avtale' || subView === 'avrop') {
+      requestShellTab?.('kontrakt');
       return;
     }
     if (subView === 'pipeline') {
@@ -101,9 +93,8 @@ export default function AnbudScreen({ company, subView, members = [], units = []
     let live = true;
     loadAnbudState(company?.id).then((loaded) => {
       if (!live) return;
-      setBids(loaded?.bids || []);
+      setBids((loaded?.bids || []).filter((bid) => bidListedOnDesk(bid)));
       setAktuellCount(noticesAwaitingBid(loaded?.notices).length);
-      setDesk(loaded);
     });
     return () => { live = false; };
   }, [company?.id]);
@@ -188,56 +179,8 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
-          onSnapshot={(next) => setBids(next?.bids || [])}
+          onSnapshot={(next) => setBids((next?.bids || []).filter((bid) => bidListedOnDesk(bid)))}
         />
-      ) : null}
-      {step === 'avtale' ? (
-        <View style={{ gap: 12 }}>
-          <AgreementPathSwitch
-            colors={colors}
-            value={avtalePart}
-            onChange={setAvtalePart}
-            options={[
-              ['behandling', 'Behandle med motpart', 'Utkastet sendes mellom partene, med merknader og signering i ProTop.'],
-              ['inngatt', 'Registrer inngått', 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.'],
-              AVROP_PATH,
-            ]}
-          />
-          {avtalePart === 'avrop' && desk ? (
-            <CalloffInbox
-              state={desk}
-              colors={colors}
-              onCommit={(next) => { setDesk(next); saveAnbudState(next, company?.id); }}
-              onOpenBid={(notice) => {
-                const marked = setNoticeDecision(desk, notice.id, 'aktuell');
-                if (marked.ok) {
-                  setDesk(marked.state);
-                  saveAnbudState(marked.state, company?.id);
-                }
-                go('vurdering');
-              }}
-            />
-          ) : null}
-          {avtalePart === 'inngatt' ? (
-            <ContractFollowUp
-              colors={colors}
-              companyId={company?.id}
-              people={members}
-              onOpenWork={() => go('tilbud')}
-              onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
-              onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
-            />
-          ) : null}
-          {avtalePart === 'behandling' ? (
-            <AgreementTreatment
-              companyId={company?.id}
-              company={company}
-              members={members}
-              colors={colors}
-              onRegisterExisting={() => setAvtalePart('inngatt')}
-            />
-          ) : null}
-        </View>
       ) : null}
       <ScrollSheet
         visible={settingsOpen}

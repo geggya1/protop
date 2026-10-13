@@ -34,6 +34,7 @@ import {
   withToggledLevel,
 } from '../../src/access/companyAccess';
 import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine, displayName, initials, normalizeEmployee } from '../../src/employees/model';
+import { showSaveToast } from '../../src/ui/saveToast';
 
 function kindLabel(level) {
   if (level?.id === 'ansatt_andre_avdelinger') return 'Andre avdelinger · ikke ansatt i bedriften';
@@ -670,6 +671,7 @@ export default function CompanyAccessSettings({
       await onSavePolicy(compactPolicy(policy));
       setDirty(false);
       setNote('Nivåene er lagret.');
+      showSaveToast('Nivåene er lagret.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke lagre tilgangen.');
     }
@@ -683,6 +685,7 @@ export default function CompanyAccessSettings({
       await onSaveEmployee(nextEmployee);
       setPersonDirty(false);
       setNote(success);
+      showSaveToast(success);
     } catch (err) {
       setError(err?.message || 'Kunne ikke lagre personen.');
     }
@@ -854,9 +857,13 @@ export default function CompanyAccessSettings({
         draftsRef.current = { ...draftsRef.current, [id]: stored };
         setLevelDrafts({ ...draftsRef.current });
         const levelNames = employeeLevelIds(stored).map((item) => levelById(item)?.label).filter(Boolean);
+        const savedText = levelNames.length
+          ? `${displayName(stored)} har ${levelNames.join(', ')}.`
+          : `${displayName(stored)} har ingen tilgangsnivå.`;
         setNote(levelNames.length
-          ? `${displayName(stored)} har ${levelNames.join(', ')}. Rettighetene fra alle avhukede nivå gjelder.`
-          : `${displayName(stored)} har ingen tilgangsnivå.`);
+          ? `${savedText} Rettighetene fra alle avhukede nivå gjelder.`
+          : savedText);
+        showSaveToast(savedText);
       } catch (err) {
         const copy = { ...draftsRef.current };
         delete copy[id];

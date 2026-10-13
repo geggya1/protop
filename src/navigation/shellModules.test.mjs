@@ -96,7 +96,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
-    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', '4. Avtale'],
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
   assert.equal(companyItems.find((i) => i.id === 'ansatte').label, 'Ansatte');
@@ -274,14 +274,17 @@ assert.match(anbudScreen, /ScrollSheet/);
 assert.equal(anbudScreen.includes("go('innstillinger')"), false);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
-assert.match(anbudScreen, /Registrer inngått/);
-assert.match(anbudScreen, /ContractFollowUp/);
-assert.match(anbudScreen, /AVROP_PATH/);
+assert.equal(anbudScreen.includes('Registrer inngått'), false);
+assert.equal(anbudScreen.includes('ContractFollowUp'), false);
+assert.equal(anbudScreen.includes('AVROP_PATH'), false);
+assert.equal(anbudScreen.includes('4. Avtale'), false);
 assert.equal(anbudScreen.includes('PipelineBoard'), false);
 assert.equal(anbudScreen.includes('motta eller send'), false);
 const contractScreen = readFileSync(new URL('../../screens/anbud/ContractScreen.jsx', import.meta.url), 'utf8');
-assert.match(contractScreen, /AVROP_PATH/);
-assert.match(contractScreen, /CalloffInbox/);
+assert.equal(contractScreen.includes('AVROP_PATH'), false);
+assert.equal(contractScreen.includes('CalloffInbox'), false);
+assert.match(contractScreen, /Registrer inngått/);
+assert.match(contractScreen, /Behandle med motpart/);
 assert.equal(contractScreen.includes('Pipeline'), false);
 
 const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.jsx', import.meta.url), 'utf8');

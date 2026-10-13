@@ -16,6 +16,7 @@ import { linking, setLinkingSignedIn, isAuthEntryPath } from './src/navigation/l
 import { capturePendingAddFriendFromLocation, peekPendingAddFriend, persistPendingAddFriend } from './src/utils/pendingAddFriend';
 import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
+import SaveToastHost from './components/SaveToastHost';
 import { platformHomeRoute } from './src/utils/groupTypes';
 import {
   upgradeFamilyMembership,
@@ -658,6 +659,7 @@ export default function App() {
           <AgreementLinkHost />
           <HelpOverlay />
           <HelpModuleCard />
+          <SaveToastHost />
           </ChatDockProvider>
           </ThemeProvider>
           </AppearanceProvider>

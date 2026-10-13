@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
@@ -413,6 +414,7 @@ export default function EconomyHours({
       setImportPlan(null);
       setDropped(new Set());
       setNote(`${result.added.length} timer er lagret i skyen. Medarbeidere er lagt til på prosjektene.`);
+      showSaveToast(`${result.added.length} timer er lagret i skyen.`);
       const latestByEmployee = new Map();
       for (const row of result.added || []) {
         const current = latestByEmployee.get(row.employeeId);
@@ -517,6 +519,7 @@ export default function EconomyHours({
           onLinkEmployee={(rowIndex, employee) => {
             setImportPlan((current) => linkImportPlanEmployee(current, rowIndex, employee, { applyGroup: true }));
             setNote(`Koblet til ${displayName(employee)}.`);
+            showSaveToast(`Koblet til ${displayName(employee)}.`);
           }}
           onLinkProject={(rowIndex, project) => {
             setImportPlan((current) => linkImportPlanProject(current, rowIndex, project, {
@@ -524,10 +527,12 @@ export default function EconomyHours({
               customers,
             }));
             setNote(`Koblet prosjekt ${project.number || project.name}.`);
+            showSaveToast(`Koblet prosjekt ${project.number || project.name}.`);
           }}
           onLinkCustomer={(rowIndex, customer) => {
             setImportPlan((current) => linkImportPlanCustomer(current, rowIndex, customer, { applyGroup: true }));
             setNote(`Koblet til ${customer.name}.`);
+            showSaveToast(`Koblet til ${customer.name}.`);
           }}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setView('list'); setDropped(new Set()); }}

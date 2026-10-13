@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { formatMoney } from '../../src/economy/invoices.js';
@@ -120,7 +121,10 @@ export default function EconomyOps({ kind = 'expenses' }) {
   function apply(result) {
     setError(result.ok ? '' : result.error);
     setNote(result.ok ? 'Lagret.' : '');
-    if (result.ok) setState(result.state);
+    if (result.ok) {
+      setState(result.state);
+      showSaveToast('Lagret.');
+    }
     return result.ok;
   }
 

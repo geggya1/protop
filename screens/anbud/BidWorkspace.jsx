@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import BidCollab from './BidCollab';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   BID_STEPS,
   GROUND_ATTACH_FOLDER_ID,
@@ -72,6 +73,7 @@ import {
 } from '../../src/anbud/noticeText';
 import { pickDocument } from '../../src/utils/media';
 import { processStepsForBid } from '../../src/anbud/processTrail';
+import { bidCanLeaveDesk, bidCanReturnToReview } from '../../src/anbud/model';
 import FormAnswer from './FormAnswer';
 import ProcessTrail from './ProcessTrail';
 import ReviewNotes from './ReviewNotes';
@@ -152,6 +154,7 @@ function toneColor(tone, colors) {
 export default function BidWorkspace({
   bid, state, colors, busy, note, onBack, onCommit, onRefresh,
   members = [], units = [], companies = [],
+  onReturnToReview, onMarkUaktuell,
 }) {
   const [step, setStep] = useState('grunnlag');
   const [folderId, setFolderId] = useState(null);
@@ -216,7 +219,6 @@ export default function BidWorkspace({
   const source = sourceLabel(notice || { source: /^\d{4}-\d+$/.test(String(bid.noticeId || '')) ? 'doffin' : 'ted' });
   const companyId = state?.companyId || '';
   const interpretation = bid.interpretation || {};
-  const stepIndex = BID_STEPS.findIndex((row) => row.id === step);
   const people = (members || []).filter((row) => row.role !== 'child');
 
   async function commit(result) {
@@ -297,6 +299,7 @@ export default function BidWorkspace({
       if (saved) {
         await onCommit({ ok: true, state: nextState, error: null });
         setLocalNote(saved === 1 ? '1 fil er lagret.' : `${saved} filer er lagret.`);
+        showSaveToast(saved === 1 ? '1 fil er lagret.' : `${saved} filer er lagret.`);
       }
     } finally {
       setUploading(false);
@@ -384,6 +387,16 @@ export default function BidWorkspace({
         <TouchableOpacity onPress={onBack} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Alle tilbud</Text>
         </TouchableOpacity>
+        {bidCanReturnToReview(bid) ? (
+          <TouchableOpacity onPress={onReturnToReview} disabled={busy} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Tilbake til vurdering</Text>
+          </TouchableOpacity>
+        ) : null}
+        {bidCanLeaveDesk(bid) ? (
+          <TouchableOpacity onPress={onMarkUaktuell} disabled={busy} accessibilityRole="button">
+            <Text style={{ color: colors.danger }}>Uaktuell</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={() => setSettingsOpen((value) => !value)} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>{settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}</Text>
         </TouchableOpacity>
@@ -391,6 +404,46 @@ export default function BidWorkspace({
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
+      <View style={[styles.tabs, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        {BID_STEPS.map((item, index) => {
+          const on = step === item.id;
+          return (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => goStep(item.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[
+                styles.tab,
+                index < BID_STEPS.length - 1 ? { borderRightWidth: 1, borderRightColor: colors.line } : null,
+                { backgroundColor: on ? colors.brandSoft : 'transparent' },
+              ]}
+            >
+              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500', textAlign: 'center', fontSize: 13 }}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <StepInfo
+        step={step}
+        bid={bid}
+        dossier={dossier}
+        deadline={deadline}
+        stage={stage}
+        colors={colors}
+        noticeUrl={noticeUrl}
+        source={source}
+      />
+      <BidCollab
+        bid={bid}
+        state={state}
+        notice={notice}
+        colors={colors}
+        members={members}
+        onCommit={commit}
+      />
       {bid.reviewNotes?.length ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <ReviewNotes
@@ -403,21 +456,7 @@ export default function BidWorkspace({
           />
         </View>
       ) : null}
-      <Text style={{ color: colors.brand, fontWeight: '600' }}>{STAGE_LABELS[stage] || 'Planlegging'}</Text>
-      <DeadlineBanner deadline={deadline} colors={colors} compact />
-      <BidCollab
-        bid={bid}
-        state={state}
-        notice={notice}
-        colors={colors}
-        members={members}
-        onCommit={commit}
-      />
-      {noticeUrl ? (
-        <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
-          <Text style={{ color: colors.brand }}>Åpne på {source}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {!!message && <Text style={{ color: colors.brand }}>{message}</Text>}
       {settingsOpen ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 10 }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Innstillinger for tilbudsarbeidet</Text>
@@ -466,34 +505,6 @@ export default function BidWorkspace({
           />
         </View>
       ) : null}
-      <View style={styles.row}>
-        {BID_STEPS.map((item) => {
-          const on = step === item.id;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => goStep(item.id)}
-              accessibilityRole="button"
-              style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-            >
-              <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <View style={styles.row}>
-        {stepIndex > 0 ? (
-          <TouchableOpacity onPress={() => goStep(BID_STEPS[stepIndex - 1].id)} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Forrige steg</Text>
-          </TouchableOpacity>
-        ) : null}
-        {stepIndex < BID_STEPS.length - 1 ? (
-          <TouchableOpacity onPress={() => goStep(BID_STEPS[stepIndex + 1].id)} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Neste steg</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      {!!message && <Text style={{ color: colors.brand }}>{message}</Text>}
 
       {step === 'grunnlag' ? (
         <View style={{ gap: 14 }}>
@@ -1129,6 +1140,63 @@ function ExpandSection({ title, items, colors, expandedId, onToggle, empty, show
   );
 }
 
+function StepInfo({ step, bid, dossier, deadline, stage, colors, noticeUrl, source }) {
+  const assignee = [bid?.assignment?.unitName, bid?.assignment?.personName].filter(Boolean).join(' · ');
+  const downloaded = (bid?.files || []).filter((row) => row.status === 'lastet').length;
+  const publishedQa = Array.isArray(dossier?.qa) ? dossier.qa.length : 0;
+  const ownQuestions = Array.isArray(bid?.questions) ? bid.questions.length : 0;
+  if (step === 'qa') {
+    return (
+      <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
+          {dossier?.questionDeadline ? `Frist for spørsmål ${dossier.questionDeadline}` : 'Ingen frist for spørsmål er oppgitt'}
+        </Text>
+        <Text style={{ color: colors.muted }}>
+          {publishedQa ? `${publishedQa} publiserte spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}
+          {ownQuestions ? ` · ${ownQuestions} egne spørsmål` : ''}
+        </Text>
+      </View>
+    );
+  }
+  if (step === 'arbeid') {
+    const closed = stage === 'levert' || stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
+    return (
+      <View style={{ gap: 8 }}>
+        <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
+            {closed ? 'Tilbudet er avsluttet' : 'Tilbudet er under arbeid'}
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            {STAGE_LABELS[stage] || 'Planlegging'}
+            {assignee ? ` · ${assignee}` : ''}
+          </Text>
+        </View>
+        <DeadlineBanner deadline={deadline} colors={colors} compact />
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <DeadlineBanner deadline={deadline} colors={colors} compact />
+      <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        {dossier?.questionDeadline ? (
+          <Text style={{ color: colors.ink }}>Frist for spørsmål: {dossier.questionDeadline}</Text>
+        ) : null}
+        {dossier?.procedure ? <Text style={{ color: colors.ink }}>Prosedyre: {dossier.procedure}</Text> : null}
+        <Text style={{ color: colors.muted }}>
+          {`${downloaded} dokumenter lastet`}
+          {publishedQa ? ` · ${publishedQa} spørsmål og svar i grunnlaget` : ''}
+        </Text>
+        {noticeUrl ? (
+          <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
+            <Text style={{ color: colors.brand }}>Åpne på {source}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 function DeadlineBanner({ deadline, colors, compact }) {
   const color = toneColor(deadline.tone, colors);
   const urgent = deadline.tone === 'danger' || deadline.tone === 'warn';
@@ -1452,7 +1520,9 @@ function Line({ label, value, colors }) {
 const styles = StyleSheet.create({
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  tabs: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tab: { flex: 1, paddingHorizontal: 8, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  info: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import InfoButton from '../../components/InfoButton';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -39,6 +40,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
 import AgreementCustomerField from './AgreementCustomerField';
+import AgreementPersonField from './AgreementPersonField';
 
 function statusTone(status, colors) {
   if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };
@@ -164,6 +166,7 @@ export default function AgreementTreatment({
   function say(text, bad = false) {
     setNote(text);
     setNoteBad(bad);
+    if (!bad && text) showSaveToast(text);
   }
 
   async function commitLocal(result, movement) {
@@ -408,12 +411,12 @@ export default function AgreementTreatment({
             })}
             onSavedState={(saved) => setState(saved)}
           />
-          <Text style={{ color: colors.muted }}>Ansvarlig</Text>
-          <View style={styles.row}>
-            {people.slice(0, 12).map((item) => (
-              <Chip key={item.uid} colors={colors} label={item.name} on={draft.ownerUid === item.uid} onPress={() => setDraft({ ...draft, ownerUid: item.uid })} />
-            ))}
-          </View>
+          <AgreementPersonField
+            colors={colors}
+            people={people}
+            ownerUid={draft.ownerUid}
+            onSelect={(person) => setDraft((current) => ({ ...current, ownerUid: person?.uid || '' }))}
+          />
           {draft.kind === 'avrop' ? (
             <View style={styles.row}>
               {[...cases, ...(state?.contracts || [])].filter((row) => row.kind === 'rammeavtale' && !row.deletedAt).map((item) => (

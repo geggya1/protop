@@ -1,6 +1,6 @@
 /**
- * Personlig timeliste viser et lite navn. Under Arbeid står navnet som før,
- * og admin kan bla mellom ansatte.
+ * På mobil er navnet én linje, i både timeliste og når det er personlig.
+ * På stor skjerm under Arbeid står navnet større, og admin kan bla mellom ansatte.
  */
 
 export function timesheetCrumb({ personal = false, locked = false, companyLabel = '' } = {}) {
@@ -11,9 +11,12 @@ export function timesheetCrumb({ personal = false, locked = false, companyLabel 
   return locked ? 'Ansatte / Timeføring' : 'Arbeid / Timeføring';
 }
 
-export function timesheetIdentity({ personal = false } = {}) {
+export function timesheetIdentity({ personal = false, compact = false } = {}) {
+  if (compact) {
+    return { fontSize: 15, fontWeight: '600', numberOfLines: 1, avatar: 22, icon: 12 };
+  }
   if (personal) {
-    return { fontSize: 13, fontWeight: '600', numberOfLines: 2, avatar: 20, icon: 12 };
+    return { fontSize: 13, fontWeight: '600', numberOfLines: 1, avatar: 20, icon: 12 };
   }
   return { fontSize: 22, fontWeight: '700', numberOfLines: undefined, avatar: 32, icon: 16 };
 }

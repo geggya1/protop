@@ -554,10 +554,10 @@ export default function EconomyHours({
               nativeID="economy-employee-name"
               style={styles.nameBtn}
             >
-              <Text style={[styles.heading, { color: colors.ink, flexShrink: 1 }]} numberOfLines={2}>
+              <Text style={[styles.headingPhone, { color: colors.ink, flexShrink: 1 }]} numberOfLines={1}>
                 {selectedEmployeeName}
               </Text>
-              {canSwitchEmployee ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
+              {canSwitchEmployee ? <Ionicons name="chevron-down" size={16} color={colors.muted} /> : null}
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -822,6 +822,7 @@ const styles = StyleSheet.create({
   ghostBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   groupHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, minWidth: 480 },
   heading: { fontSize: 22, fontWeight: '700' },
+  headingPhone: { fontSize: 16, fontWeight: '600' },
   primaryBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },

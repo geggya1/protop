@@ -9,7 +9,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
 import { CPV_CODES } from '../../src/anbud/catalog';
 import { normalizeCpvCode } from '../../src/anbud/model';
-import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
+import { searchBrregCompanies, selectBrregHitForStoredOrg } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyContextLabel } from '../../src/project/companyOffer';
@@ -116,8 +116,8 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     setBusy(true);
     setError('');
     try {
-      const res = await searchBrregCompanies(company.organisasjonsnummer, { size: 1 });
-      const hit = res.results?.[0];
+      const res = await searchBrregCompanies(company.organisasjonsnummer, { size: 5 });
+      const hit = selectBrregHitForStoredOrg(res.results, company.organisasjonsnummer);
       const next = companyFromBrreg(hit);
       if (!next) {
         setError('Fant ikke organisasjonsnummeret i Brønnøysund.');

@@ -23,16 +23,68 @@ export function personalWorkspace(families = []) {
   return findPersonalShell(live) || live.find((group) => !isLiveOrganization(group)) || null;
 }
 
+function companyName(group) {
+  return String(group?.company?.navn || group?.name || '').trim();
+}
+
+export function companyOrgnr(group) {
+  return String(group?.company?.organisasjonsnummer || group?.orgnr || '').replace(/\D/g, '');
+}
+
+/** Underenhet fra Brreg (BEDR) eller et arbeidsområde opprettet under et morselskap. */
+export function isUnderenhetWorkspace(group) {
+  if (!group) return false;
+  if (String(group.parentCompanyId || '').trim()) return true;
+  const code = String(group.company?.organisasjonsformKode || '').trim().toUpperCase();
+  if (code === 'BEDR') return true;
+  if (group.company?.kind === 'underenhet') return true;
+  return String(group.company?.organisasjonsform || '').toLowerCase().includes('underenhet');
+}
+
 export function companySwitchLabel(group) {
-  const name = String(group?.company?.navn || group?.name || '').trim();
-  return name || 'Bedrift';
+  const name = companyName(group) || 'Bedrift';
+  const orgnr = companyOrgnr(group);
+  return orgnr ? `${name} · ${orgnr}` : name;
+}
+
+function companyNameKey(group) {
+  return companyName(group).toLocaleLowerCase('nb');
+}
+
+/**
+ * Samme visningsnavn skal ikke sende innlogging til et tomt underenhet-område
+ * når hovedenheten ligger i listen. Et underenhet-område med egne data og uten
+ * parentCompanyId beholdes når det var sist brukt.
+ */
+export function preferHovedenhetWorkspace(chosen, companies = []) {
+  if (!chosen || !isUnderenhetWorkspace(chosen)) return chosen;
+  const parentId = String(chosen.parentCompanyId || '').trim();
+  if (parentId) {
+    const linked = companies.find((group) => group.id === parentId && group.id !== chosen.id);
+    if (linked) return linked;
+  }
+  const units = chosen.company?.subUnits;
+  if (Array.isArray(units) && units.length > 0) return chosen;
+  const name = companyNameKey(chosen);
+  if (!name) return chosen;
+  return companies.find((group) => (
+    group.id !== chosen.id
+    && !isUnderenhetWorkspace(group)
+    && companyNameKey(group) === name
+  )) || chosen;
 }
 
 export function companyWorkspaces(families = []) {
   return liveWorkspaces(families)
     .filter(isLiveOrganization)
     .slice()
-    .sort((a, b) => companySwitchLabel(a).localeCompare(companySwitchLabel(b), 'nb'));
+    .sort((a, b) => {
+      const byName = companyName(a).localeCompare(companyName(b), 'nb');
+      if (byName) return byName;
+      const byKind = Number(isUnderenhetWorkspace(a)) - Number(isUnderenhetWorkspace(b));
+      if (byKind) return byKind;
+      return companyOrgnr(a).localeCompare(companyOrgnr(b));
+    });
 }
 
 /**
@@ -83,9 +135,10 @@ export function platformSegmentActive(segment, family) {
 export function resolveLoginLanding(families, storedId = '', preferredCompanyId = '') {
   const companies = companyWorkspaces(families);
   if (companies.length) {
-    return companies.find((group) => group.id === preferredCompanyId)
+    const chosen = companies.find((group) => group.id === preferredCompanyId)
       || companies.find((group) => group.id === storedId)
       || companies[0];
+    return preferHovedenhetWorkspace(chosen, companies);
   }
   return personalWorkspace(families) || liveWorkspaces(families)[0] || null;
 }

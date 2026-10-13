@@ -528,6 +528,20 @@ export function mergeBrregHits(...groups) {
   return results;
 }
 
+/**
+ * Treff som kan skrives tilbake på et lagret selskap.
+ * Eksakt organisasjonsnummer vinner. Hovedenhet vinner over underenhet.
+ * Et søk som bare treffer en annen underenhet returnerer null, så
+ * 916538804 ikke blir byttet til 916570783.
+ */
+export function selectBrregHitForStoredOrg(results, storedOrgnr) {
+  const want = normalizeOrgnummer(storedOrgnr);
+  const list = (Array.isArray(results) ? results : []).filter((row) => row && normalizeOrgnummer(row.organisasjonsnummer));
+  if (!want) return list.find((row) => row.kind !== 'underenhet') || null;
+  const exact = list.filter((row) => normalizeOrgnummer(row.organisasjonsnummer) === want);
+  return exact.find((row) => row.kind !== 'underenhet') || exact[0] || null;
+}
+
 /** Offentlig innsynslenke for matrikkel (Seeiendom). */
 export function buildSeeiendomUrl({ kommunenummer, gardsnummer, bruksnummer, festenummer = 0 } = {}) {
   const knr = asText(kommunenummer).padStart(4, '0');

@@ -25,18 +25,50 @@ export function companyLogoOf(company) {
   return normalizeCompanyLogo(company?.logo);
 }
 
-/** Bevarer logo og egne felt når offentlige opplysninger hentes på nytt. */
+export function isUnderenhetCompanyProfile(company) {
+  if (!company || typeof company !== 'object') return false;
+  const code = String(company.organisasjonsformKode || '').trim().toUpperCase();
+  if (code === 'BEDR') return true;
+  if (company.kind === 'underenhet') return true;
+  return String(company.organisasjonsform || '').toLowerCase().includes('underenhet');
+}
+
+function orgDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+/**
+ * Bevarer logo, underenheter og hovedenhetens org.nr når offentlige
+ * opplysninger hentes på nytt. Et Brreg-treff på en underenhet skal ikke
+ * bytte ut lagret hovedenhet (for eksempel aksjeselskap 916538804).
+ */
 export function mergeCompanyProfile(next, previous) {
   if (!next) return next;
   const logo = companyLogoOf(previous);
-  return {
+  const merged = {
     ...next,
     telefon: text(next.telefon) || text(previous?.telefon),
     epostadresse: text(next.epostadresse) || text(previous?.epostadresse),
     egneNaeringskoder: Array.isArray(previous?.egneNaeringskoder) ? previous.egneNaeringskoder : [],
-    subUnits: Array.isArray(previous?.subUnits) ? previous.subUnits : [],
+    ...(Array.isArray(previous?.subUnits) ? { subUnits: previous.subUnits } : {}),
     ...(logo ? { logo } : {}),
   };
+  const previousOrgnr = orgDigits(previous?.organisasjonsnummer);
+  const nextOrgnr = orgDigits(next.organisasjonsnummer);
+  const keepHovedenhet = previous
+    && previousOrgnr
+    && nextOrgnr
+    && previousOrgnr !== nextOrgnr
+    && !isUnderenhetCompanyProfile(previous)
+    && isUnderenhetCompanyProfile(next);
+  if (keepHovedenhet) {
+    merged.organisasjonsnummer = previous.organisasjonsnummer;
+    if (previous.organisasjonsform) merged.organisasjonsform = previous.organisasjonsform;
+    if (previous.organisasjonsformKode) merged.organisasjonsformKode = previous.organisasjonsformKode;
+    if (previous.navn) merged.navn = previous.navn;
+    if (previous.kind) merged.kind = previous.kind;
+  }
+  return merged;
 }
 
 export function decodeBase64(value) {

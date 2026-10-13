@@ -4,6 +4,7 @@ import {
   fitLogoBox,
   jpegSize,
   logoForDocument,
+  isUnderenhetCompanyProfile,
   mergeCompanyProfile,
   normalizeCompanyLogo,
   presentCompanyLogo,
@@ -44,6 +45,39 @@ assert.deepEqual(merged.egneNaeringskoder, ['elektro']);
 assert.equal(merged.subUnits[0].name, 'Drift');
 assert.equal(merged.logo.dataUrl, TINY);
 assert.equal(mergeCompanyProfile({ navn: 'Uten' }, {}).logo, undefined);
+assert.equal(mergeCompanyProfile({ navn: 'Uten' }, {}).subUnits, undefined);
+
+const hovedenhet = {
+  navn: 'CONSULT1 AS',
+  organisasjonsnummer: '916538804',
+  organisasjonsform: 'Aksjeselskap',
+  organisasjonsformKode: 'AS',
+  kind: 'enhet',
+  subUnits: [{ id: 'u1', kind: 'underenhet', name: 'Sandnes', organisasjonsnummer: '916570783' }],
+};
+const underenhetHit = {
+  navn: 'CONSULT1 AS',
+  organisasjonsnummer: '916570783',
+  organisasjonsform: 'Underenhet til næringsdrivende og offentlig forvaltning',
+  organisasjonsformKode: 'BEDR',
+  kind: 'underenhet',
+  addressLabel: 'Svanholmen 7',
+};
+assert.equal(isUnderenhetCompanyProfile(underenhetHit), true);
+assert.equal(isUnderenhetCompanyProfile(hovedenhet), false);
+const kept = mergeCompanyProfile(underenhetHit, hovedenhet);
+assert.equal(kept.organisasjonsnummer, '916538804');
+assert.equal(kept.organisasjonsform, 'Aksjeselskap');
+assert.equal(kept.organisasjonsformKode, 'AS');
+assert.equal(kept.subUnits.length, 1);
+assert.equal(kept.subUnits[0].organisasjonsnummer, '916570783');
+const refreshed = mergeCompanyProfile(
+  { ...hovedenhet, telefon: '11223344', addressLabel: 'Ny gate 1' },
+  hovedenhet,
+);
+assert.equal(refreshed.organisasjonsnummer, '916538804');
+assert.equal(refreshed.telefon, '11223344');
+assert.equal(refreshed.subUnits.length, 1);
 
 const shown = presentCompanyLogo({ dataUrl: TINY });
 assert.equal(shown.width, 12);

@@ -371,7 +371,6 @@ assert.match(shellSrc, /ContractScreen/);
 const moreHubSrc = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
 assert.match(moreHubSrc, /item\.forceOpen && item\.children/);
 const drawerSrc = readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8');
-assert.match(drawerSrc, /item\.forceOpen/);
 assert.match(drawerSrc, /drawerSubmenuOpen/);
 assert.match(drawerSrc, /module-nav-expand-/);
 assert.match(drawerSrc, /onToggle=\{expandable/);
@@ -380,16 +379,25 @@ assert.match(drawerSrc, /onToggle=\{expandable/);
   const selskap = items.find((item) => item.id === 'selskap');
   const okonomi = items.find((item) => item.id === 'okonomi');
   const anbud = items.find((item) => item.id === 'anbud');
+  const arbeid = items.find((item) => item.id === 'arbeid');
+  const kunder = items.find((item) => item.id === 'kunder');
   assert.equal(drawerHasSubmenuToggle(selskap), true);
   assert.equal(drawerHasSubmenuToggle(okonomi), true);
-  assert.equal(drawerHasSubmenuToggle(anbud), false);
+  assert.equal(drawerHasSubmenuToggle(anbud), true);
+  assert.equal(drawerHasSubmenuToggle(arbeid), true);
+  assert.equal(drawerHasSubmenuToggle(kunder), false);
   assert.equal(drawerSubmenuOpen(selskap, 'home'), true);
   assert.equal(drawerSubmenuOpen(okonomi, 'home'), false);
   assert.equal(drawerSubmenuOpen(okonomi, 'okonomi'), true);
   assert.equal(drawerSubmenuOpen(okonomi, 'home', { okonomi: true }), true);
   assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', { okonomi: false }), false);
   assert.equal(drawerSubmenuOpen(selskap, 'selskap', { selskap: false }), false);
-  assert.equal(drawerSubmenuOpen(anbud, 'anbud'), false);
+  assert.equal(drawerSubmenuOpen(anbud, 'home'), false);
+  assert.equal(drawerSubmenuOpen(anbud, 'anbud'), true);
+  assert.equal(drawerSubmenuOpen(anbud, 'home', { anbud: true }), true);
+  assert.equal(drawerSubmenuOpen(arbeid, 'home'), false);
+  assert.equal(drawerSubmenuOpen(arbeid, 'arbeid'), true);
+  assert.equal(drawerSubmenuOpen(kunder, 'kunder'), false);
 }
 assert.match(
   readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8'),

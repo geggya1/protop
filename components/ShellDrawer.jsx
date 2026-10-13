@@ -429,11 +429,7 @@ export default function ShellDrawer({
                       const kids = item.children || [];
                       const expandable = drawerHasSubmenuToggle(item);
                       const submenuExpanded = drawerSubmenuOpen(item, activeTab, submenuOpen);
-                      const showKids = kids.length > 0 && (
-                        expandable
-                          ? submenuExpanded
-                          : (item.action?.tab === activeTab || item.forceOpen)
-                      );
+                      const showKids = expandable && submenuExpanded;
                       const parentOn = isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab);
                       return (
                       <View

@@ -101,11 +101,17 @@ export default function EconomyWelcome({ stored }) {
         <Text style={[styles.body, { color: colors.ink }]}>
           {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || 'Bedriften er ikke koblet mot Enhetsregisteret ennå.'}
         </Text>
+        {live?.parent?.navn ? (
+          <Text style={[styles.body, { color: colors.muted }]}>
+            Overordnet enhet: {[live.parent.navn, live.parent.organisasjonsnummer].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
         {profile?.formaal?.length ? (
           <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
         ) : null}
         <View style={styles.factGrid}>
           <Fact label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
+          <Fact label="Oppstart" value={profile?.stiftelsesdato ? '' : nbDate(profile?.oppstart)} colors={colors} />
           <Fact label="Ansatte" value={profile?.ansatte != null ? String(profile.ansatte) : ''} colors={colors} />
           <Fact label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
           <Fact label="Telefon" value={profile?.telefon || stored?.telefon} colors={colors} />

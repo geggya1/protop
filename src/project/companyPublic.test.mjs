@@ -123,6 +123,8 @@ const fetched = await fetchPublicCompany('916538804', {
 });
 assert.equal(fetched.ok, true);
 assert.equal(fetched.company.navn, 'CONSULT1 AS');
+assert.equal(fetched.company.kind, 'enhet');
+assert.equal(fetched.parent, null);
 assert.equal(fetched.accounts, null);
 assert.equal(fetched.signature, null);
 
@@ -157,6 +159,58 @@ assert.match(fetched.brregUrl, /916538804/);
 
 const missing = await fetchPublicCompany('123', { fetchImpl: async () => { throw new Error('skal ikke kalles'); } });
 assert.equal(missing.ok, false);
+
+const underenhet = {
+  organisasjonsnummer: '916570783',
+  navn: 'CONSULT1 AS',
+  organisasjonsform: { kode: 'BEDR', beskrivelse: 'Underenhet til næringsdrivende og offentlig forvaltning' },
+  overordnetEnhet: '916538804',
+  respons_klasse: 'Underenhet',
+  oppstartsdato: '2016-01-01',
+  registreringsdatoEnhetsregisteret: '2016-01-16',
+  naeringskode1: { kode: '71.121', beskrivelse: 'Byggeteknisk konsulentvirksomhet' },
+  antallAnsatte: 18,
+  harRegistrertAntallAnsatte: true,
+  telefon: '52 05 52 10',
+  epostadresse: 'post@consult1.no',
+  hjemmeside: 'www.consult1.no',
+  beliggenhetsadresse: {
+    land: 'Norge',
+    postnummer: '4313',
+    poststed: 'SANDNES',
+    adresse: ['2 Etasje', 'Svanholmen 7'],
+    kommune: 'SANDNES',
+  },
+};
+const fetchedUnit = await fetchPublicCompany('916570783', {
+  fetchImpl: async (url) => {
+    const target = String(url);
+    if (target.endsWith('/enheter/916570783')) return { ok: false, status: 404, json: async () => null };
+    if (target.endsWith('/underenheter/916570783')) return { ok: true, status: 200, json: async () => underenhet };
+    if (target.endsWith('/enheter/916538804')) return { ok: true, status: 200, json: async () => enhet };
+    throw new Error(`uventet kall ${target}`);
+  },
+});
+assert.equal(fetchedUnit.ok, true);
+assert.equal(fetchedUnit.company.kind, 'underenhet');
+assert.equal(fetchedUnit.company.organisasjonsform, 'Underenhet til næringsdrivende og offentlig forvaltning');
+assert.equal(fetchedUnit.company.forretning.poststed, 'SANDNES');
+assert.equal(fetchedUnit.company.oppstart, '2016-01-01');
+assert.equal(fetchedUnit.company.stiftelsesdato, '');
+assert.equal(fetchedUnit.company.ansatte, 18);
+assert.equal(weatherQuery(fetchedUnit.company), 'Svanholmen 7 4313 SANDNES');
+assert.equal(fetchedUnit.parent.navn, 'CONSULT1 AS');
+assert.equal(fetchedUnit.parent.organisasjonsnummer, '916538804');
+assert.equal(fetchedUnit.roles.length, 0);
+assert.equal(fetchedUnit.units.length, 0);
+assert.equal(fetchedUnit.accounts, null);
+assert.match(fetchedUnit.brregUrl, /underenheter\/916570783/);
+
+const unknown = await fetchPublicCompany('999999999', {
+  fetchImpl: async () => ({ ok: false, status: 404, json: async () => null }),
+});
+assert.equal(unknown.ok, false);
+assert.match(unknown.error, /Enhetsregisteret/);
 
 assert.equal(
   accountHistoryEndpoint(),

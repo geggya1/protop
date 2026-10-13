@@ -9,7 +9,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
 import { CPV_CODES } from '../../src/anbud/catalog';
 import { normalizeCpvCode } from '../../src/anbud/model';
-import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
+import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyContextLabel } from '../../src/project/companyOffer';
@@ -116,7 +116,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     setBusy(true);
     setError('');
     try {
-      const res = await searchBrregEnheter(company.organisasjonsnummer, { size: 1 });
+      const res = await searchBrregCompanies(company.organisasjonsnummer, { size: 1 });
       const hit = res.results?.[0];
       const next = companyFromBrreg(hit);
       if (!next) {

@@ -65,17 +65,23 @@ function industryCodes(raw) {
 
 export function shapePublicCompany(raw) {
   if (!raw?.organisasjonsnummer || !raw?.navn) return null;
-  const forretning = addressBlock(raw.forretningsadresse);
+  const forretning = addressBlock(raw.forretningsadresse) || addressBlock(raw.beliggenhetsadresse);
   const post = addressBlock(raw.postadresse);
+  const underenhet = Boolean(text(raw.overordnetEnhet))
+    || raw.organisasjonsform?.kode === 'BEDR'
+    || raw.respons_klasse === 'Underenhet';
   const ansatte = raw.harRegistrertAntallAnsatte === true || Number.isFinite(Number(raw.antallAnsatte))
     ? Number(raw.antallAnsatte)
     : null;
   return {
     organisasjonsnummer: text(raw.organisasjonsnummer),
     navn: text(raw.navn),
+    kind: underenhet ? 'underenhet' : 'enhet',
     organisasjonsform: codeLabel(raw.organisasjonsform),
     organisasjonsformKode: text(raw.organisasjonsform?.kode),
+    overordnetEnhet: text(raw.overordnetEnhet),
     stiftelsesdato: text(raw.stiftelsesdato),
+    oppstart: text(raw.oppstartsdato),
     registrert: text(raw.registreringsdatoEnhetsregisteret),
     maalform: text(raw.maalform),
     sektor: codeLabel(raw.institusjonellSektorkode),
@@ -277,36 +283,57 @@ async function readJson(url, fetchImpl) {
   return res.json();
 }
 
+function parentSummary(raw) {
+  const company = shapePublicCompany(raw);
+  if (!company) return null;
+  return {
+    organisasjonsnummer: company.organisasjonsnummer,
+    navn: company.navn,
+    organisasjonsform: company.organisasjonsform,
+  };
+}
+
 export async function fetchPublicCompany(orgnr, { fetchImpl = fetch } = {}) {
   const id = String(orgnr || '').replace(/\D/g, '');
   if (id.length !== 9) return { ok: false, error: 'Organisasjonsnummer må ha 9 siffer.' };
   const enhet = await readJson(`${BRREG}/enheter/${id}`, fetchImpl);
-  const company = shapePublicCompany(enhet);
+  const underenhet = enhet ? null : await readJson(`${BRREG}/underenheter/${id}`, fetchImpl);
+  const company = shapePublicCompany(enhet || underenhet);
   if (!company) return { ok: false, error: 'Fant ikke organisasjonsnummeret i Enhetsregisteret.' };
+  const isUnit = company.kind === 'underenhet';
   const browser = typeof window !== 'undefined' && fetchImpl === fetch;
-  const [roller, units, extras] = await Promise.all([
-    readJson(`${BRREG}/enheter/${id}/roller`, fetchImpl).catch(() => null),
-    readJson(`${BRREG}/underenheter?overordnetEnhet=${id}&size=50`, fetchImpl).catch(() => null),
-    browser
-      ? fetch('/api/tender-proxy', {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'register', orgnr: id }),
-      }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
-      : Promise.all([
-        readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
-        readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),
-      ]).then(([accounts, signature]) => ({ accounts, signature })),
+  const [roller, units, extras, parentRaw] = await Promise.all([
+    isUnit ? null : readJson(`${BRREG}/enheter/${id}/roller`, fetchImpl).catch(() => null),
+    isUnit ? null : readJson(`${BRREG}/underenheter?overordnetEnhet=${id}&size=50`, fetchImpl).catch(() => null),
+    isUnit
+      ? null
+      : browser
+        ? fetch('/api/tender-proxy', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'register', orgnr: id }),
+        }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
+        : Promise.all([
+          readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
+          readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),
+        ]).then(([accounts, signature]) => ({ accounts, signature })),
+    company.overordnetEnhet
+      ? readJson(`${BRREG}/enheter/${company.overordnetEnhet}`, fetchImpl).catch(() => null)
+      : null,
   ]);
   const accounts = extras?.accounts || null;
   const signatur = extras?.signature || null;
+  const parent = parentSummary(parentRaw);
   return {
     ok: true,
     company,
+    parent,
     roles: shapePublicRoles(roller),
     units: shapePublicUnits(units),
     accounts: shapePublicAccounts(accounts),
     signature: shapePublicSignature(signatur),
-    brregUrl: `https://virksomhet.brreg.no/nb/oppslag/enhet/${id}`,
+    brregUrl: isUnit
+      ? `https://virksomhet.brreg.no/nb/oppslag/underenheter/${id}`
+      : `https://virksomhet.brreg.no/nb/oppslag/enhet/${id}`,
   };
 }

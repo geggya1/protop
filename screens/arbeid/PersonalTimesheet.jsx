@@ -6,7 +6,7 @@ import {
   companyTimesheetLabel,
   personalTimesheetCompanies,
 } from '../../src/arbeid/personalTimesheet';
-import { companyWorkspaces } from '../../src/utils/platformSwitch';
+import { visibleCompanyWorkspaces } from '../../src/utils/platformSwitch';
 import { watchEmployees } from '../../src/employees/storage';
 import ArbeidScreen from './ArbeidScreen';
 
@@ -17,7 +17,7 @@ import ArbeidScreen from './ArbeidScreen';
 export default function PersonalTimesheet() {
   const colors = useColors();
   const { families, family, user } = useApp();
-  const candidates = useMemo(() => companyWorkspaces(families), [families]);
+  const candidates = useMemo(() => visibleCompanyWorkspaces(families), [families]);
   const candidateKey = candidates.map((row) => row.id).join('|');
   const [employeesByCompanyId, setEmployeesByCompanyId] = useState({});
   const [loadedIds, setLoadedIds] = useState({});

@@ -16,6 +16,7 @@ import { isOrganizationType, platformTypeLabel } from '../src/utils/groupTypes';
 import { isProtopWorkspace } from '../src/utils/platformAccess';
 import { isPersonalShell } from '../src/utils/personalShell';
 import { companyContextLabel, dedupePersonalShells } from '../src/project/companyOffer';
+import { resolveWorkspaceId, visibleCompanyWorkspaces } from '../src/utils/platformSwitch';
 import {
   isGroupDeactivated,
   isGroupDeleted,
@@ -185,9 +186,11 @@ export default function FamilyOverviewScreen({ reloadKey }) {
 
   useFocusEffect(useCallback(() => { fetchFamilies(); return () => {}; }, [fetchFamilies, reloadKey]));
 
-  const openFamily = async (family) => {
-    await selectFamily(family.id);
-    openPlatformHome(navigation, family);
+  const openFamily = async (item) => {
+    const id = resolveWorkspaceId(families, item.id) || item.id;
+    const target = families.find((row) => row.id === id) || item;
+    await selectFamily(target.id);
+    openPlatformHome(navigation, target);
   };
 
   const openSettings = async (family) => {
@@ -271,7 +274,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const live = workspaces.filter((f) => !isGroupDeactivated(f));
   const deactivated = workspaces.filter((f) => isGroupDeactivated(f));
   const personalList = live.filter((f) => isPersonalShell(f));
-  const orgList = live.filter((f) => isOrganizationType(f.type));
+  const orgList = visibleCompanyWorkspaces(live);
   const openCompany = companyContextLabel(family);
   const canCreate = !isChild;
 

@@ -31,6 +31,10 @@ export function companyOrgnr(group) {
   return String(group?.company?.organisasjonsnummer || group?.orgnr || '').replace(/\D/g, '');
 }
 
+function digits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
 /** Underenhet fra Brreg (BEDR) eller et arbeidsområde opprettet under et morselskap. */
 export function isUnderenhetWorkspace(group) {
   if (!group) return false;
@@ -39,6 +43,52 @@ export function isUnderenhetWorkspace(group) {
   if (code === 'BEDR') return true;
   if (group.company?.kind === 'underenhet') return true;
   return String(group.company?.organisasjonsform || '').toLowerCase().includes('underenhet');
+}
+
+function subunitOrgnrs(group) {
+  const units = group?.company?.subUnits;
+  if (!Array.isArray(units)) return [];
+  return units
+    .map((unit) => digits(unit?.organisasjonsnummer))
+    .filter((value) => value.length === 9);
+}
+
+/**
+ * Hovedenhet som dette arbeidsområdet bare er et skjult alias for.
+ * Null når området skal vises: hovedenheten selv, eller en underenhet
+ * brukeren har alene (uten morselskapet i medlemslisten).
+ *
+ * Samme selskap er ett av disse:
+ * - underenhetens org.nr ligger som Brreg-barn på en annen bedrift i listen
+ * - overordnetEnhet peker på org.nr til en bedrift i listen
+ * - samme visningsnavn som en hovedenhet, og området er en underenhet
+ *   (parentCompanyId, BEDR, kind eller organisasjonsform)
+ * Et annet navn uten den org.nr-koblingen er en egen tilknytning og blir stående.
+ */
+export function aliasHovedenhet(group, companies = []) {
+  if (!group?.id) return null;
+  const others = (companies || []).filter((item) => item && item.id && item.id !== group.id);
+  if (!others.length) return null;
+
+  const orgnr = companyOrgnr(group);
+  if (orgnr.length === 9) {
+    const owners = others.filter((item) => subunitOrgnrs(item).includes(orgnr));
+    const owner = owners.find((item) => !isUnderenhetWorkspace(item)) || owners[0];
+    if (owner) return owner;
+  }
+
+  const overordnet = digits(group.company?.overordnetEnhet || group.overordnetEnhet);
+  if (overordnet.length === 9) {
+    const owner = others.find((item) => companyOrgnr(item) === overordnet);
+    if (owner) return owner;
+  }
+
+  if (!isUnderenhetWorkspace(group)) return null;
+  const name = companyNameKey(group);
+  if (!name) return null;
+  return others.find((item) => (
+    companyNameKey(item) === name && !isUnderenhetWorkspace(item)
+  )) || null;
 }
 
 export function companySwitchLabel(group) {
@@ -52,26 +102,35 @@ function companyNameKey(group) {
 }
 
 /**
- * Samme visningsnavn skal ikke sende innlogging til et tomt underenhet-område
- * når hovedenheten ligger i listen. Et underenhet-område med egne data og uten
- * parentCompanyId beholdes når det var sist brukt.
+ * Innlogging og bytte som treffer en underenhet lander på hovedenheten
+ * når begge ligger i listen. Underenheten blir liggende i Firestore.
  */
 export function preferHovedenhetWorkspace(chosen, companies = []) {
-  if (!chosen || !isUnderenhetWorkspace(chosen)) return chosen;
-  const parentId = String(chosen.parentCompanyId || '').trim();
-  if (parentId) {
-    const linked = companies.find((group) => group.id === parentId && group.id !== chosen.id);
-    if (linked) return linked;
+  if (!chosen) return chosen;
+  const seen = new Set();
+  let current = chosen;
+  while (current?.id && !seen.has(current.id)) {
+    seen.add(current.id);
+    const next = aliasHovedenhet(current, companies);
+    if (!next || next.id === current.id) return current;
+    current = next;
   }
-  const units = chosen.company?.subUnits;
-  if (Array.isArray(units) && units.length > 0) return chosen;
-  const name = companyNameKey(chosen);
-  if (!name) return chosen;
-  return companies.find((group) => (
-    group.id !== chosen.id
-    && !isUnderenhetWorkspace(group)
-    && companyNameKey(group) === name
-  )) || chosen;
+  return current || chosen;
+}
+
+/** Bedrifter som skal vises i bryteren. Underenhet-alias er tatt ut. */
+export function visibleCompanyWorkspaces(families = []) {
+  const companies = companyWorkspaces(families);
+  return companies.filter((group) => !aliasHovedenhet(group, companies));
+}
+
+/** Id bryteren skal åpne. Et underenhet-alias peker på hovedenheten. */
+export function resolveWorkspaceId(families, groupId) {
+  if (!groupId) return null;
+  const group = liveWorkspaces(families).find((item) => item.id === groupId);
+  if (!group) return null;
+  if (!isLiveOrganization(group)) return group.id;
+  return preferHovedenhetWorkspace(group, companyWorkspaces(families))?.id || group.id;
 }
 
 export function companyWorkspaces(families = []) {
@@ -88,60 +147,57 @@ export function companyWorkspaces(families = []) {
 }
 
 /**
- * Header segments. One company keeps the Privat / Bedrift pair.
- * Several companies are listed by name so they can be switched here.
+ * Header buttons. Privat and Bedrift stay visible.
+ * One visible company: Bedrift opens that workspace.
+ * Several: Bedrift has no single groupId; the menu lists them.
  */
 export function platformSwitchSegments(families = []) {
   const personal = personalWorkspace(families);
-  const companies = companyWorkspaces(families);
-  const segments = [{
-    id: 'personal',
-    side: 'personal',
-    label: 'Privat',
-    groupId: personal?.id || null,
-  }];
-  if (companies.length <= 1) {
-    segments.push({
+  const companies = visibleCompanyWorkspaces(families);
+  return [
+    {
+      id: 'personal',
+      side: 'personal',
+      label: 'Privat',
+      groupId: personal?.id || null,
+    },
+    {
       id: 'company',
       side: 'company',
       label: 'Bedrift',
-      groupId: companies[0]?.id || null,
-    });
-    return segments;
-  }
-  companies.forEach((group) => {
-    segments.push({
+      groupId: companies.length === 1 ? companies[0].id : null,
+    },
+  ];
+}
+
+/**
+ * Selskaper i Bedrift-menyen. Hvert ekte selskap én gang, med org.nr.
+ * Privat er en egen knapp og ligger ikke i listen.
+ */
+export function workspacePickerItems(families = []) {
+  const seen = new Set();
+  const items = [];
+  for (const group of visibleCompanyWorkspaces(families)) {
+    if (!group?.id || seen.has(group.id)) continue;
+    seen.add(group.id);
+    items.push({
       id: group.id,
       side: 'company',
       label: companySwitchLabel(group),
       groupId: group.id,
     });
-  });
-  return segments;
-}
-
-/**
- * Nedtrekksliste når brukeren hører til flere bedrifter.
- * Privat tas med bare når det finnes et ekte arbeidsområde. Samme selskap én gang.
- */
-export function workspacePickerItems(segments = []) {
-  const seen = new Set();
-  const items = [];
-  for (const segment of segments || []) {
-    if (!segment) continue;
-    if (segment.side === 'personal' && !segment.groupId) continue;
-    const key = `${segment.side}:${segment.groupId || segment.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    items.push(segment);
   }
   return items;
 }
 
-export function platformSegmentActive(segment, family) {
+export function platformSegmentActive(segment, family, families = null) {
   if (!segment) return false;
   if (segment.side === 'personal') return platformSwitchSide(family) !== 'company';
-  if (segment.groupId) return family?.id === segment.groupId;
+  const companies = families ? companyWorkspaces(families) : [];
+  const resolved = companies.length
+    ? preferHovedenhetWorkspace(family, companies)
+    : family;
+  if (segment.groupId) return resolved?.id === segment.groupId || family?.id === segment.groupId;
   return platformSwitchSide(family) === 'company';
 }
 
@@ -176,7 +232,8 @@ export function resolvePlatformSwitch(families, family, side) {
     if (!orgs.length) return { kind: 'overview' };
     const currentId = family?.id;
     const current = orgs.find((group) => group.id === currentId);
-    return { kind: 'workspace', group: current || orgs[0] };
+    const group = preferHovedenhetWorkspace(current || orgs[0], orgs);
+    return { kind: 'workspace', group };
   }
   const personal = personalWorkspace(families);
   if (!personal) return { kind: 'overview' };
@@ -193,7 +250,8 @@ export async function applyPlatformSwitch({
 } = {}) {
   let next = null;
   if (groupId) {
-    const group = liveWorkspaces(families).find((item) => item.id === groupId);
+    const resolvedId = resolveWorkspaceId(families, groupId);
+    const group = liveWorkspaces(families).find((item) => item.id === resolvedId);
     if (group) next = { kind: 'workspace', group };
   }
   if (!next) next = resolvePlatformSwitch(families, family, side);

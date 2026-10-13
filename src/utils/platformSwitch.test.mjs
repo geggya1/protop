@@ -7,8 +7,11 @@ import {
   platformSegmentActive,
   platformSwitchSegments,
   platformSwitchSide,
+  preferHovedenhetWorkspace,
   resolveLoginLanding,
   resolvePlatformSwitch,
+  resolveWorkspaceId,
+  visibleCompanyWorkspaces,
   workspacePickerItems,
 } from './platformSwitch.js';
 
@@ -102,12 +105,11 @@ const filledChild = {
     subUnits: [{ id: 'own', kind: 'avdeling', name: 'Egen' }],
   },
 };
-assert.equal(resolveLoginLanding([filledChild, parent], filledChild.id)?.id, 'filled-bedr');
+assert.equal(resolveLoginLanding([filledChild, parent], filledChild.id)?.id, 'parent-as');
+assert.equal(resolveLoginLanding([filledChild], filledChild.id)?.id, 'filled-bedr');
 const named = platformSwitchSegments([personal, parent, child]);
-assert.deepEqual(named.filter((s) => s.side === 'company').map((s) => s.label), [
-  'CONSULT1 AS · 916538804',
-  'CONSULT1 AS · 916570783',
-]);
+assert.deepEqual(named.map((s) => s.label), ['Privat', 'Bedrift']);
+assert.equal(named[1].groupId, 'parent-as');
 
 const oneCompany = platformSwitchSegments([personal, company]);
 assert.deepEqual(oneCompany.map((s) => s.label), ['Privat', 'Bedrift']);
@@ -115,13 +117,18 @@ assert.equal(oneCompany[1].groupId, 'org-1');
 const many = platformSwitchSegments([personal, company, extra]);
 assert.deepEqual(many.map((s) => [s.label, s.groupId]), [
   ['Privat', 'home-1'],
-  ['Annet AS', 'org-2'],
-  ['CONSULT1 AS', 'org-1'],
+  ['Bedrift', null],
 ]);
 assert.equal(platformSegmentActive(many[0], personal), true);
+assert.equal(platformSegmentActive(many[0], extra), false);
 assert.equal(platformSegmentActive(many[1], extra), true);
-assert.equal(platformSegmentActive(many[2], extra), false);
+assert.equal(platformSegmentActive(many[1], personal), false);
 assert.equal(platformSegmentActive(oneCompany[1], company), true);
+assert.equal(platformSegmentActive(oneCompany[1], personal), false);
+assert.equal(
+  platformSwitchSegments([personal, company, extra]).some((s) => s.label === 'Privat' && s.groupId === 'home-1'),
+  true,
+);
 
 const sor = {
   id: 'org-sor',
@@ -137,18 +144,90 @@ const ost = {
   active: true,
   company: { navn: 'CONSULT1 ØST', organisasjonsnummer: '999000002' },
 };
-const picker = workspacePickerItems(platformSwitchSegments([personal, parent, child, sor, ost]));
+const families = [personal, parent, child, sor, ost];
+const picker = workspacePickerItems(families);
 assert.deepEqual(picker.map((item) => item.label), [
-  'Privat',
   'CONSULT1 AS · 916538804',
-  'CONSULT1 AS · 916570783',
   'CONSULT1 SØR · 999000001',
   'CONSULT1 ØST · 999000002',
 ]);
+assert.equal(picker.filter((item) => item.label.includes('CONSULT1 AS')).length, 1);
+assert.equal(picker.some((item) => item.label.includes('916570783')), false);
+assert.equal(picker.find((item) => item.label.startsWith('CONSULT1 AS')).groupId, 'parent-as');
 assert.equal(new Set(picker.map((item) => item.groupId)).size, picker.length);
+assert.deepEqual(visibleCompanyWorkspaces(families).map((group) => group.id), ['parent-as', 'org-sor', 'org-ost']);
+assert.deepEqual(companyWorkspaces([child, parent]).map((group) => group.id), ['parent-as', 'child-bedr']);
 assert.deepEqual(
   workspacePickerItems([{ id: 'personal', side: 'personal', label: 'Privat', groupId: null }]).map((item) => item.label),
   [],
 );
+
+assert.equal(preferHovedenhetWorkspace(child, [child, parent]).id, 'parent-as');
+assert.equal(resolveWorkspaceId([personal, child, parent], child.id), 'parent-as');
+assert.equal(resolvePlatformSwitch([child, parent], child, 'company').group.id, 'parent-as');
+assert.equal(preferHovedenhetWorkspace(child, [child]).id, 'child-bedr');
+assert.equal(workspacePickerItems([child])[0].label, 'CONSULT1 AS · 916570783');
+
+const bedrTwin = {
+  id: 'bedr-twin',
+  type: 'organization',
+  name: 'CONSULT1 AS',
+  active: true,
+  parentCompanyId: '',
+  company: {
+    navn: 'CONSULT1 AS',
+    organisasjonsnummer: '916570783',
+    organisasjonsformKode: 'BEDR',
+    kind: 'underenhet',
+    organisasjonsform: 'Underenhet til næringsdrivende og offentlig forvaltning',
+  },
+};
+assert.equal(preferHovedenhetWorkspace(bedrTwin, [bedrTwin, parent]).id, 'parent-as');
+assert.equal(workspacePickerItems([personal, bedrTwin, parent]).some((item) => item.label.includes('916570783')), false);
+
+const parentWithUnit = {
+  ...parent,
+  company: {
+    ...parent.company,
+    subUnits: [{ id: 'u1', kind: 'underenhet', name: 'Sandnes', organisasjonsnummer: '916570783' }],
+  },
+};
+const sandnes = {
+  id: 'sandnes',
+  type: 'organization',
+  name: 'CONSULT1 AS AVD SANDNES',
+  active: true,
+  company: {
+    navn: 'CONSULT1 AS AVD SANDNES',
+    organisasjonsnummer: '916570783',
+    organisasjonsformKode: 'BEDR',
+  },
+};
+assert.equal(resolveWorkspaceId([sandnes, parentWithUnit], sandnes.id), 'parent-as');
+assert.equal(workspacePickerItems([sandnes]).map((item) => item.groupId).join(','), 'sandnes');
+
+const overordnet = {
+  ...child,
+  id: 'overordnet-link',
+  parentCompanyId: '',
+  company: { ...child.company, overordnetEnhet: '916538804' },
+};
+assert.equal(preferHovedenhetWorkspace(overordnet, [overordnet, parent]).id, 'parent-as');
+
+const sorLinked = { ...sor, parentCompanyId: 'parent-as' };
+const ostUnit = {
+  ...ost,
+  company: {
+    navn: 'CONSULT1 ØST AS',
+    organisasjonsnummer: '922362343',
+    organisasjonsformKode: 'BEDR',
+    organisasjonsform: 'Underenhet til næringsdrivende og offentlig forvaltning',
+    overordnetEnhet: '922336601',
+  },
+};
+const kept = workspacePickerItems([parent, child, sorLinked, ostUnit]);
+assert.deepEqual(kept.map((item) => item.groupId), ['parent-as', 'org-sor', 'org-ost']);
+assert.equal(kept.some((item) => String(item.label).includes('916570783')), false);
+assert.equal(platformSwitchSegments([personal, parent, child, sor, ost])[0].label, 'Privat');
 
 console.log('platformSwitch.test.mjs ok');

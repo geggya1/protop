@@ -6,7 +6,7 @@
 import { allows, accountDeactivated, grantsForEmployee } from '../access/companyAccess.js';
 import { ownEmployee } from '../employees/model.js';
 import { isLiveOrganization } from '../project/companyOffer.js';
-import { companyWorkspaces } from '../utils/platformSwitch.js';
+import { visibleCompanyWorkspaces } from '../utils/platformSwitch.js';
 
 /**
  * Kan personen føre egne timer i denne bedriften?
@@ -30,7 +30,8 @@ export function canLogOwnHoursInCompany(company, employees = [], actor = {}) {
  * @param {{ uid?: string, emails?: string[], name?: string, employeesByCompanyId?: Record<string, object[]> }} [options]
  */
 export function personalTimesheetCompanies(families = [], currentFamily = null, options = {}) {
-  const companies = companyWorkspaces(families);
+  // Samme skjulte alias som i headeren, så underenheten ikke vises som et ekstra selskap.
+  const companies = visibleCompanyWorkspaces(families);
   const employeesByCompanyId = options.employeesByCompanyId || {};
   const actor = {
     uid: options.uid || '',

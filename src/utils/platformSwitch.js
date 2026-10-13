@@ -120,6 +120,24 @@ export function platformSwitchSegments(families = []) {
   return segments;
 }
 
+/**
+ * Nedtrekksliste når brukeren hører til flere bedrifter.
+ * Privat tas med bare når det finnes et ekte arbeidsområde. Samme selskap én gang.
+ */
+export function workspacePickerItems(segments = []) {
+  const seen = new Set();
+  const items = [];
+  for (const segment of segments || []) {
+    if (!segment) continue;
+    if (segment.side === 'personal' && !segment.groupId) continue;
+    const key = `${segment.side}:${segment.groupId || segment.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(segment);
+  }
+  return items;
+}
+
 export function platformSegmentActive(segment, family) {
   if (!segment) return false;
   if (segment.side === 'personal') return platformSwitchSide(family) !== 'company';

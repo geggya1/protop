@@ -291,6 +291,49 @@ export function normalizeCustomers(input) {
   return input.map(normalizeCustomer).filter(Boolean);
 }
 
+function projectLinkName(project) {
+  return text(project?.client || project?.customerName);
+}
+
+function stableCustomerId(project, orgnr, customerNumber, name) {
+  const id = text(project?.customerId);
+  if (id) return id;
+  if (orgnr) return `kunde_org_${orgnr}`;
+  if (customerNumber) return `kunde_nr_${customerNumber}`;
+  const slug = fold(name).replace(/[^a-z0-9æøå]+/gi, '_').replace(/^_|_$/g, '').slice(0, 48);
+  return slug ? `kunde_navn_${slug}` : '';
+}
+
+/**
+ * Bygger kundekort fra prosjekt som fortsatt peker på kunden.
+ * Brukes når registeret er bekreftet tomt, så listen kan hentes inn igjen.
+ */
+export function customersFromProjectLinks(projects) {
+  const seen = new Map();
+  for (const project of Array.isArray(projects) ? projects : []) {
+    const name = projectLinkName(project);
+    if (!name) continue;
+    const orgnr = normalizeOrgnr(project?.orgnr);
+    const customerNumber = normalizeCustomerNumber(project?.customerNumber);
+    const id = stableCustomerId(project, orgnr, customerNumber, name);
+    if (!id) continue;
+    const key = text(project?.customerId)
+      || (orgnr ? `org:${orgnr}` : '')
+      || (customerNumber ? `nr:${customerNumber}` : '')
+      || `name:${fold(name)}`;
+    if (seen.has(key)) continue;
+    const row = normalizeCustomer({
+      id,
+      name,
+      kind: 'org',
+      orgnr,
+      customerNumber,
+    });
+    if (row) seen.set(key, row);
+  }
+  return [...seen.values()];
+}
+
 /**
  * Felt som må rettes før fakturering.
  * Virksomheter med org.nr henter adresse/kontakt fra Brønnøysund — ikke advarsel der.

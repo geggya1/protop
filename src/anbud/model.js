@@ -557,12 +557,16 @@ function shrinkToBudget(state, maxBytes) {
  */
 export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
   const base = compactAnbudState(raw);
+  const customers = base.customers || [];
+  const keepCustomers = (state) => (
+    (state?.customers || []).length >= customers.length ? state : { ...state, customers }
+  );
   let fitted = base;
   for (const limit of [8000, 2000, 600, 160]) {
     fitted = clipState(base, limit);
-    if (encodedBytes(fitted) <= maxBytes) return fitted;
+    if (encodedBytes(fitted) <= maxBytes) return keepCustomers(fitted);
   }
-  return shrinkToBudget(fitted, maxBytes);
+  return keepCustomers(shrinkToBudget(fitted, maxBytes));
 }
 
 export const LOGIN_PORTALS = [

@@ -17,6 +17,7 @@ import {
 } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import { groupOverview } from '../../src/project/companyUnits';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -413,6 +414,11 @@ export default function CompanyLanding({
           {unitsCard}
         </View>
       </View>
+      <BrandBusyOverlay
+        visible={loading}
+        label="Vent…"
+        detail="Henter selskapsopplysninger."
+      />
     </View>
   );
 }

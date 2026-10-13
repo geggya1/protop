@@ -16,6 +16,7 @@ import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
@@ -162,6 +163,7 @@ export default function TenderAlert({
   const phone = cssPhone || width < BREAKPOINTS.tablet;
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState('nye');
@@ -240,6 +242,7 @@ export default function TenderAlert({
     let live = true;
     const gen = ++loadGen.current;
     setReady(false);
+    setLoadFailed(false);
     loadAnbudState(company?.id).then((loaded) => {
       if (!live || gen !== loadGen.current) return;
       const watch = loaded.watch || {};
@@ -255,6 +258,10 @@ export default function TenderAlert({
       setKeywords(watch.keywords || []);
       setState(loaded);
       setReady(true);
+    }).catch(() => {
+      if (!live || gen !== loadGen.current) return;
+      setError('Kunne ikke laste anbudsvarslingen.');
+      setLoadFailed(true);
     });
     return () => { live = false; };
   }, [company?.id]);
@@ -1163,6 +1170,11 @@ export default function TenderAlert({
           </View>
         </>
       ) : null}
+      <BrandBusyOverlay
+        visible={!ready && !loadFailed}
+        label="Vent…"
+        detail="Henter anbud."
+      />
     </View>
   );
 }

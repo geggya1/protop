@@ -67,6 +67,7 @@ import {
   reportSummary,
 } from '../../src/arbeid/reports.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 
 const CELL_W = 44;
@@ -134,6 +135,11 @@ export default function ArbeidScreen({
       setState(loaded);
       setReady(true);
       skipSave.current = true;
+    }).catch(() => {
+      if (!live) return;
+      skipSave.current = true;
+      setReady(true);
+      setError('Kunne ikke laste timeføring.');
     });
     return () => { live = false; };
   }, [workspaceId]);
@@ -152,6 +158,7 @@ export default function ArbeidScreen({
     }).catch(() => {
       if (!live) return;
       setHoursLoading(false);
+      setError('Kunne ikke laste timer for måneden.');
     });
     return () => { live = false; };
   }, [ready, workspaceId, year, monthIndex]);
@@ -1078,6 +1085,11 @@ export default function ArbeidScreen({
           </Pressable>
         </Pressable>
       </Modal>
+      <BrandBusyOverlay
+        visible={!ready || hoursLoading}
+        label="Vent…"
+        detail="Henter timer."
+      />
     </View>
   );
 }

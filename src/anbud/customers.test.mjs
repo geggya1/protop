@@ -9,6 +9,7 @@ import {
   enrichCustomerImportPlan,
   fillCustomerFromBrreg,
   filterCustomers,
+  rankCustomerMatches,
   formatOrgnr,
   importCustomers,
   maskPersonnummer,
@@ -443,5 +444,31 @@ const linkSummary = projectLinkSummary(prosjektListe, [kundeA, kundeB]);
 assert.equal(linkSummary.linked, 4);
 assert.equal(linkSummary.total, 5); // p5 arkivert utelates; p6 er aktiv men fremmed kunde
 assert.equal(linkSummary.unlinked, 1);
+
+const ranked = rankCustomerMatches([
+  { id: 'a', name: 'CONSULT1 AS', kind: 'org', orgnr: '123456789', customerNumber: '12', place: 'Stavanger' },
+  { id: 'b', name: 'Stavanger Utvikling Kf', kind: 'org', orgnr: '678912345', customerNumber: '40', place: 'Stavanger' },
+  { id: 'c', name: 'Statens Vegvesen', kind: 'org', orgnr: '971032081', customerNumber: '50', place: 'Oslo' },
+], 'stav');
+assert.equal(ranked[0].id, 'b');
+assert.equal(ranked.some((row) => row.id === 'c'), false);
+assert.equal(ranked.some((row) => row.id === 'a'), true);
+
+const treatment = readFileSync(new URL('../../screens/anbud/AgreementTreatment.jsx', import.meta.url), 'utf8');
+const picker = readFileSync(new URL('../../screens/anbud/AgreementCustomerField.jsx', import.meta.url), 'utf8');
+const createModal = readFileSync(new URL('../../screens/customers/CustomerCreateModal.jsx', import.meta.url), 'utf8');
+assert.equal(treatment.includes('(state?.customers || []).slice(0, 12)'), false);
+assert.match(treatment, /AgreementCustomerField/);
+assert.match(picker, /rankCustomerMatches/);
+assert.match(picker, /agreement-customer-search/);
+assert.match(picker, /Ny kunde/);
+assert.match(picker, /CustomerCreateModal/);
+assert.match(createModal, /upsertCustomer/);
+assert.match(createModal, /searchBrregCompanies/);
+assert.match(createModal, /identityFieldsForKind/);
+assert.match(createModal, /Brønnøysund/);
+assert.match(createModal, /Virksomhet/);
+assert.match(createModal, /Privatkunde/);
+assert.match(createModal, /Lagre kunde/);
 
 console.log('customers.test.mjs: ok');

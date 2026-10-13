@@ -478,13 +478,14 @@ export default function EconomyHours({
     );
   }
 
+  const loadingHours = !ready || hoursLoading;
   const busyOverlay = (
     <BrandBusyOverlay
-      visible={busy}
-      label={progress?.label || 'Jobber…'}
-      detail="Vent til operasjonen er ferdig før du går videre."
-      done={progress?.done}
-      total={progress?.total}
+      visible={busy || loadingHours}
+      label={busy ? (progress?.label || 'Jobber…') : 'Vent…'}
+      detail={busy ? 'Vent til operasjonen er ferdig før du går videre.' : 'Henter timer.'}
+      done={busy ? progress?.done : undefined}
+      total={busy ? progress?.total : undefined}
     />
   );
 

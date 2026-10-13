@@ -123,6 +123,7 @@ export default function EmployeesScreen() {
   }, [members, uid, user, userProfile]);
 
   const [rows, setRows] = useState([]);
+  const [directoryReady, setDirectoryReady] = useState(false);
   const [profile, setProfile] = useState(null);
   const [projectState, setProjectState] = useState(() => emptyProjectState());
   const [view, setView] = useState('list');
@@ -160,10 +161,28 @@ export default function EmployeesScreen() {
   }
 
   useEffect(() => {
-    if (!familyId) return undefined;
-    return watchEmployees(familyId, setRows, (err) => {
+    if (!familyId) {
+      setRows([]);
+      setDirectoryReady(true);
+      return undefined;
+    }
+    setDirectoryReady(false);
+    const timer = setTimeout(() => setDirectoryReady(true), 12000);
+    const stop = watchEmployees(familyId, (next, meta) => {
+      setRows(next);
+      if (meta?.source === 'remote' || (meta?.source === 'local' && next.length)) {
+        clearTimeout(timer);
+        setDirectoryReady(true);
+      }
+    }, (err) => {
+      clearTimeout(timer);
+      setDirectoryReady(true);
       setError(err?.message || 'Kunne ikke hente medarbeidere.');
     });
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
   }, [familyId]);
 
   useEffect(() => {
@@ -1671,12 +1690,14 @@ export default function EmployeesScreen() {
       />
     </ScrollView>
     <BrandBusyOverlay
-      visible={!!showBusyOverlay}
-      label={busyLabel('Jobber…')}
+      visible={!directoryReady || !!showBusyOverlay}
+      label={!directoryReady && !showBusyOverlay ? 'Vent…' : busyLabel('Jobber…')}
       detail={
-        busyKind === 'save'
-          ? 'Jobber med bilder og lagring. Ikke lukk fanen.'
-          : 'Vent til operasjonen er ferdig før du går videre.'
+        !directoryReady && !showBusyOverlay
+          ? 'Henter ansatte.'
+          : busyKind === 'save'
+            ? 'Jobber med bilder og lagring. Ikke lukk fanen.'
+            : 'Vent til operasjonen er ferdig før du går videre.'
       }
       done={saveProgress?.done}
       total={saveProgress?.total}

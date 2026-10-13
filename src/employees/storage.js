@@ -37,17 +37,17 @@ function employeeRef(companyId, employeeId) {
 
 export function watchEmployees(companyId, onData, onError) {
   if (!companyId) {
-    onData([]);
+    onData([], { source: 'local' });
     return () => {};
   }
   let stop = false;
   readLocal(companyId).then((rows) => {
-    if (!stop) onData(rows);
+    if (!stop) onData(rows, { source: 'local' });
   }).catch(() => {});
   const unsub = onSnapshot(collection(db, 'families', companyId, 'employees'), (snap) => {
     const rows = sortEmployees(snap.docs.map((item) => normalizeEmployee({ ...item.data(), id: item.id })));
     writeLocal(companyId, rows).catch(() => {});
-    onData(rows);
+    onData(rows, { source: 'remote' });
   }, (error) => {
     onError?.(error);
   });

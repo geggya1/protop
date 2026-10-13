@@ -9,6 +9,7 @@ import {
   platformSwitchSide,
   resolveLoginLanding,
   resolvePlatformSwitch,
+  workspacePickerItems,
 } from './platformSwitch.js';
 
 const personal = {
@@ -121,5 +122,33 @@ assert.equal(platformSegmentActive(many[0], personal), true);
 assert.equal(platformSegmentActive(many[1], extra), true);
 assert.equal(platformSegmentActive(many[2], extra), false);
 assert.equal(platformSegmentActive(oneCompany[1], company), true);
+
+const sor = {
+  id: 'org-sor',
+  type: 'organization',
+  name: 'CONSULT1 SØR',
+  active: true,
+  company: { navn: 'CONSULT1 SØR', organisasjonsnummer: '999000001' },
+};
+const ost = {
+  id: 'org-ost',
+  type: 'organization',
+  name: 'CONSULT1 ØST',
+  active: true,
+  company: { navn: 'CONSULT1 ØST', organisasjonsnummer: '999000002' },
+};
+const picker = workspacePickerItems(platformSwitchSegments([personal, parent, child, sor, ost]));
+assert.deepEqual(picker.map((item) => item.label), [
+  'Privat',
+  'CONSULT1 AS · 916538804',
+  'CONSULT1 AS · 916570783',
+  'CONSULT1 SØR · 999000001',
+  'CONSULT1 ØST · 999000002',
+]);
+assert.equal(new Set(picker.map((item) => item.groupId)).size, picker.length);
+assert.deepEqual(
+  workspacePickerItems([{ id: 'personal', side: 'personal', label: 'Privat', groupId: null }]).map((item) => item.label),
+  [],
+);
 
 console.log('platformSwitch.test.mjs ok');

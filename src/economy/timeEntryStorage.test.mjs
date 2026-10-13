@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
 import {
+  allowTimeEntryRemovals,
   attachTimeEntriesToState,
+  clearDeletedTimeEntries,
+  deletedTimeEntryIds,
   diffTimeEntries,
   filterRemovalsToLoadedWindow,
   filterTimeEntriesByRange,
+  legacyRowsToMigrate,
+  mergeEntryLists,
+  planTimeEntryRemovals,
+  rememberDeletedTimeEntries,
+  withoutDeletedTimeEntries,
 } from './timeEntryStorage.js';
 import {
   markTimeEntriesSynced,
@@ -137,6 +145,58 @@ import { deleteTimeEntry, emptyProjectState } from '../project/engine.js';
     filterRemovalsToLoadedWindow(previous, removed, { all: true }),
     ['old', 'week', 'other'],
   );
+}
+
+{
+  // Siste 7 dager: slett én rad i vinduet, la rader utenfor ligge.
+  const previous = [
+    { id: 'old', projectId: 'p', employeeId: 'e1', date: '2026-01-15', hours: 8, updatedAt: 'a' },
+    { id: 'geir', projectId: 'p', employeeId: 'e-geir', date: '2026-10-10', hours: 8, updatedAt: 'a', description: 'Test' },
+    { id: 'tom', projectId: 'p', employeeId: 'e-tom', date: '2026-10-06', hours: 8, updatedAt: 'a', description: 'fidlsd' },
+  ];
+  const window = { all: false, fromDate: '2026-10-06', toDate: '2026-10-13' };
+  assert.equal(allowTimeEntryRemovals('partial', window), true);
+  assert.equal(allowTimeEntryRemovals('none', window), false);
+  assert.equal(allowTimeEntryRemovals('partial', null), false);
+  const next = previous.filter((row) => row.id !== 'geir');
+  assert.deepEqual(
+    planTimeEntryRemovals(previous, next, window, { allowRemovals: allowTimeEntryRemovals('partial', window) }),
+    ['geir'],
+  );
+  assert.deepEqual(
+    planTimeEntryRemovals(previous, [], window, { allowRemovals: true }),
+    ['geir', 'tom'],
+  );
+  assert.deepEqual(
+    planTimeEntryRemovals(previous, [], { all: true }, { allowRemovals: allowTimeEntryRemovals('all', { all: true }) }),
+    ['old', 'geir', 'tom'],
+  );
+  assert.deepEqual(planTimeEntryRemovals(previous, next, window, { allowRemovals: false }), []);
+
+  clearDeletedTimeEntries('co-week');
+  rememberDeletedTimeEntries('co-week', ['geir']);
+  const reloaded = mergeEntryLists(
+    [{ id: 'geir', projectId: 'p', employeeId: 'e-geir', date: '2026-10-10', hours: 8, updatedAt: 'b' }],
+    [{ id: 'tom', projectId: 'p', employeeId: 'e-tom', date: '2026-10-06', hours: 8, updatedAt: 'a' }],
+    [{ id: 'old', projectId: 'p', employeeId: 'e1', date: '2026-01-15', hours: 8, updatedAt: 'a' }],
+  );
+  assert.deepEqual(withoutDeletedTimeEntries('co-week', reloaded).map((row) => row.id).sort(), ['old', 'tom']);
+  rememberDeletedTimeEntries('co-week', ['geir', 'tom']);
+  rememberDeletedTimeEntries('co-week', ['geir']);
+  assert.deepEqual(withoutDeletedTimeEntries('co-week', reloaded).map((row) => row.id), ['old']);
+  assert.deepEqual(deletedTimeEntryIds('co-week'), new Set(['geir', 'tom']));
+  assert.deepEqual(
+    legacyRowsToMigrate(previous, new Set(['tom', 'old']), deletedTimeEntryIds('co-week')).map((row) => row.id),
+    [],
+  );
+  const again = planTimeEntryRemovals(
+    withoutDeletedTimeEntries('co-week', previous),
+    withoutDeletedTimeEntries('co-week', next),
+    window,
+    { allowRemovals: true },
+  );
+  assert.deepEqual(again, []);
+  clearDeletedTimeEntries('co-week');
 }
 
 console.log('timeEntryStorage.test.mjs: ok');

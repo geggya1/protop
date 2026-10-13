@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
-import { setAbsenceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
+
+export { AbsenceOverviewScreen } from './AbsenceOverviewView';
 
 function usePeople(lockedEmployeeId) {
   const year = new Date().getFullYear();
@@ -37,114 +38,6 @@ function PersonChips({ workspace, activeId, onPick }) {
         </TouchableOpacity>
       ))}
     </ScrollView>
-  );
-}
-
-export function AbsenceOverviewScreen({ lockedEmployeeId = '' } = {}) {
-  const colors = useColors();
-  const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
-  const types = absencePickerTypes();
-  const [typeId, setTypeId] = useState('ferie');
-  const [opening, setOpening] = useState('');
-  const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const today = toDateKey(new Date());
-  const overview = useMemo(() => buildAbsenceOverview({
-    employeeId: activeId,
-    typeId,
-    absences: workspace.state.absences,
-    adjustments: workspace.state.absenceAdjustments,
-    fullDayHours: fullDay,
-    today,
-  }), [activeId, typeId, workspace.state.absences, workspace.state.absenceAdjustments, fullDay, today]);
-
-  function saveOpening() {
-    const days = Number(String(opening).replace(',', '.'));
-    const result = setAbsenceAdjustment(workspace.state, {
-      employeeId: activeId,
-      typeId,
-      kind: 'opening',
-      days,
-      date: today,
-      note: 'Startsaldo',
-    });
-    if (!result.ok) {
-      workspace.setError(result.error);
-      return;
-    }
-    workspace.setState(result.state);
-    workspace.setError('');
-    setOpening('');
-  }
-
-  const summary = overview.summary;
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="fravaer-oversikt">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Fraværsoversikt</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>{employeeDisplayName(employee) || 'Fraværsoversikt'}</Text>
-      <PersonChips workspace={workspace} activeId={activeId} onPick={setEmployeeId} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-        {types.map((row) => (
-          <TouchableOpacity
-            key={row.id}
-            onPress={() => setTypeId(row.id)}
-            style={[styles.chip, { borderColor: row.id === typeId ? colors.brand : colors.line, backgroundColor: row.id === typeId ? colors.brand : colors.card }]}
-          >
-            <Text style={{ color: row.id === typeId ? '#fff' : colors.ink, fontSize: 13 }}>{row.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
-      <View style={styles.split}>
-        <View style={{ flex: 2, minWidth: 280 }}>
-          <View style={[styles.row, { backgroundColor: colors.sunken }]}>
-            {['Dato', 'Opptjente', 'Arbeidstid', 'Registrerte dager', 'Brukte dager'].map((label) => (
-              <Text key={label} style={[styles.cell, { color: colors.muted, fontWeight: '600' }]}>{label}</Text>
-            ))}
-          </View>
-          {overview.rows.map((row) => (
-            <View key={row.id} style={[styles.row, { borderBottomColor: colors.line }]}>
-              <Text style={[styles.cell, { color: colors.ink }]}>{row.label}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'absence' ? '' : row.adjustment || ''}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{row.hours ? row.hours : ''}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'absence' ? row.days : ''}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'absence' ? row.days : ''}</Text>
-            </View>
-          ))}
-          {!overview.rows.length ? <Text style={{ color: colors.muted, padding: 12 }}>Ingen registrert {absenceTypeById(typeId).label.toLowerCase()} ennå.</Text> : null}
-        </View>
-        <View style={[styles.summary, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="fravaer-summary">
-          <Text style={{ color: colors.ink, fontWeight: '700', marginBottom: 8 }}>{absenceTypeById(typeId).label}</Text>
-          <Line label="Startsaldo og justeringer" value={summary.earned} colors={colors} />
-          <Line label="Brukte dager totalt" value={summary.used} colors={colors} />
-          <Line label="Dager til gode" value={summary.remaining} colors={colors} />
-          <Line label="Planlagte fraværsdager" value={summary.planned} colors={colors} />
-          <Line label="Dager som ikke er planlagt" value={summary.unplanned} colors={colors} />
-          <Text style={{ color: colors.muted, marginTop: 12, fontSize: 12 }}>Startsaldo feriedager</Text>
-          <TextInput
-            value={opening}
-            onChangeText={setOpening}
-            placeholder={String(summary.opening || '0')}
-            placeholderTextColor={colors.placeholder}
-            keyboardType="decimal-pad"
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-            accessibilityLabel="Startsaldo feriedager"
-            nativeID="ferie-startsaldo"
-          />
-          <TouchableOpacity onPress={saveOpening} style={[styles.btn, { backgroundColor: colors.brand }]} nativeID="ferie-startsaldo-save">
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Lagre startsaldo</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
-  );
-}
-
-function Line({ label, value, colors }) {
-  return (
-    <View style={styles.line}>
-      <Text style={{ color: colors.muted, flex: 1 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>{value}</Text>
-    </View>
   );
 }
 
@@ -254,13 +147,6 @@ const styles = StyleSheet.create({
   crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  split: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12 },
-  row: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  cell: { width: 140, padding: 8, fontSize: 13 },
-  summary: { flex: 1, minWidth: 240, borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
-  line: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
-  btn: { borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
 });

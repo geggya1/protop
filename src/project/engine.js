@@ -149,7 +149,8 @@ export function healOrphanProjectRefs(state, idRemap = null) {
     if (byId.has(id)) return id;
     const mapped = idRemap?.get(id);
     if (mapped && byId.has(mapped)) return mapped;
-    const key = projectNumberKey(projectNumber);
+    // projectNumber-felt, eller projectId som egentlig er prosjektnummer (Moment m.m.).
+    const key = projectNumberKey(projectNumber) || projectNumberKey(id);
     if (key) {
       const hit = byNumber.get(key);
       if (hit) return hit.id;

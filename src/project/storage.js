@@ -228,6 +228,21 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries) {
 }
 
 /**
+ * Koble timeEntries, heal orphan projectId (via normalize/put), og synk
+ * remappede id-er tilbake til subcollection når de avviker fra lastet liste.
+ */
+async function loadStateWithHealedHours(companyId, baseState) {
+  const withHours = await attachTimeEntriesToState(companyId, baseState);
+  const attached = withHours.timeEntries || [];
+  const stored = putProjectState(withHours, companyId);
+  const healed = stored.timeEntries || [];
+  markTimeEntriesSynced(companyId, healed);
+  // Persistér heal (stale id → riktig prosjekt) uten å blokkere UI.
+  syncTimeEntriesRemote(companyId, attached, healed).catch(() => {});
+  return stored;
+}
+
+/**
  * Last prosjektstate. companyId anbefales for synk mellom brukere.
  * Bakoverkompatibel: loadProjectState() eller loadProjectState({ force }).
  */
@@ -258,23 +273,20 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     const applied = applyRemoteProjectRead(local, await readRemote(companyId));
     loadMeta.set(key, applied.meta);
     if (!applied.cache) {
-      const withHours = await attachTimeEntriesToState(companyId, applied.state);
-      markTimeEntriesSynced(companyId, withHours.timeEntries);
-      return putProjectState(withHours, companyId);
+      return loadStateWithHealedHours(companyId, applied.state);
     }
     if (applied.upload) {
       queueRemote(companyId, { ...stripTimeEntriesFromState(applied.state), syncedAt: new Date().toISOString() });
     }
-    const withHours = await attachTimeEntriesToState(companyId, applied.state);
-    markTimeEntriesSynced(companyId, withHours.timeEntries);
+    const stored = await loadStateWithHealedHours(companyId, applied.state);
     // Rydd legacy timeEntries ut av monolitten når de er migrert.
-    if ((applied.state.timeEntries || []).length && withHours.timeEntries?.length) {
+    if ((applied.state.timeEntries || []).length && stored.timeEntries?.length) {
       queueRemote(companyId, {
-        ...stripTimeEntriesFromState(withHours),
+        ...stripTimeEntriesFromState(stored),
         syncedAt: new Date().toISOString(),
       });
     }
-    return putProjectState(withHours, companyId);
+    return stored;
   })();
 
   inflight.set(key, pending);

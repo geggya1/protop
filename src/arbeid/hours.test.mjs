@@ -308,6 +308,21 @@ assert.ok(merged.members.length >= 1);
   const healed = healOrphanProjectRefs(orphaned);
   assert.equal(healed.timeEntries[0].projectId, 'proj-import');
 
+  // projectId satt til prosjektnummer (uten projectNumber-felt) skal også heales.
+  const byNumberId = healOrphanProjectRefs({
+    ...state,
+    timeEntries: [{
+      id: 'tid-num',
+      projectId: '30001',
+      employeeId: 'emp1',
+      date: '2026-07-05',
+      hours: 4,
+      description: 'Nummer som id',
+      status: 'registrert',
+    }],
+  });
+  assert.equal(byNumberId.timeEntries[0].projectId, 'proj-import');
+
   const imported = importTimeEntries(state, [{
     projectId: 'proj-import',
     projectNumber: '30001',

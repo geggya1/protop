@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { useColors } from '../../src/context/ThemeContext';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
@@ -121,6 +122,7 @@ export default function EconomyBilling() {
       if (ehf.ok) parts.push('EHF klar.');
       else parts.push(`EHF: ${ehf.error}`);
       setNote(parts.join(' '));
+      showSaveToast(parts[0] || 'Fakturaen er opprettet.');
     } catch (cause) {
       setError(String(cause?.message || cause) || 'Kunne ikke opprette faktura.');
     } finally {
@@ -164,6 +166,7 @@ export default function EconomyBilling() {
       setInvoices(await invoiceStorage.loadInvoices(familyId));
       setLastInvoice(null);
       setNote(`Kreditnota ${invoice.invoiceNumber} opprettet for faktura ${lastInvoice.invoiceNumber}.`);
+      showSaveToast(`Kreditnota ${invoice.invoiceNumber} opprettet for faktura ${lastInvoice.invoiceNumber}.`);
     } catch (cause) {
       setError(String(cause?.message || cause) || 'Kunne ikke opprette kreditnota.');
     } finally {

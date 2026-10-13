@@ -5,6 +5,7 @@ import { updateGroup } from '../../src/utils/groups';
 import { INTAKE_CHANNELS, createManualInquiry, inquiryStatusLabel } from '../../src/anbud/intake';
 import { fileToDataUrl, mergeScan, scanAnbudFile } from '../../src/anbud/intakeClient';
 import { pickImages } from '../../src/utils/media';
+import { showSaveToast } from '../../src/ui/saveToast';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
   return (
@@ -106,6 +107,7 @@ export default function IntakePanel({ colors, company }) {
       setMessage('');
       setFiles([]);
       setNote('Henvendelsen er registrert med vedleggene.');
+      showSaveToast('Henvendelsen er registrert.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke lagre henvendelsen.');
     } finally {

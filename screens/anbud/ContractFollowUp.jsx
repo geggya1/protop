@@ -18,6 +18,7 @@ import {
   indeksCaseFromContract,
 } from '../../src/anbud/directContract';
 import { formatNok } from '../../src/anbud/model';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import {
   agreementResponsiblePeople,
@@ -194,6 +195,7 @@ export default function ContractFollowUp({
     setComposeParent('');
     setComposeKind('');
     setNote('Avtalen er registrert.');
+    showSaveToast('Avtalen er registrert.');
     return result;
   }
 
@@ -217,6 +219,7 @@ export default function ContractFollowUp({
       }
     }
     setNote(handed.created ? 'Prosjektet er opprettet med kontraktssummen.' : 'Prosjektet er koblet.');
+    showSaveToast(handed.created ? 'Prosjektet er opprettet med kontraktssummen.' : 'Prosjektet er koblet.');
     requestShellTab?.('projects', null, { type: 'openProject', projectId });
   }
 
@@ -291,6 +294,7 @@ export default function ContractFollowUp({
       setSelectedId('');
     }
     setNote(`«${target.title || 'Avtalen'}» er flyttet til papirkurven.`);
+    showSaveToast(`«${target.title || 'Avtalen'}» er flyttet til papirkurven.`);
   }
 
   async function restoreRow(row) {
@@ -298,6 +302,7 @@ export default function ContractFollowUp({
     const result = await commit(restoreContract(loaded, row.id));
     if (!result?.ok) return;
     setNote(`«${row.title || 'Avtalen'}» er gjenopprettet.`);
+    showSaveToast(`«${row.title || 'Avtalen'}» er gjenopprettet.`);
   }
 
   if (!state) return null;
@@ -406,6 +411,7 @@ export default function ContractFollowUp({
             setView('list');
             setSelectedId('');
             setNote('Avtalen er flyttet til papirkurven.');
+            showSaveToast('Avtalen er flyttet til papirkurven.');
             setFilters((current) => ({ ...current, status: 'alle' }));
           }}
         />

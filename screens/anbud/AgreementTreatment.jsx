@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import InfoButton from '../../components/InfoButton';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -164,6 +165,7 @@ export default function AgreementTreatment({
   function say(text, bad = false) {
     setNote(text);
     setNoteBad(bad);
+    if (!bad && text) showSaveToast(text);
   }
 
   async function commitLocal(result, movement) {

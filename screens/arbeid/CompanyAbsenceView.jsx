@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import {
-  Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Circle, Line, Rect } from 'react-native-svg';
+import Svg, { Circle, Rect } from 'react-native-svg';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
 import { absenceCategory } from '../../src/arbeid/absenceDashboard.js';
 import { useLayout } from '../../src/theme';
+
+const CREW = require('../../assets/absence/crew-hero.png');
+const BEACH = require('../../assets/absence/beach-illustration.png');
+const SITE = require('../../assets/absence/site-building.png');
 
 const ui = {
   page: '#F4F7FB',
@@ -127,7 +131,24 @@ export function CompanyAbsenceView({
       keyboardShouldPersistTaps="handled"
     >
       <View style={[styles.frame, wide && styles.frameWide]}>
-        <View style={styles.banner}>
+        <View style={[styles.banner, wide && styles.bannerWide]}>
+          <View style={[styles.bannerArt, wide && styles.bannerArtWide]} pointerEvents="none">
+            <Image
+              source={CREW}
+              resizeMode="cover"
+              accessibilityLabel="Anleggsarbeidere"
+              style={[styles.bannerPhoto, wide && styles.bannerPhotoWide]}
+            />
+            {wide ? (
+              <Image
+                source={SITE}
+                resizeMode="contain"
+                accessibilityLabel="Bygg under oppføring"
+                style={styles.bannerSite}
+              />
+            ) : null}
+            <View style={styles.bannerPhotoFade} />
+          </View>
           <View style={[styles.bannerCopy, wide && styles.bannerCopyWide]}>
             <View style={styles.bedriftRow}>
               <Text style={styles.bedrift}>Bedrift</Text>
@@ -144,9 +165,6 @@ export function CompanyAbsenceView({
             </View>
             <Text accessibilityRole="header" style={styles.title}>Fraværsoversikt</Text>
             <Text style={styles.lead}>Full oversikt over ferie, fravær og permisjoner for dine ansatte.</Text>
-          </View>
-          <View style={[styles.blueprint, wide && styles.blueprintWide]} pointerEvents="none">
-            <BlueprintMark />
           </View>
         </View>
 
@@ -248,7 +266,22 @@ export function CompanyAbsenceView({
             onAction={() => pickCategory('annet')}
             actionId="kpi-annet"
           />
+          {wide ? (
+            <View style={styles.beachCard}>
+              <Image source={BEACH} resizeMode="contain" accessibilityLabel="Ferie" style={styles.beachImage} />
+            </View>
+          ) : null}
         </View>
+        {wide ? null : (
+          <View style={styles.motifRow}>
+            <View style={styles.motifCard}>
+              <Image source={BEACH} resizeMode="contain" accessibilityLabel="Ferie" style={styles.motifImage} />
+            </View>
+            <View style={styles.motifCard}>
+              <Image source={SITE} resizeMode="contain" accessibilityLabel="Bygg under oppføring" style={styles.motifImage} />
+            </View>
+          </View>
+        )}
 
         <View style={styles.split}>
           <View style={[styles.card, styles.splitCard]}>
@@ -467,54 +500,6 @@ function ChoiceList({ options, selected, onPick }) {
   );
 }
 
-function BlueprintMark() {
-  const stroke = 'rgba(255,255,255,0.82)';
-  const faint = 'rgba(255,255,255,0.45)';
-  return (
-    <Svg width="100%" height="100%" viewBox="0 0 230 170">
-        <Circle cx="28" cy="24" r="1.4" fill={faint} />
-        <Circle cx="54" cy="14" r="1.2" fill={faint} />
-        <Circle cx="18" cy="48" r="1.1" fill={faint} />
-        <Circle cx="70" cy="36" r="1.3" fill={faint} />
-        <Line x1="22" y1="22" x2="52" y2="14" stroke={faint} strokeWidth="0.6" />
-        <Line x1="18" y1="46" x2="28" y2="26" stroke={faint} strokeWidth="0.6" />
-        <Rect x="36" y="78" width="52" height="78" stroke={stroke} strokeWidth="1.2" fill="none" />
-        <Rect x="96" y="46" width="58" height="110" stroke={stroke} strokeWidth="1.3" fill="none" />
-        <Rect x="162" y="64" width="40" height="92" stroke={stroke} strokeWidth="1.2" fill="none" />
-        {[0, 1, 2, 3].map((col) => [0, 1, 2, 3, 4].map((row) => (
-          <Rect
-            key={`a-${col}-${row}`}
-            x={44 + col * 11}
-            y={88 + row * 12}
-            width="6"
-            height="7"
-            stroke={faint}
-            strokeWidth="0.7"
-            fill="none"
-          />
-        )))}
-        {[0, 1, 2].map((col) => [0, 1, 2, 3, 4, 5].map((row) => (
-          <Rect
-            key={`b-${col}-${row}`}
-            x={106 + col * 14}
-            y={56 + row * 14}
-            width="8"
-            height="8"
-            stroke={faint}
-            strokeWidth="0.7"
-            fill="none"
-          />
-        )))}
-        <Line x1="188" y1="150" x2="188" y2="28" stroke={stroke} strokeWidth="1.4" />
-        <Line x1="188" y1="34" x2="228" y2="34" stroke={stroke} strokeWidth="1.4" />
-        <Line x1="188" y1="34" x2="168" y2="48" stroke={stroke} strokeWidth="1.1" />
-        <Line x1="214" y1="34" x2="214" y2="58" stroke={faint} strokeWidth="0.8" />
-        <Line x1="210" y1="58" x2="218" y2="58" stroke={stroke} strokeWidth="1.1" />
-        <Rect x="176" y="18" width="10" height="12" stroke={stroke} strokeWidth="1" fill="none" />
-    </Svg>
-  );
-}
-
 const cardShadow = Platform.select({
   web: { boxShadow: '0 8px 24px rgba(20, 36, 64, 0.06)' },
   default: {
@@ -540,6 +525,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     overflow: 'hidden',
   },
+  bannerWide: { minHeight: 196 },
+  bannerArt: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 176 },
+  bannerArtWide: { width: 540, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'flex-end' },
+  bannerPhoto: { width: '100%', height: '100%' },
+  bannerPhotoWide: { width: 320, height: '100%' },
+  bannerSite: { width: 210, height: 150, marginRight: 8, marginBottom: 18 },
+  bannerPhotoFade: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '62%',
+    backgroundImage: 'linear-gradient(90deg, #0C3F78 0%, rgba(12,63,120,0.72) 38%, rgba(12,63,120,0) 100%)',
+  },
   bannerCopy: { width: '100%', paddingRight: 108, gap: 8, zIndex: 1 },
   bannerCopyWide: { maxWidth: 640, paddingRight: 240 },
   bedriftRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -559,8 +558,27 @@ const styles = StyleSheet.create({
   pillText: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.3, flexShrink: 1 },
   title: { color: '#fff', fontSize: 28, lineHeight: 32, fontWeight: '800', letterSpacing: -0.6 },
   lead: { color: 'rgba(255,255,255,0.88)', fontSize: 13.5, lineHeight: 18 },
-  blueprint: { position: 'absolute', right: -4, bottom: 6, width: 168, height: 132 },
-  blueprintWide: { width: 250, height: 168, right: 12, bottom: 0 },
+  beachCard: {
+    width: 156,
+    borderRadius: 18,
+    backgroundColor: '#F4F9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  beachImage: { width: 148, height: 118 },
+  motifRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 12 },
+  motifCard: {
+    ...cardShadow,
+    flex: 1,
+    height: 118,
+    borderRadius: 18,
+    backgroundColor: ui.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  motifImage: { width: '88%', height: 104 },
   filterBar: {
     ...cardShadow,
     marginTop: -28,

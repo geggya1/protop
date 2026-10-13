@@ -5,12 +5,15 @@ import {
   normalizeProjectState,
 } from './engine.js';
 import {
+  allowTimeEntryRemovals,
   attachTimeEntriesToState,
+  clearDeletedTimeEntries,
   diffTimeEntries,
-  filterRemovalsToLoadedWindow,
   mergeEntryLists,
+  planTimeEntryRemovals,
   removeTimeEntry,
   saveTimeEntries,
+  withoutDeletedTimeEntries,
 } from '../economy/timeEntryStorage.js';
 
 const KEY = 'protop.projectPlatform.v1';
@@ -61,7 +64,7 @@ export function markTimeEntriesSynced(companyId, entries) {
 export function markTimeEntriesSyncedMerge(companyId, entries) {
   const key = memoryKey(companyId);
   const merged = mergeEntryLists(SYNCED_ENTRIES.get(key) || [], entries || []);
-  SYNCED_ENTRIES.set(key, merged);
+  SYNCED_ENTRIES.set(key, withoutDeletedTimeEntries(companyId, merged));
 }
 
 function baselineTimeEntries(companyId) {
@@ -267,21 +270,22 @@ function queueRemote(companyId, state) {
 async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
   const id = String(companyId || '').trim();
   if (!id) return;
-  const { changed, removed } = diffTimeEntries(previousEntries, nextEntries);
-  if (changed.length) await saveTimeEntries(id, changed);
-  const removable = allowRemovals
-    ? filterRemovalsToLoadedWindow(previousEntries, removed, HOURS_WINDOW.get(id) || null)
-    : [];
+  const window = HOURS_WINDOW.get(id) || null;
+  const { changed } = diffTimeEntries(previousEntries, nextEntries);
+  const safeChanged = withoutDeletedTimeEntries(id, changed);
+  if (safeChanged.length) await saveTimeEntries(id, safeChanged);
+  const removable = planTimeEntryRemovals(previousEntries, nextEntries, window, { allowRemovals });
   if (removable.length) {
     for (const entryId of removable) {
       await removeTimeEntry(id, entryId);
     }
   }
-  if (allowRemovals && (HOURS_WINDOW.get(id)?.all === true)) {
-    markTimeEntriesSynced(id, nextEntries);
+  const nextClean = withoutDeletedTimeEntries(id, nextEntries);
+  if (allowRemovals && window?.all === true) {
+    markTimeEntriesSynced(id, nextClean);
   } else {
-    // Delvis vindu: aldri slett id-er som ikke er i minnet.
-    markTimeEntriesSyncedMerge(id, nextEntries);
+    // Delvis vindu: behold id-er utenfor vinduet, men slipp dem brukeren slettet.
+    markTimeEntriesSyncedMerge(id, nextClean);
   }
 }
 
@@ -312,10 +316,10 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
     return stored;
   }
   const withHours = await attachTimeEntriesToState(companyId, baseState, hoursOpts);
-  const attached = withHours.timeEntries || [];
-  const existing = MEMORY.get(memoryKey(companyId))?.timeEntries || [];
+  const attached = withoutDeletedTimeEntries(companyId, withHours.timeEntries || []);
+  const existing = withoutDeletedTimeEntries(companyId, MEMORY.get(memoryKey(companyId))?.timeEntries || []);
   const mergedAttach = hoursOpts?.all
-    ? withHours
+    ? { ...withHours, timeEntries: attached }
     : { ...withHours, timeEntries: mergeEntryLists(existing, attached) };
   const stored = putProjectState(mergedAttach, companyId);
   const healed = stored.timeEntries || [];
@@ -436,7 +440,7 @@ export async function saveProjectState(state, companyId) {
   const nextSlim = companyId
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
-  const allowRemovals = peekHoursMode(companyId) === 'all';
+  const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
 
   if (companyId) {
     try {
@@ -463,7 +467,7 @@ export async function persistProjectState(state, companyId) {
   const nextSlim = companyId
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
-  const allowRemovals = peekHoursMode(companyId) === 'all';
+  const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
 
   if (companyId) {
     await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
@@ -499,6 +503,7 @@ export function clearProjectStateMemory(companyId) {
     SYNCED_ENTRIES.delete(key);
     HOURS_MODE.delete(key);
     HOURS_WINDOW.delete(key);
+    clearDeletedTimeEntries(key);
     return;
   }
   MEMORY.clear();
@@ -508,4 +513,5 @@ export function clearProjectStateMemory(companyId) {
   HOURS_MODE.clear();
   HOURS_WINDOW.clear();
   hoursInflight.clear();
+  clearDeletedTimeEntries();
 }

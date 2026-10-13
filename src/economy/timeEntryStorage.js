@@ -163,6 +163,7 @@ async function queryTimeEntries(bits, companyId, { fromDate = '', toDate = '', e
  */
 export async function loadTimeEntries(companyId, opts = {}) {
   if (!companyId) return [];
+  await hydrateDeletedTimeEntries(companyId);
   const all = opts.all === true
     || (!text(opts.fromDate) && !text(opts.toDate) && !text(opts.employeeId) && opts.all !== false);
   // Explicit all:false without range → empty (caller must pass window).
@@ -183,13 +184,11 @@ export async function loadTimeEntries(companyId, opts = {}) {
       const rows = snap.docs
         .map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id }))
         .filter(Boolean);
-      await writeLocal(companyId, rows);
-      return rows;
+      return finishLoadedEntries(companyId, rows, (clean) => writeLocal(companyId, clean));
     }
     try {
       const rows = await queryTimeEntries(bits, companyId, range);
-      await writeLocalWindow(companyId, rows, range);
-      return rows;
+      return finishLoadedEntries(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
     } catch {
       // Mangler indeks / eldre data: last alt og filtrer (siste utvei).
       const snap = await bits.getDocs(entriesCol(bits, companyId));
@@ -197,21 +196,22 @@ export async function loadTimeEntries(companyId, opts = {}) {
         snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean),
         range,
       );
-      await writeLocalWindow(companyId, rows, range);
-      return rows;
+      return finishLoadedEntries(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
     }
   } catch {
-    return all ? readLocal(companyId) : readLocalWindow(companyId, range);
+    const cached = all ? await readLocal(companyId) : await readLocalWindow(companyId, range);
+    return withoutDeletedTimeEntries(companyId, cached);
   }
 }
 
 async function writeBatchSet(companyId, entries, onProgress) {
   const bits = await firestoreBits();
+  const list = withoutDeletedTimeEntries(companyId, entries);
   let batch = bits.writeBatch(bits.db);
   let n = 0;
   let done = 0;
-  const total = entries.length;
-  for (const entry of entries) {
+  const total = list.length;
+  for (const entry of list) {
     const next = normalizeTimeEntryRow(entry);
     if (!next?.id) continue;
     batch.set(entryRef(bits, companyId, next.id), next, { merge: true });
@@ -236,13 +236,14 @@ async function writeBatchSet(companyId, entries, onProgress) {
  */
 export async function saveTimeEntries(companyId, entries, { onProgress } = {}) {
   if (!companyId) throw new Error('Mangler selskap for timelagring.');
-  const list = (Array.isArray(entries) ? entries : [])
+  await hydrateDeletedTimeEntries(companyId);
+  const list = withoutDeletedTimeEntries(companyId, (Array.isArray(entries) ? entries : [])
     .map((row) => normalizeTimeEntryRow({
       ...row,
       updatedAt: text(row?.updatedAt) || new Date().toISOString(),
       createdAt: text(row?.createdAt) || new Date().toISOString(),
     }))
-    .filter(Boolean);
+    .filter(Boolean));
   if (!list.length) return { saved: 0, entries: [] };
   await writeBatchSet(companyId, list, onProgress);
   const current = await readLocal(companyId);
@@ -260,10 +261,18 @@ export async function saveTimeEntryImport(companyId, entries, { onProgress } = {
 export async function removeTimeEntry(companyId, entryId) {
   const id = text(entryId);
   if (!companyId || !id) return;
-  const bits = await firestoreBits();
-  await bits.deleteDoc(entryRef(bits, companyId, id));
+  // Merk før nettverket, så en parallell lagring ikke skriver raden tilbake.
+  const already = deletedTimeEntryIds(companyId).has(id);
+  rememberDeletedTimeEntries(companyId, [id]);
+  try {
+    const bits = await firestoreBits();
+    await bits.deleteDoc(entryRef(bits, companyId, id));
+  } catch (error) {
+    if (!already) forgetDeletedTimeEntries(companyId, [id]);
+    throw error;
+  }
   const current = await readLocal(companyId);
-  await writeLocal(companyId, current.filter((row) => row.id !== id));
+  await writeLocal(companyId, withoutDeletedTimeEntries(companyId, current));
 }
 
 /**
@@ -278,6 +287,7 @@ export async function attachTimeEntriesToState(companyId, state, opts = {}) {
   if (opts.hours === false) {
     return { ...base, timeEntries: [] };
   }
+  if (companyId) await hydrateDeletedTimeEntries(companyId);
   if (!companyId) {
     const rows = legacy.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
     return {
@@ -295,14 +305,13 @@ export async function attachTimeEntriesToState(companyId, state, opts = {}) {
       : await readLocalWindow(companyId, opts);
   }
 
-  const legacyInRange = opts.all
+  const legacyInRange = withoutDeletedTimeEntries(companyId, opts.all
     ? legacy
-    : filterTimeEntriesByRange(legacy, opts);
-  const merged = mergeEntryLists(remote, legacyInRange);
-  const remoteIds = new Set(remote.map((row) => row.id));
-  const missing = legacyInRange
-    .map((row) => normalizeTimeEntryRow(row))
-    .filter((row) => row?.id && !remoteIds.has(row.id));
+    : filterTimeEntriesByRange(legacy, opts));
+  const remoteClean = withoutDeletedTimeEntries(companyId, remote);
+  const merged = mergeEntryLists(remoteClean, legacyInRange);
+  const remoteIds = new Set(remoteClean.map((row) => row.id));
+  const missing = legacyRowsToMigrate(legacyInRange, remoteIds, deletedTimeEntryIds(companyId));
 
   if (missing.length) {
     try {
@@ -346,6 +355,134 @@ export function diffTimeEntries(previous = [], next = []) {
   }
   const removed = [...prevById.keys()].filter((id) => !nextIds.has(id));
   return { changed, removed };
+}
+
+const TOMB_KEY = 'protop.timeEntries.deleted.v1';
+const TOMBSTONES = new Map();
+const TOMB_CAP = 5000;
+
+function tombKey(companyId) {
+  return `${TOMB_KEY}.${companyId}`;
+}
+
+function tombSet(companyId) {
+  const key = text(companyId);
+  if (!key) return null;
+  if (!TOMBSTONES.has(key)) TOMBSTONES.set(key, new Set());
+  return TOMBSTONES.get(key);
+}
+
+function persistTombstones(companyId) {
+  const key = text(companyId);
+  if (!key) return;
+  const ids = [...(TOMBSTONES.get(key) || [])];
+  try {
+    const write = AsyncStorage.setItem(tombKey(key), JSON.stringify(ids));
+    if (write && typeof write.catch === 'function') write.catch(() => {});
+  } catch {
+    // Disk er best-effort. Minnet holder slettingen i økten.
+  }
+}
+
+/** Id-er brukeren har slettet. Skal ikke skrives tilbake fra cache, legacy eller et senere sync. */
+export function rememberDeletedTimeEntries(companyId, ids = []) {
+  const set = tombSet(companyId);
+  if (!set) return;
+  for (const id of ids) {
+    const next = text(id);
+    if (next) set.add(next);
+  }
+  if (set.size > TOMB_CAP) {
+    const kept = [...set].slice(set.size - TOMB_CAP);
+    set.clear();
+    kept.forEach((id) => set.add(id));
+  }
+  persistTombstones(companyId);
+}
+
+export function forgetDeletedTimeEntries(companyId, ids = []) {
+  const set = TOMBSTONES.get(text(companyId));
+  if (!set) return;
+  for (const id of ids) set.delete(text(id));
+  persistTombstones(companyId);
+}
+
+export function deletedTimeEntryIds(companyId) {
+  return new Set(TOMBSTONES.get(text(companyId)) || []);
+}
+
+export function withoutDeletedTimeEntries(companyId, rows = []) {
+  const gone = TOMBSTONES.get(text(companyId));
+  if (!gone?.size) return Array.isArray(rows) ? rows : [];
+  return (Array.isArray(rows) ? rows : []).filter((row) => !gone.has(text(row?.id)));
+}
+
+export async function hydrateDeletedTimeEntries(companyId) {
+  const key = text(companyId);
+  if (!key) return deletedTimeEntryIds(key);
+  try {
+    const raw = await AsyncStorage.getItem(tombKey(key));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      rememberDeletedTimeEntries(key, Array.isArray(parsed) ? parsed : []);
+    }
+  } catch {
+    // Minnet gjelder for økten selv om disken feiler.
+  }
+  return deletedTimeEntryIds(key);
+}
+
+export function clearDeletedTimeEntries(companyId) {
+  if (companyId !== undefined) {
+    const key = text(companyId);
+    TOMBSTONES.delete(key);
+    try {
+      const remove = AsyncStorage.removeItem(tombKey(key));
+      if (remove && typeof remove.catch === 'function') remove.catch(() => {});
+    } catch {
+      // Minnet er allerede tømt.
+    }
+    return;
+  }
+  TOMBSTONES.clear();
+}
+
+/**
+ * Delvis vindu og full historikk kan slette. Uten vindu, eller før timer er lastet, slettes ingenting.
+ */
+export function allowTimeEntryRemovals(mode, window) {
+  if (mode !== 'all' && mode !== 'partial') return false;
+  if (!window) return false;
+  if (window.all === true) return true;
+  return !!(text(window.fromDate) || text(window.toDate) || text(window.employeeId));
+}
+
+/** Id-er et lagret utvalg faktisk skal slette i Firestore. */
+export function planTimeEntryRemovals(previous, next, window, { allowRemovals = true } = {}) {
+  const { removed } = diffTimeEntries(previous, next);
+  if (!allowRemovals) return [];
+  return filterRemovalsToLoadedWindow(previous, removed, window);
+}
+
+/** Legacy-rader som mangler i subcollection, unntatt dem brukeren har slettet. */
+export function legacyRowsToMigrate(legacyRows = [], remoteIds = new Set(), deletedIds = new Set()) {
+  const remote = remoteIds instanceof Set ? remoteIds : new Set(remoteIds);
+  const gone = deletedIds instanceof Set ? deletedIds : new Set(deletedIds);
+  return (Array.isArray(legacyRows) ? legacyRows : [])
+    .map((row) => normalizeTimeEntryRow(row))
+    .filter((row) => row?.id && !remote.has(row.id) && !gone.has(row.id));
+}
+
+async function finishLoadedEntries(companyId, rows, writeCache) {
+  const clean = withoutDeletedTimeEntries(companyId, rows);
+  const revived = (Array.isArray(rows) ? rows : []).filter((row) => (
+    row?.id && deletedTimeEntryIds(companyId).has(row.id)
+  ));
+  await writeCache?.(clean);
+  for (const row of revived) {
+    removeTimeEntry(companyId, row.id).catch(() => {});
+  }
+  return clean;
 }
 
 /**

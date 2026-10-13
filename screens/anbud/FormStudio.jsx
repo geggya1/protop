@@ -16,7 +16,7 @@ import {
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickImage } from '../../src/utils/media';
 import FormEditor from './FormEditor';
-import { printForm } from './formPrint';
+import { formPrintHtml, printForm } from './formPrint';
 
 const PIE = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#AB47BC', '#00ACC1', '#FF7043', '#8D6E63'];
 const ICONS = {
@@ -93,6 +93,74 @@ function PieChart({ counts, colors }) {
   );
 }
 
+function PdfPreview({ draft, logo, colors, wide }) {
+  return (
+    <View style={[styles.pdfPane, { backgroundColor: colors.sunken, borderColor: colors.line }, wide ? styles.pdfPaneSide : styles.pdfPaneStack]}>
+      <Text style={[styles.kicker, { color: colors.muted }]}>PDF</Text>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>Slik blir dokumentet når det eksporteres. Dette er ikke utfyllingen.</Text>
+      <View style={wide ? styles.pdfFrame : styles.pdfFrameStack}>
+        {Platform.OS === 'web' ? React.createElement('iframe', {
+          title: 'PDF-forhåndsvisning',
+          srcDoc: formPrintHtml(draft, logo, { preview: true }),
+          style: {
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            border: 0,
+            backgroundColor: '#e6ebf1',
+            borderRadius: 8,
+          },
+        }) : (
+          <Text style={{ color: colors.muted }}>PDF-visningen er tilgjengelig på nett.</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onToggleLogo, onCover, onAddField, editor }) {
+  const tools = (
+    <View style={styles.row}>
+      {[['brev', 'Brev'], ['skjema', 'Skjema']].map(([id, label]) => (
+        <TouchableOpacity key={id} onPress={() => onLayout(id)} accessibilityRole="button" accessibilityLabel={`Utseende ${label}`} style={[styles.typeChip, { backgroundColor: layout === id ? colors.brand : colors.sunken }]}>
+          <Text style={{ color: layout === id ? '#fff' : colors.ink }}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+      <TouchableOpacity onPress={onToggleLogo} accessibilityRole="button">
+        <Text style={{ color: colors.brand }}>{draft.settings?.useCompanyLogo ? 'Skjul logo i PDF' : 'Vis logo i PDF'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onCover} accessibilityRole="button">
+        <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onAddField} accessibilityRole="button" accessibilityLabel="Legg til felt">
+        <Text style={{ color: colors.brand }}>Legg til felt</Text>
+      </TouchableOpacity>
+    </View>
+  );
+  if (wide) {
+    return (
+      <View style={styles.work}>
+        <ScrollView style={styles.editorScroll} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+          {tools}
+          {editor}
+        </ScrollView>
+        <PdfPreview draft={draft} logo={logo} colors={colors} wide />
+      </View>
+    );
+  }
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+      {tools}
+      {editor}
+      <PdfPreview draft={draft} logo={logo} colors={colors} wide={false} />
+    </ScrollView>
+  );
+}
+
 export default function FormStudio({
   draft,
   colors,
@@ -118,6 +186,9 @@ export default function FormStudio({
   const [readOpen, setReadOpen] = useState(false);
   const [insertAt, setInsertAt] = useState(null);
   const [rootNode, setRootNode] = useState(null);
+  const [paneWidth, setPaneWidth] = useState(() => (
+    Platform.OS === 'web' && typeof window !== 'undefined' ? window.innerWidth : 1200
+  ));
   const settings = draft.settings || {};
   const responses = draft.responses || [];
 
@@ -242,7 +313,7 @@ export default function FormStudio({
       ref={setRootNode}
       style={[styles.fill, fill && { flex: 1, minHeight: 0 }]}
     >
-      <View style={{ flex: 1, minHeight: 0 }}>
+      <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setPaneWidth(event.nativeEvent.layout.width)}>
         <View style={[styles.toolbar, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
           <TouchableOpacity onPress={onBack} accessibilityRole="button">
             <Text style={{ color: colors.brand }}>Alle skjema</Text>
@@ -353,44 +424,44 @@ export default function FormStudio({
             }) : null}
           </ScrollView>
         ) : (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
-            <View style={styles.row}>
-              <TouchableOpacity onPress={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>{settings.useCompanyLogo ? 'Skjul logo i PDF' : 'Vis logo i PDF'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={setCover} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }} accessibilityRole="button" accessibilityLabel="Legg til felt">
-                <Text style={{ color: colors.brand }}>Legg til felt</Text>
-              </TouchableOpacity>
-            </View>
-            <FormEditor
-              draft={draft}
-              colors={colors}
-              selected={selected}
-              onSelect={setSelected}
-              onPatch={changeDocument}
-              onType={(index) => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
-              onDuplicate={(index) => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }}
-              onMove={(index, delta) => {
-                onDraft({ ...draft, fields: moveField(draft.fields, index, index + delta) });
-                setSelected(Math.max(0, Math.min(draft.fields.length - 1, index + delta)));
-              }}
-              onDelete={(index) => {
-                const fields = draft.fields.filter((_, i) => i !== index);
-                onDraft({ ...draft, fields });
-                setSelected(Math.max(0, index - 1));
-              }}
-              onDeleteIds={(indexes) => {
-                const drop = new Set(indexes);
-                onDraft({ ...draft, fields: draft.fields.filter((_, index) => !drop.has(index)) });
-                setSelected(-1);
-              }}
-              onAdd={(index) => { setTypeFor(null); setInsertAt(index); setTypeOpen(true); }}
-              onOptionImage={setOptionImage}
-            />
-          </ScrollView>
+          <BuilderWork
+            wide={paneWidth >= 980}
+            colors={colors}
+            draft={draft}
+            logo={settings.useCompanyLogo ? companyLogo?.dataUrl : ''}
+            layout={settings.layout === 'skjema' ? 'skjema' : 'brev'}
+            onLayout={(layout) => onDraft({ ...draft, settings: { ...settings, layout } })}
+            onToggleLogo={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })}
+            onCover={setCover}
+            onAddField={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }}
+            editor={(
+              <FormEditor
+                draft={draft}
+                colors={colors}
+                selected={selected}
+                onSelect={setSelected}
+                onPatch={changeDocument}
+                onType={(index) => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
+                onDuplicate={(index) => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }}
+                onMove={(index, delta) => {
+                  onDraft({ ...draft, fields: moveField(draft.fields, index, index + delta) });
+                  setSelected(Math.max(0, Math.min(draft.fields.length - 1, index + delta)));
+                }}
+                onDelete={(index) => {
+                  const fields = draft.fields.filter((_, i) => i !== index);
+                  onDraft({ ...draft, fields });
+                  setSelected(Math.max(0, index - 1));
+                }}
+                onDeleteIds={(indexes) => {
+                  const drop = new Set(indexes);
+                  onDraft({ ...draft, fields: draft.fields.filter((_, index) => !drop.has(index)) });
+                  setSelected(-1);
+                }}
+                onAdd={(index) => { setTypeFor(null); setInsertAt(index); setTypeOpen(true); }}
+                onOptionImage={setOptionImage}
+              />
+            )}
+          />
         )}
       </View>
       {typeOpen ? (
@@ -508,6 +579,13 @@ const styles = StyleSheet.create({
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { maxHeight: '78%', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, gap: 8 },
   sheetTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  work: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  editorScroll: { flex: 1, minWidth: 0 },
+  pdfPane: { minHeight: 0, padding: 12, gap: 6, overflow: 'hidden' },
+  pdfPaneSide: { width: '44%', minWidth: 380, alignSelf: 'stretch', borderLeftWidth: 1 },
+  pdfPaneStack: { marginTop: 8 },
+  pdfFrame: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' },
+  pdfFrameStack: { height: 640, position: 'relative' },
   kicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   pieRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },

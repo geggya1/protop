@@ -497,7 +497,7 @@ function encodedBytes(value) {
 function dropOldestUndecided(state, maxBytes) {
   let notices = [...(state.notices || [])];
   let next = { ...state, notices };
-  for (let round = 0; round < 24 && encodedBytes(next) > maxBytes; round += 1) {
+  for (let round = 0; round < 40 && encodedBytes(next) > maxBytes; round += 1) {
     const open = [];
     notices.forEach((row, index) => {
       if (!decidedNotice(row)) open.push(index);
@@ -505,12 +505,32 @@ function dropOldestUndecided(state, maxBytes) {
     if (!open.length) break;
     const step = encodedBytes(next) - maxBytes > 100_000
       ? Math.max(1, Math.ceil(open.length / 2))
-      : 1;
+      : Math.max(1, Math.ceil(open.length * 0.4));
     const remove = new Set(open.slice(-step));
     notices = notices.filter((_, index) => !remove.has(index));
     next = { ...state, notices };
   }
   return next;
+}
+
+/** Identitet og vurdering, uten grunnlagstekst. Brukes bare når dokumentet ellers ikke får plass. */
+function slimDecidedNotice(row) {
+  return {
+    id: row.id,
+    title: String(row.title || '').slice(0, 180),
+    buyer: String(row.buyer || '').slice(0, 120),
+    decision: row.decision,
+    reviewedAt: row.reviewedAt || null,
+    interestAt: row.interestAt || null,
+    publishedAt: row.publishedAt || '',
+    deadline: row.deadline || '',
+    url: row.url || '',
+    source: row.source || '',
+    status: row.status || '',
+    places: Array.isArray(row.places) ? row.places.slice(0, 4) : [],
+    cpvCodes: Array.isArray(row.cpvCodes) ? row.cpvCodes.slice(0, 8) : [],
+    isNew: false,
+  };
 }
 
 function shrinkToBudget(state, maxBytes) {
@@ -544,16 +564,16 @@ function shrinkToBudget(state, maxBytes) {
     })),
   };
   if (encodedBytes(next) <= maxBytes) return next;
-  let notices = [...(next.notices || [])];
-  while (notices.length > 20 && encodedBytes({ ...next, notices }) > maxBytes) {
-    notices = notices.slice(0, Math.ceil(notices.length * 0.6));
-  }
-  return { ...next, notices };
+  next = dropOldestUndecided(next, maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  const notices = (next.notices || []).map((row) => (decidedNotice(row) ? slimDecidedNotice(row) : row));
+  return dropOldestUndecided({ ...next, notices }, maxBytes);
 }
 
 /**
  * Tilstand som får plass i Firestore og i nettleseren.
- * Vurderinger, søk og avtaler beholdes. Filinnhold og gamle ubehandlede treff slippes når plassen er brukt opp.
+ * Vurderte treff (aktuelle og andre avkrysninger) blir stående selv om et nytt søk
+ * har færre rader. Filinnhold og gamle ubehandlede treff slippes når plassen er brukt opp.
  */
 export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
   const base = compactAnbudState(raw);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
@@ -15,6 +16,52 @@ import WatchSettings from './WatchSettings';
 import PipelineBoard from './PipelineBoard';
 import CalloffInbox from './CalloffInbox';
 import { setNoticeDecision } from '../../src/anbud/model';
+
+function stepLabel(item, bids, reviewCount) {
+  const extra = item.id === 'tilbud' && bids.length
+    ? ` (${bids.length})`
+    : item.id === 'vurdering' && reviewCount
+      ? ` (${reviewCount})`
+      : '';
+  return `${item.label}${extra}`;
+}
+
+function PhoneStepFilter({ step, bids, reviewCount, colors, onChange }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TouchableOpacity
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Filter"
+        style={[styles.filterBtn, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+      >
+        <Ionicons name="funnel-outline" size={16} color={colors.brand} />
+        <Text style={{ color: colors.brand }}>Filter</Text>
+      </TouchableOpacity>
+      <ScrollSheet visible={open} title="Filter" onClose={() => setOpen(false)}>
+        <View style={{ gap: 8 }}>
+          {ANBUD_MENU.map((item) => {
+            const on = step === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => { onChange(item.id); setOpen(false); }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+              >
+                <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '600' : '400' }}>
+                  {stepLabel(item, bids, reviewCount)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollSheet>
+    </>
+  );
+}
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
@@ -68,26 +115,25 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       ]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      <View style={styles.row}>
-        {ANBUD_MENU.map((item) => {
-          const on = step === item.id;
-          const extra = item.id === 'tilbud' && bids.length
-            ? ` (${bids.length})`
-            : item.id === 'vurdering' && reviewCount
-              ? ` (${reviewCount})`
-              : '';
-          return (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => go(item.id)}
-              accessibilityRole="button"
-              style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-            >
-              <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{item.label}{extra}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {isPhone ? (
+        <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
+      ) : (
+        <View style={styles.row}>
+          {ANBUD_MENU.map((item) => {
+            const on = step === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => go(item.id)}
+                accessibilityRole="button"
+                style={[styles.step, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{stepLabel(item, bids, reviewCount)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
       {step === 'varsling' ? (
         <TenderAlert
           company={company}
@@ -178,5 +224,16 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 12, width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerPhone: { maxWidth: '100%', minWidth: 0 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: '100%',
+  },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
 });

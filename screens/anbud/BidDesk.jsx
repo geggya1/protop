@@ -18,6 +18,8 @@ import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
+import InfoButton from '../../components/InfoButton';
+import { useLayout } from '../../src/theme';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -50,6 +52,7 @@ export default function BidDesk({
   const [draftDeadline, setDraftDeadline] = useState('');
   const [draftUnitId, setDraftUnitId] = useState('');
   const [draftPersonId, setDraftPersonId] = useState('');
+  const { isPhone } = useLayout();
 
   useEffect(() => {
     let live = true;
@@ -200,10 +203,19 @@ export default function BidDesk({
       </View>
       {creating ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card, gap: 8 }]}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt tilbudsarbeid</Text>
-          <Text style={{ color: colors.muted }}>
-            Registrerte forespørsler vurderes under 2. Vurdering av aktuelle. Her oppretter du et tilbud som ikke har en henvendelse fra før, og velger hvem som skal arbeide med det.
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Nytt tilbudsarbeid</Text>
+            {isPhone ? (
+              <InfoButton title="Nytt tilbudsarbeid">
+                Registrerte forespørsler vurderes under 2. Vurdering av aktuelle. Her oppretter du et tilbud som ikke har en henvendelse fra før, og velger hvem som skal arbeide med det.
+              </InfoButton>
+            ) : null}
+          </View>
+          {isPhone ? null : (
+            <Text style={{ color: colors.muted }}>
+              Registrerte forespørsler vurderes under 2. Vurdering av aktuelle. Her oppretter du et tilbud som ikke har en henvendelse fra før, og velger hvem som skal arbeide med det.
+            </Text>
+          )}
           <TextInput
             value={draftTitle}
             onChangeText={setDraftTitle}

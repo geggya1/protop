@@ -293,6 +293,8 @@ assert.match(screen, /customerImportReviewRows/);
 assert.match(screen, /enrichCustomerFromBrreg/);
 assert.match(screen, /Ingenting er lagret ennå/);
 assert.match(screen, /neste ledige er/);
+assert.match(screen, /Kunne ikke hente kunderegisteret/);
+assert.match(screen, /customersFromProjectLinks/);
 assert.match(screen, /Må rettes før fakturering/);
 assert.match(screen, /projectLinkSummary/);
 assert.match(screen, /prosjekt på kunder/);

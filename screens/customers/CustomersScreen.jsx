@@ -15,6 +15,7 @@ import {
   identityFieldsForKind,
   customerImportReviewRows,
   customerInvoiceGaps,
+  customersFromProjectLinks,
   importCustomers,
   maskPersonnummer,
   nextCustomerNumber,
@@ -38,7 +39,7 @@ import FilterMenu from '../../components/FilterMenu';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { formatNumberId } from '../../src/anbud/numbering';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { anbudLoadMeta, loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { loadProjectState } from '../../src/project/storage';
 import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
@@ -138,14 +139,55 @@ export default function CustomersScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [kindFilter, setKindFilter] = useState('');
+  const [loadProblem, setLoadProblem] = useState(false);
   const lookupRef = useRef('');
   const numberSave = useRef('');
 
   useEffect(() => {
-    loadAnbudState(familyId, { force: true }).then(setState);
-    loadProjectState(familyId).then((loaded) => {
-      setProjects(loaded?.projects || []);
-    }).catch(() => setProjects([]));
+    if (!familyId) {
+      setState(null);
+      setProjects([]);
+      setLoadProblem(false);
+      return undefined;
+    }
+    let live = true;
+    setLoadProblem(false);
+    Promise.all([
+      loadAnbudState(familyId, { force: true }),
+      loadProjectState(familyId).catch(() => ({ projects: [] })),
+    ]).then(async ([loaded, projectState]) => {
+      if (!live) return;
+      const projectRows = projectState?.projects || [];
+      setProjects(projectRows);
+      const meta = anbudLoadMeta(familyId);
+      if (meta === 'error' && !(loaded?.customers || []).length) {
+        setState(loaded);
+        setLoadProblem(true);
+        return;
+      }
+      if (meta === 'ok' && !(loaded?.customers || []).length) {
+        const recovered = customersFromProjectLinks(projectRows);
+        if (recovered.length) {
+          try {
+            const saved = await saveAnbudState({ ...loaded, customers: recovered }, familyId);
+            if (!live) return;
+            setState(saved);
+            setNote('Kundelisten er hentet inn igjen fra prosjektene.');
+            return;
+          } catch {
+            if (!live) return;
+            setState({ ...loaded, customers: recovered });
+            setNote('Kundelisten er hentet inn igjen fra prosjektene.');
+            return;
+          }
+        }
+      }
+      if (!live) return;
+      setState(loaded);
+    }).catch(() => {
+      if (live) setLoadProblem(true);
+    });
+    return () => { live = false; };
   }, [familyId]);
 
   useEffect(() => {
@@ -214,7 +256,7 @@ export default function CustomersScreen() {
   const upcomingNumber = nextCustomerNumber(numbered);
 
   useEffect(() => {
-    if (!state || !familyId) return undefined;
+    if (!state || !familyId || loadProblem) return undefined;
     const next = withCustomerNumbers(state.customers || []);
     const before = (state.customers || []).map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
     const after = next.map((row) => `${row.id}|${row.customerNumber}|${row.notes}`).join('\n');
@@ -229,7 +271,7 @@ export default function CustomersScreen() {
     return () => {
       live = false;
     };
-  }, [state, familyId]);
+  }, [state, familyId, loadProblem]);
   const selected = numbered.find((row) => row.id === selectedId) || null;
   const related = selected ? relatedContractsForCustomer(contracts, selected) : [];
   const relatedProjects = selected ? relatedProjectsForCustomer(projects, selected) : [];
@@ -521,14 +563,16 @@ export default function CustomersScreen() {
             ]}
           />
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            {visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`}
-            {` · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet`}
-            {projectSummary.unlinked
-              ? ` (${projectSummary.unlinked} uten kunde)`
-              : ''}
-            {` · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
+            {loadProblem
+              ? `Kunderegisteret ble ikke hentet · ${projectSummary.total} aktive i systemet`
+              : `${visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`} · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet${projectSummary.unlinked ? ` (${projectSummary.unlinked} uten kunde)` : ''} · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
           </Text>
-          {!numbered.length ? (
+          {loadProblem ? (
+            <Text style={{ color: colors.danger || '#b42318' }}>
+              Kunne ikke hente kunderegisteret. Last siden på nytt.
+            </Text>
+          ) : null}
+          {!loadProblem && !numbered.length ? (
             <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
           ) : null}
           {numbered.length && !visible.length ? (

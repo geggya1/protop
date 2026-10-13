@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
@@ -24,19 +24,31 @@ function activeLabels(groups) {
   });
 }
 
+function searchQuery(search) {
+  return String(search?.value || '').trim();
+}
+
 /**
  * Filter og sortering. På mobil ligger valgene i en popup.
  * På bredere skjerm ligger de som knapper på siden.
  * Hver gruppe er ett valg. Flere grupper kan settes samtidig.
+ * `search` legger søkefeltet i samme meny på mobil.
  */
-export default function FilterMenu({ groups = [], children = null, marked = false }) {
+export default function FilterMenu({ groups = [], children = null, marked = false, search = null }) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const [open, setOpen] = useState(false);
   const [allowDismiss, setAllowDismiss] = useState(false);
   const labels = activeLabels(groups);
-  const on = marked || labels.length > 0;
-  const buttonLabel = labels.length ? labels.join(' · ') : 'Filter';
+  const query = searchQuery(search);
+  const searching = !!query;
+  const on = marked || labels.length > 0 || searching;
+  const buttonParts = [
+    searching ? `Søk: ${query}` : '',
+    ...labels,
+  ].filter(Boolean);
+  const buttonLabel = buttonParts.length ? buttonParts.join(' · ') : (search ? 'Søk' : 'Filter');
+  const menuTitle = search ? 'Søk og filter' : 'Filter';
 
   useEffect(() => {
     if (!open) {
@@ -105,16 +117,35 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
       const idle = idleOf(group);
       if (group.value !== idle) group.onChange?.(idle);
     });
+    if (searchQuery(search)) search.onChange?.('');
   }
+
+  const searchField = search ? (
+    <View style={[styles.searchRow, { borderColor: colors.line, backgroundColor: colors.sunken || colors.bg || colors.card }]}>
+      <Ionicons name="search" size={16} color={colors.muted} />
+      <TextInput
+        nativeID={search.nativeID || 'filter-menu-search'}
+        value={search.value}
+        onChangeText={search.onChange}
+        placeholder={search.placeholder || 'Søk'}
+        placeholderTextColor={colors.placeholder}
+        accessibilityLabel={search.accessibilityLabel || 'Søk'}
+        returnKeyType="search"
+        onSubmitEditing={() => setOpen(false)}
+        style={[styles.searchInput, { color: colors.ink }]}
+      />
+    </View>
+  ) : null;
 
   const card = (
     <View nativeID="filter-menu" style={[styles.card, { backgroundColor: colors.card }]} accessibilityRole="dialog" accessibilityViewIsModal>
-      <Text style={[styles.title, { color: colors.ink }]}>Filter</Text>
+      <Text style={[styles.title, { color: colors.ink }]}>{menuTitle}</Text>
+      {searchField}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
         {choices}
         {children}
       </ScrollView>
-      {labels.length ? (
+      {labels.length || searching ? (
         <TouchableOpacity onPress={reset} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Nullstill</Text>
         </TouchableOpacity>
@@ -156,10 +187,10 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
       <TouchableOpacity
         onPress={() => setOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel="Filter og sortering"
+        accessibilityLabel={search ? 'Søk og filter' : 'Filter og sortering'}
         style={[styles.button, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
       >
-        <Ionicons name="funnel-outline" size={16} color={on ? colors.brand : colors.ink} />
+        <Ionicons name={search && !labels.length ? 'search' : 'funnel-outline'} size={16} color={on ? colors.brand : colors.ink} />
         <Text style={{ color: on ? colors.brand : colors.ink, flexShrink: 1 }} numberOfLines={1}>{buttonLabel}</Text>
       </TouchableOpacity>
       {dialog}
@@ -214,9 +245,23 @@ const styles = StyleSheet.create({
   nativeCenter: { flex: 1, justifyContent: 'center', padding: 20 },
   card: { borderRadius: 18, padding: 18, width: '100%', maxWidth: 420, alignSelf: 'center', gap: 10, maxHeight: '86%' },
   title: { fontSize: 18, fontWeight: '600' },
-  scroll: { maxHeight: 420 },
+  scroll: { maxHeight: 320 },
   scrollInner: { gap: 12 },
   group: { gap: 8 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
   groupLabel: { fontSize: 12, fontWeight: '600' },
   option: {
     borderWidth: 1,

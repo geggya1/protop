@@ -74,6 +74,22 @@ export function tableMinWidth(columns, selectCol = false, selectWidth = 44) {
 }
 
 /**
+ * Kompakt mobilrad. Tomme felt utelates, så kortet ikke fylles med bindestreker.
+ * Avtale vises bare som varsel når den mangler — resten ligger på prosjektkortet.
+ */
+export function projectPhoneLines(project, helpers = {}) {
+  const number = String(project?.number ?? '').trim();
+  const name = String(project?.name ?? '').trim();
+  const customer = String(helpers.customerName ?? project?.client ?? '').trim();
+  const status = String(project?.projectStatus ?? '').trim();
+  return {
+    title: [number, name].filter(Boolean).join(' · ') || 'Prosjekt',
+    meta: [customer, status].filter(Boolean).join(' · '),
+    missingAgreement: !!helpers.missingAgreement,
+  };
+}
+
+/**
  * Hent sorterings-/filterverdi for en kolonne.
  * `helpers` kan gi avtale-tekst og kundenavn fra tilknyttede registre.
  */

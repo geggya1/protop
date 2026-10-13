@@ -62,6 +62,7 @@ import {
   parseStoredVisibleColumns,
   projectColumnValue,
   projectMatchesColumnFilters,
+  projectPhoneLines,
   tableMinWidth,
   visibleColumnsOf,
 } from '../../src/project/listColumns';
@@ -78,6 +79,7 @@ import SearchSelect from '../../components/project/SearchSelect';
 import ProjectDetail from '../../components/project/ProjectDetail';
 import { watchEmployees } from '../../src/employees/storage';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
+import ProjectPhoneRow from './ProjectPhoneRow';
 
 const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -1404,6 +1406,45 @@ export default function ProjectWorkScreen() {
   );
 
   const listDesk = view === 'list' && !isPhone;
+  const projectCountLabel = !ready
+    ? 'Henter prosjekter…'
+    : !visibleProjects.length
+      ? 'Ingen prosjekter ennå.'
+      : `${visibleProjects.length} ${visibleProjects.length === 1 ? 'prosjekt' : 'prosjekter'}${canDeleteProjects && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`;
+  const filterGroups = [
+    {
+      id: 'status',
+      label: 'Status',
+      value: statusFilter,
+      onChange: setStatusFilter,
+      options: PROJECT_STATUS_FILTERS,
+    },
+    {
+      id: 'agreement',
+      label: 'Avtale',
+      value: gapFilter,
+      onChange: setGapFilter,
+      options: [
+        { id: '', label: 'Alle avtaler' },
+        { id: 'missing', label: 'Mangler avtale' },
+        { id: 'ok', label: 'Med avtale' },
+      ],
+    },
+    ...(isPhone ? [{
+      id: 'sort',
+      label: 'Sortering',
+      value: `${sort.key}:${sort.dir}`,
+      idle: 'number:asc',
+      onChange: (value) => {
+        const [key, dir] = String(value || 'number:asc').split(':');
+        setSort({ key: key || 'number', dir: dir === 'desc' ? 'desc' : 'asc' });
+      },
+      options: listColumns.flatMap((col) => ([
+        { id: `${col.key}:asc`, label: `${col.label} ↑` },
+        { id: `${col.key}:desc`, label: `${col.label} ↓` },
+      ])),
+    }] : []),
+  ];
 
   const listBody = view === 'list' ? (
     <View style={[styles.stack, listDesk && styles.stackDesk]}>
@@ -1435,49 +1476,37 @@ export default function ProjectWorkScreen() {
         </Text>
       )}
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Søk i nummer, navn, kunde, sted"
-        placeholderTextColor={colors.placeholder}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
-      <FilterMenu
-        groups={[
-          {
-            id: 'status',
-            label: 'Status',
-            value: statusFilter,
-            onChange: setStatusFilter,
-            options: PROJECT_STATUS_FILTERS,
-          },
-          {
-            id: 'agreement',
-            label: 'Avtale',
-            value: gapFilter,
-            onChange: setGapFilter,
-            options: [
-              { id: '', label: 'Alle avtaler' },
-              { id: 'missing', label: 'Mangler avtale' },
-              { id: 'ok', label: 'Med avtale' },
-            ],
-          },
-          ...(isPhone ? [{
-            id: 'sort',
-            label: 'Sortering',
-            value: `${sort.key}:${sort.dir}`,
-            idle: 'number:asc',
-            onChange: (value) => {
-              const [key, dir] = String(value || 'number:asc').split(':');
-              setSort({ key: key || 'number', dir: dir === 'desc' ? 'desc' : 'asc' });
-            },
-            options: listColumns.flatMap((col) => ([
-              { id: `${col.key}:asc`, label: `${col.label} ↑` },
-              { id: `${col.key}:desc`, label: `${col.label} ↓` },
-            ])),
-          }] : []),
-        ]}
-      />
+      {isPhone ? (
+        <View style={styles.phoneTools} nativeID="project-phone-tools">
+          <View style={styles.phoneMenu}>
+            <FilterMenu
+              search={{
+                value: query,
+                onChange: setQuery,
+                placeholder: 'Nummer, navn, kunde eller sted',
+                nativeID: 'project-search',
+                accessibilityLabel: 'Søk i prosjekter',
+              }}
+              groups={filterGroups}
+            />
+          </View>
+          <Text style={[styles.phoneCount, { color: colors.muted }]} numberOfLines={2}>
+            {projectCountLabel}
+          </Text>
+        </View>
+      ) : (
+        <>
+          <TextInput
+            nativeID="project-search"
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Søk i nummer, navn, kunde, sted"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+          />
+          <FilterMenu groups={filterGroups} />
+        </>
+      )}
 
       {canDeleteProjects && visibleProjects.length ? (
         <View style={styles.rowWrap}>
@@ -1545,20 +1574,18 @@ export default function ProjectWorkScreen() {
         </Text>
       ) : null}
 
-      <View style={styles.tableToolbar}>
-        <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
-          {!ready
-            ? 'Henter prosjekter…'
-            : !visibleProjects.length
-              ? 'Ingen prosjekter ennå.'
-              : `${visibleProjects.length} prosjekter${canDeleteProjects && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`}
-        </Text>
-        <ColumnSettingsMenu
-          visibleKeys={visibleKeys}
-          onChange={saveVisibleColumns}
-          onReset={resetVisibleColumns}
-        />
-      </View>
+      {!isPhone ? (
+        <View style={styles.tableToolbar}>
+          <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
+            {projectCountLabel}
+          </Text>
+          <ColumnSettingsMenu
+            visibleKeys={visibleKeys}
+            onChange={saveVisibleColumns}
+            onReset={resetVisibleColumns}
+          />
+        </View>
+      ) : null}
 
       {visibleProjects.length ? (
         <View style={listDesk ? styles.tableGrow : null}>
@@ -1618,7 +1645,26 @@ export default function ProjectWorkScreen() {
                 })}
               </View>
             ) : null}
-            {visibleProjects.map((item) => {
+            {visibleProjects.map((item, index) => {
+              if (isPhone) {
+                const customer = columnHelpers.customerOf(item);
+                const lines = projectPhoneLines(item, {
+                  customerName: customer?.name || item.client || '',
+                  missingAgreement: projectMissingAgreement(item),
+                });
+                return (
+                  <ProjectPhoneRow
+                    key={item.id}
+                    first={index === 0}
+                    lines={lines}
+                    colors={colors}
+                    canSelect={canDeleteProjects}
+                    checked={checkedIds.has(item.id)}
+                    onToggle={() => toggleChecked(item.id)}
+                    onPress={() => openDetail(item)}
+                  />
+                );
+              }
               const missing = projectMissingAgreement(item);
               const danger = colors.danger || '#b42318';
               const checked = checkedIds.has(item.id);
@@ -1798,6 +1844,9 @@ const styles = StyleSheet.create({
   stackDesk: { flex: 1, minHeight: 0 },
   tableGrow: { flex: 1, minHeight: 0, gap: 10 },
   tableToolbar: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  phoneTools: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  phoneMenu: { flexShrink: 1, maxWidth: '72%' },
+  phoneCount: { flex: 1, textAlign: 'right', fontSize: 13 },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },

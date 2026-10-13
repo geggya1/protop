@@ -82,8 +82,9 @@ function sectionHtml(section) {
   return `${heading}${rows.join('')}`;
 }
 
-export function formPrintHtml(draft, logo) {
+export function formPrintHtml(draft, logo, options = {}) {
   const model = blocks(draft?.fields || [], draft?.title);
+  const preview = !!options.preview;
   const logoHtml = logo ? `<img class="logo" alt="" src="${esc(logo)}" />` : `<div class="word">${esc(model.company.replace(/\s+AS$/i, ''))}</div>`;
   const head = model.head.map((field) => `<div>${esc(field.label)}</div>`).join('');
   return `<!DOCTYPE html>
@@ -114,6 +115,7 @@ export function formPrintHtml(draft, logo) {
   .sign { flex: 1; }
   .line { height: 56px; border-bottom: 1px solid #1c2430; }
   .cap { margin-top: 4px; font-size: 9pt; font-weight: 700; text-align: center; }
+  ${preview ? 'html { background: #e6ebf1; } body { max-width: 720px; margin: 16px auto 32px; background: #fff; padding: 28px 32px 36px; box-shadow: 0 10px 28px rgba(16,24,40,.12); }' : ''}
 </style>
 </head>
 <body>

@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,9 +15,9 @@ import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { ImportResult } from '../../components/ImportReview';
+import HourPhoneRow from '../../components/arbeid/HourPhoneRow';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
-import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
@@ -33,9 +32,7 @@ import {
 import {
   DEFAULT_HOUR_COLUMNS,
   HOUR_COLUMNS,
-  dayTimesheetRows,
   employeeHourOptions,
-  filterEmployeeHourOptions,
   filterHours,
   formatDate,
   formatHours,
@@ -43,19 +40,23 @@ import {
   hourFacets,
   hourTotals,
   hydrateHourEntry,
-  shiftDateKey,
+  periodLoadRange,
   sortHours,
 } from '../../src/economy/hoursList.js';
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
-import { loadProjectState, persistProjectState, putProjectState } from '../../src/project/storage';
+import {
+  ensureProjectHours,
+  loadProjectState,
+  persistProjectState,
+  putProjectState,
+} from '../../src/project/storage';
 import { saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
 import { watchEmployees } from '../../src/employees/storage';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
 import { parseDate } from '../../src/economy/invoices.js';
-import { toDateKey } from '../../src/arbeid/calendar.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -90,11 +91,9 @@ export default function EconomyHours({
   familyId,
   customers: customersProp = [],
   projects: projectsProp = [],
-  onOpenCustomer,
-  onOpenProject,
 }) {
   const colors = useColors();
-  const { familyId: appFamilyId, requestShellTab } = useApp();
+  const { familyId: appFamilyId } = useApp();
   const resolvedFamilyId = familyId || appFamilyId;
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
@@ -105,23 +104,23 @@ export default function EconomyHours({
   const [anbudCustomers, setAnbudCustomers] = useState([]);
   const [ready, setReady] = useState(false);
   const [view, setView] = useState('list');
+  /** Mobil: listekort vs tabell. */
+  const [displayMode, setDisplayMode] = useState('list');
   const [query, setQuery] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
-  const [empPickerOpen, setEmpPickerOpen] = useState(false);
-  const [empPickerQuery, setEmpPickerQuery] = useState('');
-  const pickerSearchRef = useRef(null);
   const [customerFilter, setCustomerFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState('');
   const [billableFilter, setBillableFilter] = useState('');
-  // Standard: inneværende år — unngår å filtrere/sortere alle ~30k føringer.
-  const [period, setPeriod] = useState('year');
+  // Standard: siste uke — videre periode lastes via Filtrer/Organiser.
+  const [period, setPeriod] = useState('7');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [groupBy, setGroupBy] = useState('none');
   const [sort, setSort] = useState('date-desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_HOUR_COLUMNS);
-  const [panelOpen, setPanelOpen] = useState(!isPhone);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [hoursLoading, setHoursLoading] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -131,17 +130,14 @@ export default function EconomyHours({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(60);
-  const [selectedDay, setSelectedDay] = useState(() => toDateKey(new Date()));
   const saveChain = useRef(Promise.resolve());
+  const loadKeyRef = useRef('');
 
+  // Prosjektstate først, deretter timer for valgt periode (standard siste uke).
   useEffect(() => {
     let live = true;
-    const y = new Date().getFullYear();
-    // Standard: inneværende år — ikke hele selskapshistorikken (~30k rader).
-    loadProjectState(resolvedFamilyId, {
-      force: true,
-      hours: { fromDate: `${y}-01-01`, toDate: `${y}-12-31` },
-    }).then((loaded) => {
+    setReady(false);
+    loadProjectState(resolvedFamilyId, { hours: false }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
@@ -152,6 +148,29 @@ export default function EconomyHours({
     });
     return () => { live = false; };
   }, [resolvedFamilyId]);
+
+  useEffect(() => {
+    if (!ready || !resolvedFamilyId) return undefined;
+    const range = periodLoadRange(period, fromDate, toDate);
+    if (!range) return undefined;
+    const key = range.all
+      ? 'all'
+      : `${range.fromDate}|${range.toDate}|${range.employeeId || ''}`;
+    if (loadKeyRef.current === key) return undefined;
+    let live = true;
+    setHoursLoading(true);
+    ensureProjectHours(resolvedFamilyId, range).then((loaded) => {
+      if (!live) return;
+      loadKeyRef.current = key;
+      setState(loaded);
+      setHoursLoading(false);
+    }).catch((cause) => {
+      if (!live) return;
+      setHoursLoading(false);
+      setError(String(cause?.message || '') || 'Kunne ikke laste periode.');
+    });
+    return () => { live = false; };
+  }, [ready, resolvedFamilyId, period, fromDate, toDate]);
 
   useEffect(() => {
     const stop = watchEmployees(resolvedFamilyId, setEmployees, () => {});
@@ -171,7 +190,6 @@ export default function EconomyHours({
   const entries = state.timeEntries || [];
   const customers = customersProp.length ? customersProp : anbudCustomers;
   const projectList = projectsProp.length ? projectsProp : (state.projects || []);
-  const openProject = onOpenProject || ((projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId }));
 
   const employeesById = useMemo(() => {
     const map = new Map();
@@ -228,10 +246,6 @@ export default function EconomyHours({
     ),
     [scoped, employees, hydrateOpts],
   );
-  const pickerEmployees = useMemo(
-    () => filterEmployeeHourOptions(employeeOptions, empPickerQuery),
-    [employeeOptions, empPickerQuery],
-  );
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
     const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_HOUR_COLUMNS);
@@ -259,18 +273,8 @@ export default function EconomyHours({
   const importReadyCount = importReview?.readyCount || 0;
 
   useEffect(() => {
-    if (!stackRows) return;
-    if (employeeFilter) return;
-    if (employeeOptions[0]?.id) setEmployeeFilter(employeeOptions[0].id);
-  }, [stackRows, employeeFilter, employeeOptions, employees]);
-
-  const daySheet = useMemo(() => dayTimesheetRows({
-    entries,
-    projects: projectList,
-    members: state.members || [],
-    date: selectedDay,
-    employeeId: employeeFilter,
-  }), [entries, projectList, state.members, selectedDay, employeeFilter]);
+    loadKeyRef.current = '';
+  }, [resolvedFamilyId]);
 
   useEffect(() => {
     setPageSize(60);
@@ -281,15 +285,6 @@ export default function EconomyHours({
     if (!employeeOptions.some((row) => row.id === employeeFilter)) setEmployeeFilter('');
   }, [employeeFilter, employeeOptions]);
 
-  useEffect(() => {
-    if (!empPickerOpen) {
-      setEmpPickerQuery('');
-      return undefined;
-    }
-    const timer = setTimeout(() => pickerSearchRef.current?.focus?.(), 60);
-    return () => clearTimeout(timer);
-  }, [empPickerOpen]);
-
   function resetOrganize() {
     setQuery('');
     setEmployeeFilter('');
@@ -297,12 +292,13 @@ export default function EconomyHours({
     setProjectFilter('');
     setActivityFilter('');
     setBillableFilter('');
-    setPeriod('year');
+    setPeriod('7');
     setFromDate('');
     setToDate('');
     setGroupBy('none');
     setSort('date-desc');
     setVisibleColumns(DEFAULT_HOUR_COLUMNS);
+    loadKeyRef.current = '';
   }
 
   function persist(next) {
@@ -548,139 +544,6 @@ export default function EconomyHours({
     );
   }
 
-  const selectedEmployeeName = employeeFilter
-    ? (employeeOptions.find((row) => row.id === employeeFilter)?.name
-      || displayName(employees.find((row) => row.id === employeeFilter))
-      || 'Medarbeider')
-    : 'Velg medarbeider';
-
-  const canSwitchEmployee = employeeOptions.length > 1;
-
-  if (stackRows && view === 'list') {
-    return (
-      <>
-      <ScrollView
-        style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.phoneInner}
-        keyboardShouldPersistTaps="handled"
-        nativeID="economy-hours"
-      >
-        <View style={styles.phoneTop}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
-            <TouchableOpacity
-              onPress={() => canSwitchEmployee && setEmpPickerOpen(true)}
-              disabled={!canSwitchEmployee}
-              activeOpacity={canSwitchEmployee ? 0.7 : 1}
-              accessibilityRole="button"
-              accessibilityLabel={canSwitchEmployee ? 'Skift person' : selectedEmployeeName}
-              nativeID="economy-employee-name"
-              style={styles.nameBtn}
-            >
-              <Text style={[styles.headingPhone, { color: colors.ink, flexShrink: 1 }]} numberOfLines={1}>
-                {selectedEmployeeName}
-              </Text>
-              {canSwitchEmployee ? <Ionicons name="chevron-down" size={16} color={colors.muted} /> : null}
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            onPress={importFile}
-            disabled={busy || !resolvedFamilyId}
-            accessibilityRole="button"
-            accessibilityLabel="Importer timer"
-            style={[styles.primaryBtn, styles.primaryBtnCompact, { backgroundColor: colors.brand, opacity: busy || !resolvedFamilyId ? 0.6 : 1 }]}
-          >
-            <Text style={styles.primaryBtnText}>{busy ? '…' : 'Importer'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-        <ImportResult colors={colors} result={importReport} />
-
-        <TimesheetDayView
-          colors={colors}
-          dateKey={selectedDay}
-          totalHours={daySheet.totalHours}
-          onPrevDay={() => setSelectedDay((day) => shiftDateKey(day, -1))}
-          onNextDay={() => setSelectedDay((day) => shiftDateKey(day, 1))}
-          emptyText={employeeFilter
-            ? 'Ingen prosjekt med timer denne dagen. Bytt dag eller importer Excel.'
-            : 'Velg medarbeider for å se timelisten.'}
-          rows={daySheet.rows.map((row) => ({
-            ...row,
-            onPress: row.id ? () => openProject?.(row.id) : undefined,
-            testID: `economy-timesheet-${row.number || row.id}`,
-          }))}
-        />
-      </ScrollView>
-      <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
-        <View style={styles.modalBg}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setEmpPickerOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Lukk medarbeidervelger"
-          />
-          <View
-            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
-            accessibilityViewIsModal
-          >
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
-            <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-              <Ionicons name="search" size={16} color={colors.muted} />
-              <TextInput
-                ref={pickerSearchRef}
-                value={empPickerQuery}
-                onChangeText={setEmpPickerQuery}
-                placeholder="Søk medarbeider"
-                placeholderTextColor={colors.placeholder}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[styles.pickerSearchInput, { color: colors.ink }]}
-                accessibilityLabel="Søk medarbeider"
-                nativeID="economy-employee-picker-search"
-              />
-              {empPickerQuery ? (
-                <TouchableOpacity
-                  onPress={() => setEmpPickerQuery('')}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Tøm søk"
-                >
-                  <Ionicons name="close-circle" size={18} color={colors.muted} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-              {pickerEmployees.length ? pickerEmployees.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => { setEmployeeFilter(row.id); setEmpPickerOpen(false); }}
-                  style={[styles.sheetRow, { borderColor: colors.line }]}
-                >
-                  <Text style={{ color: colors.ink, fontWeight: row.id === employeeFilter ? '700' : '400' }}>
-                    {row.name}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{formatHours(row.hours)}</Text>
-                </TouchableOpacity>
-              )) : (
-                <Text style={{ color: colors.muted, paddingVertical: 12 }}>
-                  {empPickerQuery.trim()
-                    ? `Ingen treff for «${empPickerQuery.trim()}».`
-                    : 'Ingen medarbeidere å velge.'}
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-      {busyOverlay}
-      </>
-    );
-  }
-
   const organizePanel = (
     <HoursOrganizePanel
       colors={colors}
@@ -719,29 +582,44 @@ export default function EconomyHours({
       billable={billableFilter}
       onBillable={setBillableFilter}
       onReset={resetOrganize}
-      onClose={stackRows ? () => setPanelOpen(false) : undefined}
+      onClose={stackRows || isPhone ? () => setPanelOpen(false) : undefined}
     />
   );
 
+  const emptyHint = (
+    <View style={{ padding: 16 }}>
+      <Text style={{ color: colors.muted }}>
+        {hoursLoading
+          ? 'Laster timer…'
+          : 'Ingen timer i dette utvalget. Åpne Filtrer for periode, søk eller sortering — eller importer Excel.'}
+      </Text>
+    </View>
+  );
+
+  const moreButton = visible.length > pageRows.length ? (
+    <TouchableOpacity
+      onPress={() => setPageSize((n) => n + 60)}
+      accessibilityRole="button"
+      style={{ padding: 14, alignItems: 'center' }}
+    >
+      <Text style={{ color: colors.brand, fontWeight: '600' }}>
+        Vis flere ({pageRows.length} av {visible.length})
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
   const table = (
-    <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="economy-hours-table">
       <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ minWidth: tableMin }}>
+        <View style={{ minWidth: Math.max(tableMin, isPhone ? contentWidth : tableMin) }}>
           <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
             {columns.map((column) => (
               <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
             ))}
           </View>
-          {/* Enkel liste (paginert) — FlatList i horizontal ScrollView virtualiserer dårlig og bruker mer minne. */}
-          <View style={{ maxHeight: 720 }} nativeID="economy-hours-table-body">
-            <ScrollView nestedScrollEnabled>
-              {!groupedList.length ? (
-                <View style={{ padding: 16 }}>
-                  <Text style={{ color: colors.muted }}>
-                    Ingen timer i dette utvalget. Juster filteret til høyre, eller importer en timeliste.
-                  </Text>
-                </View>
-              ) : groupedList.map((item) => {
+          <View style={{ maxHeight: isPhone ? undefined : 720 }} nativeID="economy-hours-table-body">
+            <ScrollView nestedScrollEnabled={!isPhone}>
+              {!groupedList.length ? emptyHint : groupedList.map((item) => {
                 if (item.type === 'header') {
                   return (
                     <View
@@ -759,23 +637,147 @@ export default function EconomyHours({
                   </View>
                 );
               })}
-              {visible.length > pageRows.length ? (
-                <TouchableOpacity
-                  onPress={() => setPageSize((n) => n + 60)}
-                  accessibilityRole="button"
-                  style={{ padding: 14, alignItems: 'center' }}
-                >
-                  <Text style={{ color: colors.brand, fontWeight: '600' }}>
-                    Vis flere ({pageRows.length} av {visible.length})
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+              {moreButton}
             </ScrollView>
           </View>
         </View>
       </ScrollView>
     </View>
   );
+
+  const phoneList = (
+    <View style={[styles.listWrap, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="economy-hours-list">
+      {!groupedList.length ? emptyHint : groupedList.map((item) => {
+        if (item.type === 'header') {
+          return (
+            <View
+              key={item.id}
+              style={[styles.listGroupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}
+            >
+              <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{item.label}</Text>
+              <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
+            </View>
+          );
+        }
+        return <HourPhoneRow key={item.id} row={item.row} colors={colors} />;
+      })}
+      {moreButton}
+    </View>
+  );
+
+  const filterModal = (
+    <Modal transparent visible={panelOpen} animationType="slide" onRequestClose={() => setPanelOpen(false)}>
+      <View style={styles.modalBg}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setPanelOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Lukk filter"
+        />
+        <View
+          style={[styles.filterSheet, { backgroundColor: colors.bg, borderColor: colors.line }]}
+          accessibilityViewIsModal
+          nativeID="hours-filter-sheet"
+        >
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+            {organizePanel}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const modeToggle = (
+    <View
+      style={[styles.modeTrack, { borderColor: colors.line, backgroundColor: colors.sunken || '#f4f6f9' }]}
+      accessibilityRole="tablist"
+      accessibilityLabel="Visning"
+      nativeID="hours-display-mode"
+    >
+      <TouchableOpacity
+        onPress={() => setDisplayMode('list')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: displayMode === 'list' }}
+        style={[styles.modeSeg, displayMode === 'list' && { backgroundColor: colors.card }, displayMode === 'list' && styles.modeSegOn]}
+      >
+        <Text style={{ color: displayMode === 'list' ? colors.ink : colors.muted, fontWeight: displayMode === 'list' ? '600' : '500', fontSize: 13 }}>
+          Liste
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setDisplayMode('table')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: displayMode === 'table' }}
+        style={[styles.modeSeg, displayMode === 'table' && { backgroundColor: colors.card }, displayMode === 'table' && styles.modeSegOn]}
+      >
+        <Text style={{ color: displayMode === 'table' ? colors.ink : colors.muted, fontWeight: displayMode === 'table' ? '600' : '500', fontSize: 13 }}>
+          Tabell
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (isPhone && view === 'list') {
+    return (
+      <>
+        <ScrollView
+          style={[styles.screen, { backgroundColor: colors.bg }]}
+          contentContainerStyle={styles.phoneInner}
+          keyboardShouldPersistTaps="handled"
+          nativeID="economy-hours"
+        >
+          <View style={styles.phoneTop}>
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+              <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {!ready || hoursLoading
+                  ? 'Laster timer…'
+                  : `${formatHours(totals.hours)} · ${totals.count} føringer`}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setPanelOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Filtrer og sorter"
+              nativeID="hours-organize-toggle"
+              style={[styles.ghostBtn, styles.ghostBtnCompact, { borderColor: colors.line }]}
+            >
+              <Ionicons name="options-outline" size={18} color={colors.ink} />
+              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Filtrer</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.phoneActions}>
+            {modeToggle}
+            <TouchableOpacity
+              onPress={importFile}
+              disabled={busy || !resolvedFamilyId}
+              accessibilityRole="button"
+              accessibilityLabel="Importer timer"
+              style={[styles.primaryBtn, styles.primaryBtnCompact, { backgroundColor: colors.brand, opacity: busy || !resolvedFamilyId ? 0.6 : 1 }]}
+            >
+              <Text style={styles.primaryBtnText}>{busy ? '…' : 'Importer'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+          {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
+          <ImportResult colors={colors} result={importReport} />
+
+          <View style={styles.summaryRow}>
+            <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
+            <Text style={{ color: colors.muted }}>Fakt. {formatHours(totals.billable)}</Text>
+            <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
+          </View>
+
+          {displayMode === 'table' ? table : phoneList}
+        </ScrollView>
+        {filterModal}
+        {busyOverlay}
+      </>
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours">
@@ -786,20 +788,21 @@ export default function EconomyHours({
               <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
               <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
               <Text style={{ color: colors.muted }}>
-                {ready
-                  ? `${entries.length} registrerte føringer · ${formatHours(totals.hours)} vist`
-                  : 'Laster timer…'}
+                {!ready || hoursLoading
+                  ? 'Laster timer…'
+                  : `${entries.length} lastet · ${formatHours(totals.hours)} vist`}
               </Text>
             </View>
             {stackRows ? (
               <TouchableOpacity
-                onPress={() => setPanelOpen((open) => !open)}
+                onPress={() => setPanelOpen(true)}
                 accessibilityRole="button"
-                accessibilityLabel="Organiser visningen"
+                accessibilityLabel="Filtrer og sorter"
                 nativeID="hours-organize-toggle"
                 style={[styles.ghostBtn, { borderColor: colors.line }]}
               >
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>Organiser</Text>
+                <Ionicons name="options-outline" size={18} color={colors.ink} />
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>Filtrer</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -825,8 +828,9 @@ export default function EconomyHours({
 
           {table}
         </View>
-        {(!stackRows || panelOpen) ? organizePanel : null}
+        {!stackRows ? organizePanel : null}
       </View>
+      {stackRows ? filterModal : null}
       {busyOverlay}
     </View>
   );
@@ -834,59 +838,85 @@ export default function EconomyHours({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  inner: { padding: 16, paddingBottom: 48, maxWidth: 1100, width: '100%', alignSelf: 'flex-start', gap: 14 },
   importInner: { padding: 16, paddingBottom: 48, maxWidth: 1200, width: '100%', alignSelf: 'flex-start', gap: 14 },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
-  phoneInner: { padding: 12, paddingBottom: 40, gap: 12 },
+  phoneInner: { padding: 12, paddingBottom: 40, gap: 12, width: '100%' },
   phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  nameBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0, alignSelf: 'flex-start' },
+  phoneActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
   crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
-  ghostBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  groupHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, minWidth: 480 },
+  ghostBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ghostBtnCompact: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  modeTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 3,
+    gap: 2,
+  },
+  modeSeg: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 64,
+    alignItems: 'center',
+  },
+  modeSegOn: {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  groupHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    minWidth: 480,
+  },
+  listGroupHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   heading: { fontSize: 22, fontWeight: '700' },
-  headingPhone: { fontSize: 16, fontWeight: '600' },
+  headingPhone: { fontSize: 20, fontWeight: '700' },
   primaryBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   primaryBtnCompact: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
-  filters: { gap: 10 },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   modalBg: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
   },
-  sheet: {
-    width: '100%',
-    maxWidth: 440,
-    maxHeight: '80%',
+  filterSheet: {
+    maxHeight: '88%',
     zIndex: 2,
-    position: 'relative',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 8,
+    paddingHorizontal: 12,
   },
-  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
-  pickerSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 10,
-  },
-  pickerSearchInput: { flex: 1, fontSize: 14, outlineStyle: 'none', minHeight: 22 },
-  sheetRow: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
-    gap: 2,
-  },
-  tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', width: '100%' },
+  listWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', width: '100%' },
   tr: { flexDirection: 'row', alignItems: 'flex-start', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 10, gap: 8 },
   head: { paddingVertical: 8 },
   th: { fontSize: 12, fontWeight: '700' },

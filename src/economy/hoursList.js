@@ -68,6 +68,15 @@ export const HOUR_SORT_OPTIONS = [
   { id: 'hours-asc', label: 'Færrest timer' },
 ];
 
+function localDateKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 export function periodBounds(period = 'all', fromDate = '', toDate = '', now = new Date()) {
   const startOfYear = `${now.getFullYear()}-01-01`;
   if (period === 'custom') {
@@ -79,12 +88,28 @@ export function periodBounds(period = 'all', fromDate = '', toDate = '', now = n
     };
   }
   if (period === '7' || period === '30' || period === '100') {
-    const from = new Date(now);
-    from.setDate(from.getDate() - Number(period));
-    return { minDate: from.toISOString().slice(0, 10), maxDate: '' };
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - Number(period));
+    return { minDate: localDateKey(from), maxDate: '' };
   }
   if (period === 'year') return { minDate: startOfYear, maxDate: '' };
   return { minDate: '', maxDate: '' };
+}
+
+/**
+ * Datovindu for Firestore-lasting ut fra periodevalget.
+ * @returns {{ all: true } | { fromDate: string, toDate: string } | null}
+ * null = egen periode uten gyldige datoer ennå (ikke last).
+ */
+export function periodLoadRange(period = '7', fromDate = '', toDate = '', now = new Date()) {
+  if (period === 'all') return { all: true };
+  const today = localDateKey(now);
+  const { minDate, maxDate } = periodBounds(period, fromDate, toDate, now);
+  if (period === 'custom') {
+    if (!minDate || !maxDate) return null;
+    return { fromDate: minDate, toDate: maxDate };
+  }
+  if (!minDate) return null;
+  return { fromDate: minDate, toDate: maxDate || today };
 }
 
 export function filterHours(entries, {

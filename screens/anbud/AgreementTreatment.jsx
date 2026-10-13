@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useLayout } from '../../src/theme';
+import InfoButton from '../../components/InfoButton';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
@@ -87,6 +89,7 @@ export default function AgreementTreatment({
   onRegisterExisting,
 }) {
   const { user, requestShellTab } = useApp();
+  const { isPhone } = useLayout();
   const [state, setState] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -350,10 +353,19 @@ export default function AgreementTreatment({
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>Avtalebehandling</Text>
-      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Når et tilbud blir et oppdrag, låses avtalen som utkast. Motparten ser bare feltene den kan endre, og merknadene blir synlige for avsender når de sendes i retur. Er alt i orden, kan avtalen signeres uten merknader.
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18, flex: 1 }}>Avtalebehandling</Text>
+        {isPhone ? (
+          <InfoButton title="Avtalebehandling">
+            Når et tilbud blir et oppdrag, låses avtalen som utkast. Motparten ser bare feltene den kan endre, og merknadene blir synlige for avsender når de sendes i retur. Er alt i orden, kan avtalen signeres uten merknader.
+          </InfoButton>
+        ) : null}
+      </View>
+      {isPhone ? null : (
+        <Text style={{ color: colors.muted, lineHeight: 20 }}>
+          Når et tilbud blir et oppdrag, låses avtalen som utkast. Motparten ser bare feltene den kan endre, og merknadene blir synlige for avsender når de sendes i retur. Er alt i orden, kan avtalen signeres uten merknader.
+        </Text>
+      )}
       {party === 'avsender' && onRegisterExisting ? (
         <TouchableOpacity onPress={onRegisterExisting} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>Avtalen er allerede inngått — registrer den med dokument og AI</Text>

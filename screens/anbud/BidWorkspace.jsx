@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import BidCollab from './BidCollab';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   BID_STEPS,
   GROUND_ATTACH_FOLDER_ID,
@@ -297,6 +298,7 @@ export default function BidWorkspace({
       if (saved) {
         await onCommit({ ok: true, state: nextState, error: null });
         setLocalNote(saved === 1 ? '1 fil er lagret.' : `${saved} filer er lagret.`);
+        showSaveToast(saved === 1 ? '1 fil er lagret.' : `${saved} filer er lagret.`);
       }
     } finally {
       setUploading(false);

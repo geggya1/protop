@@ -18,6 +18,7 @@ import {
 import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
 import { recordUsage } from '../../src/employees/usageClient';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
 import { departmentsOf } from '../../src/project/companyUnits';
@@ -150,6 +151,11 @@ export default function EmployeesScreen() {
     setNote('');
     setError(message);
     scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+  }
+
+  function noteSaved(message) {
+    setNote(message);
+    showSaveToast(message);
   }
 
   useEffect(() => {
@@ -423,7 +429,7 @@ export default function EmployeesScreen() {
         return;
       }
       const saved = await rememberInvite(queued.employee);
-      if (saved) setNote(`${displayName(saved)} er lagt klar. E-post sendes når du trykker Inviter.`);
+      if (saved) noteSaved(`${displayName(saved)} er lagt klar. E-post sendes når du trykker Inviter.`);
     } catch (err) {
       showError(err?.message || 'Kunne ikke legge til personen.');
     } finally {
@@ -441,7 +447,7 @@ export default function EmployeesScreen() {
     setBusy(true);
     try {
       const saved = await rememberInvite(removed.employee);
-      if (saved) setNote(`${displayName(saved)} er tatt ut av invitasjonskøen.`);
+      if (saved) noteSaved(`${displayName(saved)} er tatt ut av invitasjonskøen.`);
     } catch (err) {
       showError(err?.message || 'Kunne ikke ta personen ut.');
     } finally {
@@ -522,7 +528,7 @@ export default function EmployeesScreen() {
       if (failed.length) setError(failed.filter(Boolean).join('\n'));
       else setError('');
       if (sent.length) {
-        setNote(sent.length === 1
+        noteSaved(sent.length === 1
           ? 'Invitasjonen er sendt.'
           : `${sent.length} invitasjoner er sendt.`);
       }
@@ -619,7 +625,7 @@ export default function EmployeesScreen() {
           setError(inviteDeliveryError(err));
         }
       }
-      setNote(noteText);
+      noteSaved(noteText);
       setRegisterOpen(false);
       const section = levelById(placedAccessLevel(saved))?.section || '';
       if (section) setFocusSection(section);
@@ -782,7 +788,7 @@ export default function EmployeesScreen() {
       setSelectedId(saved.id);
       setDraft(presentEmployee(saved));
       setView('detail');
-      setNote('Profilen din er lagt tilbake i ansatte-listen.');
+      noteSaved('Profilen din er lagt tilbake i ansatte-listen.');
     } catch (err) {
       showError(err?.message || 'Kunne ikke gjenopprette profilen.');
     } finally {
@@ -924,7 +930,7 @@ export default function EmployeesScreen() {
       setDraft(presentEmployee(saved));
       setSelectedId(saved.id);
       const levelNames = employeeLevelIds(saved).map((id) => levelById(id)?.label).filter(Boolean);
-      setNote(levelSet
+      noteSaved(levelSet
         ? (levelNames.length ? `${displayName(saved)} har ${levelNames.join(', ')}.` : `${displayName(saved)} har ingen tilgangsnivå.`)
         : (accessChange
           ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
@@ -1032,7 +1038,7 @@ export default function EmployeesScreen() {
           cv: stored.cv,
           customFields: stored.customFields,
         }));
-        setNote(linked
+        noteSaved(linked
           ? 'Profilen er lagret og ansettelsen i selskapet er oppdatert.'
           : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
         return true;
@@ -1051,12 +1057,12 @@ export default function EmployeesScreen() {
       setSelectedId(saved.id);
       if (view === 'cv') {
         setDraft(presentEmployee(saved));
-        setNote('CV-en er lagret med alle bilder.');
+        noteSaved('CV-en er lagret med alle bilder.');
         return true;
       }
       setDraft(presentEmployee(saved));
       setView('detail');
-      setNote('Medarbeideren er lagret.');
+      noteSaved('Medarbeideren er lagret.');
       recordUsage({
         type: 'change',
         companyId: familyId,
@@ -1080,7 +1086,7 @@ export default function EmployeesScreen() {
     try {
       const saved = await saveEmployee(familyId, applyProfessionalProfile(selected, profile));
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
-      setNote('Ansettelsen bruker nå opplysningene fra profilen din.');
+      noteSaved('Ansettelsen bruker nå opplysningene fra profilen din.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke oppdatere ansettelsen.');
     } finally {
@@ -1097,7 +1103,7 @@ export default function EmployeesScreen() {
         { companyId: familyId, employeeId: selected.id, companyName },
       ));
       setProfile(stored);
-      setNote('Tomme felter på profilen din er fylt fra denne ansettelsen.');
+      noteSaved('Tomme felter på profilen din er fylt fra denne ansettelsen.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke oppdatere profilen.');
     } finally {
@@ -1116,7 +1122,7 @@ export default function EmployeesScreen() {
         setSelectedId('');
         setDraft(null);
         setView('list');
-        setNote('Medarbeideren er slettet permanent.');
+        noteSaved('Medarbeideren er slettet permanent.');
       } else {
         const next = applyEmployeeClassification(current, { status: 'deleted' });
         const committed = commitEmployee(next, { scope: 'company' });
@@ -1128,7 +1134,7 @@ export default function EmployeesScreen() {
         setRows((list) => sortEmployees([...list.filter((row) => row.id !== saved.id), saved]));
         setDraft(presentEmployee(saved));
         setSelectedId(saved.id);
-        setNote('Medarbeideren er flyttet til papirkurven.');
+        noteSaved('Medarbeideren er flyttet til papirkurven.');
         setView('list');
         setFocusSection('trash');
       }
@@ -1145,7 +1151,7 @@ export default function EmployeesScreen() {
     if (!current || busy || !isDeletedEmployee(current)) return;
     await classifyEmployee({ status: 'active' });
     setFocusSection(placedLevelId(current) && levelById(placedLevelId(current))?.section === 'external' ? 'external' : 'company');
-    setNote('Medarbeideren er gjenopprettet som aktiv.');
+    noteSaved('Medarbeideren er gjenopprettet som aktiv.');
   }
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;

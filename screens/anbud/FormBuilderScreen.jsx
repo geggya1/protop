@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   applyImportedForm,
   blankForm,
@@ -137,6 +138,7 @@ export default function FormBuilderScreen({
       ? result.state.formTemplates.find((row) => row.id === draft.id)
       : result.state.formTemplates.find((row) => row.title === draft.title && !known.has(row.id));
     say('Skjemaet er lagret.');
+    showSaveToast('Skjemaet er lagret.');
     if (saved) setDraft(draftFromTemplate(saved));
   }
 
@@ -149,7 +151,10 @@ export default function FormBuilderScreen({
   async function removeTemplate(template) {
     setPendingDelete('');
     const result = await commit(deleteFormTemplate(state, template.id));
-    if (result?.ok) say('Skjemaet er slettet.');
+    if (result?.ok) {
+      say('Skjemaet er slettet.');
+      showSaveToast('Skjemaet er slettet.');
+    }
   }
 
   async function readDocument(mode) {

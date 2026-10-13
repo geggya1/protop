@@ -15,6 +15,7 @@ import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
 import MapRail, { revealAnbudRow } from './MapRail';
 import BidWorkspace from './BidWorkspace';
@@ -122,6 +123,7 @@ export default function BidDesk({
     const downloaded = (stored?.files || []).filter((row) => row.status === 'lastet').length;
     const answers = stored?.dossier?.qa?.length || 0;
     setNote(`${downloaded} dokumenter er lagret i tilbudet. ${answers ? `${answers} spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}.`);
+    showSaveToast(`${downloaded} dokumenter er lagret i tilbudet.`);
     setBusyId('');
   }
 
@@ -156,6 +158,7 @@ export default function BidDesk({
       }),
     }));
     if (!result?.ok) return;
+    showSaveToast('Tilbudet er opprettet.');
     const created = result.state.bids[0];
     setDraftTitle('');
     setDraftBuyer('');

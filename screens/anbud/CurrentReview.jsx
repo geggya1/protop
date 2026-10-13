@@ -12,6 +12,7 @@ import {
 import { fetchCompetitionFile } from '../../src/anbud/doffinClient';
 import { inquiryBrief, noticeBrief, noticeNeedsDossier } from '../../src/anbud/noticeBrief';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { patchInquiry } from '../../src/anbud/intake';
 import {
   assignmentFromChoice,
@@ -387,6 +388,7 @@ export default function CurrentReview({
     if (!made) return;
     const bid = (made.bids || []).find((row) => row.noticeId === notice.id);
     setNote(`${notice.title} er flyttet til 3. Tilbud.`);
+    showSaveToast(`${notice.title} er flyttet til 3. Tilbud.`);
     if (bid) onOpenBid?.(bid.id);
   }
 
@@ -402,6 +404,7 @@ export default function CurrentReview({
     await commitState(releaseUntouchedBid(decided.state, notice.id));
     setBusyId('');
     setNote(`${notice.title} er satt til ikke gi tilbud.`);
+    showSaveToast(`${notice.title} er satt til ikke gi tilbud.`);
   }
 
   async function giveDirect(item, notes) {
@@ -459,6 +462,7 @@ export default function CurrentReview({
     }
     setBusyId('');
     setNote(`${item.title} er flyttet til 3. Tilbud.`);
+    showSaveToast(`${item.title} er flyttet til 3. Tilbud.`);
     if (bid) onOpenBid?.(bid.id);
   }
 
@@ -479,6 +483,7 @@ export default function CurrentReview({
     try {
       await saveList(item.queueKind, patched.list);
       setNote(`${item.title} er satt til ikke gi tilbud.`);
+      showSaveToast(`${item.title} er satt til ikke gi tilbud.`);
     } catch (err) {
       setError(err?.message || 'Kunne ikke oppdatere henvendelsen.');
     }

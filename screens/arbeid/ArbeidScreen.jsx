@@ -17,6 +17,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
 import { ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
@@ -382,6 +383,7 @@ export default function ArbeidScreen({
     setState(result.state);
     setEditor(null);
     setNote('Timer lagret.');
+    showSaveToast('Timer lagret.');
     setError('');
     const hours = Number(payload.hours);
     recordUsage({
@@ -411,6 +413,7 @@ export default function ArbeidScreen({
     setState(result.state);
     setEditor(null);
     setNote('Føring slettet.');
+    showSaveToast('Føring slettet.');
     setError('');
     // Slett direkte i timeEntries-subcollection — saveProjectState-diff alene
     // feilet tidligere når putProjectState kjørte først i useEffect.
@@ -446,6 +449,7 @@ export default function ArbeidScreen({
     setState(result.state);
     setAddProjectOpen(false);
     setNote(`Lagt til ${project.name} i listen.`);
+    showSaveToast(`Lagt til ${project.name} i listen.`);
   }
 
   function starProject(memberId) {
@@ -472,6 +476,7 @@ export default function ArbeidScreen({
     setState(result.state);
     setAbsenceOpen(false);
     setNote('Fravær registrert.');
+    showSaveToast('Fravær registrert.');
   }
 
   function monthNav(delta) {

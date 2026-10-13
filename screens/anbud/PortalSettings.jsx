@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LOGIN_PORTALS, portalFromUrl, saveSupplierProfile } from '../../src/anbud/model';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 
 function Field({ label, value, onChangeText, colors, placeholder, keyboardType }) {
   return (
@@ -66,6 +67,7 @@ export default function PortalSettings({ company, colors, onOpenWork }) {
     setProfile(result.state.supplierProfile);
     setError('');
     setNote('Profilen er lagret. Merk konkurransen som aktuell, og velg deretter om det skal gis tilbud.');
+    showSaveToast('Profilen er lagret.');
   }
 
   return (

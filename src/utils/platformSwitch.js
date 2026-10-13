@@ -23,8 +23,71 @@ export function personalWorkspace(families = []) {
   return findPersonalShell(live) || live.find((group) => !isLiveOrganization(group)) || null;
 }
 
+export function companySwitchLabel(group) {
+  const name = String(group?.company?.navn || group?.name || '').trim();
+  return name || 'Bedrift';
+}
+
 export function companyWorkspaces(families = []) {
-  return liveWorkspaces(families).filter(isLiveOrganization);
+  return liveWorkspaces(families)
+    .filter(isLiveOrganization)
+    .slice()
+    .sort((a, b) => companySwitchLabel(a).localeCompare(companySwitchLabel(b), 'nb'));
+}
+
+/**
+ * Header segments. One company keeps the Privat / Bedrift pair.
+ * Several companies are listed by name so they can be switched here.
+ */
+export function platformSwitchSegments(families = []) {
+  const personal = personalWorkspace(families);
+  const companies = companyWorkspaces(families);
+  const segments = [{
+    id: 'personal',
+    side: 'personal',
+    label: 'Privat',
+    groupId: personal?.id || null,
+  }];
+  if (companies.length <= 1) {
+    segments.push({
+      id: 'company',
+      side: 'company',
+      label: 'Bedrift',
+      groupId: companies[0]?.id || null,
+    });
+    return segments;
+  }
+  companies.forEach((group) => {
+    segments.push({
+      id: group.id,
+      side: 'company',
+      label: companySwitchLabel(group),
+      groupId: group.id,
+    });
+  });
+  return segments;
+}
+
+export function platformSegmentActive(segment, family) {
+  if (!segment) return false;
+  if (segment.side === 'personal') return platformSwitchSide(family) !== 'company';
+  if (segment.groupId) return family?.id === segment.groupId;
+  return platformSwitchSide(family) === 'company';
+}
+
+/**
+ * Where a signed-in person lands.
+ * No company → personal workspace.
+ * One or more companies → a company (last used company when we know it).
+ */
+export function resolveLoginLanding(families, storedId = '', preferredCompanyId = '') {
+  const companies = companyWorkspaces(families);
+  if (companies.length) {
+    return companies.find((group) => group.id === preferredCompanyId)
+      || companies.find((group) => group.id === storedId)
+      || companies[0];
+  }
+  return personalWorkspace(families) || liveWorkspaces(families)[0] || null;
 }
 
 export function platformSwitchSide(family) {
@@ -55,8 +118,14 @@ export async function applyPlatformSwitch({
   families,
   family,
   side,
+  groupId,
 } = {}) {
-  const next = resolvePlatformSwitch(families, family, side);
+  let next = null;
+  if (groupId) {
+    const group = liveWorkspaces(families).find((item) => item.id === groupId);
+    if (group) next = { kind: 'workspace', group };
+  }
+  if (!next) next = resolvePlatformSwitch(families, family, side);
   if (!next) return { applied: false };
   if (next.kind === 'overview') {
     const { goPlatformOverview } = await import('./platformNav.js');

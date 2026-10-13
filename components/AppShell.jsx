@@ -443,9 +443,9 @@ function AppShellInner() {
         setTab('anbud');
         return;
       }
-      if (subView === 'avrop') {
-        setMoreSubView('avrop');
-        setTab('anbud');
+      if (subView === 'avtale' || subView === 'avrop') {
+        setMoreSubView(null);
+        setTab('kontrakt');
         return;
       }
       setMoreSubView(defaultAnbudSubView(subView));

@@ -1,16 +1,50 @@
 /**
  * Personlig timeliste åpnes for innlogget bruker.
- * Dataene ligger på bedriften personen er knyttet til.
+ * Kun bedrifter der personen er ansatt (eller har egen timeføringsrett),
+ * ikke alle selskaper personen administrerer.
  */
+import { allows, accountDeactivated, grantsForEmployee } from '../access/companyAccess.js';
+import { ownEmployee } from '../employees/model.js';
 import { isLiveOrganization } from '../project/companyOffer.js';
 import { companyWorkspaces } from '../utils/platformSwitch.js';
 
-export function personalTimesheetCompanies(families = [], currentFamily = null) {
+/**
+ * Kan personen føre egne timer i denne bedriften?
+ * Krever aktiv ansettelseskobling og write på «Egne timer».
+ * Admin uten ansettelse i selskapet gir ikke tilgang.
+ */
+export function canLogOwnHoursInCompany(company, employees = [], actor = {}) {
+  const employee = ownEmployee(employees, {
+    uid: actor.uid || '',
+    emails: actor.emails || [],
+    name: actor.name || '',
+  });
+  if (!employee || accountDeactivated(employee)) return false;
+  const grants = grantsForEmployee(company?.company?.accessPolicy, employee);
+  return allows(grants, 'hours', 'write');
+}
+
+/**
+ * @param {object[]} families
+ * @param {object|null} currentFamily
+ * @param {{ uid?: string, emails?: string[], name?: string, employeesByCompanyId?: Record<string, object[]> }} [options]
+ */
+export function personalTimesheetCompanies(families = [], currentFamily = null, options = {}) {
   const companies = companyWorkspaces(families);
-  if (!isLiveOrganization(currentFamily)) return companies;
-  const rest = companies.filter((row) => row.id !== currentFamily.id);
-  const current = companies.find((row) => row.id === currentFamily.id) || currentFamily;
-  return [current, ...rest];
+  const employeesByCompanyId = options.employeesByCompanyId || {};
+  const actor = {
+    uid: options.uid || '',
+    emails: options.emails || [],
+    name: options.name || '',
+  };
+  const eligible = companies.filter((company) => (
+    canLogOwnHoursInCompany(company, employeesByCompanyId[company.id] || [], actor)
+  ));
+  if (!eligible.length) return [];
+  if (!isLiveOrganization(currentFamily)) return eligible;
+  const rest = eligible.filter((row) => row.id !== currentFamily.id);
+  const current = eligible.find((row) => row.id === currentFamily.id);
+  return current ? [current, ...rest] : eligible;
 }
 
 export function companyTimesheetLabel(company) {

@@ -657,7 +657,7 @@ export default function ArbeidScreen({
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
-      <View style={[styles.searchWrap, isPhone && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           value={projectQuery}

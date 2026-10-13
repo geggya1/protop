@@ -151,4 +151,26 @@ assert.equal(nextMapPinIndex(5, 5), 4);
 assert.equal(nextMapPinIndex(5, 2), 2);
 assert.equal(nextMapPinIndex(5, -1), 0);
 
+const numberedPins = mapPinsForNotices([
+  { id: 'south', title: 'Oslo', places: ['Oslo'], decision: 'aktuell', mapNo: 1 },
+  { id: 'north', title: 'Tromsø', places: ['Tromsø'], decision: 'aktuell', mapNo: 2 },
+], { asShown: true });
+assert.equal(numberedPins[0].id, 'north');
+assert.equal(numberedPins[0].mapNo, 2);
+assert.equal(numberedPins[1].mapNo, 1);
+
+const numberedDoc = tenderMapDocument([
+  { id: 'a', title: 'Bro', lat: 59.9, lng: 10.7, kind: 'aktuell', label: 'Oslo', mapNo: 3 },
+  { id: 'b', title: 'Kai', lat: 60.4, lng: 5.3, kind: 'aktuell', label: 'Bergen', mapNo: 1 },
+], {});
+assert.match(numberedDoc, /"mapNo":3/);
+assert.match(numberedDoc, /let picked = false/);
+assert.match(numberedDoc, /pinpulse/);
+assert.match(numberedDoc, /picked = true/);
+assert.match(numberedDoc, /pins\[i\]\.mapNo/);
+const numberedBubble = pinPopupHtml({
+  id: 'a', title: 'Bro', label: 'Oslo', kind: 'aktuell', mapNo: 3,
+}, 0, 2, { showMark: false, kindLabel: 'Aktuell' });
+assert.match(numberedBubble, /3 · Aktuell · Oslo/);
+
 console.log('noticePlace.test.mjs ok');

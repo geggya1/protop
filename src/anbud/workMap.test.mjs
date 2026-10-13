@@ -10,6 +10,8 @@ assert.equal(rows[0].decision, 'aktuell');
 assert.equal(rows[0].places[0], 'Oslo');
 assert.equal(rows[1].buyer, 'Bergen kommune');
 assert.equal(rows[1].source, 'protop');
+assert.equal(rows[0].mapNo, 1);
+assert.equal(rows[1].mapNo, 2);
 
 assert.equal(workGeocodeQuery({ buyer: 'Kvitsøy kommune', places: [] }), 'Kvitsøy kommune');
 assert.equal(workGeocodeQuery({ places: ['Oslo'], buyer: 'Annen' }), 'Oslo');
@@ -23,10 +25,12 @@ assert.equal(bids[0].geo.label, 'Rogaland');
 assert.equal(bids[0].places[0], 'Rogaland');
 assert.equal(bids[0].source, 'doffin');
 assert.equal(bids[0].decision, 'aktuell');
+assert.equal(bids[0].mapNo, 1);
 
 const manual = bidMapRows([{ id: 'b2', title: 'Eget', buyer: 'Stavanger kommune', source: 'manuell' }], []);
 assert.equal(manual[0].source, 'manuell');
 assert.equal(manual[0].geo, null);
+assert.equal(manual[0].mapNo, 1);
 
 const kept = applyGeoHits([{ id: 'n1', geo: { lat: 1, lng: 2 } }], [{ id: 'n1', geo: { lat: 9, lng: 9 } }]);
 assert.equal(kept.changed, false);

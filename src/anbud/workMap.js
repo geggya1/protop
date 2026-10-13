@@ -32,15 +32,16 @@ export function reviewMapRows({ notices = [], direct = [] } = {}) {
       source: row.source === 'protop' || row.queueKind === 'protop' ? 'protop' : 'manuell',
       decision: 'aktuell',
     }));
-  return [...fromNotices, ...fromDirect];
+  return [...fromNotices, ...fromDirect].map((row, index) => ({ ...row, mapNo: index + 1 }));
 }
 
 export function bidMapRows(bids, notices) {
   const byId = new Map((Array.isArray(notices) ? notices : []).filter((row) => row?.id).map((row) => [row.id, row]));
-  return (Array.isArray(bids) ? bids : []).filter((row) => row?.id).map((bid) => {
+  return (Array.isArray(bids) ? bids : []).filter((row) => row?.id).map((bid, index) => {
     const notice = byId.get(bid.noticeId) || null;
     return {
       id: bid.id,
+      mapNo: index + 1,
       title: text(bid.title) || 'Tilbud',
       buyer: text(bid.buyer) || text(notice?.buyer),
       places: notice?.places?.length ? notice.places : (Array.isArray(bid.places) ? bid.places : []),

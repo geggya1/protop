@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import {
   attachDossier,
@@ -32,7 +32,7 @@ import { applyGeoHits, reviewMapRows } from '../../src/anbud/workMap';
 import ProcessTrail from './ProcessTrail';
 import OppdragBrief from './OppdragBrief';
 import ReviewNotes from './ReviewNotes';
-import MapRail, { revealAnbudRow } from './MapRail';
+import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow } from './MapRail';
 
 function SectionHeading({ title, hint, colors }) {
   const { isPhone } = useLayout();
@@ -112,14 +112,29 @@ function DecisionCard({
   wide,
   selected,
   anchorId,
+  mapNo,
+  onFocus,
 }) {
   const missing = assignmentGap({ departments, people, unitId, personId });
   const collectRef = React.useRef(() => notes || []);
   const decision = (
     <View style={styles.col}>
-      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{title}</Text>
-      <Text style={{ color: colors.ink }}>{buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
-      {meta ? <Text style={{ color: colors.muted }}>{meta}</Text> : null}
+      <TouchableOpacity
+        onPress={onFocus}
+        disabled={!onFocus}
+        accessibilityRole="button"
+        accessibilityState={{ selected: !!selected }}
+        accessibilityLabel={selected ? `${mapNo ? `${mapNo}. ` : ''}${title} er valgt på kartet` : `Vis ${mapNo ? `${mapNo}. ` : ''}${title} på kartet`}
+        style={styles.pick}
+      >
+        <MapIndexBadge n={mapNo} selected={!!selected} colors={colors} />
+        <View style={{ flex: 1, gap: 2 }}>
+          {selected ? <Text style={{ color: colors.brand, fontWeight: '800', fontSize: 12 }}>Valgt på kartet</Text> : null}
+          <Text style={{ color: selected ? colors.brand : colors.ink, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+          <Text style={{ color: colors.ink }}>{buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+          {meta ? <Text style={{ color: colors.muted }}>{meta}</Text> : null}
+        </View>
+      </TouchableOpacity>
       <ProcessTrail steps={steps} colors={colors} />
       <ReviewNotes
         notes={notes}
@@ -170,12 +185,12 @@ function DecisionCard({
   );
   return (
     <View
-      dataSet={anchorId ? { anbudId: anchorId } : undefined}
-      style={[styles.card, {
-        borderColor: selected ? colors.brand : colors.line,
-        backgroundColor: selected ? colors.brandSoft : colors.card,
-        borderWidth: selected ? 2 : 1,
-      }]}
+      dataSet={{
+        ...(anchorId ? { anbudId: anchorId } : {}),
+        ...(selected ? { mapSelected: '1' } : {}),
+      }}
+      {...(Platform.OS === 'web' && onFocus ? { onClick: (event) => activateMapRow(event, onFocus) } : null)}
+      style={[styles.card, mapCardChrome(colors, !!selected)]}
     >
       <View style={wide ? styles.split : styles.stack}>
         {decision}
@@ -203,6 +218,7 @@ export default function CurrentReview({
   const [error, setError] = useState('');
   const [loadingIds, setLoadingIds] = useState(() => new Set());
   const [focusId, setFocusId] = useState('');
+  const [focusTick, setFocusTick] = useState(0);
   const fetchedIds = useRef(new Set());
   const stateRef = useRef(null);
   stateRef.current = state;
@@ -284,6 +300,7 @@ export default function CurrentReview({
 
   function focusRow(id) {
     setFocusId(id);
+    setFocusTick((n) => n + 1);
     revealAnbudRow(id);
   }
 
@@ -496,6 +513,7 @@ export default function CurrentReview({
         rows={mapRows}
         colors={colors}
         selectedId={focusId}
+        focusTick={focusTick}
         legendLabel="Aktuelle"
         kindLabel="Aktuell"
         openLabel="Vis i vurderingen"
@@ -556,6 +574,8 @@ export default function CurrentReview({
               wide={wide}
               selected={focusId === notice.id}
               anchorId={notice.id}
+              mapNo={mapRows.find((row) => row.id === notice.id)?.mapNo}
+              onFocus={() => focusRow(notice.id)}
             />
           );
         })}
@@ -601,6 +621,8 @@ export default function CurrentReview({
               wide={wide}
               selected={focusId === item.id}
               anchorId={item.id}
+              mapNo={mapRows.find((row) => row.id === item.id)?.mapNo}
+              onFocus={() => focusRow(item.id)}
             />
           );
         })}
@@ -620,6 +642,7 @@ export default function CurrentReview({
 const styles = StyleSheet.create({
   lead: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  pick: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   split: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   stack: { gap: 16 },
   col: { flex: 1, minWidth: 280, gap: 8 },

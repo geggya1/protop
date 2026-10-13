@@ -28,6 +28,54 @@ export function revealAnbudRow(id) {
   });
 }
 
+export function MapIndexBadge({ n, selected, colors }) {
+  const num = Number(n);
+  if (!num) return null;
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: selected ? colors.brand : colors.card,
+        borderWidth: 2,
+        borderColor: colors.brand,
+      }}
+    >
+      <Text style={{ color: selected ? '#fff' : colors.brand, fontWeight: '800', fontSize: 13 }}>{num}</Text>
+    </View>
+  );
+}
+
+export function mapCardChrome(colors, selected, fallback = {}) {
+  if (!selected) {
+    return {
+      borderColor: fallback.borderColor || colors.line,
+      backgroundColor: fallback.backgroundColor || colors.card,
+      borderWidth: 1,
+    };
+  }
+  return {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+    borderWidth: 2,
+    ...(Platform.OS === 'web' ? { boxShadow: `0 0 0 4px ${colors.brand}` } : null),
+  };
+}
+
+/** Klikk på seksjonen velger nålen. Knapper, felt og lenker beholder sin egen handling. */
+export function activateMapRow(event, onFocus) {
+  if (!onFocus) return;
+  const node = event?.target || event?.nativeEvent?.target;
+  const el = node?.nodeType === 3 ? node.parentElement : node;
+  if (typeof el?.closest === 'function' && el.closest('button, a, input, textarea, select, [role="button"]')) return;
+  onFocus();
+}
+
 function readRailWidth() {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return { width: RAIL_PEEK, pref: 360 };
   try {
@@ -57,6 +105,7 @@ export default function MapRail({
   onSelect,
   onPreview,
   onGeocode,
+  focusTick = 0,
   legendLabel = 'Kart',
   openLabel = 'Åpne',
   kindLabel = '',
@@ -73,6 +122,20 @@ export default function MapRail({
   const stopDrag = useRef(() => {});
 
   useEffect(() => () => stopDrag.current(), []);
+
+  useEffect(() => {
+    if (!focusTick || !selectedId) return;
+    if (Platform.OS !== 'web' || widthRef.current > RAIL_PEEK) return;
+    const max = railMaxWidth(typeof window !== 'undefined' ? window.innerWidth : viewportWidth);
+    const next = preferredOpen(max, openRef.current);
+    widthRef.current = next;
+    openRef.current = next;
+    setWidth(next);
+    try {
+      localStorage.setItem(RAIL_WIDTH_KEY, String(next));
+      localStorage.setItem(RAIL_PREF_KEY, String(next));
+    } catch { /* lagring er valgfri */ }
+  }, [focusTick]);
 
   const located = useMemo(
     () => (Array.isArray(rows) ? rows : []).map((row) => (
@@ -197,6 +260,7 @@ export default function MapRail({
       legendLabel={legendLabel}
       mapTitle={mapTitle}
       showHeading={false}
+      requireSelection
       onSelect={onSelect}
       onPreview={onPreview}
     />

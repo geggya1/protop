@@ -401,7 +401,7 @@ function pinSource(row) {
 }
 
 function pinBase(row) {
-  return {
+  const pin = {
     id: row.id,
     title: String(row.title || 'Kunngjøring').slice(0, 120),
     buyer: String(row.buyer || '').slice(0, 80),
@@ -409,6 +409,9 @@ function pinBase(row) {
     source: pinSource(row),
     kind: mapPinKind(row.decision),
   };
+  const mapNo = Number(row.mapNo);
+  if (mapNo > 0) pin.mapNo = mapNo;
+  return pin;
 }
 
 export function mapPinsForNotices(notices, { expired, asShown = false, unknownAsLand = true } = {}) {

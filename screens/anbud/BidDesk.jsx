@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   bidDeskBucket,
   bidOverview,
@@ -27,7 +27,7 @@ import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
-import MapRail, { revealAnbudRow } from './MapRail';
+import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow } from './MapRail';
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
@@ -68,6 +68,7 @@ export default function BidDesk({
   const { isPhone } = useLayout();
   const { applyFamilyPatch, family } = useApp();
   const [mapFocusId, setMapFocusId] = useState('');
+  const [focusTick, setFocusTick] = useState(0);
   const stateRef = useRef(null);
   stateRef.current = state;
 
@@ -270,12 +271,25 @@ export default function BidDesk({
     if (openId) setMapFocusId(openId);
   }, [openId]);
 
+  useEffect(() => {
+    if (!mapFocusId || openId) return undefined;
+    const timer = setTimeout(() => revealAnbudRow(mapFocusId), 40);
+    return () => clearTimeout(timer);
+  }, [mapFocusId, openId]);
+
   async function persistGeo(hits) {
     const current = stateRef.current;
     if (!current) return;
     const merged = mergeWorkGeo(current, hits);
     if (!merged.changed) return;
     await commit({ ok: true, state: { ...current, bids: merged.bids, notices: merged.notices } });
+  }
+
+  function focusBid(id) {
+    if (!rows.some((bid) => bid.id === id)) return;
+    setMapFocusId(id);
+    setFocusTick((n) => n + 1);
+    revealAnbudRow(id);
   }
 
   function openFromMap(id) {
@@ -296,7 +310,14 @@ export default function BidDesk({
       openLabel="Åpne tilbudet"
       mapTitle="Kart over tilbud"
       onSelect={openFromMap}
-      onPreview={(id) => { setMapFocusId(id); revealAnbudRow(id); }}
+      onPreview={(id) => {
+        if (!rows.some((bid) => bid.id === id)) return;
+        setMapFocusId(id);
+        setFocusTick((n) => n + 1);
+        setOpenId((open) => (open && open !== id ? '' : open));
+        revealAnbudRow(id);
+      }}
+      focusTick={focusTick}
       onGeocode={persistGeo}
     />
   );
@@ -446,22 +467,26 @@ export default function BidDesk({
         return (
           <View
             key={bid.id}
-            dataSet={{ anbudId: bid.id }}
-            style={[styles.card, {
-              borderColor: mapFocusId === bid.id ? colors.brand : (urgent ? colors.danger : colors.line),
-              backgroundColor: mapFocusId === bid.id ? colors.brandSoft : colors.card,
-              borderWidth: mapFocusId === bid.id ? 2 : 1,
-            }]}
+            dataSet={{ anbudId: bid.id, ...(mapFocusId === bid.id ? { mapSelected: '1' } : {}) }}
+            {...(Platform.OS === 'web' ? { onClick: (event) => activateMapRow(event, () => focusBid(bid.id)) } : null)}
+            style={[styles.card, mapCardChrome(colors, mapFocusId === bid.id, {
+              borderColor: urgent ? colors.danger : colors.line,
+            })]}
           >
             <TouchableOpacity
-              onPress={() => setOpenId(bid.id)}
+              onPress={() => focusBid(bid.id)}
               accessibilityRole="button"
-              accessibilityLabel={`Åpne tilbud ${bid.title}`}
+              accessibilityState={{ selected: mapFocusId === bid.id }}
+              accessibilityLabel={mapFocusId === bid.id ? `${bid.title} er valgt på kartet` : `Vis ${bid.title} på kartet`}
               style={styles.cardBody}
             >
+              <MapIndexBadge n={mapBids.find((row) => row.id === bid.id)?.mapNo} selected={mapFocusId === bid.id} colors={colors} />
               <View style={styles.cardMain}>
+                {mapFocusId === bid.id ? (
+                  <Text style={{ color: colors.brand, fontWeight: '800', fontSize: 12 }}>Valgt på kartet</Text>
+                ) : null}
                 <Text style={{ color: colors.brand, fontWeight: '600' }}>{statusLabel}</Text>
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>{bid.title}</Text>
+                <Text style={{ color: mapFocusId === bid.id ? colors.brand : colors.ink, fontWeight: '700' }}>{bid.title}</Text>
                 <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
                 {bid.reviewNotes?.length ? (
                   <Text style={{ color: colors.ink }} numberOfLines={2}>

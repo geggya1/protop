@@ -26,6 +26,7 @@ export default function TenderMap({
   legendLabel = '',
   mapTitle = 'Kart over nye og aktuelle treff',
   showHeading = true,
+  requireSelection = false,
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
@@ -48,6 +49,7 @@ export default function TenderMap({
   if (found >= 0) indexRef.current = found;
   const index = found >= 0 ? found : nextMapPinIndex(pins.length, indexRef.current);
   const current = index >= 0 ? pins[index] : null;
+  const showCurrent = current && (!requireSelection || found >= 0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -92,6 +94,7 @@ export default function TenderMap({
         lng: row.lng,
         coverage: row.coverage === 'land' ? 'land' : '',
         kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
+        mapNo: Number(row.mapNo) > 0 ? Number(row.mapNo) : 0,
       })),
       busyId: busyId || '',
       focusId: focusId || '',
@@ -139,6 +142,7 @@ export default function TenderMap({
       : 'Kartet viser Nye, Aktuelle og Uaktuelle.';
   const kindText = kindLabel
     || (current?.kind === 'aktuell' ? 'Aktuell' : current?.kind === 'uaktuell' ? 'Uaktuell' : 'Ny');
+  const currentNo = Number(current?.mapNo) > 0 ? `${current.mapNo} · ` : '';
 
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -206,10 +210,14 @@ export default function TenderMap({
       ) : (
         <Text style={{ color: colors.muted }}>Ingen stedfestede treff å vise ennå.</Text>
       )}
-      {current ? (
-        <View style={[styles.bubble, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
-          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
-            {kindText} · {current.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : current.label}
+      {showCurrent ? (
+        <View style={[styles.bubble, {
+          borderColor: current.id === (cursorId || selectedId) ? colors.brand : colors.line,
+          backgroundColor: current.id === (cursorId || selectedId) ? colors.brandSoft : colors.sunken,
+          borderWidth: current.id === (cursorId || selectedId) ? 2 : 1,
+        }]}>
+          <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '700' }}>
+            {currentNo}{kindText} · {current.coverage === 'land' ? 'Hele Norge · ikke stedbunden' : current.label}
           </Text>
           {showMark ? <View style={styles.decisions}>
             <TouchableOpacity
@@ -253,6 +261,12 @@ export default function TenderMap({
             <Text style={{ color: '#fff', fontWeight: '600' }}>{openLabel}</Text>
           </TouchableOpacity>
         </View>
+      ) : requireSelection ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          {selectedId
+            ? 'Oppdraget er valgt i listen, men er ikke plassert på kartet.'
+            : 'Trykk et oppdrag i listen, eller en nål på kartet. Samme nummer lyses opp begge steder.'}
+        </Text>
       ) : null}
       {missing ? (
         <Text style={{ color: colors.muted, fontSize: 12 }}>

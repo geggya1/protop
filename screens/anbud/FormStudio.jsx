@@ -1,16 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import {
   FIELD_GROUPS,
-  applyDrag,
-  dragTargetIndex,
   duplicateField,
   fieldType,
   formAttention,
   insertField,
-  insertionIndex,
   isAnswerField,
   moveField,
   responsesToCsv,
@@ -18,7 +15,8 @@ import {
 } from '../../src/anbud/formBuilder';
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickImage } from '../../src/utils/media';
-import FormDocument from './FormDocument';
+import FormEditor from './FormEditor';
+import { printForm } from './formPrint';
 
 const PIE = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#AB47BC', '#00ACC1', '#FF7043', '#8D6E63'];
 const ICONS = {
@@ -57,17 +55,6 @@ const SETTINGS = [
   ]],
 ];
 
-function pointFrom(event) {
-  const source = event?.nativeEvent || event || {};
-  return { x: Number(source.clientX ?? source.pageX), y: Number(source.clientY ?? source.pageY) };
-}
-
-function nodeRect(node) {
-  if (!node || typeof node.getBoundingClientRect !== 'function') return null;
-  const rect = node.getBoundingClientRect();
-  return { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, height: rect.height };
-}
-
 function arcPath(cx, cy, r, start, end) {
   const x1 = cx + r * Math.cos(start);
   const y1 = cy + r * Math.sin(start);
@@ -75,37 +62,6 @@ function arcPath(cx, cy, r, start, end) {
   const y2 = cy + r * Math.sin(end);
   const large = end - start > Math.PI ? 1 : 0;
   return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-}
-
-function mixRows(list, seed) {
-  const rows = list.slice();
-  let n = seed || 1;
-  for (let i = rows.length - 1; i > 0; i -= 1) {
-    n = (Math.imul(n, 1664525) + 1013904223) >>> 0;
-    const j = n % (i + 1);
-    const held = rows[i];
-    rows[i] = rows[j];
-    rows[j] = held;
-  }
-  return rows;
-}
-
-function Ghost({ drag, colors }) {
-  if (!drag?.active || !Number.isFinite(drag.x) || !Number.isFinite(drag.y)) return null;
-  const node = (
-    <View pointerEvents="none" style={[styles.ghost, { left: drag.x + 12, top: drag.y + 12, backgroundColor: colors.card, borderColor: colors.brand }]}>
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>{drag.label}</Text>
-    </View>
-  );
-  if (Platform.OS === 'web' && typeof document !== 'undefined') {
-    try {
-      const { createPortal } = require('react-dom');
-      return createPortal(node, document.body);
-    } catch {
-      return node;
-    }
-  }
-  return node;
 }
 
 function PieChart({ counts, colors }) {
@@ -137,13 +93,6 @@ function PieChart({ counts, colors }) {
   );
 }
 
-function answered(field, value) {
-  if (field.kind === 'check') return value === true;
-  if (Array.isArray(value)) return value.length > 0;
-  if (value && typeof value === 'object') return !!value.name;
-  return String(value || '').trim().length > 0;
-}
-
 export default function FormStudio({
   draft,
   colors,
@@ -163,29 +112,14 @@ export default function FormStudio({
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeFor, setTypeFor] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [answers, setAnswers] = useState({});
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [sendNote, setSendNote] = useState('');
   const [responseTab, setResponseTab] = useState('summary');
   const [person, setPerson] = useState(0);
-  const [drag, setDrag] = useState(null);
   const [imageNote, setImageNote] = useState('');
-  const [previewSeed, setPreviewSeed] = useState(1);
   const [readOpen, setReadOpen] = useState(false);
-  const [paneWidth, setPaneWidth] = useState(0);
+  const [insertAt, setInsertAt] = useState(null);
   const [rootNode, setRootNode] = useState(null);
-  const sessionRef = useRef(null);
-  const listenersRef = useRef(null);
-  const canvasRef = useRef(null);
-  const fieldRefs = useRef([]);
-  const pointerRef = useRef({ move() {}, up() {} });
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
   const settings = draft.settings || {};
   const responses = draft.responses || [];
-
-  useEffect(() => () => listenersRef.current?.(), []);
 
   useEffect(() => {
     const el = rootNode && typeof rootNode.addEventListener === 'function' ? rootNode : null;
@@ -219,7 +153,9 @@ export default function FormStudio({
 
   function chooseType(kind) {
     if (typeFor == null) {
-      addKind(kind, Math.min(selected + 1, draft.fields.length));
+      const at = insertAt == null ? Math.min(Math.max(selected, -1) + 1, draft.fields.length) : insertAt;
+      setInsertAt(null);
+      addKind(kind, at);
       return;
     }
     const current = draft.fields[typeFor];
@@ -245,7 +181,6 @@ export default function FormStudio({
 
   function openTab(id) {
     if (id === 'preview') {
-      setPreviewSeed((Date.now() % 100000) || 1);
       setTab('questions');
       return;
     }
@@ -287,33 +222,6 @@ export default function FormStudio({
     });
   }
 
-  function submit() {
-    if (settings.requireLogin) {
-      setSendNote('Innlogging kreves før svaret kan sendes.');
-      return;
-    }
-    const fields = draft.fields.filter((field) => isAnswerField(field));
-    const missing = fields.find((field) => field.required && !answered(field, answers[field.id]));
-    if (settings.collectEmail && !email.includes('@')) {
-      setSendNote('Skriv inn e-postadressen.');
-      return;
-    }
-    if (missing) {
-      setSendNote(`«${missing.label}» må fylles ut.`);
-      return;
-    }
-    const response = {
-      id: `svar_${Date.now().toString(36)}`,
-      at: new Date().toISOString(),
-      email,
-      answers: { ...answers },
-    };
-    onDraft({ ...draft, responses: [...responses, response].slice(-40) });
-    setSent(true);
-    setSendNote('');
-    if (!settings.anotherResponse) setAnswers({});
-  }
-
   function exportCsv() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const csv = `\uFEFF${responsesToCsv(draft)}`;
@@ -326,81 +234,15 @@ export default function FormStudio({
     URL.revokeObjectURL(url);
   }
 
-  function beginDrag(index, event) {
-    const point = pointFrom(event);
-    if (!Number.isFinite(point.x)) return;
-    event.preventDefault?.();
-    listenersRef.current?.();
-    listenersRef.current = null;
-    const label = draft.fields[index]?.label || 'Felt';
-    sessionRef.current = { from: index, label, startX: point.x, startY: point.y, moved: false };
-    setDrag({ label, x: point.x, y: point.y, active: false, hover: null });
-    const move = (nativeEvent) => {
-      const session = sessionRef.current;
-      if (!session) return;
-      const next = pointFrom(nativeEvent);
-      const moved = session.moved || Math.hypot(next.x - session.startX, next.y - session.startY) > 6;
-      session.moved = moved;
-      if (!moved) return;
-      const canvas = nodeRect(canvasRef.current);
-      const rects = fieldRefs.current.slice(0, draftRef.current.fields.length).map(nodeRect);
-      setDrag({ label: session.label, x: next.x, y: next.y, active: true, hover: insertionIndex(next.x, next.y, rects, canvas) });
-    };
-    const up = (nativeEvent) => {
-      const session = sessionRef.current;
-      sessionRef.current = null;
-      listenersRef.current?.();
-      listenersRef.current = null;
-      setDrag(null);
-      if (!session?.moved) return;
-      const next = pointFrom(nativeEvent);
-      const canvas = nodeRect(canvasRef.current);
-      const rects = fieldRefs.current.slice(0, draftRef.current.fields.length).map(nodeRect);
-      const hover = insertionIndex(next.x, next.y, rects, canvas);
-      if (hover == null) return;
-      const current = draftRef.current;
-      const target = dragTargetIndex(`move:${session.from}`, hover, current.fields.length);
-      onDraft({ ...current, fields: applyDrag(current.fields, `move:${session.from}`, target) });
-      const land = session.from < hover ? hover - 1 : hover;
-      setSelected(Math.max(0, Math.min(land, current.fields.length - 1)));
-    };
-    pointerRef.current = { move, up };
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-      window.addEventListener('pointercancel', up);
-      listenersRef.current = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        window.removeEventListener('pointercancel', up);
-      };
-    }
-  }
-
-  const previewFields = settings.shuffleQuestions
-    ? mixRows(draft.fields, previewSeed)
-    : draft.fields;
   const attention = formAttention(draft);
-
-  function optionsFor(field) {
-    if (!field.shuffle || !(field.options || []).length) return field.options || [];
-    return mixRows(field.options, previewSeed + String(field.id).length);
-  }
-
-  const required = draft.fields.filter((field) => field.required && isAnswerField(field));
-  const done = required.filter((field) => answered(field, answers[field.id])).length;
-  const progress = required.length ? done / required.length : 1;
   const activePerson = responses[person] || null;
 
   return (
     <View
       ref={setRootNode}
-      onPointerMove={(event) => pointerRef.current.move(event)}
-      onPointerUp={(event) => pointerRef.current.up(event)}
-      onPointerCancel={(event) => pointerRef.current.up(event)}
       style={[styles.fill, fill && { flex: 1, minHeight: 0 }]}
     >
-      <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setPaneWidth(event.nativeEvent.layout.width)}>
+      <View style={{ flex: 1, minHeight: 0 }}>
         <View style={[styles.toolbar, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
           <TouchableOpacity onPress={onBack} accessibilityRole="button">
             <Text style={{ color: colors.brand }}>Alle skjema</Text>
@@ -408,6 +250,9 @@ export default function FormStudio({
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setReadOpen((open) => !open)} disabled={busy} accessibilityRole="button" accessibilityLabel="Les inn dokument">
               <Text style={{ color: colors.brand }}>{busy ? 'Leser …' : 'Les inn'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => printForm(draft, settings.useCompanyLogo ? companyLogo?.dataUrl : '')} accessibilityRole="button" accessibilityLabel="Skriv ut eller lagre PDF">
+              <Text style={{ color: colors.brand }}>PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openTab(tab === 'responses' ? 'questions' : 'responses')} accessibilityRole="button" accessibilityLabel={tab === 'responses' ? 'Vis malen' : 'Vis svar'}>
               <Text style={{ color: colors.brand }}>{tab === 'responses' ? 'Malen' : `Svar${responses.length ? ` (${responses.length})` : ''}`}</Text>
@@ -438,21 +283,17 @@ export default function FormStudio({
           </View>
         ) : null}
         {tab === 'questions' && attention.issues.length ? (
-          <View style={[styles.attention, { borderColor: '#9a6700', backgroundColor: colors.card, marginHorizontal: 16, marginTop: 8 }]}>
-            <Text style={{ color: '#9a6700', fontWeight: '700' }}>Se over før du lagrer</Text>
-            {attention.issues.map((issue) => (
-              <TouchableOpacity
-                key={`${issue.fieldId || 'note'}-${issue.text}`}
-                onPress={() => {
-                  const index = draft.fields.findIndex((field) => field.id === issue.fieldId);
-                  if (index >= 0) setSelected(index);
-                }}
-                accessibilityRole="button"
-              >
-                <Text style={{ color: '#9a6700', fontWeight: '600' }}>{issue.text}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            onPress={() => {
+              const issue = attention.issues.find((row) => row.fieldId);
+              const index = draft.fields.findIndex((field) => field.id === issue?.fieldId);
+              if (index >= 0) setSelected(index);
+            }}
+            accessibilityRole="button"
+            style={[styles.attention, { borderColor: '#9a6700', backgroundColor: colors.card, marginHorizontal: 16, marginTop: 8 }]}
+          >
+            <Text style={{ color: '#9a6700', fontWeight: '600' }}>{attention.issues.length} felt bør ses over. Trykk for å gå til det første.</Text>
+          </TouchableOpacity>
         ) : null}
         {!!imageNote && <Text style={{ color: colors.danger, marginHorizontal: 16, marginTop: 8 }}>{imageNote}</Text>}
         {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand, marginHorizontal: 16, marginTop: 8 }}>{note}</Text>}
@@ -512,71 +353,44 @@ export default function FormStudio({
             }) : null}
           </ScrollView>
         ) : (
-          <View style={{ flex: 1, minHeight: 0, flexDirection: paneWidth >= 900 ? 'row' : 'column' }}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
-              <Text style={[styles.kicker, { color: colors.muted }]}>Malen</Text>
-              <View style={styles.row}>
-                <TouchableOpacity onPress={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>{settings.useCompanyLogo ? 'Skjul logo' : 'Vis logo'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={setCover} accessibilityRole="button">
-                  <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setTypeFor(null); setTypeOpen(true); }} accessibilityRole="button" accessibilityLabel="Legg til felt">
-                  <Text style={{ color: colors.brand }}>Legg til felt</Text>
-                </TouchableOpacity>
-              </View>
-              <View ref={canvasRef}>
-                <FormDocument
-                  draft={draft}
-                  colors={colors}
-                  mode="edit"
-                  companyLogo={companyLogo}
-                  selected={selected}
-                  onSelect={setSelected}
-                  onPatch={changeDocument}
-                  onType={(index) => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
-                  onDuplicate={(index) => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }}
-                  onMove={(index, delta) => {
-                    onDraft({ ...draft, fields: moveField(draft.fields, index, index + delta) });
-                    setSelected(Math.max(0, Math.min(draft.fields.length - 1, index + delta)));
-                  }}
-                  onDelete={(index) => {
-                    const fields = draft.fields.filter((_, i) => i !== index);
-                    onDraft({ ...draft, fields });
-                    setSelected(Math.max(0, index - 1));
-                  }}
-                  onOptionImage={setOptionImage}
-                  onGrip={beginDrag}
-                  drag={drag}
-                  fieldRefs={fieldRefs}
-                />
-              </View>
-            </ScrollView>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
-              <Text style={[styles.kicker, { color: colors.muted }]}>Forhåndsvisning</Text>
-              <Text style={{ color: colors.muted, fontSize: 13 }}>Slik ser dokumentet ut når det fylles ut. Den ligger her hele tiden.</Text>
-              <FormDocument
-                draft={{ ...draft, fields: previewFields }}
-                colors={colors}
-                mode="fill"
-                companyLogo={companyLogo}
-                answers={answers}
-                onAnswer={(id, next) => setAnswers((current) => ({ ...current, [id]: next }))}
-                onPickFile={(field) => setAnswers((current) => ({ ...current, [field.id]: { name: field.kind === 'image' ? 'bilde.jpg' : 'fil.pdf' } }))}
-                optionsFor={optionsFor}
-                showSubmit
-                email={email}
-                onEmail={setEmail}
-                sent={sent}
-                sendNote={sendNote}
-                onSubmit={submit}
-                onAnother={() => { setSent(false); setAnswers({}); setEmail(''); }}
-                onSummary={() => openTab('responses')}
-                progress={progress}
-              />
-            </ScrollView>
-          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
+            <View style={styles.row}>
+              <TouchableOpacity onPress={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>{settings.useCompanyLogo ? 'Skjul logo i PDF' : 'Vis logo i PDF'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={setCover} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }} accessibilityRole="button" accessibilityLabel="Legg til felt">
+                <Text style={{ color: colors.brand }}>Legg til felt</Text>
+              </TouchableOpacity>
+            </View>
+            <FormEditor
+              draft={draft}
+              colors={colors}
+              selected={selected}
+              onSelect={setSelected}
+              onPatch={changeDocument}
+              onType={(index) => { setTypeFor(index); setTypeOpen(true); setSelected(index); }}
+              onDuplicate={(index) => { onDraft({ ...draft, fields: duplicateField(draft.fields, index) }); setSelected(index + 1); }}
+              onMove={(index, delta) => {
+                onDraft({ ...draft, fields: moveField(draft.fields, index, index + delta) });
+                setSelected(Math.max(0, Math.min(draft.fields.length - 1, index + delta)));
+              }}
+              onDelete={(index) => {
+                const fields = draft.fields.filter((_, i) => i !== index);
+                onDraft({ ...draft, fields });
+                setSelected(Math.max(0, index - 1));
+              }}
+              onDeleteIds={(indexes) => {
+                const drop = new Set(indexes);
+                onDraft({ ...draft, fields: draft.fields.filter((_, index) => !drop.has(index)) });
+                setSelected(-1);
+              }}
+              onAdd={(index) => { setTypeFor(null); setInsertAt(index); setTypeOpen(true); }}
+              onOptionImage={setOptionImage}
+            />
+          </ScrollView>
         )}
       </View>
       {typeOpen ? (
@@ -638,7 +452,6 @@ export default function FormStudio({
           </View>
         </View>
       ) : null}
-      <Ghost drag={drag} colors={colors} />
     </View>
   );
 }

@@ -33,6 +33,22 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
   if (!field || field.kind === 'title') {
     return <Text style={[doc ? styles.docSection : styles.title, { color: colors.ink, borderBottomColor: colors.line }]}>{field?.label}</Text>;
   }
+  if (field.editor === 'fast') {
+    const raw = field.value;
+    const shown = raw == null || raw === '' || raw === false
+      ? ''
+      : field.kind === 'check'
+        ? 'Ja'
+        : Array.isArray(raw)
+          ? raw.map((id) => (field.options || []).find((row) => row.id === id)?.label || String(id).replace(/^other:/, '')).filter(Boolean).join(', ')
+          : (typeof raw === 'object' ? (raw.name || '') : String(raw));
+    return (
+      <View style={{ gap: 2 }}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+        {shown ? <Text style={{ color: colors.ink }}>{shown}</Text> : null}
+      </View>
+    );
+  }
   const label = `${field.label}${field.required ? ' *' : ''}`;
   if (cell && signatureField(field)) {
     return field.value?.name

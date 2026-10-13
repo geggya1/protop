@@ -122,9 +122,14 @@ function PdfPreview({ draft, logo, colors, wide }) {
   );
 }
 
-function BuilderWork({ wide, colors, draft, logo, onToggleLogo, onCover, onAddField, editor }) {
+function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onToggleLogo, onCover, onAddField, editor }) {
   const tools = (
     <View style={styles.row}>
+      {[['brev', 'Brev'], ['skjema', 'Skjema']].map(([id, label]) => (
+        <TouchableOpacity key={id} onPress={() => onLayout(id)} accessibilityRole="button" accessibilityLabel={`Utseende ${label}`} style={[styles.typeChip, { backgroundColor: layout === id ? colors.brand : colors.sunken }]}>
+          <Text style={{ color: layout === id ? '#fff' : colors.ink }}>{label}</Text>
+        </TouchableOpacity>
+      ))}
       <TouchableOpacity onPress={onToggleLogo} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>{draft.settings?.useCompanyLogo ? 'Skjul logo i PDF' : 'Vis logo i PDF'}</Text>
       </TouchableOpacity>
@@ -424,6 +429,8 @@ export default function FormStudio({
             colors={colors}
             draft={draft}
             logo={settings.useCompanyLogo ? companyLogo?.dataUrl : ''}
+            layout={settings.layout === 'skjema' ? 'skjema' : 'brev'}
+            onLayout={(layout) => onDraft({ ...draft, settings: { ...settings, layout } })}
             onToggleLogo={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })}
             onCover={setCover}
             onAddField={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }}

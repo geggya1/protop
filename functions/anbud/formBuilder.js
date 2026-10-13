@@ -86,6 +86,7 @@ export function blankSettings() {
     shuffleQuestions: false,
     anotherResponse: true,
     useCompanyLogo: false,
+    layout: 'brev',
     confirmation: 'Svaret er sendt.',
   };
 }
@@ -201,6 +202,7 @@ export function normalizeSettings(raw) {
     shuffleQuestions: !!src.shuffleQuestions,
     anotherResponse: src.anotherResponse !== false,
     useCompanyLogo: !!src.useCompanyLogo,
+    layout: src.layout === 'skjema' ? 'skjema' : 'brev',
     confirmation: text(src.confirmation).slice(0, 280) || base.confirmation,
   };
 }

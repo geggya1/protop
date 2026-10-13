@@ -61,7 +61,8 @@ function hintOf(field) {
   if (field.kind === 'time') return '[TT:MM]';
   if (field.kind === 'long') return 'Lengre tekst';
   if (field.kind === 'image' && /signatur|underskrift/i.test(field.label || '')) return 'Signatur';
-  return fieldType(field.kind).hint;
+  const hint = fieldType(field.kind).hint;
+  return field.editor === 'fast' ? `${hint} · Låst` : hint;
 }
 
 function MarkBox({ on, colors, label, onPress }) {
@@ -147,7 +148,25 @@ function FieldCard({ item, colors, selected, marked, onSelect, onPatch, onType, 
               <Switch value={!!field.required} onValueChange={(required) => onPatch(index, { required })} />
               <Text style={{ color: colors.ink }}>{field.width === 'half' ? 'Ved siden av' : 'Egen linje'}</Text>
               <Switch value={field.width === 'half'} onValueChange={(half) => onPatch(index, { width: half ? 'half' : 'full' })} />
+              <Text style={{ color: colors.ink }}>Låst</Text>
+              <Switch value={field.editor === 'fast'} onValueChange={(locked) => onPatch(index, { editor: locked ? 'fast' : 'avsender' })} />
             </View>
+          ) : null}
+          {isAnswerField(field) && field.editor === 'fast' && !['choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
+            field.kind === 'check' ? (
+              <View style={styles.head}>
+                <Text style={{ color: colors.ink }}>Avkrysset</Text>
+                <Switch value={!!field.value} onValueChange={(value) => onPatch(index, { value })} />
+              </View>
+            ) : (
+              <TextInput
+                value={field.value == null ? '' : String(field.value)}
+                onChangeText={(value) => onPatch(index, { value })}
+                placeholder="Fast tekst. Kan ikke endres ved utfylling."
+                placeholderTextColor={colors.placeholder}
+                style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
+              />
+            )
           ) : null}
           {isAnswerField(field) && !['check', 'choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
             <TextInput

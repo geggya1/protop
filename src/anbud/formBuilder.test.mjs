@@ -159,6 +159,9 @@ assert.equal(normalizeSettings({ confirmation: 'Takk', anotherResponse: false, p
 assert.equal(normalizeSettings({}).anotherResponse, true);
 assert.equal(normalizeSettings({}).useCompanyLogo, false);
 assert.equal(normalizeSettings({ useCompanyLogo: true }).useCompanyLogo, true);
+assert.equal(normalizeSettings({}).layout, 'brev');
+assert.equal(normalizeSettings({ layout: 'skjema' }).layout, 'skjema');
+assert.equal(normalizeSettings({ layout: 'annet' }).layout, 'brev');
 
 const summary = summarizeQuestion(
   { id: 'mat', label: 'Mat', kind: 'choice', other: true, options: [{ id: 'a', label: 'Salat' }, { id: 'b', label: 'Dessert' }] },

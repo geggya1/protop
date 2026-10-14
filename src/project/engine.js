@@ -346,11 +346,11 @@ export function normalizeAbsenceRow(row) {
   const employeeId = text(row.employeeId);
   const date = text(row.date);
   if (!employeeId || !date) return null;
+  // Ikke lagre hele Excel-raden (values) — det sprenger cache/batch ved store importer.
   const source = row.source && typeof row.source === 'object'
     ? {
       filename: text(row.source.filename),
       importedAt: text(row.source.importedAt),
-      values: row.source.values && typeof row.source.values === 'object' ? row.source.values : {},
     }
     : null;
   const percentRaw = row.percent == null || row.percent === '' ? null : Number(row.percent);
@@ -367,7 +367,7 @@ export function normalizeAbsenceRow(row) {
     assessedBy: text(row.assessedBy),
     percent: Number.isFinite(percentRaw) ? percentRaw : null,
     importFingerprint: text(row.importFingerprint),
-    source,
+    ...(source?.filename || source?.importedAt ? { source } : {}),
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
@@ -1623,6 +1623,15 @@ export function deleteAbsences(state, absenceIds) {
   if (absences.length === state.absences.length) {
     return fail(state, 'Fraværet finnes ikke.');
   }
+  return ok({ ...state, absences });
+}
+
+/** Tøm fraværslisten i state (etter clearAbsences i skyen). */
+export function clearAbsencesState(state, { importedOnly = false } = {}) {
+  const current = Array.isArray(state.absences) ? state.absences : [];
+  const absences = importedOnly
+    ? current.filter((row) => !(text(row.importFingerprint) || text(row.source?.filename)))
+    : [];
   return ok({ ...state, absences });
 }
 

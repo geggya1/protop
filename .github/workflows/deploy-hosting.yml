@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      # intakeScan.test.mjs (verify:web) trenger functions-deps (firebase-functions, msgreader).
+      - run: npm ci --prefix functions
+
       - run: npm run verify:web
 
       - run: npm run build:web

@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../src/theme';
+
+/** Apple-innlogging er ferdig i authProviders, men skjules til den skal ut. */
+export const SHOW_APPLE_SIGN_IN = false;
 
 /** Official-style multicolor Google G. */
 function GoogleLogo({ size = 20 }) {
@@ -28,7 +31,8 @@ function MicrosoftLogo({ size = 20 }) {
 }
 
 /**
- * Twitter/Spotify-style social buttons: full-width outline pills with provider logos.
+ * Outline pills for social sign-in. Buttons share one width (the longest label)
+ * and sit centered on the card. Apple stays in the tree only while SHOW_APPLE_SIGN_IN is on.
  */
 export default function SocialAuthButtons({
   onGoogle,
@@ -38,41 +42,55 @@ export default function SocialAuthButtons({
   googleLabel = 'Continue with Google',
   appleLabel = 'Continue with Apple',
   microsoftLabel = 'Continue with Microsoft',
+  showApple = SHOW_APPLE_SIGN_IN,
 }) {
+  const [equalWidth, setEqualWidth] = useState(0);
+  const widths = useRef({});
+
+  const measure = (key) => (event) => {
+    if (Platform.OS === 'web') return;
+    const next = Math.ceil(event.nativeEvent.layout.width);
+    if (!next || widths.current[key] === next) return;
+    widths.current[key] = next;
+    const max = Math.max(...Object.values(widths.current));
+    setEqualWidth((prev) => (prev >= max ? prev : max));
+  };
+
+  const buttons = [
+    { key: 'google', label: googleLabel, onPress: onGoogle, icon: <GoogleLogo size={20} /> },
+    { key: 'microsoft', label: microsoftLabel, onPress: onMicrosoft, icon: <MicrosoftLogo size={20} /> },
+  ];
+  if (showApple) {
+    buttons.push({
+      key: 'apple',
+      label: appleLabel,
+      onPress: onApple,
+      icon: <Ionicons name="logo-apple" size={22} color="#0f1419" />,
+    });
+  }
+
   return (
     <View style={styles.wrap}>
-      <TouchableOpacity
-        style={[styles.btn, busy && styles.btnDisabled]}
-        onPress={onGoogle}
-        disabled={busy}
-        accessibilityRole="button"
-        accessibilityLabel={googleLabel}
-      >
-        <GoogleLogo size={20} />
-        <Text style={styles.btnTxt}>{googleLabel}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.btn, busy && styles.btnDisabled]}
-        onPress={onMicrosoft}
-        disabled={busy}
-        accessibilityRole="button"
-        accessibilityLabel={microsoftLabel}
-      >
-        <MicrosoftLogo size={20} />
-        <Text style={styles.btnTxt}>{microsoftLabel}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.btn, busy && styles.btnDisabled]}
-        onPress={onApple}
-        disabled={busy}
-        accessibilityRole="button"
-        accessibilityLabel={appleLabel}
-      >
-        <Ionicons name="logo-apple" size={22} color="#0f1419" />
-        <Text style={styles.btnTxt}>{appleLabel}</Text>
-      </TouchableOpacity>
+      <View style={styles.stack}>
+        {buttons.map((btn) => (
+          <TouchableOpacity
+            key={btn.key}
+            style={[
+              styles.btn,
+              busy && styles.btnDisabled,
+              Platform.OS !== 'web' && equalWidth ? { width: equalWidth } : null,
+            ]}
+            onLayout={measure(btn.key)}
+            onPress={btn.onPress}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={btn.label}
+          >
+            {btn.icon}
+            <Text style={styles.btnTxt} numberOfLines={1}>{btn.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {busy ? (
         <ActivityIndicator color={colors.brand} style={{ marginTop: 4 }} />
@@ -92,21 +110,29 @@ export function OrDivider({ label = 'OR' }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12, width: '100%' },
+  wrap: { width: '100%', alignItems: 'center' },
+  stack: {
+    gap: 12,
+    maxWidth: '100%',
+    alignItems: 'center',
+    ...Platform.select({
+      web: { width: 'fit-content', alignItems: 'stretch' },
+      default: {},
+    }),
+  },
   btn: {
-    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
     minHeight: 48,
-    paddingHorizontal: 18,
+    paddingHorizontal: 22,
     borderRadius: radius.pill,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
     ...Platform.select({
-      web: { cursor: 'pointer' },
+      web: { cursor: 'pointer', width: '100%' },
       default: {},
     }),
   },

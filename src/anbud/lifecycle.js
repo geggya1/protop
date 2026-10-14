@@ -773,6 +773,45 @@ export function restoreContract(state, contractId) {
   }));
 }
 
+/**
+ * Sletter avtalen (og underavtaler) permanent fra papirkurven.
+ * Krever at avtalen allerede ligger i papirkurven. Tombstones hindrer at merge gjenoppretter den.
+ */
+export function purgeContract(state, contractId) {
+  const contract = contractById(state, contractId);
+  if (!contract) return fail(state, 'Kontrakten finnes ikke.');
+  if (!contract.deletedAt) return fail(state, 'Avtalen må ligge i papirkurven før den kan slettes helt.');
+  const removeIds = new Set([contract.id]);
+  for (const row of state.contracts || []) {
+    if (row?.parentId === contract.id) removeIds.add(row.id);
+  }
+  const at = new Date().toISOString();
+  const removedRows = (state.contracts || []).filter((row) => removeIds.has(row.id));
+  const deletedMap = new Map(
+    (Array.isArray(state.deletedContracts) ? state.deletedContracts : [])
+      .filter((row) => row?.id)
+      .map((row) => [row.id, row]),
+  );
+  for (const row of removedRows) {
+    deletedMap.set(row.id, {
+      id: row.id,
+      title: text(row.title),
+      deletedAt: at,
+    });
+  }
+  const contracts = (state.contracts || []).filter((row) => !removeIds.has(row.id));
+  return ok(record({
+    ...state,
+    contracts,
+    deletedContracts: [...deletedMap.values()],
+  }, {
+    bidId: contract.bidId,
+    contractId: contract.id,
+    action: 'avtale-slettet-permanent',
+    detail: contract.title,
+  }));
+}
+
 export function registerDirectContract(state, input) {
   const title = text(input?.title);
   if (!title) return fail(state, 'Avtalen trenger en tittel.');

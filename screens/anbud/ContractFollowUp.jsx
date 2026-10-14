@@ -6,6 +6,7 @@ import { projectFromAward } from '../../src/anbud/handoff';
 import {
   deleteContract,
   linkProject,
+  purgeContract,
   registerDirectContract,
   restoreContract,
   updateContractDetails,
@@ -30,6 +31,7 @@ import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useLayout } from '../../src/theme';
 import { watchEmployees } from '../../src/employees/storage';
@@ -78,6 +80,12 @@ export default function ContractFollowUp({
   onClearIntent,
 }) {
   const { requestShellTab } = useApp();
+  const access = useCompanyAccess();
+  /** Permanent slett er forbeholdt administrator (og eier via bypass). */
+  const canPurge = !access.previewLocks('contracts') && (
+    access.bypass
+    || (access.ready && access.levelId === 'administrator')
+  );
   const { isPhone } = useLayout();
   const [state, setState] = useState(null);
   const [note, setNote] = useState('');
@@ -93,6 +101,15 @@ export default function ContractFollowUp({
     buyer: '', project: '', from: '', to: '', query: '', status: 'alle',
   });
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [purgeTarget, setPurgeTarget] = useState(null);
+  const columns = useMemo(
+    () => COLUMNS.map((column) => (
+      column.key === 'actions' && canPurge
+        ? { ...column, width: 180 }
+        : column
+    )),
+    [canPurge],
+  );
 
   useEffect(() => {
     loadAnbudState(companyId).then((loaded) => {
@@ -250,6 +267,9 @@ export default function ContractFollowUp({
   const childCount = deleteTarget
     ? contracts.filter((row) => row.parentId === deleteTarget.id && !row.deletedAt).length
     : 0;
+  const purgeChildCount = purgeTarget
+    ? contracts.filter((row) => row.parentId === purgeTarget.id).length
+    : 0;
 
   function cell(row, key) {
     const customer = customers.find((item) => item.id === row.customerId) || null;
@@ -303,6 +323,21 @@ export default function ContractFollowUp({
     if (!result?.ok) return;
     setNote(`«${row.title || 'Avtalen'}» er gjenopprettet.`);
     showSaveToast(`«${row.title || 'Avtalen'}» er gjenopprettet.`);
+  }
+
+  async function confirmPurge() {
+    if (!purgeTarget || !canPurge) return;
+    const target = purgeTarget;
+    setPurgeTarget(null);
+    const loaded = await loadAnbudState(companyId);
+    const result = await commit(purgeContract(loaded, target.id));
+    if (!result?.ok) return;
+    if (selectedId === target.id || contracts.some((row) => row.parentId === target.id && row.id === selectedId)) {
+      setView('list');
+      setSelectedId('');
+    }
+    setNote(`«${target.title || 'Avtalen'}» er slettet helt.`);
+    showSaveToast(`«${target.title || 'Avtalen'}» er slettet helt.`);
   }
 
   if (!state) return null;
@@ -407,12 +442,20 @@ export default function ContractFollowUp({
           onAssignOwner={assignOwner}
           onOpenAgreement={(id) => { setSelectedId(id); setView('detail'); }}
           onNewChild={(kind) => { setComposeKind(kind); setComposeParent(selected.id); setView('compose'); }}
+          canPurge={canPurge}
           onDeleted={() => {
             setView('list');
             setSelectedId('');
             setNote('Avtalen er flyttet til papirkurven.');
             showSaveToast('Avtalen er flyttet til papirkurven.');
             setFilters((current) => ({ ...current, status: 'alle' }));
+          }}
+          onPurged={() => {
+            setView('list');
+            setSelectedId('');
+            setNote('Avtalen er slettet helt.');
+            showSaveToast('Avtalen er slettet helt.');
+            setFilters((current) => ({ ...current, status: 'papirkurv' }));
           }}
         />
       ) : null}
@@ -446,9 +489,16 @@ export default function ContractFollowUp({
                       </View>
                     </TouchableOpacity>
                     {row.deletedAt ? (
-                      <TouchableOpacity onPress={() => restoreRow(row)} accessibilityRole="button">
-                        <Text style={{ color: colors.brand, fontWeight: '600' }}>Gjenopprett</Text>
-                      </TouchableOpacity>
+                      <View style={styles.row}>
+                        <TouchableOpacity onPress={() => restoreRow(row)} accessibilityRole="button">
+                          <Text style={{ color: colors.brand, fontWeight: '600' }}>Gjenopprett</Text>
+                        </TouchableOpacity>
+                        {canPurge ? (
+                          <TouchableOpacity onPress={() => setPurgeTarget(row)} accessibilityRole="button">
+                            <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett helt</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                     ) : (
                       <TouchableOpacity onPress={() => setDeleteTarget(row)} accessibilityRole="button">
                         <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett</Text>
@@ -463,7 +513,7 @@ export default function ContractFollowUp({
             <ScrollView horizontal style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <View>
                 <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-                  {COLUMNS.map((column) => (
+                  {columns.map((column) => (
                     <Text key={column.key || column.label} style={[styles.th, { width: column.width, color: colors.muted }]}>
                       {column.label}
                     </Text>
@@ -476,19 +526,31 @@ export default function ContractFollowUp({
                       key={row.id}
                       style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
                     >
-                      {COLUMNS.map((column) => {
+                      {columns.map((column) => {
                         if (column.key === 'actions') {
                           return (
-                            <View key="actions" style={[styles.actions, { width: column.width }]}>
+                            <View key="actions" style={[styles.actions, { width: column.width, gap: 8 }]}>
                               {row.deletedAt ? (
-                                <TouchableOpacity
-                                  onPress={() => restoreRow(row)}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={`Gjenopprett ${row.title || 'avtale'}`}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                  <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Gjenopprett</Text>
-                                </TouchableOpacity>
+                                <>
+                                  <TouchableOpacity
+                                    onPress={() => restoreRow(row)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Gjenopprett ${row.title || 'avtale'}`}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Gjenopprett</Text>
+                                  </TouchableOpacity>
+                                  {canPurge ? (
+                                    <TouchableOpacity
+                                      onPress={() => setPurgeTarget(row)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Slett helt ${row.title || 'avtale'}`}
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                      <Text style={{ color: colors.danger || '#b42318', fontSize: 13, fontWeight: '600' }}>Slett helt</Text>
+                                    </TouchableOpacity>
+                                  ) : null}
+                                </>
                               ) : (
                                 <TouchableOpacity
                                   onPress={() => setDeleteTarget(row)}
@@ -579,6 +641,21 @@ export default function ContractFollowUp({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         onClose={() => setDeleteTarget(null)}
+      />
+      <ConfirmDialog
+        visible={!!purgeTarget}
+        title="Slett helt?"
+        message={purgeTarget
+          ? (purgeChildCount
+            ? `«${purgeTarget.title || 'Avtalen'}» og ${purgeChildCount} underavtale${purgeChildCount === 1 ? '' : 'r'} slettes for godt og kan ikke gjenopprettes.`
+            : `«${purgeTarget.title || 'Avtalen'}» slettes for godt og kan ikke gjenopprettes.`)
+          : ''}
+        confirmText="Slett helt"
+        cancelText="Avbryt"
+        danger
+        onCancel={() => setPurgeTarget(null)}
+        onConfirm={confirmPurge}
+        onClose={() => setPurgeTarget(null)}
       />
     </View>
   );

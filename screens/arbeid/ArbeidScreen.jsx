@@ -64,6 +64,11 @@ import {
   filterTimeEntries,
   reportSummary,
 } from '../../src/arbeid/reports.js';
+import {
+  filterTimesheetProjects,
+  timesheetActivityRange,
+  timesheetHoursLoadRange,
+} from '../../src/arbeid/timesheetProjects.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
@@ -161,11 +166,14 @@ export default function ArbeidScreen({
     return () => { live = false; };
   }, [workspaceId]);
 
-  // Timer kun for synlig måned (merge i minne ved månedsbytte).
+  // Timer for synlig måned + aktivitetsvindu (siste ~2 mnd) for prosjektfilter.
   useEffect(() => {
     if (!ready || !workspaceId) return undefined;
     let live = true;
-    const range = monthDateRange(year, monthIndex);
+    const range = timesheetHoursLoadRange(
+      timesheetActivityRange(today),
+      monthDateRange(year, monthIndex),
+    );
     setHoursLoading(true);
     ensureProjectHours(workspaceId, range).then((loaded) => {
       if (!live) return;
@@ -178,7 +186,7 @@ export default function ArbeidScreen({
       setError('Kunne ikke laste timer for måneden.');
     });
     return () => { live = false; };
-  }, [ready, workspaceId, year, monthIndex]);
+  }, [ready, workspaceId, year, monthIndex, today]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -266,24 +274,35 @@ export default function ArbeidScreen({
   const monthFromDate = days[0]?.key || '';
   const monthToDate = days[days.length - 1]?.key || '';
 
+  const activityRange = useMemo(() => timesheetActivityRange(today), [today]);
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
     const list = projectsForEmployee(state, employeeId, {
       assignedOnly,
-      fromDate: monthFromDate,
-      toDate: monthToDate,
+      fromDate: activityRange.fromDate < monthFromDate ? activityRange.fromDate : monthFromDate,
+      toDate: activityRange.toDate > monthToDate ? activityRange.toDate : monthToDate,
       includeHourProjects: true,
     });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
     const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
     const roleByProject = new Map(members.map((row) => [row.projectId, row]));
-    return list
-      .map((project) => ({
-        project,
-        member: roleByProject.get(project.id),
-        starred: starred.has(project.id),
-      }))
+    const mapped = list.map((project) => ({
+      project,
+      member: roleByProject.get(project.id),
+      starred: starred.has(project.id),
+    }));
+    const visible = filterTimesheetProjects(mapped, {
+      timeEntries: state.timeEntries,
+      employeeId,
+      activityFrom: activityRange.fromDate,
+      activityTo: activityRange.toDate,
+      viewFrom: monthFromDate,
+      viewTo: monthToDate,
+      keepAll: !!q,
+    });
+    return visible
       .filter(({ project }) => {
         if (!q) return true;
         return [`#${project.number}`, project.name, project.client, project.manager]
@@ -295,7 +314,7 @@ export default function ArbeidScreen({
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate]);
+  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange]);
 
   const joinable = useMemo(() => {
     if (!employeeId || assignedOnly) return [];
@@ -1076,45 +1095,47 @@ export default function ArbeidScreen({
         </ScrollView>
       ) : null}
       {!isPhone ? (
-        <TimesheetGrid
-          colors={colors}
-          days={markedDays}
-          weeks={weeks}
-          monthLabel={currentMonthLabel}
-          projects={shownProjects.map(({ project, member, starred }) => ({
-            project,
-            member,
-            starred,
-            hoursFor: (day) => {
-              const cell = entriesByCell.get(entryKey(project.id, day.key));
-              return cell ? parseHours(cell.hours) : 0;
-            },
-          }))}
-          hiddenProjects={hiddenProjects}
-          absenceRows={pinnedTypes.map((typeId) => ({
-            id: typeId,
-            label: absenceTypeById(typeId).label,
-            hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
-              row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
-                ? sum + parseHours(row.hours)
-                : sum
-            ), 0),
-          }))}
-          agreedByDay={agreedByDay}
-          balanceCells={balanceCells}
-          payrollByDay={payrollByDay}
-          selectedDay={selectedDay}
-          todayKey={todayKey}
-          lockThrough={lockThrough}
-          showFlex={timeSettings.showFlexInTimesheet}
-          onSelectDay={setSelectedDay}
-          onToggleLock={toggleLock}
-          onOpenProject={openCell}
-          onOpenAbsence={openAbsenceCell}
-          onToggleStar={starProject}
-          onHideProject={(projectId) => hideProject(projectId, true)}
-          onShowProject={(projectId) => hideProject(projectId, false)}
-        />
+        <View style={styles.gridBleed}>
+          <TimesheetGrid
+            colors={colors}
+            days={markedDays}
+            weeks={weeks}
+            monthLabel={currentMonthLabel}
+            projects={shownProjects.map(({ project, member, starred }) => ({
+              project,
+              member,
+              starred,
+              hoursFor: (day) => {
+                const cell = entriesByCell.get(entryKey(project.id, day.key));
+                return cell ? parseHours(cell.hours) : 0;
+              },
+            }))}
+            hiddenProjects={hiddenProjects}
+            absenceRows={pinnedTypes.map((typeId) => ({
+              id: typeId,
+              label: absenceTypeById(typeId).label,
+              hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
+                row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
+                  ? sum + parseHours(row.hours)
+                  : sum
+              ), 0),
+            }))}
+            agreedByDay={agreedByDay}
+            balanceCells={balanceCells}
+            payrollByDay={payrollByDay}
+            selectedDay={selectedDay}
+            todayKey={todayKey}
+            lockThrough={lockThrough}
+            showFlex={timeSettings.showFlexInTimesheet}
+            onSelectDay={setSelectedDay}
+            onToggleLock={toggleLock}
+            onOpenProject={openCell}
+            onOpenAbsence={openAbsenceCell}
+            onToggleStar={starProject}
+            onHideProject={(projectId) => hideProject(projectId, true)}
+            onShowProject={(projectId) => hideProject(projectId, false)}
+          />
+        </View>
       ) : null}
 
       {isPhone ? null : actions}
@@ -1263,6 +1284,12 @@ export default function ArbeidScreen({
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
+  gridBleed: {
+    flex: 1,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    marginHorizontal: -16,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

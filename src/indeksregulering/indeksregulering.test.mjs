@@ -680,6 +680,27 @@ test('stor PDF leses ikke i nettleseren', async () => {
   );
 });
 
+test('pdfTextLooksReadable skiller prosa fra skannet-søppel', async () => {
+  const { pdfTextLooksReadable } = await import('./extractText.js');
+  assert.equal(pdfTextLooksReadable('Oppdragsgiver Nordvik kommune. NS 8403. Avtalt honorar pris 1080,- Oppstart 01.01.2025.'), true);
+  assert.equal(pdfTextLooksReadable(', ) ) ) ) ) ) ) <= ) ) (< > (? > <C ) ) ) ) !(, G, ? C, ?? ( ) ) ) ) C ) ) *I ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) J?K'), false);
+});
+
+test('skannet-lignende PDF med søppeltekst tvinger remote OCR-sti', async () => {
+  const { pdfTextLooksReadable } = await import('./extractText.js');
+  const junk = `${', ) ) ) ) ) ) ) <= ) ) (< > (? > <C ) ) ) ) !(, G,'.repeat(80)}`;
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.4\nBT ('),
+    Buffer.from(junk),
+    Buffer.from(') Tj ET\n%%EOF'),
+  ]);
+  await assert.rejects(
+    () => extractContractText(pdf, 'skannet-signert.pdf', 'application/pdf'),
+    /Fant ikke lesbar tekst/,
+  );
+  assert.equal(pdfTextLooksReadable(junk), false);
+});
+
 test('hopper over store FlateDecode-strømmer i PDF', async () => {
   const filler = 'x'.repeat(260000);
   const pdf = Buffer.concat([

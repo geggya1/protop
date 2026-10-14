@@ -373,6 +373,24 @@ assert.ok(side1.form.fields.some((row) => /avtalt\s*honorar\s*pris/i.test(row.la
 assert.ok(side1.form.fields.some((row) => /^sted$/i.test(row.label) && String(row.value) === 'Sandnes'));
 assert.equal(side1.form.fields.filter((row) => /underskrift (oppdragsgiver|consult1)/i.test(row.label) && row.kind === 'image').length, 2);
 
+const vilkar = formFromPlainText(`e) Utgifter (NS 8403 pkt. 10.4)
+Reiser og opphold godtgjøres i henhold til regulativet.
+Påslag på 10 % på angjeldende fakturabeløp beregnes for følgende ved
+fakturering gjennom Consult1:
+a) Faktura fra entreprenører, konsulenter eller leverandører
+b) Offentlige gebyrer
+h) Erstatningsansvar og forsikring (NS 8403 pkt. 8, 8.2 m.fl.)
+Consult1 svarer for påregnelig tap som påføres oppdragsgiver ved
+byggelederfeil som skyldes uaktsomhet iht NS 8403 pkt. 8.1, innenfor
+ansvarsbegrensningene i NS 8403 pkt. 5.2/8.2: Consult1 har gjennom
+forsikring dekket ansvar overfor oppdragsgivere.
+• erstatningskrav begrunnet med at det er opplysninger som har vist
+seg ikke å holde stikk om byggetiden.`, 'Vilkår');
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /Påslag[\s\S]*fakturering gjennom Consult1[\s\S]*a\) Faktura/i.test(row.label)));
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /innenfor\s+ansvarsbegrensningene[\s\S]*Consult1 har gjennom\s+forsikring/i.test(row.label)));
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /har vist seg ikke å holde stikk/i.test(row.label)));
+assert.equal(vilkar.form.fields.some((row) => row.kind !== 'note' && /^(ansvarsbegrensningene|fakturering gjennom)/i.test(row.label)), false);
+
 assert.equal(technicalFieldName('Text1'), true);
 assert.equal(technicalFieldName('Oppdragsgiver'), false);
 const widgets = formFromWidgets([

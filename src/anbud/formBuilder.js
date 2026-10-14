@@ -492,6 +492,10 @@ Utfyllingsfelter som er listet opp, er fasit for type. Bruk etiketten som står 
 Brevhode, dokumentnavn, dokument-id, org.nr, nettadresse, utskriftstid og sidefot er note, ikke utfyllingsfelt.
 Tekst i klammer, som [Skriv inn prosjektnavn] eller [Dato], er placeholder. Etiketten er ordene foran klammen.
 Felt som spør om prosent, beløp eller antall er number, også når en nabokolonne har [Dato].
+Hold separate skjemafelter adskilt: Eksternt PO.nr og Oppdragsnummer; Postnr og Sted; Gnr/Bnr og Opprettet dato; Oppstart, Sluttdato og Engasjementsbehov; Epost og Telefon nr; Tabell og Start indeks; Avtalt honorarpris; Merknad, Po og EHF under faktura.
+Når malen har en ferdig verdi (Consult1 AS, 916 538 804, 1350,- eks mva., 09525, Sandnes), legg den i value og behold etiketten ren (f.eks. Oppdragstaker / Organisasjons nr).
+«Sett inn …» / «Skriv inn …» og stubber som Adresse, Postnr., Sted er placeholder, ikke value.
+To signaturfelt (oppdragsgiver og Consult1) skal være image. Signeringssted og -dato på hver side er egne felt.
 Flere avkrysninger på samme linje, som ☐ EPOST ☐ EHF ☐ POST, er ett checks-felt.
 Avsnitt som er brutt over flere linjer i PDF-en (standardvilkår, lovtekst, bokstaverte punkter a)–h)) skal bli ÉN note per avsnitt med hele teksten i label. Ikke ett felt per linje.
 Gjentatte sidehoder på side 2 og senere skal ikke gjentas. Ta med hele siste side til slutten — ikke kutt midt i en setning.
@@ -660,7 +664,9 @@ function looksLikeFieldLine(line) {
   if (!value) return true;
   if (/\[[^\]]+\]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return true;
   if (chromeLine(value) || sectionLine(value) || isHeading(value) || letteredHeading(value)) return true;
+  if (/:\s*$/.test(value) || /:\s+\S/.test(value)) return true;
   if (/^[A-ZÆØÅ][^:]{1,55}:\s*\S/.test(value) && value.length < 110) return true;
+  if (/\b(gnr|bnr|post\s*nr|oppstart|sluttdato|telefon\s*nr|organisasjons\s*nr|start\s*indeks|honorar\s*pris)\b/i.test(value)) return true;
   return false;
 }
 
@@ -671,12 +677,12 @@ function shouldJoinLines(prev, next) {
   if (!left || !right) return false;
   if (letteredHeading(right) || sectionLine(right) || chromeLine(right) || isHeading(right)) return false;
   if (chromeLine(left) || sectionLine(left) || isHeading(left) || letteredHeading(left)) return false;
+  if (looksLikeFieldLine(left) || looksLikeFieldLine(right)) return false;
   if (/\[[^\]]+\]/.test(left) || CHECK_MARK.test(left)) return false;
   if (BULLET.test(left)) return /^[a-zæøå(,;:]/.test(right) && !BULLET.test(right);
   if (letteredListItem(right)) return !endsSentence(left) || letteredListItem(left) || proseLine(left);
-  if (looksLikeFieldLine(right) && !/^[a-zæøå(,;:]/.test(right)) return false;
   if (/^[a-zæøå(,;:]/.test(right) || /^\d+[.)]\s/.test(right)) return true;
-  if (!endsSentence(left) && right.length < 95 && !/^\S{1,40}:\s/.test(right) && !plainTitle(right)) {
+  if (!endsSentence(left) && right.length < 95 && !plainTitle(right)) {
     return left.length >= 24 || proseLine(left) || letteredListItem(left);
   }
   return false;
@@ -697,30 +703,114 @@ function joinWrappedLines(lines) {
   return out;
 }
 
+function isTemplateStub(value) {
+  return /^(adresse|postnr\.?|sted|firma|kontaktperson|dato|oppdragsnr\.?|po|ehf|epost|telefon(\s*nr)?|att|merknad)\.?$/i.test(text(value));
+}
+
+function isInstructionStub(value) {
+  return /^(sett inn|skriv inn|fyll inn|angi|lim inn)\b/i.test(text(value));
+}
+
 /** Etikett + ferdig verdi i malen, uten [klamme]. */
 function filledFromLine(raw, width = 'full') {
   const line = String(raw || '').trim();
-  if (!line || /\[[^\]]+\]/.test(line) || CHECK_MARK.test(line) || BULLET.test(line)) return null;
+  if (!line || CHECK_MARK.test(line) || BULLET.test(line)) return null;
   if (chromeLine(line) || sectionLine(line) || letteredHeading(line) || proseLine(line)) return null;
-  const colon = line.match(/^([^:]{2,60}?):\s+(.+)$/);
-  if (!colon) return null;
-  const label = stripDecor(colon[1]).slice(0, 120);
-  const value = text(colon[2]).slice(0, 8000);
-  if (!label || !value) return null;
-  if (/^(epost|telefon(\s*nr)?|adresse|post(\s*nr)?|att|org(anisasjon)?(\s*nr)?|dato|sted)\b\.?$/i.test(value)) return null;
-  if (foldLabel(label) === foldLabel(value)) return null;
-  const kind = kindFromLabel(label, line);
-  if (kind === 'date' && !/\d/.test(value)) {
-    return { ...blankField('date'), label, width, placeholder: placeholderOf(line) || 'Dato' };
+  const bracket = line.match(/^(.+?)\s*\[([^[\]]{1,80})\]\s*$/);
+  if (bracket && !bracket[1].includes(':')) {
+    const before = text(bracket[1]);
+    const spaced = before.match(/^((?:Avtalte honorar|Tildelt ressurs|Særlige bestemmelser|Oppdragstaker|Avtalt honorar pris))\s+(.+)$/i);
+    if (spaced) return makeAnswerField(spaced[1], spaced[2], bracket[2], width, line);
+    const label = stripDecor(before).slice(0, 120);
+    if (!label) return null;
+    return makeAnswerField(label, '', bracket[2], width, line);
   }
-  const field = {
-    ...blankField(kind === 'long' && value.length < 160 ? 'text' : kind),
+  const colon = line.match(/^([^:]{2,70}?):\s*(.*)$/);
+  if (!colon) {
+    const spaced = line.match(/^((?:Oppdragstaker|Oppdragsleder|Tildelt ressurs|Oppdragsgiver|Kontakt person|Avtalte honorar|Avtalt honorar pris|Generelle bestemmelser|Betalingsbetingelser|Særlige bestemmelser|Varsel\/kommunikasjon|Biomkostninger|Oppdragssted\s+Adresse|Gnr\s*\/\s*Bnr|Opprettet\s+dato|Beskrivelse av oppdraget|Angivelse av hvilke kontroller[^]*?for\.?))\s+(.+)$/i);
+    if (!spaced) return null;
+    const field = makeAnswerField(spaced[1], spaced[2], '', width, line);
+    if (field && /beskrivelse|angivelse/i.test(spaced[1]) && isInstructionStub(spaced[2]) === false && spaced[2].length > 40) {
+      field.kind = 'long';
+      field.placeholder = spaced[2].slice(0, 120);
+      field.value = '';
+    }
+    return field;
+  }
+  let label = text(colon[1]).replace(/[:：]\s*$/, '').slice(0, 120);
+  let value = text(colon[2]).slice(0, 8000);
+  let placeholder = placeholderOf(line);
+  if (!label) return null;
+  const nsKeep = label.match(/^(Generelle bestemmelser)\s+(NS\s*\d+.*)$/i);
+  if (nsKeep) {
+    label = nsKeep[1];
+    value = text([nsKeep[2], value].filter(Boolean).join(' : '));
+  }
+  const bracketInValue = value.match(/^(.*?)\[([^[\]]{1,80})\]\s*$/);
+  if (bracketInValue) {
+    const before = text(bracketInValue[1]);
+    const bracket = text(bracketInValue[2]);
+    if (before && /\bprosent\b|%/i.test(before)) {
+      label = `${label} ${before}`.replace(/\s+/g, ' ').slice(0, 120);
+      value = '';
+      placeholder = /^dato$/i.test(bracket) ? '' : bracket;
+    } else if (!before) {
+      value = '';
+      placeholder = bracket;
+    } else if (isTemplateStub(before) || isInstructionStub(before)) {
+      value = '';
+      placeholder = before;
+    }
+  }
+  if (!value) return makeAnswerField(label, '', placeholder, width, line);
+  if (/^(epost|telefon(\s*nr)?|adresse|post(\s*nr)?|att|org(anisasjon)?(\s*nr)?|dato|sted|po|ehf|tabell|start\s*indeks)\b\.?$/i.test(value)) {
+    return makeAnswerField(label, '', value, width, line);
+  }
+  if (foldLabel(label) === foldLabel(value) || isTemplateStub(value)) {
+    return makeAnswerField(label, '', value, width, line);
+  }
+  if (isInstructionStub(value)) {
+    return makeAnswerField(label, '', value, width, line);
+  }
+  return makeAnswerField(label, value, placeholder, width, line);
+}
+
+function makeAnswerField(labelRaw, valueRaw, placeholderRaw, width, source) {
+  const label = stripDecor(labelRaw).slice(0, 120);
+  if (!label) return null;
+  let kind = kindFromLabel(label, source || label);
+  if (/\bprosent\b|%/i.test(label) && kind === 'date') kind = 'number';
+  const placeholder = text(placeholderRaw).replace(/^\[|\]$/g, '').slice(0, 120);
+  let value = text(valueRaw).slice(0, 8000);
+  if (isTemplateStub(value) || isInstructionStub(value)) {
+    return {
+      ...blankField(kind),
+      label,
+      width,
+      placeholder: placeholder || value,
+      value: emptyAnswer(kind),
+    };
+  }
+  if (/^sted$/i.test(label) && value && !/^\d/.test(value) && !isTemplateStub(value)) {
+    kind = 'text';
+  }
+  if (kind === 'date' && value && !/\d/.test(value)) {
+    return { ...blankField('date'), label, width, placeholder: placeholder || value || 'Dato' };
+  }
+  if (kind === 'number' && placeholder && /^dato$/i.test(placeholder) && !value) {
+    return { ...blankField('number'), label, width, placeholder: '' };
+  }
+  const useKind = kind === 'long' && value && value.length < 160 ? 'text' : kind;
+  return {
+    ...blankField(useKind),
     label,
     width,
-    value: coerceAnswer(kind === 'long' && value.length < 160 ? 'text' : kind, value),
-    placeholder: '',
+    value: value ? coerceAnswer(useKind, value) : emptyAnswer(useKind),
+    placeholder: value ? '' : (placeholder || (useKind === 'date' ? 'Dato' : '')),
+    review: /signatur|underskrift/i.test(label)
+      ? 'Signaturfelt. Behold bilde hvis det skal tegnes, eller bytt til kort svar hvis navnet skrives.'
+      : '',
   };
-  return field;
 }
 
 function checksFromBoxes(line) {
@@ -733,6 +823,56 @@ function checksFromBoxes(line) {
   return field.options.length >= 2 ? field : null;
 }
 
+/** Del skjemalinjer med flere etiketter på samme rad (PDF-kolonner). */
+const ROW_SPLIT = new RegExp(
+  [
+    '(?=',
+    [
+      'Eksternt\\s+PO\\.?\\s*nr',
+      'Oppdrags\\s+nummer',
+      'Post\\s+nr\\.?',
+      'Gnr\\s*/\\s*Bnr',
+      'Opprettet\\s+dato',
+      'Oppstart\\s*:',
+      'Sluttdato\\s*:',
+      'Engasjement\\s+behov',
+      'Organisasjons\\s+nr',
+      'Telefon\\s+nr',
+      'Att\\s*:',
+      '(?<![A-Za-zÆØÅæøå])Po\\s*:',
+      '(?<![A-Za-zÆØÅæøå])EHF\\s*:',
+      'Tabell\\s*:',
+      'Start\\s+indeks',
+      'Avtalt\\s+honorar\\s+pris',
+      'Påslagsprosent',
+      'Epost\\s*:',
+      '(?<![A-Za-zÆØÅæøå])Sted\\s*:',
+      '(?<=:\\s*(?:[^:\\[\\]]{1,40}?\\s)?)Dato\\s*:',
+    ].join('|'),
+    ')',
+  ].join(''),
+  'i',
+);
+
+function splitRowChunks(line) {
+  const raw = String(line || '').trim();
+  if (!raw) return [];
+  const rough = raw.split(ROW_SPLIT).map((part) => part.trim()).filter(Boolean);
+  if (rough.length >= 2) return rough;
+  // Dobbel mellomrom: bare når begge deler er egne etiketter — ikke «Label:  verdi».
+  const spaced = raw.split(/\s{2,}/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));
+  if (
+    spaced.length >= 2
+    && !spaced.some((part, index) => index < spaced.length - 1 && /:\s*$/.test(part))
+    && spaced.every((part) => /:\s*$/.test(part) || /\[[^\]]+\]/.test(part) || /^(Post\s*nr|Sted|Att|Po|EHF|Epost|Telefon)/i.test(part))
+  ) {
+    return spaced;
+  }
+  const afterBracket = raw.split(/(?<=\])\s+(?=[A-ZÆØÅ])/).map((part) => part.trim()).filter(Boolean);
+  if (afterBracket.length >= 2) return afterBracket;
+  return [raw];
+}
+
 function explodeBlanks(line) {
   const raw = String(line || '').trim();
   const boxes = raw.match(/[☐☑☒□■]/g) || [];
@@ -740,11 +880,24 @@ function explodeBlanks(line) {
     const field = checksFromBoxes(raw);
     return field ? [field] : null;
   }
-  if (!/\[[^\]]+\]/.test(raw)) return null;
-  const chunks = raw.split(/\s{2,}|(?<=\])\s+(?=\S)/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));
-  if (chunks.length < 2) return null;
-  const width = chunks.length === 2 ? 'half' : 'full';
-  const fields = chunks.map((part) => pushField(part, width)).filter(Boolean);
+  const chunks = splitRowChunks(raw);
+  if (chunks.length < 2 && !/\[[^\]]+\]/.test(raw) && !/:\s/.test(raw) && !/:\s*$/.test(raw) && !/^(Oppdragstaker|Tildelt ressurs|Avtalte honorar|Avtalt honorar pris|Generelle bestemmelser)\b/i.test(raw)) {
+    return null;
+  }
+  const parts = chunks.length >= 2 ? chunks : [raw];
+  const width = parts.length >= 2 ? 'half' : 'full';
+  const fields = [];
+  for (const part of parts) {
+    let chunk = part;
+    // [Oppdragsnr.] som havnet på adresselinjen hører til oppdragsnummer, ikke adresse.
+    const strayNumber = chunk.match(/^(.*?)\[Oppdragsnr\.?\]\s*$/i);
+    if (strayNumber && /adresse|oppdragssted/i.test(strayNumber[1])) {
+      chunk = strayNumber[1].trim();
+    }
+    const filled = filledFromLine(chunk, width);
+    const field = filled || pushField(chunk, width);
+    if (field) fields.push(field);
+  }
   return fields.length ? fields : null;
 }
 
@@ -826,15 +979,6 @@ export function formFromPlainText(source, titleHint = '') {
     lastWasChrome = false;
   }
   for (const line of lines) {
-    const exploded = explodeBlanks(line);
-    if (exploded) {
-      pending = null;
-      lastWasChrome = false;
-      for (const field of exploded) fields.push(field);
-      const last = exploded[exploded.length - 1];
-      if (last && ['text', 'choice', 'checks'].includes(last.kind)) pending = last;
-      continue;
-    }
     if (chromeLine(line)) {
       pending = null;
       lastWasChrome = true;
@@ -842,6 +986,38 @@ export function formFromPlainText(source, titleHint = '') {
       if (key && seenChrome.has(key)) continue;
       if (key) seenChrome.add(key);
       fields.push({ ...blankField('note'), label: stripDecor(line).slice(0, NOTE_LABEL_MAX) });
+      continue;
+    }
+    if (/^\s*underskrift\b/i.test(line) || (/\bunderskrift\b/i.test(line) && /\bunderskrift\b.*\bunderskrift\b/i.test(line))) {
+      pending = null;
+      lastWasChrome = false;
+      fields.push({
+        ...blankField('image'),
+        label: 'Underskrift oppdragsgiver',
+        placeholder: 'Signatur',
+        review: 'Signaturfelt. Behold bilde hvis det skal tegnes, eller bytt til kort svar hvis navnet skrives.',
+      });
+      fields.push({
+        ...blankField('image'),
+        label: 'Underskrift Consult1',
+        placeholder: 'Signatur',
+        review: 'Signaturfelt. Behold bilde hvis det skal tegnes, eller bytt til kort svar hvis navnet skrives.',
+      });
+      const validity = line.match(/Denne avtale[^]*?(?:parter|partene)\.?/i) || line.match(/kun gyldig[^.]*\.?/i);
+      if (validity) fields.push({ ...blankField('note'), label: text(validity[0]).slice(0, NOTE_LABEL_MAX) });
+      continue;
+    }
+    const exploded = explodeBlanks(line);
+    if (exploded) {
+      pending = null;
+      lastWasChrome = false;
+      for (const field of exploded) fields.push(field);
+      if (/\[Oppdragsnr/i.test(line) && /adresse|oppdragssted/i.test(line)) {
+        const target = [...fields].reverse().find((row) => /oppdrags\s*nummer/i.test(row.label));
+        if (target && !target.placeholder && !target.value) target.placeholder = 'Oppdragsnr.';
+      }
+      const last = exploded[exploded.length - 1];
+      if (last && ['text', 'choice', 'checks'].includes(last.kind)) pending = last;
       continue;
     }
     const pair = line.split(/\t+|\s{3,}/).map((part) => part.trim()).filter((part) => part && !/^[_·.]{3,}$/.test(part));

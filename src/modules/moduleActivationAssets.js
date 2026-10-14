@@ -46,6 +46,7 @@ const BUNDLED = {
   hospitality: require('../../assets/module-activation/utleie--module-activation-illustration.png'),
   projects: require('../../assets/module-activation/prosjekt--module-activation-illustration.png'),
   ansatte: require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
+  kunder: require('../../assets/module-activation/kunder--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

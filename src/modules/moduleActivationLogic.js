@@ -64,6 +64,7 @@ export const ILLUSTRATION_FILES = {
   hospitality: 'utleie--module-activation-illustration.png',
   projects: 'prosjekt--module-activation-illustration.png',
   ansatte: 'ansatte--module-activation-illustration.png',
+  kunder: 'kunder--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

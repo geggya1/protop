@@ -42,7 +42,8 @@ export const COMPANY_HERO = {
     ),
   },
   kunder: {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Kunder',
     kicker: t('Kunder', 'Customers'),
     title: t('Kunderegisteret', 'Customer register'),

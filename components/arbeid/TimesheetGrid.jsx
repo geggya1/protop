@@ -21,6 +21,7 @@ export default function TimesheetGrid({
   colors,
   days,
   weeks,
+  monthLabel = '',
   projects,
   hiddenProjects = [],
   absenceRows = [],
@@ -41,6 +42,7 @@ export default function TimesheetGrid({
 }) {
   const gridMinWidth = LABEL_W + days.length * CELL_W + TOTAL_W;
   const lockLine = lockThrough;
+  const daysWidth = days.length * CELL_W;
 
   function cellBg(day, { hours = 0, selected = false } = {}) {
     if (lockLine && day.key === lockLine) return '#d7f7f3';
@@ -66,6 +68,36 @@ export default function TimesheetGrid({
       nativeID="timesheet-grid"
     >
       <ScrollView nestedScrollEnabled>
+        {monthLabel ? (
+          <View style={styles.row} nativeID="timesheet-month-row">
+            <View
+              style={[
+                styles.weekCell,
+                styles.monthSideCell,
+                { width: LABEL_W, borderColor: colors.line },
+              ]}
+            />
+            <View
+              style={[
+                styles.weekCell,
+                {
+                  width: daysWidth,
+                  borderColor: colors.line,
+                  backgroundColor: colors.sunken || colors.bg,
+                },
+              ]}
+            >
+              <Text style={{ color: colors.ink, fontSize: 11, fontWeight: '700' }}>{monthLabel}</Text>
+            </View>
+            <View
+              style={[
+                styles.weekCell,
+                styles.monthSideCell,
+                { width: TOTAL_W, borderColor: colors.line, borderRightWidth: 0 },
+              ]}
+            />
+          </View>
+        ) : null}
         <View style={styles.row}>
           <View style={[styles.labelCell, { width: LABEL_W, borderColor: colors.line }]} />
           {weeks.map((week) => (
@@ -303,6 +335,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
+    minHeight: 28,
+  },
+  monthSideCell: {
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
   dayHead: {
     borderBottomWidth: StyleSheet.hairlineWidth,

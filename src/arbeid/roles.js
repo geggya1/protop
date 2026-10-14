@@ -1,5 +1,10 @@
 /** Prosjektroller og tilgang for Arbeid-modulen. */
 
+import {
+  employeeActivityTab,
+  employeeDirectoryBucket,
+} from '../employees/model.js';
+
 export const PROJECT_ROLES = [
   'Prosjektleder',
   'Prosjektmedlem',
@@ -51,27 +56,68 @@ export function employeeDisplayName(employee) {
   return [first, last].filter(Boolean).join(' ') || employee.company?.email || 'Uten navn';
 }
 
+/** E-post vist i komprimert personvalg (selskap først). */
+export function employeePickerEmail(employee) {
+  return String(employee?.company?.email || employee?.person?.email || '').trim();
+}
+
+function pickerSearchHaystack(row) {
+  return [
+    employeeDisplayName(row),
+    row.person?.firstName,
+    row.person?.middleName,
+    row.person?.lastName,
+    row.company?.accessRole,
+    row.company?.title,
+    row.company?.externalEmployeeNumber,
+    row.person?.email,
+    row.company?.email,
+  ].join(' ').toLowerCase();
+}
+
+export function matchEmployeePickerQuery(row, query = '') {
+  const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  const hay = pickerSearchHaystack(row);
+  return tokens.every((token) => hay.includes(token));
+}
+
 /**
  * Filtrer aktive medarbeidere for Velg medarbeider-listen.
  * Søker i navn, rolle, tittel, ansattnummer og e-post.
  */
 export function filterEmployeesForPicker(employees, query = '') {
   const active = (Array.isArray(employees) ? employees : [])
-    .filter((row) => row?.company?.status !== 'former');
-  const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return active;
-  return active.filter((row) => {
-    const hay = [
-      employeeDisplayName(row),
-      row.person?.firstName,
-      row.person?.middleName,
-      row.person?.lastName,
-      row.company?.accessRole,
-      row.company?.title,
-      row.company?.externalEmployeeNumber,
-      row.person?.email,
-      row.company?.email,
-    ].join(' ').toLowerCase();
-    return tokens.every((token) => hay.includes(token));
-  });
+    .filter((row) => row?.company?.status !== 'former' && employeeActivityTab(row) !== 'trash');
+  if (!String(query || '').trim()) return active;
+  return active.filter((row) => matchEmployeePickerQuery(row, query));
+}
+
+function sortPickerRows(rows) {
+  return [...rows].sort((a, b) => (
+    employeeDisplayName(a).localeCompare(employeeDisplayName(b), 'nb')
+  ));
+}
+
+/**
+ * Grupper medarbeidere for steg-1 / bytte-person i timelisten.
+ * Intern/ekstern + aktive/deaktiverte (som Ansatt-siden), uten papirkurv.
+ */
+export function groupEmployeesForTimesheetPicker(employees, query = '') {
+  const company = { active: [], inactive: [] };
+  const external = { active: [], inactive: [] };
+  for (const row of Array.isArray(employees) ? employees : []) {
+    const tab = employeeActivityTab(row);
+    if (tab === 'trash') continue;
+    if (!matchEmployeePickerQuery(row, query)) continue;
+    const bucket = employeeDirectoryBucket(row);
+    if (bucket === 'trash') continue;
+    const section = bucket === 'external' ? external : company;
+    if (tab === 'inactive') section.inactive.push(row);
+    else section.active.push(row);
+  }
+  return {
+    company: { active: sortPickerRows(company.active), inactive: sortPickerRows(company.inactive) },
+    external: { active: sortPickerRows(external.active), inactive: sortPickerRows(external.inactive) },
+  };
 }

@@ -231,7 +231,8 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-utlegg': {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Prosjektutlegg',
     kicker: t('Arbeid', 'Work'),
     title: t('Prosjektutlegg', 'Project expenses'),

@@ -294,6 +294,7 @@ assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal times
 assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -402,6 +403,17 @@ for (const file of [
 }
 assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
+const utleggFile = 'arbeid-utlegg--module-activation-illustration.png';
+const utleggBundled = join(ROOT, 'assets/module-activation', utleggFile);
+const utleggPublic = join(ROOT, 'public/assets/module-activation', utleggFile);
+assert.equal(existsSync(utleggBundled), true, 'utlegg bundled art');
+assert.equal(existsSync(utleggPublic), true, 'utlegg public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(utleggBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(utleggPublic)).digest('hex'),
+  'utlegg bundled != public',
+);
+assert.match(assetsSrc, /'arbeid-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-utlegg--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

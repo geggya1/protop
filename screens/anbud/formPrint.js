@@ -43,7 +43,8 @@ function blocks(fields, title) {
 
 function fieldHtml(field) {
   if (field.kind === 'note') {
-    return `<p class="prose">${esc(field.label)}</p>`;
+    const body = esc(field.label).replace(/\n+/g, '<br/>');
+    return `<p class="prose">${body}</p>`;
   }
   if (signatureField(field)) {
     return `<div class="sign"><div class="line"></div><div class="cap">${esc(field.label)}</div></div>`;

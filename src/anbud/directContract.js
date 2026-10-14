@@ -75,12 +75,28 @@ export function indexDraftFromInterpretation(draft, extras = {}) {
   });
 }
 
+function amountFromHonorar(honorar) {
+  const source = String(honorar || '').replace(/\s+/g, ' ').trim();
+  if (!source) return null;
+  const direct = parseAmount(source);
+  if (direct != null && direct > 0) return direct;
+  const match = source.match(/(\d[\d.]*)(?:,(\d{1,2}))?/);
+  if (!match) return null;
+  const amount = parseAmount(match[2] != null ? `${match[1]}.${match[2]}` : match[1]);
+  return amount != null && amount > 0 ? amount : null;
+}
+
 export function inputFromInterpretation(draft, extras = {}) {
   const title = text(extras.title || draft?.title) || 'Ny avtale';
   const start = parseIsoDate(extras.start || draft?.startDate) || '';
   const end = parseIsoDate(extras.end || draft?.endDate) || '';
   const documents = Array.isArray(extras.documents) ? extras.documents : [];
   const source = documents.map((doc) => doc.text).filter(Boolean).join('\n');
+  const honorar = text(extras.honorar || draft?.honorar);
+  const explicitValue = extras.value != null && extras.value !== '' ? parseAmount(extras.value) : null;
+  const value = (explicitValue != null && explicitValue > 0)
+    ? explicitValue
+    : (contractValueFromDraft(draft) || amountFromHonorar(honorar) || 0);
   return {
     title,
     buyer: text(extras.buyer || draft?.buyer),
@@ -89,7 +105,7 @@ export function inputFromInterpretation(draft, extras = {}) {
     description: text(extras.description || draft?.description),
     address: text(extras.address || draft?.address),
     kind: text(extras.kind || draft?.kind || agreementKindFromText(source)),
-    value: extras.value != null && extras.value !== '' ? extras.value : contractValueFromDraft(draft),
+    value,
     start,
     end,
     projectId: text(extras.projectId),
@@ -97,7 +113,7 @@ export function inputFromInterpretation(draft, extras = {}) {
     customerId: text(extras.customerId),
     systemId: text(extras.systemId),
     oppdragId: text(extras.oppdragId || extras.reference || draft?.reference),
-    honorar: text(extras.honorar || draft?.honorar),
+    honorar,
     place: text(extras.place || draft?.place),
     poNumber: text(extras.poNumber || draft?.poNumber),
     orgnr: text(extras.orgnr || draft?.orgnr),

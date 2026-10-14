@@ -10,12 +10,20 @@ if (Platform.OS === 'web') {
 }
 
 /**
- * Skyvefelt over siden. Brukes når et tannhjul åpner innstillinger
- * uten at de ligger som eget skilleark.
+ * Modal / skyvefelt over siden.
+ * placement="center" = dialog midt i viewport (søk/valg).
+ * placement="bottom" = klassisk bottom sheet (filtre).
  */
-export default function ScrollSheet({ visible, title, onClose, children }) {
+export default function ScrollSheet({
+  visible,
+  title,
+  onClose,
+  children,
+  placement = 'bottom',
+}) {
   const colors = useColors();
-  const scrollMax = Math.max(320, Math.round(Dimensions.get('window').height * 0.78));
+  const centered = placement === 'center';
+  const scrollMax = Math.max(280, Math.round(Dimensions.get('window').height * (centered ? 0.7 : 0.78)));
   const [allowDismiss, setAllowDismiss] = useState(false);
 
   useEffect(() => {
@@ -34,7 +42,15 @@ export default function ScrollSheet({ visible, title, onClose, children }) {
   };
 
   const sheet = (
-    <View style={[styles.sheet, { backgroundColor: colors.card }]} accessibilityRole="dialog" accessibilityViewIsModal>
+    <View
+      style={[
+        styles.sheet,
+        centered && styles.sheetCenter,
+        { backgroundColor: colors.card },
+      ]}
+      accessibilityRole="dialog"
+      accessibilityViewIsModal
+    >
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk">
@@ -53,8 +69,8 @@ export default function ScrollSheet({ visible, title, onClose, children }) {
 
   if (Platform.OS === 'web' && typeof document !== 'undefined' && document.body && createPortal) {
     return createPortal(
-      <div style={webRoot} onClick={dismiss}>
-        <div style={webSheetWrap} onClick={(event) => event.stopPropagation()}>
+      <div style={centered ? webRootCenter : webRootBottom} onClick={dismiss}>
+        <div style={centered ? webSheetWrapCenter : webSheetWrapBottom} onClick={(event) => event.stopPropagation()}>
           {sheet}
         </div>
       </div>,
@@ -64,9 +80,9 @@ export default function ScrollSheet({ visible, title, onClose, children }) {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss} statusBarTranslucent>
-      <View style={styles.nativeRoot}>
+      <View style={[styles.nativeRoot, centered && styles.nativeRootCenter]}>
         <Pressable style={styles.backdrop} onPress={dismiss} />
-        <View style={styles.nativeDock} pointerEvents="box-none">
+        <View style={[styles.nativeDock, centered && styles.nativeDockCenter]} pointerEvents="box-none">
           {sheet}
         </View>
       </View>
@@ -74,7 +90,7 @@ export default function ScrollSheet({ visible, title, onClose, children }) {
   );
 }
 
-const webRoot = {
+const webRootBottom = {
   position: 'fixed',
   top: 0,
   left: 0,
@@ -87,26 +103,54 @@ const webRoot = {
   background: 'rgba(26, 39, 68, 0.55)',
   padding: 0,
 };
-const webSheetWrap = {
+const webRootCenter = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 2147483646,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(26, 39, 68, 0.55)',
+  padding: 16,
+  boxSizing: 'border-box',
+};
+const webSheetWrapBottom = {
   width: '100%',
   maxWidth: 720,
   maxHeight: '92%',
   display: 'flex',
 };
+const webSheetWrapCenter = {
+  width: '100%',
+  maxWidth: 520,
+  maxHeight: '88%',
+  display: 'flex',
+};
 
 const styles = StyleSheet.create({
   nativeRoot: { flex: 1, justifyContent: 'flex-end' },
+  nativeRootCenter: { justifyContent: 'center', padding: 16 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(26, 39, 68, 0.55)',
   },
   nativeDock: { maxHeight: '92%', width: '100%' },
+  nativeDockCenter: { maxHeight: '88%', maxWidth: 520, alignSelf: 'center', width: '100%' },
   sheet: {
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     maxHeight: '100%',
     width: '100%',
     paddingTop: 8,
+  },
+  sheetCenter: {
+    borderRadius: 18,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    overflow: 'hidden',
   },
   head: {
     flexDirection: 'row',

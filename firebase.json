@@ -313,6 +313,13 @@
         }
       },
       {
+        "source": "/api/scan-anbud",
+        "function": {
+          "functionId": "scanAnbudDocumentHttp",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

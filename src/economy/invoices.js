@@ -344,12 +344,26 @@ export function normalizeInvoice(input) {
   return normalized;
 }
 
+/** Gjenkjenn nettleser-/AsyncStorage-kvotefeil (web localStorage ~5 MB). */
+export function isInvoiceCacheQuotaError(err) {
+  const name = String(err?.name || '');
+  const message = String(err?.message || '');
+  return name === 'QuotaExceededError'
+    || name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || err?.code === 22
+    || err?.code === 1014
+    || /quota/i.test(message)
+    || /exceeded the quota/i.test(message);
+}
+
 /**
- * Kompakt rad for AsyncStorage-liste/cache (invoiceStorage).
- * Beholder linjer, KID, MVA, EHF og bilags-id — ikke strip disse.
+ * Kompakt listesammendrag for AsyncStorage (invoiceStorage).
+ * Kun felt som fakturalisten trenger. Linjer, EHF, bilag, kontoer og source.values
+ * hentes fra Firestore i detaljvisning — ellers sprenges nettleserkvoten ved masseimport.
  */
 export function toInvoiceCacheRow(invoice) {
   const row = normalizeInvoice(invoice);
+  const hasAttachment = !!(row.attachment?.url || row.attachment?.storagePath || row.previewReady);
   return {
     id: row.id,
     invoiceNumber: row.invoiceNumber,
@@ -367,24 +381,23 @@ export function toInvoiceCacheRow(invoice) {
     amountInclVat: row.amountInclVat,
     outstanding: row.outstanding,
     outstandingAmount: row.outstandingAmount,
+    loss: row.loss,
     currency: row.currency,
     status: row.status,
+    sent: row.sent,
     sentAt: row.sentAt,
     paidAt: row.paidAt,
     kid: row.kid,
     vatCode: row.vatCode,
-    bankAccount: row.bankAccount,
     deliveryMethod: row.deliveryMethod,
-    lines: row.lines,
-    timeEntryIds: row.timeEntryIds,
     voucherId: row.voucherId,
-    voucherLines: row.voucherLines,
-    ehfXml: row.ehfXml,
     creditNoteForId: row.creditNoteForId,
     creditNoteForNumber: row.creditNoteForNumber,
     department: row.department,
-    previewReady: row.previewReady,
-    notes: row.notes,
+    previewReady: hasAttachment,
+    attachment: hasAttachment && row.attachment?.url
+      ? { url: row.attachment.url, name: row.attachment.name || '', mime: row.attachment.mime || '' }
+      : null,
     updatedAt: row.updatedAt,
   };
 }

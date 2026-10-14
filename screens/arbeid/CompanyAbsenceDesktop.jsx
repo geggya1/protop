@@ -1,8 +1,21 @@
-import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { useColors } from '../../src/context/ThemeContext';
+import { useLayout } from '../../src/theme';
+import {
+  ABSENCE_REPORT_COLUMNS,
+  DEFAULT_ABSENCE_REPORT_COLUMNS,
+  absenceReportTotals,
+  dayRowAsPeriod,
+  filterAbsenceReport,
+  formatHours,
+  hydrateAbsenceReportRow,
+  sortAbsenceReport,
+} from '../../src/arbeid/absenceReport.js';
+import { parseDate } from '../../src/economy/invoices.js';
+import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard } from '../../src/arbeid/absenceDashboard.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
@@ -375,116 +388,342 @@ export function CompanyAbsenceDesktop({
   );
 }
 
+function reportColumnStyle(column) {
+  if (column.flex) {
+    return { flexGrow: 1, flexShrink: 1, flexBasis: column.minWidth || 160, minWidth: column.minWidth || 120 };
+  }
+  return { width: column.width, flexGrow: 0, flexShrink: 0 };
+}
+
+function toggleReportColumn(keys, key) {
+  const current = keys?.length ? keys : DEFAULT_ABSENCE_REPORT_COLUMNS;
+  if (current.includes(key)) {
+    const next = current.filter((item) => item !== key);
+    return next.length ? next : current;
+  }
+  return [...current, key];
+}
+
+function reportCellValue(row, key) {
+  if (key === 'date') return row.dateLabel || row.date || '–';
+  if (key === 'hours') return row.hoursLabel || formatHours(row.hours);
+  if (key === 'paidHours') return row.paidHoursLabel || formatHours(row.paidHours);
+  if (key === 'percent') {
+    if (row.percent == null || Number.isNaN(Number(row.percent))) return '–';
+    return `${Math.round(Number(row.percent))}`;
+  }
+  const value = row[key];
+  return value == null || value === '' ? '–' : String(value);
+}
+
 export function AbsenceReportDesktop({
   employees = [],
   names = {},
   absences = [],
-  adjustments = [],
-  fullDayHours = 7.5,
-  today = '',
   canChooseEmployee = false,
   lockedEmployeeId = '',
+  canImport = false,
+  onImport,
+  onClearImported,
+  absenceCount = 0,
+  onOpenPeriod,
+  note = '',
+  error = '',
+  loading = false,
 }) {
-  const audience = useAudience(employees);
+  const colors = useColors();
+  const { width, isPhone, hasRail, railWidth } = useLayout();
+  const contentWidth = width - (hasRail ? railWidth : 0) - 32;
+  const stackRows = isPhone || contentWidth < 960;
+
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
-  const [kind, setKind] = useState('alle');
-  const [peopleOpen, setPeopleOpen] = useState(false);
-  const roster = employeeId ? employees.filter((row) => row.id === employeeId) : audience.roster;
-  const board = useBoard({
-    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today,
-  });
-  const lines = board.lines.filter((row) => kind === 'alle' || row.category === kind);
-  const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : 'Alle ansatte';
-  const totals = { ferie: 0, sykdom: 0, annet: 0 };
-  for (const row of board.lines) {
-    const key = row.bucket === 'sykdom' ? 'sykdom' : row.bucket === 'ferie' ? 'ferie' : 'annet';
-    totals[key] += Number(row.days) || 0;
+  const [query, setQuery] = useState('');
+  const [period, setPeriod] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [category, setCategory] = useState('');
+  const [status, setStatus] = useState('');
+  const [sort, setSort] = useState('date-desc');
+  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_ABSENCE_REPORT_COLUMNS);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(PAGE_STEP);
+
+  const employeesById = useMemo(() => {
+    const map = new Map();
+    for (const row of employees) {
+      if (row?.id) map.set(row.id, row);
+    }
+    return map;
+  }, [employees]);
+
+  const hydrated = useMemo(() => (
+    (absences || [])
+      .map((row) => hydrateAbsenceReportRow(row, { names, employeesById }))
+      .filter(Boolean)
+  ), [absences, names, employeesById]);
+
+  const filtered = useMemo(() => filterAbsenceReport(hydrated, {
+    query,
+    employeeId: canChooseEmployee ? employeeId : (lockedEmployeeId || employeeId),
+    category,
+    status,
+    period,
+    fromDate,
+    toDate,
+  }), [
+    hydrated, query, employeeId, canChooseEmployee, lockedEmployeeId,
+    category, status, period, fromDate, toDate,
+  ]);
+
+  const visible = useMemo(() => sortAbsenceReport(filtered, sort), [filtered, sort]);
+  const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
+  const totals = useMemo(() => absenceReportTotals(visible), [visible]);
+
+  const employeeOptions = useMemo(() => {
+    const byId = new Map();
+    for (const row of hydrated) {
+      if (!row.employeeId) continue;
+      const current = byId.get(row.employeeId) || {
+        id: row.employeeId,
+        name: row.employeeName || names[row.employeeId] || 'Ansatt',
+        hours: 0,
+      };
+      current.hours += Number(row.hours) || 0;
+      byId.set(row.employeeId, current);
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  }, [hydrated, names]);
+
+  const columns = useMemo(() => {
+    const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_ABSENCE_REPORT_COLUMNS);
+    const picked = ABSENCE_REPORT_COLUMNS.filter((column) => keys.has(column.key));
+    return picked.length
+      ? picked
+      : ABSENCE_REPORT_COLUMNS.filter((column) => DEFAULT_ABSENCE_REPORT_COLUMNS.includes(column.key));
+  }, [visibleColumns]);
+
+  const tableMin = columns.reduce((sum, column) => sum + (column.minWidth || column.width || 80), 0) || TABLE_MIN_FALLBACK;
+
+  useEffect(() => {
+    if (!canChooseEmployee && lockedEmployeeId) setEmployeeId(lockedEmployeeId);
+  }, [canChooseEmployee, lockedEmployeeId]);
+
+  useEffect(() => {
+    setPageSize(PAGE_STEP);
+  }, [query, employeeId, category, status, period, fromDate, toDate, sort, absences.length]);
+
+  function resetFilters() {
+    setQuery('');
+    setEmployeeId(canChooseEmployee ? '' : lockedEmployeeId);
+    setPeriod('all');
+    setFromDate('');
+    setToDate('');
+    setCategory('');
+    setStatus('');
+    setSort('date-desc');
+    setVisibleColumns(DEFAULT_ABSENCE_REPORT_COLUMNS);
   }
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: '#F4F7FB' }}
-      contentContainerStyle={styles.page}
-      nativeID="fravaersrapport"
+  const organizePanel = (
+    <AbsenceOrganizePanel
+      colors={colors}
+      query={query}
+      onQuery={setQuery}
+      period={period}
+      onPeriod={setPeriod}
+      fromDate={fromDate}
+      toDate={toDate}
+      onFromDate={setFromDate}
+      onToDate={setToDate}
+      onFromDateBlur={() => setFromDate((current) => parseDate(current) || current)}
+      onToDateBlur={() => setToDate((current) => parseDate(current) || current)}
+      sort={sort}
+      onSort={setSort}
+      category={category}
+      onCategory={setCategory}
+      status={status}
+      onStatus={setStatus}
+      visibleColumns={visibleColumns}
+      onToggleColumn={(key) => setVisibleColumns((current) => toggleReportColumn(current, key))}
+      onResetColumns={() => setVisibleColumns(DEFAULT_ABSENCE_REPORT_COLUMNS)}
+      employeeId={employeeId}
+      onEmployee={canChooseEmployee ? setEmployeeId : () => {}}
+      employees={canChooseEmployee
+        ? employeeOptions
+        : employeeOptions.filter((row) => row.id === (lockedEmployeeId || employeeId))}
+      onReset={resetFilters}
+      onClose={stackRows ? () => setPanelOpen(false) : undefined}
+    />
+  );
+
+  const emptyHint = (
+    <View style={{ padding: 16 }}>
+      <Text style={{ color: colors.muted }}>
+        {loading
+          ? 'Laster fravær…'
+          : absences.length
+            ? 'Ingen fravær i dette utvalget. Endre periode eller filter i panelet til høyre.'
+            : 'Ingen fravær er registrert. Importer Excel eller registrer fravær for ansatte.'}
+      </Text>
+    </View>
+  );
+
+  const moreButton = visible.length > pageRows.length ? (
+    <TouchableOpacity
+      onPress={() => setPageSize((n) => n + PAGE_STEP)}
+      accessibilityRole="button"
+      style={{ padding: 14, alignItems: 'center' }}
+      nativeID="absence-report-more"
     >
-      <View style={styles.toolbar}>
-        <Text style={styles.lead}>Registrerte fraværsperioder for eget aktivt personell.</Text>
-        {canChooseEmployee ? (
-          <TouchableOpacity
-            onPress={() => setPeopleOpen((value) => !value)}
-            style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="people" size={15} color={blue} />
-            <Text style={styles.personTxt}>{selectedName}</Text>
-            <Ionicons name="chevron-down" size={14} color={muted} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      {peopleOpen ? (
-        <View style={[styles.menu, { borderColor: line }]}>
-          <MenuRow label="Alle i utvalget" on={!employeeId} onPress={() => { setPeopleOpen(false); setEmployeeId(''); }} />
-          {audience.roster.map((row) => (
-            <MenuRow
-              key={row.id}
-              label={names[row.id] || 'Ansatt'}
-              on={row.id === employeeId}
-              onPress={() => { setPeopleOpen(false); setEmployeeId(row.id); }}
-            />
-          ))}
-        </View>
-      ) : null}
-      {canChooseEmployee ? (
-        <AudienceBar
-          kinds={audience.kinds}
-          onToggleKind={audience.toggleKind}
-          includeInactive={audience.includeInactive}
-          onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
-        />
-      ) : null}
-      <View style={styles.kpis}>
-        <Kpi icon="umbrella" tint={blue} bg="#E8F0FE" value={formatCount(totals.ferie)} label="Feriedager" />
-        <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={formatCount(totals.sykdom)} label="Sykedager" />
-        <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={formatCount(totals.annet)} label="Andre dager" />
-        <Kpi icon="list" tint="#34507A" bg="#EEF2F7" value={board.lines.length} label="Perioder" />
-      </View>
-      <PlannedCard rows={board.planned || []} />
-      <View style={styles.card}>
-        <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>{`Perioder ${board.year}`}</Text>
-          <View style={styles.filters}>
-            {FILTERS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => setKind(item.id)}
-                style={[styles.filter, kind === item.id && styles.filterOn]}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.filterTxt, kind === item.id && styles.filterTxtOn]}>{item.label}</Text>
-              </TouchableOpacity>
+      <Text style={{ color: colors.brand, fontWeight: '600' }}>
+        Vis flere ({pageRows.length} av {visible.length})
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
+  const table = (
+    <View
+      style={[reportStyles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}
+      nativeID="absence-report-table"
+    >
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View style={{ minWidth: Math.max(tableMin, stackRows ? contentWidth : tableMin) }}>
+          <View style={[reportStyles.tr, reportStyles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+            {columns.map((column) => (
+              <Text key={column.key} style={[reportStyles.th, reportColumnStyle(column), { color: colors.muted }]}>
+                {column.label}
+              </Text>
             ))}
           </View>
-        </View>
-        <View style={styles.tableHead}>
-          <Text style={[styles.colGrow, styles.headTxt]}>Medarbeider</Text>
-          <Text style={[styles.colGrow, styles.headTxt]}>Type</Text>
-          <Text style={[styles.colGrow, styles.headTxt]}>Periode</Text>
-          <Text style={[styles.colDays, styles.headTxt]}>Dager</Text>
-          <Text style={[styles.colStatus, styles.headTxt]}>Status</Text>
-        </View>
-        {lines.length ? lines.map((row) => (
-          <View key={row.id} style={styles.tableRow}>
-            <Text style={[styles.colGrow, styles.nameTxt]} numberOfLines={1}>{row.employeeName}</Text>
-            <Text style={[styles.colGrow, styles.periodMeta]} numberOfLines={1}>{row.typeLabel}</Text>
-            <Text style={[styles.colGrow, styles.periodMeta]} numberOfLines={1}>{row.start === row.end ? row.start : `${row.start} – ${row.end}`}</Text>
-            <Text style={[styles.colDays, styles.numTxt]}>{formatCount(row.days)}</Text>
-            <Text style={[styles.colStatus, styles.periodMeta]}>{STATUS[row.status] || 'Registrert'}</Text>
+          <View style={{ maxHeight: stackRows ? undefined : 720 }} nativeID="absence-report-table-body">
+            <ScrollView nestedScrollEnabled={!stackRows}>
+              {!pageRows.length ? emptyHint : pageRows.map((row) => (
+                <TouchableOpacity
+                  key={row.id}
+                  style={[reportStyles.tr, { borderBottomColor: colors.line }]}
+                  onPress={() => onOpenPeriod?.(dayRowAsPeriod(row))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Åpne fravær ${row.employeeName} ${row.dateLabel || row.date}`}
+                  disabled={!onOpenPeriod}
+                >
+                  {columns.map((column) => (
+                    <Text
+                      key={column.key}
+                      style={[
+                        reportStyles.td,
+                        reportColumnStyle(column),
+                        { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
+                        (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '600' },
+                        column.key === 'employeeName' && { fontWeight: '600', color: colors.ink },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {reportCellValue(row, column.key)}
+                    </Text>
+                  ))}
+                </TouchableOpacity>
+              ))}
+              {moreButton}
+            </ScrollView>
           </View>
-        )) : (
-          <Text style={styles.empty}>Ingen fravær er registrert i dette utvalget.</Text>
-        )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+
+  const filterModal = (
+    <Modal transparent visible={panelOpen} animationType="slide" onRequestClose={() => setPanelOpen(false)}>
+      <View style={reportStyles.modalBg}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setPanelOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Lukk filter"
+        />
+        <View
+          style={[reportStyles.filterSheet, { backgroundColor: colors.bg, borderColor: colors.line }]}
+          accessibilityViewIsModal
+          nativeID="absence-filter-sheet"
+        >
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+            {organizePanel}
+          </ScrollView>
+        </View>
       </View>
-    </ScrollView>
+    </Modal>
+  );
+
+  return (
+    <View style={[reportStyles.screen, { backgroundColor: colors.bg }]} nativeID="fravaersrapport">
+      <View style={reportStyles.desk}>
+        <View style={reportStyles.mainCol}>
+          <View style={reportStyles.toolbar}>
+            <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+              <Text style={[reportStyles.crumb, { color: colors.muted }]}>Arbeid / Fraværsrapport</Text>
+              <Text style={[reportStyles.heading, { color: colors.ink }]}>Fraværsrapport</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {loading
+                  ? 'Laster fravær…'
+                  : `${absences.length} lastet · ${totals.count} vist · ${formatHours(totals.hours)} timer`}
+              </Text>
+            </View>
+            <View style={reportStyles.toolbarRight}>
+              {stackRows ? (
+                <TouchableOpacity
+                  onPress={() => setPanelOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Filtrer og sorter"
+                  nativeID="absence-organize-toggle"
+                  style={[reportStyles.ghostBtn, { borderColor: colors.line }]}
+                >
+                  <Ionicons name="options-outline" size={18} color={colors.ink} />
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>Filter</Text>
+                </TouchableOpacity>
+              ) : null}
+              {canImport && absenceCount > 0 && onClearImported ? (
+                <TouchableOpacity
+                  onPress={onClearImported}
+                  style={[reportStyles.ghostBtn, { borderColor: colors.line }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Fjern importert fravær"
+                  nativeID="fravaer-clear-imported"
+                >
+                  <Ionicons name="trash-outline" size={15} color={colors.muted} />
+                  <Text style={{ color: colors.muted, fontWeight: '600' }}>Tøm import</Text>
+                </TouchableOpacity>
+              ) : null}
+              {canImport ? (
+                <TouchableOpacity
+                  onPress={onImport}
+                  style={[reportStyles.primaryBtn, { backgroundColor: colors.brand }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Importer fravær"
+                  nativeID="fravaer-import"
+                >
+                  <Ionicons name="cloud-upload-outline" size={15} color="#fff" />
+                  <Text style={reportStyles.primaryBtnText}>Importer</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+          {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
+
+          <View style={reportStyles.summaryRow}>
+            <Text style={{ color: colors.muted }}>Ferie {totals.ferie}</Text>
+            <Text style={{ color: colors.muted }}>Sykdom {totals.sykdom}</Text>
+            <Text style={{ color: colors.muted }}>Annet {totals.annet}</Text>
+            <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
+            <Text style={{ color: colors.muted }}>Lønn {formatHours(totals.paidHours)}</Text>
+          </View>
+
+          {table}
+        </View>
+        {!stackRows ? organizePanel : null}
+      </View>
+      {stackRows ? filterModal : null}
+    </View>
   );
 }
 
@@ -866,6 +1105,49 @@ function MonthChart({ months, width }) {
     </View>
   );
 }
+
+const reportStyles = StyleSheet.create({
+  screen: { flex: 1 },
+  desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
+  mainCol: { flex: 1, minWidth: 0, gap: 14 },
+  crumb: { fontSize: 12 },
+  heading: { fontSize: 24, fontWeight: '800' },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
+  toolbarRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  ghostBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fff',
+  },
+  primaryBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '700' },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 40 },
+  head: { minHeight: 42 },
+  th: { fontSize: 11, fontWeight: '700', paddingVertical: 10, paddingHorizontal: 4 },
+  td: { fontSize: 13, paddingVertical: 8, paddingHorizontal: 4 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(15,23,42,0.35)', justifyContent: 'flex-end' },
+  filterSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    maxHeight: '92%',
+    padding: 12,
+  },
+});
 
 const styles = StyleSheet.create({
   page: { padding: 20, gap: 14, paddingBottom: 48 },

@@ -18,7 +18,7 @@ function id() {
 
 export function tenderFromScan(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
-  const amount = Number(src.amount);
+  const amount = src.amount == null || src.amount === '' ? NaN : Number(src.amount);
   return {
     title: text(src.title, 160),
     buyer: text(src.buyer, 160),

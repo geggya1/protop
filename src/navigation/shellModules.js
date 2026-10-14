@@ -58,10 +58,8 @@ export const ARBEID_MENU = [
   { id: 'fravaer', icon: 'sunny', label: 'Fraværsoversikt' },
   { id: 'fravaersrapport', icon: 'bar-chart', label: 'Fraværsrapport' },
   { id: 'planlagt', icon: 'calendar-outline', label: 'Planlagt fravær' },
-  { id: 'oversikt', icon: 'grid', label: 'Min oversikt' },
   { id: 'utlegg', icon: 'card', label: 'Prosjektutlegg' },
   { id: 'salg', icon: 'cube', label: 'Mine produktsalg' },
-  { id: 'ledelse', icon: 'people', label: 'Prosjektledelse' },
   { id: 'godkjenning', icon: 'checkmark-done', label: 'Godkjenninger' },
 ];
 

@@ -139,7 +139,8 @@ export default function InvoiceImportReview({
       ) : null}
       <Text style={{ color: colors.muted }}>
         Koble manglende kunde/prosjekt under. Eksisterende fakturanummer er tatt ut.
-        Klare fakturaer vises i tabell.
+        Tabellen viser bare nøkkelkolonner for kontroll — alle Excel-kolonner lagres
+        og er synlige under fanen «Alle felt» på hver faktura etter import.
       </Text>
 
       {cards.filter((card) => card.severity === 'existing' || card.severity === 'block').map((card) => (

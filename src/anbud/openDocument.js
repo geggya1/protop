@@ -1,16 +1,26 @@
 import { Linking, Platform } from 'react-native';
 import {
+  AGREEMENT_IMPORT_ACCEPT,
   documentFileHref,
   documentHasOriginalFile,
   documentIsOpenable,
   documentLooksBinary,
+  documentOfficeEmbedUrl,
+  documentPreviewKind,
+  documentPreviewLabel,
+  documentSupportsOfficeEmbed,
 } from './documentAccess.js';
 
 export {
+  AGREEMENT_IMPORT_ACCEPT,
   documentFileHref,
   documentHasOriginalFile,
   documentIsOpenable,
   documentLooksBinary,
+  documentOfficeEmbedUrl,
+  documentPreviewKind,
+  documentPreviewLabel,
+  documentSupportsOfficeEmbed,
 };
 
 export function openAgreementDocument(doc) {

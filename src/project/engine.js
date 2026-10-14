@@ -341,22 +341,37 @@ export function normalizeTimeEntryRow(row) {
   };
 }
 
-function normalizeAbsenceRow(row) {
+export function normalizeAbsenceRow(row) {
   if (!row || typeof row !== 'object') return null;
   const employeeId = text(row.employeeId);
   const date = text(row.date);
   if (!employeeId || !date) return null;
+  // Ikke lagre hele Excel-raden (values) — det sprenger cache/batch ved store importer.
+  const source = row.source && typeof row.source === 'object'
+    ? {
+      filename: text(row.source.filename),
+      importedAt: text(row.source.importedAt),
+    }
+    : null;
+  const percentRaw = row.percent == null || row.percent === '' ? null : Number(row.percent);
   return {
     id: text(row.id) || createId('fra'),
     employeeId,
     employeeName: text(row.employeeName),
+    employeeNumber: text(row.employeeNumber),
     date,
     hours: roundHours(row.hours),
     type: text(row.type) || 'ferie',
     description: text(row.description),
     status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
+    assessedBy: text(row.assessedBy),
+    percent: Number.isFinite(percentRaw) ? percentRaw : null,
+    importFingerprint: text(row.importFingerprint),
+    ...(source?.filename || source?.importedAt ? { source } : {}),
     createdAt: text(row.createdAt) || '',
+    updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
+    ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
   };
 }
 
@@ -1526,21 +1541,68 @@ export function addAbsence(state, input) {
   }
   const existing = text(input.id) ? state.absences.find((row) => row.id === input.id) : null;
   if (existing?.status === 'låst') return fail(state, 'Fraværet er låst og kan ikke endres.');
+  const now = stamp();
   const row = normalizeAbsenceRow({
     id: existing?.id || createId('fra'),
     employeeId,
     employeeName: text(input.employeeName) || existing?.employeeName,
+    employeeNumber: text(input.employeeNumber) || existing?.employeeNumber,
     date,
     hours,
     type: text(input.type) || existing?.type || 'ferie',
     description: text(input.description),
-    status: existing?.status || 'registrert',
-    createdAt: existing?.createdAt || stamp(),
+    status: ['registrert', 'godkjent', 'låst'].includes(input.status)
+      ? input.status
+      : (existing?.status || 'registrert'),
+    assessedBy: text(input.assessedBy) || existing?.assessedBy,
+    percent: input.percent != null ? input.percent : existing?.percent,
+    importFingerprint: text(input.importFingerprint) || existing?.importFingerprint,
+    source: input.source || existing?.source || null,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
     createdByUid: text(input.createdByUid) || existing?.createdByUid,
   });
   const absences = existing
     ? state.absences.map((item) => (item.id === existing.id ? row : item))
     : [row, ...state.absences];
+  return ok({ ...state, absences });
+}
+
+export function setAbsenceStatus(state, absenceId, status) {
+  if (!['registrert', 'godkjent', 'låst'].includes(status)) {
+    return fail(state, 'Ugyldig status.');
+  }
+  const current = state.absences.find((row) => row.id === absenceId);
+  if (!current) return fail(state, 'Fraværet finnes ikke.');
+  if (current.status === 'låst' && status !== 'låst') {
+    return fail(state, 'Fraværet er låst og kan ikke endres.');
+  }
+  return ok({
+    ...state,
+    absences: state.absences.map((row) => (
+      row.id === absenceId
+        ? { ...row, status, updatedAt: stamp() }
+        : row
+    )),
+  });
+}
+
+/** Sett status på flere fraværsdager (f.eks. en periode). */
+export function setAbsenceStatuses(state, absenceIds, status) {
+  if (!['registrert', 'godkjent', 'låst'].includes(status)) {
+    return fail(state, 'Ugyldig status.');
+  }
+  const ids = new Set((Array.isArray(absenceIds) ? absenceIds : []).map(text).filter(Boolean));
+  if (!ids.size) return fail(state, 'Ingen fravær valgt.');
+  const now = stamp();
+  let changed = 0;
+  const absences = state.absences.map((row) => {
+    if (!ids.has(row.id)) return row;
+    if (row.status === 'låst' && status !== 'låst') return row;
+    changed += 1;
+    return { ...row, status, updatedAt: now };
+  });
+  if (!changed) return fail(state, 'Ingen fravær kunne oppdateres.');
   return ok({ ...state, absences });
 }
 
@@ -1552,6 +1614,90 @@ export function deleteAbsence(state, absenceId) {
     ...state,
     absences: state.absences.filter((row) => row.id !== absenceId),
   });
+}
+
+export function deleteAbsences(state, absenceIds) {
+  const ids = new Set((Array.isArray(absenceIds) ? absenceIds : []).map(text).filter(Boolean));
+  if (!ids.size) return fail(state, 'Ingen fravær valgt.');
+  const absences = state.absences.filter((row) => !ids.has(row.id));
+  if (absences.length === state.absences.length) {
+    return fail(state, 'Fraværet finnes ikke.');
+  }
+  return ok({ ...state, absences });
+}
+
+/** Tøm fraværslisten i state (etter clearAbsences i skyen). */
+export function clearAbsencesState(state, { importedOnly = false } = {}) {
+  const current = Array.isArray(state.absences) ? state.absences : [];
+  const absences = importedOnly
+    ? current.filter((row) => !(text(row.importFingerprint) || text(row.source?.filename)))
+    : [];
+  return ok({ ...state, absences });
+}
+
+/**
+ * Importer fraværsdager (f.eks. fra Excel under Fraværsrapport).
+ * Hopper over duplikater (importFingerprint).
+ */
+export function importAbsences(state, drafts = []) {
+  const list = Array.isArray(drafts) ? drafts : [];
+  if (!list.length) return { ...ok(state), added: [], skipped: [] };
+
+  const existingFingerprints = new Set(
+    (state.absences || [])
+      .map((row) => text(row.importFingerprint))
+      .filter(Boolean),
+  );
+  const added = [];
+  const skipped = [];
+  const now = stamp();
+  let absences = [...(state.absences || [])];
+
+  for (const draft of list) {
+    const employeeId = text(draft.employeeId);
+    const date = text(draft.date);
+    if (!employeeId || !date) {
+      skipped.push({ reason: 'Mangler medarbeider eller dato.', draft });
+      continue;
+    }
+    const hours = roundHours(draft.hours);
+    if (!(hours > 0)) {
+      skipped.push({ reason: 'Mangler timer.', draft });
+      continue;
+    }
+    const fingerprint = text(draft.importFingerprint);
+    if (fingerprint && existingFingerprints.has(fingerprint)) {
+      skipped.push({ reason: 'Duplikat mot eksisterende føring', draft });
+      continue;
+    }
+    const row = normalizeAbsenceRow({
+      id: createId('fra'),
+      employeeId,
+      employeeName: text(draft.employeeName),
+      employeeNumber: text(draft.employeeNumber),
+      date,
+      hours,
+      type: text(draft.type) || 'ferie',
+      description: text(draft.description),
+      status: ['registrert', 'godkjent', 'låst'].includes(draft.status) ? draft.status : 'registrert',
+      assessedBy: text(draft.assessedBy),
+      percent: draft.percent,
+      importFingerprint: fingerprint,
+      source: draft.source || null,
+      createdAt: now,
+      updatedAt: now,
+      createdByUid: text(draft.createdByUid),
+    });
+    if (!row) {
+      skipped.push({ reason: 'Ugyldig fraværsrad.', draft });
+      continue;
+    }
+    absences = [row, ...absences];
+    added.push(row);
+    if (fingerprint) existingFingerprints.add(fingerprint);
+  }
+
+  return { ...ok({ ...state, absences }), added, skipped };
 }
 
 /**

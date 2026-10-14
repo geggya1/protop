@@ -42,7 +42,6 @@ import { removeTimeEntry } from '../../src/economy/timeEntryStorage.js';
 import {
   canManageTimesheets,
   employeeDisplayName,
-  filterEmployeesForPicker,
   findLinkedEmployee,
 } from '../../src/arbeid/roles.js';
 import {
@@ -65,13 +64,20 @@ import {
   filterTimeEntries,
   reportSummary,
 } from '../../src/arbeid/reports.js';
+import {
+  filterTimesheetProjects,
+  timesheetActivityRange,
+  timesheetHoursLoadRange,
+} from '../../src/arbeid/timesheetProjects.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import MonthJump from '../../components/arbeid/MonthJump';
 import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
+import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
+import ScrollSheet from '../../components/ScrollSheet';
 import { agreedHoursForDate, redDayMap } from '../../src/arbeid/holidays.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { payrollHoursOnDate } from '../../src/arbeid/balance.js';
@@ -131,6 +137,7 @@ export default function ArbeidScreen({
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
   const [empPickerQuery, setEmpPickerQuery] = useState('');
   const pickerSearchRef = useRef(null);
+  const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [absenceForm, setAbsenceForm] = useState({ id: '', type: 'ferie', hours: '7:30', description: '', date: '' });
   const [monthJump, setMonthJump] = useState(false);
   const [typePicker, setTypePicker] = useState(false);
@@ -159,11 +166,14 @@ export default function ArbeidScreen({
     return () => { live = false; };
   }, [workspaceId]);
 
-  // Timer kun for synlig måned (merge i minne ved månedsbytte).
+  // Timer for synlig måned + aktivitetsvindu (siste ~2 mnd) for prosjektfilter.
   useEffect(() => {
     if (!ready || !workspaceId) return undefined;
     let live = true;
-    const range = monthDateRange(year, monthIndex);
+    const range = timesheetHoursLoadRange(
+      timesheetActivityRange(today),
+      monthDateRange(year, monthIndex),
+    );
     setHoursLoading(true);
     ensureProjectHours(workspaceId, range).then((loaded) => {
       if (!live) return;
@@ -176,7 +186,7 @@ export default function ArbeidScreen({
       setError('Kunne ikke laste timer for måneden.');
     });
     return () => { live = false; };
-  }, [ready, workspaceId, year, monthIndex]);
+  }, [ready, workspaceId, year, monthIndex, today]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -222,10 +232,14 @@ export default function ArbeidScreen({
       if (linked?.id) setEmployeeId(linked.id);
       return;
     }
+    // Mulige ledere venter på tilgang, så de ikke får auto-valg før steg 1.
+    const maybeManager = isAdmin || canManageTimesheets({ isAdmin, employee: linked });
+    if (maybeManager && !access.ready) return;
+    // Bedriftstimeliste: leder velger person først (steg 1).
+    if (manager) return;
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
-    else if (manager && employees[0]?.id) setEmployeeId(employees[0].id);
-  }, [linked, employees, manager, employeeId, lockedId, personal]);
+  }, [linked, employees, manager, employeeId, lockedId, personal, access.ready, isAdmin]);
 
   useEffect(() => {
     if (lockedId || personal) return;
@@ -245,13 +259,8 @@ export default function ArbeidScreen({
     return () => clearTimeout(timer);
   }, [empPickerOpen]);
 
-  const selectedEmployee = employees.find((row) => row.id === employeeId) || linked;
+  const selectedEmployee = employees.find((row) => row.id === employeeId) || (!manager ? linked : null);
   const selectedName = employeeDisplayName(selectedEmployee) || 'Medarbeider';
-
-  const pickerEmployees = useMemo(
-    () => filterEmployeesForPicker(employees, empPickerQuery),
-    [employees, empPickerQuery],
-  );
 
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);
@@ -265,24 +274,35 @@ export default function ArbeidScreen({
   const monthFromDate = days[0]?.key || '';
   const monthToDate = days[days.length - 1]?.key || '';
 
+  const activityRange = useMemo(() => timesheetActivityRange(today), [today]);
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
     const list = projectsForEmployee(state, employeeId, {
       assignedOnly,
-      fromDate: monthFromDate,
-      toDate: monthToDate,
+      fromDate: activityRange.fromDate < monthFromDate ? activityRange.fromDate : monthFromDate,
+      toDate: activityRange.toDate > monthToDate ? activityRange.toDate : monthToDate,
       includeHourProjects: true,
     });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
     const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
     const roleByProject = new Map(members.map((row) => [row.projectId, row]));
-    return list
-      .map((project) => ({
-        project,
-        member: roleByProject.get(project.id),
-        starred: starred.has(project.id),
-      }))
+    const mapped = list.map((project) => ({
+      project,
+      member: roleByProject.get(project.id),
+      starred: starred.has(project.id),
+    }));
+    const visible = filterTimesheetProjects(mapped, {
+      timeEntries: state.timeEntries,
+      employeeId,
+      activityFrom: activityRange.fromDate,
+      activityTo: activityRange.toDate,
+      viewFrom: monthFromDate,
+      viewTo: monthToDate,
+      keepAll: !!q,
+    });
+    return visible
       .filter(({ project }) => {
         if (!q) return true;
         return [`#${project.number}`, project.name, project.client, project.manager]
@@ -294,7 +314,7 @@ export default function ArbeidScreen({
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate]);
+  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange]);
 
   const joinable = useMemo(() => {
     if (!employeeId || assignedOnly) return [];
@@ -842,7 +862,39 @@ export default function ArbeidScreen({
   const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
+  const needsPersonStep = canSwitchPerson && !employeeId;
   const identity = timesheetIdentity({ personal, compact: isPhone });
+  const currentMonthLabel = monthLabel(year, monthIndex);
+
+  if (needsPersonStep) {
+    return (
+      <View
+        style={[styles.screen, { backgroundColor: colors.bg, position: 'relative' }]}
+        nativeID="arbeid-screen"
+      >
+        <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>{crumb}</Text>
+        <TimesheetEmployeePicker
+          colors={colors}
+          employees={employees}
+          selectedId={employeeId}
+          companyName={companyLabel}
+          query={empPickerQuery}
+          onQueryChange={setEmpPickerQuery}
+          onSelect={(row) => {
+            setEmployeeId(row.id);
+            setEmpPickerQuery('');
+          }}
+          title="Velg medarbeider"
+          subtitle="Steg 1 · Velg intern eller ekstern medarbeider for å åpne timelisten."
+        />
+        <BrandBusyOverlay
+          visible={!ready}
+          label="Vent…"
+          detail="Henter medarbeidere."
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
@@ -898,10 +950,20 @@ export default function ArbeidScreen({
             accessibilityLabel="Velg måned og år"
             nativeID="timesheet-month-label"
           >
-            <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{monthLabel(year, monthIndex)}</Text>
+            <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setReportMenuOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Rapport og eksport"
+            accessibilityState={{ expanded: reportMenuOpen }}
+            nativeID="arbeid-report-gear"
+            style={[styles.gearBtn, { borderColor: reportMenuOpen ? colors.brand : colors.line, backgroundColor: reportMenuOpen ? colors.brandSoft : colors.card, marginLeft: 4 }]}
+          >
+            <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
           </TouchableOpacity>
           {isPhone ? null : (
             <TouchableOpacity
@@ -909,7 +971,7 @@ export default function ArbeidScreen({
               accessibilityRole="button"
               accessibilityLabel="Skriv ut utvalg"
               nativeID="timesheet-print"
-              style={[styles.ctaGhost, { borderColor: colors.line, marginLeft: 8, flexDirection: 'row', gap: 6 }]}
+              style={[styles.ctaGhost, { borderColor: colors.line, marginLeft: 4, flexDirection: 'row', gap: 6 }]}
             >
               <Ionicons name="print-outline" size={16} color={colors.ink} />
               <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
@@ -929,6 +991,33 @@ export default function ArbeidScreen({
         }}
         onClose={() => setMonthJump(false)}
       />
+      <ScrollSheet
+        visible={reportMenuOpen}
+        title={`Rapport · ${currentMonthLabel}`}
+        onClose={() => setReportMenuOpen(false)}
+      >
+        <View nativeID="arbeid-report-panel" style={{ gap: 12 }}>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            {formatHours(monthReport.hours)} t · {formatHours(monthReport.billableHours)} fakturerbart
+            {monthReport.overtimeHours ? ` · ${formatHours(monthReport.overtimeHours)} overtid` : ''}
+            {' · '}
+            {monthReport.approvedCount}/{monthReport.count} godkjent
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              exportMonthCsv();
+              setReportMenuOpen(false);
+            }}
+            style={[styles.ctaGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6, alignSelf: 'flex-start' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Eksporter timer som CSV"
+            nativeID="arbeid-export-csv"
+          >
+            <Ionicons name="download-outline" size={16} color={colors.ink} />
+            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eksporter CSV</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollSheet>
 
       {hoursLoading ? <Text style={{ color: colors.muted, marginBottom: 6 }}>Laster timer for måneden…</Text> : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
@@ -943,33 +1032,6 @@ export default function ArbeidScreen({
           placeholderTextColor={colors.placeholder}
           style={[styles.search, { color: colors.ink }]}
         />
-      </View>
-
-      <View
-        style={[styles.reportPanel, isPhone && styles.reportPanelPhone, { borderColor: colors.line, backgroundColor: colors.card }]}
-        nativeID="arbeid-report-panel"
-      >
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>
-            Rapport · {monthLabel(year, monthIndex)}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-            {formatHours(monthReport.hours)} t · {formatHours(monthReport.billableHours)} fakturerbart
-            {monthReport.overtimeHours ? ` · ${formatHours(monthReport.overtimeHours)} overtid` : ''}
-            {' · '}
-            {monthReport.approvedCount}/{monthReport.count} godkjent
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={exportMonthCsv}
-          style={[styles.ctaGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Eksporter timer som CSV"
-          nativeID="arbeid-export-csv"
-        >
-          <Ionicons name="download-outline" size={16} color={colors.ink} />
-          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eksporter CSV</Text>
-        </TouchableOpacity>
       </View>
 
       {isPhone ? (
@@ -1033,44 +1095,47 @@ export default function ArbeidScreen({
         </ScrollView>
       ) : null}
       {!isPhone ? (
-        <TimesheetGrid
-          colors={colors}
-          days={markedDays}
-          weeks={weeks}
-          projects={shownProjects.map(({ project, member, starred }) => ({
-            project,
-            member,
-            starred,
-            hoursFor: (day) => {
-              const cell = entriesByCell.get(entryKey(project.id, day.key));
-              return cell ? parseHours(cell.hours) : 0;
-            },
-          }))}
-          hiddenProjects={hiddenProjects}
-          absenceRows={pinnedTypes.map((typeId) => ({
-            id: typeId,
-            label: absenceTypeById(typeId).label,
-            hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
-              row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
-                ? sum + parseHours(row.hours)
-                : sum
-            ), 0),
-          }))}
-          agreedByDay={agreedByDay}
-          balanceCells={balanceCells}
-          payrollByDay={payrollByDay}
-          selectedDay={selectedDay}
-          todayKey={todayKey}
-          lockThrough={lockThrough}
-          showFlex={timeSettings.showFlexInTimesheet}
-          onSelectDay={setSelectedDay}
-          onToggleLock={toggleLock}
-          onOpenProject={openCell}
-          onOpenAbsence={openAbsenceCell}
-          onToggleStar={starProject}
-          onHideProject={(projectId) => hideProject(projectId, true)}
-          onShowProject={(projectId) => hideProject(projectId, false)}
-        />
+        <View style={styles.gridBleed}>
+          <TimesheetGrid
+            colors={colors}
+            days={markedDays}
+            weeks={weeks}
+            monthLabel={currentMonthLabel}
+            projects={shownProjects.map(({ project, member, starred }) => ({
+              project,
+              member,
+              starred,
+              hoursFor: (day) => {
+                const cell = entriesByCell.get(entryKey(project.id, day.key));
+                return cell ? parseHours(cell.hours) : 0;
+              },
+            }))}
+            hiddenProjects={hiddenProjects}
+            absenceRows={pinnedTypes.map((typeId) => ({
+              id: typeId,
+              label: absenceTypeById(typeId).label,
+              hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
+                row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
+                  ? sum + parseHours(row.hours)
+                  : sum
+              ), 0),
+            }))}
+            agreedByDay={agreedByDay}
+            balanceCells={balanceCells}
+            payrollByDay={payrollByDay}
+            selectedDay={selectedDay}
+            todayKey={todayKey}
+            lockThrough={lockThrough}
+            showFlex={timeSettings.showFlexInTimesheet}
+            onSelectDay={setSelectedDay}
+            onToggleLock={toggleLock}
+            onOpenProject={openCell}
+            onOpenAbsence={openAbsenceCell}
+            onToggleStar={starProject}
+            onHideProject={(projectId) => hideProject(projectId, true)}
+            onShowProject={(projectId) => hideProject(projectId, false)}
+          />
+        </View>
       ) : null}
 
       {isPhone ? null : actions}
@@ -1110,7 +1175,7 @@ export default function ArbeidScreen({
         onSave={savePins}
       />
 
-      {/* Ansattvelger for leder */}
+      {/* Ansattvelger for leder (bytte etter steg 1) */}
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
         <View style={styles.modalBg}>
           <Pressable
@@ -1123,50 +1188,24 @@ export default function ArbeidScreen({
             style={[styles.sheet, styles.pickerSheet, { backgroundColor: colors.card, borderColor: colors.line }]}
             accessibilityViewIsModal
           >
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Velg medarbeider</Text>
-            <View style={[styles.pickerSearch, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-              <Ionicons name="search" size={16} color={colors.muted} />
-              <TextInput
-                ref={pickerSearchRef}
-                value={empPickerQuery}
-                onChangeText={setEmpPickerQuery}
-                placeholder="Søk navn, rolle eller ansattnr"
-                placeholderTextColor={colors.placeholder}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[styles.pickerSearchInput, { color: colors.ink }]}
-                accessibilityLabel="Søk medarbeider"
-                nativeID="arbeid-employee-picker-search"
-              />
-              {empPickerQuery ? (
-                <TouchableOpacity onPress={() => setEmpPickerQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tøm søk">
-                  <Ionicons name="close-circle" size={18} color={colors.muted} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-              {pickerEmployees.length ? pickerEmployees.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => { setEmployeeId(row.id); setEmpPickerOpen(false); }}
-                  style={[styles.sheetRow, { borderColor: colors.line }]}
-                >
-                  <Text style={{ color: colors.ink, fontWeight: row.id === employeeId ? '700' : '400' }}>
-                    {employeeDisplayName(row)}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {row.company?.accessRole || row.company?.title || ''}
-                  </Text>
-                </TouchableOpacity>
-              )) : (
-                <Text style={{ color: colors.muted, paddingVertical: 12 }}>
-                  {empPickerQuery.trim()
-                    ? `Ingen treff for «${empPickerQuery.trim()}».`
-                    : 'Ingen medarbeidere å velge.'}
-                </Text>
-              )}
-            </ScrollView>
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Bytt medarbeider</Text>
+            <TimesheetEmployeePicker
+              colors={colors}
+              employees={employees}
+              selectedId={employeeId}
+              companyName={companyLabel}
+              query={empPickerQuery}
+              onQueryChange={setEmpPickerQuery}
+              searchRef={pickerSearchRef}
+              compact
+              title="Bytt medarbeider"
+              subtitle=""
+              onSelect={(row) => {
+                setEmployeeId(row.id);
+                setEmpPickerOpen(false);
+                setEmpPickerQuery('');
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -1245,6 +1284,12 @@ export default function ArbeidScreen({
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
+  gridBleed: {
+    flex: 1,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    marginHorizontal: -16,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1276,18 +1321,14 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
-  reportPanel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  gearBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reportPanelPhone: { alignSelf: 'stretch' },
   phoneScroll: { flex: 1 },
   phoneScrollContent: { gap: 12, paddingBottom: 28 },
   phoneCard: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 10 },

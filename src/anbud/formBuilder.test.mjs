@@ -257,6 +257,140 @@ assert.equal(noteField.required, false);
 assert.equal(noteField.width, 'full');
 assert.equal(noteField.label.length > 120, true);
 
+const longContract = formFromPlainText(`Consult1 AS - Ledelsessystem
+Dokument navn Oppdragsbekreftelse Opprettet 25.06.19
+Consult1s Standard oppdragsbestemmelser
+Som alminnelige kontraktsbestemmelser gjøres gjeldende NS 8403 :2005 "Alminnelige kontrakts bestemmelser for byggelederoppdrag". Følgende
+presiseringer skal midlertidig gjelde.
+a) Kommunikasjon (NS 8403 pkt. 2.1, 4.5, 5.6 m.fl.)
+Varsel, krav og andre meldinger kan sendes som epost til partenes
+representanter med den epostadressen som er angitt i
+oppdragsavtalen /-bekreftelsen.
+b) Engasjement (NS 8403 pkt. 3.2.2 m.fl.)
+Det skal i oppdragsavtalen fremgå engasjementsperioden fra- og til
+dato jf. NS8403 pkt. 3.2.2a.
+c) Partene og deres representant (NS 8403 pkt. 4.1 m.fl.)
+Ved inngåelse av denne avtale vil oppdragsgiver forplikte seg til en
+rekrutteringsklausul ovenfor oppdragstaker.
+d) Honorar (NS 8403 pkt. 10.2)
+Ved honorar etter medgått tid baseres timeføringen på en arbeidstid
+på 8 timer pr. dag.
+e) Utgifter (NS 8403 pkt. 10.4)
+Reiser og opphold godtgjøres i henhold til regulativet.
+Påslag på 10 % på angjeldende fakturabeløp beregnes for følgende ved
+fakturering gjennom Consult1:
+a) Faktura fra entreprenører, konsulenter eller leverandører
+b) Offentlige gebyrer
+f) Betaling (NS 8403 pkt. 11)
+Consult1s standard faktura inkluderer ikke kopier av utgifts bilag.
+g) Prosjektmateriale (NS 8403 pkt. 5.5 m.fl.)
+Oppdragsgiveren har rett til å bruke materiale levert av
+oppdragstakeren til gjennomføring av prosjektet.
+h) Erstatningsansvar og forsikring (NS 8403 pkt. 8, 8.2 m.fl.)
+Consult1 svarer for påregnelig tap som påføres oppdragsgiver.
+Med mindre Consult1 skriftlig særskilt har påtatt seg slikt ansvar, har
+Consult1 ikke ansvar for:
+• erstatningskrav begrunnet med at det er opplysninger som har vist
+seg ikke å holde stikk om byggetiden eller størrelsen av omkostninger
+ved et bygge foretagende.
+• meromkostninger oppdragsgiver får ved at han overfor andre har
+inngått avtale om totalentreprise.
+Engasjement behov: i prosent % [Dato]
+Avtalte honorar Honoreres etter medgått tid. [jf. NS8403 §10.2.2]
+Biomkostninger: Reisekostnader reguleres etter statens satser`, 'Oppdragsavtale');
+assert.equal(longContract.ok, true);
+for (const letter of ['a)', 'b)', 'c)', 'd)', 'e)', 'f)', 'g)', 'h)']) {
+  assert.ok(
+    longContract.form.fields.some((row) => row.kind === 'title' && row.label.startsWith(letter) && /\(NS/i.test(row.label)),
+    `mangler hovedpunkt ${letter}`,
+  );
+}
+assert.equal(longContract.form.fields.filter((row) => /ledelsessystem/i.test(row.label)).length, 1);
+assert.ok(longContract.form.fields.some((row) => row.kind === 'note' && /epostadressen som er angitt/i.test(row.label)));
+assert.ok(longContract.form.fields.some((row) => /erstatningskrav begrunnet|holde stikk om byggetiden/i.test(row.label)));
+const percent = longContract.form.fields.find((row) => /prosent/i.test(row.label));
+assert.equal(percent?.kind, 'number');
+const expense = longContract.form.fields.find((row) => row.label === 'Biomkostninger');
+assert.equal(expense?.kind, 'text');
+assert.match(String(expense?.value || ''), /Reisekostnader/);
+const honorar = longContract.form.fields.find((row) => /avtalte honorar/i.test(row.label));
+assert.ok(honorar);
+assert.notEqual(honorar.kind, 'time');
+const filledScan = formFromScan({
+  title: 'Avtale',
+  fields: [{ label: 'Oppdragstaker', kind: 'text', value: 'Consult1 AS' }],
+});
+assert.equal(filledScan.form.fields[0].value, 'Consult1 AS');
+
+const side1 = formFromPlainText(`Om oppdraget
+Oppdrag [Skriv inn prosjektnavn] Eksternt PO. nr:   Oppdrags nummer:
+Oppdragssted Adresse:  Adresse [Oppdragsnr.]
+Post nr.: Postnr. Sted: Sted
+Gnr / Bnr  Opprettet dato:
+Engasjementsperioden Oppstart: [Dato] Sluttdato: [Dato] Engasjement behov: i prosent % [Dato]
+Om oppdragsgiver
+Oppdragsgiver [Firma] Organisasjons nr:
+Kontakt person [Kontaktperson]
+Epost:   Telefon nr:
+Adresse Adresse:  Adresse
+Post nr:  Postnr. Sted: Sted
+Faktura Velg foretrukket mottak:  ☐   EPOST  ☐   EHF ☐   POST
+Stiles til:  [Firma] Att:  [Kontaktperson]
+Adresse:  Adresse
+Merknad:   Po:
+Epost:   EHF:
+Kontrakts bestemmelser
+Oppdragstaker Consult1 AS Organisasjons nr:  916 538 804
+Oppdragsleder
+Epost:   Telefon nr:
+Tildelt ressurs Sett inn navn på tilbudt kandidat
+Epost:   Telefon nr:
+Generelle bestemmelser NS8403 : Alminnelig kontrakts bestemmelser for byggeleder oppdrag
+Avtalte honorar Honoreres etter medgått tid. [jf. NS8403 §10.2.2]
+Regulering av pris. Timesats reguleres etter SSB prisindeks for konsulentvirksomhet.
+Tabell: 09525 Start indeks:
+Avtalt honorar pris 1350,- eks mva.
+Underskrifter
+Sted:  Dato: [Dato] Sted: Sandnes Dato: [Dato]
+Underskrift  Til: <Firma> Underskrift Consult1
+Denne avtale er kun gyldig ved signering av begge parter.`, 'Oppdragsavtale');
+assert.equal(side1.ok, true);
+assert.ok(side1.form.fields.some((row) => /eksternt\s*po/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /oppdrags\s*nummer/i.test(row.label) && /oppdragsnr/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /oppdragssted/i.test(row.label) && /adresse/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /post\s*nr/i.test(row.label) && row.kind !== 'date'));
+assert.ok(side1.form.fields.some((row) => /gnr/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /opprettet\s*dato/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /prosent/i.test(row.label) && row.kind === 'number'));
+assert.ok(side1.form.fields.filter((row) => /telefon\s*nr/i.test(row.label)).length >= 2);
+assert.ok(side1.form.fields.some((row) => /^po$/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /^ehf$/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /organisasjons\s*nr/i.test(row.label) && /916/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /tildelt\s*ressurs/i.test(row.label) && /sett inn/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /^tabell$/i.test(row.label) && /09525/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /start\s*indeks/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /avtalt\s*honorar\s*pris/i.test(row.label) && /1350/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /^sted$/i.test(row.label) && String(row.value) === 'Sandnes'));
+assert.equal(side1.form.fields.filter((row) => /underskrift (oppdragsgiver|consult1)/i.test(row.label) && row.kind === 'image').length, 2);
+
+const vilkar = formFromPlainText(`e) Utgifter (NS 8403 pkt. 10.4)
+Reiser og opphold godtgjøres i henhold til regulativet.
+Påslag på 10 % på angjeldende fakturabeløp beregnes for følgende ved
+fakturering gjennom Consult1:
+a) Faktura fra entreprenører, konsulenter eller leverandører
+b) Offentlige gebyrer
+h) Erstatningsansvar og forsikring (NS 8403 pkt. 8, 8.2 m.fl.)
+Consult1 svarer for påregnelig tap som påføres oppdragsgiver ved
+byggelederfeil som skyldes uaktsomhet iht NS 8403 pkt. 8.1, innenfor
+ansvarsbegrensningene i NS 8403 pkt. 5.2/8.2: Consult1 har gjennom
+forsikring dekket ansvar overfor oppdragsgivere.
+• erstatningskrav begrunnet med at det er opplysninger som har vist
+seg ikke å holde stikk om byggetiden.`, 'Vilkår');
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /Påslag[\s\S]*fakturering gjennom Consult1[\s\S]*a\) Faktura/i.test(row.label)));
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /innenfor\s+ansvarsbegrensningene[\s\S]*Consult1 har gjennom\s+forsikring/i.test(row.label)));
+assert.ok(vilkar.form.fields.some((row) => row.kind === 'note' && /har vist seg ikke å holde stikk/i.test(row.label)));
+assert.equal(vilkar.form.fields.some((row) => row.kind !== 'note' && /^(ansvarsbegrensningene|fakturering gjennom)/i.test(row.label)), false);
+
 assert.equal(technicalFieldName('Text1'), true);
 assert.equal(technicalFieldName('Oppdragsgiver'), false);
 const widgets = formFromWidgets([

@@ -15,6 +15,14 @@ import {
   saveTimeEntries,
   withoutDeletedTimeEntries,
 } from '../economy/timeEntryStorage.js';
+import {
+  attachAbsencesToState,
+  diffAbsences,
+  mergeAbsenceLists,
+  removeAbsence,
+  saveAbsences,
+  withoutDeletedAbsences,
+} from '../arbeid/absenceStorage.js';
 
 const KEY = 'protop.projectPlatform.v1';
 const remoteTimers = new Map();
@@ -30,12 +38,17 @@ const loadMeta = new Map();
  * kaller putProjectState før saveProjectState og da blir slettinger usynlige.
  */
 const SYNCED_ENTRIES = new Map();
+/** Siste absences synket til subcollection (samme mønster som timer). */
+const SYNCED_ABSENCES = new Map();
 /** 'partial' når bare et datovindu er lastet — da skal sync ikke slette øvrige id-er. */
 const HOURS_MODE = new Map();
+const ABSENCE_MODE = new Map();
 /** Siste vindu som faktisk er lest fra Firestore. Styrer hvilke slettinger som er trygge. */
 const HOURS_WINDOW = new Map();
+const ABSENCE_WINDOW = new Map();
 /** Inflight for ensureProjectHours per selskap+vindu. */
 const hoursInflight = new Map();
+const absencesInflight = new Map();
 
 const REMOTE_AUTH_MS = 8000;
 const REMOTE_READ_MS = 12000;
@@ -73,6 +86,56 @@ function baselineTimeEntries(companyId) {
   return MEMORY.get(key)?.timeEntries || [];
 }
 
+export function markAbsencesSynced(companyId, entries) {
+  SYNCED_ABSENCES.set(memoryKey(companyId), cloneEntries(entries));
+}
+
+export function markAbsencesSyncedMerge(companyId, entries) {
+  const key = memoryKey(companyId);
+  const merged = mergeAbsenceLists(SYNCED_ABSENCES.get(key) || [], entries || []);
+  SYNCED_ABSENCES.set(key, withoutDeletedAbsences(companyId, merged));
+}
+
+/** Etter vellykket fraværsimport: unngå at persist skriver alle radene på nytt. */
+export function noteAbsencesImported(companyId, entries) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  markAbsencesSynced(id, entries);
+  setAbsenceMode(id, 'all');
+  noteAbsenceWindow(id, { all: true });
+}
+
+function baselineAbsences(companyId) {
+  const key = memoryKey(companyId);
+  if (SYNCED_ABSENCES.has(key)) return SYNCED_ABSENCES.get(key) || [];
+  return MEMORY.get(key)?.absences || [];
+}
+
+function setAbsenceMode(companyId, mode) {
+  const key = hoursModeKey(companyId);
+  if (mode === 'all') ABSENCE_MODE.set(key, 'all');
+  else if (mode === 'partial') {
+    if (ABSENCE_MODE.get(key) !== 'all') ABSENCE_MODE.set(key, 'partial');
+  } else if (mode === 'none') {
+    if (!ABSENCE_MODE.has(key)) ABSENCE_MODE.set(key, 'none');
+  }
+}
+
+function noteAbsenceWindow(companyId, opts) {
+  const key = hoursModeKey(companyId);
+  if (!opts || opts.absences === false) return;
+  if (opts.all) {
+    ABSENCE_WINDOW.set(key, { all: true });
+    return;
+  }
+  ABSENCE_WINDOW.set(key, {
+    all: false,
+    fromDate: String(opts.fromDate || ''),
+    toDate: String(opts.toDate || ''),
+    employeeId: String(opts.employeeId || ''),
+  });
+}
+
 function noteHoursWindow(companyId, hoursOpts) {
   const key = hoursModeKey(companyId);
   if (!hoursOpts || hoursOpts.hours === false) return;
@@ -107,10 +170,10 @@ function localKey(companyId) {
   return id ? `${KEY}.${id}` : KEY;
 }
 
-/** Prosjekt-monolitt uten timeEntries — unngår 1 MiB Firestore-tak. */
+/** Prosjekt-monolitt uten tunge lister — unngår 1 MiB Firestore-tak. */
 export function stripTimeEntriesFromState(state) {
   const next = normalizeProjectState(state);
-  return { ...next, timeEntries: [] };
+  return { ...next, timeEntries: [], absences: [] };
 }
 
 async function firestoreBits() {
@@ -299,6 +362,39 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
   }
 }
 
+async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const window = ABSENCE_WINDOW.get(id) || null;
+  const { changed, removed } = diffAbsences(previousEntries, nextEntries);
+  const safeChanged = withoutDeletedAbsences(id, changed);
+  const bySource = new Map();
+  for (const row of safeChanged) {
+    const source = String(row?.sourceCompanyId || id).trim() || id;
+    if (!bySource.has(source)) bySource.set(source, []);
+    bySource.get(source).push(row);
+  }
+  for (const [source, list] of bySource) {
+    await saveAbsences(source, list);
+  }
+  const removable = allowRemovals && window?.all === true
+    ? removed
+    : [];
+  if (removable.length) {
+    const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
+    for (const entryId of removable) {
+      const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
+      await removeAbsence(source, entryId);
+    }
+  }
+  const nextClean = withoutDeletedAbsences(id, nextEntries);
+  if (allowRemovals && window?.all === true) {
+    markAbsencesSynced(id, nextClean);
+  } else {
+    markAbsencesSyncedMerge(id, nextClean);
+  }
+}
+
 function resolveHoursOpts(hours) {
   if (hours === false || hours === 'none') return { hours: false };
   if (hours === true || hours === 'all') return { all: true };
@@ -440,9 +536,83 @@ export async function ensureProjectHours(companyId, range = {}) {
   }
 }
 
+function resolveAbsenceOpts(absences) {
+  if (absences === false || absences === 'none') return { absences: false };
+  if (absences === true || absences === 'all') return { all: true };
+  if (absences && typeof absences === 'object') {
+    return {
+      fromDate: String(absences.fromDate || '').trim(),
+      toDate: String(absences.toDate || '').trim(),
+      employeeId: String(absences.employeeId || '').trim(),
+      all: !!absences.all,
+    };
+  }
+  return { absences: false };
+}
+
+async function loadStateWithHealedAbsences(companyId, baseState, absenceOpts) {
+  if (absenceOpts?.absences === false) {
+    const existing = MEMORY.get(memoryKey(companyId))?.absences || [];
+    const stored = putProjectState({ ...baseState, absences: existing }, companyId);
+    setAbsenceMode(companyId, existing.length ? (ABSENCE_MODE.get(hoursModeKey(companyId)) || 'none') : 'none');
+    return stored;
+  }
+  const withAbsences = await attachAbsencesToState(companyId, baseState, absenceOpts);
+  const attached = withoutDeletedAbsences(companyId, withAbsences.absences || []);
+  const existing = withoutDeletedAbsences(companyId, MEMORY.get(memoryKey(companyId))?.absences || []);
+  const mergedAttach = absenceOpts?.all
+    ? { ...withAbsences, absences: attached }
+    : { ...withAbsences, absences: mergeAbsenceLists(existing, attached) };
+  const stored = putProjectState(mergedAttach, companyId);
+  const healed = stored.absences || [];
+  const attachedIds = new Set(attached.map((row) => row.id));
+  const healedSlice = absenceOpts?.all
+    ? healed
+    : healed.filter((row) => attachedIds.has(row.id));
+  noteAbsenceWindow(companyId, absenceOpts);
+  if (absenceOpts?.all) {
+    setAbsenceMode(companyId, 'all');
+    markAbsencesSynced(companyId, healed);
+  } else {
+    setAbsenceMode(companyId, 'partial');
+    markAbsencesSyncedMerge(companyId, healedSlice);
+  }
+  syncAbsencesRemote(companyId, attached, healedSlice, {
+    allowRemovals: !!absenceOpts?.all,
+  }).catch(() => {});
+  return stored;
+}
+
+/**
+ * Hent/merge fravær for et datovindu (eller hele historikken med all: true).
+ */
+export async function ensureProjectAbsences(companyId, range = {}) {
+  const id = String(companyId || '').trim();
+  if (!id) return putProjectState(emptyProjectState(), '');
+  const absenceOpts = resolveAbsenceOpts(range.all ? 'all' : range);
+  const inflightKey = `abs:${id}:${absenceOpts.fromDate || ''}:${absenceOpts.toDate || ''}:${absenceOpts.employeeId || ''}:${absenceOpts.all ? 'all' : 'w'}`;
+  if (absencesInflight.has(inflightKey)) return absencesInflight.get(inflightKey);
+
+  const pending = (async () => {
+    let base = MEMORY.get(memoryKey(id));
+    if (!base) {
+      base = await loadProjectState(id, { hours: false });
+    }
+    return loadStateWithHealedAbsences(id, { ...base, absences: [] }, absenceOpts);
+  })();
+
+  absencesInflight.set(inflightKey, pending);
+  try {
+    return await pending;
+  } finally {
+    if (absencesInflight.get(inflightKey) === pending) absencesInflight.delete(inflightKey);
+  }
+}
+
 export async function saveProjectState(state, companyId) {
   const full = normalizeProjectState(state);
   const previousEntries = baselineTimeEntries(companyId);
+  const previousAbsences = baselineAbsences(companyId);
   const stamped = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
@@ -451,25 +621,38 @@ export async function saveProjectState(state, companyId) {
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
+  const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
 
   if (companyId) {
     try {
       await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
+      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
+        allowRemovals: allowAbsenceRemovals,
+      });
     } catch (error) {
-      putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
+      putProjectState({
+        ...nextSlim,
+        timeEntries: full.timeEntries || [],
+        absences: full.absences || [],
+      }, companyId);
       throw error;
     }
   }
 
   await writeLocal(companyId, nextSlim);
   queueRemote(companyId, nextSlim);
-  return putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
+  return putProjectState({
+    ...nextSlim,
+    timeEntries: full.timeEntries || [],
+    absences: full.absences || [],
+  }, companyId);
 }
 
-/** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries). */
+/** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries + absences). */
 export async function persistProjectState(state, companyId) {
   const full = normalizeProjectState(state);
   const previousEntries = baselineTimeEntries(companyId);
+  const previousAbsences = baselineAbsences(companyId);
   const stamped = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
@@ -478,9 +661,13 @@ export async function persistProjectState(state, companyId) {
     ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
     : stamped;
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
+  const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
 
   if (companyId) {
     await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
+    await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
+      allowRemovals: allowAbsenceRemovals,
+    });
   }
 
   await writeLocal(companyId, nextSlim);
@@ -495,12 +682,16 @@ export async function persistProjectState(state, companyId) {
       const message = remote.error?.message || remote.error?.code || 'Kunne ikke synke prosjekt til skyen.';
       throw new Error(
         /exceeds|too big|size|invalid-argument/i.test(String(message))
-          ? 'Prosjektdata er for store til å lagres. Timeføringer lagres nå separat — prøv igjen.'
+          ? 'Prosjektdata er for store til å lagres. Timer og fravær lagres nå separat — prøv igjen.'
           : String(message),
       );
     }
   }
-  return putProjectState({ ...nextSlim, timeEntries: full.timeEntries || [] }, companyId);
+  return putProjectState({
+    ...nextSlim,
+    timeEntries: full.timeEntries || [],
+    absences: full.absences || [],
+  }, companyId);
 }
 
 /** Test/hjelper: tøm minne mellom tester. */
@@ -511,8 +702,11 @@ export function clearProjectStateMemory(companyId) {
     inflight.delete(key);
     loadMeta.delete(key);
     SYNCED_ENTRIES.delete(key);
+    SYNCED_ABSENCES.delete(key);
     HOURS_MODE.delete(key);
     HOURS_WINDOW.delete(key);
+    ABSENCE_MODE.delete(key);
+    ABSENCE_WINDOW.delete(key);
     clearDeletedTimeEntries(key);
     return;
   }
@@ -520,8 +714,12 @@ export function clearProjectStateMemory(companyId) {
   inflight.clear();
   loadMeta.clear();
   SYNCED_ENTRIES.clear();
+  SYNCED_ABSENCES.clear();
   HOURS_MODE.clear();
   HOURS_WINDOW.clear();
+  ABSENCE_MODE.clear();
+  ABSENCE_WINDOW.clear();
   hoursInflight.clear();
+  absencesInflight.clear();
   clearDeletedTimeEntries();
 }

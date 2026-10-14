@@ -6,6 +6,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { canManageTimesheets, findLinkedEmployee } from '../../src/arbeid/roles.js';
 import { emptyProjectState } from '../../src/project/engine';
 import {
+  ensureProjectAbsences,
   ensureProjectHours,
   loadProjectState,
   peekProjectState,
@@ -20,6 +21,8 @@ export function useTimesheetWorkspace({
   personal = false,
   fromDate = '',
   toDate = '',
+  /** true = last all absences; object = date window; false = skip */
+  absences = true,
 } = {}) {
   const { familyId, user, isAdmin } = useApp();
   const access = useCompanyAccess();
@@ -59,6 +62,22 @@ export function useTimesheetWorkspace({
     }).catch(() => {});
     return () => { live = false; };
   }, [ready, workspaceId, fromDate, toDate]);
+
+  useEffect(() => {
+    if (!ready || !workspaceId || absences === false) return undefined;
+    let live = true;
+    const range = absences === true || absences === 'all'
+      ? { all: true }
+      : (absences && typeof absences === 'object'
+        ? absences
+        : { fromDate, toDate: toDate || fromDate });
+    ensureProjectAbsences(workspaceId, range).then((loaded) => {
+      if (!live) return;
+      setState(loaded);
+      skipSave.current = true;
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [ready, workspaceId, absences, fromDate, toDate]);
 
   useEffect(() => {
     if (!workspaceId) return undefined;

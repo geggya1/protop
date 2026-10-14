@@ -38,7 +38,6 @@ import { watchEmployees } from '../../src/employees/storage';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
-import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
 
 const PAGE = 50;
@@ -72,12 +71,12 @@ export default function ContractFollowUp({
   colors,
   companyId,
   people = [],
-  onOpenWork,
   onOpenIndex,
   onOpenCustomer,
   onSnapshot,
   intent = null,
   onClearIntent,
+  composeNonce = 0,
 }) {
   const { requestShellTab } = useApp();
   const access = useCompanyAccess();
@@ -144,6 +143,15 @@ export default function ContractFollowUp({
       onClearIntent?.();
     }
   }, [intent, onClearIntent]);
+
+  useEffect(() => {
+    if (!composeNonce) return;
+    setComposeParent('');
+    setComposeKind('');
+    setComposeCustomer('');
+    setSelectedId('');
+    setView('compose');
+  }, [composeNonce]);
 
   async function commit(result) {
     if (!result.ok) {
@@ -344,17 +352,6 @@ export default function ContractFollowUp({
 
   return (
     <View style={{ gap: 12 }}>
-      {view === 'list' ? (
-        <CreateMenu
-          label="Ny avtale"
-          title="Ny avtale"
-          info="Allerede inngåtte avtaler. Last opp eller skann dokumentet, la AI fylle feltene, og knytt avtalen til et prosjekt. Beløp føres eks. mva."
-          actions={[
-            { id: 'new', label: 'Registrer avtale', primary: true, onPress: () => { setComposeParent(''); setComposeKind(''); setView('compose'); } },
-            { id: 'work', label: 'Tilbudsarbeid', onPress: onOpenWork },
-          ]}
-        />
-      ) : null}
       {view !== 'detail' ? (
         <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <TextInput

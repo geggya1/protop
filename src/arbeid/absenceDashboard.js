@@ -469,17 +469,14 @@ export function buildAbsenceWebBoard({
     staff.push({
       ...grid,
       absenceDays,
-      vacationUsed: overview.summary.used,
+      vacationUsed: round2(grid.months.reduce((sum, month) => sum + month.ferie, 0)),
       earned: overview.summary.earned,
       remaining: overview.summary.remaining,
       planned: overview.summary.planned,
     });
   }
   staff.sort((a, b) => b.absenceDays - a.absenceDays || a.name.localeCompare(b.name, 'nb'));
-  const lines = groupAbsencePeriods(
-    (absences || []).filter((row) => selectedIds.has(row.employeeId) && String(row.date || '').startsWith(year)),
-    today,
-  ).map((period) => ({
+  const present = (periods) => periods.map((period) => ({
     ...period,
     days: hoursToDays(period.hours, dayHours),
     employeeName: names[period.employeeId] || 'Ansatt',
@@ -487,5 +484,14 @@ export function buildAbsenceWebBoard({
     bucket: absenceBucket(period.type),
     category: absenceCategory(period.type),
   }));
-  return { dash, staff, lines, year, months: YEAR_MONTHS };
+  const lines = present(groupAbsencePeriods(
+    (absences || []).filter((row) => selectedIds.has(row.employeeId) && String(row.date || '').startsWith(year)),
+    today,
+  ));
+  const planned = present(groupAbsencePeriods(
+    (absences || []).filter((row) => selectedIds.has(row.employeeId)),
+    today,
+  )).filter((row) => row.status === 'planlagt')
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)) || String(a.employeeName).localeCompare(String(b.employeeName), 'nb'));
+  return { dash, staff, lines, planned, year, months: YEAR_MONTHS };
 }

@@ -7,7 +7,7 @@ import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
-import { AbsenceReportDesktop } from './CompanyAbsenceDesktop';
+import { AbsenceReportDesktop, PlannedAbsenceDesktop } from './CompanyAbsenceDesktop';
 
 export { AbsenceOverviewScreen } from './AbsenceOverviewView';
 
@@ -100,9 +100,28 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const { isDesktop } = useLayout();
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
+  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
+  const names = {};
+  for (const row of people) names[row.id] = employeeDisplayName(row);
+  const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
+  if (isDesktop) {
+    return (
+      <PlannedAbsenceDesktop
+        employees={canChooseEmployee ? people : people.filter((row) => row.id === activeId)}
+        names={names}
+        absences={workspace.state.absences || []}
+        adjustments={workspace.state.absenceAdjustments || []}
+        fullDayHours={fullDay}
+        today={today}
+        canChooseEmployee={canChooseEmployee}
+        lockedEmployeeId={activeId}
+      />
+    );
+  }
   const rows = (workspace.state.absences || [])
     .filter((row) => row.employeeId === activeId && row.date >= today)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));

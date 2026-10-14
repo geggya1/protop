@@ -88,7 +88,7 @@ export function CompanyAbsenceDesktop({
       nativeID="fravaer-oversikt-web"
     >
       <View style={styles.toolbar}>
-        <Text style={styles.lead}>Registrert fravær, feriesaldo og hvem som er borte.</Text>
+        <Text style={styles.lead}>Registrert fravær, feriesaldo, hvem som er borte og hva som er planlagt.</Text>
         {canChooseEmployee ? (
           <TouchableOpacity
             onPress={() => setPeopleOpen((value) => !value)}
@@ -140,6 +140,8 @@ export function CompanyAbsenceDesktop({
           <Text style={styles.empty}>Ingen er registrert borte i dag.</Text>
         )}
       </View>
+
+      <PlannedCard rows={board.planned || []} />
 
       <View style={styles.split}>
         <View style={[styles.card, styles.splitCard]}>
@@ -319,6 +321,7 @@ export function AbsenceReportDesktop({
         <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={formatCount(totals.annet)} label="Andre dager" />
         <Kpi icon="list" tint="#34507A" bg="#EEF2F7" value={board.lines.length} label="Perioder" />
       </View>
+      <PlannedCard rows={board.planned || []} />
       <View style={styles.card}>
         <View style={styles.cardHead}>
           <Text style={styles.cardTitle}>{`Perioder ${board.year}`}</Text>
@@ -355,6 +358,83 @@ export function AbsenceReportDesktop({
         )}
       </View>
     </ScrollView>
+  );
+}
+
+export function PlannedAbsenceDesktop({
+  employees = [],
+  names = {},
+  absences = [],
+  adjustments = [],
+  fullDayHours = 7.5,
+  today = '',
+  canChooseEmployee = false,
+  lockedEmployeeId = '',
+}) {
+  const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const board = useBoard({
+    employees, names, employeeId, absences, adjustments, fullDayHours, today,
+  });
+  const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : 'Alle ansatte';
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: '#F4F7FB' }}
+      contentContainerStyle={styles.page}
+      nativeID="planlagt-fravaer-side"
+    >
+      <View style={styles.toolbar}>
+        <Text style={styles.lead}>Fravær som er registrert frem i tid, også inn i neste år.</Text>
+        {canChooseEmployee ? (
+          <TouchableOpacity
+            onPress={() => setPeopleOpen((value) => !value)}
+            style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Velg ansatt"
+          >
+            <Ionicons name="people" size={15} color={blue} />
+            <Text style={styles.personTxt}>{selectedName}</Text>
+            <Ionicons name="chevron-down" size={14} color={muted} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {peopleOpen ? (
+        <View style={[styles.menu, { borderColor: line }]}>
+          <MenuRow label="Alle ansatte" on={!employeeId} onPress={() => { setPeopleOpen(false); setEmployeeId(''); }} />
+          {employees.map((row) => (
+            <MenuRow
+              key={row.id}
+              label={names[row.id] || 'Ansatt'}
+              on={row.id === employeeId}
+              onPress={() => { setPeopleOpen(false); setEmployeeId(row.id); }}
+            />
+          ))}
+        </View>
+      ) : null}
+      <PlannedCard rows={board.planned || []} />
+    </ScrollView>
+  );
+}
+
+function PlannedCard({ rows }) {
+  return (
+    <View style={styles.card} nativeID="planlagt-fravaer">
+      <Text style={styles.cardTitle}>Planlagt fravær</Text>
+      <Text style={styles.hint}>Registrert fravær som ligger frem i tid.</Text>
+      {rows.length ? rows.map((row) => (
+        <View key={row.id} style={styles.period}>
+          <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
+            <Text style={styles.periodMeta}>{`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}</Text>
+          </View>
+          <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
+          <Text style={styles.periodStatus}>Planlagt</Text>
+        </View>
+      )) : (
+        <Text style={styles.empty}>Ingen planlagt fravær frem i tid.</Text>
+      )}
+    </View>
   );
 }
 

@@ -249,6 +249,28 @@ const employees = [
   assert.equal(board.dash.summary.earned, 21);
   assert.equal(board.dash.summary.used, 3);
   assert.equal(board.dash.sickNow, 1);
+  assert.equal(board.planned.length, 0);
+}
+
+{
+  const board = buildAbsenceWebBoard({
+    employees,
+    today: '2026-10-14',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada Nord' },
+    absences: [
+      { id: 'now', employeeId: 'e1', type: 'ferie', date: '2026-10-14', hours: 7.5 },
+      { id: 'tail', employeeId: 'e1', type: 'ferie', date: '2026-10-15', hours: 7.5 },
+      { id: 'dec', employeeId: 'e1', type: 'ferie', date: '2026-12-14', hours: 7.5 },
+      { id: 'next', employeeId: 'e1', type: 'ferie', date: '2027-01-04', hours: 7.5 },
+    ],
+  });
+  assert.equal(board.staff.find((row) => row.name === 'Ada Nord').vacationUsed, 3);
+  assert.deepEqual(board.planned.map((row) => row.start), ['2026-12-14', '2027-01-04']);
+  assert.equal(board.planned.every((row) => row.status === 'planlagt'), true);
+  assert.equal(board.planned.some((row) => row.start === '2026-10-15'), false);
+  assert.equal(board.lines.find((row) => row.start === '2026-10-14').status, 'pagar');
+  assert.equal(board.lines.some((row) => row.start === '2027-01-04'), false);
 }
 
 console.log('absenceDashboard ok');

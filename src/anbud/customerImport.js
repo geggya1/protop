@@ -357,9 +357,10 @@ function parseSheetRows(xml, strings) {
   const rows = [];
   for (const rowMatch of String(xml || '').matchAll(/<row\b[\s\S]*?<\/row>/gi)) {
     const cells = [];
-    for (const cellMatch of rowMatch[0].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gi)) {
+    // Tomme Moment-celler kommer ofte som <c r="F2" s="13"/> — må ikke svelge neste celle.
+    for (const cellMatch of rowMatch[0].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/gi)) {
       const attrs = cellMatch[1];
-      const body = cellMatch[2];
+      const body = cellMatch[2] || '';
       const ref = attrs.match(/\br="([^"]+)"/)?.[1];
       const type = attrs.match(/\bt="([^"]+)"/)?.[1] || '';
       const index = colIndex(ref);

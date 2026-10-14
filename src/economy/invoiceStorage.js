@@ -1,16 +1,26 @@
 /**
  * Lagring av fakturaer: Firestore families/{companyId}/invoices/{id}
- * + lett AsyncStorage-cache for liste.
+ * + lett AsyncStorage-cache for liste (må tåle kvotebegrensning i nettleser).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { normalizeInvoice, sortInvoices, text, toInvoiceCacheRow } from './invoices.js';
+import {
+  isInvoiceCacheQuotaError,
+  normalizeInvoice,
+  sortInvoices,
+  text,
+  toInvoiceCacheRow,
+} from './invoices.js';
+
+export { isInvoiceCacheQuotaError };
 
 const LIST_KEY = 'protop.invoices.v1';
 const BATCH_SIZE = 400;
+/** Maks rader i lokal cache — full liste kommer fra Firestore. */
+const CACHE_ROW_LIMITS = [2500, 800, 200, 0];
 
 function listKey(companyId) {
   return `${LIST_KEY}.${companyId}`;
@@ -29,6 +39,12 @@ function toSummary(invoice) {
   return toInvoiceCacheRow(invoice);
 }
 
+function summarizeForCache(rows, limit) {
+  const sorted = sortInvoices(rows).map(toSummary);
+  if (!limit || sorted.length <= limit) return sorted;
+  return sorted.slice(0, limit);
+}
+
 async function readLocal(companyId) {
   if (!companyId) return [];
   try {
@@ -41,10 +57,37 @@ async function readLocal(companyId) {
   }
 }
 
+/**
+ * Skriver listesammendrag. Ved kvote: prøv færre rader, ellers dropp cache.
+ * Feiler aldri hardt — Firestore er kilde til sannhet.
+ */
 async function writeLocal(companyId, rows) {
   if (!companyId) return;
-  const summaries = sortInvoices(rows).map(toSummary);
-  await AsyncStorage.setItem(listKey(companyId), JSON.stringify(summaries));
+  const key = listKey(companyId);
+  let lastError = null;
+  for (const limit of CACHE_ROW_LIMITS) {
+    if (limit === 0) {
+      try { await AsyncStorage.removeItem(key); } catch { /* ignore */ }
+      return;
+    }
+    const payload = JSON.stringify(summarizeForCache(rows, limit));
+    try {
+      await AsyncStorage.setItem(key, payload);
+      return;
+    } catch (err) {
+      lastError = err;
+      if (!isInvoiceCacheQuotaError(err)) throw err;
+      try { await AsyncStorage.removeItem(key); } catch { /* ignore */ }
+      try {
+        await AsyncStorage.setItem(key, payload);
+        return;
+      } catch (again) {
+        lastError = again;
+        if (!isInvoiceCacheQuotaError(again)) throw again;
+      }
+    }
+  }
+  void lastError;
 }
 
 export async function loadInvoices(companyId) {
@@ -52,7 +95,7 @@ export async function loadInvoices(companyId) {
   try {
     const snap = await getDocs(invoicesCol(companyId));
     const rows = sortInvoices(snap.docs.map((item) => normalizeInvoice({ ...item.data(), id: item.id })));
-    await writeLocal(companyId, rows);
+    await writeLocal(companyId, rows).catch(() => {});
     return rows;
   } catch {
     return readLocal(companyId);
@@ -103,7 +146,7 @@ export async function saveInvoice(companyId, invoice) {
   });
   await writeBatchSet(companyId, [next]);
   const current = await readLocal(companyId);
-  await writeLocal(companyId, [...current.filter((row) => row.id !== next.id), next]);
+  await writeLocal(companyId, [...current.filter((row) => row.id !== next.id), next]).catch(() => {});
   return next;
 }
 
@@ -146,10 +189,15 @@ export async function saveInvoiceImport(companyId, invoices, { onProgress } = {}
     .filter((row) => row.invoiceNumber);
   if (!list.length) throw new Error('Ingen fakturaer å lagre.');
   await writeBatchSet(companyId, list, onProgress);
-  const current = await readLocal(companyId);
-  const byId = new Map(current.map((row) => [row.id, row]));
-  for (const row of list) byId.set(row.id, row);
-  await writeLocal(companyId, [...byId.values()]);
+  // Lokal cache er valgfri — masseimport må ikke feile på nettleserkvote.
+  try {
+    const current = await readLocal(companyId);
+    const byId = new Map(current.map((row) => [row.id, row]));
+    for (const row of list) byId.set(row.id, row);
+    await writeLocal(companyId, [...byId.values()]);
+  } catch {
+    // Firestore er lagret; listen kommer via watchInvoices.
+  }
   return { saved: list.length, invoices: list };
 }
 
@@ -157,6 +205,10 @@ export async function removeInvoice(companyId, invoiceId) {
   const id = text(invoiceId);
   if (!companyId || !id) return;
   await deleteDoc(invoiceRef(companyId, id));
-  const current = await readLocal(companyId);
-  await writeLocal(companyId, current.filter((row) => row.id !== id));
+  try {
+    const current = await readLocal(companyId);
+    await writeLocal(companyId, current.filter((row) => row.id !== id));
+  } catch {
+    // ignore cache errors
+  }
 }

@@ -189,10 +189,12 @@ assert.equal(
   withVoucher.voucherLines.reduce((s, l) => s + l.credit, 0),
 );
 const cachedVoucher = toInvoiceCacheRow(withVoucher);
-assert.equal(cachedVoucher.voucherLines.length, withVoucher.voucherLines.length);
+// Lokal cache er kun listesammendrag (kvote). Bilagslinjer ligger i Firestore.
+assert.equal(cachedVoucher.voucherId, withVoucher.voucherId);
+assert.equal(cachedVoucher.voucherLines, undefined);
 assert.deepEqual(
-  normalizeInvoice(cachedVoucher).voucherLines,
   snapshotVoucherLines(voucher.voucher),
+  withVoucher.voucherLines,
 );
 assert.equal(attachVoucherSnapshot(created.invoice, { ok: false }).voucherId, created.invoice.voucherId || '');
 

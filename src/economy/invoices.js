@@ -344,48 +344,38 @@ export function normalizeInvoice(input) {
   return normalized;
 }
 
+/** Gjenkjenn nettleser-/AsyncStorage-kvotefeil (web localStorage ~5 MB). */
+export function isInvoiceCacheQuotaError(err) {
+  const name = String(err?.name || '');
+  const message = String(err?.message || '');
+  return name === 'QuotaExceededError'
+    || name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || err?.code === 22
+    || err?.code === 1014
+    || /quota/i.test(message)
+    || /exceeded the quota/i.test(message);
+}
+
 /**
- * Kompakt rad for AsyncStorage-liste/cache (invoiceStorage).
- * Beholder linjer, KID, MVA, EHF og bilags-id — ikke strip disse.
+ * Kompakt listesammendrag for AsyncStorage (invoiceStorage).
+ * Kun felt som fakturalisten trenger. Linjer, EHF, bilag, kontoer og source.values
+ * hentes fra Firestore i detaljvisning — ellers sprenges nettleserkvoten ved masseimport.
  */
 export function toInvoiceCacheRow(invoice) {
   const row = normalizeInvoice(invoice);
+  const hasAttachment = !!(row.attachment?.url || row.attachment?.storagePath || row.previewReady);
   return {
     id: row.id,
     invoiceNumber: row.invoiceNumber,
     invoiceDate: row.invoiceDate,
     dueDate: row.dueDate,
-    reminderPostponedTo: row.reminderPostponedTo,
-    periodStart: row.periodStart,
-    periodEnd: row.periodEnd,
     customerNumber: row.customerNumber,
     customerName: row.customerName,
     orgnr: row.orgnr,
-    customerReference: row.customerReference,
-    customerTags: row.customerTags,
     projectNumber: row.projectNumber,
     projectName: row.projectName,
-    projectTagSegment: row.projectTagSegment,
-    projectTagMarket: row.projectTagMarket,
-    projectTags: row.projectTags,
-    activities: row.activities,
-    activityTags: row.activityTags,
-    invoiceTags: row.invoiceTags,
-    exportStatus: row.exportStatus,
-    sent: row.sent,
     customerId: row.customerId,
     projectId: row.projectId,
-    contractId: row.contractId,
-    exchangeRate: row.exchangeRate,
-    feesExMarkup: row.feesExMarkup,
-    feesMarkup: row.feesMarkup,
-    feesInclMarkup: row.feesInclMarkup,
-    expensesExMarkup: row.expensesExMarkup,
-    expensesMarkup: row.expensesMarkup,
-    expensesInclMarkup: row.expensesInclMarkup,
-    products: row.products,
-    adminCosts: row.adminCosts,
-    accounts: row.accounts,
     amountExVat: row.amountExVat,
     vat: row.vat,
     amountInclVat: row.amountInclVat,
@@ -394,35 +384,20 @@ export function toInvoiceCacheRow(invoice) {
     loss: row.loss,
     currency: row.currency,
     status: row.status,
+    sent: row.sent,
     sentAt: row.sentAt,
     paidAt: row.paidAt,
-    daysSentToPaid: row.daysSentToPaid,
-    daysPaidToDue: row.daysPaidToDue,
-    lockedAt: row.lockedAt,
-    creditDays: row.creditDays,
     kid: row.kid,
     vatCode: row.vatCode,
-    bankAccount: row.bankAccount,
     deliveryMethod: row.deliveryMethod,
-    lines: row.lines,
-    timeEntryIds: row.timeEntryIds,
     voucherId: row.voucherId,
-    voucherLines: row.voucherLines,
-    ehfXml: row.ehfXml,
     creditNoteForId: row.creditNoteForId,
     creditNoteForNumber: row.creditNoteForNumber,
     department: row.department,
-    attachment: row.attachment,
-    previewReady: row.previewReady,
-    // Behold typed importfelt i cache. source.values (alle rå Excel-celler) hentes
-    // fra Firestore ved detaljvisning — for stor for AsyncStorage ved masseimport.
-    source: {
-      filename: row.source?.filename || '',
-      importedAt: row.source?.importedAt || '',
-      values: {},
-    },
-    notes: row.notes,
-    createdAt: row.createdAt,
+    previewReady: hasAttachment,
+    attachment: hasAttachment && row.attachment?.url
+      ? { url: row.attachment.url, name: row.attachment.name || '', mime: row.attachment.mime || '' }
+      : null,
     updatedAt: row.updatedAt,
   };
 }

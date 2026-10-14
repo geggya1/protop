@@ -85,7 +85,8 @@ export const COMPANY_HERO = {
     ),
   },
   timeliste: {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Timeliste',
     kicker: t('Time', 'Time'),
     title: t('Din timeliste', 'Your timesheet'),
@@ -167,7 +168,8 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-timeliste': {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Timeliste',
     kicker: t('Arbeid', 'Work'),
     title: t('Timeliste', 'Timesheet'),

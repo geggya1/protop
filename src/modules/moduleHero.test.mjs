@@ -290,6 +290,8 @@ assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvar
 assert.equal(resolveModuleHero('anbud-tilbud', 'nb').wideArt, true, 'tilbud uses the wide illustration');
 assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses the wide illustration');
 assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the wide illustration');
+assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -370,6 +372,18 @@ assert.equal(
   'skjema bundled != public',
 );
 assert.match(assetsSrc, /skjema: require\('\.\.\/\.\.\/assets\/module-activation\/skjema--module-activation-illustration\.png'\)/);
+const timelisteFile = 'timeliste--module-activation-illustration.png';
+const timelisteBundled = join(ROOT, 'assets/module-activation', timelisteFile);
+const timelistePublic = join(ROOT, 'public/assets/module-activation', timelisteFile);
+assert.equal(existsSync(timelisteBundled), true, 'timeliste bundled art');
+assert.equal(existsSync(timelistePublic), true, 'timeliste public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(timelisteBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(timelistePublic)).digest('hex'),
+  'timeliste bundled != public',
+);
+assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

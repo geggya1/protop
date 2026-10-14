@@ -69,6 +69,8 @@ export const ILLUSTRATION_FILES = {
   'anbud-tilbud': 'anbud-tilbud--module-activation-illustration.png',
   kontrakt: 'kontrakt--module-activation-illustration.png',
   skjema: 'skjema--module-activation-illustration.png',
+  timeliste: 'timeliste--module-activation-illustration.png',
+  'arbeid-timeliste': 'timeliste--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

@@ -60,7 +60,6 @@ export default function ContractScreen() {
           }}
           members={members}
           colors={colors}
-          onRegisterExisting={startInngattCompose}
         />
       ) : (
         <ContractFollowUp

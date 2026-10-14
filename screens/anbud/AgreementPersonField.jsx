@@ -8,10 +8,17 @@ function matches(people, query) {
   return people.filter((person) => String(person.name || '').toLocaleLowerCase('nb-NO').includes(needle));
 }
 
-export default function AgreementPersonField({ colors, people = [], ownerUid = '', onSelect }) {
+export default function AgreementPersonField({
+  colors,
+  people = [],
+  ownerUid = '',
+  onSelect,
+  label = 'Ansvarlig',
+  placeholder = 'Søk blant ansatte',
+}) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
-  const selected = people.find((person) => person.uid === ownerUid) || null;
+  const selected = people.find((person) => (person.uid || person.id) === ownerUid) || null;
   const shown = useMemo(() => matches(people, query).slice(0, 8), [people, query]);
   const total = useMemo(() => matches(people, query).length, [people, query]);
 
@@ -21,17 +28,17 @@ export default function AgreementPersonField({ colors, people = [], ownerUid = '
   }
 
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 8, flexBasis: '100%' }}>
       <TouchableOpacity
         nativeID="agreement-person-open"
         onPress={() => setSheet(true)}
         accessibilityRole="button"
-        accessibilityLabel={selected ? `Ansvarlig ${selected.name}` : 'Søk opp ansvarlig'}
+        accessibilityLabel={selected ? `${label} ${selected.name}` : placeholder}
         style={[styles.trigger, { borderColor: colors.line, backgroundColor: colors.bg }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>Ansvarlig</Text>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : 'Søk opp ansvarlig'}</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : placeholder}</Text>
         </View>
         <Text style={{ color: colors.brand }}>{selected ? 'Endre' : 'Søk'}</Text>
       </TouchableOpacity>
@@ -39,12 +46,12 @@ export default function AgreementPersonField({ colors, people = [], ownerUid = '
         <TouchableOpacity
           onPress={() => onSelect?.(null)}
           accessibilityRole="button"
-          accessibilityLabel="Fjern ansvarlig"
+          accessibilityLabel={`Fjern ${label.toLowerCase()}`}
         >
-          <Text style={{ color: colors.brand }}>Fjern ansvarlig</Text>
+          <Text style={{ color: colors.brand }}>{`Fjern ${label.toLowerCase()}`}</Text>
         </TouchableOpacity>
       ) : null}
-      <ScrollSheet visible={sheet} title="Ansvarlig" onClose={closeSheet}>
+      <ScrollSheet visible={sheet} title={label} onClose={closeSheet} placement="center">
         <View style={{ gap: 8 }}>
           <TextInput
             nativeID="agreement-person-search"

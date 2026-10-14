@@ -15,6 +15,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import HourPhoneRow from '../../components/arbeid/HourPhoneRow';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
@@ -98,6 +99,7 @@ export default function EconomyHours({
   hideBillable = false,
 }) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { familyId: appFamilyId } = useApp();
   const resolvedFamilyId = familyId || appFamilyId;
   const { width, isPhone, hasRail, railWidth } = useLayout();
@@ -791,8 +793,12 @@ export default function EconomyHours({
         >
           <View style={styles.phoneTop}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
-              <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
+              {hostedHero ? null : (
+                <>
+                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
+                </>
+              )}
               {employeeHeading}
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {!ready || hoursLoading
@@ -858,8 +864,12 @@ export default function EconomyHours({
         <View style={styles.mainCol}>
           <View style={styles.toolbar}>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
-              <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
+              {hostedHero ? null : (
+                <>
+                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
+                </>
+              )}
               {employeeHeading}
               <Text style={{ color: colors.muted }}>
                 {!ready || hoursLoading

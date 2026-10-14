@@ -16,6 +16,7 @@ import {
 } from '../../src/arbeid/absenceImport.js';
 import { clearAbsences, saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
 import { useLayout } from '../../src/theme';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { importResult } from '../../src/imports/review';
@@ -450,6 +451,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { isDesktop } = useLayout();
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
@@ -477,8 +479,12 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="planlagt-fravaer">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Planlagt fravær</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Planlagt fravær</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Planlagt fravær</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Planlagt fravær</Text>
+        </>
+      )}
       <Text style={{ color: colors.muted, marginBottom: 8 }}>{employeeDisplayName(employee)}</Text>
       <PersonChips workspace={workspace} activeId={activeId} onPick={setEmployeeId} />
       {rows.map((row) => (

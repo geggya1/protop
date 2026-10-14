@@ -27,6 +27,7 @@ import { deadlineInfo } from '../../src/anbud/noticeText';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
 import { useLayout } from '../../src/theme';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import InfoButton from '../../components/InfoButton';
 import { applyGeoHits, reviewMapRows } from '../../src/anbud/workMap';
 import ProcessTrail from './ProcessTrail';
@@ -224,6 +225,7 @@ export default function CurrentReview({
   stateRef.current = state;
   const { width } = useWindowDimensions();
   const { isPhone } = useLayout();
+  const hostedHero = useModuleHeroHosted();
   const wide = width >= 1080;
 
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
@@ -524,14 +526,18 @@ export default function CurrentReview({
       />
       {isPhone ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Vurdering av aktuelle</Text>
+          {hostedHero ? <View style={{ flex: 1 }} /> : (
+            <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Vurdering av aktuelle</Text>
+          )}
           <InfoButton title="Vurdering av aktuelle">
             Steg 1 merker konkurransen som aktuell eller uaktuell. Her tar dere stilling til om det skal gis tilbud, og hvem som skal arbeide med det. Gi tilbud flytter saken til 3. Tilbud. Merkingen er lagret, så en annen kan fortsette.
           </InfoButton>
         </View>
       ) : (
         <View style={[styles.lead, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Vurdering av aktuelle</Text>
+          {hostedHero ? null : (
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Vurdering av aktuelle</Text>
+          )}
           <Text style={{ color: colors.muted, lineHeight: 20 }}>
             Steg 1 merker konkurransen som aktuell eller uaktuell. Her tar dere stilling til om det skal gis tilbud, og hvem som skal arbeide med det. Gi tilbud flytter saken til 3. Tilbud. Merkingen er lagret, så en annen kan fortsette.
           </Text>

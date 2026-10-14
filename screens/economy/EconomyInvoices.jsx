@@ -16,6 +16,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
 import { importResult } from '../../src/imports/review';
@@ -486,6 +487,7 @@ export default function EconomyInvoices({
     watchInvoices,
   } = store;
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
@@ -929,7 +931,9 @@ export default function EconomyInvoices({
       <View style={styles.inner}>
         <View style={styles.toolbar}>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={[styles.heading, { color: colors.ink }]}>Fakturaer</Text>
+            {hostedHero ? null : (
+              <Text style={[styles.heading, { color: colors.ink }]}>Fakturaer</Text>
+            )}
             <Text style={{ color: colors.muted }}>
               {ready
                 ? `${invoices.length} registrerte fakturaer. Fordelt på kunde og prosjekt — klikk for full oversikt.`

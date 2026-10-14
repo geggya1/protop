@@ -40,7 +40,10 @@ export default function ModuleHero({
   const lead = subtitle || hero.pitch;
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
-  const heroH = isDesktop ? 176 : isPhone ? 144 : 156;
+  const wideArt = !!hero.wideArt && !!imgSource;
+  const heroH = wideArt
+    ? (isDesktop ? 196 : isPhone ? 144 : 168)
+    : (isDesktop ? 176 : isPhone ? 144 : 156);
   const squareArt = moduleId === 'familyTree';
   const webBand = Platform.OS === 'web'
     ? { backgroundImage: `linear-gradient(105deg, ${hero.bg} 0%, ${hero.bg2} 55%, ${hero.bg} 100%)` }
@@ -67,6 +70,7 @@ export default function ModuleHero({
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
         chromePhone && styles.copyPhoneChrome,
+        wideArt && (isDesktop ? styles.copyWideDesk : isPhone ? styles.copyWidePhone : styles.copyWideTablet),
       ]}>
         {overline ? (
           <Text style={[styles.kicker, { color: hero.accent }]} numberOfLines={1}>
@@ -91,9 +95,12 @@ export default function ModuleHero({
           pointerEvents="none"
           style={[
             styles.artWrap,
-            isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet,
-            squareArt && styles.artWrapSquare,
-            chromePhone && styles.artWrapPhoneChrome,
+            wideArt
+              ? (isDesktop ? styles.artWrapWideDesk : isPhone ? styles.artWrapWidePhone : styles.artWrapWideTablet)
+              : (isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet),
+            squareArt && !wideArt && styles.artWrapSquare,
+            chromePhone && !wideArt && styles.artWrapPhoneChrome,
+            wideArt && chromePhone && styles.artWrapWidePhoneChrome,
           ]}
         >
           <Image
@@ -260,6 +267,46 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     paddingRight: 12,
     paddingLeft: 4,
+  },
+  artWrapWideDesk: {
+    width: '58%',
+    maxWidth: 640,
+    flexShrink: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingRight: 0,
+    paddingLeft: 0,
+  },
+  artWrapWideTablet: {
+    width: '52%',
+    maxWidth: 460,
+    flexShrink: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingRight: 8,
+    paddingLeft: 0,
+  },
+  artWrapWidePhone: {
+    width: 168,
+    flexShrink: 0,
+    paddingTop: 4,
+    paddingBottom: 6,
+    paddingRight: 8,
+    paddingLeft: 0,
+  },
+  artWrapWidePhoneChrome: {
+    paddingTop: 2,
+    paddingBottom: 8,
+    paddingRight: 8,
+  },
+  copyWideDesk: {
+    maxWidth: 520,
+  },
+  copyWideTablet: {
+    maxWidth: 420,
+  },
+  copyWidePhone: {
+    paddingRight: 0,
   },
   /* Square tree art is height-limited in the 176px band. Keep enough inset
      so the 20px heading radius does not clip foliage, portraits or the scroll.

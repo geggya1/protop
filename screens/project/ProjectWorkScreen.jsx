@@ -122,6 +122,24 @@ function textOrDash(value) {
   return raw || '—';
 }
 
+function ListToolsButton({ open, colors, onPress }) {
+  return (
+    <TouchableOpacity
+      nativeID="project-list-settings"
+      accessibilityRole="button"
+      accessibilityLabel="Innstillinger for merking og sletting"
+      accessibilityState={{ expanded: open }}
+      onPress={onPress}
+      style={[styles.gear, {
+        borderColor: open ? colors.brand : colors.line,
+        backgroundColor: open ? (colors.brandSoft || colors.card) : colors.card,
+      }]}
+    >
+      <Ionicons name="settings-outline" size={18} color={open ? colors.brand : colors.ink} />
+    </TouchableOpacity>
+  );
+}
+
 function formFromProject(project = {}) {
   const next = { ...EMPTY_FORM };
   for (const key of Object.keys(EMPTY_FORM)) {
@@ -266,6 +284,7 @@ export default function ProjectWorkScreen() {
   const [linkQuery, setLinkQuery] = useState({});
   const [checkedIds, setCheckedIds] = useState(() => new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [listToolsOpen, setListToolsOpen] = useState(false);
   const [confirmEditDelete, setConfirmEditDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
@@ -1406,6 +1425,7 @@ export default function ProjectWorkScreen() {
   );
 
   const listDesk = view === 'list' && !isPhone;
+  const showProjectSelect = canDeleteProjects && (listToolsOpen || checkedVisibleCount > 0);
   const projectCountLabel = !ready
     ? 'Henter prosjekter…'
     : !visibleProjects.length
@@ -1490,25 +1510,47 @@ export default function ProjectWorkScreen() {
               groups={filterGroups}
             />
           </View>
+          {canDeleteProjects && visibleProjects.length ? (
+            <ListToolsButton
+              open={listToolsOpen}
+              colors={colors}
+              onPress={() => {
+                setListToolsOpen((open) => !open);
+                setConfirmBulkDelete(false);
+              }}
+            />
+          ) : null}
           <Text style={[styles.phoneCount, { color: colors.muted }]} numberOfLines={2}>
             {projectCountLabel}
           </Text>
         </View>
       ) : (
         <>
-          <TextInput
-            nativeID="project-search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Søk i nummer, navn, kunde, sted"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
+          <View style={styles.searchRow}>
+            <TextInput
+              nativeID="project-search"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Søk i nummer, navn, kunde, sted"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, styles.searchInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+            {canDeleteProjects && visibleProjects.length ? (
+              <ListToolsButton
+                open={listToolsOpen}
+                colors={colors}
+                onPress={() => {
+                  setListToolsOpen((open) => !open);
+                  setConfirmBulkDelete(false);
+                }}
+              />
+            ) : null}
+          </View>
           <FilterMenu groups={filterGroups} />
         </>
       )}
 
-      {canDeleteProjects && visibleProjects.length ? (
+      {(listToolsOpen || checkedVisibleCount > 0) && canDeleteProjects && visibleProjects.length ? (
         <View style={styles.rowWrap}>
           <TouchableOpacity
             onPress={toggleCheckAllVisible}
@@ -1589,7 +1631,7 @@ export default function ProjectWorkScreen() {
 
       {visibleProjects.length ? (
         <View style={listDesk ? styles.tableGrow : null}>
-          <ProjectTable phone={isPhone} colors={colors} selectCol={canDeleteProjects} columns={listColumns}>
+          <ProjectTable phone={isPhone} colors={colors} selectCol={showProjectSelect} columns={listColumns}>
             {!isPhone ? (
               <View
                 nativeID="project-table-head"
@@ -1600,7 +1642,7 @@ export default function ProjectWorkScreen() {
                   Platform.OS === 'web' && styles.tableHeadSticky,
                 ]}
               >
-                {canDeleteProjects ? (
+                {showProjectSelect ? (
                   <View style={[styles.selectCell, styles.headSelect, { width: SELECT_COL_WIDTH }]}>
                     <TouchableOpacity
                       onPress={toggleCheckAllVisible}
@@ -1658,7 +1700,7 @@ export default function ProjectWorkScreen() {
                     first={index === 0}
                     lines={lines}
                     colors={colors}
-                    canSelect={canDeleteProjects}
+                    canSelect={showProjectSelect}
                     checked={checkedIds.has(item.id)}
                     onToggle={() => toggleChecked(item.id)}
                     onPress={() => openDetail(item)}
@@ -1673,7 +1715,7 @@ export default function ProjectWorkScreen() {
                   key={item.id}
                   style={[styles.tableRow, isPhone && styles.tableRowPhone, { borderColor: colors.line }]}
                 >
-                  {canDeleteProjects ? (
+                  {showProjectSelect ? (
                     <TouchableOpacity
                       onPress={() => toggleChecked(item.id)}
                       accessibilityRole="checkbox"
@@ -1846,6 +1888,17 @@ const styles = StyleSheet.create({
   tableToolbar: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   phoneTools: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   phoneMenu: { flexShrink: 1, maxWidth: '72%' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchInput: { flex: 1, minWidth: 0 },
+  gear: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   phoneCount: { flex: 1, textAlign: 'right', fontSize: 13 },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },

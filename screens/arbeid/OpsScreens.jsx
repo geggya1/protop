@@ -5,6 +5,7 @@ import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/
 import { approveTimesheetLock } from '../../src/arbeid/timesheetState.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 
 function money(value) {
@@ -15,6 +16,7 @@ function money(value) {
 
 export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
@@ -23,11 +25,15 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
   });
   const [employeeId, setEmployeeId] = useState(lockedEmployeeId || '');
   const activeId = workspace.lockedId || employeeId || workspace.linked?.id || '';
-  const rows = (workspace.state.expenses || []).filter((row) => !activeId || row.employeeId === activeId);
+  const rows = (workspace.state?.expenses || []).filter((row) => !activeId || row.employeeId === activeId);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="prosjektutlegg">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Medarbeidere / Prosjektutlegg</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Prosjektutlegg</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Medarbeidere / Prosjektutlegg</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Prosjektutlegg</Text>
+        </>
+      )}
       {workspace.manager && !workspace.lockedId ? (
         <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
           {filterEmployeesForPicker(workspace.employees, '').map((row) => (
@@ -58,6 +64,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
 
 export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
@@ -65,11 +72,15 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
     toDate: `${year}-12-31`,
   });
   const activeId = workspace.lockedId || workspace.linked?.id || '';
-  const rows = (workspace.state.sales || []).filter((row) => !activeId || !row.employeeId || row.employeeId === activeId);
+  const rows = (workspace.state?.sales || []).filter((row) => !activeId || !row.employeeId || row.employeeId === activeId);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="mine-produktsalg">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Mine produktsalg</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Mine produktsalg</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Mine produktsalg</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Mine produktsalg</Text>
+        </>
+      )}
       {rows.map((row) => (
         <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.date} · {row.name}</Text>
@@ -83,12 +94,13 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
 
 export function ApprovalsScreen() {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     fromDate: `${year}-01-01`,
     toDate: toDateKey(new Date()),
   });
-  const locks = (workspace.state.timesheetLocks || []).filter((row) => (
+  const locks = (workspace.state?.timesheetLocks || []).filter((row) => (
     workspace.manager || row.employeeId === workspace.linked?.id
   ));
   function approve(employeeId) {
@@ -102,8 +114,12 @@ export function ApprovalsScreen() {
   }
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="godkjenninger">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Godkjenninger</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Godkjenninger</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
+        </>
+      )}
       <Text style={{ color: colors.muted }}>Låst timeliste betyr at timene er klare for fakturering.</Text>
       {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
       {locks.map((row) => {

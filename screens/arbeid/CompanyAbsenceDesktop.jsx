@@ -16,6 +16,7 @@ import {
 } from '../../src/arbeid/absenceReport.js';
 import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard } from '../../src/arbeid/absenceDashboard.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
@@ -432,6 +433,7 @@ export function AbsenceReportDesktop({
   loading = false,
 }) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 960;
@@ -659,8 +661,12 @@ export function AbsenceReportDesktop({
         <View style={reportStyles.mainCol}>
           <View style={reportStyles.toolbar}>
             <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
-              <Text style={[reportStyles.crumb, { color: colors.muted }]}>Arbeid / Fraværsrapport</Text>
-              <Text style={[reportStyles.heading, { color: colors.ink }]}>Fraværsrapport</Text>
+              {hostedHero ? null : (
+                <>
+                  <Text style={[reportStyles.crumb, { color: colors.muted }]}>Arbeid / Fraværsrapport</Text>
+                  <Text style={[reportStyles.heading, { color: colors.ink }]}>Fraværsrapport</Text>
+                </>
+              )}
               <Text style={{ color: colors.muted, fontSize: 13 }}>
                 {loading
                   ? 'Laster fravær…'
@@ -787,7 +793,7 @@ export function PlannedAbsenceDesktop({
           onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
         />
       ) : null}
-      <PlannedCard rows={board.planned || []} />
+      <PlannedCard rows={board.planned || []} heading="" />
     </ScrollView>
   );
 }
@@ -973,10 +979,10 @@ function EmployeePane({
   );
 }
 
-function PlannedCard({ rows, onOpen }) {
+function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
   return (
     <View style={styles.card} nativeID="planlagt-fravaer">
-      <Text style={styles.cardTitle}>Planlagt fravær</Text>
+      {heading ? <Text style={styles.cardTitle}>{heading}</Text> : null}
       <Text style={styles.hint}>Registrert fravær som ligger frem i tid.</Text>
       {rows.length ? rows.map((row) => (
         <TouchableOpacity

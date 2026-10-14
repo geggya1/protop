@@ -30,12 +30,14 @@ import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { VAT_CODES as VAT_TABLE } from '../../src/economy/vat.js';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 
 /**
  * Økonomi · Fakturagrunnlag — godkjente timer → faktura → bilag → EHF.
  */
 export default function EconomyBilling() {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { familyId, family, requestShellTab } = useApp();
   const [projectState, setProjectState] = useState(emptyProjectState());
   const [invoices, setInvoices] = useState([]);
@@ -195,9 +197,12 @@ export default function EconomyBilling() {
 
   return (
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Text style={[styles.title, { color: colors.ink }]}>Fakturagrunnlag</Text>
+      {hostedHero ? null : (
+        <Text style={[styles.title, { color: colors.ink }]}>Fakturagrunnlag</Text>
+      )}
       <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 640 }}>
-        Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde/prosjekt. Opprett faktura med linjer, MVA, KID, bilag og EHF-XML.
+        {hostedHero ? '' : 'Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde/prosjekt. '}
+        Opprett faktura med linjer, MVA, KID, bilag og EHF-XML.
       </Text>
 
       <View style={styles.row}>

@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroModuleId } from './moduleHero.js';
+import { COMPANY_HERO, companyHeroId } from './companyHero.js';
 import {
   ACTIVATABLE_MODULE_IDS,
   getModuleConfig,
@@ -114,7 +115,7 @@ assert.match(shellSrc, /shellHeroModuleId/, 'shell draws the shared heading abov
 assert.match(shellSrc, /phoneChromeHeroId/, 'phone heading id is resolved for Mer-subviews including Husk dato');
 assert.match(shellSrc, /<ModuleHero /, 'shell heading is ModuleHero');
 assert.match(shellSrc, /ModuleHeroHostProvider/, 'shell marks the heading as hosted');
-assert.match(shellSrc, /hero=\{headerHeroId/, 'phone heading replaces the shell page title');
+assert.match(shellSrc, /headerHeroId \? \([\s\S]*<ModuleHero/, 'phone heading replaces the shell page title');
 assert.match(shellSrc, /pageHeroId && !headerHeroId/, 'tablet\/web keep the heading in the content band');
 assert.match(shellSrc, /flush chrome/, 'phone heading is flattened into the shell chrome');
 assert.doesNotMatch(shellSrc, /heroBandPhone/, 'phone no longer draws a second heading below the title');
@@ -234,4 +235,287 @@ const familyTreeHelp = buildHelpWelcomeModule({
 assert.ok(familyTreeHelp);
 assert.match(familyTreeHelp.illustrationPath, /familietreet--module-activation-illustration\.png\?v=/);
 
-console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules)`);
+const COMPANY_PAGES = [
+  ['projects', null, 'projects'],
+  ['ansatte', null, 'ansatte'],
+  ['kunder', null, 'kunder'],
+  ['kontrakt', null, 'kontrakt'],
+  ['skjema', null, 'skjema'],
+  ['iso', null, 'iso'],
+  ['timeliste', null, 'timeliste'],
+  ['selskap', null, 'selskap'],
+  ['selskap', 'tilgang', 'selskap-tilgang'],
+  ['selskap', 'underenheter', 'underenheter'],
+  ['underenheter', null, 'underenheter'],
+  ['anbud', 'varsling', 'anbud-varsling'],
+  ['anbud', 'foresporsel', 'anbud-foresporsel'],
+  ['anbud', 'vurdering', 'anbud-vurdering'],
+  ['anbud', 'tilbud', 'anbud-tilbud'],
+  ['arbeid', 'timeliste', 'arbeid-timeliste'],
+  ['arbeid', 'timerapport', 'arbeid-timerapport'],
+  ['arbeid', 'timesaldo', 'arbeid-timesaldo'],
+  ['arbeid', 'fravaer', 'arbeid-fravaer'],
+  ['arbeid', 'fravaersrapport', 'arbeid-fravaersrapport'],
+  ['arbeid', 'planlagt', 'arbeid-planlagt'],
+  ['arbeid', 'utlegg', 'arbeid-utlegg'],
+  ['arbeid', 'salg', 'arbeid-salg'],
+  ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
+  ['okonomi', 'oversikt', 'okonomi-oversikt'],
+  ['okonomi', 'kunder', 'okonomi-kunder'],
+  ['okonomi', 'avtaler', 'okonomi-avtaler'],
+  ['okonomi', 'faktura', 'okonomi-faktura'],
+  ['okonomi', 'fakturagrunnlag', 'okonomi-fakturagrunnlag'],
+  ['okonomi', 'utlegg', 'okonomi-utlegg'],
+  ['okonomi', 'kjorebok', 'okonomi-kjorebok'],
+  ['okonomi', 'produkter', 'okonomi-produkter'],
+  ['okonomi', 'indeks', 'okonomi-indeks'],
+];
+for (const [tab, sub, id] of COMPANY_PAGES) {
+  assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
+  assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
+  assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
+  assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
+  const hero = resolveModuleHero(id, 'nb');
+  const en = resolveModuleHero(id, 'en');
+  assert.ok(hero.title, `${id} title`);
+  assert.ok(hero.kicker, `${id} kicker`);
+  assert.ok(hero.pitch, `${id} pitch`);
+  assert.notEqual(en.title, hero.title, `${id} should have English title`);
+  assert.ok(COMPANY_HERO[id], `${id} company hero`);
+}
+assert.equal(resolveModuleHero('projects', 'nb').wideArt, true, 'project overview uses the wide illustration');
+assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the wide illustration');
+assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');
+assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvarsling uses the wide illustration');
+assert.equal(resolveModuleHero('anbud-tilbud', 'nb').wideArt, true, 'tilbud uses the wide illustration');
+assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses the wide illustration');
+assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the wide illustration');
+assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
+assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
+assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
+assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');
+assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices use the wide illustration');
+assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
+assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
+assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
+
+const projectFile = 'prosjekt--module-activation-illustration.png';
+const projectBundled = join(ROOT, 'assets/module-activation', projectFile);
+const projectPublic = join(ROOT, 'public/assets/module-activation', projectFile);
+assert.equal(existsSync(projectBundled), true, 'project overview bundled art');
+assert.equal(existsSync(projectPublic), true, 'project overview public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(projectBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(projectPublic)).digest('hex'),
+  'project overview bundled != public',
+);
+assert.match(assetsSrc, /projects: require\('\.\.\/\.\.\/assets\/module-activation\/prosjekt--module-activation-illustration\.png'\)/);
+const ansatteFile = 'ansatte--module-activation-illustration.png';
+const ansatteBundled = join(ROOT, 'assets/module-activation', ansatteFile);
+const ansattePublic = join(ROOT, 'public/assets/module-activation', ansatteFile);
+assert.equal(existsSync(ansatteBundled), true, 'ansatte bundled art');
+assert.equal(existsSync(ansattePublic), true, 'ansatte public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(ansatteBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(ansattePublic)).digest('hex'),
+  'ansatte bundled != public',
+);
+assert.match(assetsSrc, /ansatte: require\('\.\.\/\.\.\/assets\/module-activation\/ansatte--module-activation-illustration\.png'\)/);
+const kunderFile = 'kunder--module-activation-illustration.png';
+const kunderBundled = join(ROOT, 'assets/module-activation', kunderFile);
+const kunderPublic = join(ROOT, 'public/assets/module-activation', kunderFile);
+assert.equal(existsSync(kunderBundled), true, 'kunder bundled art');
+assert.equal(existsSync(kunderPublic), true, 'kunder public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(kunderBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(kunderPublic)).digest('hex'),
+  'kunder bundled != public',
+);
+assert.match(assetsSrc, /kunder: require\('\.\.\/\.\.\/assets\/module-activation\/kunder--module-activation-illustration\.png'\)/);
+const anbudFile = 'anbud-varsling--module-activation-illustration.png';
+const anbudBundled = join(ROOT, 'assets/module-activation', anbudFile);
+const anbudPublic = join(ROOT, 'public/assets/module-activation', anbudFile);
+assert.equal(existsSync(anbudBundled), true, 'anbud bundled art');
+assert.equal(existsSync(anbudPublic), true, 'anbud public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(anbudBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(anbudPublic)).digest('hex'),
+  'anbud bundled != public',
+);
+assert.match(assetsSrc, /'anbud-varsling': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-varsling--module-activation-illustration\.png'\)/);
+const tilbudFile = 'anbud-tilbud--module-activation-illustration.png';
+const tilbudBundled = join(ROOT, 'assets/module-activation', tilbudFile);
+const tilbudPublic = join(ROOT, 'public/assets/module-activation', tilbudFile);
+assert.equal(existsSync(tilbudBundled), true, 'tilbud bundled art');
+assert.equal(existsSync(tilbudPublic), true, 'tilbud public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(tilbudBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(tilbudPublic)).digest('hex'),
+  'tilbud bundled != public',
+);
+assert.match(assetsSrc, /'anbud-tilbud': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-tilbud--module-activation-illustration\.png'\)/);
+const kontraktFile = 'kontrakt--module-activation-illustration.png';
+const kontraktBundled = join(ROOT, 'assets/module-activation', kontraktFile);
+const kontraktPublic = join(ROOT, 'public/assets/module-activation', kontraktFile);
+assert.equal(existsSync(kontraktBundled), true, 'kontrakt bundled art');
+assert.equal(existsSync(kontraktPublic), true, 'kontrakt public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(kontraktBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(kontraktPublic)).digest('hex'),
+  'kontrakt bundled != public',
+);
+assert.match(assetsSrc, /kontrakt: require\('\.\.\/\.\.\/assets\/module-activation\/kontrakt--module-activation-illustration\.png'\)/);
+const skjemaFile = 'skjema--module-activation-illustration.png';
+const skjemaBundled = join(ROOT, 'assets/module-activation', skjemaFile);
+const skjemaPublic = join(ROOT, 'public/assets/module-activation', skjemaFile);
+assert.equal(existsSync(skjemaBundled), true, 'skjema bundled art');
+assert.equal(existsSync(skjemaPublic), true, 'skjema public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(skjemaBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(skjemaPublic)).digest('hex'),
+  'skjema bundled != public',
+);
+assert.match(assetsSrc, /skjema: require\('\.\.\/\.\.\/assets\/module-activation\/skjema--module-activation-illustration\.png'\)/);
+const timelisteFile = 'timeliste--module-activation-illustration.png';
+const timelisteBundled = join(ROOT, 'assets/module-activation', timelisteFile);
+const timelistePublic = join(ROOT, 'public/assets/module-activation', timelisteFile);
+assert.equal(existsSync(timelisteBundled), true, 'timeliste bundled art');
+assert.equal(existsSync(timelistePublic), true, 'timeliste public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(timelisteBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(timelistePublic)).digest('hex'),
+  'timeliste bundled != public',
+);
+assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
+for (const file of [
+  'arbeid-fravaer--module-activation-illustration.png',
+  'arbeid-fravaersrapport--module-activation-illustration.png',
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+}
+assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
+const utleggFile = 'arbeid-utlegg--module-activation-illustration.png';
+const utleggBundled = join(ROOT, 'assets/module-activation', utleggFile);
+const utleggPublic = join(ROOT, 'public/assets/module-activation', utleggFile);
+assert.equal(existsSync(utleggBundled), true, 'utlegg bundled art');
+assert.equal(existsSync(utleggPublic), true, 'utlegg public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(utleggBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(utleggPublic)).digest('hex'),
+  'utlegg bundled != public',
+);
+assert.match(assetsSrc, /'arbeid-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-utlegg--module-activation-illustration\.png'\)/);
+for (const file of [
+  'arbeid-salg--module-activation-illustration.png',
+  'okonomi-produkter--module-activation-illustration.png',
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+}
+assert.match(assetsSrc, /'arbeid-salg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-salg--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'okonomi-produkter': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-produkter--module-activation-illustration\.png'\)/);
+const godkjenningFile = 'arbeid-godkjenning--module-activation-illustration.png';
+const godkjenningBundled = join(ROOT, 'assets/module-activation', godkjenningFile);
+const godkjenningPublic = join(ROOT, 'public/assets/module-activation', godkjenningFile);
+assert.equal(existsSync(godkjenningBundled), true, 'godkjenning bundled art');
+assert.equal(existsSync(godkjenningPublic), true, 'godkjenning public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(godkjenningBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(godkjenningPublic)).digest('hex'),
+  'godkjenning bundled != public',
+);
+assert.match(assetsSrc, /'arbeid-godkjenning': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-godkjenning--module-activation-illustration\.png'\)/);
+const isoFile = 'iso--module-activation-illustration.png';
+const isoBundled = join(ROOT, 'assets/module-activation', isoFile);
+const isoPublic = join(ROOT, 'public/assets/module-activation', isoFile);
+assert.equal(existsSync(isoBundled), true, 'iso bundled art');
+assert.equal(existsSync(isoPublic), true, 'iso public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(isoBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(isoPublic)).digest('hex'),
+  'iso bundled != public',
+);
+assert.match(assetsSrc, /iso: require\('\.\.\/\.\.\/assets\/module-activation\/iso--module-activation-illustration\.png'\)/);
+const fakturaFile = 'okonomi-faktura--module-activation-illustration.png';
+const fakturaBundled = join(ROOT, 'assets/module-activation', fakturaFile);
+const fakturaPublic = join(ROOT, 'public/assets/module-activation', fakturaFile);
+assert.equal(existsSync(fakturaBundled), true, 'faktura bundled art');
+assert.equal(existsSync(fakturaPublic), true, 'faktura public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(fakturaBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(fakturaPublic)).digest('hex'),
+  'faktura bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-faktura': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-faktura--module-activation-illustration\.png'\)/);
+const kjorebokFile = 'okonomi-kjorebok--module-activation-illustration.png';
+const kjorebokBundled = join(ROOT, 'assets/module-activation', kjorebokFile);
+const kjorebokPublic = join(ROOT, 'public/assets/module-activation', kjorebokFile);
+assert.equal(existsSync(kjorebokBundled), true, 'kjorebok bundled art');
+assert.equal(existsSync(kjorebokPublic), true, 'kjorebok public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(kjorebokBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(kjorebokPublic)).digest('hex'),
+  'kjorebok bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-kjorebok': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-kjorebok--module-activation-illustration\.png'\)/);
+const indeksFile = 'okonomi-indeks--module-activation-illustration.png';
+const indeksBundled = join(ROOT, 'assets/module-activation', indeksFile);
+const indeksPublic = join(ROOT, 'public/assets/module-activation', indeksFile);
+assert.equal(existsSync(indeksBundled), true, 'indeks bundled art');
+assert.equal(existsSync(indeksPublic), true, 'indeks public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(indeksBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(indeksPublic)).digest('hex'),
+  'indeks bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-indeks': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-indeks--module-activation-illustration\.png'\)/);
+const grunnlagFile = 'okonomi-fakturagrunnlag--module-activation-illustration.png';
+const grunnlagBundled = join(ROOT, 'assets/module-activation', grunnlagFile);
+const grunnlagPublic = join(ROOT, 'public/assets/module-activation', grunnlagFile);
+assert.equal(existsSync(grunnlagBundled), true, 'fakturagrunnlag bundled art');
+assert.equal(existsSync(grunnlagPublic), true, 'fakturagrunnlag public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(grunnlagBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(grunnlagPublic)).digest('hex'),
+  'fakturagrunnlag bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-fakturagrunnlag': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-fakturagrunnlag--module-activation-illustration\.png'\)/);
+const oversiktFile = 'okonomi-oversikt--module-activation-illustration.png';
+const oversiktBundled = join(ROOT, 'assets/module-activation', oversiktFile);
+const oversiktPublic = join(ROOT, 'public/assets/module-activation', oversiktFile);
+assert.equal(existsSync(oversiktBundled), true, 'oversikt bundled art');
+assert.equal(existsSync(oversiktPublic), true, 'oversikt public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(oversiktBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(oversiktPublic)).digest('hex'),
+  'oversikt bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-oversikt': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-oversikt--module-activation-illustration\.png'\)/);
+assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
+
+console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

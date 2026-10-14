@@ -396,7 +396,7 @@ export default function CompanyStructureSettings({
       ))}
 
       {!units.length ? (
-        <Text style={[styles.lead, { color: colors.muted }]}>Ingen underenheter eller avdelinger er registrert ennå.</Text>
+        <Text style={[styles.lead, { color: colors.muted }]}>Ingen selskaper eller avdelinger er knyttet i ProTop ennå.</Text>
       ) : null}
 
       {canEdit ? (

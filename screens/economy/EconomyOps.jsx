@@ -187,7 +187,8 @@ export default function EconomyOps({ kind = 'expenses' }) {
       ) : null}
       {kind === 'products' ? (
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-          Produktkatalog og stykk-salg mot kunde/prosjekt. Godkjente linjer havner i Fakturagrunnlag.
+          {hostedHero ? '' : 'Produktkatalog og stykk-salg mot kunde/prosjekt. '}
+          Godkjente linjer havner i Fakturagrunnlag.
         </Text>
       ) : null}
 

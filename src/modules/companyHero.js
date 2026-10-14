@@ -343,8 +343,8 @@ export const COMPANY_HERO = {
     kicker: t('Økonomi', 'Finance'),
     title: t('Produkter', 'Products'),
     pitch: t(
-      'Varer og salg som hører til økonomien.',
-      'Products and sales that belong in finance.',
+      'Produktkatalog og stykk-salg mot kunde og prosjekt.',
+      'Product catalog and unit sales for customers and projects.',
     ),
   },
   'okonomi-indeks': {

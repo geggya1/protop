@@ -32,10 +32,10 @@ function PhoneStepFilter({ step, bids, reviewCount, colors, onChange }) {
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel="Filter"
-        style={[styles.filterBtn, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+        style={[styles.filterBtn, { borderColor: colors.brand, backgroundColor: colors.card }]}
       >
-        <Ionicons name="funnel-outline" size={16} color={colors.brand} />
-        <Text style={{ color: colors.brand }}>Filter</Text>
+        <Ionicons name="funnel-outline" size={15} color={colors.brand} />
+        <Text style={{ color: colors.brand, fontSize: 13 }}>Filter</Text>
       </TouchableOpacity>
       <ScrollSheet visible={open} title="Filter" onClose={() => setOpen(false)}>
         <View style={{ gap: 8 }}>
@@ -122,9 +122,9 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       ]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      {isPhone ? (
+      {isPhone && step !== 'varsling' ? (
         <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
-      ) : (
+      ) : isPhone ? null : (
         <View style={styles.row}>
           {ANBUD_MENU.map((item) => {
             const on = step === item.id;
@@ -150,6 +150,9 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           onReviewCount={setAktuellCount}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenReview={() => go('vurdering')}
+          stepFilter={isPhone ? (
+            <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
+          ) : null}
         />
       ) : null}
       {step === 'foresporsel' ? <TenderInquiry company={company} colors={colors} /> : null}
@@ -208,11 +211,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
     maxWidth: '100%',
   },
   step: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },

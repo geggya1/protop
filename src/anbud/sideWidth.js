@@ -3,8 +3,8 @@ export const RAIL_WIDTH_KEY = 'protop.anbud.railWidth';
 export const RAIL_PREF_KEY = 'protop.anbud.railOpenWidth';
 export const ALERT_RAIL_PREF_KEY = 'protop.anbud.alertRailPref';
 export const RAIL_PEEK = 44;
-/** Karthøyde i den lave mobilvisningen på anbudsvarsling, så listen får plass under. */
-export const PHONE_PREVIEW_MAP_HEIGHT = 160;
+/** Karthøyde på anbudsvarsling i telefon, slik kartet i malen fyller feltet under treffene. */
+export const PHONE_PREVIEW_MAP_HEIGHT = 300;
 
 export function clampSideWidth(width, min = 280, max = 840) {
   const n = Number(width);

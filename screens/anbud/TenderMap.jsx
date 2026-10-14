@@ -29,6 +29,8 @@ export default function TenderMap({
   requireSelection = false,
   brief = false,
   onExpand,
+  legendItems = null,
+  coveragePalette = false,
 }) {
   const iframeRef = useRef(null);
   const indexRef = useRef(0);
@@ -43,9 +45,10 @@ export default function TenderMap({
       showMark,
       openLabel,
       kindLabel,
+      coveragePalette,
     }),
     // Nåler synkes med postMessage. Nytt srcDoc laster kartet på nytt og flytter siden på mobil.
-    [colors?.brand, colors?.danger, compact, showMark, openLabel, kindLabel],
+    [colors?.brand, colors?.danger, compact, showMark, openLabel, kindLabel, coveragePalette],
   );
   const found = pins.findIndex((row) => row.id === (cursorId || selectedId));
   if (found >= 0) indexRef.current = found;
@@ -96,6 +99,7 @@ export default function TenderMap({
         lng: row.lng,
         coverage: row.coverage === 'land' ? 'land' : '',
         kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
+        placeKind: row.placeKind === 'hele' || row.placeKind === 'miss' ? row.placeKind : 'point',
         mapNo: Number(row.mapNo) > 0 ? Number(row.mapNo) : 0,
       })),
       busyId: busyId || '',
@@ -128,7 +132,9 @@ export default function TenderMap({
   const count = pins.length;
   const national = pins.filter((row) => row.coverage === 'land').length;
   const placed = count - national;
-  const legend = legendLabel
+  const legend = legendItems?.length
+    ? legendItems
+    : legendLabel
     ? [{ label: legendLabel, color: colors.brand }]
     : view === 'aktuelle'
       ? [{ label: 'Aktuelle', color: colors.brand }]
@@ -161,8 +167,10 @@ export default function TenderMap({
                 accessibilityRole="button"
                 accessibilityLabel="Større kart. Dra inn fra høyre marg, eller trykk her."
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.expand}
               >
                 <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>Større</Text>
+                <Ionicons name="expand-outline" size={14} color={colors.brand} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -177,10 +185,10 @@ export default function TenderMap({
           {legend.map((item) => (
             <View key={item.label} style={styles.legendItem}>
               <View style={[styles.dot, { backgroundColor: item.color }]} />
-              <Text style={{ color: colors.ink, fontSize: 12 }}>{item.label}</Text>
+              <Text style={{ color: colors.ink, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{item.label}</Text>
             </View>
           ))}
-          {national ? (
+          {national && !legendItems?.length ? (
             <View style={styles.legendItem}>
               <View style={[styles.landSwatch, { backgroundColor: colors.brand, borderColor: colors.brand }]} />
               <Text style={{ color: colors.ink, fontSize: 12 }}>Hele Norge</Text>
@@ -287,7 +295,9 @@ export default function TenderMap({
           {missing} treff mangler sted i kunngjøringen.
         </Text>
       ) : null}
-      <Text style={{ color: colors.muted, fontSize: 11 }}>Kart: OpenStreetMap. Stedsøk: Kartverket og Photon.</Text>
+      {brief ? null : (
+        <Text style={{ color: colors.muted, fontSize: 11 }}>Kart: OpenStreetMap. Stedsøk: Kartverket og Photon.</Text>
+      )}
     </View>
   );
 }
@@ -296,9 +306,10 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   headTools: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  expand: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   h: { fontSize: 16, fontWeight: '600' },
-  legend: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  legendItem: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  legend: { flexDirection: 'row', flexWrap: 'nowrap', gap: 10, alignItems: 'center' },
+  legendItem: { flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 1, minWidth: 0 },
   dot: { width: 10, height: 10, borderRadius: 99 },
   landSwatch: { width: 14, height: 10, borderRadius: 2, borderWidth: 1, opacity: 0.45 },
   map: { height: 440, borderRadius: 12, overflow: 'hidden' },

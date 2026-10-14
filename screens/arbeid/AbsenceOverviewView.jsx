@@ -8,6 +8,8 @@ import DateField from '../../components/DateField';
 import { useApp } from '../../src/context/AppContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import {
+  ABSENCE_DAY_HOURS,
+  absenceRoster,
   buildAbsenceDashboard,
   eachWeekday,
 } from '../../src/arbeid/absenceDashboard.js';
@@ -120,20 +122,25 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     (canChooseEmployee ? (workspace.employees || []) : visiblePeople)
       .filter((row) => employeeActivityTab(row) !== 'trash')
   ), [canChooseEmployee, workspace.employees, visiblePeople]);
+  const phoneRoster = useMemo(
+    () => (canChooseEmployee ? absenceRoster(desktopPeople) : visiblePeople),
+    [canChooseEmployee, desktopPeople, visiblePeople],
+  );
+  const phoneEmployeeId = phoneRoster.some((row) => row.id === employeeId) ? employeeId : '';
 
   const companyMode = !locked;
   const dashboard = useMemo(() => buildAbsenceDashboard({
-    employees: visiblePeople,
-    employeeId,
+    employees: companyMode ? phoneRoster : visiblePeople,
+    employeeId: companyMode ? phoneEmployeeId : employeeId,
     typeId: companyMode ? '' : typeId,
     category: companyMode ? (category || 'ferie') : '',
     absences: workspace.state.absences,
     adjustments: workspace.state.absenceAdjustments,
-    fullDayHours: fullDay,
+    fullDayHours: companyMode ? ABSENCE_DAY_HOURS : fullDay,
     today,
     names,
   }), [
-    visiblePeople, employeeId, typeId, category, companyMode,
+    phoneRoster, visiblePeople, employeeId, phoneEmployeeId, typeId, category, companyMode,
     workspace.state.absences, workspace.state.absenceAdjustments,
     fullDay, today, names,
   ]);
@@ -214,7 +221,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         onSelectType={setTypeId}
         absences={workspace.state.absences || []}
         adjustments={workspace.state.absenceAdjustments || []}
-        fullDayHours={fullDay}
+        fullDayHours={ABSENCE_DAY_HOURS}
         today={today}
         error={workspace.error}
         opening={opening}
@@ -227,12 +234,8 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   if (companyMode) {
     return (
       <CompanyAbsenceView
-        companyName={companyLabel(family)}
-        companies={companies}
-        companyId={familyId}
-        onSelectCompany={(id) => selectFamily?.(id)}
-        employees={visiblePeople.map((row) => ({ id: row.id, name: employeeDisplayName(row) }))}
-        employeeId={employeeId}
+        employees={phoneRoster.map((row) => ({ id: row.id, name: employeeDisplayName(row) }))}
+        employeeId={phoneEmployeeId}
         canChooseEmployee={canChooseEmployee}
         onSelectEmployee={setPickedId}
         category={category || 'ferie'}

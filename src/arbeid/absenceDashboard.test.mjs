@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  ABSENCE_DAY_HOURS,
   STATUTORY_VACATION_DAYS,
   absenceRoster,
   buildAbsenceDashboard,
@@ -329,6 +330,29 @@ const employees = [
   assert.equal(grid.totals[2].ferie, 1);
   assert.equal(grid.totals[2].sykdom, 1);
   assert.equal(grid.totals[0].ferie, 0);
+}
+
+{
+  const mixed = [
+    { id: 'own', company: { status: 'active', personnelKind: 'staff' } },
+    { id: 'ext', company: { status: 'active', personnelKind: 'external' } },
+    { id: 'off', company: { status: 'inactive', personnelKind: 'staff' } },
+  ];
+  const roster = absenceRoster(mixed);
+  const dash = buildAbsenceDashboard({
+    employees: roster,
+    today: '2026-10-14',
+    fullDayHours: ABSENCE_DAY_HOURS,
+    absences: [
+      { id: 'a1', employeeId: 'own', type: 'ferie', date: '2026-06-01', hours: 8 },
+      { id: 'a2', employeeId: 'own', type: 'ferie', date: '2026-06-02', hours: 4 },
+      { id: 'a3', employeeId: 'ext', type: 'ferie', date: '2026-06-03', hours: 8 },
+      { id: 'a4', employeeId: 'off', type: 'ferie', date: '2026-06-04', hours: 8 },
+    ],
+  });
+  assert.equal(ABSENCE_DAY_HOURS, 8);
+  assert.equal(dash.headcount, 1);
+  assert.equal(dash.summary.used, 1.5);
 }
 
 console.log('absenceDashboard ok');

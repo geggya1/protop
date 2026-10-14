@@ -18,12 +18,7 @@ import CompanyStructureSettings from '../../components/project/CompanyStructureS
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import CompanyLanding from './CompanyLanding';
 import CompanyCalendarSettings from '../../components/arbeid/CompanyCalendarSettings';
-
-const PAGES = [
-  ['oversikt', 'Forside'],
-];
 
 function Field({ label, value, onChangeText, placeholder, colors, keyboardType, editable = true }) {
   return (
@@ -52,7 +47,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
   const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'read'));
   const contextLabel = companyContextLabel(family);
-  const [page, setPage] = useState(startPage === 'tilgang' ? 'tilgang' : 'oversikt');
+  const [page, setPage] = useState(startPage === 'tilgang' ? 'tilgang' : 'innstillinger');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState(company?.telefon || '');
@@ -68,10 +63,6 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   useEffect(() => {
     if (startPage === 'tilgang') setPage('tilgang');
   }, [startPage]);
-
-  useEffect(() => {
-    if (page === 'innstillinger' && access.ready && !canOpenSettings) setPage('oversikt');
-  }, [page, access.ready, canOpenSettings]);
 
   useEffect(() => {
     setPhone(company?.telefon || '');
@@ -155,30 +146,6 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     );
   }
 
-  const chips = (
-    <View style={styles.chips}>
-      {PAGES.map(([id, label]) => {
-        const on = page === id;
-        return (
-          <TouchableOpacity
-            key={id}
-            onPress={() => {
-              if (startPage === 'tilgang') {
-                requestShellTab?.('selskap');
-                return;
-              }
-              setPage(id);
-              setError('');
-            }}
-            style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-          >
-            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{label}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-
   const visibleCpv = CPV_CODES.filter((row) => {
     const q = cpvQuery.trim().toLowerCase();
     if (!q) return true;
@@ -217,16 +184,12 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           </Text>
         </>
       ) : null}
-      {startPage === 'tilgang' ? null : chips}
+      {startPage === 'tilgang' ? null : (
+        <TouchableOpacity onPress={() => requestShellTab?.('home')} accessibilityRole="button">
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>Til forsiden</Text>
+        </TouchableOpacity>
+      )}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
-
-      {page === 'oversikt' ? (
-        <CompanyLanding
-          stored={company}
-          onSettings={canOpenSettings ? () => setPage('innstillinger') : null}
-          onUnits={() => requestShellTab?.('selskap', 'underenheter')}
-        />
-      ) : null}
 
       {page === 'tilgang' ? (
         !access.ready && !owner ? (
@@ -253,10 +216,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       ) : null}
 
       {page === 'innstillinger' ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : !canOpenSettings ? (
+          <CompanyAccessDenied colors={colors} />
+        ) : (
         <View style={styles.column}>
           <View style={styles.settingsHead}>
             <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Innstillinger</Text>
-            <TouchableOpacity onPress={() => setPage('oversikt')} accessibilityLabel="Lukk innstillinger">
+            <TouchableOpacity onPress={() => requestShellTab?.('home')} accessibilityLabel="Lukk innstillinger">
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
           </View>
@@ -272,6 +240,14 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             style={[styles.btn, { backgroundColor: colors.sunken }]}
           >
             <Text style={[styles.btnText, { color: colors.ink }]}>Tilgang og rettigheter</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('selskap', 'underenheter')}
+            accessibilityRole="button"
+            accessibilityLabel="Underenheter"
+            style={[styles.btn, { backgroundColor: colors.sunken }]}
+          >
+            <Text style={[styles.btnText, { color: colors.ink }]}>Underenheter</Text>
           </TouchableOpacity>
           <CompanyLogoSettings
             company={company}
@@ -374,6 +350,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             </TouchableOpacity>
           ) : null}
         </View>
+        )
       ) : null}
 
     </ScrollView>

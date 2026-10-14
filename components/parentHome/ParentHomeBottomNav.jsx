@@ -48,11 +48,18 @@ export default function ParentHomeBottomNav({
   includeSafeArea = true,
   onLayout,
   glass = false,
+  presetItems = null,
 }) {
   const insets = useSafeAreaInsets();
   const { t } = useI18n();
   const palette = navPalette(tokens);
   const items = useMemo(() => {
+    if (Array.isArray(presetItems) && presetItems.length) {
+      return presetItems.slice(0, MAX_PARENT_BOTTOM_SHORTCUTS).map((item) => ({
+        ...item,
+        badge: Number(badgeById[item.id] || item.badge || 0),
+      }));
+    }
     const builtin = builtinNav(t);
     return (ids || []).slice(0, MAX_PARENT_BOTTOM_SHORTCUTS).map((id) => {
       if (builtin[id]) {
@@ -70,7 +77,7 @@ export default function ParentHomeBottomNav({
       }
       return { id, label: id, icon: 'apps', badge: Number(badgeById[id] || 0) };
     });
-  }, [ids, appById, badgeById, t]);
+  }, [ids, appById, badgeById, t, presetItems]);
 
   if (!items.length) return null;
 
@@ -113,7 +120,7 @@ export default function ParentHomeBottomNav({
             >
               <IconBadge count={item.badge || 0} size={13} offset={-4}>
                 <Ionicons
-                  name={item.icon}
+                  name={active && item.iconActive ? item.iconActive : item.icon}
                   size={20}
                   color={active ? (glass ? '#E8F8EC' : palette.accent) : (glass ? '#F4F7FB' : palette.muted)}
                 />

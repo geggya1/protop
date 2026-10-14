@@ -7,6 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
 import { useLayout } from '../../src/theme';
+import { useColors } from '../../src/context/ThemeContext';
 import { useI18n } from '../../src/i18n';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -23,6 +24,8 @@ import {
   shouldShowParentBottomNav,
   setParentBottomNavChromeHeight,
 } from '../../src/utils/parentBottomNav';
+import { isOrganizationType } from '../../src/utils/groupTypes';
+import { COMPANY_BOTTOM_NAV } from '../../src/companyHome/model';
 
 /**
  * Customizable bottom dock, mounted in AppShell so it stays on every module.
@@ -38,9 +41,10 @@ export default function ParentShellBottomNav({
   const nav = useNavigation();
   const focused = useIsFocused();
   const { t } = useI18n();
+  const colors = useColors();
   const { hasRail } = useLayout();
   const {
-    isParent, isChild, isActingAsChild, familyId, kids, uid, activeChild, meChild,
+    isParent, isChild, isActingAsChild, familyId, family, kids, uid, activeChild, meChild,
   } = useApp();
   const { unreadByModule } = useUnread();
   const chatDockPreferred = useChatDockPreferred();
@@ -65,20 +69,25 @@ export default function ParentShellBottomNav({
     [asChildView, activeChild, meChild, uid],
   );
   const childHome = useHomeLayout(childId, { role: 'child', aliases: childAliases });
-  const ready = asChildView ? childHome.ready : parentTheme.ready;
+  const companyLocked = !asChildView && isOrganizationType(family?.type);
+  const ready = asChildView ? childHome.ready : (companyLocked || parentTheme.ready);
   const theme = parentTheme.theme;
-  const bottomShortcutIds = asChildView ? childHome.layout.bottomIds : parentTheme.bottomShortcutIds;
+  const bottomShortcutIds = companyLocked
+    ? COMPANY_BOTTOM_NAV.map((item) => item.id)
+    : (asChildView ? childHome.layout.bottomIds : parentTheme.bottomShortcutIds);
   const [barHeight, setBarHeight] = useState(PARENT_BOTTOM_NAV_CONTENT_HEIGHT);
 
   const show = focused && shouldShowParentBottomNav({
     ready,
     theme,
     bottomShortcutIds,
-    isParent,
+    isParent: companyLocked || isParent,
     asChildView,
     hasRail,
     kitchenMode,
-    bottomNavEnabled: asChildView ? childHome.layout?.bottomNavEnabled !== false : parentTheme.bottomNavEnabled !== false,
+    bottomNavEnabled: companyLocked
+      ? true
+      : (asChildView ? childHome.layout?.bottomNavEnabled !== false : parentTheme.bottomNavEnabled !== false),
   });
 
   // Pin to the visual viewport on mobile web (same approach as the old ShellTabBar).
@@ -159,10 +168,17 @@ export default function ParentShellBottomNav({
       badgeById={badgeById}
       activeId={activeId}
       onSelect={onSelect}
-      tokens={theme?.tokens}
+      tokens={companyLocked ? {
+        surface: '#ffffff',
+        border: '#E6EAF0',
+        accent: colors.brand,
+        accentSoft: 'transparent',
+        textMuted: '#8E99A8',
+      } : theme?.tokens}
       includeSafeArea
       onLayout={onLayout}
-      glass={glass}
+      glass={companyLocked ? false : glass}
+      presetItems={companyLocked ? COMPANY_BOTTOM_NAV : null}
     />
   );
 

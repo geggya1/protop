@@ -1,477 +1,321 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions,
+  Image, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useColors } from '../../src/context/ThemeContext';
-import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
-import { fetchWeatherForecast, roundTemp, searchWeatherPlaces } from '../../src/utils/weather';
+import { useApp } from '../../src/context/AppContext';
+import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
+import { useWeather } from '../../src/hooks/useWeather';
+import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
+import { CUSTOM_BANNER_ID, getHomeBanner } from '../../src/homeBanners';
 import { formatGreetingDate } from '../../src/utils/timeGreeting';
+import { roundTemp } from '../../src/utils/weather';
+import { listenParentTodos, toggleParentTodo } from '../../src/utils/todos';
+import { isParentTaskOpen, parentTaskVisibleOnDate } from '../../src/utils/parentTasks';
+import { parentTaskVisibleToUser } from '../../src/utils/parentTaskVisibility';
+import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
+import { useNow } from '../../src/hooks/useNow';
+import { soft } from '../../components/parentHome/softTheme';
 import {
-  fetchPublicCompany,
-  nbDate,
-  nok,
-  registerRows,
-  storedCompanyProfile,
-  weatherQuery,
-} from '../../src/project/companyPublic';
-import { companyLogoOf } from '../../src/project/companyLogo';
-import { groupOverview } from '../../src/project/companyUnits';
-import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+  COMPANY_HOME_SHORTCUTS,
+  companyGreetingHello,
+  companyHomeName,
+  companyHomeTaskRows,
+} from '../../src/companyHome/model';
 
-function openUrl(url) {
-  const raw = String(url || '').trim();
-  if (!raw) return;
-  const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  Linking.openURL(href).catch(() => {});
+const webCardShadow = Platform.OS === 'web'
+  ? { boxShadow: '0 10px 28px rgba(15, 23, 42, 0.1)' }
+  : { elevation: 3 };
+
+function capitalizeNb(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function Card({ children, colors, style, nativeID, id }) {
-  return (
-    <View
-      nativeID={nativeID}
-      id={id}
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }, style]}
-    >
-      {children}
-    </View>
-  );
-}
-
-function SectionTitle({ children, colors, action, onAction }) {
-  return (
-    <View style={styles.cardHead}>
-      <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.cardTitle, { color: colors.ink }]}>{children}</Text>
-      {action ? (
-        <TouchableOpacity onPress={onAction} accessibilityRole="button">
-          <Text style={[styles.link, { color: colors.brand }]}>{action}</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
-
-function Fact({ label, value, colors }) {
-  if (!value) return null;
-  return (
-    <View style={styles.fact}>
-      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
-    </View>
-  );
-}
-
-function Stat({ label, value, colors }) {
-  return (
-    <View style={[styles.stat, { backgroundColor: colors.sunken }]}>
-      <Text style={[styles.statValue, { color: colors.ink }]} numberOfLines={1}>{value}</Text>
-      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-    </View>
-  );
-}
-
-export default function CompanyLanding({
-  stored,
-  onSettings,
-  onUnits,
-}) {
+/**
+ * Låst forside for bedrift — samme oppsett på mobil og landing.
+ * Bakgrunnsbildet er privat landing sitt bilde, og byttes på samme sted.
+ */
+export default function CompanyLanding() {
   const colors = useColors();
-  const { width } = useWindowDimensions();
-  const wide = width >= 980;
-  const [live, setLive] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [forecast, setForecast] = useState(null);
-  const [placeName, setPlaceName] = useState('');
-  const profile = live?.company || storedCompanyProfile(stored);
-  const logo = companyLogoOf(stored);
-  const orgnr = stored?.organisasjonsnummer || '';
+  const nav = useNavigation();
+  const { activeProfile, uid, familyId, requestShellTab } = useApp();
+  const immersive = useHomeImmersive();
+  const { bannerId, customBannerUri } = useParentDashboardTheme();
+  const { forecast, place } = useWeather();
+  const { contentPaddingBottom } = useBottomChromeInset();
+  const [todos, setTodos] = useState([]);
+  const today = useNow(60_000);
 
   useEffect(() => {
-    if (String(orgnr).replace(/\D/g, '').length !== 9) return undefined;
-    let alive = true;
-    setLoading(true);
-    setError('');
-    fetchPublicCompany(orgnr)
-      .then((data) => {
-        if (!alive) return;
-        if (!data.ok) {
-          setError(data.error || 'Kunne ikke hente offentlige opplysninger.');
-          return;
-        }
-        setLive(data);
-      })
-      .catch((err) => {
-        if (alive) setError(err?.message || 'Kunne ikke hente offentlige opplysninger.');
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => { alive = false; };
-  }, [orgnr]);
+    if (!familyId) {
+      setTodos([]);
+      return undefined;
+    }
+    return listenParentTodos(familyId, setTodos);
+  }, [familyId]);
 
-  const query = weatherQuery(profile);
-  useEffect(() => {
-    if (!query) return undefined;
-    let alive = true;
-    (async () => {
-      try {
-        const found = await searchKartverketAdresser(query, { treffPerSide: 3 });
-        const hit = (found.results || []).find((row) => Number.isFinite(row.lat) && Number.isFinite(row.lon));
-        let place = null;
-        if (hit) {
-          place = {
-            name: hit.poststed || profile?.forretning?.poststed || 'Bedriften',
-            label: hit.label || query,
-            lat: hit.lat,
-            lng: hit.lon,
-            source: 'company',
-          };
-        } else {
-          const hits = await searchWeatherPlaces(profile?.forretning?.poststed || query);
-          if (hits[0]) place = { ...hits[0], source: 'company' };
-        }
-        if (!place || !alive) return;
-        setPlaceName(place.name);
-        const next = await fetchWeatherForecast(place);
-        if (alive) setForecast(next);
-      } catch {
-        if (alive) setForecast(null);
-      }
-    })();
-    return () => { alive = false; };
-  }, [query, profile?.forretning?.poststed]);
-
-  const dateLabel = useMemo(() => formatGreetingDate(new Date()), []);
+  const pack = bannerId === CUSTOM_BANNER_ID ? null : getHomeBanner(bannerId);
+  const bannerSource = customBannerUri ? { uri: customBannerUri } : pack?.source || null;
+  const hello = companyGreetingHello(today);
+  const name = companyHomeName(activeProfile);
+  const dateLabel = capitalizeNb(formatGreetingDate(today));
   const temp = forecast?.current?.temp ?? forecast?.today?.temp;
-  const weatherIcon = forecast?.current?.icon || forecast?.today?.icon || 'partly-sunny';
-  const weatherBit = Number.isFinite(Number(temp))
-    ? `${roundTemp(temp)}° ${placeName || ''}`.trim()
-    : placeName;
-  const registers = registerRows(profile);
-  const roles = live?.roles || [];
-  const accounts = live?.accounts || null;
-  const signature = live?.signature || null;
-  const parentLabel = [live?.parent?.navn, live?.parent?.organisasjonsnummer].filter(Boolean).join(' · ');
-  const overview = useMemo(() => groupOverview({
-    konsern: profile?.konsern === true,
-    morselskap: accounts?.morselskap === true,
-    parentCompanyName: parentLabel || stored?.parentCompanyName,
-    publicUnits: live?.units || [],
-    registered: stored?.subUnits,
-  }), [profile?.konsern, accounts?.morselskap, parentLabel, stored?.parentCompanyName, stored?.subUnits, live?.units]);
+  const weatherIcon = forecast?.current?.icon || forecast?.today?.icon || 'sunny';
+  const weatherLabel = forecast?.current?.label || forecast?.today?.label || '';
+  const placeName = place?.name || '';
+  const showWeather = Number.isFinite(Number(temp)) || !!placeName || !!weatherLabel;
 
-  const weatherCard = (
-    <Card colors={colors}>
-      <SectionTitle colors={colors}>Været{placeName ? ` i ${placeName}` : ''}</SectionTitle>
-      <View style={styles.weatherNow}>
-        <Ionicons name={weatherIcon} size={32} color={colors.brand} />
-        <Text style={[styles.weatherTemp, { color: colors.ink }]}>
-          {Number.isFinite(Number(temp)) ? `${roundTemp(temp)}°` : '—'}
-        </Text>
-        <Text style={[styles.weatherLabel, { color: colors.muted }]} numberOfLines={2}>
-          {forecast?.current?.label || forecast?.today?.label || (query ? 'Henter vær…' : 'Mangler forretningsadresse')}
-          {forecast?.today?.tempRange ? `  ·  ${forecast.today.tempRange}` : ''}
-        </Text>
-      </View>
-      <View style={styles.forecastRow}>
-        {(forecast?.days || []).slice(0, 3).map((day, index) => (
-          <View key={day.date || index} style={styles.forecastCol}>
-            <Text style={[styles.factLabel, { color: colors.muted }]}>{index === 0 ? 'I dag' : (day.weekday || '–')}</Text>
-            <Ionicons name={day.icon || 'partly-sunny'} size={16} color={colors.brand} />
-            <Text style={[styles.forecastVal, { color: colors.ink }]}>{day.tempRange || '—'}</Text>
-          </View>
-        ))}
-      </View>
-      {forecast?.sourceLabel ? (
-        <Text
-          style={[styles.source, { color: colors.muted }]}
-          onPress={() => forecast.yrUrl && openUrl(forecast.yrUrl)}
-        >
-          {forecast.sourceLabel}
-        </Text>
-      ) : null}
-    </Card>
+  const viewer = useMemo(() => ({
+    uid,
+    ids: new Set([uid].filter(Boolean)),
+    asChild: false,
+  }), [uid]);
+
+  const tasks = useMemo(
+    () => companyHomeTaskRows(todos, today, viewer, {
+      visibleToUser: parentTaskVisibleToUser,
+      visibleOnDate: parentTaskVisibleOnDate,
+      isOpen: isParentTaskOpen,
+    }),
+    [todos, today, viewer],
   );
 
-  const konsernCard = (
-    <Card colors={colors} nativeID="company-landing-konsern" id="company-landing-konsern">
-      <SectionTitle colors={colors}>Konsern</SectionTitle>
-      {overview.summary.map((line) => (
-        <Text key={line} style={[styles.body, { color: colors.ink }]}>{line}</Text>
-      ))}
-    </Card>
-  );
+  const openBanner = () => nav.navigate('DashboardThemeSettings');
 
-  const unitsCard = (
-    <Card colors={colors} nativeID="company-landing-units" id="company-landing-units">
-      <SectionTitle colors={colors} action={onUnits ? 'Se alle' : null} onAction={onUnits}>
-        Underenheter
-      </SectionTitle>
-      <View style={styles.statRow}>
-        <Stat label="I Enhetsregisteret" value={String(overview.publicCount)} colors={colors} />
-        <Stat label="Registrert her" value={String(overview.registeredCount)} colors={colors} />
-      </View>
-      {overview.departmentCount ? (
-        <Text style={[styles.mutedLine, { color: colors.muted }]}>
-          {overview.departmentCount === 1
-            ? '1 avdeling er registrert.'
-            : `${overview.departmentCount} avdelinger er registrert.`}
-        </Text>
-      ) : null}
-      {overview.preview.length ? overview.preview.map((row) => (
-        <View key={row.organisasjonsnummer || row.name} style={styles.listRow}>
-          <Ionicons name="git-branch-outline" size={16} color={colors.brand} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.ink, fontWeight: '400' }} numberOfLines={1}>{row.name}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-              {[row.organisasjonsnummer, row.detail].filter(Boolean).join(' · ') || 'Underenhet'}
-            </Text>
-          </View>
-        </View>
-      )) : (
-        <Text style={[styles.mutedLine, { color: colors.muted }]}>
-          {loading && !live ? 'Henter underenheter…' : 'Ingen underenheter i Enhetsregisteret.'}
-        </Text>
-      )}
-      {overview.remaining ? (
-        <Text style={[styles.mutedLine, { color: colors.muted }]}>
-          {overview.remaining === 1 ? 'Og 1 til.' : `Og ${overview.remaining} til.`}
-        </Text>
-      ) : null}
-    </Card>
-  );
+  const openShortcut = (item) => {
+    requestShellTab?.(item.tab, item.subView || null);
+  };
+
+  const toggleTask = (row) => {
+    const task = (todos || []).find((item) => item.id === row.id);
+    if (!task || !familyId) return;
+    toggleParentTodo(familyId, task, today).catch(() => {});
+  };
 
   return (
-    <View style={styles.page}>
-      <View style={styles.hero}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.hello, { color: colors.ink }]} numberOfLines={2}>{profile?.navn || 'Bedrift'}</Text>
-          <View style={styles.heroSub}>
-            <Text style={[styles.heroMeta, { color: colors.muted }]}>{dateLabel}</Text>
-            {weatherBit ? (
-              <View style={[styles.weatherPill, { backgroundColor: colors.card, borderColor: colors.line }]}>
-                <Ionicons name={weatherIcon} size={14} color={colors.brand} />
-                <Text style={[styles.pillTxt, { color: colors.ink }]} numberOfLines={1}>{weatherBit}</Text>
-              </View>
-            ) : null}
-          </View>
-          {onSettings ? (
-            <View style={styles.heroActions}>
-              <TouchableOpacity
-                onPress={onSettings}
-                accessibilityLabel="Innstillinger for bedriften"
-                style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
-              >
-                <Ionicons name="pencil" size={16} color={colors.ink} />
-              </TouchableOpacity>
+    <ScrollView
+      nativeID="company-home"
+      id="company-home"
+      style={[styles.scroll, immersive && styles.scrollClear]}
+      contentContainerStyle={[styles.body, { paddingBottom: contentPaddingBottom }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Pressable
+        onPress={openBanner}
+        accessibilityRole="button"
+        accessibilityLabel="Bakgrunnsbilde. Trykk for å bytte bilde."
+        style={styles.hero}
+        testID="company-home-hero"
+      >
+        {!immersive && bannerSource ? (
+          <Image source={bannerSource} style={styles.heroImage} resizeMode="cover" />
+        ) : null}
+        {!immersive && !bannerSource ? <View style={styles.heroFallback} pointerEvents="none" /> : null}
+        {!immersive ? <View style={styles.heroScrim} pointerEvents="none" /> : null}
+        <Text style={styles.hello}>{hello}</Text>
+        {name ? <Text style={styles.name} numberOfLines={2}>{name}</Text> : null}
+        <Text style={styles.date}>{dateLabel}</Text>
+        {showWeather ? (
+          <View style={styles.weather} testID="company-home-weather">
+            <Ionicons name={weatherIcon} size={34} color="#F6C445" />
+            <Text style={styles.temp}>
+              {Number.isFinite(Number(temp)) ? `${roundTemp(temp)}°` : '—'}
+            </Text>
+            <View style={styles.weatherCopy}>
+              {placeName ? <Text style={styles.place} numberOfLines={1}>{placeName}</Text> : null}
+              {weatherLabel ? <Text style={styles.cond} numberOfLines={2}>{weatherLabel}</Text> : null}
             </View>
-          ) : null}
-        </View>
-        {logo?.dataUrl ? (
-          <View
-            style={[styles.logoPlate, { backgroundColor: colors.card, borderColor: colors.line }]}
-            nativeID="company-landing-logo"
-            id="company-landing-logo"
-          >
-            <Image
-              source={{ uri: logo.dataUrl }}
-              style={styles.companyLogo}
-              resizeMode="contain"
-              accessibilityLabel={`Logo for ${profile?.navn || 'bedriften'}`}
-            />
           </View>
         ) : null}
+      </Pressable>
+
+      <View style={styles.shortcuts} testID="company-home-shortcuts">
+        {COMPANY_HOME_SHORTCUTS.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.shortcut}
+            onPress={() => openShortcut(item)}
+            accessibilityRole="button"
+            accessibilityLabel={item.label}
+            testID={`company-shortcut-${item.id}`}
+          >
+            <Ionicons name={item.icon} size={26} color={colors.brand} />
+            <Text style={styles.shortcutLabel} numberOfLines={2}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
-      {loading && !live ? <Text style={{ color: colors.muted }}>Henter offentlige opplysninger…</Text> : null}
-
-      <View style={[styles.columns, wide && styles.columnsWide]}>
-        <View style={styles.mainCol}>
-          <Card colors={colors}>
-            <SectionTitle colors={colors}>Om bedriften</SectionTitle>
-            <Text style={[styles.lead, { color: colors.ink }]}>
-              {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || 'Manuell bedrift'}
-            </Text>
-            {parentLabel ? (
-              <Text style={[styles.mutedLine, { color: colors.muted }]}>Overordnet enhet: {parentLabel}</Text>
-            ) : null}
-            {profile?.formaal?.length ? (
-              <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
-            ) : null}
-            {profile?.aktivitet?.length ? (
-              <Text style={[styles.mutedLine, { color: colors.muted }]}>{profile.aktivitet.join(' ')}</Text>
-            ) : null}
-            <View style={styles.factGrid}>
-              <Fact label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
-              <Fact label="Oppstart" value={profile?.stiftelsesdato ? '' : nbDate(profile?.oppstart)} colors={colors} />
-              <Fact label="I Enhetsregisteret" value={nbDate(profile?.registrert)} colors={colors} />
-              <Fact label="Målform" value={profile?.maalform} colors={colors} />
-              <Fact label="Sektor" value={[profile?.sektorKode, profile?.sektor].filter(Boolean).join(' · ')} colors={colors} />
-              <Fact label="Ansatte" value={profile?.ansatte != null ? String(profile.ansatte) : ''} colors={colors} />
-              <Fact
-                label={profile?.kapital?.type || 'Kapital'}
-                value={profile?.kapital ? `${nok(profile.kapital.belop)}${profile.kapital.aksjer ? ` · ${profile.kapital.aksjer} aksjer` : ''}` : ''}
-                colors={colors}
-              />
-              <Fact label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
-              <Fact label="Vedtekter" value={nbDate(profile?.vedtektsdato)} colors={colors} />
-            </View>
-            {(profile?.naeringer || []).length ? (
-              <View style={styles.fact}>
-                <Text style={[styles.factLabel, { color: colors.muted }]}>Næringskoder</Text>
-                {profile.naeringer.map((row) => (
-                  <Text key={`${row.kode}-${row.beskrivelse}`} style={[styles.factValue, { color: colors.ink, fontWeight: '400' }]}>
-                    {[row.kode, row.beskrivelse].filter(Boolean).join(' · ')}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-            {profile?.historiskeNavn?.length ? (
-              <Fact label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
-            ) : null}
-          </Card>
-
-          <Card colors={colors}>
-            <SectionTitle colors={colors}>Kontakt og adresse</SectionTitle>
-            <Fact label="Forretningsadresse" value={profile?.forretning?.label} colors={colors} />
-            <Fact label="Kommune" value={[profile?.forretning?.kommune, profile?.forretning?.kommunenummer].filter(Boolean).join(' · ')} colors={colors} />
-            <Fact label="Postadresse" value={profile?.post?.label} colors={colors} />
-            <Fact label="Telefon" value={profile?.telefon || stored?.telefon} colors={colors} />
-            <Fact label="Mobil" value={profile?.mobil} colors={colors} />
-            <Fact label="E-post" value={profile?.epostadresse || stored?.epostadresse} colors={colors} />
-            {profile?.hjemmeside ? (
-              <TouchableOpacity onPress={() => openUrl(profile.hjemmeside)}>
-                <Fact label="Hjemmeside" value={profile.hjemmeside} colors={colors} />
-              </TouchableOpacity>
-            ) : null}
-          </Card>
-
-          {registers.length ? (
-            <Card colors={colors}>
-              <SectionTitle colors={colors}>Register og status</SectionTitle>
-              {registers.map((row) => (
-                <View key={row.label} style={styles.listRow}>
-                  <Ionicons
-                    name={row.label === 'Konkurs' || row.label === 'Avvikling' || row.label === 'Tvangsavvikling' ? 'warning-outline' : 'checkmark-circle-outline'}
-                    size={16}
-                    color={colors.brand}
-                  />
-                  <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row.label}</Text>
-                  <Text style={{ color: colors.muted }}>{row.value}</Text>
-                </View>
-              ))}
-              {!profile?.konkurs && !profile?.avvikling && !profile?.tvang ? (
-                <Text style={[styles.mutedLine, { color: colors.muted }]}>Ingen konkurs eller avvikling er registrert.</Text>
-              ) : null}
-            </Card>
-          ) : null}
-
-          {signature ? (
-            <Card colors={colors}>
-              <SectionTitle colors={colors}>Signaturrett</SectionTitle>
-              {signature.fritekst ? (
-                <Text style={[styles.body, { color: colors.ink }]}>{signature.fritekst}</Text>
-              ) : null}
-              {signature.kombinasjoner.map((row) => (
-                <View key={`${row.tekst}-${row.personer.map((person) => person.navn).join('-')}`} style={styles.listRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.tekst || 'Kan signere'}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {row.personer.map((person) => [person.navn, person.rolle].filter(Boolean).join(', ')).join(' · ')}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </Card>
-          ) : null}
-
-          {roles.length ? (
-            <Card colors={colors}>
-              <SectionTitle colors={colors}>Roller</SectionTitle>
-              {roles.map((row) => (
-                <View key={`${row.rolle}-${row.navn}`} style={styles.listRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.navn}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{row.rolle}</Text>
-                  </View>
-                </View>
-              ))}
-            </Card>
-          ) : null}
-
-          {live?.brregUrl ? (
-            <TouchableOpacity onPress={() => openUrl(live.brregUrl)}>
-              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Registerdetaljene ligger på forsiden. CPV-koder til anbudsvarsling endres med tannhjulet på anbudsvarslingen.</Text>
+      <View style={styles.sheet}>
+        <View style={styles.taskCard} testID="company-home-tasks">
+          <View style={styles.taskHead}>
+            <Text style={styles.taskTitle}>Mine gjøremål</Text>
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('stars')}
+              accessibilityRole="button"
+              accessibilityLabel="Se alle gjøremål"
+            >
+              <Text style={[styles.seeAll, { color: colors.brand }]}>Se alle</Text>
             </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <View style={[styles.sideCol, wide && styles.sideColWide]}>
-          {weatherCard}
-          {konsernCard}
-          {unitsCard}
+          </View>
+          {tasks.length ? tasks.map((row) => (
+            <TouchableOpacity
+              key={row.id}
+              style={styles.taskRow}
+              onPress={() => toggleTask(row)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: false }}
+              accessibilityLabel={row.title}
+            >
+              <Ionicons name="ellipse-outline" size={22} color="#C5CDD8" />
+              <Text style={styles.taskLabel} numberOfLines={2}>{row.title}</Text>
+              {row.badge > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{row.badge}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          )) : (
+            <Text style={styles.empty}>Ingen gjøremål akkurat nå.</Text>
+          )}
         </View>
       </View>
-      <BrandBusyOverlay
-        visible={loading}
-        label="Vent…"
-        detail="Henter selskapsopplysninger."
-      />
-    </View>
+    </ScrollView>
   );
 }
 
-const webShadow = Platform.OS === 'web'
-  ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' }
-  : {};
+const heroText = {
+  color: '#fff',
+  fontWeight: '400',
+  fontFamily: soft.body,
+  textShadowColor: 'rgba(0,0,0,0.45)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 6,
+};
 
 const styles = StyleSheet.create({
-  page: { paddingBottom: 28, gap: 14 },
-  hero: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  logoPlate: {
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
-    alignSelf: 'flex-start', marginLeft: 'auto',
+  scroll: { flex: 1, backgroundColor: '#F4F7FB' },
+  scrollClear: { backgroundColor: 'transparent' },
+  body: { flexGrow: 1 },
+  hero: {
+    minHeight: 280,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 52,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
-  companyLogo: { width: 148, height: 56 },
-  hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.4 },
-  heroSub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
-  heroMeta: { fontSize: 13, fontWeight: '400', textTransform: 'capitalize' },
-  weatherPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
+  heroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  heroFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: '#8AA0B8' },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.18)',
   },
-  pillTxt: { fontSize: 12, fontWeight: '400' },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  penBtn: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  hello: { ...heroText, fontSize: 16, lineHeight: 22 },
+  name: { ...heroText, fontSize: 32, lineHeight: 38, marginTop: 2 },
+  date: { ...heroText, fontSize: 15, lineHeight: 20, marginTop: 4 },
+  weather: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
   },
-  columns: { gap: 12 },
-  columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
-  mainCol: { flex: 1.4, gap: 12, minWidth: 0 },
-  sideCol: { gap: 12, minWidth: 0 },
-  sideColWide: { flex: 0.9, maxWidth: 420 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8, ...webShadow },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  link: { fontWeight: '400', fontSize: 13 },
-  lead: { fontSize: 15, fontWeight: '400' },
-  body: { fontSize: 15, lineHeight: 21 },
-  mutedLine: { fontSize: 13, lineHeight: 18 },
-  factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  fact: { minWidth: 140, flexGrow: 1, gap: 2 },
-  factLabel: { fontSize: 12, fontWeight: '400' },
-  factValue: { fontSize: 14, fontWeight: '400', lineHeight: 19 },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  statRow: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, borderRadius: 12, padding: 10, gap: 2, minWidth: 0 },
-  statValue: { fontSize: 16, fontWeight: '400' },
-  weatherNow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weatherTemp: { fontSize: 28, fontWeight: '400' },
-  weatherLabel: { flex: 1, fontSize: 13, lineHeight: 18 },
-  forecastRow: { flexDirection: 'row', gap: 8 },
-  forecastCol: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
-  forecastVal: { fontSize: 12, fontWeight: '400' },
-  source: { fontSize: 12, fontWeight: '400' },
+  temp: { ...heroText, fontSize: 32, lineHeight: 36 },
+  weatherCopy: { flex: 1, minWidth: 0 },
+  place: { ...heroText, fontSize: 15, lineHeight: 18 },
+  cond: { ...heroText, fontSize: 13, lineHeight: 17, marginTop: 1 },
+  shortcuts: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    marginTop: -36,
+    zIndex: 2,
+  },
+  shortcut: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    gap: 8,
+    ...webCardShadow,
+  },
+  shortcutLabel: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '400',
+    fontFamily: soft.body,
+    color: '#1A2744',
+    textAlign: 'center',
+  },
+  sheet: {
+    flexGrow: 1,
+    backgroundColor: '#F4F7FB',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+  },
+  taskCard: {
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    ...webCardShadow,
+  },
+  taskHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  taskTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '700',
+    fontFamily: soft.body,
+    color: '#1A2744',
+  },
+  seeAll: { fontSize: 15, fontWeight: '400', fontFamily: soft.body },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EEF2F6',
+  },
+  taskLabel: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '400',
+    fontFamily: soft.body,
+    color: '#1A2744',
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    backgroundColor: '#E53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 12, fontWeight: '400', fontFamily: soft.body },
+  empty: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '400',
+    fontFamily: soft.body,
+    color: '#5B6B82',
+    paddingVertical: 12,
+  },
 });

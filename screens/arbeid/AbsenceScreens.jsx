@@ -4,6 +4,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
+import { employeeActivityTab } from '../../src/employees/model.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
@@ -49,9 +50,9 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const today = toDateKey(new Date());
-  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
+  const desktopPeople = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
   const names = {};
-  for (const row of people) names[row.id] = employeeDisplayName(row);
+  for (const row of desktopPeople) names[row.id] = employeeDisplayName(row);
   const rows = useMemo(() => absencePickerTypes().map((type) => {
     const overview = buildAbsenceOverview({
       employeeId: activeId,
@@ -68,7 +69,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   if (isDesktop) {
     return (
       <AbsenceReportDesktop
-        employees={people}
+        employees={workspace.manager && !workspace.lockedId ? desktopPeople : desktopPeople.filter((row) => row.id === activeId)}
         names={names}
         absences={workspace.state.absences || []}
         adjustments={workspace.state.absenceAdjustments || []}
@@ -104,14 +105,14 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
+  const desktopPeople = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
   const names = {};
-  for (const row of people) names[row.id] = employeeDisplayName(row);
+  for (const row of desktopPeople) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
   if (isDesktop) {
     return (
       <PlannedAbsenceDesktop
-        employees={canChooseEmployee ? people : people.filter((row) => row.id === activeId)}
+        employees={canChooseEmployee ? desktopPeople : desktopPeople.filter((row) => row.id === activeId)}
         names={names}
         absences={workspace.state.absences || []}
         adjustments={workspace.state.absenceAdjustments || []}

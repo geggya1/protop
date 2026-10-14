@@ -12,6 +12,7 @@ import {
   eachWeekday,
 } from '../../src/arbeid/absenceDashboard.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
+import { employeeActivityTab } from '../../src/employees/model.js';
 import { setAbsenceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { addAbsence } from '../../src/project/engine';
@@ -107,9 +108,17 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
 
   const names = useMemo(() => {
     const map = {};
-    for (const row of visiblePeople) map[row.id] = employeeDisplayName(row);
+    const source = canChooseEmployee ? (workspace.employees || []) : visiblePeople;
+    for (const row of source) {
+      if (employeeActivityTab(row) === 'trash') continue;
+      map[row.id] = employeeDisplayName(row);
+    }
     return map;
-  }, [visiblePeople]);
+  }, [canChooseEmployee, workspace.employees, visiblePeople]);
+  const desktopPeople = useMemo(() => (
+    (canChooseEmployee ? (workspace.employees || []) : visiblePeople)
+      .filter((row) => employeeActivityTab(row) !== 'trash')
+  ), [canChooseEmployee, workspace.employees, visiblePeople]);
 
   const companyMode = !locked;
   const dashboard = useMemo(() => buildAbsenceDashboard({
@@ -195,7 +204,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   if (companyMode && isDesktop) {
     return (
       <CompanyAbsenceDesktop
-        employees={visiblePeople}
+        employees={desktopPeople}
         names={names}
         employeeId={employeeId}
         canChooseEmployee={canChooseEmployee}

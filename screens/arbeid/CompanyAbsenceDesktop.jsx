@@ -793,7 +793,7 @@ export function PlannedAbsenceDesktop({
           onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
         />
       ) : null}
-      <PlannedCard rows={board.planned || []} />
+      <PlannedCard rows={board.planned || []} heading="" />
     </ScrollView>
   );
 }
@@ -979,10 +979,10 @@ function EmployeePane({
   );
 }
 
-function PlannedCard({ rows, onOpen }) {
+function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
   return (
     <View style={styles.card} nativeID="planlagt-fravaer">
-      <Text style={styles.cardTitle}>Planlagt fravær</Text>
+      {heading ? <Text style={styles.cardTitle}>{heading}</Text> : null}
       <Text style={styles.hint}>Registrert fravær som ligger frem i tid.</Text>
       {rows.length ? rows.map((row) => (
         <TouchableOpacity

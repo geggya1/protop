@@ -170,7 +170,7 @@ export default function EconomyOps({ kind = 'expenses' }) {
 
   return (
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      {hostedHero && (kind === 'products' || kind === 'mileage') ? null : (
+      {hostedHero ? null : (
         <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
       )}
       {kind === 'expenses' ? (

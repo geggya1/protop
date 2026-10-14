@@ -10,6 +10,7 @@ import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { setBalanceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 
 function todayKey() {
   return toDateKey(new Date());
@@ -17,6 +18,7 @@ function todayKey() {
 
 export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' } = {}) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const [through, setThrough] = useState(todayKey());
   const year = Number(through.slice(0, 4)) || new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
@@ -74,9 +76,13 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' 
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="timesaldo-screen">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Timesaldo</Text>
+      {hostedHero ? null : (
+        <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Timesaldo</Text>
+      )}
       <View style={styles.head}>
-        <Text style={[styles.title, { color: colors.ink }]}>Timesaldo</Text>
+        {hostedHero ? null : (
+          <Text style={[styles.title, { color: colors.ink }]}>Timesaldo</Text>
+        )}
         <View style={styles.through}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Sluttdato</Text>
           <TextInput

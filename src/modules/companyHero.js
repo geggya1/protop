@@ -75,7 +75,8 @@ export const COMPANY_HERO = {
     ),
   },
   iso: {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'ISO',
     kicker: t('ISO', 'ISO'),
     title: t('Kvalitet, miljø og arbeidsmiljø', 'Quality, environment and safety'),

@@ -298,6 +298,7 @@ assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project ex
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');
+assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -444,6 +445,17 @@ assert.equal(
   'godkjenning bundled != public',
 );
 assert.match(assetsSrc, /'arbeid-godkjenning': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-godkjenning--module-activation-illustration\.png'\)/);
+const isoFile = 'iso--module-activation-illustration.png';
+const isoBundled = join(ROOT, 'assets/module-activation', isoFile);
+const isoPublic = join(ROOT, 'public/assets/module-activation', isoFile);
+assert.equal(existsSync(isoBundled), true, 'iso bundled art');
+assert.equal(existsSync(isoPublic), true, 'iso public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(isoBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(isoPublic)).digest('hex'),
+  'iso bundled != public',
+);
+assert.match(assetsSrc, /iso: require\('\.\.\/\.\.\/assets\/module-activation\/iso--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

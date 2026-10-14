@@ -77,11 +77,21 @@ function Metrics({ node, colors, compact = false }) {
   );
 }
 
+function connectorColor(colors) {
+  const line = String(colors?.line || '').toLowerCase();
+  if (line.startsWith('#e') || line.startsWith('#f')) return '#6f849c';
+  return colors?.muted || '#8e8e93';
+}
+
+function Stem({ color, height = 22 }) {
+  return <View style={[styles.stem, { height, backgroundColor: color, pointerEvents: 'none' }]} />;
+}
+
 function OwnershipPill({ label, colors }) {
   if (!label) return null;
   return (
-    <View style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.line }]}>
-      <Text style={[styles.pillText, { color: colors.muted }]}>{label}</Text>
+    <View style={[styles.pill, { backgroundColor: colors.card, borderColor: connectorColor(colors) }]}>
+      <Text style={[styles.pillText, { color: colors.ink }]}>{label}</Text>
     </View>
   );
 }
@@ -114,32 +124,34 @@ function CompanyCard({ node, colors, onPress, compact = false }) {
   );
 }
 
-function Fork({ children, colors }) {
+function Fork({ children, colors, spine = false }) {
   const count = children.length;
+  const stroke = connectorColor(colors);
   if (!count) return null;
   if (count === 1) {
     return (
       <View style={styles.singleFork}>
-        <View style={[styles.stem, { backgroundColor: colors.line }]} />
+        <Stem color={stroke} />
         {children[0].pill}
-        <View style={[styles.stem, { backgroundColor: colors.line }]} />
+        <Stem color={stroke} height={16} />
         <View style={styles.singleCard}>{children[0].card}</View>
       </View>
     );
   }
   return (
-    <View style={styles.fork}>
-      <View style={[styles.stem, { backgroundColor: colors.line }]} />
+    <View nativeID="company-group-fork" style={styles.fork}>
+      <Stem color={stroke} />
       <View style={styles.forkRow}>
+        {spine ? <View style={[styles.spine, { backgroundColor: stroke, pointerEvents: 'none' }]} /> : null}
         {children.map((child, index) => (
           <View key={child.key} style={styles.forkCol}>
             <View style={styles.arm}>
-              <View style={[styles.armHalf, { borderTopWidth: index === 0 ? 0 : 1, borderColor: colors.line }]} />
-              <View style={[styles.armJoint, { backgroundColor: colors.line }]} />
-              <View style={[styles.armHalf, { borderTopWidth: index === count - 1 ? 0 : 1, borderColor: colors.line }]} />
+              <View style={[styles.armHalf, index > 0 && { backgroundColor: stroke }]} />
+              <View style={[styles.armJoint, { backgroundColor: stroke }]} />
+              <View style={[styles.armHalf, index < count - 1 && { backgroundColor: stroke }]} />
             </View>
             {child.pill}
-            <View style={[styles.stemShort, { backgroundColor: colors.line }]} />
+            <Stem color={stroke} height={16} />
             <View style={styles.forkCard}>{child.card}</View>
           </View>
         ))}
@@ -295,31 +307,54 @@ export default function CompanyGroupChart({
         </Pressable>
       ) : null}
 
+      <View style={styles.tree}>
       <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
 
-      {useFork ? <Fork colors={colors}>{nodes}</Fork> : null}
-      {stacked && model.children.length ? (
+      {useFork ? <Fork colors={colors} spine={model.units.length > 0 && model.children.length % 2 === 0}>{nodes}</Fork> : null}
+      {!useFork && model.children.length ? (
         <View style={styles.stack}>
           {model.children.map((child) => (
             <View key={child.organisasjonsnummer} style={styles.stackItem}>
-              <View style={[styles.stem, { backgroundColor: colors.line }]} />
+              <Stem color={connectorColor(colors)} />
               <OwnershipPill label={child.ownershipLabel} colors={colors} />
-              <View style={[styles.stemShort, { backgroundColor: colors.line }]} />
+              <Stem color={connectorColor(colors)} height={16} />
               <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />
             </View>
           ))}
         </View>
       ) : null}
-      {!stacked && !useFork && model.children.length ? (
-        <View style={styles.grid}>
-          {model.children.map((child) => (
-            <View key={child.organisasjonsnummer} style={[styles.gridItem, width >= 720 && styles.gridItemWide]}>
-              <OwnershipPill label={child.ownershipLabel} colors={colors} />
-              <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />
+      {model.units.length ? (
+        <View style={styles.units}>
+          {model.units.map((unit, index) => (
+            <View key={unit.organisasjonsnummer} style={styles.unitWrap}>
+              {model.children.length || index > 0 ? <Stem color={connectorColor(colors)} height={18} /> : <Stem color={connectorColor(colors)} />}
+              <Pressable
+                nativeID={`group-unit-${unit.organisasjonsnummer}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Åpne underenhet ${unit.navn}`}
+                onPress={() => openUrl(unit.brregUrl)}
+                style={({ pressed }) => [
+                  styles.unit,
+                  { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
+                ]}
+              >
+                <Mark name="business" colors={colors} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.unitName, { color: colors.ink }]} numberOfLines={1}>{unit.navn}</Text>
+                  <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
+                    {[unit.organisasjonsnummer, 'Registrert underenhet', unit.poststed].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                {width >= 560 ? (
+                  <Text style={[styles.unitSide, { color: colors.muted }]}>Under morselskap</Text>
+                ) : null}
+              </Pressable>
             </View>
           ))}
         </View>
       ) : null}
+      </View>
+
       {!loading && model.emptyOwnership ? (
         <Text style={[styles.note, { color: colors.muted }]}>{model.emptyOwnership}</Text>
       ) : null}
@@ -327,35 +362,6 @@ export default function CompanyGroupChart({
         <Text style={[styles.note, { color: colors.muted }]}>
           Eierandeler fra Aksjonærregisteret kunne ikke hentes nå. Underenheter fra Enhetsregisteret vises likevel.
         </Text>
-      ) : null}
-
-      {model.units.length ? (
-        <View style={styles.units}>
-          {model.units.map((unit) => (
-            <Pressable
-              key={unit.organisasjonsnummer}
-              nativeID={`group-unit-${unit.organisasjonsnummer}`}
-              accessibilityRole="button"
-              accessibilityLabel={`Åpne underenhet ${unit.navn}`}
-              onPress={() => openUrl(unit.brregUrl)}
-              style={({ pressed }) => [
-                styles.unit,
-                { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
-              ]}
-            >
-              <Mark name="business" colors={colors} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.unitName, { color: colors.ink }]} numberOfLines={1}>{unit.navn}</Text>
-                <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
-                  {[unit.organisasjonsnummer, 'Registrert underenhet', unit.poststed].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-              {width >= 560 ? (
-                <Text style={[styles.unitSide, { color: colors.muted }]}>Under morselskap</Text>
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
       ) : null}
 
       <View style={[styles.totalsRow, stacked && styles.totalsStack]}>
@@ -507,15 +513,24 @@ const styles = StyleSheet.create({
   delta: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 14 },
   deltaSlot: { minHeight: 14 },
   deltaText: { fontSize: 11, fontWeight: '600' },
-  fork: { alignItems: 'center' },
-  forkRow: { flexDirection: 'row', alignItems: 'stretch', width: '100%' },
-  forkCol: { flex: 1, minWidth: 0, alignItems: 'center' },
-  arm: { flexDirection: 'row', alignItems: 'flex-start', alignSelf: 'stretch', height: 16 },
-  armHalf: { flex: 1, height: 1 },
-  armJoint: { width: 1, height: 16 },
-  stem: { width: 1, height: 16, alignSelf: 'center' },
-  stemShort: { width: 1, height: 12, alignSelf: 'center' },
-  forkCard: { width: '100%', paddingHorizontal: 4 },
+  tree: { width: '100%', gap: 0 },
+  fork: { alignItems: 'center', width: '100%' },
+  forkRow: { flexDirection: 'row', alignItems: 'stretch', width: '100%', position: 'relative' },
+  forkCol: { flex: 1, minWidth: 0, alignItems: 'center', zIndex: 1 },
+  arm: { flexDirection: 'row', alignItems: 'flex-start', alignSelf: 'stretch', height: 20 },
+  armHalf: { flex: 1, height: 2 },
+  armJoint: { width: 2, height: 20 },
+  stem: { width: 2, height: 22, alignSelf: 'center' },
+  spine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    zIndex: 0,
+  },
+  forkCard: { width: '100%', paddingHorizontal: 10 },
   singleFork: { alignItems: 'center', width: '100%' },
   singleCard: { width: '100%', maxWidth: 460 },
   pill: {
@@ -533,7 +548,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   gridItem: { width: '100%', gap: 6, alignItems: 'center' },
   gridItemWide: { width: '31%', flexGrow: 1, minWidth: 220 },
-  units: { gap: 8, alignItems: 'center' },
+  units: { width: '100%', alignItems: 'center' },
+  unitWrap: { width: '100%', alignItems: 'center' },
   unit: {
     width: '100%',
     maxWidth: 560,

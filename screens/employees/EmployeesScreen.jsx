@@ -79,7 +79,7 @@ import EmployeeDetailView from './EmployeeDetailView';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
 import EconomyHours from '../economy/EconomyHours';
 import TimesaldoScreen from '../arbeid/TimesaldoScreen';
-import { AbsenceOverviewScreen } from '../arbeid/AbsenceScreens';
+import { AbsenceOverviewScreen, MyOverviewScreen } from '../arbeid/AbsenceScreens';
 import { ProjectExpensesScreen } from '../arbeid/OpsScreens';
 import EmployeeWorkViews from './EmployeeWorkViews';
 import EmployeeFields from './EmployeeFields';
@@ -1253,10 +1253,11 @@ export default function EmployeesScreen() {
             : view === 'import' ? 'Kontroller import'
               : view === 'invite' ? 'Inviter brukere'
                 : view === 'cv' && selected ? `CV · ${displayName(selected)}`
-                  : view === 'hours' && selected ? `Timeføring · ${displayName(selected)}`
-                    : view === 'report' && selected ? `Timerapport · ${displayName(selected)}`
-                      : view === 'settings' && selected ? `Innstillinger · ${displayName(selected)}`
-                        : (selected ? displayName(selected) : 'Ansatte')}
+                  : view === 'overview' && selected ? `Oversikt · ${displayName(selected)}`
+                    : view === 'hours' && selected ? `Timeføring · ${displayName(selected)}`
+                      : view === 'report' && selected ? `Timerapport · ${displayName(selected)}`
+                        : view === 'settings' && selected ? `Innstillinger · ${displayName(selected)}`
+                          : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
       ) : null}
       {view === 'list' ? (
@@ -1372,11 +1373,17 @@ export default function EmployeesScreen() {
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {(view === 'cv' || view === 'hours' || view === 'report' || view === 'files' || view === 'absence' || view === 'saldo' || view === 'expenses' || view === 'settings') && selected ? (
+          {(view === 'cv' || view === 'overview' || view === 'hours' || view === 'report' || view === 'files' || view === 'absence' || view === 'saldo' || view === 'expenses' || view === 'settings') && selected ? (
             <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Hovedside</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+
+      {view === 'overview' && selected ? (
+        <View nativeID="employee-overview-view">
+          <MyOverviewScreen lockedEmployeeId={selected.id} embedded />
         </View>
       ) : null}
 
@@ -1487,6 +1494,7 @@ export default function EmployeesScreen() {
           busy={busy}
           onBack={openList}
           onCv={() => openCv(detailEmployee)}
+          onOverview={() => openWork(detailEmployee, 'overview')}
           onHours={() => openHours(detailEmployee)}
           onReport={() => openWork(detailEmployee, 'report')}
           onFiles={() => openWork(detailEmployee, 'files')}

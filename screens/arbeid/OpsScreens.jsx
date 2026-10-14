@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
-import { lockThroughDate } from '../../src/arbeid/locks.js';
 import { approveTimesheetLock } from '../../src/arbeid/timesheetState.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
@@ -78,44 +77,6 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
         </View>
       ))}
       {!rows.length ? <Text style={{ color: colors.muted }}>Ingen produktsalg er registrert fra timelisten.</Text> : null}
-    </ScrollView>
-  );
-}
-
-export function LeadershipScreen() {
-  const colors = useColors();
-  const year = new Date().getFullYear();
-  const workspace = useTimesheetWorkspace({
-    fromDate: `${year}-01-01`,
-    toDate: toDateKey(new Date()),
-  });
-  const name = employeeDisplayName(workspace.linked);
-  const projects = (workspace.state.projects || []).filter((project) => (
-    workspace.manager || (name && String(project.manager || '').toLowerCase() === name.toLowerCase())
-  ));
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="prosjektledelse">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Prosjektledelse</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Prosjektledelse</Text>
-      <Text style={{ color: colors.muted, marginBottom: 8 }}>Prosjekt der du står som leder, og om teamets timer er låst.</Text>
-      {projects.map((project) => {
-        const members = (workspace.state.members || []).filter((row) => row.projectId === project.id && row.active !== false);
-        return (
-          <View key={project.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>#{project.number} {project.name}</Text>
-            <Text style={{ color: colors.muted }}>{project.client || '—'} · {members.length} deltakere</Text>
-            {members.map((member) => {
-              const through = lockThroughDate(workspace.state.timesheetLocks, member.employeeId);
-              return (
-                <Text key={member.id} style={{ color: colors.ink, marginTop: 4 }}>
-                  {member.employeeName || 'Deltaker'}: {through ? `låst til ${through}` : 'åpen'}
-                </Text>
-              );
-            })}
-          </View>
-        );
-      })}
-      {!projects.length ? <Text style={{ color: colors.muted }}>Ingen prosjekt er merket med deg som leder.</Text> : null}
     </ScrollView>
   );
 }

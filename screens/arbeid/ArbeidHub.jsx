@@ -6,12 +6,10 @@ import TimesaldoScreen from './TimesaldoScreen';
 import {
   AbsenceOverviewScreen,
   AbsenceReportScreen,
-  MyOverviewScreen,
   PlannedAbsenceScreen,
 } from './AbsenceScreens';
 import {
   ApprovalsScreen,
-  LeadershipScreen,
   ProductSalesScreen,
   ProjectExpensesScreen,
 } from './OpsScreens';
@@ -23,10 +21,8 @@ export default function ArbeidHub({ subView } = {}) {
   if (page === 'fravaer') return <AbsenceOverviewScreen />;
   if (page === 'fravaersrapport') return <AbsenceReportScreen />;
   if (page === 'planlagt') return <PlannedAbsenceScreen />;
-  if (page === 'oversikt') return <MyOverviewScreen />;
   if (page === 'utlegg') return <ProjectExpensesScreen />;
   if (page === 'salg') return <ProductSalesScreen />;
-  if (page === 'ledelse') return <LeadershipScreen />;
   if (page === 'godkjenning') return <ApprovalsScreen />;
   return <ArbeidScreen />;
 }

@@ -309,17 +309,69 @@ assert.equal(longContract.form.fields.filter((row) => /ledelsessystem/i.test(row
 assert.ok(longContract.form.fields.some((row) => row.kind === 'note' && /epostadressen som er angitt/i.test(row.label)));
 assert.ok(longContract.form.fields.some((row) => /erstatningskrav begrunnet|holde stikk om byggetiden/i.test(row.label)));
 const percent = longContract.form.fields.find((row) => /prosent/i.test(row.label));
-assert.equal(percent.kind, 'number');
+assert.equal(percent?.kind, 'number');
 const expense = longContract.form.fields.find((row) => row.label === 'Biomkostninger');
-assert.equal(expense.kind, 'text');
-assert.match(String(expense.value), /Reisekostnader/);
+assert.equal(expense?.kind, 'text');
+assert.match(String(expense?.value || ''), /Reisekostnader/);
 const honorar = longContract.form.fields.find((row) => /avtalte honorar/i.test(row.label));
+assert.ok(honorar);
 assert.notEqual(honorar.kind, 'time');
 const filledScan = formFromScan({
   title: 'Avtale',
   fields: [{ label: 'Oppdragstaker', kind: 'text', value: 'Consult1 AS' }],
 });
 assert.equal(filledScan.form.fields[0].value, 'Consult1 AS');
+
+const side1 = formFromPlainText(`Om oppdraget
+Oppdrag [Skriv inn prosjektnavn] Eksternt PO. nr:   Oppdrags nummer:
+Oppdragssted Adresse:  Adresse [Oppdragsnr.]
+Post nr.: Postnr. Sted: Sted
+Gnr / Bnr  Opprettet dato:
+Engasjementsperioden Oppstart: [Dato] Sluttdato: [Dato] Engasjement behov: i prosent % [Dato]
+Om oppdragsgiver
+Oppdragsgiver [Firma] Organisasjons nr:
+Kontakt person [Kontaktperson]
+Epost:   Telefon nr:
+Adresse Adresse:  Adresse
+Post nr:  Postnr. Sted: Sted
+Faktura Velg foretrukket mottak:  ☐   EPOST  ☐   EHF ☐   POST
+Stiles til:  [Firma] Att:  [Kontaktperson]
+Adresse:  Adresse
+Merknad:   Po:
+Epost:   EHF:
+Kontrakts bestemmelser
+Oppdragstaker Consult1 AS Organisasjons nr:  916 538 804
+Oppdragsleder
+Epost:   Telefon nr:
+Tildelt ressurs Sett inn navn på tilbudt kandidat
+Epost:   Telefon nr:
+Generelle bestemmelser NS8403 : Alminnelig kontrakts bestemmelser for byggeleder oppdrag
+Avtalte honorar Honoreres etter medgått tid. [jf. NS8403 §10.2.2]
+Regulering av pris. Timesats reguleres etter SSB prisindeks for konsulentvirksomhet.
+Tabell: 09525 Start indeks:
+Avtalt honorar pris 1350,- eks mva.
+Underskrifter
+Sted:  Dato: [Dato] Sted: Sandnes Dato: [Dato]
+Underskrift  Til: <Firma> Underskrift Consult1
+Denne avtale er kun gyldig ved signering av begge parter.`, 'Oppdragsavtale');
+assert.equal(side1.ok, true);
+assert.ok(side1.form.fields.some((row) => /eksternt\s*po/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /oppdrags\s*nummer/i.test(row.label) && /oppdragsnr/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /oppdragssted/i.test(row.label) && /adresse/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /post\s*nr/i.test(row.label) && row.kind !== 'date'));
+assert.ok(side1.form.fields.some((row) => /gnr/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /opprettet\s*dato/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /prosent/i.test(row.label) && row.kind === 'number'));
+assert.ok(side1.form.fields.filter((row) => /telefon\s*nr/i.test(row.label)).length >= 2);
+assert.ok(side1.form.fields.some((row) => /^po$/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /^ehf$/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /organisasjons\s*nr/i.test(row.label) && /916/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /tildelt\s*ressurs/i.test(row.label) && /sett inn/i.test(row.placeholder || '')));
+assert.ok(side1.form.fields.some((row) => /^tabell$/i.test(row.label) && /09525/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /start\s*indeks/i.test(row.label)));
+assert.ok(side1.form.fields.some((row) => /avtalt\s*honorar\s*pris/i.test(row.label) && /1350/.test(String(row.value))));
+assert.ok(side1.form.fields.some((row) => /^sted$/i.test(row.label) && String(row.value) === 'Sandnes'));
+assert.equal(side1.form.fields.filter((row) => /underskrift (oppdragsgiver|consult1)/i.test(row.label) && row.kind === 'image').length, 2);
 
 assert.equal(technicalFieldName('Text1'), true);
 assert.equal(technicalFieldName('Oppdragsgiver'), false);

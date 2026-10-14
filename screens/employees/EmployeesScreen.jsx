@@ -667,10 +667,18 @@ export default function EmployeesScreen() {
   }
 
   const pendingEmployeeId = useRef('');
+  const pendingMyAbsence = useRef(false);
   useEffect(() => {
-    if (!shellIntent || shellIntent.type !== 'openEmployee') return;
-    pendingEmployeeId.current = String(shellIntent.employeeId || '');
-    clearShellIntent?.();
+    if (!shellIntent || typeof shellIntent !== 'object') return;
+    if (shellIntent.type === 'openEmployee') {
+      pendingEmployeeId.current = String(shellIntent.employeeId || '');
+      clearShellIntent?.();
+      return;
+    }
+    if (shellIntent.type === 'openMyAbsence') {
+      pendingMyAbsence.current = true;
+      clearShellIntent?.();
+    }
   }, [shellIntent, clearShellIntent]);
   useEffect(() => {
     const id = pendingEmployeeId.current;
@@ -704,6 +712,19 @@ export default function EmployeesScreen() {
     setDraft(presentEmployee(row));
     setView(nextView);
   }
+
+  useEffect(() => {
+    if (!pendingMyAbsence.current) return;
+    const person = linked || mine;
+    if (person) {
+      pendingMyAbsence.current = false;
+      openWork(person, 'absence');
+      return;
+    }
+    if (!directoryReady) return;
+    pendingMyAbsence.current = false;
+    requestShellTab?.('arbeid', 'fravaer');
+  }, [rows, directoryReady, linked, mine, requestShellTab]);
 
   async function saveWork(employee) {
     const saved = await saveEmployee(familyId, employee);

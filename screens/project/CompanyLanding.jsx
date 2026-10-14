@@ -48,6 +48,8 @@ export default function CompanyLanding() {
   const { forecast, place } = useWeather();
   const { contentPaddingBottom } = useBottomChromeInset();
   const [todos, setTodos] = useState([]);
+  const [frameHeight, setFrameHeight] = useState(0);
+  const [topHeight, setTopHeight] = useState(0);
   const today = useNow(60_000);
 
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function CompanyLanding() {
   const openBanner = () => nav.navigate('DashboardThemeSettings');
 
   const openShortcut = (item) => {
-    requestShellTab?.(item.tab, item.subView || null);
+    requestShellTab?.(item.tab, item.subView || null, item.intent || null);
   };
 
   const toggleTask = (row) => {
@@ -101,9 +103,19 @@ export default function CompanyLanding() {
       nativeID="company-home"
       id="company-home"
       style={[styles.scroll, immersive && styles.scrollClear]}
-      contentContainerStyle={[styles.body, { paddingBottom: contentPaddingBottom }]}
+      contentContainerStyle={styles.body}
+      onLayout={(event) => {
+        const next = Math.round(event.nativeEvent.layout.height);
+        if (next > 0) setFrameHeight((current) => (current === next ? current : next));
+      }}
       showsVerticalScrollIndicator={false}
     >
+      <View
+        onLayout={(event) => {
+          const next = Math.round(event.nativeEvent.layout.height);
+          if (next > 0) setTopHeight((current) => (current === next ? current : next));
+        }}
+      >
       <Pressable
         onPress={openBanner}
         accessibilityRole="button"
@@ -148,8 +160,18 @@ export default function CompanyLanding() {
           </TouchableOpacity>
         ))}
       </View>
+      </View>
 
-      <View style={styles.sheet}>
+      <View
+        style={[
+          styles.sheet,
+          {
+            paddingBottom: contentPaddingBottom,
+            minHeight: Math.max(160, frameHeight - topHeight),
+          },
+        ]}
+        testID="company-home-sheet"
+      >
         <View style={styles.taskCard} testID="company-home-tasks">
           <View style={styles.taskHead}>
             <Text style={styles.taskTitle}>Mine gjøremål</Text>
@@ -265,7 +287,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 18,
     ...webCardShadow,
   },
   taskHead: {

@@ -588,10 +588,12 @@ export function formFromWidgets(widgets, pageWidth = 0) {
 
 function kindFromLabel(label, raw = '') {
   const source = `${label} ${raw}`;
+  const shortLabel = String(label || '').trim().length < 60;
   if (/signatur|underskrift/i.test(source)) return 'image';
   if (/klokken|tidspunkt|\bkl\b/i.test(label) || (/^(tid|klokkeslett)\b/i.test(label) && !/periode|frist|medgått/i.test(label))) return 'time';
   if (/skala|fra 1 til|svært (uenig|enig)/i.test(source)) return 'scale';
-  if (/\b(beløp|antall|pris|kr|m2|kvm|prosent|påslag)\b|%/i.test(label) || /\bsum\b/i.test(label)) return 'number';
+  // Prosent/beløp bare for korte feltnavn — ikke hele setninger med «10 %» i lovtekst.
+  if (shortLabel && (/\b(beløp|antall|pris|kr|m2|kvm|prosent|påslag)\b|%/i.test(label) || /\bsum\b/i.test(label))) return 'number';
   if (/dato|frist|gyldig til|dd\.mm/i.test(source)) return 'date';
   if (/bilde|foto|skisse|lim inn/i.test(label)) return 'image';
   if (/vedlegg|last opp|dokumentasjon/i.test(label)) return 'file';
@@ -633,10 +635,15 @@ function endsSentence(line) {
 
 function proseLine(line) {
   const value = String(line || '').trim();
-  if (value.length < 70 || /\[[^\]]+\]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return false;
+  if (value.length < 55 || /\[[^\]]+\]/.test(value) || CHECK_MARK.test(value)) return false;
   if (letteredHeading(value)) return false;
-  if (letteredListItem(value)) return true;
-  return endsSentence(value) || value.length > 140;
+  if (letteredListItem(value) || BULLET.test(value)) return true;
+  if (endsSentence(value) || value.length > 120) return true;
+  // PDF-brutte setninger (slutter på «pkt.» / «ved» / «har») skal bli note, ikke kort felt.
+  if (value.length >= 70 && !/^(Post|Sted|Epost|Telefon|Tabell|Oppdrag|Att|Po|EHF|Merknad|Gnr)\b/i.test(value)) {
+    return !/:\s*$/.test(value) || value.indexOf(':') > 50;
+  }
+  return false;
 }
 
 /** Hovedpunkter i vilkår, typisk «a) Kommunikasjon (NS 8403 …)». */
@@ -664,9 +671,12 @@ function looksLikeFieldLine(line) {
   if (!value) return true;
   if (/\[[^\]]+\]/.test(value) || CHECK_MARK.test(value) || BULLET.test(value)) return true;
   if (chromeLine(value) || sectionLine(value) || isHeading(value) || letteredHeading(value)) return true;
-  if (/:\s*$/.test(value) || /:\s+\S/.test(value)) return true;
+  // Kolon markerer skjemafelt bare på korte linjer — ikke lovtekst med «pkt. 5.2/8.2: …».
+  if (value.length <= 100 && (/:\s*$/.test(value) || /^[^:]{2,55}:\s+\S/.test(value))) return true;
   if (/^[A-ZÆØÅ][^:]{1,55}:\s*\S/.test(value) && value.length < 110) return true;
-  if (/\b(gnr|bnr|post\s*nr|oppstart|sluttdato|telefon\s*nr|organisasjons\s*nr|start\s*indeks|honorar\s*pris)\b/i.test(value)) return true;
+  if (value.length <= 80 && /\b(gnr|bnr|post\s*nr|oppstart|sluttdato|telefon\s*nr|organisasjons\s*nr|start\s*indeks|honorar\s*pris)\b/i.test(value)) {
+    return true;
+  }
   return false;
 }
 
@@ -716,6 +726,11 @@ function filledFromLine(raw, width = 'full') {
   const line = String(raw || '').trim();
   if (!line || CHECK_MARK.test(line) || BULLET.test(line)) return null;
   if (chromeLine(line) || sectionLine(line) || letteredHeading(line) || proseLine(line)) return null;
+  // Lang linje med kolon midt i setningen er lovtekst, ikke «etikett: verdi».
+  const firstColon = line.indexOf(':');
+  if (firstColon > 55 || (firstColon > 0 && line.length > 110 && !/^(Tabell|Post|Sted|Epost|Oppdrag|Att|Merknad|Po|EHF|Organisasjons|Telefon|Start|Avtalt)\b/i.test(line))) {
+    return null;
+  }
   const bracket = line.match(/^(.+?)\s*\[([^[\]]{1,80})\]\s*$/);
   if (bracket && !bracket[1].includes(':')) {
     const before = text(bracket[1]);
@@ -741,6 +756,8 @@ function filledFromLine(raw, width = 'full') {
   let value = text(colon[2]).slice(0, 8000);
   let placeholder = placeholderOf(line);
   if (!label) return null;
+  // «ansvarsbegrensningene … 5.2/8.2: Consult1 …» er lovtekst, ikke skjemafelt.
+  if (/^[a-zæøå]/.test(label) || (label.length > 50 && /pkt\.|NS\s*\d+/i.test(label))) return null;
   const nsKeep = label.match(/^(Generelle bestemmelser)\s+(NS\s*\d+.*)$/i);
   if (nsKeep) {
     label = nsKeep[1];
@@ -881,6 +898,8 @@ function explodeBlanks(line) {
     return field ? [field] : null;
   }
   const chunks = splitRowChunks(raw);
+  // Én lang setning (evt. med avsluttende kolon) er vilkårstekst, ikke skjemarad.
+  if (chunks.length < 2 && proseLine(raw.replace(/:\s*$/, ''))) return null;
   if (chunks.length < 2 && !/\[[^\]]+\]/.test(raw) && !/:\s/.test(raw) && !/:\s*$/.test(raw) && !/^(Oppdragstaker|Tildelt ressurs|Avtalte honorar|Avtalt honorar pris|Generelle bestemmelser)\b/i.test(raw)) {
     return null;
   }
@@ -959,6 +978,71 @@ function addOption(field, label, kind) {
   if (field.kind === 'text') field.kind = kind;
   if (!Array.isArray(field.options)) field.options = [];
   field.options.push({ id: createId('alt'), label: value });
+}
+
+function forceNoteField(field) {
+  return {
+    ...field,
+    kind: 'note',
+    label: String(field.label || '').slice(0, NOTE_LABEL_MAX),
+    value: '',
+    placeholder: '',
+    width: 'full',
+    required: false,
+    editor: 'fast',
+  };
+}
+
+function shouldForceNote(field) {
+  if (!field || field.kind === 'note' || field.kind === 'title' || field.kind === 'checks' || field.kind === 'image' || field.kind === 'file') return false;
+  if (field.value || field.placeholder) return false;
+  if (letteredListItem(field.label) || BULLET.test(field.label)) return true;
+  if (String(field.label || '').length > 80) return true;
+  if (/^[a-zæøå]/.test(field.label || '') && String(field.label || '').length > 18) return true;
+  return false;
+}
+
+function shouldCoalesceProse(prev, next) {
+  if (!prev || !next) return false;
+  if (next.kind === 'title' || next.kind === 'checks' || next.kind === 'image' || next.kind === 'file') return false;
+  if (prev.kind === 'title') return false;
+  if (next.placeholder) return false;
+  if (prev.value || (prev.placeholder && prev.kind !== 'note')) return false;
+  // Sidehode / dokumentmeta skal ikke limes inn i vilkårstekst.
+  if (chromeLine(prev.label) || chromeLine(next.label)) return false;
+  const prevProse = prev.kind === 'note' || prev.kind === 'long' || shouldForceNote(prev)
+    || (prev.kind === 'number' && String(prev.label || '').length > 45)
+    || (prev.kind === 'text' && String(prev.label || '').length > 55);
+  if (!prevProse) return false;
+  const nextContinues = letteredListItem(next.label) || BULLET.test(next.label) || /^[a-zæøå•]/.test(next.label || '');
+  // Kort value etter kolon-feilsplitt («…8.2: Consult1 har gjennom») skal også limes inn.
+  if (nextContinues && (!next.value || String(next.value).length < 120)) return true;
+  if (next.value) return false;
+  if (!endsSentence(prev.label) && String(next.label || '').length >= 12
+    && !/^(Post|Sted|Epost|Telefon|Tabell|Oppdrag|Att|Po|EHF|Merknad|Gnr|Opprettet|Oppstart|Slutt|Dokument)/i.test(next.label || '')) {
+    return true;
+  }
+  return false;
+}
+
+/** Lim sammen PDF-brutte vilkårsfragmenter til hele noter. */
+function coalesceProseFields(fields) {
+  const out = [];
+  for (const field of (Array.isArray(fields) ? fields : [])) {
+    if (!field?.label) continue;
+    const prev = out[out.length - 1];
+    if (prev && shouldCoalesceProse(prev, field)) {
+      const left = String(prev.label).replace(/\s+$/g, '');
+      const right = String(field.label).replace(/^\s+/g, '');
+      const tail = field.value ? ` ${String(field.value).trim()}` : '';
+      const joiner = (left.endsWith('\n') || right.startsWith('•') || letteredListItem(right)) ? '\n' : ' ';
+      Object.assign(prev, forceNoteField(prev));
+      prev.label = `${left}${joiner}${right}${tail}`.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, NOTE_LABEL_MAX);
+      continue;
+    }
+    out.push(shouldForceNote(field) ? forceNoteField(field) : field);
+  }
+  return out;
 }
 
 /** Lager et utkast fra ren tekst når AI ikke svarer. */
@@ -1100,7 +1184,7 @@ export function formFromPlainText(source, titleHint = '') {
     fields.push(field);
     if (field.kind === 'text' || field.kind === 'checks' || field.kind === 'choice') pending = field;
   }
-  const usable = fields.filter((row) => row.label).slice(0, MAX_FIELDS);
+  const usable = coalesceProseFields(fields.filter((row) => row.label)).slice(0, MAX_FIELDS);
   if (!usable.length) return { ok: false, form: null, error: 'Fant ingen felter i teksten.' };
   return {
     ok: true,

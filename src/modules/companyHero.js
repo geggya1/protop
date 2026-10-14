@@ -155,6 +155,7 @@ export const COMPANY_HERO = {
   },
   'anbud-tilbud': {
     ...BLUE,
+    wideArt: true,
     name: 'Tilbud',
     kicker: t('Anbud', 'Tenders'),
     title: t('Tilbud', 'Bid'),

@@ -48,6 +48,7 @@ const BUNDLED = {
   ansatte: require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
   kunder: require('../../assets/module-activation/kunder--module-activation-illustration.png'),
   'anbud-varsling': require('../../assets/module-activation/anbud-varsling--module-activation-illustration.png'),
+  'anbud-tilbud': require('../../assets/module-activation/anbud-tilbud--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

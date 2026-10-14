@@ -1099,6 +1099,7 @@ export { tenderProxy } from './tenderProxy.js';
 export { sendTenderAlert } from './anbudAlert.js';
 export { agreementTreatment } from './agreementTreatment.js';
 export { sendAnbudRequest, scanAnbudDocument } from './anbudIntake.js';
+export { scanAnbudDocumentHttp } from './anbudIntakeHttp.js';
 export { interpretIndeksAvtale, indeksSsbDaily } from './indeksreguleringAi.js';
 export { interpretAvtaleHttp } from './interpretAvtaleHttp.js';
 export { friendListHttp } from './friendListHttp.js';

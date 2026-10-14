@@ -6,29 +6,11 @@ import * as logger from 'firebase-functions/logger';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from './security.js';
-import { createDirectInquiry, tenderFromScan } from '../src/anbud/intake.js';
-import {
-  callGeminiJson,
-  friendlyGeminiError,
-  getGeminiKey,
-} from './aiShared.js';
+import { createDirectInquiry } from '../src/anbud/intake.js';
+import { handleScanAnbud } from './anbud/intakeScan.js';
+import { touchGeminiEnv } from './geminiEnv.js';
 
 if (!getApps().length) initializeApp();
-
-const PROMPT = `Du leser en anbudsforespørsel, et brev, en e-post eller et notat (OCR).
-Returner KUN gyldig JSON:
-{
-  "title": "kort navn på forespørselen",
-  "buyer": "avsender / oppdragsgiver",
-  "contactName": "kontaktperson",
-  "email": "e-post eller tom streng",
-  "phone": "telefon eller tom streng",
-  "deadline": "YYYY-MM-DD eller tom streng",
-  "description": "kort sammendrag av hva som etterspørres",
-  "reference": "referanse eller tom streng",
-  "amount": null
-}
-Ikke finn opp beløp, dato eller kontakt. Tom streng eller null når feltet ikke står i dokumentet.`;
 
 function reject(code, message) {
   throw new HttpsError(code, message);
@@ -57,24 +39,10 @@ export const sendAnbudRequest = onCall(
 );
 
 export const scanAnbudDocument = onCall(
-  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 60, memory: '512MiB' },
+  { region: 'europe-west1', cors: true, invoker: 'public', timeoutSeconds: 60, memory: '1GiB' },
   async (request) => {
     requireAuth(request.auth);
-    const imageBase64 = String(request.data?.imageBase64 || '');
-    if (imageBase64.length < 80) reject('invalid-argument', 'Last opp et bilde eller et skannet dokument.');
-    const apiKey = getGeminiKey();
-    if (!apiKey) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
-    const cleaned = imageBase64.replace(/^data:[^;]+;base64,/, '');
-    const mimeMatch = imageBase64.match(/^data:([^;]+);base64,/i);
-    try {
-      const parsed = await callGeminiJson(apiKey, PROMPT, [
-        { text: 'Les denne anbudsforespørselen og trekk ut feltene.' },
-        { inline_data: { mime_type: mimeMatch?.[1] || 'image/jpeg', data: cleaned } },
-      ], { maxOutputTokens: 2048, perModelTimeoutMs: 40000 });
-      return { ok: true, extracted: tenderFromScan(parsed), engine: 'gemini' };
-    } catch (err) {
-      reject('unavailable', friendlyGeminiError(err));
-    }
-    return { ok: false };
+    touchGeminiEnv();
+    return handleScanAnbud(request.data || {});
   },
 );

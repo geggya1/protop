@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateField from '../../components/DateField';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
@@ -19,11 +19,13 @@ import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, n
 import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
 import { agreementSummary, emailLooksLikeSupplier, indexLabel, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
-import { documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
+import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
+import { useLayout } from '../../src/theme';
 import OwnerPicker from './OwnerPicker';
+import AgreementDocumentPreview from './AgreementDocumentPreview';
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
 
@@ -33,7 +35,7 @@ function isoFromDate(value) {
   return dateKey(value) || '';
 }
 
-const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+const ACCEPT = AGREEMENT_IMPORT_ACCEPT;
 const MAX_REMOTE_BYTES = 2500000;
 
 function yieldUi() {
@@ -245,6 +247,7 @@ export default function DirectAgreementForm({
   const [payload, setPayload] = useState(null);
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState([]);
+  const [previewId, setPreviewId] = useState('');
   const [registerHit, setRegisterHit] = useState(null);
   const [brregHits, setBrregHits] = useState([]);
   const [brregSearching, setBrregSearching] = useState(false);
@@ -259,6 +262,8 @@ export default function DirectAgreementForm({
     opsjoner: false,
   });
   const brregRef = useRef('');
+  const { isPhone } = useLayout();
+  const splitPreview = !isPhone;
 
   useEffect(() => {
     if (!customerId) return;
@@ -374,6 +379,9 @@ export default function DirectAgreementForm({
     const next = inputFromInterpretation(merged, { documents: docs });
     setPayload(next);
     setFiles(docs);
+    setPreviewId((current) => (
+      docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')
+    ));
     setForm((current) => formFromInput(next, current));
     setStatus(note);
     setError('');
@@ -445,13 +453,22 @@ export default function DirectAgreementForm({
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
       setStatus(`Leser skannet dokument${label}…`);
       await yieldUi();
-      const remote = await interpretAvtale({
-        fileName: file.name || attached.name || 'Avtale.pdf',
-        mimeType: file.mimeType || attached.mimeType || 'application/pdf',
-        fileBase64: bytesToBase64(bytes),
-      });
-      if (!remote?.extracted) throw new Error(`Kunne ikke lese ${attached.name || file.name || 'dokumentet'}.`);
-      return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+      try {
+        const remote = await interpretAvtale({
+          fileName: file.name || attached.name || 'Avtale.pdf',
+          mimeType: file.mimeType || attached.mimeType || 'application/pdf',
+          fileBase64: bytesToBase64(bytes),
+        });
+        if (remote?.extracted || String(remote?.text || '').trim()) {
+          return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+        }
+      } catch {
+        // Originalfilen er lagret — forhåndsvisning og manuell utfylling kan fortsette.
+      }
+      if (original.url || attached.dataUrl || attached.uri || file.uri) {
+        return documentRow(existing, attached, file, '', original, index);
+      }
+      throw new Error(`Kunne ikke lese ${attached.name || file.name || 'dokumentet'}.`);
     }
   }
 
@@ -483,8 +500,15 @@ export default function DirectAgreementForm({
   function removeFile(id) {
     const docs = files.filter((doc) => doc.id !== id);
     setFiles(docs);
+    setPreviewId((current) => (
+      docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')
+    ));
     if (docs.some((doc) => doc.text)) applyDocs(docs, 'Dokumentlisten er oppdatert.');
     else setPayload((current) => (current ? { ...current, documents: docs } : current));
+  }
+
+  function selectPreview(id) {
+    setPreviewId(id);
   }
 
   async function readPasted() {
@@ -595,6 +619,7 @@ export default function DirectAgreementForm({
       setForm(emptyForm());
       setPayload(null);
       setFiles([]);
+      setPreviewId('');
       setStatus('');
     }
   }
@@ -616,8 +641,18 @@ export default function DirectAgreementForm({
   const warnKeys = Object.keys(flags);
   const groupBadge = (id) => kindFields.find((group) => group.id === id)?.fields.some((field) => flags[field.key]);
 
-  return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+  const previewPane = (
+    <AgreementDocumentPreview
+      colors={colors}
+      documents={files}
+      selectedId={previewId}
+      onSelect={selectPreview}
+      minHeight={splitPreview ? 560 : 360}
+    />
+  );
+
+  const fields = (
+    <View style={[styles.card, styles.fieldsPane, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <Text style={[styles.h, { color: colors.ink }]}>Registrer avtale</Text>
       {summary && (form.title || form.buyer) ? (
         <View style={[styles.summary, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
@@ -632,7 +667,7 @@ export default function DirectAgreementForm({
         </View>
       ) : (
         <Text style={{ color: colors.muted }}>
-          Last opp avtaledokumentene. Kjente felt fylles ut. Felt med ! må kontrolleres.
+          Last opp avtaledokumentene. Kjente felt fylles ut til venstre. Originalfilen lagres og forhåndsvises til høyre. Felt med ! må kontrolleres.
         </Text>
       )}
       {reading ? (
@@ -660,11 +695,19 @@ export default function DirectAgreementForm({
         {files.length ? files.map((doc) => (
           <View key={doc.id} style={styles.row}>
             <TouchableOpacity
-              onPress={() => documentIsOpenable(doc) && openAgreementDocument(doc)}
-              accessibilityRole="link"
+              onPress={() => {
+                selectPreview(doc.id);
+                if (!splitPreview && documentIsOpenable(doc)) openAgreementDocument(doc);
+              }}
+              accessibilityRole="button"
               style={{ flex: 1 }}
             >
-              <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.ink, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
+              <Text style={{
+                color: previewId === doc.id ? colors.brand : colors.ink,
+                textDecorationLine: !splitPreview && documentIsOpenable(doc) ? 'underline' : 'none',
+                fontWeight: previewId === doc.id ? '600' : '400',
+              }}
+              >
                 {doc.name}{doc.interpreted ? ' · lest' : ''}{documentHasOriginalFile(doc) ? '' : ' · mangler originalfil'}
               </Text>
             </TouchableOpacity>
@@ -883,11 +926,38 @@ export default function DirectAgreementForm({
       </TouchableOpacity>
     </View>
   );
+
+  if (splitPreview) {
+    return (
+      <View style={styles.split}>
+        <View style={styles.splitLeft}>{fields}</View>
+        <View style={styles.splitRight}>{previewPane}</View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      {fields}
+      {previewPane}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   h: { fontSize: 20, fontWeight: '700' },
   card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
+  fieldsPane: { flex: 1, minWidth: 0 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, width: '100%' },
+  splitLeft: { flex: 1.05, minWidth: 0 },
+  splitRight: {
+    flex: 0.95,
+    minWidth: 320,
+    maxWidth: 560,
+    alignSelf: 'flex-start',
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 12 } : null),
+  },
+  stack: { gap: 12, width: '100%' },
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },

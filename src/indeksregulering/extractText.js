@@ -206,8 +206,58 @@ function kindOf(name, mime) {
   const type = String(mime || '').toLowerCase();
   if (type.includes('pdf') || file.endsWith('.pdf')) return 'pdf';
   if (type.includes('wordprocessingml') || file.endsWith('.docx')) return 'docx';
-  if (type.startsWith('text/') || file.endsWith('.txt')) return 'text';
+  if (
+    type.includes('spreadsheetml')
+    || type.includes('excel')
+    || file.endsWith('.xlsx')
+  ) return 'xlsx';
+  if (
+    type === 'message/rfc822'
+    || type.includes('outlook')
+    || file.endsWith('.eml')
+    || file.endsWith('.msg')
+  ) return 'email';
+  if (type.includes('html') || file.endsWith('.html') || file.endsWith('.htm')) return 'html';
+  if (
+    type.startsWith('text/')
+    || file.endsWith('.txt')
+    || file.endsWith('.csv')
+    || file.endsWith('.rtf')
+  ) return 'text';
   return 'unknown';
+}
+
+function decodeTextBytes(data) {
+  return new TextDecoder('utf-8').decode(data).replace(/\u0000/g, '').trim();
+}
+
+/** Enkel uttrekk av synlig tekst fra .eml / tekstlig e-post. */
+export function extractEmailText(bytes) {
+  const raw = decodeTextBytes(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
+  if (!raw) throw new Error('E-postfilen ser tom ut.');
+  const withoutBinary = raw
+    .replace(/Content-Transfer-Encoding:[^\n]+\n/gi, '')
+    .replace(/--[0-9A-Za-z._=-]+/g, '\n')
+    .replace(/=\r?\n/g, '')
+    .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  const text = withoutBinary.replace(/\n{3,}/g, '\n\n').trim();
+  if (text.length < 8) throw new Error('Fant ikke lesbar tekst i e-posten.');
+  return text;
+}
+
+/** Shared strings + cellverdier fra xlsx (ZIP), nok til AI-felt. */
+export async function extractXlsxText(bytes) {
+  const files = await zipEntries(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
+  const shared = files.find((file) => file.name === 'xl/sharedStrings.xml');
+  const sheets = files.filter((file) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(file.name));
+  const parts = [];
+  if (shared) parts.push(stripXml(new TextDecoder().decode(shared.data)));
+  for (const sheet of sheets.slice(0, 4)) {
+    parts.push(stripXml(new TextDecoder().decode(sheet.data)));
+  }
+  const text = parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!text) throw new Error('Fant ikke lesbar tekst i Excel-filen.');
+  return text;
 }
 
 export async function extractContractText(bytes, name, mime) {
@@ -216,8 +266,10 @@ export async function extractContractText(bytes, name, mime) {
   if (kind === 'pdf' && data.length > MAX_LOCAL_PDF_BYTES) {
     throw new Error('PDF_TOO_LARGE_FOR_LOCAL');
   }
-  if (kind === 'text') return new TextDecoder('utf-8').decode(data).replace(/\u0000/g, '').trim();
+  if (kind === 'text' || kind === 'html') return decodeTextBytes(data);
+  if (kind === 'email') return extractEmailText(data);
   if (kind === 'docx') return extractDocxText(data);
+  if (kind === 'xlsx') return extractXlsxText(data);
   if (kind === 'pdf') return extractPdfText(data);
-  throw new Error('Last opp PDF, Word (.docx) eller en tekstfil.');
+  throw new Error('Last opp PDF, Word, Excel, e-post eller en tekstfil.');
 }

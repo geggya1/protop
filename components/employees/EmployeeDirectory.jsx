@@ -49,7 +49,7 @@ function ActivityTabs({ value, activeCount, inactiveCount, colors, onChange }) {
             onPress={() => onChange(id)}
             style={[styles.tab, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
           >
-            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '600' }}>{label}</Text>
+            <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{label}</Text>
             <Text style={{ color: colors.muted }}>{count}</Text>
           </Pressable>
         );
@@ -302,22 +302,22 @@ export default function EmployeeDirectory({
 const styles = StyleSheet.create({
   stack: { gap: 10 },
   drawer: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   headText: { flex: 1, gap: 2 },
-  title: { fontSize: 18, fontWeight: '700' },
-  body: { borderTopWidth: 1, padding: 12, gap: 10 },
+  title: { fontSize: 16, fontWeight: '400' },
+  body: { borderTopWidth: 1, padding: 10, gap: 8 },
   tabs: { flexDirection: 'row', gap: 8 },
-  tab: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  list: { gap: 2 },
-  listRow: { borderBottomWidth: 1, paddingVertical: 6 },
+  tab: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 40, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  list: { gap: 0 },
+  listRow: { borderBottomWidth: 1, paddingVertical: 4 },
   tableScroll: { marginHorizontal: -4 },
   table: { minWidth: 860 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1, paddingBottom: 8 },
-  dataRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, minHeight: 72 },
-  personHead: { width: 280, fontSize: 12, fontWeight: '600', paddingHorizontal: 8 },
-  personCell: { width: 280, paddingVertical: 8, paddingRight: 8 },
-  levelHead: { width: 108, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  levelCell: { width: 108, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
+  dataRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, minHeight: 60 },
+  personHead: { width: 280, fontSize: 12, fontWeight: '400', paddingHorizontal: 8 },
+  personCell: { width: 280, paddingVertical: 6, paddingRight: 8 },
+  levelHead: { width: 108, fontSize: 12, fontWeight: '400', textAlign: 'center' },
+  levelCell: { width: 108, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
   box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   retiredBox: { position: 'relative' },
   hatch: {

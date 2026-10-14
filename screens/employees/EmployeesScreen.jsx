@@ -51,7 +51,6 @@ import {
   departmentLabels,
   displayName,
   employeeFromProfile,
-  employeeNumberLabel,
   emptyEmployee,
   filterEmployees,
   gapReport,
@@ -1325,16 +1324,13 @@ export default function EmployeesScreen() {
                     <Image source={{ uri: row.person.photoUrl }} style={styles.avatarSmall} />
                   ) : (
                     <View style={[styles.avatarSmall, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
-                      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 12 }}>{initials(row)}</Text>
+                      <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 12 }}>{initials(row)}</Text>
                     </View>
                   )}
                   <View style={styles.grow}>
                     <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
-                    {!!employeeNumberLabel(row) && (
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{employeeNumberLabel(row)}</Text>
-                    )}
-                    {!!contactLine(row) && <Text style={{ color: colors.muted, fontSize: 12 }}>{contactLine(row)}</Text>}
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{cardSubtitle(row, companyName)}</Text>
+                    {!!contactLine(row) && <Text style={[styles.personMeta, { color: colors.muted }]}>{contactLine(row)}</Text>}
+                    <Text style={[styles.personMeta, { color: colors.muted }]}>{cardSubtitle(row, companyName)}</Text>
                     <View style={styles.chips}>
                       {mine?.id === row.id ? (
                         <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
@@ -1355,11 +1351,11 @@ export default function EmployeesScreen() {
                   style={[styles.person, { borderColor: colors.line, backgroundColor: colors.bg }]}
                 >
                   <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
-                    <Text style={{ color: colors.ink, fontWeight: '700' }}>{initials(row)}</Text>
+                    <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 13 }}>{initials(row)}</Text>
                   </View>
                   <View style={styles.grow}>
                     <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
-                    {!!contactLine(row) && <Text style={{ color: colors.muted }}>{contactLine(row)}</Text>}
+                    {!!contactLine(row) && <Text style={[styles.personMeta, { color: colors.muted }]}>{contactLine(row)}</Text>}
                   </View>
                 </TouchableOpacity>
               )}
@@ -1827,16 +1823,17 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontWeight: '600' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
   stats: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
-  person: { borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', gap: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 10 },
-  avatarSmall: { width: 40, height: 40, borderRadius: 8 },
-  identity: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  person: { borderWidth: 1, borderRadius: 14, padding: 10, flexDirection: 'row', gap: 10 },
+  avatar: { width: 44, height: 44, borderRadius: 8 },
+  avatarSmall: { width: 32, height: 32, borderRadius: 8 },
+  identity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  personName: { fontSize: 16, fontWeight: '700' },
-  grow: { flex: 1, gap: 2 },
-  dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12 },
+  personName: { fontSize: 14, fontWeight: '400' },
+  personMeta: { fontSize: 14, fontWeight: '400' },
+  grow: { flex: 1, gap: 1 },
+  dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, fontSize: 12, fontWeight: '400' },
   attention: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
   progressBanner: {
     borderWidth: 1,

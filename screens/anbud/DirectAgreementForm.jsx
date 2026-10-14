@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import DateField from '../../components/DateField';
 import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
-import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
+import { extractContractText, MAX_LOCAL_PDF_BYTES, pdfTextLooksReadable } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
 import { interpretDocuments, mergeInterpretation } from '../../src/indeksregulering/interpret';
 import { fetchSeriesById } from '../../src/indeksregulering/ssb';
@@ -376,15 +376,23 @@ export default function DirectAgreementForm({
   }
 
   async function applyDocs(docs, note) {
-    const local = interpretDocuments(docs.filter((doc) => String(doc?.text || '').trim().length >= 20));
-    let merged = local;
+    const usable = docs.filter((doc) => {
+      const body = String(doc?.text || '').trim();
+      return body.length >= 20 && pdfTextLooksReadable(body);
+    });
+    let merged = interpretDocuments(usable);
+    for (const doc of docs) {
+      if (doc?.extracted && typeof doc.extracted === 'object') {
+        merged = mergeInterpretation(merged, doc.extracted, String(doc.text || ''));
+      }
+    }
     try {
-      const remote = await interpretAvtale({ documents: docs });
+      const remote = await interpretAvtale({ documents: usable });
       if (remote?.extracted) {
-        merged = mergeInterpretation(local, remote.extracted, docs.map((doc) => doc.text).filter(Boolean).join('\n'));
+        merged = mergeInterpretation(merged, remote.extracted, usable.map((doc) => doc.text).filter(Boolean).join('\n'));
       }
     } catch {
-      // Lokal lesing brukes videre.
+      // Lokal lesing / per-fil OCR brukes videre.
     }
     const next = inputFromInterpretation(merged, { documents: docs });
     setPayload(next);
@@ -409,19 +417,20 @@ export default function DirectAgreementForm({
     return uploaded;
   }
 
-  function documentRow(existing, attached, file, text, original = {}, index = 0) {
+  function documentRow(existing, attached, file, text, original = {}, index = 0, extracted = null) {
     return {
       id: `dok-${Date.now()}-${existing.length + index}`,
       name: attached.name || file.name || 'Avtale',
       text,
       role: (existing.length + index) ? 'vedlegg' : 'hoved',
       mimeType: attached.mimeType || file.mimeType || 'application/pdf',
-      interpreted: String(text || '').trim().length >= 20,
+      interpreted: String(text || '').trim().length >= 20 || Boolean(extracted),
       dataUrl: original.url ? '' : (attached.dataUrl || ''),
       url: original.url || '',
       storagePath: original.storagePath || '',
       uri: original.url ? '' : (attached.uri || file.uri || ''),
       size: original.size || attached.size || file.size || 0,
+      ...(extracted ? { extracted } : {}),
     };
   }
 
@@ -454,10 +463,13 @@ export default function DirectAgreementForm({
         fileBase64: bytesToBase64(bytes),
       });
       if (!remote?.extracted) throw new Error(`Kunne ikke lese ${attached.name || file.name || 'PDF-en'}.`);
-      return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+      return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index, remote.extracted);
     }
     try {
       const text = await extractContractText(bytes, file.name, file.mimeType);
+      if (pdf && !pdfTextLooksReadable(text)) {
+        throw new Error('PDF_TEXT_UNREADABLE');
+      }
       return documentRow(existing, attached, file, text, original, index);
     } catch {
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
@@ -470,7 +482,15 @@ export default function DirectAgreementForm({
           fileBase64: bytesToBase64(bytes),
         });
         if (remote?.extracted || String(remote?.text || '').trim()) {
-          return documentRow(existing, attached, file, String(remote.text || '').trim(), original, index);
+          return documentRow(
+            existing,
+            attached,
+            file,
+            String(remote.text || '').trim(),
+            original,
+            index,
+            remote.extracted || null,
+          );
         }
       } catch {
         // Originalfilen er lagret — forhåndsvisning og manuell utfylling kan fortsette.
@@ -1032,17 +1052,19 @@ export default function DirectAgreementForm({
 const styles = StyleSheet.create({
   h: { fontSize: 20, fontWeight: '700' },
   card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
-  fieldsPane: { flex: 1, minWidth: 0, maxWidth: 720 },
-  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, width: '100%' },
-  splitLeft: { flex: 1, minWidth: 0, maxWidth: 720 },
+  fieldsPane: { flex: 1, minWidth: 0 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, width: '100%' },
+  splitLeft: { flexGrow: 1, flexShrink: 1, flexBasis: '54%', minWidth: 300 },
   splitRight: {
-    flex: 1,
-    minWidth: 280,
-    maxWidth: 480,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: '40%',
+    minWidth: 380,
+    maxWidth: 640,
     alignSelf: 'flex-start',
     ...(Platform.OS === 'web' ? { position: 'sticky', top: 12 } : null),
   },
-  stack: { gap: 12, width: '100%', maxWidth: 720 },
+  stack: { gap: 12, width: '100%' },
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },

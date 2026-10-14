@@ -81,6 +81,21 @@ function reject(code, message) {
   throw new HttpsError(code, message);
 }
 
+function pdfTextLooksReadable(text) {
+  const source = String(text || '').trim();
+  if (source.length < 8) return false;
+  const letters = (source.match(/[A-Za-zÆØÅæøå]/g) || []).length;
+  const junk = (source.match(/[^A-Za-zÆØÅæøå0-9\s.,;:!?%&/()\-+@'"]/g) || []).length;
+  const letterRatio = letters / Math.max(source.length, 1);
+  const junkRatio = junk / Math.max(source.length, 1);
+  if (letters < 12) return false;
+  if (junkRatio > 0.25) return false;
+  if (letterRatio < 0.2) return false;
+  if (source.length >= 200 && letterRatio < 0.35) return false;
+  if (source.length >= 200 && junkRatio > 0.15) return false;
+  return true;
+}
+
 async function readPdf(buffer) {
   let text = '';
   try {
@@ -88,8 +103,11 @@ async function readPdf(buffer) {
   } catch {
     text = '';
   }
-  const ocr = text.length >= 40 ? { text: '', images: [] } : await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));
-  const combined = [text, ocr.text].filter(Boolean).join('\n').trim();
+  const readable = pdfTextLooksReadable(text);
+  const ocr = (readable && text.length >= 40)
+    ? { text: '', images: [] }
+    : await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));
+  const combined = [readable ? text : '', ocr.text].filter(Boolean).join('\n').trim();
   return { text: combined, images: ocr.images || [] };
 }
 
@@ -116,8 +134,8 @@ function documentsFrom(data, fallbackText) {
     id: `dok-${index + 1}`,
     name: String(doc?.name || `Dokument ${index + 1}`).slice(0, 180),
     text: String(doc?.text || '').trim().slice(0, 20000),
-  })).filter((doc) => doc.text.length >= 20);
-  if (!documents.length && fallbackText.length >= 20) {
+  })).filter((doc) => doc.text.length >= 20 && pdfTextLooksReadable(doc.text));
+  if (!documents.length && fallbackText.length >= 20 && pdfTextLooksReadable(fallbackText)) {
     documents.push({ id: 'dok-1', name: String(data?.fileName || 'Avtale').slice(0, 180), text: fallbackText.slice(0, 40000) });
   }
   return documents;

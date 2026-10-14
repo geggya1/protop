@@ -348,7 +348,8 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-indeks': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Indeksregulering',
     kicker: t('Økonomi', 'Finance'),
     title: t('Indeksregulering', 'Index adjustment'),

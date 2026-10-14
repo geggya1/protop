@@ -80,6 +80,7 @@ export const ILLUSTRATION_FILES = {
   iso: 'iso--module-activation-illustration.png',
   'okonomi-faktura': 'okonomi-faktura--module-activation-illustration.png',
   'okonomi-kjorebok': 'okonomi-kjorebok--module-activation-illustration.png',
+  'okonomi-indeks': 'okonomi-indeks--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

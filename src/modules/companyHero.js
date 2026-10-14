@@ -253,7 +253,8 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-godkjenning': {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Godkjenninger',
     kicker: t('Arbeid', 'Work'),
     title: t('Godkjenninger', 'Approvals'),

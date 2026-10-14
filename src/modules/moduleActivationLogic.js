@@ -76,6 +76,7 @@ export const ILLUSTRATION_FILES = {
   'arbeid-utlegg': 'arbeid-utlegg--module-activation-illustration.png',
   'arbeid-salg': 'arbeid-salg--module-activation-illustration.png',
   'okonomi-produkter': 'okonomi-produkter--module-activation-illustration.png',
+  'arbeid-godkjenning': 'arbeid-godkjenning--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

@@ -94,12 +94,13 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
 
 export function ApprovalsScreen() {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     fromDate: `${year}-01-01`,
     toDate: toDateKey(new Date()),
   });
-  const locks = (workspace.state.timesheetLocks || []).filter((row) => (
+  const locks = (workspace.state?.timesheetLocks || []).filter((row) => (
     workspace.manager || row.employeeId === workspace.linked?.id
   ));
   function approve(employeeId) {
@@ -113,8 +114,12 @@ export function ApprovalsScreen() {
   }
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="godkjenninger">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Godkjenninger</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Godkjenninger</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
+        </>
+      )}
       <Text style={{ color: colors.muted }}>Låst timeliste betyr at timene er klare for fakturering.</Text>
       {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
       {locks.map((row) => {

@@ -297,6 +297,7 @@ assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'a
 assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
+assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -432,6 +433,17 @@ for (const file of [
 }
 assert.match(assetsSrc, /'arbeid-salg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-salg--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'okonomi-produkter': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-produkter--module-activation-illustration\.png'\)/);
+const godkjenningFile = 'arbeid-godkjenning--module-activation-illustration.png';
+const godkjenningBundled = join(ROOT, 'assets/module-activation', godkjenningFile);
+const godkjenningPublic = join(ROOT, 'public/assets/module-activation', godkjenningFile);
+assert.equal(existsSync(godkjenningBundled), true, 'godkjenning bundled art');
+assert.equal(existsSync(godkjenningPublic), true, 'godkjenning public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(godkjenningBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(godkjenningPublic)).digest('hex'),
+  'godkjenning bundled != public',
+);
+assert.match(assetsSrc, /'arbeid-godkjenning': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-godkjenning--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

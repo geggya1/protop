@@ -31,7 +31,7 @@ export function canLogOwnHoursInCompany(company, employees = [], actor = {}) {
  */
 export function personalTimesheetCompanies(families = [], currentFamily = null, options = {}) {
   // Samme skjulte alias som i headeren, så underenheten ikke vises som et ekstra selskap.
-  const companies = visibleCompanyWorkspaces(families);
+  const companies = visibleCompanyWorkspaces(families, options.occupancy);
   const employeesByCompanyId = options.employeesByCompanyId || {};
   const actor = {
     uid: options.uid || '',

@@ -81,6 +81,7 @@ export const ILLUSTRATION_FILES = {
   'okonomi-faktura': 'okonomi-faktura--module-activation-illustration.png',
   'okonomi-kjorebok': 'okonomi-kjorebok--module-activation-illustration.png',
   'okonomi-indeks': 'okonomi-indeks--module-activation-illustration.png',
+  'okonomi-fakturagrunnlag': 'okonomi-fakturagrunnlag--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

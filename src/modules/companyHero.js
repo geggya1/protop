@@ -306,13 +306,14 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-fakturagrunnlag': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Fakturagrunnlag',
     kicker: t('Økonomi', 'Finance'),
     title: t('Fakturagrunnlag', 'Billing basis'),
     pitch: t(
-      'Timer og poster klare til fakturering.',
-      'Hours and lines ready to invoice.',
+      'Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde og prosjekt.',
+      'Approved hours, expenses, trips and sales are grouped by customer and project.',
     ),
   },
   'okonomi-utlegg': {

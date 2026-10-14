@@ -302,6 +302,7 @@ assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide il
 assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -492,6 +493,17 @@ assert.equal(
   'indeks bundled != public',
 );
 assert.match(assetsSrc, /'okonomi-indeks': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-indeks--module-activation-illustration\.png'\)/);
+const grunnlagFile = 'okonomi-fakturagrunnlag--module-activation-illustration.png';
+const grunnlagBundled = join(ROOT, 'assets/module-activation', grunnlagFile);
+const grunnlagPublic = join(ROOT, 'public/assets/module-activation', grunnlagFile);
+assert.equal(existsSync(grunnlagBundled), true, 'fakturagrunnlag bundled art');
+assert.equal(existsSync(grunnlagPublic), true, 'fakturagrunnlag public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(grunnlagBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(grunnlagPublic)).digest('hex'),
+  'fakturagrunnlag bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-fakturagrunnlag': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-fakturagrunnlag--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

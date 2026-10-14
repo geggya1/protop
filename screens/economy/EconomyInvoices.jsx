@@ -851,7 +851,7 @@ export default function EconomyInvoices({
           linkQuery={linkQuery}
           setLinkQuery={setLinkQuery}
           title="Kontroller fakturaimport"
-          lead="Sjekk kobling til kunde og prosjekt før lagring. Summeringsrader importeres ikke. PDF-vedlegg kan knyttes på hver faktura etter import."
+          lead="Sjekk kobling til kunde og prosjekt før lagring. Alle kolonner fra Excel-filen importeres (datoer, beløp, kontoer, tagger m.m.) — tabellen under er bare en kontrollvisning. Summeringsrader importeres ikke. PDF-vedlegg kan knyttes på hver faktura etter import."
           confirmLabel={(count) => `Importer ${count} fakturaer`}
           onToggleCard={(card) => {
             setDropped((current) => toggleInvoiceReviewRow(current, card, importPlan));

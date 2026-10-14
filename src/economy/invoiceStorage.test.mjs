@@ -11,6 +11,12 @@ const full = emptyInvoice({
   vatCode: 'MID',
   bankAccount: '12345678903',
   deliveryMethod: 'ehf',
+  reminderPostponedTo: '2026-11-01',
+  periodStart: '2026-09-01',
+  periodEnd: '2026-09-30',
+  feesExMarkup: 7000,
+  adminCosts: 200,
+  accounts: { 3000: 8000, 3001: 200 },
   voucherId: 'bilag_abc',
   voucherLines: [
     { account: '1500', accountName: 'Kundefordringer', debit: 9200, credit: 0, vatCode: '' },
@@ -37,6 +43,11 @@ const full = emptyInvoice({
   amountExVat: 8000,
   vat: 1200,
   amountInclVat: 9200,
+  source: {
+    filename: 'alle fakturaer.xlsx',
+    importedAt: '2026-10-14T10:00:00.000Z',
+    values: { Fakturanr: '10001', Extra: 'stor-celle' },
+  },
 });
 
 const cached = toInvoiceCacheRow(full);
@@ -53,6 +64,14 @@ assert.equal(cached.lines[0].amountExVat, 8000);
 assert.deepEqual(cached.timeEntryIds, ['te1']);
 assert.equal(cached.bankAccount, '12345678903');
 assert.equal(cached.deliveryMethod, 'ehf');
+assert.equal(cached.reminderPostponedTo, '2026-11-01');
+assert.equal(cached.periodStart, '2026-09-01');
+assert.equal(cached.feesExMarkup, 7000);
+assert.equal(cached.adminCosts, 200);
+assert.equal(cached.accounts['3000'], 8000);
+assert.equal(cached.source.filename, 'alle fakturaer.xlsx');
+// Rå Excel-celler strippes i lokal cache (størrelse); hentes fra Firestore i detalj
+assert.deepEqual(cached.source.values, {});
 
 // Round-trip via normalize (som loadInvoices/loadInvoice fra lokal cache)
 const restored = normalizeInvoice(cached);
@@ -63,6 +82,8 @@ assert.equal(restored.voucherId, 'bilag_abc');
 assert.equal(restored.voucherLines.length, 3);
 assert.equal(restored.voucherLines[1].credit, 8000);
 assert.equal(restored.kid, full.kid);
+assert.equal(restored.accounts['3001'], 200);
+assert.equal(restored.feesExMarkup, 7000);
 
 // Uten voucherLines → tom liste
 assert.deepEqual(normalizeInvoice({ invoiceNumber: '1' }).voucherLines, []);

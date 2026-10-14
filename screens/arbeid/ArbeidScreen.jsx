@@ -224,13 +224,14 @@ export default function ArbeidScreen({
       if (linked?.id) setEmployeeId(linked.id);
       return;
     }
-    // Vent på tilgang før auto-valg, så leder ikke hopper over steg 1.
-    if (!access.ready) return;
+    // Mulige ledere venter på tilgang, så de ikke får auto-valg før steg 1.
+    const maybeManager = isAdmin || canManageTimesheets({ isAdmin, employee: linked });
+    if (maybeManager && !access.ready) return;
     // Bedriftstimeliste: leder velger person først (steg 1).
     if (manager) return;
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
-  }, [linked, employees, manager, employeeId, lockedId, personal, access.ready]);
+  }, [linked, employees, manager, employeeId, lockedId, personal, access.ready, isAdmin]);
 
   useEffect(() => {
     if (lockedId || personal) return;

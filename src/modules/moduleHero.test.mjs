@@ -295,6 +295,8 @@ assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
+assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
+assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -414,6 +416,22 @@ assert.equal(
   'utlegg bundled != public',
 );
 assert.match(assetsSrc, /'arbeid-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-utlegg--module-activation-illustration\.png'\)/);
+for (const file of [
+  'arbeid-salg--module-activation-illustration.png',
+  'okonomi-produkter--module-activation-illustration.png',
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+}
+assert.match(assetsSrc, /'arbeid-salg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-salg--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'okonomi-produkter': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-produkter--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

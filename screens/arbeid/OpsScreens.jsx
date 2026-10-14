@@ -64,6 +64,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
 
 export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
@@ -71,11 +72,15 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
     toDate: `${year}-12-31`,
   });
   const activeId = workspace.lockedId || workspace.linked?.id || '';
-  const rows = (workspace.state.sales || []).filter((row) => !activeId || !row.employeeId || row.employeeId === activeId);
+  const rows = (workspace.state?.sales || []).filter((row) => !activeId || !row.employeeId || row.employeeId === activeId);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="mine-produktsalg">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Mine produktsalg</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>Mine produktsalg</Text>
+      {hostedHero ? null : (
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Mine produktsalg</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>Mine produktsalg</Text>
+        </>
+      )}
       {rows.map((row) => (
         <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.date} · {row.name}</Text>

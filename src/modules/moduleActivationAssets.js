@@ -56,6 +56,8 @@ const BUNDLED = {
   'arbeid-fravaer': require('../../assets/module-activation/arbeid-fravaer--module-activation-illustration.png'),
   'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaersrapport--module-activation-illustration.png'),
   'arbeid-utlegg': require('../../assets/module-activation/arbeid-utlegg--module-activation-illustration.png'),
+  'arbeid-salg': require('../../assets/module-activation/arbeid-salg--module-activation-illustration.png'),
+  'okonomi-produkter': require('../../assets/module-activation/okonomi-produkter--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -89,6 +90,7 @@ function Chip({ label, active, onPress, colors }) {
 
 export default function EconomyOps({ kind = 'expenses' }) {
   const colors = useColors();
+  const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
@@ -168,7 +170,9 @@ export default function EconomyOps({ kind = 'expenses' }) {
 
   return (
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+      {hostedHero && kind === 'products' ? null : (
+        <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+      )}
       {kind === 'expenses' ? (
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
           Ansattutlegg med kategori, MVA og viderefakturering. Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).

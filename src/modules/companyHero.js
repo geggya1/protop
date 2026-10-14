@@ -242,7 +242,8 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-salg': {
-    ...CYAN,
+    ...BLUE,
+    wideArt: true,
     name: 'Mine produktsalg',
     kicker: t('Arbeid', 'Work'),
     title: t('Mine produktsalg', 'My product sales'),
@@ -332,7 +333,8 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-produkter': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Produkter',
     kicker: t('Økonomi', 'Finance'),
     title: t('Produkter', 'Products'),

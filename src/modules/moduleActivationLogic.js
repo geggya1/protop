@@ -74,6 +74,8 @@ export const ILLUSTRATION_FILES = {
   'arbeid-fravaer': 'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaersrapport': 'arbeid-fravaersrapport--module-activation-illustration.png',
   'arbeid-utlegg': 'arbeid-utlegg--module-activation-illustration.png',
+  'arbeid-salg': 'arbeid-salg--module-activation-illustration.png',
+  'okonomi-produkter': 'okonomi-produkter--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

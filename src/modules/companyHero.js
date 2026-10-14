@@ -64,7 +64,8 @@ export const COMPANY_HERO = {
     ),
   },
   skjema: {
-    ...LAVENDER,
+    ...BLUE,
+    wideArt: true,
     name: 'Skjema',
     kicker: t('Skjema', 'Forms'),
     title: t('Skjema til utfylling', 'Forms to fill in'),

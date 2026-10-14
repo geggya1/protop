@@ -25,7 +25,7 @@ import {
   setAbsenceStatuses,
 } from '../../src/project/engine';
 import {
-  ensureProjectAbsences,
+  noteAbsencesImported,
   persistProjectState,
   putProjectState,
 } from '../../src/project/storage';
@@ -208,6 +208,10 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       const result = importAbsences(workspace.state, chosen.map((row) => ({
         ...row.entry,
         createdByUid: workspace.uid,
+        // Trim Excel-kilde — hele values-objektet gjør 5k docs trege.
+        source: row.entry?.source
+          ? { filename: row.entry.source.filename, importedAt: row.entry.source.importedAt }
+          : null,
       })));
       if (!result.ok) throw new Error(result.error || 'Kunne ikke importere fravær.');
       putProjectState(result.state, workspace.workspaceId);
@@ -215,14 +219,15 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       await saveAbsenceImport(workspace.workspaceId, result.added, {
         onProgress: (done, total) => setProgress({ label: 'Lagrer fravær…', done, total }),
       });
+      setProgress({ label: 'Fullfører…', done: result.added.length, total: result.added.length });
+      // Marker som synket så persist ikke skriver alle 5k radene på nytt.
+      noteAbsencesImported(workspace.workspaceId, result.state.absences || []);
       try {
         await persistProjectState(result.state, workspace.workspaceId);
       } catch (projectError) {
+        // Fraværet ligger allerede i absences-subcollection — ikke mist dem.
         console.warn('Prosjektstate etter fraværsimport', projectError);
       }
-      // Sørg for at alle ansatte får data synlig i oversikt/rapport.
-      const refreshed = await ensureProjectAbsences(workspace.workspaceId, { all: true });
-      workspace.setState(refreshed);
       const withIssues = chosen.filter((row) => (row.issues || []).length).length;
       const report = importResult(
         [{ name: `${result.added.length} fraværsdager`, issues: withIssues ? [`${withIssues} med avvik`] : [] }],

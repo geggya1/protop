@@ -96,6 +96,15 @@ export function markAbsencesSyncedMerge(companyId, entries) {
   SYNCED_ABSENCES.set(key, withoutDeletedAbsences(companyId, merged));
 }
 
+/** Etter vellykket fraværsimport: unngå at persist skriver alle radene på nytt. */
+export function noteAbsencesImported(companyId, entries) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  markAbsencesSynced(id, entries);
+  setAbsenceMode(id, 'all');
+  noteAbsenceWindow(id, { all: true });
+}
+
 function baselineAbsences(companyId) {
   const key = memoryKey(companyId);
   if (SYNCED_ABSENCES.has(key)) return SYNCED_ABSENCES.get(key) || [];

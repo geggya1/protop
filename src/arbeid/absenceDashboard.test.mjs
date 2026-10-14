@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   STATUTORY_VACATION_DAYS,
   buildAbsenceDashboard,
+  buildAbsenceWebBoard,
+  buildCompanyAbsenceLedger,
   eachWeekday,
   groupAbsencePeriods,
 } from './absenceDashboard.js';
@@ -195,6 +197,80 @@ const employees = [
   assert.deepEqual(windowed.recentMonths.map((month) => month.label), ['Okt', 'Nov', 'Des', 'Jan', 'Feb', 'Mar']);
   assert.equal(windowed.recentMonths.find((month) => month.key === '2025-12').ferie, 1);
   assert.equal(windowed.recentMonths.find((month) => month.key === '2026-01').ferie, 0);
+}
+
+{
+  const ledger = buildCompanyAbsenceLedger({
+    employees,
+    today: '2026-10-13',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada', e2: 'Bo' },
+    adjustments: [{ id: 'o', employeeId: 'e1', typeId: 'ferie', kind: 'opening', date: '2026-01-01', days: 10 }],
+    absences: [
+      { id: 'a1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-13', hours: 7.5 },
+    ],
+  });
+  assert.equal(ledger.summary.earned, 10);
+  assert.equal(ledger.summary.used, 1);
+  assert.equal(ledger.summary.remaining, 9);
+  assert.equal(ledger.rows.some((row) => row.employeeName === 'Ada' && row.kind === 'absence'), true);
+  assert.equal(ledger.rows.some((row) => row.employeeName === 'Bo'), false);
+  assert.equal(ledger.summary.earned === employees.length * STATUTORY_VACATION_DAYS, false);
+}
+
+{
+  const board = buildAbsenceWebBoard({
+    employees: [
+      ...employees,
+      { id: 'e3', company: { status: 'active' } },
+    ],
+    today: '2026-10-14',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada Nord', e2: 'Bo Berg', e3: 'Cato' },
+    adjustments: [{ id: 'o', employeeId: 'e1', typeId: 'ferie', kind: 'opening', date: '2026-01-02', days: 21 }],
+    absences: [
+      { id: 'a1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+      { id: 'a2', employeeId: 'e1', type: 'ferie', date: '2026-07-07', hours: 7.5 },
+      { id: 'a3', employeeId: 'e1', type: 'ferie', date: '2026-07-08', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-14', hours: 7.5 },
+    ],
+  });
+  const ada = board.staff.find((row) => row.name === 'Ada Nord');
+  const bo = board.staff.find((row) => row.name === 'Bo Berg');
+  assert.equal(board.staff.some((row) => row.name === 'Cato'), false);
+  assert.equal(ada.months[6].ferie, 3);
+  assert.equal(ada.earned, 21);
+  assert.equal(ada.remaining, 18);
+  assert.equal(ada.vacationUsed, 3);
+  assert.equal(bo.months[9].sykdom, 1);
+  assert.equal(bo.earned, 0);
+  assert.equal(board.lines.length, 2);
+  assert.equal(board.dash.summary.earned, 21);
+  assert.equal(board.dash.summary.used, 3);
+  assert.equal(board.dash.sickNow, 1);
+  assert.equal(board.planned.length, 0);
+}
+
+{
+  const board = buildAbsenceWebBoard({
+    employees,
+    today: '2026-10-14',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada Nord' },
+    absences: [
+      { id: 'now', employeeId: 'e1', type: 'ferie', date: '2026-10-14', hours: 7.5 },
+      { id: 'tail', employeeId: 'e1', type: 'ferie', date: '2026-10-15', hours: 7.5 },
+      { id: 'dec', employeeId: 'e1', type: 'ferie', date: '2026-12-14', hours: 7.5 },
+      { id: 'next', employeeId: 'e1', type: 'ferie', date: '2027-01-04', hours: 7.5 },
+    ],
+  });
+  assert.equal(board.staff.find((row) => row.name === 'Ada Nord').vacationUsed, 3);
+  assert.deepEqual(board.planned.map((row) => row.start), ['2026-12-14', '2027-01-04']);
+  assert.equal(board.planned.every((row) => row.status === 'planlagt'), true);
+  assert.equal(board.planned.some((row) => row.start === '2026-10-15'), false);
+  assert.equal(board.lines.find((row) => row.start === '2026-10-14').status, 'pagar');
+  assert.equal(board.lines.some((row) => row.start === '2027-01-04'), false);
 }
 
 console.log('absenceDashboard ok');

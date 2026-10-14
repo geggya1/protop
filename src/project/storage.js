@@ -273,11 +273,21 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
   const window = HOURS_WINDOW.get(id) || null;
   const { changed } = diffTimeEntries(previousEntries, nextEntries);
   const safeChanged = withoutDeletedTimeEntries(id, changed);
-  if (safeChanged.length) await saveTimeEntries(id, safeChanged);
+  const bySource = new Map();
+  for (const row of safeChanged) {
+    const source = String(row?.sourceCompanyId || id).trim() || id;
+    if (!bySource.has(source)) bySource.set(source, []);
+    bySource.get(source).push(row);
+  }
+  for (const [source, list] of bySource) {
+    await saveTimeEntries(source, list);
+  }
   const removable = planTimeEntryRemovals(previousEntries, nextEntries, window, { allowRemovals });
   if (removable.length) {
+    const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
-      await removeTimeEntry(id, entryId);
+      const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
+      await removeTimeEntry(source, entryId);
     }
   }
   const nextClean = withoutDeletedTimeEntries(id, nextEntries);

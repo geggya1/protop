@@ -22,8 +22,8 @@ import { listenFriends } from '../utils/friends';
 import { friendProfileOwnerUid } from '../utils/friendsLogic';
 import { preferAuthUid } from '../utils/inviteAuthUid';
 import { isLiveOrganization } from '../project/companyOffer';
-import { companyWorkspaces, preferHovedenhetWorkspace, resolveLoginLanding } from '../utils/platformSwitch';
-import { probeWorkspaceOccupancy } from '../utils/workspaceOccupancy';
+import { aliasFamilyIds, companyWorkspaces, preferHovedenhetWorkspace, resolveLoginLanding } from '../utils/platformSwitch';
+import { bindCompanyAliases } from '../project/companyAlias';
 
 const Ctx = createContext(null);
 const FAMILY_KEY = 'weekplan.familyId';
@@ -90,7 +90,6 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   const familyPickRef = useRef(false);
   const [familyId, setFamilyIdState] = useState(childFamilyId || null);
   const [family, setFamily] = useState(null);
-  const [workspaceOccupancy, setWorkspaceOccupancy] = useState(null);
   const [parents, setParents] = useState([]);
   const [kids, setKids] = useState([]);
   const [friends, setFriends] = useState([]);
@@ -341,12 +340,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         const keptCache = listFailed && list.length === 0 && membershipHints.size > 0;
         if (!keptCache && !familyPickRef.current) {
           const pool = list.length ? list : (map.size ? [...map.values()] : []);
-          let occupancy = null;
-          try {
-            occupancy = await probeWorkspaceOccupancy(db, pool);
-            if (alive) setWorkspaceOccupancy(occupancy);
-          } catch { /* ukjent belegg: bli på lagret arbeidsområde */ }
-          const landing = resolveLoginLanding(pool, storedId, preferredCompanyId, occupancy);
+          const landing = resolveLoginLanding(pool, storedId, preferredCompanyId);
           const landingId = landing?.id || null;
           if (alive) setFamilyIdState(landingId);
           if (landingId) {
@@ -373,20 +367,19 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     return () => { alive = false; };
   }, [uid, isChild, childFamilyId, childProfile?.familyId]);
 
-  // Et tomt tvilling-selskap med samme navn byttes til det som har ansatte eller timer.
-  // Privat, og et selskap som selv har data, blir stående.
+  // Alias med samme navn åpnes alltid som hovednummeret. Dataene lastes inn der.
   useEffect(() => {
-    if (!uid || !workspaceOccupancy || familyPickRef.current || !familyId) return undefined;
+    if (!uid || !familyId) return undefined;
     const companies = companyWorkspaces(families);
     const current = companies.find((group) => group.id === familyId);
     if (!current) return undefined;
-    const next = preferHovedenhetWorkspace(current, companies, workspaceOccupancy);
+    const next = preferHovedenhetWorkspace(current, companies);
     if (!next?.id || next.id === current.id) return undefined;
     setFamilyIdState(next.id);
     writeStoredFamilyId(uid, next.id).catch(() => {});
     writeStoredCompanyId(uid, next.id).catch(() => {});
     return undefined;
-  }, [uid, workspaceOccupancy, families, familyId]);
+  }, [uid, families, familyId]);
 
   useEffect(() => {
     if (!uid) {
@@ -780,6 +773,8 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     setFamiliesLoadError(null);
   }, []);
 
+  bindCompanyAliases(family?.id || '', family ? aliasFamilyIds(family, families) : []);
+
   const isSuperAdmin = !!(uid && family && family.ownerUid === uid);
   const isAdmin = isSuperAdmin || !!(uid && family && Array.isArray(family.adminUids) && family.adminUids.includes(uid));
   const liveFamilies = useMemo(
@@ -810,7 +805,6 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     liveFamilies,
     familyId,
     family,
-    workspaceOccupancy,
     parents,
     kids,
     members,

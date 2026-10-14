@@ -22,6 +22,8 @@ import {
   removeSubUnit,
   underenheterOf,
 } from '../../src/project/companyUnits';
+import { aliasFamilyIds } from '../../src/utils/platformSwitch';
+import { copyAliasRecordsToCanonical } from '../../src/project/companyAliasTransfer';
 
 function Field({ label, value, onChangeText, placeholder, colors, editable = true }) {
   return (
@@ -59,6 +61,8 @@ export default function CompanyStructureSettings({
   const [searching, setSearching] = useState(false);
   const [deptName, setDeptName] = useState('');
   const [deptNote, setDeptNote] = useState('');
+  const [aliasInput, setAliasInput] = useState('');
+  const [aliasNote, setAliasNote] = useState('');
   const orgnr = digitsOrgnr(company?.organisasjonsnummer);
 
   useEffect(() => {
@@ -115,6 +119,26 @@ export default function CompanyStructureSettings({
     const added = addSubUnit(units, made.unit);
     if (!added.ok) {
       setError(added.error);
+      return;
+    }
+    if (sameLegalEntity(hit) || sameLegalEntity(nextCompany)) {
+      setBusy(true);
+      setError('');
+      try {
+        const nextAlias = [...new Set(
+          [...aliasNumbers, made.unit.organisasjonsnummer]
+            .map((value) => digitsOrgnr(value))
+            .filter((value) => value.length === 9),
+        )];
+        await onSaved({ ...company, subUnits: added.list, aliasOrganisasjonsnummer: nextAlias });
+        setHits([]);
+        setQueryText('');
+        setAliasNote('Underenheten er knyttet til hovednummeret og blir ikke et eget selskap.');
+      } catch (e) {
+        setError(e?.message || 'Kunne ikke knytte underenheten til hovednummeret.');
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     setBusy(true);
@@ -218,9 +242,122 @@ export default function CompanyStructureSettings({
 
   const children = underenheterOf(units);
   const departments = departmentsOf(units);
+  const aliasNumbers = (Array.isArray(company?.aliasOrganisasjonsnummer) ? company.aliasOrganisasjonsnummer : [])
+    .map((value) => digitsOrgnr(value))
+    .filter((value) => value.length === 9);
+  const hiddenCompanyIds = new Set(aliasFamilyIds({ id: familyId, name: company?.navn, company }, families));
+
+  function sameLegalEntity(hit) {
+    const name = String(company?.navn || '').trim().toLocaleLowerCase('nb');
+    const hitName = String(hit?.navn || '').trim().toLocaleLowerCase('nb');
+    if (name && hitName && name === hitName) return true;
+    const over = digitsOrgnr(hit?.overordnetEnhet);
+    return Boolean(over && orgnr && over === orgnr);
+  }
+
+  async function addAliasNumber(raw) {
+    if (!canEdit || busy) return;
+    const nextNumber = digitsOrgnr(raw);
+    if (nextNumber.length !== 9) {
+      setError('Organisasjonsnummer må ha 9 siffer.');
+      return;
+    }
+    if (nextNumber === orgnr) {
+      setError('Hovednummeret er allerede registrert.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setAliasNote('');
+    try {
+      const next = [...new Set([...aliasNumbers, nextNumber])];
+      await onSaved({ ...company, aliasOrganisasjonsnummer: next });
+      setAliasInput('');
+      setAliasNote('Nummeret er knyttet til hovednummeret og vises ikke som eget selskap.');
+    } catch (e) {
+      setError(e?.message || 'Kunne ikke lagre organisasjonsnummeret.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAliasNumber(number) {
+    if (!canEdit || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onSaved({
+        ...company,
+        aliasOrganisasjonsnummer: aliasNumbers.filter((value) => value !== number),
+      });
+    } catch (e) {
+      setError(e?.message || 'Kunne ikke fjerne organisasjonsnummeret.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function transferAlias() {
+    if (!canEdit || busy || !familyId) return;
+    const ids = [...hiddenCompanyIds];
+    if (!ids.length) {
+      setAliasNote('Ingen skjult alias-familie å overføre. Nummeret er lagret på hovedselskapet.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setAliasNote('');
+    try {
+      const result = await copyAliasRecordsToCanonical(familyId, ids);
+      setAliasNote(`Overført til hovednummeret: ${result.employees} ansatte, ${result.hours} timer, ${result.notices} anbudstreff. Alias-familien er ikke slettet.`);
+    } catch (e) {
+      setError(e?.message || 'Kunne ikke overføre til hovednummeret.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <View style={styles.block} nativeID="company-structure" id="company-structure">
+      <View style={[styles.row, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.ink, fontWeight: '400' }}>Hovednummer</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {orgnr || 'Ikke satt'}
+            {' · '}
+            alt som registreres videre lagres her
+          </Text>
+          {aliasNumbers.map((number) => (
+            <View key={number} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>{number}</Text>
+              {canEdit ? (
+                <TouchableOpacity onPress={() => removeAliasNumber(number)}>
+                  <Text style={{ color: colors.muted }}>Fjern</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ))}
+          {aliasNote ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>{aliasNote}</Text> : null}
+        </View>
+      </View>
+      {canEdit ? (
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <TextInput
+            value={aliasInput}
+            onChangeText={setAliasInput}
+            placeholder="Annet org.nr for samme selskap"
+            placeholderTextColor={colors.placeholder}
+            keyboardType="number-pad"
+            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card, flex: 1 }]}
+          />
+          <TouchableOpacity onPress={() => addAliasNumber(aliasInput)} disabled={busy}>
+            <Text style={{ color: colors.brand }}>Knytt til</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={transferAlias} disabled={busy}>
+            <Text style={{ color: colors.brand }}>Overfør hit</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {children.map((row) => (
         <View key={row.id} style={[styles.row, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View style={{ flex: 1 }}>
@@ -229,7 +366,7 @@ export default function CompanyStructureSettings({
               {[row.organisasjonsnummer, 'Eget abonnement'].filter(Boolean).join(' · ')}
             </Text>
           </View>
-          {row.companyId && onOpenCompany ? (
+          {row.companyId && onOpenCompany && !hiddenCompanyIds.has(row.companyId) ? (
             <TouchableOpacity onPress={() => onOpenCompany(row.companyId)} accessibilityLabel={`Åpne ${row.name}`}>
               <Text style={{ color: colors.brand, fontWeight: '400' }}>Åpne</Text>
             </TouchableOpacity>

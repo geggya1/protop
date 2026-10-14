@@ -51,6 +51,9 @@ export function mergeCompanyProfile(next, previous) {
     epostadresse: text(next.epostadresse) || text(previous?.epostadresse),
     egneNaeringskoder: Array.isArray(previous?.egneNaeringskoder) ? previous.egneNaeringskoder : [],
     ...(Array.isArray(previous?.subUnits) ? { subUnits: previous.subUnits } : {}),
+    ...(Array.isArray(previous?.aliasOrganisasjonsnummer)
+      ? { aliasOrganisasjonsnummer: previous.aliasOrganisasjonsnummer }
+      : {}),
     ...(logo ? { logo } : {}),
   };
   const previousOrgnr = orgDigits(previous?.organisasjonsnummer);

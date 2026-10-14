@@ -107,7 +107,7 @@ function GroupCard({
 
 export default function FamilyOverviewScreen({ reloadKey }) {
   const navigation = useNavigation();
-  const { selectFamily, applyFamilyPatch, family, familyId, workspaceOccupancy } = useApp();
+  const { selectFamily, applyFamilyPatch, family, familyId } = useApp();
   const { t } = useI18n();
 
   const [families, setFamilies] = useState([]);
@@ -187,7 +187,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   useFocusEffect(useCallback(() => { fetchFamilies(); return () => {}; }, [fetchFamilies, reloadKey]));
 
   const openFamily = async (item) => {
-    const id = resolveWorkspaceId(families, item.id, workspaceOccupancy) || item.id;
+    const id = resolveWorkspaceId(families, item.id) || item.id;
     const target = families.find((row) => row.id === id) || item;
     await selectFamily(target.id);
     openPlatformHome(navigation, target);
@@ -274,7 +274,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const live = workspaces.filter((f) => !isGroupDeactivated(f));
   const deactivated = workspaces.filter((f) => isGroupDeactivated(f));
   const personalList = live.filter((f) => isPersonalShell(f));
-  const orgList = visibleCompanyWorkspaces(live, workspaceOccupancy);
+  const orgList = visibleCompanyWorkspaces(live);
   const openCompany = companyContextLabel(family);
   const canCreate = !isChild;
 

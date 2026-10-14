@@ -3,6 +3,13 @@ import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase
 import { db } from '../../firebase';
 import { employeeListKey, persistEmployeeList } from './localCache.js';
 import { newId, normalizeEmployee, normalizeProfile, sortEmployees } from './model.js';
+import { aliasSourceIds, subscribeCompanyAliases } from '../project/companyAlias.js';
+
+const sourceByEmployee = new Map();
+
+function sourceKey(companyId, employeeId) {
+  return `${String(companyId || '')}:${String(employeeId || '')}`;
+}
 
 const PROFILE_KEY = 'protop.professionalProfile.v1';
 
@@ -41,30 +48,72 @@ export function watchEmployees(companyId, onData, onError) {
     return () => {};
   }
   let stop = false;
+  let generation = 0;
+  let unsubs = [];
+  const buckets = new Map();
+
+  const emit = () => {
+    if (stop) return;
+    const ids = [companyId, ...aliasSourceIds(companyId)];
+    const seen = new Set();
+    const merged = [];
+    for (const id of ids) {
+      for (const row of buckets.get(id) || []) {
+        if (!row?.id || seen.has(row.id)) continue;
+        seen.add(row.id);
+        const next = { ...row, sourceCompanyId: id };
+        sourceByEmployee.set(sourceKey(companyId, row.id), id);
+        merged.push(next);
+      }
+    }
+    onData(sortEmployees(merged), { source: 'remote' });
+  };
+
+  const bind = () => {
+    const token = ++generation;
+    unsubs.forEach((fn) => fn());
+    unsubs = [];
+    buckets.clear();
+    const ids = [companyId, ...aliasSourceIds(companyId)];
+    ids.forEach((id) => {
+      const unsub = onSnapshot(collection(db, 'families', id, 'employees'), (snap) => {
+        if (stop || token !== generation) return;
+        const rows = snap.docs.map((item) => normalizeEmployee({ ...item.data(), id: item.id }));
+        buckets.set(id, rows);
+        if (id === companyId) writeLocal(companyId, rows).catch(() => {});
+        emit();
+      }, (error) => {
+        if (stop || token !== generation) return;
+        if (id === companyId) onError?.(error);
+      });
+      unsubs.push(unsub);
+    });
+  };
+
   readLocal(companyId).then((rows) => {
     if (!stop) onData(rows, { source: 'local' });
   }).catch(() => {});
-  const unsub = onSnapshot(collection(db, 'families', companyId, 'employees'), (snap) => {
-    const rows = sortEmployees(snap.docs.map((item) => normalizeEmployee({ ...item.data(), id: item.id })));
-    writeLocal(companyId, rows).catch(() => {});
-    onData(rows, { source: 'remote' });
-  }, (error) => {
-    onError?.(error);
+  bind();
+  const off = subscribeCompanyAliases((key) => {
+    if (key === companyId) bind();
   });
   return () => {
     stop = true;
-    unsub();
+    off();
+    unsubs.forEach((fn) => fn());
   };
 }
 
 export async function saveEmployee(companyId, employee) {
+  const target = sourceByEmployee.get(sourceKey(companyId, employee?.id))
+    || String(employee?.sourceCompanyId || companyId || '').trim();
   const next = normalizeEmployee({
     ...employee,
     id: employee?.id || newId('emp'),
     updatedAt: new Date().toISOString(),
     createdAt: employee?.createdAt || new Date().toISOString(),
   });
-  await setDoc(employeeRef(companyId, next.id), next);
+  await setDoc(employeeRef(target || companyId, next.id), next);
   try {
     const current = await readLocal(companyId);
     await writeLocal(companyId, sortEmployees([...current.filter((row) => row.id !== next.id), next]));
@@ -77,7 +126,9 @@ export async function saveEmployee(companyId, employee) {
 export async function removeEmployee(companyId, employeeId) {
   const id = String(employeeId || '');
   if (!companyId || !id) return;
-  await deleteDoc(employeeRef(companyId, id));
+  const target = sourceByEmployee.get(sourceKey(companyId, id)) || companyId;
+  sourceByEmployee.delete(sourceKey(companyId, id));
+  await deleteDoc(employeeRef(target, id));
   try {
     const current = await readLocal(companyId);
     await writeLocal(companyId, current.filter((row) => row.id !== id));

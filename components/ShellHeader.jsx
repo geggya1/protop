@@ -26,6 +26,12 @@ import { openNotifications } from '../src/navigation/openNotifications';
 export const ShellTitleRightContext = createContext(null);
 
 /**
+ * Phone pages that draw their own band (fraværsoversikt) claim this slot.
+ * The band replaces familienavn + stor sidetittel, same as ModuleHero.
+ */
+export const ShellPageHeroContext = createContext(null);
+
+/**
  * Toppfelt for AppShell.
  * compact (desktop): én linje — tittel + handlinger.
  * Mobil/nettbrett: logo øverst, deretter familie / side.

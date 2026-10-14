@@ -45,7 +45,7 @@ import {
   consumeOpenMailHub,
 } from '../src/utils/calendarIntegration';
 import { SHELL_TABS } from './ShellTabBar';
-import ShellHeader, { ShellTitleRightContext } from './ShellHeader';
+import ShellHeader, { ShellPageHeroContext, ShellTitleRightContext } from './ShellHeader';
 import ShellDrawer from './ShellDrawer';
 import DesktopRail from './DesktopRail';
 import BrandLogo from './BrandLogo';
@@ -179,6 +179,19 @@ function AppShellInner() {
       if (shellTitleOwnerRef.current !== owner) return;
       shellTitleOwnerRef.current = null;
       setShellTitleRight(null);
+    },
+  }), []);
+  const [shellPageHero, setShellPageHero] = useState(null);
+  const shellPageHeroOwnerRef = useRef(null);
+  const shellPageHeroApi = useMemo(() => ({
+    claim(owner, node) {
+      shellPageHeroOwnerRef.current = owner;
+      setShellPageHero((prev) => (prev === node ? prev : node));
+    },
+    release(owner) {
+      if (shellPageHeroOwnerRef.current !== owner) return;
+      shellPageHeroOwnerRef.current = null;
+      setShellPageHero(null);
     },
   }), []);
   const [moreSubView, setMoreSubView] = useState(null);
@@ -810,6 +823,7 @@ function AppShellInner() {
     <HomeImmersiveProvider value={immersiveHome}>
     <ModuleAsideProvider>
     <ShellTitleRightContext.Provider value={shellTitleApi}>
+    <ShellPageHeroContext.Provider value={shellPageHeroApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
       <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
       {immersiveHome ? (
@@ -926,9 +940,9 @@ function AppShellInner() {
               titleRight={shellTitleRight}
               viewAs={viewAsControl}
               onLogoHome={goHome}
-              hero={headerHeroId ? (
+              hero={shellPageHero || (headerHeroId ? (
                 <ModuleHero moduleId={headerHeroId} flush chrome />
-              ) : null}
+              ) : null)}
             />
           ) : null}
           {!kitchenMode ? <PushEnableBanner /> : null}
@@ -1022,6 +1036,7 @@ function AppShellInner() {
 
     </SafeAreaView>
     </View>
+    </ShellPageHeroContext.Provider>
     </ShellTitleRightContext.Provider>
     </ModuleAsideProvider>
     </HomeImmersiveProvider>

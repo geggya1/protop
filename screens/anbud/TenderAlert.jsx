@@ -17,6 +17,7 @@ import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../s
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/theme';
@@ -163,6 +164,7 @@ export default function TenderAlert({
   stepFilter = null,
 }) {
   const { width } = useWindowDimensions();
+  const hostedHero = useModuleHeroHosted();
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -859,9 +861,11 @@ export default function TenderAlert({
         {!phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
         {phone ? (
           <>
-            <Text style={[styles.lead, { color: colors.muted }]}>
-              Finn relevante anbud og hold deg oppdatert på muligheter i markedet.
-            </Text>
+            {hostedHero ? null : (
+              <Text style={[styles.lead, { color: colors.muted }]}>
+                Finn relevante anbud og hold deg oppdatert på muligheter i markedet.
+              </Text>
+            )}
             <View nativeID="anbud-toolbar" style={styles.toolbar}>
               {stepFilter}
               <View style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>

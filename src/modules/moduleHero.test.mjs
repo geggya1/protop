@@ -286,6 +286,7 @@ for (const [tab, sub, id] of COMPANY_PAGES) {
 assert.equal(resolveModuleHero('projects', 'nb').wideArt, true, 'project overview uses the wide illustration');
 assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the wide illustration');
 assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');
+assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvarsling uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -322,6 +323,17 @@ assert.equal(
   'kunder bundled != public',
 );
 assert.match(assetsSrc, /kunder: require\('\.\.\/\.\.\/assets\/module-activation\/kunder--module-activation-illustration\.png'\)/);
+const anbudFile = 'anbud-varsling--module-activation-illustration.png';
+const anbudBundled = join(ROOT, 'assets/module-activation', anbudFile);
+const anbudPublic = join(ROOT, 'public/assets/module-activation', anbudFile);
+assert.equal(existsSync(anbudBundled), true, 'anbud bundled art');
+assert.equal(existsSync(anbudPublic), true, 'anbud public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(anbudBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(anbudPublic)).digest('hex'),
+  'anbud bundled != public',
+);
+assert.match(assetsSrc, /'anbud-varsling': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-varsling--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

@@ -124,12 +124,13 @@ export const COMPANY_HERO = {
   },
   'anbud-varsling': {
     ...BLUE,
+    wideArt: true,
     name: 'Anbudsvarsling',
     kicker: t('Anbud', 'Tenders'),
     title: t('Anbudsvarsling', 'Tender alerts'),
     pitch: t(
-      'Følg kunngjøringer som passer bedriften.',
-      'Follow notices that fit the company.',
+      'Finn relevante anbud og hold deg oppdatert på muligheter i markedet.',
+      'Find relevant tenders and stay current on opportunities in the market.',
     ),
   },
   'anbud-foresporsel': {

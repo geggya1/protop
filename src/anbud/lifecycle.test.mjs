@@ -13,6 +13,7 @@ import {
   markSubmitted,
   normalizeBidRecord,
   openExecution,
+  purgeContract,
   registerDirectContract,
   restoreContract,
   regulatoryChecks,
@@ -21,7 +22,7 @@ import {
   toggleStrategy,
   STRATEGY_ITEMS,
 } from './lifecycle.js';
-import { createBidWork, emptyAnbudState, normalizeAnbudState } from './model.js';
+import { createBidWork, emptyAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 
 function readyBid() {
   const state = {
@@ -314,5 +315,18 @@ assert.equal(fromTrash.ok, true, fromTrash.error);
 assert.equal(fromTrash.state.contracts.find((row) => row.id === frame.state.contracts[0].id)?.deletedAt || '', '');
 assert.equal(fromTrash.state.contracts.find((row) => row.parentId === frame.state.contracts[0].id)?.deletedAt || '', '');
 assert.equal(restoreContract(fromTrash.state, frame.state.contracts[0].id).ok, false);
+
+assert.equal(purgeContract(withChild.state, frame.state.contracts[0].id).ok, false, 'aktive avtaler kan ikke slettes helt');
+const purged = purgeContract(deleted.state, frame.state.contracts[0].id);
+assert.equal(purged.ok, true, purged.error);
+assert.equal(purged.state.contracts.find((row) => row.id === frame.state.contracts[0].id), undefined);
+assert.equal(purged.state.contracts.find((row) => row.parentId === frame.state.contracts[0].id), undefined);
+assert.ok(purged.state.deletedContracts.some((row) => row.id === frame.state.contracts[0].id));
+assert.ok(purged.state.audit.some((row) => row.action === 'avtale-slettet-permanent'));
+assert.equal(purgeContract(purged.state, frame.state.contracts[0].id).ok, false);
+
+const resurrected = mergeAnbudStates(purged.state, deleted.state);
+assert.equal(resurrected.contracts.find((row) => row.id === frame.state.contracts[0].id), undefined);
+assert.ok(resurrected.deletedContracts.some((row) => row.id === frame.state.contracts[0].id));
 
 console.log('lifecycle ok');

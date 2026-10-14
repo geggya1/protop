@@ -127,6 +127,9 @@ assert.match(followSrc, /Papirkurv/);
 assert.match(followSrc, /Pågående/);
 assert.match(followSrc, /Utløpt/);
 assert.match(followSrc, /restoreContract/);
+assert.match(followSrc, /purgeContract/);
+assert.match(followSrc, /Slett helt/);
+assert.match(followSrc, /levelId === 'administrator'/);
 
 assert.equal(nextSystemId(transferred.state.contracts), '89');
 assert.equal(nextOppdragId(transferred.state.contracts, kunde.customer.id, 'Igang'), '2');

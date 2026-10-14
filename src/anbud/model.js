@@ -110,6 +110,8 @@ export function emptyAnbudState() {
     notices: [],
     bids: [],
     contracts: [],
+    /** Tombstones slik at permanent slettede avtaler ikke gjenoppstår ved merge. */
+    deletedContracts: [],
     customers: [],
     audit: [],
     formTemplates: null,
@@ -122,6 +124,34 @@ export function emptyAnbudState() {
     syncedAt: null,
     queryKey: '',
   };
+}
+
+function normalizeDeletedContract(row) {
+  if (!row || typeof row !== 'object') return null;
+  const id = text(row.id);
+  if (!id) return null;
+  return {
+    id,
+    title: text(row.title).slice(0, 160),
+    deletedAt: text(row.deletedAt) || '',
+  };
+}
+
+function mergeDeletedContracts(left, right) {
+  const map = new Map();
+  for (const row of [...(left || []), ...(right || [])]) {
+    const next = normalizeDeletedContract(row);
+    if (!next) continue;
+    const prev = map.get(next.id);
+    if (!prev) {
+      map.set(next.id, next);
+      continue;
+    }
+    const tPrev = Date.parse(prev.deletedAt || '') || 0;
+    const tNext = Date.parse(next.deletedAt || '') || 0;
+    map.set(next.id, tNext >= tPrev ? next : prev);
+  }
+  return [...map.values()];
 }
 
 export function normalizeAnbudState(raw) {
@@ -145,6 +175,9 @@ export function normalizeAnbudState(raw) {
     notices: Array.isArray(src.notices) ? src.notices.map(normalizeNotice) : [],
     bids: (Array.isArray(src.bids) ? src.bids : []).map((row) => normalizeBidDesk(normalizeBidWork(normalizeBidRecord(row)))),
     contracts: normalizeContracts(src.contracts),
+    deletedContracts: (Array.isArray(src.deletedContracts) ? src.deletedContracts : [])
+      .map(normalizeDeletedContract)
+      .filter(Boolean),
     customers: normalizeCustomers(src.customers),
     audit: normalizeAudit(src.audit),
     formTemplates: normalizeFormTemplates(src.formTemplates),
@@ -157,6 +190,10 @@ export function normalizeAnbudState(raw) {
     syncedAt: src.syncedAt || null,
     queryKey: text(src.queryKey),
   };
+  const deletedIds = new Set(normalized.deletedContracts.map((row) => row.id));
+  if (deletedIds.size) {
+    normalized.contracts = normalized.contracts.filter((row) => row?.id && !deletedIds.has(row.id));
+  }
   return ensureProfiles(normalized);
 }
 
@@ -360,11 +397,16 @@ export function mergeAnbudStates(left, right) {
   const b = normalizeAnbudState(right);
   const aSync = Date.parse(a.syncedAt || '') || 0;
   const bSync = Date.parse(b.syncedAt || '') || 0;
+  const deletedContracts = mergeDeletedContracts(a.deletedContracts, b.deletedContracts);
+  const deletedIds = new Set(deletedContracts.map((row) => row.id));
+  const contracts = mergeContractFiles(a.contracts, b.contracts)
+    .filter((row) => row?.id && !deletedIds.has(row.id));
   return normalizeAnbudState({
     watch: pickWatch(a.watch, b.watch),
     notices: mergeNoticeLists(a.notices, b.notices),
     bids: mergeById(a.bids, b.bids),
-    contracts: mergeContractFiles(a.contracts, b.contracts),
+    contracts,
+    deletedContracts,
     customers: mergeById(a.customers, b.customers),
     audit: aSync >= bSync ? (a.audit.length ? a.audit : b.audit) : (b.audit.length ? b.audit : a.audit),
     ...mergeFormTemplates(a, b),

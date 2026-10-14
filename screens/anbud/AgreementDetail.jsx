@@ -9,6 +9,7 @@ import {
   closeContract,
   deleteContract,
   exerciseOption,
+  purgeContract,
   setDeliveryStatus,
   setMilestoneDue,
   restoreContract,
@@ -139,6 +140,8 @@ export default function AgreementDetail({
   onOpenAgreement,
   onNewChild,
   onDeleted,
+  onPurged,
+  canPurge = false,
 }) {
   const [dates, setDates] = useState({});
   const [delivery, setDelivery] = useState({ title: '', due: '' });
@@ -149,6 +152,7 @@ export default function AgreementDetail({
   const [saveNote, setSaveNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
+  const [askPurge, setAskPurge] = useState(false);
   const [brregHits, setBrregHits] = useState([]);
   const [brregSearching, setBrregSearching] = useState(false);
   const [open, setOpen] = useState({
@@ -368,6 +372,12 @@ export default function AgreementDetail({
     if (result?.ok) setSaveNote('Avtalen er gjenopprettet fra papirkurven.');
   }
 
+  async function destroyAgreement() {
+    setAskPurge(false);
+    const result = await apply((loaded) => purgeContract(loaded, contract.id));
+    if (result?.ok) onPurged?.();
+  }
+
   function toggle(id) {
     setOpen((current) => ({ ...current, [id]: !current[id] }));
   }
@@ -393,6 +403,15 @@ export default function AgreementDetail({
               style={[styles.btn, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}
             >
               <Text style={{ color: colors.brand, fontWeight: '600' }}>Gjenopprett</Text>
+            </TouchableOpacity>
+          ) : null}
+          {trashed && canPurge ? (
+            <TouchableOpacity
+              onPress={() => setAskPurge(true)}
+              accessibilityRole="button"
+              style={[styles.btn, { borderColor: colors.danger || '#b42318' }]}
+            >
+              <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett helt</Text>
             </TouchableOpacity>
           ) : null}
           {!closed && !trashed ? (
@@ -895,6 +914,19 @@ export default function AgreementDetail({
         onCancel={() => setAskDelete(false)}
         onConfirm={removeAgreement}
         onClose={() => setAskDelete(false)}
+      />
+      <ConfirmDialog
+        visible={askPurge}
+        title="Slett helt?"
+        message={children.length
+          ? `«${contract.title || 'Avtalen'}» og ${children.length} underavtale${children.length === 1 ? '' : 'r'} slettes for godt og kan ikke gjenopprettes.`
+          : `«${contract.title || 'Avtalen'}» slettes for godt og kan ikke gjenopprettes.`}
+        confirmText="Slett helt"
+        cancelText="Avbryt"
+        danger
+        onCancel={() => setAskPurge(false)}
+        onConfirm={destroyAgreement}
+        onClose={() => setAskPurge(false)}
       />
     </View>
   );

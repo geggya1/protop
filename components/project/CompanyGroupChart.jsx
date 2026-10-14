@@ -45,7 +45,7 @@ function Metric({ icon, iconColor, label, value, delta, colors }) {
         <Ionicons name={icon} size={13} color={iconColor} />
         <Text style={[styles.metricName, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
       </View>
-      <Text style={[styles.metricValue, { color: colors.ink }]} numberOfLines={2}>{value}</Text>
+      <Text style={[styles.metricValue, { color: colors.ink }]} numberOfLines={1}>{value}</Text>
       <Delta change={delta} colors={colors} />
     </View>
   );
@@ -292,7 +292,6 @@ export default function CompanyGroupChart({
     openUrl(node.brregUrl);
   }
 
-  const stacked = width < 800;
   const tight = width < 760;
   const useFork = model.children.length > 0 && model.children.length <= 3;
   const departmentCount = departmentsOf(company?.subUnits).length;
@@ -330,6 +329,55 @@ export default function CompanyGroupChart({
         </Pressable>
       ) : null}
 
+      <View nativeID="company-group-totals" style={styles.summary}>
+        <View style={[styles.summaryTop, tight && styles.summaryTopTight]}>
+          <View style={styles.summaryTitle}>
+            <Text accessibilityRole="header" style={[styles.summaryName, { color: colors.ink }]}>
+              {model.totals.label}
+            </Text>
+            <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
+            <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
+          </View>
+          {model.years.length ? (
+            <View style={[styles.yearWrap, tight && styles.yearWrapTight]}>
+              <Pressable
+                nativeID="company-group-year"
+                accessibilityRole="button"
+                accessibilityState={{ expanded: yearOpen }}
+                accessibilityLabel="Velg regnskapsår"
+                onPress={() => setYearOpen((open) => !open)}
+                style={[styles.yearInline, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>
+                  {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
+                </Text>
+                <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
+              </Pressable>
+              {yearOpen ? (
+                <View style={[styles.yearMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                  {model.years.map((row) => (
+                    <Pressable
+                      key={row.year}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setYear(row.year);
+                        setYearOpen(false);
+                      }}
+                      style={[styles.yearOption, { borderTopColor: colors.line }]}
+                    >
+                      <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
+                        {row.menu}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+        <Metrics node={model.totals} colors={colors} />
+      </View>
+
       <View style={styles.tree}>
         <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
         {useFork ? <Fork colors={colors} tight={tight}>{nodes}</Fork> : null}
@@ -341,86 +389,9 @@ export default function CompanyGroupChart({
       ) : null}
       {!model.ownershipKnown && !loading && orgnr.length === 9 ? (
         <Text style={[styles.note, { color: colors.muted }]}>
-          Eierandeler fra Aksjonærregisteret kunne ikke hentes nå. Underenheter fra Enhetsregisteret vises likevel.
+          Eierandeler fra Aksjonærregisteret kunne ikke hentes nå.
         </Text>
       ) : null}
-
-      <View style={[styles.totalsRow, stacked && styles.totalsStack]}>
-        <View style={[styles.card, styles.totalsCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
-          <View style={styles.cardHead}>
-            <Mark name="pie-chart" colors={colors} />
-            <View style={styles.cardTitle}>
-              <Text style={[styles.name, { color: colors.ink }]}>{model.totals.label}</Text>
-              <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
-              <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
-            </View>
-          </View>
-          {stacked && model.years.length ? (
-            <Pressable
-              nativeID="company-group-year"
-              accessibilityRole="button"
-              accessibilityState={{ expanded: yearOpen }}
-              accessibilityLabel="Velg regnskapsår"
-              onPress={() => setYearOpen((open) => !open)}
-              style={[styles.yearInline, { borderColor: colors.line, alignSelf: 'flex-end' }]}
-            >
-              <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>
-                {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
-              </Text>
-              <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
-            </Pressable>
-          ) : null}
-          {stacked && yearOpen ? model.years.map((row) => (
-            <Pressable
-              key={row.year}
-              accessibilityRole="button"
-              onPress={() => {
-                setYear(row.year);
-                setYearOpen(false);
-              }}
-              style={[styles.yearOption, { borderTopColor: colors.line }]}
-            >
-              <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
-                {row.menu}
-              </Text>
-            </Pressable>
-          )) : null}
-          <View style={[styles.rule, { backgroundColor: colors.line }]} />
-          <Metrics node={model.totals} colors={colors} />
-        </View>
-        {!stacked && model.years.length ? (
-          <View style={[styles.card, styles.yearCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Pressable
-              nativeID="company-group-year"
-              accessibilityRole="button"
-              accessibilityState={{ expanded: yearOpen }}
-              accessibilityLabel="Velg regnskapsår"
-              onPress={() => setYearOpen((open) => !open)}
-              style={styles.yearBtn}
-            >
-              <Text style={[styles.yearLabel, { color: colors.ink }]} numberOfLines={2}>
-                {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
-              </Text>
-              <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
-            </Pressable>
-            {yearOpen ? model.years.map((row) => (
-              <Pressable
-                key={row.year}
-                accessibilityRole="button"
-                onPress={() => {
-                  setYear(row.year);
-                  setYearOpen(false);
-                }}
-                style={[styles.yearOption, { borderTopColor: colors.line }]}
-              >
-                <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
-                  {row.menu}
-                </Text>
-              </Pressable>
-            )) : null}
-          </View>
-        ) : null}
-      </View>
 
       {departmentCount ? (
         <Text style={[styles.note, { color: colors.muted }]}>
@@ -492,7 +463,12 @@ const styles = StyleSheet.create({
   metric: { flex: 1, minWidth: 0, gap: 2 },
   metricLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metricName: { fontSize: 11, flexShrink: 1 },
-  metricValue: { fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  metricValue: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+    ...(Platform.OS === 'web' ? { whiteSpace: 'nowrap' } : null),
+  },
   metricRule: { width: 1, alignSelf: 'stretch' },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 14 },
   deltaSlot: { minHeight: 14 },
@@ -544,8 +520,14 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   unitSide: { fontSize: 12, maxWidth: 110, textAlign: 'right' },
-  totalsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  totalsStack: { flexDirection: 'column' },
+  summary: { width: '100%', gap: 12 },
+  summaryTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  summaryTopTight: { flexDirection: 'column', gap: 8 },
+  summaryTitle: { flex: 1, minWidth: 0, gap: 2 },
+  summaryName: { fontSize: 22, lineHeight: 28, fontWeight: '600', letterSpacing: -0.3 },
+  yearWrap: { width: 168, maxWidth: '46%' },
+  yearWrapTight: { width: 'auto', maxWidth: '100%', alignSelf: 'flex-start' },
+  yearMenu: { borderWidth: 1, borderRadius: 12, marginTop: 6, overflow: 'hidden' },
   yearInline: {
     borderWidth: 1,
     borderRadius: 12,

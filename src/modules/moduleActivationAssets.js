@@ -45,6 +45,7 @@ const BUNDLED = {
   boligmappa: require('../../assets/module-activation/boligen--module-activation-illustration.png'),
   hospitality: require('../../assets/module-activation/utleie--module-activation-illustration.png'),
   projects: require('../../assets/module-activation/prosjekt--module-activation-illustration.png'),
+  ansatte: require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

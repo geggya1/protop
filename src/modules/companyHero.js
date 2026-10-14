@@ -31,7 +31,8 @@ export const COMPANY_HERO = {
     ),
   },
   ansatte: {
-    ...SLATE,
+    ...BLUE,
+    wideArt: true,
     name: 'Ansatte',
     kicker: t('Ansatte', 'People'),
     title: t('Folkene i bedriften', 'The people in the company'),

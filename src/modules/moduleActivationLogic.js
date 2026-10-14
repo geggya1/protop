@@ -63,6 +63,7 @@ export const ILLUSTRATION_FILES = {
   boligmappa: 'boligen--module-activation-illustration.png',
   hospitality: 'utleie--module-activation-illustration.png',
   projects: 'prosjekt--module-activation-illustration.png',
+  ansatte: 'ansatte--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

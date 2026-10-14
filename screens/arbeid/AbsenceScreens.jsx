@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
-import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
@@ -36,6 +36,8 @@ import AbsencePeriodModal from '../../components/arbeid/AbsencePeriodModal';
 import { ImportResult } from '../../components/ImportReview';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { AbsenceReportDesktop, PlannedAbsenceDesktop } from './CompanyAbsenceDesktop';
+
+// Fraværsrapport bruker samme dagstabell + filter på mobil og desktop.
 
 export { AbsenceOverviewScreen } from './AbsenceOverviewView';
 
@@ -85,13 +87,13 @@ function PersonChips({ workspace, activeId, onPick }) {
 
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
-  const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
+  const { workspace, activeId } = usePeople(lockedEmployeeId);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const today = toDateKey(new Date());
   const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
+  const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
+  const scopedEmployeeId = canChooseEmployee ? '' : (workspace.lockedId || activeId || '');
 
   const [view, setView] = useState('list');
   const [importPlan, setImportPlan] = useState(null);
@@ -110,20 +112,6 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
     [importPlan, dropped],
   );
   const importReadyCount = importReview?.readyCount || 0;
-
-  const rows = useMemo(() => absencePickerTypes().map((type) => {
-    const overview = buildAbsenceOverview({
-      employeeId: activeId,
-      typeId: type.id,
-      absences: workspace.state.absences,
-      adjustments: workspace.state.absenceAdjustments,
-      fullDayHours: fullDay,
-      today,
-    });
-    return { type, summary: overview.summary };
-  }).filter((row) => row.summary.used || row.summary.earned || row.summary.planned), [
-    activeId, workspace.state.absences, workspace.state.absenceAdjustments, fullDay, today,
-  ]);
 
   function persist(next) {
     workspace.setState(next);
@@ -428,71 +416,31 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
     />
   );
 
-  if (isDesktop) {
-    return (
-      <>
-        {importReport ? (
-          <View style={{ padding: 16, gap: 8 }}>
-            <ImportResult result={importReport} colors={colors} />
-            <TouchableOpacity onPress={() => setImportReport(null)} accessibilityRole="button">
-              <Text style={{ color: colors.brand, fontWeight: '600' }}>Lukk</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        <AbsenceReportDesktop
-          employees={people}
-          names={names}
-          absences={workspace.state.absences || []}
-          adjustments={workspace.state.absenceAdjustments || []}
-          fullDayHours={fullDay}
-          today={today}
-          canChooseEmployee={!!workspace.manager && !workspace.lockedId}
-          lockedEmployeeId={activeId}
-          canImport={!!workspace.manager}
-          onImport={importFile}
-          onClearImported={confirmClearImported}
-          absenceCount={(workspace.state.absences || []).length}
-          onOpenPeriod={setOpenPeriod}
-          note={note}
-          error={error || workspace.error}
-        />
-        {periodModal}
-        {busyOverlay}
-      </>
-    );
-  }
-
   return (
     <>
-      <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="fravaersrapport">
-        <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Fraværsrapport</Text>
-        <View style={styles.mobileHead}>
-          <Text style={[styles.title, { color: colors.ink }]}>Fraværsrapport</Text>
-          {workspace.manager ? (
-            <TouchableOpacity
-              onPress={importFile}
-              style={[styles.mobileImport, { backgroundColor: colors.brand }]}
-              accessibilityRole="button"
-              nativeID="fravaer-import-mobile"
-            >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Importer</Text>
-            </TouchableOpacity>
-          ) : null}
+      {importReport ? (
+        <View style={{ padding: 16, gap: 8 }}>
+          <ImportResult result={importReport} colors={colors} />
+          <TouchableOpacity onPress={() => setImportReport(null)} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Lukk</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={{ color: colors.muted, marginBottom: 8 }}>{employeeDisplayName(employee)}</Text>
-        {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
-        {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
-        <PersonChips workspace={workspace} activeId={activeId} onPick={setEmployeeId} />
-        {rows.map((row) => (
-          <View key={row.type.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.type.label}</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>
-              Brukt {row.summary.used} · til gode {row.summary.remaining} · planlagt {row.summary.planned}
-            </Text>
-          </View>
-        ))}
-        {!rows.length ? <Text style={{ color: colors.muted }}>Ingen fravær er registrert for denne personen.</Text> : null}
-      </ScrollView>
+      ) : null}
+      <AbsenceReportDesktop
+        employees={people}
+        names={names}
+        absences={workspace.state.absences || []}
+        canChooseEmployee={canChooseEmployee}
+        lockedEmployeeId={scopedEmployeeId}
+        canImport={!!workspace.manager}
+        onImport={importFile}
+        onClearImported={confirmClearImported}
+        absenceCount={(workspace.state.absences || []).length}
+        onOpenPeriod={setOpenPeriod}
+        note={note}
+        error={error || workspace.error}
+        loading={!workspace.ready}
+      />
       {periodModal}
       {busyOverlay}
     </>

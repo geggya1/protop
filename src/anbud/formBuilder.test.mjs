@@ -257,6 +257,70 @@ assert.equal(noteField.required, false);
 assert.equal(noteField.width, 'full');
 assert.equal(noteField.label.length > 120, true);
 
+const longContract = formFromPlainText(`Consult1 AS - Ledelsessystem
+Dokument navn Oppdragsbekreftelse Opprettet 25.06.19
+Consult1s Standard oppdragsbestemmelser
+Som alminnelige kontraktsbestemmelser gjøres gjeldende NS 8403 :2005 "Alminnelige kontrakts bestemmelser for byggelederoppdrag". Følgende
+presiseringer skal midlertidig gjelde.
+a) Kommunikasjon (NS 8403 pkt. 2.1, 4.5, 5.6 m.fl.)
+Varsel, krav og andre meldinger kan sendes som epost til partenes
+representanter med den epostadressen som er angitt i
+oppdragsavtalen /-bekreftelsen.
+b) Engasjement (NS 8403 pkt. 3.2.2 m.fl.)
+Det skal i oppdragsavtalen fremgå engasjementsperioden fra- og til
+dato jf. NS8403 pkt. 3.2.2a.
+c) Partene og deres representant (NS 8403 pkt. 4.1 m.fl.)
+Ved inngåelse av denne avtale vil oppdragsgiver forplikte seg til en
+rekrutteringsklausul ovenfor oppdragstaker.
+d) Honorar (NS 8403 pkt. 10.2)
+Ved honorar etter medgått tid baseres timeføringen på en arbeidstid
+på 8 timer pr. dag.
+e) Utgifter (NS 8403 pkt. 10.4)
+Reiser og opphold godtgjøres i henhold til regulativet.
+Påslag på 10 % på angjeldende fakturabeløp beregnes for følgende ved
+fakturering gjennom Consult1:
+a) Faktura fra entreprenører, konsulenter eller leverandører
+b) Offentlige gebyrer
+f) Betaling (NS 8403 pkt. 11)
+Consult1s standard faktura inkluderer ikke kopier av utgifts bilag.
+g) Prosjektmateriale (NS 8403 pkt. 5.5 m.fl.)
+Oppdragsgiveren har rett til å bruke materiale levert av
+oppdragstakeren til gjennomføring av prosjektet.
+h) Erstatningsansvar og forsikring (NS 8403 pkt. 8, 8.2 m.fl.)
+Consult1 svarer for påregnelig tap som påføres oppdragsgiver.
+Med mindre Consult1 skriftlig særskilt har påtatt seg slikt ansvar, har
+Consult1 ikke ansvar for:
+• erstatningskrav begrunnet med at det er opplysninger som har vist
+seg ikke å holde stikk om byggetiden eller størrelsen av omkostninger
+ved et bygge foretagende.
+• meromkostninger oppdragsgiver får ved at han overfor andre har
+inngått avtale om totalentreprise.
+Engasjement behov: i prosent % [Dato]
+Avtalte honorar Honoreres etter medgått tid. [jf. NS8403 §10.2.2]
+Biomkostninger: Reisekostnader reguleres etter statens satser`, 'Oppdragsavtale');
+assert.equal(longContract.ok, true);
+for (const letter of ['a)', 'b)', 'c)', 'd)', 'e)', 'f)', 'g)', 'h)']) {
+  assert.ok(
+    longContract.form.fields.some((row) => row.kind === 'title' && row.label.startsWith(letter) && /\(NS/i.test(row.label)),
+    `mangler hovedpunkt ${letter}`,
+  );
+}
+assert.equal(longContract.form.fields.filter((row) => /ledelsessystem/i.test(row.label)).length, 1);
+assert.ok(longContract.form.fields.some((row) => row.kind === 'note' && /epostadressen som er angitt/i.test(row.label)));
+assert.ok(longContract.form.fields.some((row) => /erstatningskrav begrunnet|holde stikk om byggetiden/i.test(row.label)));
+const percent = longContract.form.fields.find((row) => /prosent/i.test(row.label));
+assert.equal(percent.kind, 'number');
+const expense = longContract.form.fields.find((row) => row.label === 'Biomkostninger');
+assert.equal(expense.kind, 'text');
+assert.match(String(expense.value), /Reisekostnader/);
+const honorar = longContract.form.fields.find((row) => /avtalte honorar/i.test(row.label));
+assert.notEqual(honorar.kind, 'time');
+const filledScan = formFromScan({
+  title: 'Avtale',
+  fields: [{ label: 'Oppdragstaker', kind: 'text', value: 'Consult1 AS' }],
+});
+assert.equal(filledScan.form.fields[0].value, 'Consult1 AS');
+
 assert.equal(technicalFieldName('Text1'), true);
 assert.equal(technicalFieldName('Oppdragsgiver'), false);
 const widgets = formFromWidgets([

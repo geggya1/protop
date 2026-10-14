@@ -103,9 +103,9 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   );
 }
 
-export function MyOverviewScreen() {
+export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {}) {
   const colors = useColors();
-  const { workspace, activeId, employee } = usePeople('');
+  const { workspace, activeId, employee } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
   const month = today.slice(0, 7);
   const hours = (workspace.state.timeEntries || [])
@@ -121,9 +121,17 @@ export function MyOverviewScreen() {
     today,
   });
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="min-oversikt">
-      <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Min oversikt</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>{employeeDisplayName(employee) || 'Min oversikt'}</Text>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={styles.body}
+      nativeID="employee-overview"
+    >
+      {embedded ? null : (
+        <Text style={[styles.crumb, { color: colors.muted }]}>Ansatte / Oversikt</Text>
+      )}
+      <Text style={[styles.title, { color: colors.ink }]}>
+        {embedded ? 'Oversikt' : (employeeDisplayName(employee) || 'Oversikt')}
+      </Text>
       <View style={styles.cards}>
         <Card colors={colors} label="Timer denne måneden" value={hours.toFixed(2)} />
         <Card colors={colors} label="Feriedager til gode" value={String(vacation.summary.remaining)} />

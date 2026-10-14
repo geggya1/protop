@@ -35,6 +35,7 @@ import {
 
 const DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
+  { id: 'overview', label: 'Oversikt' },
   { id: 'hours', label: 'Timer' },
   { id: 'report', label: 'Timerapport' },
   { id: 'files', label: 'Filer' },
@@ -464,6 +465,7 @@ export default function EmployeeDetailView({
   busy = false,
   onBack,
   onCv,
+  onOverview,
   onHours,
   onReport,
   onFiles,
@@ -629,6 +631,7 @@ export default function EmployeeDetailView({
   function onTab(id) {
     if (id === 'home') return;
     if (id === 'cv') onCv?.();
+    if (id === 'overview') onOverview?.();
     if (id === 'hours') onHours?.();
     if (id === 'report') onReport?.();
     if (id === 'files') onFiles?.();

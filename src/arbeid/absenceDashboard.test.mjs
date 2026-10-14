@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   STATUTORY_VACATION_DAYS,
   buildAbsenceDashboard,
+  buildCompanyAbsenceLedger,
   eachWeekday,
   groupAbsencePeriods,
 } from './absenceDashboard.js';
@@ -195,6 +196,26 @@ const employees = [
   assert.deepEqual(windowed.recentMonths.map((month) => month.label), ['Okt', 'Nov', 'Des', 'Jan', 'Feb', 'Mar']);
   assert.equal(windowed.recentMonths.find((month) => month.key === '2025-12').ferie, 1);
   assert.equal(windowed.recentMonths.find((month) => month.key === '2026-01').ferie, 0);
+}
+
+{
+  const ledger = buildCompanyAbsenceLedger({
+    employees,
+    today: '2026-10-13',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada', e2: 'Bo' },
+    adjustments: [{ id: 'o', employeeId: 'e1', typeId: 'ferie', kind: 'opening', date: '2026-01-01', days: 10 }],
+    absences: [
+      { id: 'a1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-13', hours: 7.5 },
+    ],
+  });
+  assert.equal(ledger.summary.earned, 10);
+  assert.equal(ledger.summary.used, 1);
+  assert.equal(ledger.summary.remaining, 9);
+  assert.equal(ledger.rows.some((row) => row.employeeName === 'Ada' && row.kind === 'absence'), true);
+  assert.equal(ledger.rows.some((row) => row.employeeName === 'Bo'), false);
+  assert.equal(ledger.summary.earned === employees.length * STATUTORY_VACATION_DAYS, false);
 }
 
 console.log('absenceDashboard ok');

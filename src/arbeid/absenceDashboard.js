@@ -349,3 +349,49 @@ export function buildAbsenceDashboard({
     hasRows: filtered.length > 0,
   };
 }
+
+/**
+ * Rader til skrivebordets fraværsoversikt. Tallene er startsaldo, justeringer
+ * og registrerte fraværsdager, uten et antatt ferietak.
+ */
+export function buildCompanyAbsenceLedger({
+  employees = [],
+  employeeId = '',
+  typeId = 'ferie',
+  absences = [],
+  adjustments = [],
+  fullDayHours = 7.5,
+  today = '',
+  names = {},
+} = {}) {
+  const people = activeEmployees(employees).filter((row) => !employeeId || row.id === employeeId);
+  const summary = { used: 0, remaining: 0, planned: 0, unplanned: 0, earned: 0, opening: 0 };
+  const rows = [];
+  for (const person of people) {
+    const overview = buildAbsenceOverview({
+      employeeId: person.id,
+      typeId,
+      absences,
+      adjustments,
+      fullDayHours,
+      today,
+    });
+    for (const key of Object.keys(summary)) {
+      summary[key] = round2(summary[key] + (Number(overview.summary[key]) || 0));
+    }
+    const employeeName = names[person.id] || person.name || 'Ansatt';
+    for (const row of overview.rows) {
+      rows.push({
+        ...row,
+        id: `${person.id}:${row.id}`,
+        employeeId: person.id,
+        employeeName,
+      });
+    }
+  }
+  rows.sort((a, b) => (
+    String(b.start || '').localeCompare(String(a.start || ''))
+    || String(a.employeeName).localeCompare(String(b.employeeName))
+  ));
+  return { rows, summary, typeId };
+}

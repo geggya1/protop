@@ -151,9 +151,9 @@ export function CompanyAbsenceView({
   useShellPageHero(inChrome ? heading : null, { active: inChrome });
 
   const summary = dashboard?.summary || {};
-  const allowance = Number(dashboard?.allowance) || 0;
-  const hasQuota = !!dashboard?.hasQuota;
-  const quota = hasQuota ? allowance : 0;
+  const earnedDays = Number(summary.earned) || 0;
+  const hasQuota = earnedDays > 0;
+  const quota = hasQuota ? earnedDays : 0;
   const used = Number(summary.used) || 0;
   const remainingVisual = Math.max(0, Math.round((quota - used) * 100) / 100);
   const detailRows = [

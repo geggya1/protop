@@ -20,6 +20,7 @@ import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { CompanyAbsenceView } from './CompanyAbsenceView';
+import { CompanyAbsenceDesktop } from './CompanyAbsenceDesktop';
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');
@@ -83,6 +84,7 @@ function usePeople(lockedEmployeeId) {
 }
 
 export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, embedded = false } = {}) {
+  const { isDesktop } = useLayout();
   const { workspace, pickedId, setPickedId } = usePeople(lockedEmployeeId);
   const { family, families, liveFamilies, selectFamily, familyId } = useApp();
   const [typeId, setTypeId] = useState('');
@@ -132,16 +134,17 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     name: companyLabel(row),
   }));
 
-  function saveOpening() {
+  function saveOpening(typeOverride = '') {
     const target = employeeId;
     if (!target) {
       workspace.setError('Velg én ansatt for å sette startsaldo.');
       return;
     }
     const days = Number(String(opening).replace(',', '.'));
+    const balanceType = typeof typeOverride === 'string' && typeOverride ? typeOverride : dashboard.balanceType;
     const result = setAbsenceAdjustment(workspace.state, {
       employeeId: target,
-      typeId: dashboard.balanceType,
+      typeId: balanceType,
       kind: 'opening',
       days,
       date: today,
@@ -187,6 +190,28 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     workspace.setState(state);
     workspace.setError('');
     return true;
+  }
+
+  if (companyMode && isDesktop) {
+    return (
+      <CompanyAbsenceDesktop
+        employees={visiblePeople}
+        names={names}
+        employeeId={employeeId}
+        canChooseEmployee={canChooseEmployee}
+        onSelectEmployee={setPickedId}
+        typeId={typeId || 'ferie'}
+        onSelectType={setTypeId}
+        absences={workspace.state.absences || []}
+        adjustments={workspace.state.absenceAdjustments || []}
+        fullDayHours={fullDay}
+        today={today}
+        error={workspace.error}
+        opening={opening}
+        onOpeningChange={setOpening}
+        onSaveOpening={saveOpening}
+      />
+    );
   }
 
   if (companyMode) {

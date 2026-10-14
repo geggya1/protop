@@ -75,9 +75,21 @@ const input = inputFromInterpretation(draft, {
 });
 assert.equal(input.buyer, 'Igang Totalentreprenør As');
 assert.equal(input.start, '2025-11-17');
+assert.equal(input.value, 1080);
 assert.equal(input.indexDraft.standard, 'NS 8403');
 assert.equal(input.fields.indexId, 'ppi-byggeteknisk');
 assert.equal(input.documents[0].name, 'C1-H-03-001.pdf');
+
+const fromHonorarOnly = inputFromInterpretation({
+  title: 'Consult1 AS',
+  buyer: 'Oppdragsgiver AS',
+  honorar: '1080 kr eks. mva',
+  startDate: '2025-12-19',
+  lines: [],
+}, {});
+assert.equal(fromHonorarOnly.value, 1080);
+assert.equal(fromHonorarOnly.buyer, 'Oppdragsgiver AS');
+assert.equal(fromHonorarOnly.start, '2025-12-19');
 
 const rows = [
   { id: 'a', title: 'Madlalia', buyer: 'Igang Totalentreprenør As', projectName: 'Madlalia', start: '2025-11-17', fields: { standard: 'NS 8403' } },

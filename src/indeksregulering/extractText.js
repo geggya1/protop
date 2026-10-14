@@ -3,6 +3,23 @@ export const MAX_LOCAL_PDF_BYTES = 800000;
 const MAX_FLATE_BODY = 250000;
 const MAX_FLATE_STREAMS = 12;
 
+/** True when extracted PDF text looks like real Norwegian/Latin prose, not binary junk. */
+export function pdfTextLooksReadable(text) {
+  const source = String(text || '').trim();
+  if (source.length < 8) return false;
+  const letters = (source.match(/[A-Za-zÆØÅæøå]/g) || []).length;
+  const junk = (source.match(/[^A-Za-zÆØÅæøå0-9\s.,;:!?%&/()\-+@'"]/g) || []).length;
+  const letterRatio = letters / source.length;
+  const junkRatio = junk / source.length;
+  if (letters < 12) return false;
+  if (junkRatio > 0.25) return false;
+  if (letterRatio < 0.2) return false;
+  // Long FlateDecode garbage often has many chars but almost no real words.
+  if (source.length >= 200 && letterRatio < 0.35) return false;
+  if (source.length >= 200 && junkRatio > 0.15) return false;
+  return true;
+}
+
 function latin1(bytes) {
   const parts = [];
   const size = 0x2000;
@@ -197,7 +214,9 @@ export async function extractPdfText(bytes) {
     .replace(/\s+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  if (text.length < 8) throw new Error('Fant ikke lesbar tekst i PDF-en. Lim inn teksten, eller bruk en digital PDF.');
+  if (text.length < 8 || !pdfTextLooksReadable(text)) {
+    throw new Error('Fant ikke lesbar tekst i PDF-en. Lim inn teksten, eller bruk en digital PDF.');
+  }
   return text;
 }
 

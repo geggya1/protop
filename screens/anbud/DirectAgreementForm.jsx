@@ -5,7 +5,6 @@ import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES, pdfTextLooksReadable } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
 import { interpretDocuments, mergeInterpretation } from '../../src/indeksregulering/interpret';
-import { agentLog } from '../../src/indeksregulering/debugAgentLog';
 import { indexDraftFromInterpretation, inputFromInterpretation } from '../../src/anbud/directContract';
 import {
   AGREEMENT_KINDS,
@@ -371,96 +370,27 @@ export default function DirectAgreementForm({
       const text = String(doc?.text || '').trim();
       return text.length >= 20 && pdfTextLooksReadable(text);
     });
-    const local = interpretDocuments(usable);
-    // #region agent log
-    agentLog('C', 'DirectAgreementForm.jsx:applyDocs', 'local interpret before remote', {
-      docs: docs.map((doc) => ({
-        name: doc.name,
-        textLen: String(doc?.text || '').length,
-        readable: pdfTextLooksReadable(doc?.text),
-        interpreted: doc.interpreted,
-      })),
-      usableCount: usable.length,
-      localTitle: local?.title || '',
-      localBuyer: local?.buyer || '',
-      localHonorar: local?.honorar || '',
-      localStart: local?.startDate || '',
-      localFindings: (local?.findings || []).slice(0, 4),
-    });
-    // #endregion
-    let merged = local;
+    let merged = interpretDocuments(usable);
     for (const doc of docs) {
       if (doc?.extracted && typeof doc.extracted === 'object') {
         merged = mergeInterpretation(merged, doc.extracted, String(doc.text || ''));
       }
     }
-    // #region agent log
-    agentLog('C', 'DirectAgreementForm.jsx:applyDocs', 'after per-doc extracted merge', {
-      hadDocExtracted: docs.some((doc) => doc?.extracted),
-      mergedTitle: merged?.title || '',
-      mergedBuyer: merged?.buyer || '',
-      mergedHonorar: merged?.honorar || '',
-      runId: 'post-fix',
-    });
-    // #endregion
-    let remoteOk = false;
     try {
       const remote = await interpretAvtale({ documents: docs.filter((doc) => pdfTextLooksReadable(doc?.text)) });
-      remoteOk = Boolean(remote?.extracted);
       if (remote?.extracted) {
         merged = mergeInterpretation(merged, remote.extracted, docs.map((doc) => doc.text).filter(Boolean).join('\n'));
       }
-      // #region agent log
-      agentLog('C', 'DirectAgreementForm.jsx:applyDocs', 'after remote merge', {
-        remoteOk,
-        engine: remote?.engine || '',
-        mergedTitle: merged?.title || '',
-        mergedBuyer: merged?.buyer || '',
-        mergedHonorar: merged?.honorar || '',
-        mergedStart: merged?.startDate || '',
-        mergedLines: (merged?.lines || []).slice(0, 3).map((line) => ({ text: line.text, rate: line.rate })),
-      });
-      // #endregion
-    } catch (cause) {
-      // #region agent log
-      agentLog('C', 'DirectAgreementForm.jsx:applyDocs', 'remote catch — keeping local', {
-        message: cause?.message || String(cause),
-      });
-      // #endregion
+    } catch {
       // Lokal lesing brukes videre.
     }
     const next = inputFromInterpretation(merged, { documents: docs });
-    // #region agent log
-    agentLog('D', 'DirectAgreementForm.jsx:applyDocs', 'formFromInput input', {
-      nextTitle: next.title,
-      nextBuyer: next.buyer,
-      nextValue: next.value,
-      nextHonorar: next.honorar,
-      nextStart: next.start,
-      nextEnd: next.end,
-      nextOrgnr: next.orgnr,
-    });
-    // #endregion
     setPayload(next);
     setFiles(docs);
     setPreviewId((current) => (
       docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')
     ));
-    setForm((current) => {
-      const form = formFromInput(next, current);
-      // #region agent log
-      agentLog('E', 'DirectAgreementForm.jsx:applyDocs', 'form after formFromInput', {
-        prevTitle: current?.title || '',
-        formTitle: form.title,
-        formBuyer: form.buyer,
-        formValue: form.value,
-        formHonorar: form.honorar,
-        formStart: form.start,
-        formEnd: form.end,
-      });
-      // #endregion
-      return form;
-    });
+    setForm((current) => formFromInput(next, current));
     setStatus(note);
     setError('');
   }
@@ -515,20 +445,8 @@ export default function DirectAgreementForm({
     await yieldUi();
     let bytes = await bytesFromFile(file);
     const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
-    // #region agent log
-    agentLog('A', 'DirectAgreementForm.jsx:readOneFile', 'bytes ready', {
-      name: file.name || attached.name || '',
-      byteLength: bytes.length,
-      pdf,
-      overLocalMax: bytes.length > MAX_LOCAL_PDF_BYTES,
-      overRemoteMax: bytes.length > MAX_REMOTE_BYTES,
-    });
-    // #endregion
     if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
-      // #region agent log
-      agentLog('A', 'DirectAgreementForm.jsx:readOneFile', 'path=large-pdf-remote', { byteLength: bytes.length });
-      // #endregion
       const remote = await interpretAvtale({
         fileName: file.name || attached.name || 'Avtale.pdf',
         mimeType: file.mimeType || attached.mimeType || 'application/pdf',
@@ -542,22 +460,8 @@ export default function DirectAgreementForm({
       if (pdf && !pdfTextLooksReadable(text)) {
         throw new Error('PDF_TEXT_UNREADABLE');
       }
-      // #region agent log
-      agentLog('A', 'DirectAgreementForm.jsx:readOneFile', 'path=local-extract', {
-        textLen: String(text || '').length,
-        readable: pdfTextLooksReadable(text),
-        willSkipRemoteOcr: false,
-        runId: 'post-fix',
-      });
-      // #endregion
       return documentRow(existing, attached, file, text, original, index);
-    } catch (extractError) {
-      // #region agent log
-      agentLog('A', 'DirectAgreementForm.jsx:readOneFile', 'path=local-extract-failed→remote', {
-        message: extractError?.message || String(extractError),
-        runId: 'post-fix',
-      });
-      // #endregion
+    } catch {
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
       setStatus(`Leser skannet dokument${label}…`);
       await yieldUi();

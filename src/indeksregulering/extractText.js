@@ -1,5 +1,3 @@
-import { agentLog } from './debugAgentLog.js';
-
 /** Over denne størrelsen fryser nettleseren på skannede PDF-er. Sendes til server i stedet. */
 export const MAX_LOCAL_PDF_BYTES = 800000;
 const MAX_FLATE_BODY = 250000;
@@ -216,19 +214,6 @@ export async function extractPdfText(bytes) {
     .replace(/\s+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  // #region agent log
-  {
-    const letters = (text.match(/[A-Za-zÆØÅæøå]/g) || []).length;
-    agentLog('A', 'extractText.js:extractPdfText', 'local pdf extract result', {
-      byteLength: data.length,
-      textLen: text.length,
-      letterRatio: text.length ? letters / text.length : 0,
-      readable: pdfTextLooksReadable(text),
-      preview: text.slice(0, 120),
-      runId: 'post-fix',
-    });
-  }
-  // #endregion
   if (text.length < 8 || !pdfTextLooksReadable(text)) {
     throw new Error('Fant ikke lesbar tekst i PDF-en. Lim inn teksten, eller bruk en digital PDF.');
   }

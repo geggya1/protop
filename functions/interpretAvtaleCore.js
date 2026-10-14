@@ -104,29 +104,6 @@ async function readPdf(buffer) {
     text = '';
   }
   const readable = pdfTextLooksReadable(text);
-  // #region agent log
-  try {
-    const letters = (text.match(/[A-Za-zÆØÅæøå]/g) || []).length;
-    const letterRatio = text.length ? letters / text.length : 0;
-    // eslint-disable-next-line global-require
-    require('fs').appendFileSync('/opt/cursor/logs/debug.log', `${JSON.stringify({
-      hypothesisId: 'F',
-      location: 'interpretAvtaleCore.js:readPdf',
-      message: 'server pdf text before OCR decision',
-      data: {
-        textLen: text.length,
-        letterRatio,
-        readable,
-        willSkipOcr: readable && text.length >= 40,
-        preview: text.slice(0, 80),
-        runId: 'post-fix',
-      },
-      timestamp: Date.now(),
-    })}\n`);
-  } catch {
-    // ignore
-  }
-  // #endregion
   const ocr = (readable && text.length >= 40)
     ? { text: '', images: [] }
     : await ocrPdfPages(buffer).catch(() => ({ text: '', images: [] }));

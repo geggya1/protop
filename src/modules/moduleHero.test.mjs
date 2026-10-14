@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroModuleId } from './moduleHero.js';
+import { COMPANY_HERO, companyHeroId } from './companyHero.js';
 import {
   ACTIVATABLE_MODULE_IDS,
   getModuleConfig,
@@ -114,7 +115,7 @@ assert.match(shellSrc, /shellHeroModuleId/, 'shell draws the shared heading abov
 assert.match(shellSrc, /phoneChromeHeroId/, 'phone heading id is resolved for Mer-subviews including Husk dato');
 assert.match(shellSrc, /<ModuleHero /, 'shell heading is ModuleHero');
 assert.match(shellSrc, /ModuleHeroHostProvider/, 'shell marks the heading as hosted');
-assert.match(shellSrc, /hero=\{headerHeroId/, 'phone heading replaces the shell page title');
+assert.match(shellSrc, /headerHeroId \? \([\s\S]*<ModuleHero/, 'phone heading replaces the shell page title');
 assert.match(shellSrc, /pageHeroId && !headerHeroId/, 'tablet\/web keep the heading in the content band');
 assert.match(shellSrc, /flush chrome/, 'phone heading is flattened into the shell chrome');
 assert.doesNotMatch(shellSrc, /heroBandPhone/, 'phone no longer draws a second heading below the title');
@@ -234,4 +235,69 @@ const familyTreeHelp = buildHelpWelcomeModule({
 assert.ok(familyTreeHelp);
 assert.match(familyTreeHelp.illustrationPath, /familietreet--module-activation-illustration\.png\?v=/);
 
-console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules)`);
+const COMPANY_PAGES = [
+  ['projects', null, 'projects'],
+  ['ansatte', null, 'ansatte'],
+  ['kunder', null, 'kunder'],
+  ['kontrakt', null, 'kontrakt'],
+  ['skjema', null, 'skjema'],
+  ['iso', null, 'iso'],
+  ['timeliste', null, 'timeliste'],
+  ['selskap', null, 'selskap'],
+  ['selskap', 'tilgang', 'selskap-tilgang'],
+  ['selskap', 'underenheter', 'underenheter'],
+  ['underenheter', null, 'underenheter'],
+  ['anbud', 'varsling', 'anbud-varsling'],
+  ['anbud', 'foresporsel', 'anbud-foresporsel'],
+  ['anbud', 'vurdering', 'anbud-vurdering'],
+  ['anbud', 'tilbud', 'anbud-tilbud'],
+  ['arbeid', 'timeliste', 'arbeid-timeliste'],
+  ['arbeid', 'timerapport', 'arbeid-timerapport'],
+  ['arbeid', 'timesaldo', 'arbeid-timesaldo'],
+  ['arbeid', 'fravaer', 'arbeid-fravaer'],
+  ['arbeid', 'fravaersrapport', 'arbeid-fravaersrapport'],
+  ['arbeid', 'planlagt', 'arbeid-planlagt'],
+  ['arbeid', 'utlegg', 'arbeid-utlegg'],
+  ['arbeid', 'salg', 'arbeid-salg'],
+  ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
+  ['okonomi', 'oversikt', 'okonomi-oversikt'],
+  ['okonomi', 'kunder', 'okonomi-kunder'],
+  ['okonomi', 'avtaler', 'okonomi-avtaler'],
+  ['okonomi', 'faktura', 'okonomi-faktura'],
+  ['okonomi', 'fakturagrunnlag', 'okonomi-fakturagrunnlag'],
+  ['okonomi', 'utlegg', 'okonomi-utlegg'],
+  ['okonomi', 'kjorebok', 'okonomi-kjorebok'],
+  ['okonomi', 'produkter', 'okonomi-produkter'],
+  ['okonomi', 'indeks', 'okonomi-indeks'],
+];
+for (const [tab, sub, id] of COMPANY_PAGES) {
+  assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
+  assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
+  assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
+  assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
+  const hero = resolveModuleHero(id, 'nb');
+  const en = resolveModuleHero(id, 'en');
+  assert.ok(hero.title, `${id} title`);
+  assert.ok(hero.kicker, `${id} kicker`);
+  assert.ok(hero.pitch, `${id} pitch`);
+  assert.notEqual(en.title, hero.title, `${id} should have English title`);
+  assert.ok(COMPANY_HERO[id], `${id} company hero`);
+}
+assert.equal(resolveModuleHero('projects', 'nb').wideArt, true, 'project overview uses the wide illustration');
+assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
+assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
+
+const projectFile = 'prosjekt--module-activation-illustration.png';
+const projectBundled = join(ROOT, 'assets/module-activation', projectFile);
+const projectPublic = join(ROOT, 'public/assets/module-activation', projectFile);
+assert.equal(existsSync(projectBundled), true, 'project overview bundled art');
+assert.equal(existsSync(projectPublic), true, 'project overview public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(projectBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(projectPublic)).digest('hex'),
+  'project overview bundled != public',
+);
+assert.match(assetsSrc, /projects: require\('\.\.\/\.\.\/assets\/module-activation\/prosjekt--module-activation-illustration\.png'\)/);
+assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
+
+console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

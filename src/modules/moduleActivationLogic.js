@@ -62,6 +62,7 @@ export const ILLUSTRATION_FILES = {
   documents: 'dokumenter--module-activation-illustration.png',
   boligmappa: 'boligen--module-activation-illustration.png',
   hospitality: 'utleie--module-activation-illustration.png',
+  projects: 'prosjekt--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

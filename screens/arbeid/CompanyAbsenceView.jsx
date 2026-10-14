@@ -7,6 +7,7 @@ import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
 import { absenceCategory } from '../../src/arbeid/absenceDashboard.js';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero.js';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useLayout } from '../../src/theme';
 
 const ui = {
@@ -94,6 +95,7 @@ export function CompanyAbsenceView({
   error = '',
 }) {
   const { width, isDesktop } = useLayout();
+  const hosted = useModuleHeroHosted();
   const wide = width >= 980;
   const [menu, setMenu] = useState('');
   const [chartWidth, setChartWidth] = useState(150);
@@ -104,12 +106,13 @@ export function CompanyAbsenceView({
   const focus = dashboard?.focusTitle || 'Ferie';
   const year = dashboard?.year || '';
   const usageTitle = category === 'ferie' ? `Feriebruk ${year}` : `${focus} ${year}`;
-  const inChrome = !isDesktop;
+  const inChrome = !isDesktop && !hosted;
   const employeeKey = rosterKey(employees);
 
   const heading = useMemo(() => (
     <AbsenceHeading
       chrome={inChrome}
+      showBanner={!hosted}
       wide={wide}
       employees={employees}
       employeeId={employeeId}
@@ -132,7 +135,7 @@ export function CompanyAbsenceView({
       }}
     />
   ), [
-    inChrome, wide, employeeKey, employeeId,
+    inChrome, hosted, wide, employeeKey, employeeId,
     employeeName, canChooseEmployee, category, menu, error, focus,
   ]);
 
@@ -252,6 +255,7 @@ export function CompanyAbsenceView({
 
 function AbsenceHeading({
   chrome,
+  showBanner = true,
   wide,
   employees,
   employeeId,
@@ -268,6 +272,7 @@ function AbsenceHeading({
   const moreOn = !PRIMARY.has(category);
   return (
     <View nativeID="fravaer-heading" style={chrome ? styles.headingChrome : styles.headingPage}>
+      {showBanner ? (
       <View style={[styles.banner, wide && styles.bannerWide]} nativeID="fravaer-banner">
         <View style={[styles.bannerArt, wide && styles.bannerArtWide]} pointerEvents="none">
           <BlueprintArt width={wide ? 460 : 148} height={wide ? 120 : 100} />
@@ -281,6 +286,7 @@ function AbsenceHeading({
           </Text>
         </View>
       </View>
+      ) : null}
 
       <View style={styles.filterBar}>
         <TouchableOpacity

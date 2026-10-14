@@ -6,6 +6,7 @@
 import { pickIntroText } from '../utils/moduleIntros.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
 import { localizeModuleFields } from '../i18n/moduleCatalog.js';
+import { COMPANY_HERO, companyHeroId } from './companyHero.js';
 
 const t = (nb, en) => ({ nb, en });
 
@@ -310,7 +311,7 @@ export function resolveHeroModuleId(moduleId) {
 export function canShowModuleHero(moduleId) {
   const id = resolveHeroModuleId(moduleId);
   if (!id || SHELL_SKIP_MODULE_IDS.has(id) || SHELL_SKIP_MODULE_IDS.has(moduleId)) return false;
-  return !!(MODULE_HERO[id] || getModuleConfig(id) || ILLUSTRATION_FILES[id]);
+  return !!(MODULE_HERO[id] || COMPANY_HERO[id] || getModuleConfig(id) || ILLUSTRATION_FILES[id]);
 }
 
 /**
@@ -320,6 +321,8 @@ export function canShowModuleHero(moduleId) {
  */
 export function shellHeroModuleId(tab, moreSubView = null) {
   if (!tab) return null;
+  const companyId = companyHeroId(tab, moreSubView);
+  if (companyId && canShowModuleHero(companyId)) return companyId;
   const raw = tab === 'more' ? moreSubView : tab;
   if (!raw || SHELL_SKIP_MODULE_IDS.has(raw) || SHELL_OWN_HERO.has(raw)) return null;
   const id = resolveHeroModuleId(raw);
@@ -339,7 +342,7 @@ export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
 export function resolveModuleHero(moduleId, lang = 'nb') {
   const id = resolveHeroModuleId(moduleId);
   const catalog = localizeModuleFields(getModuleConfig(id), lang);
-  const custom = MODULE_HERO[id] || {};
+  const custom = MODULE_HERO[id] || COMPANY_HERO[id] || {};
   const palette = {
     bg: custom.bg || DEFAULT_PALETTE.bg,
     bg2: custom.bg2 || DEFAULT_PALETTE.bg2,
@@ -351,6 +354,7 @@ export function resolveModuleHero(moduleId, lang = 'nb') {
     kicker: pickIntroText(custom.kicker, lang) || catalog?.name || '',
     title: pickIntroText(custom.title, lang) || catalog?.headline || catalog?.name || '',
     pitch: pickIntroText(custom.pitch, lang) || catalog?.pitch || '',
+    wideArt: !!custom.wideArt,
     ...palette,
   };
 }

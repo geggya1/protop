@@ -24,6 +24,7 @@ import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { CompanyAbsenceView } from './CompanyAbsenceView';
 import { CompanyAbsenceDesktop } from './CompanyAbsenceDesktop';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');
@@ -293,6 +294,7 @@ export function AbsenceOverviewView({
   onBack = null,
 }) {
   const { width } = useLayout();
+  const hostedHero = useModuleHeroHosted();
   const wide = width >= 1180;
   const [menu, setMenu] = useState('');
   const [showAll, setShowAll] = useState(false);
@@ -334,6 +336,7 @@ export function AbsenceOverviewView({
         />
       ) : null}
 
+      {hostedHero ? null : (
       <View style={[styles.heroBlock, wide && styles.heroBlockWide]}>
         <View style={[styles.heroCopy, wide && styles.heroCopyWide]}>
           <Text accessibilityRole="header" style={styles.title}>Fraværsoversikt</Text>
@@ -344,6 +347,7 @@ export function AbsenceOverviewView({
           <View style={styles.heroFade} />
         </View>
       </View>
+      )}
 
       <View style={styles.filterCard}>
         <FilterField

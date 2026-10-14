@@ -9,6 +9,7 @@ import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useLayout } from '../../src/theme';
 import { ShellPageHeroContext } from '../../components/ShellHeader';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyGroupChart from '../../components/project/CompanyGroupChart';
@@ -61,7 +62,8 @@ export default function CompanyUnitsScreen() {
   const colors = useColors();
   const { isDesktop } = useLayout();
   const heroCtx = useContext(ShellPageHeroContext);
-  const inChrome = !isDesktop && !!heroCtx?.claim;
+  const hosted = useModuleHeroHosted();
+  const inChrome = !isDesktop && !!heroCtx?.claim && !hosted;
   const {
     family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily,
   } = useApp();
@@ -153,7 +155,12 @@ export default function CompanyUnitsScreen() {
       contentContainerStyle={styles.inner}
       keyboardShouldPersistTaps="handled"
     >
-      {inChrome ? null : heading}
+      {hosted ? (
+        <View nativeID="company-units-heading" style={styles.headingRow}>
+          <View style={{ flex: 1 }} />
+          <GearButton open={settingsOpen} colors={colors} onPress={toggleSettings} />
+        </View>
+      ) : (inChrome ? null : heading)}
       {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
       {settingsOpen ? (
         <View nativeID="company-units-settings" style={styles.settings}>

@@ -23,7 +23,21 @@ const STATUS = {
   pagar: 'Pågår',
   avsluttet: 'Avsluttet',
   registrert: 'Registrert',
+  behandling: 'Til behandling',
+  godkjent: 'Godkjent',
+  låst: 'Låst',
 };
+
+function approvalLabel(period, absences = []) {
+  const ids = new Set(period?.ids || []);
+  if (!ids.size) return STATUS[period?.status] || 'Registrert';
+  const days = (absences || []).filter((row) => ids.has(row.id));
+  if (!days.length) return STATUS[period?.status] || 'Registrert';
+  if (days.every((row) => row.status === 'låst')) return STATUS.låst;
+  if (days.every((row) => row.status === 'godkjent' || row.status === 'låst')) return STATUS.godkjent;
+  if (days.some((row) => (row.status || 'registrert') === 'registrert')) return STATUS.behandling;
+  return STATUS[period?.status] || 'Registrert';
+}
 
 function formatCount(value) {
   const n = Math.round((Number(value) || 0) * 100) / 100;
@@ -267,6 +281,11 @@ export function AbsenceReportDesktop({
   today = '',
   canChooseEmployee = false,
   lockedEmployeeId = '',
+  canImport = false,
+  onImport,
+  onOpenPeriod,
+  note = '',
+  error = '',
 }) {
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
   const [kind, setKind] = useState('alle');
@@ -289,18 +308,32 @@ export function AbsenceReportDesktop({
       nativeID="fravaersrapport"
     >
       <View style={styles.toolbar}>
-        <Text style={styles.lead}>Alle registrerte fraværsperioder i år, samlet fra timelistene.</Text>
-        {canChooseEmployee ? (
-          <TouchableOpacity
-            onPress={() => setPeopleOpen((value) => !value)}
-            style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="people" size={15} color={blue} />
-            <Text style={styles.personTxt}>{selectedName}</Text>
-            <Ionicons name="chevron-down" size={14} color={muted} />
-          </TouchableOpacity>
-        ) : null}
+        <Text style={styles.lead}>Alle registrerte fraværsperioder i år. Åpne en rad for å behandle, eller importer fra Excel.</Text>
+        <View style={styles.toolbarRight}>
+          {canImport ? (
+            <TouchableOpacity
+              onPress={onImport}
+              style={[styles.importBtn, { backgroundColor: blue }]}
+              accessibilityRole="button"
+              accessibilityLabel="Importer fravær"
+              nativeID="fravaer-import"
+            >
+              <Ionicons name="cloud-upload-outline" size={15} color="#fff" />
+              <Text style={styles.importTxt}>Importer</Text>
+            </TouchableOpacity>
+          ) : null}
+          {canChooseEmployee ? (
+            <TouchableOpacity
+              onPress={() => setPeopleOpen((value) => !value)}
+              style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="people" size={15} color={blue} />
+              <Text style={styles.personTxt}>{selectedName}</Text>
+              <Ionicons name="chevron-down" size={14} color={muted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
       {peopleOpen ? (
         <View style={[styles.menu, { borderColor: line }]}>
@@ -315,13 +348,15 @@ export function AbsenceReportDesktop({
           ))}
         </View>
       ) : null}
+      {error ? <Text style={{ color: '#b42318' }}>{error}</Text> : null}
+      {note ? <Text style={{ color: muted }}>{note}</Text> : null}
       <View style={styles.kpis}>
         <Kpi icon="umbrella" tint={blue} bg="#E8F0FE" value={formatCount(totals.ferie)} label="Feriedager" />
         <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={formatCount(totals.sykdom)} label="Sykedager" />
         <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={formatCount(totals.annet)} label="Andre dager" />
         <Kpi icon="list" tint="#34507A" bg="#EEF2F7" value={board.lines.length} label="Perioder" />
       </View>
-      <PlannedCard rows={board.planned || []} />
+      <PlannedCard rows={board.planned || []} onOpenPeriod={onOpenPeriod} />
       <View style={styles.card}>
         <View style={styles.cardHead}>
           <Text style={styles.cardTitle}>{`Perioder ${board.year}`}</Text>
@@ -346,13 +381,20 @@ export function AbsenceReportDesktop({
           <Text style={[styles.colStatus, styles.headTxt]}>Status</Text>
         </View>
         {lines.length ? lines.map((row) => (
-          <View key={row.id} style={styles.tableRow}>
+          <TouchableOpacity
+            key={row.id}
+            style={styles.tableRow}
+            onPress={() => onOpenPeriod?.(row)}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne fravær for ${row.employeeName}`}
+            disabled={!onOpenPeriod}
+          >
             <Text style={[styles.colGrow, styles.nameTxt]} numberOfLines={1}>{row.employeeName}</Text>
             <Text style={[styles.colGrow, styles.periodMeta]} numberOfLines={1}>{row.typeLabel}</Text>
             <Text style={[styles.colGrow, styles.periodMeta]} numberOfLines={1}>{row.start === row.end ? row.start : `${row.start} – ${row.end}`}</Text>
             <Text style={[styles.colDays, styles.numTxt]}>{formatCount(row.days)}</Text>
-            <Text style={[styles.colStatus, styles.periodMeta]}>{STATUS[row.status] || 'Registrert'}</Text>
-          </View>
+            <Text style={[styles.colStatus, styles.periodMeta]}>{approvalLabel(row, absences)}</Text>
+          </TouchableOpacity>
         )) : (
           <Text style={styles.empty}>Ingen fravær er registrert i dette utvalget.</Text>
         )}
@@ -416,13 +458,19 @@ export function PlannedAbsenceDesktop({
   );
 }
 
-function PlannedCard({ rows }) {
+function PlannedCard({ rows, onOpenPeriod }) {
   return (
     <View style={styles.card} nativeID="planlagt-fravaer">
       <Text style={styles.cardTitle}>Planlagt fravær</Text>
       <Text style={styles.hint}>Registrert fravær som ligger frem i tid.</Text>
       {rows.length ? rows.map((row) => (
-        <View key={row.id} style={styles.period}>
+        <TouchableOpacity
+          key={row.id}
+          style={styles.period}
+          onPress={() => onOpenPeriod?.(row)}
+          disabled={!onOpenPeriod}
+          accessibilityRole="button"
+        >
           <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
@@ -430,7 +478,7 @@ function PlannedCard({ rows }) {
           </View>
           <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
           <Text style={styles.periodStatus}>Planlagt</Text>
-        </View>
+        </TouchableOpacity>
       )) : (
         <Text style={styles.empty}>Ingen planlagt fravær frem i tid.</Text>
       )}
@@ -546,7 +594,13 @@ function MonthChart({ months, width }) {
 const styles = StyleSheet.create({
   page: { padding: 20, gap: 14, paddingBottom: 48 },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  toolbarRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   lead: { color: muted, fontSize: 14, flex: 1 },
+  importBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  importTxt: { color: '#fff', fontWeight: '700' },
   personBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,

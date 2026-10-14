@@ -22,7 +22,8 @@ import { listenFriends } from '../utils/friends';
 import { friendProfileOwnerUid } from '../utils/friendsLogic';
 import { preferAuthUid } from '../utils/inviteAuthUid';
 import { isLiveOrganization } from '../project/companyOffer';
-import { resolveLoginLanding } from '../utils/platformSwitch';
+import { companyWorkspaces, preferHovedenhetWorkspace, resolveLoginLanding } from '../utils/platformSwitch';
+import { probeWorkspaceOccupancy } from '../utils/workspaceOccupancy';
 
 const Ctx = createContext(null);
 const FAMILY_KEY = 'weekplan.familyId';
@@ -89,6 +90,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   const familyPickRef = useRef(false);
   const [familyId, setFamilyIdState] = useState(childFamilyId || null);
   const [family, setFamily] = useState(null);
+  const [workspaceOccupancy, setWorkspaceOccupancy] = useState(null);
   const [parents, setParents] = useState([]);
   const [kids, setKids] = useState([]);
   const [friends, setFriends] = useState([]);
@@ -339,7 +341,12 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         const keptCache = listFailed && list.length === 0 && membershipHints.size > 0;
         if (!keptCache && !familyPickRef.current) {
           const pool = list.length ? list : (map.size ? [...map.values()] : []);
-          const landing = resolveLoginLanding(pool, storedId, preferredCompanyId);
+          let occupancy = null;
+          try {
+            occupancy = await probeWorkspaceOccupancy(db, pool);
+            if (alive) setWorkspaceOccupancy(occupancy);
+          } catch { /* ukjent belegg: bli på lagret arbeidsområde */ }
+          const landing = resolveLoginLanding(pool, storedId, preferredCompanyId, occupancy);
           const landingId = landing?.id || null;
           if (alive) setFamilyIdState(landingId);
           if (landingId) {
@@ -365,6 +372,21 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     })();
     return () => { alive = false; };
   }, [uid, isChild, childFamilyId, childProfile?.familyId]);
+
+  // Et tomt tvilling-selskap med samme navn byttes til det som har ansatte eller timer.
+  // Privat, og et selskap som selv har data, blir stående.
+  useEffect(() => {
+    if (!uid || !workspaceOccupancy || familyPickRef.current || !familyId) return undefined;
+    const companies = companyWorkspaces(families);
+    const current = companies.find((group) => group.id === familyId);
+    if (!current) return undefined;
+    const next = preferHovedenhetWorkspace(current, companies, workspaceOccupancy);
+    if (!next?.id || next.id === current.id) return undefined;
+    setFamilyIdState(next.id);
+    writeStoredFamilyId(uid, next.id).catch(() => {});
+    writeStoredCompanyId(uid, next.id).catch(() => {});
+    return undefined;
+  }, [uid, workspaceOccupancy, families, familyId]);
 
   useEffect(() => {
     if (!uid) {
@@ -452,7 +474,10 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         }
         setFamily(next);
       },
-      () => {
+      (error) => {
+        const code = String(error?.code || '');
+        // Nettverk skal ikke tømme arbeidsområdet. Neste lasting henter de samme dataene.
+        if (code === 'unavailable' || code === 'deadline-exceeded') return;
         // Example: Firestore rules denies access (stale familyId from another account).
         setFamily(null);
         setFamilyIdState((cur) => (cur === familyId ? null : cur));
@@ -785,6 +810,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     liveFamilies,
     familyId,
     family,
+    workspaceOccupancy,
     parents,
     kids,
     members,

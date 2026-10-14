@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   drawer: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   headText: { flex: 1, gap: 2 },
-  title: { fontSize: 16, fontWeight: '400' },
+  title: { fontSize: 14, fontWeight: '700' },
   body: { borderTopWidth: 1, padding: 10, gap: 8 },
   tabs: { flexDirection: 'row', gap: 8 },
   tab: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 40, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

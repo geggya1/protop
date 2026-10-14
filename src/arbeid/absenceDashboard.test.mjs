@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   STATUTORY_VACATION_DAYS,
+  absenceRoster,
   buildAbsenceDashboard,
+  buildAbsencePeriodGrid,
   buildAbsenceWebBoard,
   buildCompanyAbsenceLedger,
   eachWeekday,
@@ -271,6 +273,62 @@ const employees = [
   assert.equal(board.planned.some((row) => row.start === '2026-10-15'), false);
   assert.equal(board.lines.find((row) => row.start === '2026-10-14').status, 'pagar');
   assert.equal(board.lines.some((row) => row.start === '2027-01-04'), false);
+  assert.equal(board.yearTotals.ferie, 3);
+}
+
+{
+  const board = buildAbsenceWebBoard({
+    employees,
+    today: '2026-10-14',
+    names: { e1: 'Ada Nord' },
+    absences: [{ id: 'old', employeeId: 'e1', type: 'ferie', date: '2024-07-01', hours: 7.5 }],
+  });
+  assert.equal(board.staff.length, 0);
+  assert.equal(board.yearTotals.ferie, 0);
+}
+
+{
+  const roster = [
+    { id: 'own', company: { status: 'active', personnelKind: 'staff' } },
+    { id: 'ext', company: { status: 'active', personnelKind: 'external' } },
+    { id: 'hire', company: { status: 'active', personnelKind: 'innleid' } },
+    { id: 'off', company: { status: 'inactive', personnelKind: 'staff' } },
+    { id: 'old', company: { status: 'former', personnelKind: 'staff' } },
+    { id: 'bin', company: { status: 'deleted', personnelKind: 'staff' } },
+  ];
+  assert.deepEqual(absenceRoster(roster).map((row) => row.id), ['own']);
+  assert.deepEqual(absenceRoster(roster, { kinds: ['external', 'innleid'] }).map((row) => row.id), ['ext', 'hire']);
+  assert.deepEqual(
+    absenceRoster(roster, { kinds: ['staff'], includeInactive: true }).map((row) => row.id),
+    ['own', 'off', 'old'],
+  );
+}
+
+{
+  const grid = buildAbsencePeriodGrid({
+    employees: [
+      { id: 'e1' },
+      { id: 'e2' },
+    ],
+    names: { e1: 'Ada Nord', e2: 'Bo Berg' },
+    start: '2026-10-12',
+    end: '2026-10-18',
+    fullDayHours: 7.5,
+    absences: [
+      { id: 'a1', employeeId: 'e1', type: 'ferie', date: '2026-10-14', hours: 7.5 },
+      { id: 'a2', employeeId: 'e1', type: 'ferie', date: '2026-10-15', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-14', hours: 7.5 },
+      { id: 'out', employeeId: 'e9', type: 'ferie', date: '2026-10-14', hours: 7.5 },
+    ],
+  });
+  assert.equal(grid.days.length, 7);
+  assert.equal(grid.days[0].key, '2026-10-12');
+  assert.deepEqual(grid.people.map((row) => row.id), ['e1', 'e2']);
+  assert.equal(grid.people[0].awayDays, 2);
+  assert.equal(grid.people[0].cells[2].bucket, 'ferie');
+  assert.equal(grid.totals[2].ferie, 1);
+  assert.equal(grid.totals[2].sykdom, 1);
+  assert.equal(grid.totals[0].ferie, 0);
 }
 
 console.log('absenceDashboard ok');

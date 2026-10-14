@@ -4,6 +4,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
+import { employeeActivityTab } from '../../src/employees/model.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { parseHours } from '../../src/arbeid/hours.js';
 import {
@@ -453,7 +454,7 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
+  const people = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;

@@ -5,6 +5,7 @@
 
 import { ABSENCE_TYPES, absenceTypeById } from './absenceCatalog.js';
 import { hoursToDays, buildAbsenceOverview } from './balance.js';
+import { employeeActivityTab, personnelKind } from '../employees/model.js';
 
 export const STATUTORY_VACATION_DAYS = 25;
 
@@ -421,7 +422,9 @@ export function buildAbsenceWebBoard({
     today,
     names,
   });
-  const people = activeEmployees(employees).filter((row) => !employeeId || row.id === employeeId);
+  const people = (employees || []).filter((row) => (
+    row && employeeActivityTab(row) !== 'trash' && (!employeeId || row.id === employeeId)
+  ));
   const selectedIds = new Set(people.map((row) => row.id));
   const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
   const year = dash.year;
@@ -462,7 +465,7 @@ export function buildAbsenceWebBoard({
       today,
     });
     const hasMonths = grid.months.some((month) => month.ferie || month.sykdom || month.annet);
-    if (!hasMonths && !overview.summary.earned && !overview.summary.used) continue;
+    if (!hasMonths && !overview.summary.earned) continue;
     const absenceDays = round2(grid.months.reduce((sum, month) => (
       sum + month.ferie + month.sykdom + month.annet
     ), 0));
@@ -493,5 +496,102 @@ export function buildAbsenceWebBoard({
     today,
   )).filter((row) => row.status === 'planlagt')
     .sort((a, b) => String(a.start).localeCompare(String(b.start)) || String(a.employeeName).localeCompare(String(b.employeeName), 'nb'));
-  return { dash, staff, lines, planned, year, months: YEAR_MONTHS };
+  const yearTotals = { ferie: 0, sykdom: 0, annet: 0 };
+  for (const person of staff) {
+    for (const month of person.months) {
+      yearTotals.ferie = round2(yearTotals.ferie + month.ferie);
+      yearTotals.sykdom = round2(yearTotals.sykdom + month.sykdom);
+      yearTotals.annet = round2(yearTotals.annet + month.annet);
+    }
+  }
+  return { dash, staff, lines, planned, year, yearTotals, months: YEAR_MONTHS };
+}
+
+const KIND_RANK = { sykdom: 3, ferie: 2, annet: 1 };
+const WEEKDAY_SHORT = ['sø', 'ma', 'ti', 'on', 'to', 'fr', 'lø'];
+
+/** Eget personell med aktiv status er standard. Deaktiverte og andre grupper velges inn. */
+export function absenceRoster(employees = [], { kinds = ['staff'], includeInactive = false } = {}) {
+  const wanted = new Set(kinds && kinds.length ? kinds : []);
+  return (employees || []).filter((row) => {
+    if (!row) return false;
+    const tab = employeeActivityTab(row);
+    if (tab === 'trash') return false;
+    if (tab === 'inactive') return includeInactive && wanted.has(personnelKind(row));
+    if (tab !== 'active') return false;
+    return wanted.has(personnelKind(row));
+  });
+}
+
+export function eachDate(start, end) {
+  const cursor = parseIsoDate(start);
+  if (!cursor || !end) return [];
+  const out = [];
+  let guard = 0;
+  while (formatIsoDate(cursor) <= end && guard < 400) {
+    const day = cursor.getDay();
+    out.push({
+      key: formatIsoDate(cursor),
+      day: cursor.getDate(),
+      weekday: WEEKDAY_SHORT[day],
+      weekend: day === 0 || day === 6,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
+  return out;
+}
+
+/** Rader og dagsstolper for dag, uke eller måned. Tom celle betyr ingen registrert fravær. */
+export function buildAbsencePeriodGrid({
+  employees = [],
+  absences = [],
+  names = {},
+  start = '',
+  end = '',
+  fullDayHours = 7.5,
+} = {}) {
+  const days = eachDate(start, end);
+  const dayKeys = new Set(days.map((day) => day.key));
+  const chosen = new Set((employees || []).map((row) => row.id));
+  const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
+  const marks = new Map();
+  for (const row of absences || []) {
+    if (!chosen.has(row.employeeId) || !dayKeys.has(row.date)) continue;
+    const bucket = absenceBucket(row.type || 'ferie');
+    const key = `${row.employeeId}|${row.date}`;
+    const prev = marks.get(key);
+    const daysCount = hoursToDays(row.hours, dayHours);
+    if (!prev || (KIND_RANK[bucket] || 0) > (KIND_RANK[prev.bucket] || 0)) {
+      marks.set(key, {
+        bucket,
+        typeLabel: absenceTypeById(row.type).label,
+        days: daysCount,
+      });
+    }
+  }
+  const totals = days.map((day) => ({
+    key: day.key,
+    label: String(day.day),
+    ferie: 0,
+    sykdom: 0,
+    annet: 0,
+  }));
+  const totalByKey = new Map(totals.map((row) => [row.key, row]));
+  for (const [key, mark] of marks) {
+    const slot = totalByKey.get(key.split('|')[1]);
+    if (!slot) continue;
+    slot[mark.bucket] = round2(slot[mark.bucket] + (Number(mark.days) || 0));
+  }
+  const people = (employees || []).map((person) => {
+    const cells = days.map((day) => marks.get(`${person.id}|${day.key}`) || null);
+    return {
+      id: person.id,
+      name: names[person.id] || person.name || 'Ansatt',
+      cells,
+      awayDays: cells.filter(Boolean).length,
+    };
+  });
+  people.sort((a, b) => b.awayDays - a.awayDays || a.name.localeCompare(b.name, 'nb'));
+  return { days, people, totals };
 }

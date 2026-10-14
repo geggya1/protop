@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { updateGroup } from '../../src/utils/groups';
 import { INTAKE_CHANNELS, createManualInquiry, inquiryStatusLabel } from '../../src/anbud/intake';
-import { fileToDataUrl, mergeScan, scanAnbudFile } from '../../src/anbud/intakeClient';
-import { pickImages } from '../../src/utils/media';
+import { ANBUD_INTAKE_ACCEPT, fileToDataUrl, mergeScan, scanAnbudFile } from '../../src/anbud/intakeClient';
+import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 
 function Field({ label, value, onChangeText, placeholder, colors }) {
@@ -25,7 +25,7 @@ function Field({ label, value, onChangeText, placeholder, colors }) {
 function filesOf(picked) {
   return (picked || []).map((file) => ({
     name: file.name || file.fileName || 'vedlegg',
-    mime: file.mime || file.type || 'image/jpeg',
+    mime: file.mime || file.mimeType || file.type || 'application/octet-stream',
     size: file.size || file.blob?.size || 0,
     blob: file.blob || null,
     uri: file.uri || '',
@@ -44,6 +44,7 @@ export default function IntakePanel({ colors, company }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
 
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
   const saved = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
@@ -55,36 +56,46 @@ export default function IntakePanel({ colors, company }) {
     applyFamilyPatch?.(company.id, { anbudInquiries: next });
   }
 
-  async function onDrop() {
+  async function readFiles(picked) {
+    const list = filesOf(picked);
+    if (!list.length) return;
+    setFiles(list);
+    setBusy(true);
     setError('');
+    setNote('');
     try {
-      const picked = filesOf(await pickImages({ max: 8 }));
-      if (!picked.length) return;
-      setFiles(picked);
-      setBusy(true);
-      const first = picked.find((file) => file.blob || file.uri);
+      const first = list.find((file) => file.blob || file.uri);
       if (!first) return;
-      const dataUrl = first.blob ? await fileToDataUrl(first) : '';
+      const dataUrl = await fileToDataUrl(first);
       if (!dataUrl) {
-        setNote('Vedleggene er lagt til. AI-lesing krever bildefil i nettleseren.');
+        setNote('Vedleggene er lagt til. Fyll inn feltene manuelt, eller prøv en annen fil.');
         return;
       }
-      const data = await scanAnbudFile(dataUrl);
-      const draft = createManualInquiry({
-        channel, title, contactName, email, phone, description: message, ocrStatus: 'done', ocrEngine: data.engine,
-      }, picked);
-      if (!draft.ok) return;
-      const filled = mergeScan(draft.inquiry, data);
-      setTitle(filled.title || title);
-      setContactName(filled.contactName || contactName);
-      setEmail(filled.email || email);
-      setPhone(filled.phone || phone);
-      setMessage(filled.description || message);
-      setNote('Opplysningene er lest fra dokumentet. Se over før du lagrer.');
+      const data = await scanAnbudFile(dataUrl, first.name, first.mime);
+      const filled = mergeScan({
+        title, contactName, email, phone, description: message, buyer: '',
+      }, data);
+      setTitle(filled.title || '');
+      setContactName(filled.contactName || '');
+      setEmail(filled.email || '');
+      setPhone(filled.phone || '');
+      setMessage(filled.description || '');
+      setNote('Opplysningene er lest der det lot seg gjøre. Se over før du lagrer. Tomme felt lot seg ikke avklare.');
     } catch (err) {
       setError(err?.message || 'Kunne ikke lese dokumentet.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPick() {
+    setError('');
+    try {
+      const picked = await pickDocument({ multiple: true, accept: ANBUD_INTAKE_ACCEPT });
+      const list = Array.isArray(picked) ? picked : (picked ? [picked] : []);
+      await readFiles(list.slice(0, 8));
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke åpne filvelgeren.');
     }
   }
 
@@ -115,6 +126,29 @@ export default function IntakePanel({ colors, company }) {
     }
   }
 
+  const webHandlers = Platform.OS === 'web' ? {
+    onDragEnter: (event) => {
+      event.preventDefault?.();
+      setDragOver(true);
+    },
+    onDragOver: (event) => {
+      event.preventDefault?.();
+      setDragOver(true);
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (event) => {
+      event.preventDefault?.();
+      setDragOver(false);
+      const list = Array.from(event?.dataTransfer?.files || []).map((file) => ({
+        name: file.name,
+        mimeType: file.type,
+        size: file.size,
+        blob: file,
+      }));
+      if (list.length) readFiles(list.slice(0, 8));
+    },
+  } : {};
+
   return (
     <View style={{ gap: 10 }}>
       {error ? <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text> : null}
@@ -126,10 +160,30 @@ export default function IntakePanel({ colors, company }) {
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity onPress={onDrop} disabled={busy} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.brand, borderRadius: 16, padding: 18, backgroundColor: colors.card }}>
-        <Text style={{ color: colors.brand, fontWeight: '400' }}>{busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}</Text>
-        <Text style={{ color: colors.muted, marginTop: 4 }}>{files.length ? files.map((file) => file.name).join(', ') : 'Brev, e-post, foto'}</Text>
-      </TouchableOpacity>
+      <View
+        {...webHandlers}
+        style={{
+          borderWidth: 1,
+          borderStyle: 'dashed',
+          borderColor: dragOver ? colors.brand : colors.brand,
+          borderRadius: 16,
+          padding: 18,
+          backgroundColor: dragOver ? colors.sunken : colors.card,
+          gap: 8,
+        }}
+      >
+        <Text style={{ color: colors.brand, fontWeight: '400' }}>
+          {busy ? 'Leser dokumentet …' : 'Slipp eller velg dokumenter og bilder'}
+        </Text>
+        <Text style={{ color: colors.muted }}>
+          {files.length
+            ? files.map((file) => file.name).join(', ')
+            : 'E-post (.msg/.eml), PDF, Word, bilde eller tekst — alle format'}
+        </Text>
+        <TouchableOpacity onPress={onPick} disabled={busy} style={{ alignSelf: 'flex-start', backgroundColor: colors.brand, borderRadius: 12, minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.7 : 1 }}>
+          <Text style={{ color: '#fff', fontWeight: '400' }}>Velg filer</Text>
+        </TouchableOpacity>
+      </View>
       <Field label="Tittel" value={title} onChangeText={setTitle} placeholder="Fylles ut fra dokumentet" colors={colors} />
       <Field label="Kontakt" value={contactName} onChangeText={setContactName} placeholder="Navn" colors={colors} />
       <Field label="E-post" value={email} onChangeText={setEmail} placeholder="E-post" colors={colors} />

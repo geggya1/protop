@@ -2,6 +2,23 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { applyScan } from './intake.js';
 import { friendlyFormScanError } from './formScanError.js';
+import { postSameOrigin } from '../utils/sameOriginFn.js';
+
+export const ANBUD_INTAKE_ACCEPT = [
+  'image/*',
+  'application/pdf',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.txt',
+  '.msg',
+  '.eml',
+  'message/rfc822',
+  'application/vnd.ms-outlook',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+].join(',');
 
 export async function sendDirectAnbud(input) {
   const call = httpsCallable(functions, 'sendAnbudRequest', { timeout: 20000 });
@@ -19,10 +36,17 @@ export async function generateCompanyForm(imageBase64, fileName) {
   }
 }
 
-export async function scanAnbudFile(imageBase64) {
-  const call = httpsCallable(functions, 'scanAnbudDocument', { timeout: 60000 });
-  const res = await call({ imageBase64 });
-  return res?.data || { ok: false };
+/** Leser forespørsel via same-origin Hosting-rewrite (unngår callable CORS). */
+export async function scanAnbudFile(imageBase64, fileName = '', mimeType = '') {
+  try {
+    return await postSameOrigin('/api/scan-anbud', {
+      imageBase64,
+      fileName: fileName || '',
+      mimeType: mimeType || '',
+    }, { timeoutMs: 60000 });
+  } catch (err) {
+    throw new Error(friendlyFormScanError(err));
+  }
 }
 
 export async function fileToDataUrl(file) {

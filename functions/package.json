@@ -10,6 +10,7 @@
     "start": "firebase emulators:start --only functions,firestore,auth"
   },
   "dependencies": {
+    "@kenjiuno/msgreader": "^1.29.0",
     "@tesseract.js-data/nor": "^1.0.0",
     "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.4.0",

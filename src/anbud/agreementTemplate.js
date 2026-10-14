@@ -14,14 +14,21 @@ export const RENEWAL_TYPES = [
   { id: 'opsjon', label: 'Fornyelse som opsjon' },
 ];
 
+export const DEFAULT_PAYMENT_TERMS = 'Månedlig fakturering, 14 dagers forfallsfrist';
+export const DEFAULT_SPECIAL_TERMS = 'Standardvilkår følger som vedlegg til denne avtalen.';
+export const DEFAULT_HONORAR_FORM = 'Honoreres etter medgått tid';
+export const DEFAULT_BIOMKOST = 'Reise etter statens satser. Prosjektrelaterte utlegg faktureres med 10 % påslag.';
+export const DEFAULT_STANDARD = 'NS 8403';
+export const DEFAULT_INDEX_ID = 'ppi-byggeteknisk';
+
 export const COVER_FIELD_GROUPS = [
   {
     id: 'avtalen',
     title: 'Avtalen',
     fields: [
       { key: 'kind', label: 'Avtaletype' },
-      { key: 'systemId', label: 'System-ID' },
-      { key: 'oppdragId', label: 'Oppdrags-ID' },
+      { key: 'systemId', label: 'System-ID', readOnly: true },
+      { key: 'oppdragId', label: 'Oppdrags-ID', readOnly: true },
       { key: 'title', label: 'Oppdrag' },
       { key: 'description', label: 'Beskrivelse av oppdraget' },
       { key: 'poNumber', label: 'Eksternt PO-nummer' },
@@ -34,10 +41,13 @@ export const COVER_FIELD_GROUPS = [
     title: 'Oppdragssted og periode',
     fields: [
       { key: 'address', label: 'Adresse' },
+      { key: 'postalCode', label: 'Postnummer' },
       { key: 'place', label: 'Sted' },
+      { key: 'gnrBnr', label: 'Gnr / Bnr' },
       { key: 'start', label: 'Oppstart' },
       { key: 'end', label: 'Sluttdato' },
       { key: 'contractDate', label: 'Avtaledato' },
+      { key: 'engagementPercent', label: 'Engasjement behov (%)' },
     ],
   },
   {
@@ -50,23 +60,37 @@ export const COVER_FIELD_GROUPS = [
       { key: 'contactName', label: 'Kontaktperson' },
       { key: 'email', label: 'E-post' },
       { key: 'phone', label: 'Telefon' },
+      { key: 'buyerAddress', label: 'Adresse (oppdragsgiver)' },
+      { key: 'invoiceMethod', label: 'Faktura mottak (EPOST / EHF / POST)' },
+      { key: 'invoiceAttn', label: 'Faktura stiles til' },
     ],
   },
   {
     id: 'leverandor',
     title: 'Oppdragstaker',
     fields: [
-      { key: 'supplier', label: 'Oppdragstaker' },
-      { key: 'supplierOrgnr', label: 'Organisasjonsnummer' },
+      { key: 'supplier', label: 'Oppdragstaker', readOnly: true },
+      { key: 'supplierOrgnr', label: 'Organisasjonsnummer', readOnly: true },
+      { key: 'leaderName', label: 'Oppdragsleder' },
+      { key: 'leaderEmail', label: 'Oppdragsleder e-post' },
+      { key: 'leaderPhone', label: 'Oppdragsleder telefon' },
+      { key: 'resourceName', label: 'Tildelt ressurs' },
+      { key: 'resourceEmail', label: 'Ressurs e-post' },
+      { key: 'resourcePhone', label: 'Ressurs telefon' },
     ],
   },
   {
     id: 'honorar',
     title: 'Honorar og regulering',
     fields: [
+      { key: 'honorarForm', label: 'Honoreringsform' },
       { key: 'value', label: 'Avtalt honorar (eks. mva)' },
       { key: 'surchargePercent', label: 'Påslagsprosent' },
+      { key: 'biomkostninger', label: 'Biomkostninger' },
       { key: 'indexId', label: 'Prisregulering / indeks' },
+      { key: 'indexBase', label: 'Indeks 1 (låst startverdi)', readOnly: true },
+      { key: 'paymentTerms', label: 'Betalingsbetingelser' },
+      { key: 'specialTerms', label: 'Særlige bestemmelser' },
     ],
   },
   {
@@ -99,11 +123,30 @@ export function emptyCoverForm() {
   form.createCustomer = false;
   form.ownerUid = '';
   form.ownerName = '';
+  form.leaderUid = '';
+  form.standard = DEFAULT_STANDARD;
+  form.indexId = DEFAULT_INDEX_ID;
+  form.honorarForm = DEFAULT_HONORAR_FORM;
+  form.biomkostninger = DEFAULT_BIOMKOST;
+  form.paymentTerms = DEFAULT_PAYMENT_TERMS;
+  form.specialTerms = DEFAULT_SPECIAL_TERMS;
+  form.surchargePercent = '10';
+  form.invoiceMethod = 'EPOST';
   return form;
 }
 
 export function coverFromRecord(record = {}) {
   const form = emptyCoverForm();
+  // Ikke arve skjemamal-standarder når avtalen ikke har verdi.
+  form.standard = '';
+  form.indexId = '';
+  form.indexBase = '';
+  form.honorarForm = '';
+  form.biomkostninger = '';
+  form.paymentTerms = '';
+  form.specialTerms = '';
+  form.surchargePercent = '';
+  form.invoiceMethod = '';
   const fields = record.fields && typeof record.fields === 'object' ? record.fields : {};
   const renewal = record.renewal && typeof record.renewal === 'object' ? record.renewal : {};
   for (const key of COVER_FIELD_KEYS) {
@@ -125,8 +168,9 @@ export function coverFromRecord(record = {}) {
     : (record.honorar != null && record.honorar !== '' ? String(record.honorar) : '');
   form.projectId = record.projectId || '';
   form.customerId = record.customerId || '';
-  form.ownerUid = '';
-  form.ownerName = '';
+  form.ownerUid = record.ownerUid || '';
+  form.ownerName = record.ownerName || '';
+  form.leaderUid = fields.leaderUid || record.leaderUid || '';
   return form;
 }
 

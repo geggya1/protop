@@ -1,31 +1,35 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateField from '../../components/DateField';
+import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
 import { interpretDocuments, mergeInterpretation } from '../../src/indeksregulering/interpret';
+import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { indexDraftFromInterpretation, inputFromInterpretation } from '../../src/anbud/directContract';
 import {
   AGREEMENT_KINDS,
   COVER_FIELD_GROUPS,
+  DEFAULT_INDEX_ID,
   RENEWAL_TYPES,
   emptyCoverForm,
   emptyOption,
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
-import { formatOrgnr, matchCustomer, customerDraftFromBrreg, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople } from '../../src/anbud/customers';
+import { formatOrgnr, matchCustomer, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople } from '../../src/anbud/customers';
 import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
-import { agreementSummary, emailLooksLikeSupplier, indexLabel, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
+import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
-import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
-import OwnerPicker from './OwnerPicker';
+import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
+import AgreementPersonField from './AgreementPersonField';
+import AgreementProjectField from './AgreementProjectField';
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
 
@@ -42,12 +46,15 @@ function yieldUi() {
   return new Promise((resolve) => setTimeout(resolve, 40));
 }
 
-const MULTILINE = new Set(['description']);
+const MULTILINE = new Set(['description', 'biomkostninger', 'paymentTerms', 'specialTerms', 'honorarForm']);
 const NUMBER_PLACEHOLDERS = {
-  systemId: 'Neste ledige i systemet',
-  oppdragId: 'Neste ledige for kunden',
+  systemId: 'Settes automatisk',
+  oppdragId: 'Settes automatisk per kunde',
   value: 'Beløp eks. mva',
+  indexBase: 'Hentes fra SSB',
 };
+const READ_ONLY_KEYS = new Set(['systemId', 'oppdragId', 'supplier', 'supplierOrgnr', 'indexBase']);
+const SKIP_GENERIC = new Set(['kind', 'parentId', 'address', 'indexId', 'leaderName']);
 
 function emptyForm() {
   return { ...emptyCoverForm(), options: [] };
@@ -142,34 +149,42 @@ async function attachmentFromPick(file) {
   return { name, mimeType, size, dataUrl, uri: file?.uri || '' };
 }
 
-function Field({ colors, field, value, onChange, warning }) {
+function Field({ colors, field, value, onChange, warning, hint }) {
   const warnColor = colors.warn || '#d97706';
+  const readOnly = field.readOnly || READ_ONLY_KEYS.has(field.key);
   if (field.key === 'indexId') {
-    const selected = INDEX_SERIES.find((row) => row.id === value);
-    const choices = INDEX_SERIES.filter((row) => (
-      ['ppi-byggeteknisk', 'bki-boligblokk', 'kpi', 'bki-bustader', 'bki-veg'].includes(row.id) || row.id === value
-    ));
+    const selected = INDEX_SERIES.find((row) => row.id === value) || INDEX_SERIES.find((row) => row.id === DEFAULT_INDEX_ID);
     return (
-      <View style={{ gap: 4, flexGrow: 1, flexBasis: '100%', minWidth: 220 }}>
+      <View style={{ gap: 6, flexGrow: 1, flexBasis: '100%', minWidth: 220 }}>
         <View style={styles.labelRow}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
-        <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? indexLabel(selected.id) : 'Ikke valgt'}</Text>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>
+          {selected ? `${selected.name} · tabell ${selected.table}` : 'Ikke valgt'}
+        </Text>
         <View style={styles.row}>
-          {choices.map((row) => (
-            <TouchableOpacity key={row.id} onPress={() => onChange(row.id)} accessibilityRole="button">
-              <Text style={{ color: value === row.id ? colors.brand : colors.ink }}>{row.name}</Text>
+          {INDEX_SERIES.map((row) => (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => onChange(row.id)}
+              accessibilityRole="button"
+              style={[styles.chip, value === row.id && { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+            >
+              <Text style={{ color: value === row.id ? colors.brand : colors.ink }}>
+                {row.table} · {row.name}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
+        {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
         {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
       </View>
     );
   }
   if (DATE_FIELD_KEYS.has(field.key)) {
     return (
-      <View style={{ gap: 4, flexGrow: 1, flexBasis: 220, minWidth: 180 }}>
+      <View style={{ gap: 4, flexGrow: 1, flexBasis: 200, minWidth: 160 }}>
         <View style={styles.labelRow}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
@@ -189,25 +204,31 @@ function Field({ colors, field, value, onChange, warning }) {
     );
   }
   return (
-    <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 220, minWidth: 180 }}>
+    <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 200, minWidth: 160 }}>
       <View style={styles.labelRow}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
         {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
       </View>
       <TextInput
         value={value}
-        onChangeText={onChange}
+        onChangeText={readOnly ? undefined : onChange}
+        editable={!readOnly}
         placeholder={NUMBER_PLACEHOLDERS[field.key] || ''}
         placeholderTextColor={colors.placeholder}
         multiline={MULTILINE.has(field.key)}
-        keyboardType={field.key === 'value' || field.key === 'surchargePercent' || field.key === 'orgnr' || field.key === 'supplierOrgnr' ? 'decimal-pad' : 'default'}
+        keyboardType={field.key === 'value' || field.key === 'surchargePercent' || field.key === 'orgnr' || field.key === 'supplierOrgnr' || field.key === 'engagementPercent' ? 'decimal-pad' : 'default'}
         style={[
           styles.input,
           MULTILINE.has(field.key) && styles.inputMulti,
-          { color: colors.ink, borderColor: warning ? warnColor : colors.line, backgroundColor: colors.bg },
+          {
+            color: colors.ink,
+            borderColor: warning ? warnColor : colors.line,
+            backgroundColor: readOnly ? colors.sunken : colors.bg,
+          },
         ]}
       />
       {field.key === 'value' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Eks. mva</Text> : null}
+      {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
       {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
     </View>
   );
@@ -229,6 +250,8 @@ function Drawer({ colors, title, open, onToggle, badge, children }) {
 export default function DirectAgreementForm({
   colors,
   companyId = '',
+  companyName = '',
+  companyOrgnr = '',
   projects = [],
   contracts = [],
   customers = [],
@@ -239,18 +262,26 @@ export default function DirectAgreementForm({
   onCancel,
   onRegister,
   onOpenCustomer,
+  onCustomersChanged,
 }) {
-  const [form, setForm] = useState(() => ({ ...emptyForm(), parentId, kind, customerId }));
+  const [form, setForm] = useState(() => ({
+    ...emptyForm(),
+    parentId,
+    kind,
+    customerId,
+    supplier: companyName || '',
+    supplierOrgnr: formatOrgnr(companyOrgnr) || companyOrgnr || '',
+    indexId: DEFAULT_INDEX_ID,
+  }));
   const [reading, setReading] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
-  const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState([]);
   const [previewId, setPreviewId] = useState('');
   const [registerHit, setRegisterHit] = useState(null);
-  const [brregHits, setBrregHits] = useState([]);
-  const [brregSearching, setBrregSearching] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [indexHint, setIndexHint] = useState('');
   const [open, setOpen] = useState({
     dokumenter: true,
     avtalen: true,
@@ -261,9 +292,17 @@ export default function DirectAgreementForm({
     ramme: false,
     opsjoner: false,
   });
-  const brregRef = useRef('');
   const { isPhone } = useLayout();
   const splitPreview = !isPhone;
+
+  useEffect(() => {
+    if (!companyName && !companyOrgnr) return;
+    setForm((current) => ({
+      ...current,
+      supplier: current.supplier || companyName || '',
+      supplierOrgnr: current.supplierOrgnr || formatOrgnr(companyOrgnr) || companyOrgnr || '',
+    }));
+  }, [companyName, companyOrgnr]);
 
   useEffect(() => {
     if (!customerId) return;
@@ -277,6 +316,7 @@ export default function DirectAgreementForm({
       personnummer: current.personnummer || hit.personnummer,
       address: current.address || hit.address,
       place: current.place || hit.place,
+      postalCode: current.postalCode || hit.postalCode || '',
       contactName: current.contactName || hit.contactName,
       email: current.email || hit.email,
       phone: current.phone || hit.phone,
@@ -285,57 +325,27 @@ export default function DirectAgreementForm({
     }));
   }, [customerId, customers]);
 
-  const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
   useEffect(() => {
-    const q = orgnrDigits.length === 9 ? orgnrDigits : String(form.buyer || '').trim();
-    if (q.length < 2) {
-      setRegisterHit(null);
-      setBrregHits([]);
-      return undefined;
-    }
+    const indexId = form.indexId || DEFAULT_INDEX_ID;
     let live = true;
-    const timer = setTimeout(() => {
-      setBrregSearching(true);
-      searchBrregCompanies(q, { size: 8 }).then((res) => {
-        if (!live) return;
-        const results = res.results || [];
-        setBrregHits(results);
-        const exact = results.find((row) => row.organisasjonsnummer === orgnrDigits) || (orgnrDigits.length === 9 ? results[0] : null);
-        if (!exact) {
-          if (orgnrDigits.length !== 9) setRegisterHit(null);
-          return;
-        }
-        if (brregRef.current === exact.organisasjonsnummer && registerHit?.orgnr === exact.organisasjonsnummer) return;
-        brregRef.current = exact.organisasjonsnummer;
-        const draft = customerDraftFromBrreg(exact);
-        if (!draft) {
-          setRegisterHit(null);
-          return;
-        }
-        setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
-        if (orgnrDigits.length === 9) {
-          setForm((current) => ({
-            ...current,
-            orgnr: draft.orgnr || current.orgnr,
-            personnummer: '',
-            address: current.address || draft.address,
-            place: current.place || draft.place,
-          }));
-        }
-      }).catch(() => {
-        if (live) {
-          setBrregHits([]);
-          if (orgnrDigits.length === 9) setRegisterHit(null);
-        }
-      }).finally(() => {
-        if (live) setBrregSearching(false);
-      });
-    }, 280);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [orgnrDigits, form.buyer]);
+    setIndexHint('Henter siste kjente indeks fra SSB…');
+    fetchSeriesById(indexId).then((bundle) => {
+      if (!live) return;
+      const latest = bundle?.series?.[indexId]?.latest;
+      if (!latest) {
+        setIndexHint('Kunne ikke hente indeksverdi. Velg tabell og prøv igjen.');
+        return;
+      }
+      const label = `${latest.period || latest.key || ''} = ${latest.value}`.trim();
+      setIndexHint(`Indeks 1 låses til siste kjente verdi: ${label} (SSB tabell ${bundle.series[indexId].table || ''}).`);
+      setForm((current) => (
+        current.indexBase === label ? current : { ...current, indexId, indexBase: label }
+      ));
+    }).catch(() => {
+      if (live) setIndexHint('Kunne ikke hente indeksverdi akkurat nå.');
+    });
+    return () => { live = false; };
+  }, [form.indexId]);
 
   const customerHint = matchCustomer(customers, {
     name: form.buyer,
@@ -491,7 +501,35 @@ export default function DirectAgreementForm({
         : 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.';
       await applyDocs(docs, note);
     } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese dokumentene. Lim inn teksten under.');
+      setError(cause?.message || 'Kunne ikke lese dokumentene. Prøv en annen fil, eller fyll inn feltene manuelt.');
+    } finally {
+      setReading(false);
+    }
+  }
+
+  async function importDropped(fileList) {
+    const list = (fileList || []).slice(0, 8).map((file) => ({
+      name: file.name,
+      mimeType: file.type || file.mimeType || 'application/octet-stream',
+      size: file.size || 0,
+      blob: file.blob || file,
+      uri: file.uri || '',
+    }));
+    if (!list.length) return;
+    setError('');
+    setReading(true);
+    setStatus(list.length > 1 ? `Leser ${list.length} dokumenter…` : 'Leser dokumentet…');
+    await yieldUi();
+    try {
+      const added = [];
+      for (let index = 0; index < list.length; index += 1) {
+        added.push(await readOneFile(list[index], files, index, list.length));
+      }
+      await applyDocs([...files, ...added], list.length > 1
+        ? `${list.length} dokumenter er vedlagt. Kontroller feltene merket med ! før du registrerer.`
+        : 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke lese dokumentene.');
     } finally {
       setReading(false);
     }
@@ -511,27 +549,11 @@ export default function DirectAgreementForm({
     setPreviewId(id);
   }
 
-  async function readPasted() {
-    const text = pasted.trim();
-    if (text.length < 20) {
-      setError('Lim inn avtaleteksten, eller last opp filene.');
+  function applyCustomerRow(customer, create = false) {
+    if (!customer && !create) {
+      patch({ customerId: '', createCustomer: false });
       return;
     }
-    setReading(true);
-    try {
-      const docs = [
-        ...files.filter((doc) => doc.name !== 'Innlimt tekst'),
-        { id: `dok-${Date.now()}`, name: 'Innlimt tekst', text, role: files.length ? 'vedlegg' : 'hoved', interpreted: true },
-      ];
-      await applyDocs(docs, 'Teksten er lest. Kontroller feltene før du registrerer.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke lese teksten.');
-    } finally {
-      setReading(false);
-    }
-  }
-
-  function useCustomer(customer, create = false) {
     if (create) {
       patch({
         customerId: '',
@@ -545,17 +567,43 @@ export default function DirectAgreementForm({
     patch({
       customerId: customer.id,
       createCustomer: false,
-      buyer: customer.name,
-      orgnr: customer.orgnr,
-      personnummer: customer.personnummer,
-      address: form.address || customer.address,
-      place: form.place || customer.place,
-      contactName: form.contactName || customer.contactName,
-      email: form.email || customer.email,
-      phone: form.phone || customer.phone,
-      ownerUid: customer.ownerUid || form.ownerUid || '',
-      ownerName: customer.ownerName || form.ownerName || '',
+      buyer: customer.name || form.buyer,
+      orgnr: customer.orgnr || form.orgnr,
+      personnummer: customer.personnummer || form.personnummer,
+      address: form.address || customer.address || '',
+      place: form.place || customer.place || '',
+      postalCode: form.postalCode || customer.postalCode || '',
+      contactName: form.contactName || customer.contactName || '',
+      email: form.email || customer.email || '',
+      phone: form.phone || customer.phone || '',
+      buyerAddress: form.buyerAddress || customer.address || '',
     });
+  }
+
+  function applyBrregDraft(draft, existing) {
+    if (!draft) return;
+    setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
+    if (existing) {
+      applyCustomerRow(existing);
+      return;
+    }
+    patch({
+      customerId: '',
+      createCustomer: true,
+      buyer: draft.name || form.buyer,
+      orgnr: draft.orgnr || form.orgnr,
+      personnummer: '',
+      address: form.address || draft.address || '',
+      place: form.place || draft.place || '',
+      postalCode: form.postalCode || draft.postalCode || '',
+      buyerAddress: form.buyerAddress || draft.address || '',
+      email: form.email || draft.email || '',
+      phone: form.phone || draft.phone || '',
+    });
+  }
+
+  function useCustomer(customer, create = false) {
+    applyCustomerRow(customer, create);
   }
 
   async function submit() {
@@ -571,9 +619,17 @@ export default function DirectAgreementForm({
         ...(payload?.fields || {}),
         standard: form.standard,
         indexId: form.indexId,
+        indexBase: form.indexBase,
         honorar: '',
+        honorarForm: form.honorarForm,
+        biomkostninger: form.biomkostninger,
+        paymentTerms: form.paymentTerms,
+        specialTerms: form.specialTerms,
         place: form.place,
+        postalCode: form.postalCode,
         address: form.address,
+        gnrBnr: form.gnrBnr,
+        engagementPercent: form.engagementPercent,
         description: form.description,
         poNumber: form.poNumber,
         orgnr: form.orgnr,
@@ -582,6 +638,16 @@ export default function DirectAgreementForm({
         contactName: form.contactName,
         email: form.email,
         phone: form.phone,
+        buyerAddress: form.buyerAddress,
+        invoiceMethod: form.invoiceMethod,
+        invoiceAttn: form.invoiceAttn,
+        leaderUid: form.leaderUid,
+        leaderName: form.leaderName,
+        leaderEmail: form.leaderEmail,
+        leaderPhone: form.leaderPhone,
+        resourceName: form.resourceName,
+        resourceEmail: form.resourceEmail,
+        resourcePhone: form.resourcePhone,
         reference: form.oppdragId || form.reference,
         surchargePercent: form.surchargePercent,
         contractDate: form.contractDate,
@@ -678,20 +744,45 @@ export default function DirectAgreementForm({
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
 
       <View style={styles.row}>
-        <TouchableOpacity
-          onPress={importFile}
-          disabled={reading}
-          accessibilityRole="button"
-          style={[styles.save, { backgroundColor: colors.brand, opacity: reading ? 0.6 : 1 }]}
-        >
-          <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokumenter' : 'Last opp dokumenter'}</Text>
-        </TouchableOpacity>
         <TouchableOpacity onPress={onCancel} accessibilityRole="button">
           <Text style={{ color: colors.muted }}>Avbryt</Text>
         </TouchableOpacity>
       </View>
 
       <Drawer colors={colors} title={`Dokumenter (${files.length})`} open={open.dokumenter} onToggle={() => toggle('dokumenter')}>
+        <View
+          {...(Platform.OS === 'web' ? {
+            onDragEnter: (event) => { event.preventDefault?.(); setDragOver(true); },
+            onDragOver: (event) => { event.preventDefault?.(); setDragOver(true); },
+            onDragLeave: () => setDragOver(false),
+            onDrop: (event) => {
+              event.preventDefault?.();
+              setDragOver(false);
+              const list = Array.from(event?.dataTransfer?.files || []);
+              if (list.length) importDropped(list);
+            },
+          } : {})}
+          style={[
+            styles.drop,
+            {
+              borderColor: dragOver ? colors.brand : colors.line,
+              backgroundColor: dragOver ? colors.sunken : colors.bg,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>
+            {reading ? 'Leser dokumentet …' : 'Slipp avtaledokumenter her'}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>PDF, Word eller bilde — AI fyller feltene som kan leses</Text>
+          <TouchableOpacity
+            onPress={importFile}
+            disabled={reading}
+            accessibilityRole="button"
+            style={[styles.save, { backgroundColor: colors.brand, opacity: reading ? 0.6 : 1 }]}
+          >
+            <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokumenter' : 'Last opp dokumenter'}</Text>
+          </TouchableOpacity>
+        </View>
         {files.length ? files.map((doc) => (
           <View key={doc.id} style={styles.row}>
             <TouchableOpacity
@@ -716,19 +807,6 @@ export default function DirectAgreementForm({
             </TouchableOpacity>
           </View>
         )) : <Text style={{ color: colors.muted }}>Ingen dokument er lagt ved ennå.</Text>}
-        <TextInput
-          value={pasted}
-          onChangeText={setPasted}
-          placeholder="Eller lim inn avtaleteksten her"
-          placeholderTextColor={colors.placeholder}
-          multiline
-          style={[styles.input, styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-        />
-        {pasted.trim().length >= 20 ? (
-          <TouchableOpacity onPress={readPasted} disabled={reading} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Les innlimt tekst</Text>
-          </TouchableOpacity>
-        ) : null}
       </Drawer>
 
       <View style={{ gap: 6 }}>
@@ -742,8 +820,57 @@ export default function DirectAgreementForm({
         </View>
       </View>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Tomt System-ID og Oppdrags-ID settes automatisk. Oppdrags-ID er unik per kunde. Skriv inn verdier fra et annet system ved overføring. Neste: System-ID {previewSystem} · Oppdrags-ID {previewOppdrag}.
+        System-ID og Oppdrags-ID settes automatisk (neste: {previewSystem} · {previewOppdrag}). Feltene er ikke skrivbare.
       </Text>
+
+      <AgreementCustomerField
+        colors={colors}
+        customers={customers}
+        customerId={form.customerId}
+        companyId={companyId}
+        people={followPeople}
+        label="Kunde / oppdragsgiver"
+        onSelect={(customer) => applyCustomerRow(customer)}
+        onBrregDraft={applyBrregDraft}
+        onSavedState={(saved) => onCustomersChanged?.(saved)}
+      />
+      {confirmText ? <Text style={{ color: colors.ink }}>{confirmText}</Text> : null}
+      {registerHit?.name && !namesLikelyMatch(form.buyer, registerHit.name) ? (
+        <TouchableOpacity onPress={() => patch({ buyer: registerHit.name })} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Bruk navn fra Enhetsregisteret</Text>
+        </TouchableOpacity>
+      ) : null}
+      {customerHint.status === 'match' && onOpenCustomer ? (
+        <TouchableOpacity onPress={() => onOpenCustomer(customerHint.customer.id)} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Åpne kundeforhold</Text>
+        </TouchableOpacity>
+      ) : null}
+      {customerHint.status === 'new' ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          {form.createCustomer ? 'Ny kunde opprettes ved registrering.' : 'Kunden finnes ikke i registeret ennå — velg «Ny virksomhet»/«Privatkunde» i søket.'}
+        </Text>
+      ) : null}
+
+      <AgreementPersonField
+        colors={colors}
+        people={followPeople}
+        ownerUid={form.ownerUid}
+        label="Ansvarlig for avtalen"
+        placeholder="Søk blant ansatte"
+        onSelect={(person) => patch({
+          ownerUid: person?.uid || person?.id || '',
+          ownerName: person?.name || '',
+        })}
+      />
+      <AgreementProjectField
+        colors={colors}
+        projects={projects}
+        projectId={form.projectId}
+        onSelect={(project) => patch({
+          projectId: project?.id || '',
+          projectName: project?.name || form.projectName || '',
+        })}
+      />
 
       {kindFields.filter((group) => group.id !== 'ramme').map((group) => (
         <Drawer
@@ -754,18 +881,70 @@ export default function DirectAgreementForm({
           onToggle={() => toggle(group.id)}
           badge={groupBadge(group.id)}
         >
-          <View style={styles.grid}>
-            {group.fields.filter((field) => field.key !== 'kind' && field.key !== 'parentId').map((field) => (
-              <Field
-                key={field.key}
-                colors={colors}
-                field={field}
-                value={form[field.key] || ''}
-                warning={flags[field.key]}
-                onChange={(value) => patch({ [field.key]: value })}
-              />
-            ))}
-          </View>
+          {group.id === 'sted' ? (
+            <View style={{ gap: 10 }}>
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Adresse</Text>
+                <LocationPicker
+                  value={form.address ? { label: form.address, postnummer: form.postalCode, place: form.place } : null}
+                  onChange={(loc) => {
+                    if (!loc) {
+                      patch({ address: '', postalCode: form.postalCode, place: form.place });
+                      return;
+                    }
+                    const label = String(loc.label || '');
+                    const parts = label.split(',').map((part) => part.trim()).filter(Boolean);
+                    patch({
+                      address: parts[0] || label,
+                      postalCode: loc.postnummer || form.postalCode || '',
+                      place: loc.place || parts[1] || parts[parts.length - 1] || form.place,
+                    });
+                  }}
+                />
+              </View>
+              <View style={styles.grid}>
+                {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
+                  <Field
+                    key={field.key}
+                    colors={colors}
+                    field={field}
+                    value={form[field.key] || ''}
+                    warning={flags[field.key]}
+                    onChange={(value) => patch({ [field.key]: value })}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {group.id === 'leverandor' ? (
+                <AgreementPersonField
+                  colors={colors}
+                  people={followPeople}
+                  ownerUid={form.leaderUid}
+                  label="Oppdragsleder"
+                  placeholder="Søk blant ansatte"
+                  onSelect={(person) => patch({
+                    leaderUid: person?.uid || person?.id || '',
+                    leaderName: person?.name || '',
+                    leaderEmail: person?.email || form.leaderEmail || '',
+                    leaderPhone: person?.phone || form.leaderPhone || '',
+                  })}
+                />
+              ) : null}
+              {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
+                <Field
+                  key={field.key}
+                  colors={colors}
+                  field={field}
+                  value={form[field.key] || ''}
+                  warning={flags[field.key]}
+                  hint={field.key === 'indexId' || field.key === 'indexBase' ? indexHint : ''}
+                  onChange={(value) => patch({ [field.key]: value })}
+                />
+              ))}
+            </View>
+          )}
         </Drawer>
       ))}
 
@@ -779,100 +958,6 @@ export default function DirectAgreementForm({
             {parents.map((row) => (
               <TouchableOpacity key={row.id} onPress={() => patch({ parentId: row.id, buyer: form.buyer || row.buyer, customerId: form.customerId || row.customerId })} accessibilityRole="button">
                 <Text style={{ color: form.parentId === row.id ? colors.brand : colors.ink }}>{row.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      <View style={[styles.hint, { borderColor: flags.buyer || flags.orgnr ? (colors.warn || '#d97706') : colors.line, backgroundColor: colors.bg }]}>
-        <Text style={{ color: colors.ink, fontWeight: '700' }}>Kunde</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Søk i Enhetsregisteret med org.nr eller firmanavn.</Text>
-        {brregSearching ? <Text style={{ color: colors.muted }}>Søker…</Text> : null}
-        {brregHits.length ? (
-          <View style={{ gap: 6 }}>
-            {brregHits.slice(0, 6).map((hit) => (
-              <TouchableOpacity
-                key={hit.organisasjonsnummer}
-                onPress={() => {
-                  const draft = customerDraftFromBrreg(hit);
-                  if (!draft) return;
-                  brregRef.current = draft.orgnr;
-                  setRegisterHit({ name: draft.name, orgnr: draft.orgnr, address: draft.address, place: draft.place });
-                  patch({
-                    buyer: draft.name,
-                    orgnr: draft.orgnr,
-                    personnummer: '',
-                    address: form.address || draft.address,
-                    place: form.place || draft.place,
-                  });
-                }}
-                accessibilityRole="button"
-              >
-                <Text style={{ color: colors.brand }}>
-                  {hit.navn} · {formatOrgnr(hit.organisasjonsnummer)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
-        {confirmText ? <Text style={{ color: colors.ink }}>{confirmText}</Text> : null}
-        {registerHit?.name && !namesLikelyMatch(form.buyer, registerHit.name) ? (
-          <TouchableOpacity onPress={() => patch({ buyer: registerHit.name })} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Bruk navn fra Enhetsregisteret</Text>
-          </TouchableOpacity>
-        ) : null}
-        {customerHint.status === 'match' ? (
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => useCustomer(customerHint.customer)} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>{form.customerId === customerHint.customer.id ? 'Koblet i registeret' : 'Koble til eksisterende kunde'}</Text>
-            </TouchableOpacity>
-            {onOpenCustomer ? (
-              <TouchableOpacity onPress={() => onOpenCustomer(customerHint.customer.id)} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Åpne kundeforhold</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-        {customerHint.status === 'ambiguous' ? (
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.muted }}>Flere kunder kan passe.</Text>
-            {customerHint.candidates.map((row) => (
-              <TouchableOpacity key={row.id} onPress={() => useCustomer(row)} accessibilityRole="button">
-                <Text style={{ color: form.customerId === row.id ? colors.brand : colors.ink }}>{row.name}{row.orgnr ? ` · ${formatOrgnr(row.orgnr)}` : ''}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
-        {customerHint.status === 'new' ? (
-          <TouchableOpacity onPress={() => useCustomer(customerHint.draft, true)} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>
-              {form.createCustomer ? 'Ny kunde opprettes ved registrering' : 'Opprett som ny kunde ved registrering'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        <OwnerPicker
-          colors={colors}
-          people={followPeople}
-          value={form.ownerUid}
-          label="Ansvarlig for avtalen"
-          onChange={(person) => patch({
-            ownerUid: person ? (person.uid || person.id) : '',
-            ownerName: person ? person.name : '',
-          })}
-        />
-      </View>
-
-      {projects.length ? (
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Koble til prosjekt</Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => patch({ projectId: '' })} accessibilityRole="button">
-              <Text style={{ color: form.projectId ? colors.muted : colors.brand }}>Ingen</Text>
-            </TouchableOpacity>
-            {projects.map((project) => (
-              <TouchableOpacity key={project.id} onPress={() => patch({ projectId: project.id, projectName: form.projectName || project.name })} accessibilityRole="button">
-                <Text style={{ color: form.projectId === project.id ? colors.brand : colors.ink }}>{project.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -947,23 +1032,29 @@ export default function DirectAgreementForm({
 const styles = StyleSheet.create({
   h: { fontSize: 20, fontWeight: '700' },
   card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
-  fieldsPane: { flex: 1, minWidth: 0 },
+  fieldsPane: { flex: 1, minWidth: 0, maxWidth: 720 },
   split: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, width: '100%' },
-  splitLeft: { flex: 1.05, minWidth: 0 },
+  splitLeft: { flex: 1, minWidth: 0, maxWidth: 720 },
   splitRight: {
-    flex: 0.95,
-    minWidth: 320,
-    maxWidth: 560,
+    flex: 1,
+    minWidth: 280,
+    maxWidth: 480,
     alignSelf: 'flex-start',
     ...(Platform.OS === 'web' ? { position: 'sticky', top: 12 } : null),
   },
-  stack: { gap: 12, width: '100%' },
+  stack: { gap: 12, width: '100%', maxWidth: 720 },
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  hint: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
+  drop: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
   banner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   summary: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
   drawer: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },

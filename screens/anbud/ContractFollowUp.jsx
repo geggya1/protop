@@ -78,7 +78,9 @@ export default function ContractFollowUp({
   onClearIntent,
   composeNonce = 0,
 }) {
-  const { requestShellTab } = useApp();
+  const { requestShellTab, family } = useApp();
+  const companyName = family?.company?.navn || family?.name || '';
+  const companyOrgnr = family?.company?.organisasjonsnummer || family?.orgnr || '';
   const access = useCompanyAccess();
   /** Permanent slett er forbeholdt administrator (og eier via bypass). */
   const canPurge = !access.previewLocks('contracts') && (
@@ -352,7 +354,7 @@ export default function ContractFollowUp({
 
   return (
     <View style={{ gap: 12 }}>
-      {view !== 'detail' ? (
+      {view !== 'detail' && view !== 'compose' ? (
         <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <TextInput
             value={filters.query}
@@ -411,6 +413,8 @@ export default function ContractFollowUp({
         <DirectAgreementForm
           colors={colors}
           companyId={companyId}
+          companyName={companyName}
+          companyOrgnr={companyOrgnr}
           projects={projects}
           contracts={contracts}
           customers={customers}
@@ -421,6 +425,9 @@ export default function ContractFollowUp({
           onCancel={() => setView('list')}
           onRegister={register}
           onOpenCustomer={onOpenCustomer}
+          onCustomersChanged={(saved) => {
+            if (saved) setState(saved);
+          }}
         />
       ) : null}
       {view === 'detail' && selected ? (

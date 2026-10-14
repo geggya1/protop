@@ -370,16 +370,14 @@ export default function AgreementTreatment({
           Når et tilbud blir et oppdrag, låses avtalen som utkast. Motparten ser bare feltene den kan endre, og merknadene blir synlige for avsender når de sendes i retur. Er alt i orden, kan avtalen signeres uten merknader.
         </Text>
       )}
-      {party === 'avsender' && onRegisterExisting ? (
-        <TouchableOpacity onPress={onRegisterExisting} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Avtalen er allerede inngått — registrer den med dokument og AI</Text>
-        </TouchableOpacity>
-      ) : null}
       {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
 
       {party === 'avsender' && !selected ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <View style={[styles.card, styles.draftCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt utkast</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Velg avtaletype og kunde. Ansvarlig tildeles senere i behandlingen.
+          </Text>
           <View style={styles.row}>
             {AGREEMENT_CASE_KINDS.map((item) => (
               <Chip key={item.id} colors={colors} label={item.label} on={draft.kind === item.id} onPress={() => setDraft({ ...draft, kind: item.id })} />
@@ -410,12 +408,6 @@ export default function AgreementTreatment({
               return { ...current, customerId: customer?.id || '', email };
             })}
             onSavedState={(saved) => setState(saved)}
-          />
-          <AgreementPersonField
-            colors={colors}
-            people={people}
-            ownerUid={draft.ownerUid}
-            onSelect={(person) => setDraft((current) => ({ ...current, ownerUid: person?.uid || '' }))}
           />
           {draft.kind === 'avrop' ? (
             <View style={styles.row}>
@@ -474,6 +466,14 @@ export default function AgreementTreatment({
           <Text style={{ color: colors.muted }}>
             {kindCaseLabel(view.kind)} · {view.sender?.name || 'Avsender'} og {view.counterparty?.name || 'Motpart'}
           </Text>
+          {party === 'avsender' && (view.status === 'utkast' || view.status === 'merknader') ? (
+            <AgreementPersonField
+              colors={colors}
+              people={people}
+              ownerUid={view.ownerUid || draft.ownerUid}
+              onSelect={(person) => setDraft((current) => ({ ...current, ownerUid: person?.uid || '' }))}
+            />
+          ) : null}
           <View style={styles.row}>
             {(view.versions || []).map((item) => (
               <Chip key={item.number} colors={colors} label={`Versjon ${item.number}`} on={item.number === version.number} onPress={() => setVersionNo(item.number)} />
@@ -672,6 +672,7 @@ export default function AgreementTreatment({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 10 },
+  draftCard: { maxWidth: 640, width: '100%', alignSelf: 'flex-start' },
   paper: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   fieldRow: { flexDirection: 'row', gap: 12, paddingVertical: 8, borderBottomWidth: 1, alignItems: 'flex-start' },
   fieldLabel: { width: 148, fontSize: 13 },

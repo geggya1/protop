@@ -69,6 +69,7 @@ export default function CustomerCreateModal({
   companyId,
   customers = [],
   people = [],
+  initialKind = 'org',
 }) {
   const [form, setForm] = useState(EMPTY);
   const [hits, setHits] = useState([]);
@@ -86,14 +87,14 @@ export default function CustomerCreateModal({
   useEffect(() => {
     if (!visible) return undefined;
     lookupRef.current = '';
-    setForm(EMPTY);
+    setForm(applyCustomerKind({ ...EMPTY }, initialKind === 'person' ? 'person' : 'org'));
     setHits([]);
     setError('');
     setNote('');
     setClash(null);
     setBusy(false);
     return undefined;
-  }, [visible]);
+  }, [visible, initialKind]);
 
   useEffect(() => {
     if (!visible || form.kind !== 'org') {

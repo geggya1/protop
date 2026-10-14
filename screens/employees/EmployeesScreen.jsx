@@ -1830,7 +1830,7 @@ const styles = StyleSheet.create({
   avatarSmall: { width: 32, height: 32, borderRadius: 8 },
   identity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  personName: { fontSize: 14, fontWeight: '400' },
+  personName: { fontSize: 14, fontWeight: '700' },
   personMeta: { fontSize: 14, fontWeight: '400' },
   grow: { flex: 1, gap: 1 },
   dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, fontSize: 12, fontWeight: '400' },

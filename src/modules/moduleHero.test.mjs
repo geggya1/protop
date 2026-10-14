@@ -303,6 +303,7 @@ assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices
 assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
+assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -504,6 +505,17 @@ assert.equal(
   'fakturagrunnlag bundled != public',
 );
 assert.match(assetsSrc, /'okonomi-fakturagrunnlag': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-fakturagrunnlag--module-activation-illustration\.png'\)/);
+const oversiktFile = 'okonomi-oversikt--module-activation-illustration.png';
+const oversiktBundled = join(ROOT, 'assets/module-activation', oversiktFile);
+const oversiktPublic = join(ROOT, 'public/assets/module-activation', oversiktFile);
+assert.equal(existsSync(oversiktBundled), true, 'oversikt bundled art');
+assert.equal(existsSync(oversiktPublic), true, 'oversikt public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(oversiktBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(oversiktPublic)).digest('hex'),
+  'oversikt bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-oversikt': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-oversikt--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

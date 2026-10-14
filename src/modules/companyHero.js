@@ -265,7 +265,8 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-oversikt': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Økonomi',
     kicker: t('Økonomi', 'Finance'),
     title: t('Økonomioversikt', 'Finance overview'),

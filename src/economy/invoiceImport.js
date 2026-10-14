@@ -28,7 +28,13 @@ const FIELD_ALIASES = [
   ['invoiceNumber', ['fakturanr', 'fakturanummer', 'invoicenumber', 'invoiceno', 'invoice']],
   ['invoiceDate', ['fakturadato', 'invoicedate', 'dato']],
   ['dueDate', ['forfallsdato', 'duedate', 'forfall']],
-  ['reminderPostponedTo', ['paminneelseutsattil', 'paminneelseutsatt', 'reminderpostponedto']],
+  ['reminderPostponedTo', [
+    'paminnelseutsatttil',
+    'paminnelseutsatt',
+    'paminneelseutsattil',
+    'paminneelseutsatt',
+    'reminderpostponedto',
+  ]],
   ['periodStart', ['periodestart', 'periodstart']],
   ['periodEnd', ['periodeslutt', 'periodend']],
   ['customerNumber', ['kundenummer', 'kundenr', 'customernumber', 'customerno']],
@@ -85,7 +91,9 @@ export function invoiceColumnField(header) {
   if (key.includes('kundesegment')) return 'projectTagSegment';
   if (key.includes('markedsomrade')) return 'projectTagMarket';
   if (key.startsWith('prosjekttagger') && key.endsWith('prosjekttagger')) return 'projectTags';
-  if (key === 'paminneelseutsattil' || key.includes('paminneelse')) return 'reminderPostponedTo';
+  if (key.includes('paminnelse') || key.includes('paminneelse') || key.includes('reminderpostponed')) {
+    return 'reminderPostponedTo';
+  }
   return '';
 }
 

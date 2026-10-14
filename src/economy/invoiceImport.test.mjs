@@ -32,6 +32,10 @@ import {
   assert.equal(invoiceColumnField('Beløp ink. mva'), 'amountInclVat');
   assert.equal(invoiceColumnField('Regnskapskonto: 3000'), 'account:3000');
   assert.equal(invoiceColumnField('Utestående'), 'outstanding');
+  assert.equal(invoiceColumnField('Påminnelse utsatt til'), 'reminderPostponedTo');
+  assert.equal(invoiceColumnField('Påminnelse utsatt'), 'reminderPostponedTo');
+  assert.equal(invoiceColumnField('Periodestart'), 'periodStart');
+  assert.equal(invoiceColumnField('Honorarer eks. påslag'), 'feesExMarkup');
 }
 
 {
@@ -200,59 +204,116 @@ import {
   assert.equal(periodRows.length, 1);
 }
 
-// Full Excel-fil (vedlegg): parse + plan uten avvik på summeringsrad
+// Moment-lignende CSV: alle kolonner mappes/beholdes (inkl. ukjente i source.values)
 {
-  const bytes = readFileSync('/home/ubuntu/.cursor/projects/workspace/uploads/invoices_eafb.xlsx');
-  const rows = await readInvoiceTable(new Uint8Array(bytes), 'invoices.xlsx');
-  assert.ok(rows.length >= 6700, `forventet mange rader, fikk ${rows.length}`);
-  assert.equal(rows[0].invoiceNumber, '16713');
-  assert.ok(rows[0]._sourceValues.Fakturanr);
-  assert.ok(Object.keys(rows[0].accounts || {}).length >= 1 || rows[0]['account:3000']);
+  const csv = [
+    'Fakturanr;Fakturadato;Forfallsdato;Påminnelse utsatt til;Periodestart;Periodeslutt;Kundenummer;Kundenavn;Org.nr.;Prosjektnummer;Prosjekt;Honorarer eks. påslag;Regnskapskonto: 3000;Beløp eks. mva;MVA;Beløp ink. mva;Utestående;Ekstra ukjent',
+    '10001;01.01.2024;15.01.2024;20.01.2024;01.01.2024;31.01.2024;10002;Novaform AS;991356959;10009;E39 Hove - Sandved (2148);70000;70000;71700;17925;89625;Paid;BEHOLDES',
+    '10002;02.01.2024;16.01.2024;;01.01.2024;31.01.2024;10002;Novaform AS;991356959;10009;E39 Hove - Sandved (2148);65000;65000;65383,20;16345,80;81729,00;Paid;X',
+    'Totalt;;;;;;;;;;;;;;;1000000;',
+  ].join('\n');
+  const rows = await readInvoiceTable(new TextEncoder().encode(csv), 'alle fakturaer.csv');
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].invoiceNumber, '10001');
+  assert.equal(rows[0].reminderPostponedTo, '20.01.2024');
+  assert.equal(rows[0].periodStart, '01.01.2024');
+  assert.equal(rows[0].feesExMarkup, '70000');
+  assert.equal(rows[0].accounts['3000'], '70000');
+  assert.equal(rows[0]._sourceValues['Ekstra ukjent'], 'BEHOLDES');
+  assert.equal(Object.keys(rows[0]._sourceValues).length, 18);
 
-  const customers = [
-    { id: 'c-ry', name: 'RYFYLKE EIENDOM AS', customerNumber: '10231', orgnr: '983858635' },
-  ];
-  const projects = [
-    { id: 'p-gol', number: '10869', name: 'Golhaug VVA - Kontroll VA', customerId: 'c-ry' },
-  ];
-  const plan = planInvoiceImport([], customers, projects, rows.slice(0, 5));
-  assert.equal(plan.rows.length, 5);
-  const first = plan.rows.find((row) => row.invoice?.invoiceNumber === '16713');
-  assert.equal(first.invoice.customerId, 'c-ry');
-  assert.equal(first.invoice.projectId, 'p-gol');
-  assert.equal(first.severity, 'ok');
-
-  const full = planInvoiceImport([], customers, projects, rows);
-  const blocked = full.rows.filter((row) => row.severity === 'block');
-  assert.ok(blocked.length >= 1, 'summeringsrad skal blokkeres');
-  assert.ok(full.rows.filter((row) => row.invoice).length >= 6700);
-  const reviewUi = reviewRowsForInvoicePlan(full);
-  assert.ok(reviewUi.length < 900, 'UI-gjennomgang skal være gruppert på prosjekt, ikke én kort per rad');
-  const built = buildInvoiceImportReview(full);
-  assert.ok(built.okRows.length >= 0);
-  assert.ok(built.reviewCards.every((card) => card.indexes?.length));
-}
-
-{
-  const bytes = readFileSync('/home/ubuntu/.cursor/projects/workspace/uploads/alle_fakturaer_8bfe.xlsx');
-  const rows = await readInvoiceTable(new Uint8Array(bytes), 'alle_fakturaer.xlsx');
-  assert.ok(rows.length >= 6700);
   const customers = [
     { id: 'c-nova', name: 'Novaform AS', customerNumber: '10002', orgnr: '991356959' },
   ];
   const projects = [
     { id: 'p-10009', number: '10009', name: 'E39 Hove - Sandved (2148)', customerId: 'c-nova' },
   ];
-  const plan = planInvoiceImport([{ invoiceNumber: '10001' }], customers, projects, rows.slice(0, 20));
-  assert.equal(plan.rows.find((row) => row.title?.includes('10001'))?.severity, 'existing');
+  const plan = planInvoiceImport([{ invoiceNumber: '10001' }], customers, projects, rows);
+  assert.equal(plan.rows[0].severity, 'existing');
+  assert.equal(plan.rows[1].severity, 'ok');
+  assert.equal(plan.rows[1].invoice.customerId, 'c-nova');
+  assert.equal(plan.rows[1].invoice.projectId, 'p-10009');
+  assert.equal(plan.rows[1].invoice.accounts['3000'], 65000);
+  assert.equal(plan.rows[1].invoice.source.values['Ekstra ukjent'], 'X');
+  assert.equal(plan.rows[2].severity, 'block');
+
   const built = buildInvoiceImportReview(plan);
-  assert.ok(built.existingCount >= 1);
-  assert.ok(built.okRows.length + built.reviewCards.length >= 1);
-  // Kobling av ett prosjekt løser alle rader med samme prosjektnr
-  const unlinked = plan.rows.findIndex((row) => row.severity === 'review' && row.projectNumber === '10009');
-  if (unlinked >= 0) {
-    const linked = linkImportPlanProject(plan, unlinked, projects[0], { applyGroup: true });
-    assert.ok(linked.rows.filter((row) => row.projectNumber === '10009' && row.severity !== 'existing').every((row) => row.projectId === 'p-10009'));
+  assert.equal(built.existingCount, 1);
+  assert.equal(built.okRows.length, 1);
+  assert.equal(built.okRows[0].invoiceNumber, '10002');
+  // OK-tabellen er bevisst kompakt — full data ligger på invoice.source / typed felt
+  assert.equal(built.okRows[0].customerName, 'Novaform AS');
+  assert.ok(built.okRows[0].amountInclVat != null);
+}
+
+// Full Excel-fil (valgfritt vedlegg fra tidligere agent-kjøring)
+{
+  const path = '/home/ubuntu/.cursor/projects/workspace/uploads/invoices_eafb.xlsx';
+  let bytes;
+  try {
+    bytes = readFileSync(path);
+  } catch {
+    bytes = null;
+  }
+  if (bytes) {
+    const rows = await readInvoiceTable(new Uint8Array(bytes), 'invoices.xlsx');
+    assert.ok(rows.length >= 6700, `forventet mange rader, fikk ${rows.length}`);
+    assert.equal(rows[0].invoiceNumber, '16713');
+    assert.ok(rows[0]._sourceValues.Fakturanr);
+    assert.ok(Object.keys(rows[0].accounts || {}).length >= 1 || rows[0]['account:3000']);
+
+    const customers = [
+      { id: 'c-ry', name: 'RYFYLKE EIENDOM AS', customerNumber: '10231', orgnr: '983858635' },
+    ];
+    const projects = [
+      { id: 'p-gol', number: '10869', name: 'Golhaug VVA - Kontroll VA', customerId: 'c-ry' },
+    ];
+    const plan = planInvoiceImport([], customers, projects, rows.slice(0, 5));
+    assert.equal(plan.rows.length, 5);
+    const first = plan.rows.find((row) => row.invoice?.invoiceNumber === '16713');
+    assert.equal(first.invoice.customerId, 'c-ry');
+    assert.equal(first.invoice.projectId, 'p-gol');
+    assert.equal(first.severity, 'ok');
+
+    const full = planInvoiceImport([], customers, projects, rows);
+    const blocked = full.rows.filter((row) => row.severity === 'block');
+    assert.ok(blocked.length >= 1, 'summeringsrad skal blokkeres');
+    assert.ok(full.rows.filter((row) => row.invoice).length >= 6700);
+    const reviewUi = reviewRowsForInvoicePlan(full);
+    assert.ok(reviewUi.length < 900, 'UI-gjennomgang skal være gruppert på prosjekt, ikke én kort per rad');
+    const built = buildInvoiceImportReview(full);
+    assert.ok(built.okRows.length >= 0);
+    assert.ok(built.reviewCards.every((card) => card.indexes?.length));
+  }
+}
+
+{
+  const path = '/home/ubuntu/.cursor/projects/workspace/uploads/alle_fakturaer_8bfe.xlsx';
+  let bytes;
+  try {
+    bytes = readFileSync(path);
+  } catch {
+    bytes = null;
+  }
+  if (bytes) {
+    const rows = await readInvoiceTable(new Uint8Array(bytes), 'alle_fakturaer.xlsx');
+    assert.ok(rows.length >= 6700);
+    const customers = [
+      { id: 'c-nova', name: 'Novaform AS', customerNumber: '10002', orgnr: '991356959' },
+    ];
+    const projects = [
+      { id: 'p-10009', number: '10009', name: 'E39 Hove - Sandved (2148)', customerId: 'c-nova' },
+    ];
+    const plan = planInvoiceImport([{ invoiceNumber: '10001' }], customers, projects, rows.slice(0, 20));
+    assert.equal(plan.rows.find((row) => row.title?.includes('10001'))?.severity, 'existing');
+    const built = buildInvoiceImportReview(plan);
+    assert.ok(built.existingCount >= 1);
+    assert.ok(built.okRows.length + built.reviewCards.length >= 1);
+    const unlinked = plan.rows.findIndex((row) => row.severity === 'review' && row.projectNumber === '10009');
+    if (unlinked >= 0) {
+      const linked = linkImportPlanProject(plan, unlinked, projects[0], { applyGroup: true });
+      assert.ok(linked.rows.filter((row) => row.projectNumber === '10009' && row.severity !== 'existing').every((row) => row.projectId === 'p-10009'));
+    }
   }
 }
 

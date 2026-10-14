@@ -269,6 +269,15 @@ export function noticeMapScope(notice) {
   return { coverage: 'punkt', ...hit };
 }
 
+/** point = stedfestet, hele = hele Norge, miss = uten sted. */
+export function noticePlaceBucket(notice) {
+  if (unboundPlace(notice)) return 'hele';
+  const hit = locateNotice(notice);
+  if (!hit) return 'miss';
+  if (hit.precision === 'land' && hit.label === 'Norge') return 'hele';
+  return 'point';
+}
+
 function lookupKey(raw) {
   const key = token(raw);
   if (!key || key.length < 2) return null;
@@ -423,11 +432,13 @@ export function mapPinsForNotices(notices, { expired, asShown = false, unknownAs
   const lands = [];
   for (const row of rows) {
     const scope = noticeMapScope(row);
+    const placeKind = noticePlaceBucket(row);
     if (scope.coverage === 'land' && !unknownAsLand && !unboundPlace(row)) continue;
     if (scope.coverage === 'land') {
       lands.push({
         ...pinBase(row),
         coverage: 'land',
+        placeKind,
         label: 'Hele Norge',
         lat: 64.5,
         lng: 12,
@@ -442,6 +453,7 @@ export function mapPinsForNotices(notices, { expired, asShown = false, unknownAs
     points.push({
       ...pinBase(row),
       coverage: 'punkt',
+      placeKind,
       label: scope.label,
       lat: point.lat,
       lng: point.lng,

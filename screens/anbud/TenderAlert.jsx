@@ -11,7 +11,7 @@ import {
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing } from '../../src/anbud/geocodePlace';
-import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, unboundPlace } from '../../src/anbud/noticePlace';
+import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, noticePlaceBucket, unboundPlace } from '../../src/anbud/noticePlace';
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
@@ -78,6 +78,18 @@ function day(value) {
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return raw ? formatWhen(raw) : '—';
   return `${match[3]}.${match[2]}.${match[1]}`;
+}
+
+function Stat({ value, label, dot, colors, grow = 1 }) {
+  return (
+    <View style={[styles.stat, { flexGrow: grow, flexBasis: 0 }]}>
+      <Text style={[styles.statValue, { color: colors.ink }]}>{value}</Text>
+      <View style={styles.statLabel}>
+        <View style={[styles.statDot, { backgroundColor: dot }]} />
+        <Text style={[styles.statCaption, { color: colors.muted }]}>{label}</Text>
+      </View>
+    </View>
+  );
 }
 
 function Chip({ label, on, onPress, colors, hint, count, emphasis }) {
@@ -148,6 +160,7 @@ function NoticeBody({ row, colors }) {
 
 export default function TenderAlert({
   company, colors, onBids, onOpenSettings, onOpenReview, onReviewCount, units = [],
+  stepFilter = null,
 }) {
   const { width } = useWindowDimensions();
   const [cssPhone, setCssPhone] = useState(false);
@@ -630,6 +643,17 @@ export default function TenderAlert({
     profile: state.watch?.profile,
   }), [selectedCpv, keywords, state.watch?.profile]);
 
+  const placeCounts = useMemo(() => {
+    const counts = { hele: 0, miss: 0 };
+    for (const row of scopedNotices) {
+      if (row.decision === 'tilbud') continue;
+      const bucket = noticePlaceBucket(row);
+      if (bucket === 'hele') counts.hele += 1;
+      else if (bucket === 'miss') counts.miss += 1;
+    }
+    return counts;
+  }, [scopedNotices]);
+
   const filterCounts = useMemo(() => {
     const counts = { nye: 0, aktuelle: 0, uaktuelle: 0, alle: 0, utlopt: 0 };
     for (const row of scopedNotices) {
@@ -833,12 +857,64 @@ export default function TenderAlert({
     <View style={[styles.layout, !phone && styles.layoutDesktop]}>
       <View style={styles.main}>
         {!phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
-        <View style={[styles.titleRow, phone && styles.titleRowPhone]}>
+        {phone ? (
+          <>
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              Finn relevante anbud og hold deg oppdatert på muligheter i markedet.
+            </Text>
+            <View nativeID="anbud-toolbar" style={styles.toolbar}>
+              {stepFilter}
+              <View style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                <InfoButton title="Oppsummering">{summaryBody}</InfoButton>
+              </View>
+              <TouchableOpacity
+                onPress={() => onOpenSettings?.()}
+                accessibilityRole="button"
+                accessibilityLabel="Åpne innstillinger for CPV og søk"
+                style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Ionicons name="settings-outline" size={16} color={colors.ink} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => refresh(stateRef.current, true)}
+                accessibilityRole="button"
+                style={[styles.updateBtn, { backgroundColor: colors.brand }]}
+              >
+                <Ionicons name="refresh" size={14} color="#fff" />
+                <Text style={styles.updateTxt}>{syncing ? 'Søker …' : 'Oppdater nå'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => applyAiRank(stateRef.current.watch, stateRef.current.notices)}
+                accessibilityRole="button"
+                accessibilityLabel="Vurder treff med AI"
+                style={[styles.rankLink, { backgroundColor: colors.sunken }]}
+              >
+                <Ionicons name="pulse-outline" size={14} color={colors.ink} />
+                <Text style={[styles.rankTxt, { color: colors.ink }]}>
+                  {ranking ? 'Vurderer …' : 'Vurder treff'}
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {state.syncedAt ? `Oppdatert ${formatWhen(state.syncedAt)}` : 'Ikke oppdatert ennå'}
+              </Text>
+              <View nativeID="anbud-treff" style={styles.statRow}>
+                <Stat value={filterCounts.nye} label="Nye" dot="#2563eb" colors={colors} grow={0.82} />
+                <View style={[styles.statRule, { backgroundColor: colors.line }]} />
+                <Stat value={placeCounts.hele} label="Hele Norge" dot="#93c5fd" colors={colors} grow={1} />
+                <View style={[styles.statRule, { backgroundColor: colors.line }]} />
+                <Stat value={placeCounts.miss} label="Ikke stedbunden" dot="#94a3b8" colors={colors} grow={1.22} />
+              </View>
+            </View>
+          </>
+        ) : (
+        <View style={styles.titleRow}>
           <View style={{ gap: 2, flex: 1, flexShrink: 1, minWidth: 0 }}>
             <View style={styles.headIcons}>
               <Text style={[styles.h, { color: colors.ink }]}>Treff</Text>
-              {phone ? <InfoButton title="Oppsummering">{summaryBody}</InfoButton> : null}
-              {phone ? settingsGear() : null}
             </View>
             {state.syncedAt ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -860,6 +936,7 @@ export default function TenderAlert({
             </TouchableOpacity>
           </View>
         </View>
+        )}
         {phone ? null : searchField}
         {phone ? null : regionBox}
         <View style={styles.row}>
@@ -934,7 +1011,7 @@ export default function TenderAlert({
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
         {phone && !mapDockOpen ? (
-          <View style={Platform.OS === 'web' ? { marginRight: 40 } : null}>
+          <View>
           <TenderMap
             pins={pins}
             selectedId={openId}
@@ -942,6 +1019,12 @@ export default function TenderAlert({
             missing={missingPlaces}
             compact
             brief
+            coveragePalette
+            legendItems={[
+              { label: 'Nye', color: '#2563eb' },
+              { label: 'Hele Norge', color: '#93c5fd' },
+              { label: 'Ikke stedbunden', color: '#94a3b8' },
+            ]}
             mapHeight={PHONE_PREVIEW_MAP_HEIGHT}
             note={mapNote}
             followId={mapFollow.id}
@@ -969,6 +1052,12 @@ export default function TenderAlert({
                 colors={colors}
                 missing={missingPlaces}
                 compact={dockWidth < 420}
+                coveragePalette
+                legendItems={[
+                  { label: 'Nye', color: '#2563eb' },
+                  { label: 'Hele Norge', color: '#93c5fd' },
+                  { label: 'Ikke stedbunden', color: '#94a3b8' },
+                ]}
                 mapHeight={mapHeightForRail(dockWidth, viewportHeight - bottomNav)}
                 showHeading={false}
                 note={mapNote}
@@ -1202,7 +1291,44 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
   h: { fontSize: 16, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  titleRowPhone: { flexWrap: 'wrap', alignItems: 'flex-start' },
+  lead: { fontSize: 15, lineHeight: 21 },
+  toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 3 },
+  iconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  updateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    height: 34,
+    flexShrink: 0,
+  },
+  updateTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  rankLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    flexShrink: 0,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    height: 34,
+  },
+  rankTxt: { fontWeight: '600', fontSize: 12 },
+  statRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 4 },
+  stat: { flexShrink: 1, minWidth: 0, gap: 2 },
+  statRule: { width: 1, alignSelf: 'stretch' },
+  statValue: { fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  statLabel: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 0 },
+  statCaption: { fontSize: 12, flexShrink: 1 },
+  statDot: { width: 8, height: 8, borderRadius: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderRadius: 999,

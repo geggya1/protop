@@ -55,6 +55,7 @@ export function tenderMapDocument(pins, {
   showMark = true,
   openLabel = 'Åpne i listen',
   kindLabel = '',
+  coveragePalette = false,
 } = {}) {
   const rows = (Array.isArray(pins) ? pins : []).filter((row) => (
     Number.isFinite(Number(row?.lat)) && Number.isFinite(Number(row?.lng))
@@ -70,6 +71,7 @@ export function tenderMapDocument(pins, {
     lng: Number(row.lng),
     coverage: row.coverage === 'land' ? 'land' : '',
     kind: row.kind === 'aktuell' || row.kind === 'uaktuell' ? row.kind : 'ny',
+    placeKind: row.placeKind === 'hele' || row.placeKind === 'miss' ? row.placeKind : 'point',
     ...(Number(row.mapNo) > 0 ? { mapNo: Number(row.mapNo) } : {}),
   }))).replace(/</g, '\\u003c');
   return `<!doctype html>
@@ -124,7 +126,15 @@ export function tenderMapDocument(pins, {
     padding: 4px 8px; box-shadow: 0 1px 4px rgba(15,23,42,.25);
   }
   .leaflet-tooltip-center.land-tip::before { display: none; }
-  ${compact ? '.bar { display: none; }' : ''}
+  ${compact ? `.bar, .row, .bubble > .open { display: none; }
+  .decisions .mark { min-height: 36px; border-radius: 10px; border: 1px solid #e6ebf2; }
+  .decisions .mark.aktuell { background: #2563eb !important; color: #fff !important; border-color: #2563eb; }
+  .decisions .mark.uaktuell { background: #fff !important; color: #152033 !important; }
+  .kicker { font-weight: 500; color: #64748b; }
+  .jump { font-size: 15px; color: #2563eb !important; }` : ''}
+  ${coveragePalette ? `.pin.tone-point { background: #2563eb; }
+  .pin.tone-hele { background: #93c5fd; }
+  .pin.tone-miss { background: #94a3b8; }` : ''}
 </style>
 </head>
 <body>
@@ -142,6 +152,7 @@ const brandColor = ${JSON.stringify(String(brand || '#3D6B8A'))};
 const showMark = ${showMark === false ? 'false' : 'true'};
 const openLabel = ${JSON.stringify(String(openLabel || 'Åpne i listen'))};
 const kindLabel = ${JSON.stringify(String(kindLabel || ''))};
+const coveragePalette = ${coveragePalette ? 'true' : 'false'};
 const NORWAY = [[71.1855,28.1655],[70.4538,31.2934],[70.1863,30.0054],[69.5581,31.1011],[69.1569,29.3996],[69.0648,28.5919],[69.7665,29.0156],[70.1642,27.7323],[69.8253,26.1796],[69.0921,25.6892],[68.6496,24.7357],[68.8912,23.6621],[68.8417,22.3562],[69.3704,21.2449],[69.1062,20.6456],[69.0651,20.0253],[68.4072,19.8786],[68.5674,17.9939],[68.0106,17.7292],[68.0139,16.7689],[67.3025,16.1087],[66.1939,15.1084],[64.787,13.5557],[64.4454,13.9199],[64.0491,13.5719],[64.0662,12.5799],[63.1283,11.9306],[61.8004,11.9921],[61.2936,12.6311],[60.1179,12.3004],[59.4324,11.4683],[58.8561,11.0274],[59.4698,10.3566],[58.3133,8.382],[58.0789,7.0487],[58.5882,5.6658],[59.6632,5.3082],[61.971,4.9921],[62.6145,5.9129],[63.454,8.5534],[64.486,10.5277],[65.8797,12.3583],[67.8106,14.7611],[68.5632,16.4359],[69.8174,19.184],[70.2552,21.3784],[70.2021,23.0237],[71.0305,24.5465],[70.9863,26.37],[71.1855,28.1655]];
 const map = L.map('map', { zoomControl: true, attributionControl: true });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -184,12 +195,15 @@ let fitted = false;
 let country = null;
 let countryOn = false;
 const popupPad = ${compact ? '[8, 12]' : '[12, 64]'};
-const icon = (kind, on, mapNo) => {
+const icon = (kind, on, mapNo, placeKind) => {
   const n = Number(mapNo) || 0;
   const w = on ? 30 : (n ? 22 : 14);
+  const tone = coveragePalette
+    ? (placeKind === 'hele' ? ' tone-hele' : placeKind === 'miss' ? ' tone-miss' : ' tone-point')
+    : '';
   return L.divIcon({
     className: '',
-    html: '<div class="pin ' + kind + (on ? ' on' : '') + (n ? ' num' : '') + (picked && !on ? ' dim' : '') + '">' + (n ? esc(String(n)) : '') + '</div>',
+    html: '<div class="pin ' + kind + tone + (on ? ' on' : '') + (n ? ' num' : '') + (picked && !on ? ' dim' : '') + '">' + (n ? esc(String(n)) : '') + '</div>',
     iconSize: [w, w],
     iconAnchor: [Math.round(w / 2), Math.round(w / 2)],
   });
@@ -198,7 +212,7 @@ function paint() {
   markers.forEach((marker, i) => {
     if (!marker) return;
     const on = picked && i === current;
-    marker.setIcon(icon(pins[i].kind, on, pins[i].mapNo));
+    marker.setIcon(icon(pins[i].kind, on, pins[i].mapNo, pins[i].placeKind));
     if (marker.setZIndexOffset) marker.setZIndexOffset(on ? 1200 : 0);
   });
   const row = pins[current];
@@ -275,6 +289,7 @@ function normalizePin(row) {
     lng: Number(row && row.lng),
     coverage: row && row.coverage === 'land' ? 'land' : '',
     kind: row && (row.kind === 'aktuell' || row.kind === 'uaktuell') ? row.kind : 'ny',
+    placeKind: row && (row.placeKind === 'hele' || row.placeKind === 'miss') ? row.placeKind : 'point',
     busy: !!(row && row.busy),
     mapNo: Number(row && row.mapNo) > 0 ? Number(row.mapNo) : 0,
   };
@@ -288,7 +303,7 @@ function sameIds(next) {
   return true;
 }
 function bindMarker(row) {
-  const marker = L.marker([row.lat, row.lng], { icon: icon(row.kind, false, row.mapNo), title: row.mapNo ? (row.mapNo + ' ' + row.title) : row.title });
+  const marker = L.marker([row.lat, row.lng], { icon: icon(row.kind, false, row.mapNo, row.placeKind), title: row.mapNo ? (row.mapNo + ' ' + row.title) : row.title });
   marker.bindPopup(() => {
     const index = Math.max(0, pins.findIndex((item) => item.id === row.id));
     return popupHtml(pins[index] || row, index);

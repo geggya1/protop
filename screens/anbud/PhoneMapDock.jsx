@@ -186,6 +186,7 @@ export default function PhoneMapDock({
 
   const maxNow = railMaxWidth(viewportWidth);
   const expanded = open && alertRailIsOpen(width);
+  if (!expanded) return null;
   const map = expanded && typeof children === 'function'
     ? children({ width, viewportHeight, bottomNav })
     : null;

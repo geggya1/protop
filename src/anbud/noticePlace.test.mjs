@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { locateNotice, mapFollowsList, mapPinsForNotices, nextMapPinIndex, noticeMapScope, unboundPlace } from './noticePlace.js';
+import { locateNotice, mapFollowsList, mapPinsForNotices, nextMapPinIndex, noticeMapScope, noticePlaceBucket, unboundPlace } from './noticePlace.js';
 import { pinPopupHtml, tenderMapDocument } from './tenderMapHtml.js';
 
 assert.equal(locateNotice({ places: ['Nordland/Nordlánnda'] }).label, 'Nordland');
@@ -16,6 +16,9 @@ assert.equal(noticeMapScope({ title: 'Rammeavtale i Vågan', places: ['Ikke sted
 assert.equal(noticeMapScope({ places: ['NOR'] }).coverage, 'land');
 assert.equal(noticeMapScope({ places: ['Oslo'] }).coverage, 'punkt');
 assert.equal(noticeMapScope({ places: [] }).label, 'Hele Norge');
+assert.equal(noticePlaceBucket({ places: ['Ikke stedbunden'] }), 'hele');
+assert.equal(noticePlaceBucket({ places: [] }), 'miss');
+assert.equal(noticePlaceBucket({ places: ['Oslo'] }), 'point');
 
 const national = mapPinsForNotices([
   { id: 'n', title: 'Rammeavtale i Vågan', places: ['Ikke stedbunden'], decision: 'ubestemt' },

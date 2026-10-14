@@ -170,7 +170,7 @@ export default function EconomyOps({ kind = 'expenses' }) {
 
   return (
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      {hostedHero && kind === 'products' ? null : (
+      {hostedHero && (kind === 'products' || kind === 'mileage') ? null : (
         <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
       )}
       {kind === 'expenses' ? (
@@ -180,7 +180,8 @@ export default function EconomyOps({ kind = 'expenses' }) {
       ) : null}
       {kind === 'mileage' ? (
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-          Yrkeskjøring med fra/til, formål og km. Sats 2026: {MILEAGE_RATE_TAX_FREE.toFixed(2)} kr/km (skattefri). I år: {dutyKm} km yrkeskjøring
+          {hostedHero ? '' : 'Yrkeskjøring med fra/til, formål og km. '}
+          Sats 2026: {MILEAGE_RATE_TAX_FREE.toFixed(2)} kr/km (skattefri). I år: {dutyKm} km yrkeskjøring
           {dutyKm >= 6000 ? ' — over 6 000 km: vurder faktiske bilutgifter.' : '.'}
         </Text>
       ) : null}

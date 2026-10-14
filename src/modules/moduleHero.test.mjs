@@ -300,6 +300,7 @@ assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'produc
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');
 assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices use the wide illustration');
+assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -468,6 +469,17 @@ assert.equal(
   'faktura bundled != public',
 );
 assert.match(assetsSrc, /'okonomi-faktura': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-faktura--module-activation-illustration\.png'\)/);
+const kjorebokFile = 'okonomi-kjorebok--module-activation-illustration.png';
+const kjorebokBundled = join(ROOT, 'assets/module-activation', kjorebokFile);
+const kjorebokPublic = join(ROOT, 'public/assets/module-activation', kjorebokFile);
+assert.equal(existsSync(kjorebokBundled), true, 'kjorebok bundled art');
+assert.equal(existsSync(kjorebokPublic), true, 'kjorebok public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(kjorebokBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(kjorebokPublic)).digest('hex'),
+  'kjorebok bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-kjorebok': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-kjorebok--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

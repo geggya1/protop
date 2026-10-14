@@ -326,13 +326,14 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-kjorebok': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Kjørebok',
     kicker: t('Økonomi', 'Finance'),
     title: t('Kjørebok', 'Mileage'),
     pitch: t(
-      'Yrkeskjøring, bom og parkering.',
-      'Business driving, tolls and parking.',
+      'Yrkeskjøring med fra/til, formål og km.',
+      'Business trips with from/to, purpose and km.',
     ),
   },
   'okonomi-produkter': {

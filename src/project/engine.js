@@ -1626,6 +1626,15 @@ export function deleteAbsences(state, absenceIds) {
   return ok({ ...state, absences });
 }
 
+/** Tøm fraværslisten i state (etter clearAbsences i skyen). */
+export function clearAbsencesState(state, { importedOnly = false } = {}) {
+  const current = Array.isArray(state.absences) ? state.absences : [];
+  const absences = importedOnly
+    ? current.filter((row) => !(text(row.importFingerprint) || text(row.source?.filename)))
+    : [];
+  return ok({ ...state, absences });
+}
+
 /**
  * Importer fraværsdager (f.eks. fra Excel under Fraværsrapport).
  * Hopper over duplikater (importFingerprint).

@@ -265,6 +265,60 @@ export async function removeAbsence(companyId, absenceId) {
   await writeLocal(companyId, withoutDeletedAbsences(companyId, current));
 }
 
+async function writeBatchDelete(companyId, ids, onProgress) {
+  const bits = await firestoreBits();
+  const list = (Array.isArray(ids) ? ids : []).map(text).filter(Boolean);
+  let batch = bits.writeBatch(bits.db);
+  let n = 0;
+  let done = 0;
+  const total = list.length;
+  for (const id of list) {
+    batch.delete(entryRef(bits, companyId, id));
+    n += 1;
+    done += 1;
+    if (n >= BATCH_SIZE) {
+      await batch.commit();
+      batch = bits.writeBatch(bits.db);
+      n = 0;
+      onProgress?.(done, total);
+    }
+  }
+  if (n) {
+    await batch.commit();
+    onProgress?.(done, total);
+  }
+}
+
+/**
+ * Slett fravær i subcollection. Uten filter: alt for selskapet.
+ * with filter.importedOnly: bare rader med importFingerprint / source.filename.
+ */
+export async function clearAbsences(companyId, {
+  rows = [],
+  importedOnly = false,
+  onProgress,
+} = {}) {
+  if (!companyId) throw new Error('Mangler selskap for sletting av fravær.');
+  let list = (Array.isArray(rows) ? rows : []).map((row) => normalizeAbsenceRow(row)).filter(Boolean);
+  if (!list.length) {
+    list = await loadAbsences(companyId, { all: true });
+  }
+  if (importedOnly) {
+    list = list.filter((row) => text(row.importFingerprint) || text(row.source?.filename));
+  }
+  const ids = list.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return { removed: 0, ids: [] };
+  rememberDeletedAbsences(companyId, ids);
+  try {
+    await writeBatchDelete(companyId, ids, onProgress);
+  } catch (error) {
+    forgetDeletedAbsences(companyId, ids);
+    throw error;
+  }
+  await writeLocal(companyId, []);
+  return { removed: ids.length, ids };
+}
+
 export async function attachAbsencesToState(companyId, state, opts = {}) {
   const base = state && typeof state === 'object' ? state : {};
   const legacy = Array.isArray(base.absences) ? base.absences : [];

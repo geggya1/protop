@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
@@ -13,13 +13,14 @@ import {
   readAbsenceImport,
   toggleAbsenceReviewRow,
 } from '../../src/arbeid/absenceImport.js';
-import { saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
+import { clearAbsences, saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
 import { useLayout } from '../../src/theme';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { importResult } from '../../src/imports/review';
 import {
   addAbsence,
+  clearAbsencesState,
   deleteAbsences,
   importAbsences,
   setAbsenceStatuses,
@@ -156,13 +157,64 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       setDropped(new Set());
       setImportReport(null);
       setLinkQuery({});
-      setNote('Føringer som allerede finnes hoppes over. Kontroller medarbeiderkobling før lagring.');
+      setNote('Føringer som allerede finnes hoppes over. Bruk «Tøm import» først hvis du vil importere på nytt.');
       setView('import');
     } catch (cause) {
       const message = String(cause?.message || '');
       setError(/failed to fetch/i.test(message) || (cause?.name === 'TypeError' && !message)
         ? 'Kunne ikke lese Excel-filen. Eksporter listen som CSV og importer den i stedet.'
         : (message || 'Kunne ikke lese fraværslisten.'));
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }
+
+  function confirmClearImported() {
+    const imported = (workspace.state.absences || []).filter((row) => (
+      row.importFingerprint || row.source?.filename
+    ));
+    const count = imported.length || (workspace.state.absences || []).length;
+    if (!count) {
+      setNote('Ingen fravær å tømme.');
+      return;
+    }
+    const message = imported.length
+      ? `Fjerne ${imported.length} importerte fraværsdager? Manuelt registrert fravær beholdes. Deretter kan du importere på nytt.`
+      : `Fjerne alle ${count} fraværsdager? Deretter kan du importere på nytt.`;
+    const ok = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.confirm(message)
+      : true;
+    if (!ok) return;
+    clearImportedAbsences({ importedOnly: imported.length > 0 });
+  }
+
+  async function clearImportedAbsences({ importedOnly = true } = {}) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    setProgress({ label: 'Tømmer fravær…', done: 0, total: (workspace.state.absences || []).length || 1 });
+    try {
+      const cleared = await clearAbsences(workspace.workspaceId, {
+        rows: workspace.state.absences || [],
+        importedOnly,
+        onProgress: (done, total) => setProgress({ label: 'Tømmer fravær…', done, total }),
+      });
+      const next = clearAbsencesState(workspace.state, { importedOnly });
+      if (!next.ok) throw new Error(next.error || 'Kunne ikke tømme fravær.');
+      noteAbsencesImported(workspace.workspaceId, next.state.absences || []);
+      putProjectState(next.state, workspace.workspaceId);
+      workspace.setState(next.state);
+      try {
+        await persistProjectState(next.state, workspace.workspaceId);
+      } catch (projectError) {
+        console.warn('Prosjektstate etter tømming av fravær', projectError);
+      }
+      setNote(`${cleared.removed} fraværsdager er fjernet. Du kan importere på nytt.`);
+      showSaveToast(`${cleared.removed} fraværsdager er fjernet.`);
+      setImportReport(null);
+    } catch (cause) {
+      setError(String(cause?.message || 'Kunne ikke tømme fravær.'));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -398,6 +450,8 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
           lockedEmployeeId={activeId}
           canImport={!!workspace.manager}
           onImport={importFile}
+          onClearImported={confirmClearImported}
+          absenceCount={(workspace.state.absences || []).length}
           onOpenPeriod={setOpenPeriod}
           note={note}
           error={error || workspace.error}

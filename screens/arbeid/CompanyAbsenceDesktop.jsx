@@ -283,6 +283,8 @@ export function AbsenceReportDesktop({
   lockedEmployeeId = '',
   canImport = false,
   onImport,
+  onClearImported,
+  absenceCount = 0,
   onOpenPeriod,
   note = '',
   error = '',
@@ -310,6 +312,18 @@ export function AbsenceReportDesktop({
       <View style={styles.toolbar}>
         <Text style={styles.lead}>Alle registrerte fraværsperioder i år. Åpne en rad for å behandle, eller importer fra Excel.</Text>
         <View style={styles.toolbarRight}>
+          {canImport && absenceCount > 0 && onClearImported ? (
+            <TouchableOpacity
+              onPress={onClearImported}
+              style={[styles.clearBtn, { borderColor: line }]}
+              accessibilityRole="button"
+              accessibilityLabel="Fjern importert fravær"
+              nativeID="fravaer-clear-imported"
+            >
+              <Ionicons name="trash-outline" size={15} color={muted} />
+              <Text style={styles.clearTxt}>Tøm import</Text>
+            </TouchableOpacity>
+          ) : null}
           {canImport ? (
             <TouchableOpacity
               onPress={onImport}
@@ -601,6 +615,11 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   importTxt: { color: '#fff', fontWeight: '700' },
+  clearBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff',
+  },
+  clearTxt: { color: muted, fontWeight: '600' },
   personBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,

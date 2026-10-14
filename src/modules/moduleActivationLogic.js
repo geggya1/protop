@@ -71,6 +71,8 @@ export const ILLUSTRATION_FILES = {
   skjema: 'skjema--module-activation-illustration.png',
   timeliste: 'timeliste--module-activation-illustration.png',
   'arbeid-timeliste': 'timeliste--module-activation-illustration.png',
+  'arbeid-fravaer': 'arbeid-fravaer--module-activation-illustration.png',
+  'arbeid-fravaersrapport': 'arbeid-fravaersrapport--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

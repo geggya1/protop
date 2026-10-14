@@ -199,17 +199,19 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-fravaer': {
-    ...SAND,
+    ...BLUE,
+    wideArt: true,
     name: 'Fraværsoversikt',
     kicker: t('Arbeid', 'Work'),
     title: t('Fraværsoversikt', 'Absence overview'),
     pitch: t(
-      'Ferie, sykdom og permisjon for de ansatte.',
-      'Holiday, sick leave and leave for the team.',
+      'Full oversikt over ferie, fravær og permisjoner for de ansatte.',
+      'A full view of holiday, absence and leave for the team.',
     ),
   },
   'arbeid-fravaersrapport': {
-    ...SAND,
+    ...BLUE,
+    wideArt: true,
     name: 'Fraværsrapport',
     kicker: t('Arbeid', 'Work'),
     title: t('Fraværsrapport', 'Absence report'),

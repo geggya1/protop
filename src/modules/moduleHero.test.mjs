@@ -292,6 +292,8 @@ assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses t
 assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the wide illustration');
 assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -384,6 +386,22 @@ assert.equal(
 );
 assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
+for (const file of [
+  'arbeid-fravaer--module-activation-illustration.png',
+  'arbeid-fravaersrapport--module-activation-illustration.png',
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+}
+assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

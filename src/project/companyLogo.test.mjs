@@ -54,6 +54,7 @@ const hovedenhet = {
   organisasjonsformKode: 'AS',
   kind: 'enhet',
   subUnits: [{ id: 'u1', kind: 'underenhet', name: 'Sandnes', organisasjonsnummer: '916570783' }],
+  aliasOrganisasjonsnummer: ['916570783'],
 };
 const underenhetHit = {
   navn: 'CONSULT1 AS',
@@ -71,6 +72,7 @@ assert.equal(kept.organisasjonsform, 'Aksjeselskap');
 assert.equal(kept.organisasjonsformKode, 'AS');
 assert.equal(kept.subUnits.length, 1);
 assert.equal(kept.subUnits[0].organisasjonsnummer, '916570783');
+assert.deepEqual(kept.aliasOrganisasjonsnummer, ['916570783']);
 const refreshed = mergeCompanyProfile(
   { ...hovedenhet, telefon: '11223344', addressLabel: 'Ny gate 1' },
   hovedenhet,

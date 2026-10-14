@@ -29,7 +29,6 @@ export default function PlatformSwitch({ compact = false }) {
   const colors = useColors();
   const {
     family, liveFamilies, families, selectFamily, isParent, isChild, isActingAsChild,
-    workspaceOccupancy,
   } = useApp();
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,20 +36,14 @@ export default function PlatformSwitch({ compact = false }) {
   const bedriftRef = useRef(null);
 
   const list = liveFamilies?.length ? liveFamilies : families;
-  const segments = useMemo(
-    () => platformSwitchSegments(list, workspaceOccupancy),
-    [list, workspaceOccupancy],
-  );
-  const choices = useMemo(
-    () => workspacePickerItems(list, workspaceOccupancy),
-    [list, workspaceOccupancy],
-  );
+  const segments = useMemo(() => platformSwitchSegments(list), [list]);
+  const choices = useMemo(() => workspacePickerItems(list), [list]);
   const many = choices.length > 1;
   const personal = segments.find((segment) => segment.side === 'personal');
   const companySeg = segments.find((segment) => segment.side === 'company');
   const hidden = !isParent || isChild || isActingAsChild;
   const selectedCompanyId = platformSwitchSide(family) === 'company'
-    ? resolveWorkspaceId(list, family?.id, workspaceOccupancy)
+    ? resolveWorkspaceId(list, family?.id)
     : null;
 
   const webSet = useMemo(
@@ -60,7 +53,7 @@ export default function PlatformSwitch({ compact = false }) {
 
   const onPick = async (segment) => {
     if (busy || !segment) return;
-    const groupId = segment.groupId ? resolveWorkspaceId(list, segment.groupId, workspaceOccupancy) : null;
+    const groupId = segment.groupId ? resolveWorkspaceId(list, segment.groupId) : null;
     if (groupId && family?.id === groupId) return;
     if (!groupId && platformSegmentActive(segment, family, list)) return;
     setMenuOpen(false);
@@ -73,7 +66,6 @@ export default function PlatformSwitch({ compact = false }) {
         family,
         side: segment.side,
         groupId,
-        occupancy: workspaceOccupancy,
       });
     } finally {
       setBusy(false);

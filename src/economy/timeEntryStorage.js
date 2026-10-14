@@ -11,6 +11,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeTimeEntryRow } from '../project/engine.js';
+import { aliasSourceIds } from '../project/companyAlias.js';
 import { text } from './invoices.js';
 
 const LIST_KEY = 'protop.timeEntries.v1';
@@ -321,7 +322,29 @@ export async function attachTimeEntriesToState(companyId, state, opts = {}) {
     }
   }
 
-  return { ...base, timeEntries: merged };
+  const withAlias = await appendAliasTimeEntries(companyId, merged, opts);
+  return { ...base, timeEntries: withAlias };
+}
+
+/**
+ * Timer fra skjulte alias-org.nr. Hovedlisten vinner ved lik id.
+ * Alias-rader merkes med sourceCompanyId så lagring ikke flytter dem ved et uhell.
+ */
+export async function appendAliasTimeEntries(companyId, rows = [], opts = {}) {
+  const tagged = (Array.isArray(rows) ? rows : []).map((row) => (
+    row?.sourceCompanyId ? row : { ...row, sourceCompanyId: companyId }
+  ));
+  let merged = tagged;
+  for (const aliasId of aliasSourceIds(companyId)) {
+    try {
+      const extra = await loadTimeEntries(aliasId, opts);
+      const marked = (extra || []).map((row) => ({ ...row, sourceCompanyId: row.sourceCompanyId || aliasId }));
+      merged = mergeEntryLists(merged, marked);
+    } catch {
+      // Alias som ikke kan leses skal ikke tømme hovedlisten.
+    }
+  }
+  return merged;
 }
 
 /** Diff mot forrige liste — nye/endrede og slettede id-er. */

@@ -66,22 +66,50 @@ function companyPairLinked(a, b) {
   return false;
 }
 
-/** Annet arbeidsområde med samme navn som hører til samme selskap. Ulikt navn er aldri alias. */
-export function sameCompanyTwin(group, companies = []) {
+function sameNameCluster(group, companies = []) {
   const name = companyNameKey(group);
-  if (!group?.id || !name) return null;
-  return (companies || []).find((item) => (
+  if (!group?.id || !name) return [];
+  return [group, ...(companies || []).filter((item) => (
     item?.id
     && item.id !== group.id
     && companyNameKey(item) === name
     && companyPairLinked(group, item)
-  )) || null;
+  ))];
 }
 
 /**
- * Kjent mengde ansatte, timer, anbud og underenheter.
- * Null betyr ukjent. Ukjent skal aldri behandles som tomt.
+ * Hovednummeret i en klynge med samme selskapsnavn.
+ * Underenheten er alltid alias. Et annet navn (Sør, Øst) er et eget selskap.
+ * Belegg brukes ikke: to org.nr skal aldri vises som to bedrifter.
  */
+export function hovedenhetWorkspace(group, companies = []) {
+  const cluster = sameNameCluster(group, companies);
+  if (!cluster.length) return group || null;
+  const ranked = cluster.slice().sort((a, b) => {
+    const byKind = Number(isUnderenhetWorkspace(a)) - Number(isUnderenhetWorkspace(b));
+    if (byKind) return byKind;
+    const aOrg = companyOrgnr(a);
+    const bOrg = companyOrgnr(b);
+    const bPointsAtA = digits(b?.company?.overordnetEnhet || b?.overordnetEnhet) === aOrg && aOrg;
+    const aPointsAtB = digits(a?.company?.overordnetEnhet || a?.overordnetEnhet) === bOrg && bOrg;
+    if (bPointsAtA && !aPointsAtB) return -1;
+    if (aPointsAtB && !bPointsAtA) return 1;
+    return aOrg.localeCompare(bOrg);
+  });
+  return ranked[0];
+}
+
+/** Annet arbeidsområde med samme navn. Ulikt navn er aldri alias. */
+export function sameCompanyTwin(group, companies = []) {
+  const main = hovedenhetWorkspace(group, companies);
+  if (!main?.id || main.id === group?.id) {
+    const cluster = sameNameCluster(group, companies);
+    return cluster.find((item) => item.id !== group?.id) || null;
+  }
+  return main;
+}
+
+/** @deprecated Belegg styrer ikke lenger synlighet. Tellingen ligger igjen til tester. */
 export function workspaceRecordCount(occupancy, id) {
   if (!occupancy || !id) return null;
   const row = occupancy[id];
@@ -93,26 +121,38 @@ export function workspaceRecordCount(occupancy, id) {
 }
 
 /**
- * Hovedenhet dette arbeidsområdet kan skjules til fordel for.
- * Null når området skal vises.
- *
- * Uten kjent belegg skjules ingenting og ingen blir sendt videre.
- * Et arbeidsområde med ansatte, timer, anbud eller underenheter skjules aldri.
- * Et bekreftet tomt område skjules når tvillingen med samme navn har data,
- * eller når begge er tomme og dette er underenheten.
- * Selskaper med et annet navn (Sør, Øst) er egne tilknytninger.
+ * Hovedenhet et alias skal åpnes som. Null når området selv skal vises.
+ * Alltid hovednummeret, også når aliaset har ansatte eller timer.
  */
-export function aliasHovedenhet(group, companies = [], occupancy = null) {
-  const twin = sameCompanyTwin(group, companies);
-  if (!twin) return null;
-  const self = workspaceRecordCount(occupancy, group.id);
-  const other = workspaceRecordCount(occupancy, twin.id);
-  if (self === null || other === null) return null;
-  if (self > 0) return null;
-  if (other > 0) return twin;
-  if (isUnderenhetWorkspace(group) && !isUnderenhetWorkspace(twin)) return twin;
-  if (!isUnderenhetWorkspace(group) && isUnderenhetWorkspace(twin)) return null;
-  return group.id > twin.id ? twin : null;
+export function aliasHovedenhet(group, companies = []) {
+  if (!group?.id) return null;
+  const main = hovedenhetWorkspace(group, companies);
+  if (!main?.id || main.id === group.id) return null;
+  return main;
+}
+
+/** Skjulte famili-id som hører til hovedenheten og skal lastes sammen med den. */
+export function aliasFamilyIds(canonical, families = []) {
+  if (!canonical?.id) return [];
+  const companies = companyWorkspaces(families);
+  const ids = companies
+    .filter((group) => aliasHovedenhet(group, companies)?.id === canonical.id)
+    .map((group) => group.id);
+  const extra = new Set(
+    (Array.isArray(canonical?.company?.aliasOrganisasjonsnummer) ? canonical.company.aliasOrganisasjonsnummer : [])
+      .map((value) => digits(value))
+      .filter((value) => value.length === 9),
+  );
+  if (extra.size) {
+    companies.forEach((group) => {
+      if (!group?.id || group.id === canonical.id || ids.includes(group.id)) return;
+      const org = companyOrgnr(group);
+      if (!extra.has(org)) return;
+      if (companyNameKey(group) !== companyNameKey(canonical) && !isUnderenhetWorkspace(group)) return;
+      ids.push(group.id);
+    });
+  }
+  return ids;
 }
 
 export function companySwitchLabel(group) {

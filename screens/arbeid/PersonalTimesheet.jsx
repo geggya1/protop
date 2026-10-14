@@ -16,11 +16,8 @@ import ArbeidScreen from './ArbeidScreen';
  */
 export default function PersonalTimesheet() {
   const colors = useColors();
-  const { families, family, user, workspaceOccupancy } = useApp();
-  const candidates = useMemo(
-    () => visibleCompanyWorkspaces(families, workspaceOccupancy),
-    [families, workspaceOccupancy],
-  );
+  const { families, family, user } = useApp();
+  const candidates = useMemo(() => visibleCompanyWorkspaces(families), [families]);
   const candidateKey = candidates.map((row) => row.id).join('|');
   const [employeesByCompanyId, setEmployeesByCompanyId] = useState({});
   const [loadedIds, setLoadedIds] = useState({});
@@ -58,9 +55,8 @@ export default function PersonalTimesheet() {
     () => personalTimesheetCompanies(families, family, {
       ...actor,
       employeesByCompanyId,
-      occupancy: workspaceOccupancy,
     }),
-    [families, family, actor, employeesByCompanyId, workspaceOccupancy],
+    [families, family, actor, employeesByCompanyId],
   );
 
   const [pickedId, setPickedId] = useState('');

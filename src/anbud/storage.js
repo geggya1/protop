@@ -5,6 +5,7 @@ import { anbudLocalKey, ANBUD_LOCAL_KEY, storeAnbudPayload } from './localStore.
 import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { normalizeCustomers } from './customers.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
+import { aliasSourceIds } from '../project/companyAlias.js';
 
 const KEY = ANBUD_LOCAL_KEY;
 const CUSTOMER_KEY = 'protop.customers.v1';
@@ -282,7 +283,18 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
       writeCustomerRegistry(companyId, resolved.state.customers).catch(() => {});
     }
     if (resolved.status === 'error') return resolved.state;
-    return putAnbudMemory(companyId, resolved.state);
+    let state = resolved.state;
+    for (const aliasId of aliasSourceIds(companyId)) {
+      try {
+        const extra = await readRemote(aliasId);
+        if (extra?.ok && extra.state?.notices?.length) {
+          state = mergeAnbudStates(state, { notices: extra.state.notices });
+        }
+      } catch {
+        // Alias som ikke kan leses skal ikke tømme hovedlisten.
+      }
+    }
+    return putAnbudMemory(companyId, state);
   })();
   inflight.set(key, pending);
   try {

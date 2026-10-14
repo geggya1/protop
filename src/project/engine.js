@@ -337,6 +337,7 @@ export function normalizeTimeEntryRow(row) {
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
+    ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
   };
 }
 

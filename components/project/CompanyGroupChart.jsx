@@ -1,0 +1,574 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { buildGroupChart, stakesFromInvestments } from '../../src/project/groupChart';
+import { loadEntityFigures, loadGroupSources, mapPool } from '../../src/project/groupChartData';
+import { digitsOrgnr } from '../../src/project/companyRegistry';
+import { departmentsOf } from '../../src/project/companyUnits';
+
+function openUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return;
+  Linking.openURL(raw).catch(() => {});
+}
+
+function Mark({ name, colors, iconColor }) {
+  return (
+    <View style={[styles.mark, { backgroundColor: colors.brandSoft }]}>
+      <Ionicons name={name} size={18} color={iconColor || colors.brand} />
+    </View>
+  );
+}
+
+function Delta({ change, colors }) {
+  if (!change) return <View style={styles.deltaSlot} />;
+  const tint = change.direction === 'up'
+    ? colors.success
+    : change.direction === 'down'
+      ? colors.danger
+      : colors.muted;
+  const icon = change.direction === 'down' ? 'arrow-down' : change.direction === 'up' ? 'arrow-up' : 'remove';
+  return (
+    <View style={styles.delta}>
+      {change.direction === 'flat' ? null : <Ionicons name={icon} size={11} color={tint} />}
+      <Text style={[styles.deltaText, { color: tint }]}>{change.text}</Text>
+    </View>
+  );
+}
+
+function Metric({ icon, iconColor, label, value, delta, colors }) {
+  return (
+    <View style={styles.metric}>
+      <View style={styles.metricLabel}>
+        <Ionicons name={icon} size={13} color={iconColor} />
+        <Text style={[styles.metricName, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
+      </View>
+      <Text style={[styles.metricValue, { color: colors.ink }]} numberOfLines={2}>{value}</Text>
+      <Delta change={delta} colors={colors} />
+    </View>
+  );
+}
+
+function millionsLabel(value, fallback) {
+  if (fallback === '…' || fallback === '–') return fallback;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return fallback;
+  const sign = amount < 0 ? '−' : '';
+  const formatted = new Intl.NumberFormat('nb-NO', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Math.abs(amount) / 1_000_000);
+  return `${sign}${formatted}\u00a0MNOK`;
+}
+
+function Metrics({ node, colors, compact = false }) {
+  const revenue = compact ? millionsLabel(node.revenue, node.revenueLabel) : node.revenueLabel;
+  const result = compact ? millionsLabel(node.result, node.resultLabel) : node.resultLabel;
+  return (
+    <View style={styles.metrics}>
+      <Metric icon="stats-chart" iconColor={colors.brand} label="Inntekt" value={revenue} delta={node.revenueDelta} colors={colors} />
+      <View style={[styles.metricRule, { backgroundColor: colors.line }]} />
+      <Metric icon="people" iconColor={colors.success} label="Ansatte" value={node.employeesLabel} delta={null} colors={colors} />
+      <View style={[styles.metricRule, { backgroundColor: colors.line }]} />
+      <Metric icon="cash" iconColor={colors.brand} label="Resultat" value={result} delta={node.resultDelta} colors={colors} />
+    </View>
+  );
+}
+
+function OwnershipPill({ label, colors }) {
+  if (!label) return null;
+  return (
+    <View style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <Text style={[styles.pillText, { color: colors.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function CompanyCard({ node, colors, onPress, compact = false }) {
+  const meta = [node.organisasjonsnummer, node.role, ...(node.flags || [])].filter(Boolean).join(' · ');
+  return (
+    <Pressable
+      nativeID={`group-company-${node.organisasjonsnummer || 'ukjent'}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Åpne ${node.navn}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        compact && styles.cardCompact,
+        { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
+      ]}
+    >
+      <View style={styles.cardHead}>
+        <Mark name="business" colors={colors} />
+        <View style={styles.cardTitle}>
+          <Text style={[styles.name, compact && styles.nameCompact, { color: colors.ink }]} numberOfLines={2}>{node.navn}</Text>
+          <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>{meta}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+      </View>
+      <View style={[styles.rule, { backgroundColor: colors.line }]} />
+      <Metrics node={node} colors={colors} compact={compact} />
+    </Pressable>
+  );
+}
+
+function Fork({ children, colors }) {
+  const count = children.length;
+  if (!count) return null;
+  if (count === 1) {
+    return (
+      <View style={styles.singleFork}>
+        <View style={[styles.stem, { backgroundColor: colors.line }]} />
+        {children[0].pill}
+        <View style={[styles.stem, { backgroundColor: colors.line }]} />
+        <View style={styles.singleCard}>{children[0].card}</View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.fork}>
+      <View style={[styles.stem, { backgroundColor: colors.line }]} />
+      <View style={styles.forkRow}>
+        {children.map((child, index) => (
+          <View key={child.key} style={styles.forkCol}>
+            <View style={styles.arm}>
+              <View style={[styles.armHalf, { borderTopWidth: index === 0 ? 0 : 1, borderColor: colors.line }]} />
+              <View style={[styles.armJoint, { backgroundColor: colors.line }]} />
+              <View style={[styles.armHalf, { borderTopWidth: index === count - 1 ? 0 : 1, borderColor: colors.line }]} />
+            </View>
+            {child.pill}
+            <View style={[styles.stemShort, { backgroundColor: colors.line }]} />
+            <View style={styles.forkCard}>{child.card}</View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export default function CompanyGroupChart({
+  company,
+  settings,
+  colors,
+  companyIdFor,
+  onOpenCompany,
+}) {
+  const { width } = useWindowDimensions();
+  const orgnr = digitsOrgnr(company?.organisasjonsnummer);
+  const [sources, setSources] = useState(null);
+  const [bundles, setBundles] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [year, setYear] = useState(null);
+  const [yearOpen, setYearOpen] = useState(false);
+  const inflight = useRef(new Set());
+  const done = useRef(new Set());
+
+  useEffect(() => {
+    inflight.current = new Set();
+    done.current = new Set();
+    setBundles({});
+    setYear(null);
+    setYearOpen(false);
+    if (orgnr.length !== 9) {
+      setSources(null);
+      setLoading(false);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let alive = true;
+    setLoading(true);
+    loadGroupSources(orgnr, { signal: controller.signal })
+      .then((data) => {
+        if (alive) setSources(data);
+      })
+      .catch((err) => {
+        if (!alive || err?.name === 'AbortError') return;
+        setSources({
+          orgnr,
+          entity: null,
+          unitPayload: null,
+          accountPayload: null,
+          investmentRows: null,
+          investorRows: null,
+          sharesByYear: null,
+          warnings: ['Offentlige registre kunne ikke hentes.'],
+        });
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [orgnr]);
+
+  useEffect(() => {
+    if (!Array.isArray(sources?.investmentRows) || sources.orgnr !== orgnr || orgnr.length !== 9) return undefined;
+    const wanted = stakesFromInvestments(sources.investmentRows, { ownerOrgnr: orgnr })
+      .filter((row) => row.percent >= 1)
+      .slice(0, 12)
+      .filter((row) => !done.current.has(row.organisasjonsnummer) && !inflight.current.has(row.organisasjonsnummer));
+    if (!wanted.length) return undefined;
+    let alive = true;
+    wanted.forEach((row) => inflight.current.add(row.organisasjonsnummer));
+    mapPool(wanted, 4, (row) => loadEntityFigures(row.organisasjonsnummer).catch(() => null))
+      .then((loaded) => {
+        if (!alive) return;
+        wanted.forEach((row) => done.current.add(row.organisasjonsnummer));
+        setBundles((prev) => {
+          const next = { ...prev };
+          loaded.forEach((row) => {
+            if (row?.organisasjonsnummer) next[row.organisasjonsnummer] = row;
+          });
+          return next;
+        });
+      })
+      .finally(() => {
+        wanted.forEach((row) => inflight.current.delete(row.organisasjonsnummer));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sources, orgnr]);
+
+  const model = useMemo(() => buildGroupChart({
+    fallbackName: company?.navn,
+    fallbackOrgnr: orgnr,
+    entity: sources?.entity,
+    unitPayload: sources?.unitPayload,
+    accountPayload: sources?.accountPayload,
+    investmentRows: sources ? sources.investmentRows : null,
+    investorRows: sources?.investorRows,
+    sharesByYear: sources?.sharesByYear,
+    childBundles: Object.values(bundles),
+    year,
+    settings,
+  }), [company?.navn, orgnr, sources, bundles, year, settings]);
+
+  function openNode(node) {
+    const linked = companyIdFor?.(node.organisasjonsnummer);
+    if (linked && onOpenCompany) {
+      onOpenCompany(linked);
+      return;
+    }
+    openUrl(node.brregUrl);
+  }
+
+  const stacked = width < 800;
+  const forkLimit = 3;
+  const useFork = !stacked && model.children.length > 0 && model.children.length <= forkLimit;
+  const departmentCount = departmentsOf(company?.subUnits).length;
+  const warnings = sources?.warnings || [];
+
+  const nodes = model.children.map((child) => ({
+    key: child.organisasjonsnummer,
+    pill: <OwnershipPill label={child.ownershipLabel} colors={colors} />,
+    card: <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />,
+  }));
+
+  return (
+    <View nativeID="company-group-chart" style={styles.block}>
+      {loading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator color={colors.brand} />
+          <Text style={[styles.note, { color: colors.muted }]}>Henter nøkkeltall fra offentlige registre…</Text>
+        </View>
+      ) : null}
+      {warnings.map((line) => (
+        <Text key={line} style={[styles.note, { color: colors.danger }]}>{line}</Text>
+      ))}
+      {model.owner ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Eid av ${model.owner.navn}`}
+          onPress={() => openUrl(`https://virksomhet.brreg.no/nb/oppslag/enheter/${model.owner.organisasjonsnummer}`)}
+          style={[styles.owner, { backgroundColor: colors.card, borderColor: colors.line }]}
+        >
+          <Ionicons name="git-network-outline" size={16} color={colors.brand} />
+          <Text style={[styles.ownerText, { color: colors.ink }]}>
+            Eid {model.owner.ownershipLabel} av {model.owner.navn}
+          </Text>
+          <Ionicons name="open-outline" size={14} color={colors.muted} />
+        </Pressable>
+      ) : null}
+
+      <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
+
+      {useFork ? <Fork colors={colors}>{nodes}</Fork> : null}
+      {stacked && model.children.length ? (
+        <View style={styles.stack}>
+          {model.children.map((child) => (
+            <View key={child.organisasjonsnummer} style={styles.stackItem}>
+              <View style={[styles.stem, { backgroundColor: colors.line }]} />
+              <OwnershipPill label={child.ownershipLabel} colors={colors} />
+              <View style={[styles.stemShort, { backgroundColor: colors.line }]} />
+              <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {!stacked && !useFork && model.children.length ? (
+        <View style={styles.grid}>
+          {model.children.map((child) => (
+            <View key={child.organisasjonsnummer} style={[styles.gridItem, width >= 720 && styles.gridItemWide]}>
+              <OwnershipPill label={child.ownershipLabel} colors={colors} />
+              <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {!loading && model.emptyOwnership ? (
+        <Text style={[styles.note, { color: colors.muted }]}>{model.emptyOwnership}</Text>
+      ) : null}
+      {!model.ownershipKnown && !loading && orgnr.length === 9 ? (
+        <Text style={[styles.note, { color: colors.muted }]}>
+          Eierandeler fra Aksjonærregisteret kunne ikke hentes nå. Underenheter fra Enhetsregisteret vises likevel.
+        </Text>
+      ) : null}
+
+      {model.units.length ? (
+        <View style={styles.units}>
+          {model.units.map((unit) => (
+            <Pressable
+              key={unit.organisasjonsnummer}
+              nativeID={`group-unit-${unit.organisasjonsnummer}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Åpne underenhet ${unit.navn}`}
+              onPress={() => openUrl(unit.brregUrl)}
+              style={({ pressed }) => [
+                styles.unit,
+                { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
+              ]}
+            >
+              <Mark name="business" colors={colors} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.unitName, { color: colors.ink }]} numberOfLines={1}>{unit.navn}</Text>
+                <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
+                  {[unit.organisasjonsnummer, 'Registrert underenhet', unit.poststed].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              {width >= 560 ? (
+                <Text style={[styles.unitSide, { color: colors.muted }]}>Under morselskap</Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={[styles.totalsRow, stacked && styles.totalsStack]}>
+        <View style={[styles.card, styles.totalsCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
+          <View style={styles.cardHead}>
+            <Mark name="pie-chart" colors={colors} />
+            <View style={styles.cardTitle}>
+              <Text style={[styles.name, { color: colors.ink }]}>{model.totals.label}</Text>
+              <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
+              <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
+            </View>
+          </View>
+          {stacked && model.years.length ? (
+            <Pressable
+              nativeID="company-group-year"
+              accessibilityRole="button"
+              accessibilityState={{ expanded: yearOpen }}
+              accessibilityLabel="Velg regnskapsår"
+              onPress={() => setYearOpen((open) => !open)}
+              style={[styles.yearInline, { borderColor: colors.line, alignSelf: 'flex-end' }]}
+            >
+              <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>
+                {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
+              </Text>
+              <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
+            </Pressable>
+          ) : null}
+          {stacked && yearOpen ? model.years.map((row) => (
+            <Pressable
+              key={row.year}
+              accessibilityRole="button"
+              onPress={() => {
+                setYear(row.year);
+                setYearOpen(false);
+              }}
+              style={[styles.yearOption, { borderTopColor: colors.line }]}
+            >
+              <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
+                {row.menu}
+              </Text>
+            </Pressable>
+          )) : null}
+          <View style={[styles.rule, { backgroundColor: colors.line }]} />
+          <Metrics node={model.totals} colors={colors} />
+        </View>
+        {!stacked && model.years.length ? (
+          <View style={[styles.card, styles.yearCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Pressable
+              nativeID="company-group-year"
+              accessibilityRole="button"
+              accessibilityState={{ expanded: yearOpen }}
+              accessibilityLabel="Velg regnskapsår"
+              onPress={() => setYearOpen((open) => !open)}
+              style={styles.yearBtn}
+            >
+              <Text style={[styles.yearLabel, { color: colors.ink }]} numberOfLines={2}>
+                {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
+              </Text>
+              <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+            </Pressable>
+            {yearOpen ? model.years.map((row) => (
+              <Pressable
+                key={row.year}
+                accessibilityRole="button"
+                onPress={() => {
+                  setYear(row.year);
+                  setYearOpen(false);
+                }}
+                style={[styles.yearOption, { borderTopColor: colors.line }]}
+              >
+                <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
+                  {row.menu}
+                </Text>
+              </Pressable>
+            )) : null}
+          </View>
+        ) : null}
+      </View>
+
+      {departmentCount ? (
+        <Text style={[styles.note, { color: colors.muted }]}>
+          {departmentCount === 1
+            ? '1 avdeling administreres under tannhjulet.'
+            : `${departmentCount} avdelinger administreres under tannhjulet.`}
+        </Text>
+      ) : null}
+      <Text style={[styles.sources, { color: colors.muted }]}>
+        Inntekt og resultat er fra Regnskapsregisteret. Ansatte og underenheter er fra Enhetsregisteret.
+        Eierandeler er fra Aksjonærregisteret per 31. desember. Ansatte har ikke årstall i registeret og vises som dagens tall.
+      </Text>
+    </View>
+  );
+}
+
+const cardShadow = Platform.OS === 'web'
+  ? { boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)' }
+  : {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  };
+
+const styles = StyleSheet.create({
+  block: { gap: 12, width: '100%' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  note: { fontSize: 13, lineHeight: 18 },
+  sources: { fontSize: 12, lineHeight: 17 },
+  owner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...cardShadow,
+  },
+  ownerText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  card: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+    ...cardShadow,
+  },
+  cardCompact: { padding: 12, gap: 10 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardTitle: { flex: 1, minWidth: 0, gap: 2 },
+  mark: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  name: { fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
+  nameCompact: { fontSize: 14 },
+  unitName: { fontSize: 15, fontWeight: '600' },
+  meta: { fontSize: 12, lineHeight: 16 },
+  rule: { height: 1, marginHorizontal: -2 },
+  metrics: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  metric: { flex: 1, minWidth: 0, gap: 2 },
+  metricLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metricName: { fontSize: 11, flexShrink: 1 },
+  metricValue: { fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  metricRule: { width: 1, alignSelf: 'stretch' },
+  delta: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 14 },
+  deltaSlot: { minHeight: 14 },
+  deltaText: { fontSize: 11, fontWeight: '600' },
+  fork: { alignItems: 'center' },
+  forkRow: { flexDirection: 'row', alignItems: 'stretch', width: '100%' },
+  forkCol: { flex: 1, minWidth: 0, alignItems: 'center' },
+  arm: { flexDirection: 'row', alignItems: 'flex-start', alignSelf: 'stretch', height: 16 },
+  armHalf: { flex: 1, height: 1 },
+  armJoint: { width: 1, height: 16 },
+  stem: { width: 1, height: 16, alignSelf: 'center' },
+  stemShort: { width: 1, height: 12, alignSelf: 'center' },
+  forkCard: { width: '100%', paddingHorizontal: 4 },
+  singleFork: { alignItems: 'center', width: '100%' },
+  singleCard: { width: '100%', maxWidth: 460 },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: -8,
+    zIndex: 1,
+    alignSelf: 'center',
+  },
+  pillText: { fontSize: 12, fontWeight: '500' },
+  stack: { width: '100%', gap: 0 },
+  stackItem: { width: '100%', alignItems: 'stretch' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridItem: { width: '100%', gap: 6, alignItems: 'center' },
+  gridItemWide: { width: '31%', flexGrow: 1, minWidth: 220 },
+  units: { gap: 8, alignItems: 'center' },
+  unit: {
+    width: '100%',
+    maxWidth: 560,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    ...cardShadow,
+  },
+  unitSide: { fontSize: 12, maxWidth: 110, textAlign: 'right' },
+  totalsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  totalsStack: { flexDirection: 'column' },
+  yearInline: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  totalsCard: { flex: 1, minWidth: 0 },
+  yearCard: { width: 148, padding: 0, overflow: 'hidden' },
+  yearBtn: {
+    minHeight: 64,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  yearLabel: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 17 },
+  yearOption: { paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1 },
+  sourceInline: { fontSize: 11, lineHeight: 15 },
+});

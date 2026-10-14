@@ -39,7 +39,7 @@ export const generateCompanyForm = onCall(
       if (!apiKey && !prepared.localForm) reject('failed-precondition', 'AI er ikke tilgjengelig akkurat nå.');
       if (apiKey && prepared.parts.length > 1) {
         try {
-          parsed = await callGeminiJson(apiKey, formPrompt(), prepared.parts, { maxOutputTokens: 8192, perModelTimeoutMs: 55000 });
+          parsed = await callGeminiJson(apiKey, formPrompt(), prepared.parts, { maxOutputTokens: 12288, perModelTimeoutMs: 60000 });
           engine = prepared.usedOcr ? 'ocr+gemini' : 'gemini';
         } catch (err) {
           if (!prepared.localForm) throw err;

@@ -19,6 +19,7 @@ import { useApp } from '../../src/context/AppContext';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import FormStudio from './FormStudio';
 import CreateMenu from '../../components/CreateMenu';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 
 const STARTERS = [
   { id: 'blank', title: 'Tomt skjema', icon: 'document-outline', kind: 'blank' },
@@ -68,6 +69,7 @@ export default function FormBuilderScreen({
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState('');
   const [scanToken, setScanToken] = useState(0);
 
@@ -169,10 +171,10 @@ export default function FormBuilderScreen({
         setBusy(false);
         return;
       }
+      setReading(true);
       const bytes = await bytesFromFile(file);
       if (!bytes?.length) {
         say('Kunne ikke lese filen.', true);
-        setBusy(false);
         return;
       }
       const name = file.name || (mode === 'scan' ? 'skann.jpg' : 'dokument');
@@ -194,111 +196,127 @@ export default function FormBuilderScreen({
     } catch (err) {
       const denied = err?.message === 'camera-denied';
       say(denied ? 'Gi tilgang til kamera, eller bruk Importer.' : (err?.message || 'Kunne ikke lese dokumentet.'), true);
+    } finally {
+      setReading(false);
+      setBusy(false);
     }
-    setBusy(false);
   }
+
+  const busyOverlay = (
+    <BrandBusyOverlay
+      visible={reading}
+      label="Leser dokumentet…"
+      detail="Bygger skjemaet fra filen. Dette kan ta litt tid."
+    />
+  );
 
   if (!state) return <Text style={{ color: colors.muted }}>Henter skjemaene …</Text>;
 
   if (draft) {
     return (
-      <FormStudio
-        key={scanToken}
-        draft={draft}
-        colors={colors}
-        busy={busy}
-        note={note}
-        noteBad={noteBad}
-        fill={fill}
-        onDraft={setDraft}
-        onBack={() => { setDraft(null); say(''); }}
-        onSave={save}
-        onScan={() => readDocument('scan')}
-        onImport={() => readDocument('import')}
-        companyLogo={companyLogo}
-      />
+      <>
+        <FormStudio
+          key={scanToken}
+          draft={draft}
+          colors={colors}
+          busy={busy || reading}
+          note={note}
+          noteBad={noteBad}
+          fill={fill}
+          onDraft={setDraft}
+          onBack={() => { setDraft(null); say(''); }}
+          onSave={save}
+          onScan={() => readDocument('scan')}
+          onImport={() => readDocument('import')}
+          companyLogo={companyLogo}
+        />
+        {busyOverlay}
+      </>
     );
   }
 
   return (
-    <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
-      <CreateMenu
-        label="Nytt skjema"
-        title="Les inn en mal"
-        info="Ta bilde når malen ligger på papir. Last opp fil når du har PDF, Word, bilde eller tekst. Begge leses med AI og blir et dokument du retter før du lagrer."
-        actions={[
-          { id: 'scan', label: busy ? 'Leser …' : 'Ta bilde av papir', hint: 'Åpner kameraet. Brukes når avtalen ligger foran deg.', primary: true, onPress: () => readDocument('scan'), disabled: busy },
-          { id: 'import', label: busy ? 'Leser …' : 'Last opp fil', hint: 'PDF, Word, bilde eller tekst fra maskinen. Samme lesing, uten kamera.', onPress: () => readDocument('import'), disabled: busy },
-        ]}
-      />
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Søk i skjemaer"
-        placeholderTextColor={colors.placeholder}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
-      <View style={styles.grid}>
-        {STARTERS.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => openStarter(item.kind)}
-            accessibilityRole="button"
-            accessibilityLabel={item.title}
-            style={[styles.starter, { borderColor: colors.line, backgroundColor: colors.card }]}
-          >
-            <View style={[styles.icon, { backgroundColor: colors.sunken }]}>
-              <Ionicons name={item.icon} size={22} color={colors.brand} />
-            </View>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.title}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
-      <Text style={[styles.kicker, { color: colors.muted }]}>Nylige skjemaer</Text>
-      {visible.map((template) => (
-        <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
-            <Text style={{ color: colors.muted }}>
-              {template.category === 'avtale' ? 'Avtalemal · ' : ''}
-              {template.fields.length} spørsmål
-              {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
-              {template.intro ? ` · ${template.intro}` : ''}
-            </Text>
-          </TouchableOpacity>
-          <View style={styles.row}>
-            {onPick ? (
-              <TouchableOpacity onPress={() => onPick(template.id)} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Hent inn</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Åpne</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template, { copy: true })); say(`Kopi av ${template.title}.`); }} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Kopier</Text>
-            </TouchableOpacity>
-            {pendingDelete === template.id ? (
-              <View style={styles.confirm}>
-                <Text style={{ color: colors.ink }}>Slette «{template.title}»? Svarene i skjemaet følger med.</Text>
-                <TouchableOpacity onPress={() => removeTemplate(template)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title} nå`}>
-                  <Text style={{ color: colors.danger, fontWeight: '700' }}>Slett nå</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setPendingDelete('')} accessibilityRole="button">
-                  <Text style={{ color: colors.muted }}>Avbryt</Text>
-                </TouchableOpacity>
+    <>
+      <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
+        <CreateMenu
+          label="Nytt skjema"
+          title="Les inn en mal"
+          info="Ta bilde når malen ligger på papir. Last opp fil når du har PDF, Word, bilde eller tekst. Begge leses med AI og blir et dokument du retter før du lagrer."
+          actions={[
+            { id: 'scan', label: reading ? 'Leser …' : 'Ta bilde av papir', hint: 'Åpner kameraet. Brukes når avtalen ligger foran deg.', primary: true, onPress: () => readDocument('scan'), disabled: busy || reading },
+            { id: 'import', label: reading ? 'Leser …' : 'Last opp fil', hint: 'PDF, Word, bilde eller tekst fra maskinen. Samme lesing, uten kamera.', onPress: () => readDocument('import'), disabled: busy || reading },
+          ]}
+        />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Søk i skjemaer"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+        <View style={styles.grid}>
+          {STARTERS.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => openStarter(item.kind)}
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+              style={[styles.starter, { borderColor: colors.line, backgroundColor: colors.card }]}
+            >
+              <View style={[styles.icon, { backgroundColor: colors.sunken }]}>
+                <Ionicons name={item.icon} size={22} color={colors.brand} />
               </View>
-            ) : (
-              <TouchableOpacity onPress={() => setPendingDelete(template.id)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title}`}>
-                <Text style={{ color: colors.danger }}>Slett</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.title}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      ))}
-      {!visible.length ? <Text style={{ color: colors.muted }}>Ingen skjema treffer søket.</Text> : null}
-    </ScrollView>
+        {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
+        <Text style={[styles.kicker, { color: colors.muted }]}>Nylige skjemaer</Text>
+        {visible.map((template) => (
+          <View key={template.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
+              <Text style={{ color: colors.muted }}>
+                {template.category === 'avtale' ? 'Avtalemal · ' : ''}
+                {template.fields.length} spørsmål
+                {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
+                {template.intro ? ` · ${template.intro}` : ''}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.row}>
+              {onPick ? (
+                <TouchableOpacity onPress={() => onPick(template.id)} accessibilityRole="button">
+                  <Text style={{ color: colors.brand }}>Hent inn</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Åpne</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template, { copy: true })); say(`Kopi av ${template.title}.`); }} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Kopier</Text>
+              </TouchableOpacity>
+              {pendingDelete === template.id ? (
+                <View style={styles.confirm}>
+                  <Text style={{ color: colors.ink }}>Slette «{template.title}»? Svarene i skjemaet følger med.</Text>
+                  <TouchableOpacity onPress={() => removeTemplate(template)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title} nå`}>
+                    <Text style={{ color: colors.danger, fontWeight: '700' }}>Slett nå</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setPendingDelete('')} accessibilityRole="button">
+                    <Text style={{ color: colors.muted }}>Avbryt</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => setPendingDelete(template.id)} accessibilityRole="button" accessibilityLabel={`Slett ${template.title}`}>
+                  <Text style={{ color: colors.danger }}>Slett</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ))}
+        {!visible.length ? <Text style={{ color: colors.muted }}>Ingen skjema treffer søket.</Text> : null}
+      </ScrollView>
+      {busyOverlay}
+    </>
   );
 }
 

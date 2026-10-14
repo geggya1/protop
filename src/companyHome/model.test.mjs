@@ -42,6 +42,10 @@ assert.equal(rows[1].badge, 0);
 assert.deepEqual(COMPANY_HOME_SHORTCUTS.map((row) => row.label), [
   'Timeføring', 'Fravær/Ferie', 'Gjøremål', 'Utlegg',
 ]);
+const absenceShortcut = COMPANY_HOME_SHORTCUTS.find((row) => row.id === 'absence');
+assert.equal(absenceShortcut.tab, 'ansatte');
+assert.equal(absenceShortcut.subView, null);
+assert.deepEqual(absenceShortcut.intent, { type: 'openMyAbsence' });
 assert.deepEqual(COMPANY_BOTTOM_NAV.map((row) => row.label), [
   'Hjem', 'Prosjekter', 'Time', 'Oppgaver', 'Mer',
 ]);
@@ -51,8 +55,18 @@ const bold = landing.match(/fontWeight:\s*'700'/g) || [];
 assert.equal(bold.length, 1);
 assert.match(landing, /Mine gjøremål/);
 assert.match(landing, /DashboardThemeSettings/);
+assert.match(landing, /item\.intent/);
+assert.match(landing, /company-home-sheet/);
+assert.match(landing, /minHeight: Math\.max\(160, frameHeight - topHeight\)/);
+assert.match(landing, /paddingBottom: contentPaddingBottom/);
+assert.equal(landing.includes('paddingBottom: contentPaddingBottom }]'), false);
 assert.equal(landing.includes('WidgetBoard'), false);
 assert.equal(landing.includes('onToggleEdit'), false);
+
+const employees = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
+assert.match(employees, /openMyAbsence/);
+assert.match(employees, /openWork\(person, 'absence'\)/);
+assert.match(employees, /requestShellTab\?\.\('arbeid', 'fravaer'\)/);
 
 const parentHome = readFileSync(new URL('../../components/parentHome/ParentHomeThemeHost.jsx', import.meta.url), 'utf8');
 assert.match(parentHome, /WidgetBoard/);

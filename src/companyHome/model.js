@@ -5,7 +5,7 @@
 
 export const COMPANY_HOME_SHORTCUTS = [
   { id: 'time', label: 'Timeføring', icon: 'time-outline', tab: 'timeliste', subView: null },
-  { id: 'absence', label: 'Fravær/Ferie', icon: 'people-outline', tab: 'arbeid', subView: 'planlagt' },
+  { id: 'absence', label: 'Fravær/Ferie', icon: 'people-outline', tab: 'ansatte', subView: null, intent: { type: 'openMyAbsence' } },
   { id: 'tasks', label: 'Gjøremål', icon: 'checkbox-outline', tab: 'stars', subView: null },
   { id: 'expense', label: 'Utlegg', icon: 'receipt-outline', tab: 'okonomi', subView: 'utlegg' },
 ];

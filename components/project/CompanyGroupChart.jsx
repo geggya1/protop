@@ -63,15 +63,15 @@ function millionsLabel(value, fallback) {
   return `${sign}${formatted}\u00a0MNOK`;
 }
 
-function Metrics({ node, colors, compact = false }) {
+function Metrics({ node, colors, compact = false, tight = false }) {
   const revenue = compact ? millionsLabel(node.revenue, node.revenueLabel) : node.revenueLabel;
   const result = compact ? millionsLabel(node.result, node.resultLabel) : node.resultLabel;
   return (
-    <View style={styles.metrics}>
+    <View style={[styles.metrics, tight && styles.metricsTight]}>
       <Metric icon="stats-chart" iconColor={colors.brand} label="Inntekt" value={revenue} delta={node.revenueDelta} colors={colors} />
-      <View style={[styles.metricRule, { backgroundColor: colors.line }]} />
+      {tight ? null : <View style={[styles.metricRule, { backgroundColor: colors.line }]} />}
       <Metric icon="people" iconColor={colors.success} label="Ansatte" value={node.employeesLabel} delta={null} colors={colors} />
-      <View style={[styles.metricRule, { backgroundColor: colors.line }]} />
+      {tight ? null : <View style={[styles.metricRule, { backgroundColor: colors.line }]} />}
       <Metric icon="cash" iconColor={colors.brand} label="Resultat" value={result} delta={node.resultDelta} colors={colors} />
     </View>
   );
@@ -96,7 +96,7 @@ function OwnershipPill({ label, colors }) {
   );
 }
 
-function CompanyCard({ node, colors, onPress, compact = false }) {
+function CompanyCard({ node, colors, onPress, compact = false, tight = false }) {
   const meta = [node.organisasjonsnummer, node.role, ...(node.flags || [])].filter(Boolean).join(' · ');
   return (
     <Pressable
@@ -107,30 +107,31 @@ function CompanyCard({ node, colors, onPress, compact = false }) {
       style={({ pressed }) => [
         styles.card,
         compact && styles.cardCompact,
+        tight && styles.cardTight,
         { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
       ]}
     >
       <View style={styles.cardHead}>
-        <Mark name="business" colors={colors} />
+        {tight ? null : <Mark name="business" colors={colors} />}
         <View style={styles.cardTitle}>
-          <Text style={[styles.name, compact && styles.nameCompact, { color: colors.ink }]} numberOfLines={2}>{node.navn}</Text>
+          <Text style={[styles.name, compact && styles.nameCompact, tight && styles.nameTight, { color: colors.ink }]} numberOfLines={2}>{node.navn}</Text>
           <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>{meta}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        {tight ? null : <Ionicons name="chevron-forward" size={16} color={colors.muted} />}
       </View>
       <View style={[styles.rule, { backgroundColor: colors.line }]} />
-      <Metrics node={node} colors={colors} compact={compact} />
+      <Metrics node={node} colors={colors} compact={compact} tight={tight} />
     </Pressable>
   );
 }
 
-function Fork({ children, colors, spine = false }) {
+function Fork({ children, colors, tight = false }) {
   const count = children.length;
   const stroke = connectorColor(colors);
   if (!count) return null;
   if (count === 1) {
     return (
-      <View style={styles.singleFork}>
+      <View nativeID="company-group-fork" style={styles.singleFork}>
         <Stem color={stroke} />
         {children[0].pill}
         <Stem color={stroke} height={16} />
@@ -138,24 +139,46 @@ function Fork({ children, colors, spine = false }) {
       </View>
     );
   }
+  const inset = `${50 / count}%`;
   return (
     <View nativeID="company-group-fork" style={styles.fork}>
       <Stem color={stroke} />
       <View style={styles.forkRow}>
-        {spine ? <View style={[styles.spine, { backgroundColor: stroke, pointerEvents: 'none' }]} /> : null}
-        {children.map((child, index) => (
+        <View style={[styles.bar, { backgroundColor: stroke, left: inset, right: inset }]} />
+        {children.map((child) => (
           <View key={child.key} style={styles.forkCol}>
-            <View style={styles.arm}>
-              <View style={[styles.armHalf, index > 0 && { backgroundColor: stroke }]} />
-              <View style={[styles.armJoint, { backgroundColor: stroke }]} />
-              <View style={[styles.armHalf, index < count - 1 && { backgroundColor: stroke }]} />
-            </View>
+            <View style={[styles.armJoint, { backgroundColor: stroke }]} />
             {child.pill}
             <Stem color={stroke} height={16} />
-            <View style={styles.forkCard}>{child.card}</View>
+            <View style={[styles.forkCard, tight && styles.forkCardTight]}>{child.card}</View>
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+function Rail({ children, colors }) {
+  const stroke = connectorColor(colors);
+  return (
+    <View nativeID="company-group-fork" style={styles.rail}>
+      <Stem color={stroke} />
+      {children.map((child, index) => (
+        <View key={child.key} style={styles.railRow}>
+          <View style={styles.railTrack}>
+            <View style={[styles.railSpine, {
+              backgroundColor: stroke,
+              bottom: index === children.length - 1 ? undefined : 0,
+              height: index === children.length - 1 ? 16 : undefined,
+            }]} />
+            <View style={[styles.railBranch, { backgroundColor: stroke }]} />
+          </View>
+          <View style={styles.railBody}>
+            {child.pill}
+            {child.card}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -270,15 +293,15 @@ export default function CompanyGroupChart({
   }
 
   const stacked = width < 800;
-  const forkLimit = 3;
-  const useFork = !stacked && model.children.length > 0 && model.children.length <= forkLimit;
+  const tight = width < 760;
+  const useFork = model.children.length > 0 && model.children.length <= 3;
   const departmentCount = departmentsOf(company?.subUnits).length;
   const warnings = sources?.warnings || [];
 
   const nodes = model.children.map((child) => ({
     key: child.organisasjonsnummer,
     pill: <OwnershipPill label={child.ownershipLabel} colors={colors} />,
-    card: <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />,
+    card: <CompanyCard node={child} colors={colors} compact tight={tight && useFork && model.children.length > 1} onPress={() => openNode(child)} />,
   }));
 
   return (
@@ -308,51 +331,9 @@ export default function CompanyGroupChart({
       ) : null}
 
       <View style={styles.tree}>
-      <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
-
-      {useFork ? <Fork colors={colors} spine={model.units.length > 0 && model.children.length % 2 === 0}>{nodes}</Fork> : null}
-      {!useFork && model.children.length ? (
-        <View style={styles.stack}>
-          {model.children.map((child) => (
-            <View key={child.organisasjonsnummer} style={styles.stackItem}>
-              <Stem color={connectorColor(colors)} />
-              <OwnershipPill label={child.ownershipLabel} colors={colors} />
-              <Stem color={connectorColor(colors)} height={16} />
-              <CompanyCard node={child} colors={colors} compact onPress={() => openNode(child)} />
-            </View>
-          ))}
-        </View>
-      ) : null}
-      {model.units.length ? (
-        <View style={styles.units}>
-          {model.units.map((unit, index) => (
-            <View key={unit.organisasjonsnummer} style={styles.unitWrap}>
-              {model.children.length || index > 0 ? <Stem color={connectorColor(colors)} height={18} /> : <Stem color={connectorColor(colors)} />}
-              <Pressable
-                nativeID={`group-unit-${unit.organisasjonsnummer}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Åpne underenhet ${unit.navn}`}
-                onPress={() => openUrl(unit.brregUrl)}
-                style={({ pressed }) => [
-                  styles.unit,
-                  { backgroundColor: colors.card, borderColor: colors.line, opacity: pressed ? 0.92 : 1 },
-                ]}
-              >
-                <Mark name="business" colors={colors} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.unitName, { color: colors.ink }]} numberOfLines={1}>{unit.navn}</Text>
-                  <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
-                    {[unit.organisasjonsnummer, 'Registrert underenhet', unit.poststed].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-                {width >= 560 ? (
-                  <Text style={[styles.unitSide, { color: colors.muted }]}>Under morselskap</Text>
-                ) : null}
-              </Pressable>
-            </View>
-          ))}
-        </View>
-      ) : null}
+        <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
+        {useFork ? <Fork colors={colors} tight={tight}>{nodes}</Fork> : null}
+        {!useFork && model.children.length ? <Rail colors={colors}>{nodes}</Rail> : null}
       </View>
 
       {!loading && model.emptyOwnership ? (
@@ -449,7 +430,7 @@ export default function CompanyGroupChart({
         </Text>
       ) : null}
       <Text style={[styles.sources, { color: colors.muted }]}>
-        Inntekt og resultat er fra Regnskapsregisteret. Ansatte og underenheter er fra Enhetsregisteret.
+        Inntekt og resultat er fra Regnskapsregisteret. Ansatte er fra Enhetsregisteret.
         Eierandeler er fra Aksjonærregisteret per 31. desember. Ansatte har ikke årstall i registeret og vises som dagens tall.
       </Text>
     </View>
@@ -490,6 +471,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   cardCompact: { padding: 12, gap: 10 },
+  cardTight: { padding: 10, gap: 8 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardTitle: { flex: 1, minWidth: 0, gap: 2 },
   mark: {
@@ -501,10 +483,12 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
   nameCompact: { fontSize: 14 },
+  nameTight: { fontSize: 13 },
   unitName: { fontSize: 15, fontWeight: '600' },
   meta: { fontSize: 12, lineHeight: 16 },
   rule: { height: 1, marginHorizontal: -2 },
   metrics: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  metricsTight: { flexDirection: 'column', gap: 8 },
   metric: { flex: 1, minWidth: 0, gap: 2 },
   metricLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metricName: { fontSize: 11, flexShrink: 1 },
@@ -517,20 +501,17 @@ const styles = StyleSheet.create({
   fork: { alignItems: 'center', width: '100%' },
   forkRow: { flexDirection: 'row', alignItems: 'stretch', width: '100%', position: 'relative' },
   forkCol: { flex: 1, minWidth: 0, alignItems: 'center', zIndex: 1 },
-  arm: { flexDirection: 'row', alignItems: 'flex-start', alignSelf: 'stretch', height: 20 },
-  armHalf: { flex: 1, height: 2 },
+  bar: { position: 'absolute', top: 0, height: 2, zIndex: 0 },
   armJoint: { width: 2, height: 20 },
   stem: { width: 2, height: 22, alignSelf: 'center' },
-  spine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: '50%',
-    width: 2,
-    marginLeft: -1,
-    zIndex: 0,
-  },
-  forkCard: { width: '100%', paddingHorizontal: 10 },
+  rail: { width: '100%' },
+  railRow: { flexDirection: 'row', alignItems: 'stretch' },
+  railTrack: { width: 28, position: 'relative' },
+  railSpine: { position: 'absolute', top: 0, left: 13, width: 2 },
+  railBranch: { position: 'absolute', top: 16, left: 13, right: 0, height: 2 },
+  railBody: { flex: 1, minWidth: 0, gap: 6, paddingBottom: 12, alignItems: 'flex-start' },
+  forkCard: { width: '100%', paddingHorizontal: 8 },
+  forkCardTight: { paddingHorizontal: 4 },
   singleFork: { alignItems: 'center', width: '100%' },
   singleCard: { width: '100%', maxWidth: 460 },
   pill: {

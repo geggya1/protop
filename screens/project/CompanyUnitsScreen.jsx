@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -159,7 +159,7 @@ export default function CompanyUnitsScreen() {
         <View nativeID="company-units-settings" style={styles.settings}>
           <Text style={[styles.section, { color: colors.ink }]}>Visning</Text>
           <Text style={[styles.hint, { color: colors.muted }]}>
-            Terskelen gjelder eierandeler i Aksjonærregisteret. Underenheter leses fra Enhetsregisteret.
+            Terskelen gjelder eierandeler i Aksjonærregisteret.
           </Text>
           <View style={styles.choices}>
             {OWNERSHIP_LEVELS.map((level) => {
@@ -183,28 +183,6 @@ export default function CompanyUnitsScreen() {
               );
             })}
           </View>
-          <Pressable
-            nativeID="group-show-units"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: settings.showUnits }}
-            accessibilityLabel="Vis underenheter fra Enhetsregisteret"
-            disabled={busy}
-            onPress={() => saveView({ ...settings, showUnits: !settings.showUnits })}
-            style={[styles.toggle, { borderColor: colors.line, backgroundColor: colors.card }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.ink, fontSize: 14 }}>Underenheter</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Fra Enhetsregisteret</Text>
-            </View>
-            <Switch
-              value={settings.showUnits}
-              disabled={busy}
-              pointerEvents="none"
-              onValueChange={(showUnits) => saveView({ ...settings, showUnits })}
-              trackColor={{ true: colors.brand, false: colors.line }}
-              thumbColor={colors.card}
-            />
-          </Pressable>
           {!canEdit ? (
             <Text style={[styles.hint, { color: colors.muted }]}>Visningen gjelder denne økten.</Text>
           ) : null}
@@ -269,14 +247,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 2,
-  },
-  toggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
 });

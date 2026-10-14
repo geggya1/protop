@@ -1,6 +1,6 @@
 /**
  * Bedriftssider bruker samme heading som ukeplan-modulene:
- * pastellbånd, tekst til venstre, illustrasjon til høyre.
+ * mørkt antrasittbånd, tekst til venstre, illustrasjon til høyre.
  * Telefon: båndet ligger i skall-chrome. Nettbrett og nettleser: bånd over innholdet.
  */
 import {
@@ -11,12 +11,20 @@ import {
 
 const t = (nb, en) => ({ nb, en });
 
-const BLUE = { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#1099F4' };
-const LAVENDER = { bg: '#f1e9ff', bg2: '#faf7ff', accent: '#7c3aed' };
-const MINT = { bg: '#e7f7ee', bg2: '#f5fcf8', accent: '#15803d' };
-const CYAN = { bg: '#e6f5fb', bg2: '#f4fbfe', accent: '#0284c7' };
-const SAND = { bg: '#f4efe6', bg2: '#fbf8f2', accent: '#b45309' };
-const SLATE = { bg: '#e8eef6', bg2: '#f7f9fc', accent: '#1d4ed8' };
+/** Mørk antrasitt med en lysere gradering i samme nyanse. Lys tekst. */
+const ANTHRACITE = {
+  bg: '#1B2026',
+  bg2: '#3C4550',
+  accent: '#9ED0F6',
+  ink: '#F4F7FB',
+  muted: '#C5CED8',
+};
+const BLUE = ANTHRACITE;
+const LAVENDER = ANTHRACITE;
+const MINT = ANTHRACITE;
+const CYAN = ANTHRACITE;
+const SAND = ANTHRACITE;
+const SLATE = ANTHRACITE;
 
 export const COMPANY_HERO = {
   projects: {

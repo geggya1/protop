@@ -304,6 +304,17 @@ assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
+for (const id of Object.keys(COMPANY_HERO)) {
+  const band = resolveModuleHero(id, 'nb');
+  assert.equal(band.bg, '#1B2026', `${id} uses the anthracite band`);
+  assert.equal(band.bg2, '#3C4550', `${id} anthracite gradient`);
+  assert.equal(band.ink, '#F4F7FB', `${id} light title on the dark band`);
+}
+assert.match(
+  readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8'),
+  /width: '64%'/,
+  'phone wide art fills at least half the band from the right',
+);
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 

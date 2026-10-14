@@ -347,6 +347,8 @@ export function resolveModuleHero(moduleId, lang = 'nb') {
     bg: custom.bg || DEFAULT_PALETTE.bg,
     bg2: custom.bg2 || DEFAULT_PALETTE.bg2,
     accent: custom.accent || DEFAULT_PALETTE.accent,
+    ink: custom.ink || '',
+    muted: custom.muted || '',
   };
   return {
     moduleId: id || null,

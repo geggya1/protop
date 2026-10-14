@@ -60,6 +60,7 @@ const BUNDLED = {
   'okonomi-produkter': require('../../assets/module-activation/okonomi-produkter--module-activation-illustration.png'),
   'arbeid-godkjenning': require('../../assets/module-activation/arbeid-godkjenning--module-activation-illustration.png'),
   iso: require('../../assets/module-activation/iso--module-activation-illustration.png'),
+  'okonomi-faktura': require('../../assets/module-activation/okonomi-faktura--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

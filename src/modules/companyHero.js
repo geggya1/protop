@@ -295,7 +295,8 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-faktura': {
-    ...MINT,
+    ...BLUE,
+    wideArt: true,
     name: 'Faktura',
     kicker: t('Økonomi', 'Finance'),
     title: t('Faktura', 'Invoices'),

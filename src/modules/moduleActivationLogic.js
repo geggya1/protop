@@ -78,6 +78,7 @@ export const ILLUSTRATION_FILES = {
   'okonomi-produkter': 'okonomi-produkter--module-activation-illustration.png',
   'arbeid-godkjenning': 'arbeid-godkjenning--module-activation-illustration.png',
   iso: 'iso--module-activation-illustration.png',
+  'okonomi-faktura': 'okonomi-faktura--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

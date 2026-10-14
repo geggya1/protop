@@ -9,6 +9,9 @@ import { employeeActivityTab, personnelKind } from '../employees/model.js';
 
 export const STATUTORY_VACATION_DAYS = 25;
 
+/** En feriedag i fraværsoversikten er 8 timer, uavhengig av timelistens dagslengde. */
+export const ABSENCE_DAY_HOURS = 8;
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const SICK = new Set(['syk_melding', 'egenmelding', 'sykdom', 'syk_uten']);

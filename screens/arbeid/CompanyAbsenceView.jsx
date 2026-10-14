@@ -84,10 +84,6 @@ function rosterKey(rows) {
 }
 
 export function CompanyAbsenceView({
-  companyName = '',
-  companies = [],
-  companyId = '',
-  onSelectCompany,
   employees = [],
   employeeId = '',
   canChooseEmployee = false,
@@ -102,23 +98,19 @@ export function CompanyAbsenceView({
   const [menu, setMenu] = useState('');
   const [chartWidth, setChartWidth] = useState(150);
   const actions = useRef({});
-  actions.current = { onSelectCompany, onSelectEmployee, onSelectCategory, setMenu };
+  actions.current = { onSelectEmployee, onSelectCategory, setMenu };
 
   const employeeName = employees.find((row) => row.id === employeeId)?.name || '';
   const focus = dashboard?.focusTitle || 'Ferie';
   const year = dashboard?.year || '';
   const usageTitle = category === 'ferie' ? `Feriebruk ${year}` : `${focus} ${year}`;
   const inChrome = !isDesktop;
-  const companyKey = rosterKey(companies);
   const employeeKey = rosterKey(employees);
 
   const heading = useMemo(() => (
     <AbsenceHeading
       chrome={inChrome}
       wide={wide}
-      companyName={companyName}
-      companies={companies}
-      companyId={companyId}
       employees={employees}
       employeeId={employeeId}
       employeeName={employeeName}
@@ -130,10 +122,6 @@ export function CompanyAbsenceView({
       onToggle={(name) => {
         actions.current.setMenu((current) => (current === name ? '' : name));
       }}
-      onPickCompany={(id) => {
-        actions.current.setMenu('');
-        actions.current.onSelectCompany?.(id);
-      }}
       onPickEmployee={(id) => {
         actions.current.setMenu('');
         actions.current.onSelectEmployee?.(id);
@@ -144,7 +132,7 @@ export function CompanyAbsenceView({
       }}
     />
   ), [
-    inChrome, wide, companyName, companyKey, companyId, employeeKey, employeeId,
+    inChrome, wide, employeeKey, employeeId,
     employeeName, canChooseEmployee, category, menu, error, focus,
   ]);
 
@@ -265,9 +253,6 @@ export function CompanyAbsenceView({
 function AbsenceHeading({
   chrome,
   wide,
-  companyName,
-  companies,
-  companyId,
   employees,
   employeeId,
   employeeName,
@@ -277,7 +262,6 @@ function AbsenceHeading({
   error,
   focus,
   onToggle,
-  onPickCompany,
   onPickEmployee,
   onPickCategory,
 }) {
@@ -289,19 +273,6 @@ function AbsenceHeading({
           <BlueprintArt width={wide ? 460 : 148} height={wide ? 120 : 100} />
         </View>
         <View style={[styles.bannerCopy, wide && styles.bannerCopyWide]}>
-          <View style={styles.bedriftRow}>
-            <Text style={styles.bedrift}>Bedrift</Text>
-            <TouchableOpacity
-              style={styles.pill}
-              onPress={() => onToggle('company')}
-              accessibilityRole="button"
-              accessibilityLabel="Velg selskap"
-              nativeID="selskap-velger"
-            >
-              <Text style={styles.pillText} numberOfLines={1}>{companyName.toUpperCase()}</Text>
-              <Ionicons name="chevron-down" size={12} color="#fff" />
-            </TouchableOpacity>
-          </View>
           <Text accessibilityRole="header" style={[styles.title, wide && styles.titleWide]} numberOfLines={1}>
             Fraværsoversikt
           </Text>
@@ -310,14 +281,6 @@ function AbsenceHeading({
           </Text>
         </View>
       </View>
-
-      {menu === 'company' ? (
-        <ChoiceList
-          options={companies.map((row) => ({ id: row.id, label: row.name }))}
-          selected={companyId}
-          onPick={onPickCompany}
-        />
-      ) : null}
 
       <View style={styles.filterBar}>
         <TouchableOpacity
@@ -619,21 +582,6 @@ const styles = StyleSheet.create({
   bannerArtWide: { width: 460, height: 120 },
   bannerCopy: { width: '100%', paddingRight: 100, gap: 3, zIndex: 1 },
   bannerCopyWide: { maxWidth: 640, paddingRight: 280 },
-  bedriftRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bedrift: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    maxWidth: 168,
-    backgroundColor: 'rgba(8, 28, 58, 0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  pillText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.3, flexShrink: 1 },
   title: { color: '#fff', fontSize: 24, lineHeight: 28, fontWeight: '800', letterSpacing: -0.5 },
   titleWide: { fontSize: 32, lineHeight: 36 },
   lead: { color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 16, maxWidth: 230 },

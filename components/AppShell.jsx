@@ -20,6 +20,7 @@ import ChatTabScreen from '../screens/v2/ChatTabScreen';
 import MoreHubScreen from '../screens/v2/MoreHubScreen';
 import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
@@ -622,7 +623,16 @@ function AppShellInner() {
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
-    if (tab === 'selskap' || (isOrganizationType(family?.type) && tab === 'home')) {
+    if (
+      isOrganizationType(family?.type)
+      && tab === 'home'
+      && !isChild
+      && !isActingAsChild
+      && !kitchenMode
+    ) {
+      return <CompanyLanding />;
+    }
+    if (tab === 'selskap') {
       return <ProjectPlatformScreen />;
     }
     if (tab === 'more') {
@@ -634,7 +644,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess]);
+  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, kitchenMode]);
 
   const body = (
     <>

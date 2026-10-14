@@ -395,3 +395,97 @@ export function buildCompanyAbsenceLedger({
   ));
   return { rows, summary, typeId };
 }
+
+const YEAR_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/**
+ * Underlag til web: feriesaldo, månedsfordeling per ansatt og perioder.
+ * Tallene kommer fra registrert fravær og lagret startsaldo.
+ */
+export function buildAbsenceWebBoard({
+  employees = [],
+  employeeId = '',
+  absences = [],
+  adjustments = [],
+  fullDayHours = 7.5,
+  today = '',
+  names = {},
+} = {}) {
+  const dash = buildAbsenceDashboard({
+    employees,
+    employeeId,
+    category: 'ferie',
+    absences,
+    adjustments,
+    fullDayHours,
+    today,
+    names,
+  });
+  const people = activeEmployees(employees).filter((row) => !employeeId || row.id === employeeId);
+  const selectedIds = new Set(people.map((row) => row.id));
+  const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
+  const year = dash.year;
+  const byPerson = new Map();
+  for (const person of people) {
+    byPerson.set(person.id, {
+      id: person.id,
+      name: names[person.id] || person.name || 'Ansatt',
+      months: YEAR_MONTHS.map((label, index) => ({
+        label,
+        month: index + 1,
+        ferie: 0,
+        sykdom: 0,
+        annet: 0,
+      })),
+    });
+  }
+  for (const row of absences || []) {
+    if (!selectedIds.has(row.employeeId)) continue;
+    if (!String(row.date || '').startsWith(year)) continue;
+    const month = Number(String(row.date).slice(5, 7));
+    if (month < 1 || month > 12) continue;
+    const person = byPerson.get(row.employeeId);
+    if (!person) continue;
+    const bucket = absenceBucket(row.type || 'ferie');
+    const days = hoursToDays(row.hours, dayHours);
+    person.months[month - 1][bucket] = round2(person.months[month - 1][bucket] + days);
+  }
+  const staff = [];
+  for (const person of people) {
+    const grid = byPerson.get(person.id);
+    const overview = buildAbsenceOverview({
+      employeeId: person.id,
+      typeId: 'ferie',
+      absences,
+      adjustments,
+      fullDayHours: dayHours,
+      today,
+    });
+    const hasMonths = grid.months.some((month) => month.ferie || month.sykdom || month.annet);
+    if (!hasMonths && !overview.summary.earned && !overview.summary.used) continue;
+    const absenceDays = round2(grid.months.reduce((sum, month) => (
+      sum + month.ferie + month.sykdom + month.annet
+    ), 0));
+    staff.push({
+      ...grid,
+      absenceDays,
+      vacationUsed: overview.summary.used,
+      earned: overview.summary.earned,
+      remaining: overview.summary.remaining,
+      planned: overview.summary.planned,
+    });
+  }
+  staff.sort((a, b) => b.absenceDays - a.absenceDays || a.name.localeCompare(b.name, 'nb'));
+  const lines = groupAbsencePeriods(
+    (absences || []).filter((row) => selectedIds.has(row.employeeId) && String(row.date || '').startsWith(year)),
+    today,
+  ).map((period) => ({
+    ...period,
+    days: hoursToDays(period.hours, dayHours),
+    employeeName: names[period.employeeId] || 'Ansatt',
+    typeLabel: absenceTypeById(period.type).label,
+    bucket: absenceBucket(period.type),
+    category: absenceCategory(period.type),
+  }));
+  return { dash, staff, lines, year, months: YEAR_MONTHS };
+}

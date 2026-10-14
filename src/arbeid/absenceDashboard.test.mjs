@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   STATUTORY_VACATION_DAYS,
   buildAbsenceDashboard,
+  buildAbsenceWebBoard,
   buildCompanyAbsenceLedger,
   eachWeekday,
   groupAbsencePeriods,
@@ -216,6 +217,38 @@ const employees = [
   assert.equal(ledger.rows.some((row) => row.employeeName === 'Ada' && row.kind === 'absence'), true);
   assert.equal(ledger.rows.some((row) => row.employeeName === 'Bo'), false);
   assert.equal(ledger.summary.earned === employees.length * STATUTORY_VACATION_DAYS, false);
+}
+
+{
+  const board = buildAbsenceWebBoard({
+    employees: [
+      ...employees,
+      { id: 'e3', company: { status: 'active' } },
+    ],
+    today: '2026-10-14',
+    fullDayHours: 7.5,
+    names: { e1: 'Ada Nord', e2: 'Bo Berg', e3: 'Cato' },
+    adjustments: [{ id: 'o', employeeId: 'e1', typeId: 'ferie', kind: 'opening', date: '2026-01-02', days: 21 }],
+    absences: [
+      { id: 'a1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 7.5 },
+      { id: 'a2', employeeId: 'e1', type: 'ferie', date: '2026-07-07', hours: 7.5 },
+      { id: 'a3', employeeId: 'e1', type: 'ferie', date: '2026-07-08', hours: 7.5 },
+      { id: 's1', employeeId: 'e2', type: 'syk_melding', date: '2026-10-14', hours: 7.5 },
+    ],
+  });
+  const ada = board.staff.find((row) => row.name === 'Ada Nord');
+  const bo = board.staff.find((row) => row.name === 'Bo Berg');
+  assert.equal(board.staff.some((row) => row.name === 'Cato'), false);
+  assert.equal(ada.months[6].ferie, 3);
+  assert.equal(ada.earned, 21);
+  assert.equal(ada.remaining, 18);
+  assert.equal(ada.vacationUsed, 3);
+  assert.equal(bo.months[9].sykdom, 1);
+  assert.equal(bo.earned, 0);
+  assert.equal(board.lines.length, 2);
+  assert.equal(board.dash.summary.earned, 21);
+  assert.equal(board.dash.summary.used, 3);
+  assert.equal(board.dash.sickNow, 1);
 }
 
 console.log('absenceDashboard ok');

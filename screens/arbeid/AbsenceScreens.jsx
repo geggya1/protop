@@ -5,7 +5,9 @@ import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCat
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
+import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
+import { AbsenceReportDesktop } from './CompanyAbsenceDesktop';
 
 export { AbsenceOverviewScreen } from './AbsenceOverviewView';
 
@@ -43,9 +45,13 @@ function PersonChips({ workspace, activeId, onPick }) {
 
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const { isDesktop } = useLayout();
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const today = toDateKey(new Date());
+  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
+  const names = {};
+  for (const row of people) names[row.id] = employeeDisplayName(row);
   const rows = useMemo(() => absencePickerTypes().map((type) => {
     const overview = buildAbsenceOverview({
       employeeId: activeId,
@@ -59,6 +65,20 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   }).filter((row) => row.summary.used || row.summary.earned || row.summary.planned), [
     activeId, workspace.state.absences, workspace.state.absenceAdjustments, fullDay, today,
   ]);
+  if (isDesktop) {
+    return (
+      <AbsenceReportDesktop
+        employees={people}
+        names={names}
+        absences={workspace.state.absences || []}
+        adjustments={workspace.state.absenceAdjustments || []}
+        fullDayHours={fullDay}
+        today={today}
+        canChooseEmployee={!!workspace.manager && !workspace.lockedId}
+        lockedEmployeeId={activeId}
+      />
+    );
+  }
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="fravaersrapport">
       <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Fraværsrapport</Text>

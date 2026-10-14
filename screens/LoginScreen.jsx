@@ -68,7 +68,7 @@ function withDeadline(promise, ms, label) {
 
 /**
  * Login card:
- * Google, Microsoft & Apple → OR → username/password → Log in → sign up
+ * Google & Microsoft → OR → username/password → Log in → sign up
  * Privacy and terms sit last, under the sign-in action.
  */
 export default function LoginScreen({ navigation }) {

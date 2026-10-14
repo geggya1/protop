@@ -288,6 +288,7 @@ assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the
 assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvarsling uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-tilbud', 'nb').wideArt, true, 'tilbud uses the wide illustration');
+assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses the wide illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -346,6 +347,17 @@ assert.equal(
   'tilbud bundled != public',
 );
 assert.match(assetsSrc, /'anbud-tilbud': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-tilbud--module-activation-illustration\.png'\)/);
+const kontraktFile = 'kontrakt--module-activation-illustration.png';
+const kontraktBundled = join(ROOT, 'assets/module-activation', kontraktFile);
+const kontraktPublic = join(ROOT, 'public/assets/module-activation', kontraktFile);
+assert.equal(existsSync(kontraktBundled), true, 'kontrakt bundled art');
+assert.equal(existsSync(kontraktPublic), true, 'kontrakt public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(kontraktBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(kontraktPublic)).digest('hex'),
+  'kontrakt bundled != public',
+);
+assert.match(assetsSrc, /kontrakt: require\('\.\.\/\.\.\/assets\/module-activation\/kontrakt--module-activation-illustration\.png'\)/);
 assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

@@ -54,6 +54,7 @@ export const COMPANY_HERO = {
   },
   kontrakt: {
     ...BLUE,
+    wideArt: true,
     name: 'Kontrakt / avtale',
     kicker: t('Kontrakt', 'Contract'),
     title: t('Avtaler og kontrakter', 'Agreements and contracts'),

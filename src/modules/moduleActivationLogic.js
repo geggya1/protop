@@ -67,6 +67,7 @@ export const ILLUSTRATION_FILES = {
   kunder: 'kunder--module-activation-illustration.png',
   'anbud-varsling': 'anbud-varsling--module-activation-illustration.png',
   'anbud-tilbud': 'anbud-tilbud--module-activation-illustration.png',
+  kontrakt: 'kontrakt--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

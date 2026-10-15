@@ -74,6 +74,7 @@ const BUNDLED = {
   'okonomi-utlegg': require('../../assets/module-activation/okonomi-utlegg--module-activation-illustration.png'),
   selskap: require('../../assets/module-activation/selskap--module-activation-illustration.png'),
   underenheter: require('../../assets/module-activation/underenheter--module-activation-illustration.png'),
+  'selskap-tilgang': require('../../assets/module-activation/selskap-tilgang--module-activation-illustration.png'),
 };
 
 const BUNDLED_PHONE = {

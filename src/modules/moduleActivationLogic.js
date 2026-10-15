@@ -90,6 +90,7 @@ export const ILLUSTRATION_FILES = {
   'okonomi-utlegg': 'okonomi-utlegg--module-activation-illustration.png',
   selskap: 'selskap--module-activation-illustration.png',
   underenheter: 'underenheter--module-activation-illustration.png',
+  'selskap-tilgang': 'selskap-tilgang--module-activation-illustration.png',
 };
 
 /** Tighter phone compositions. Tablet and desktop keep ILLUSTRATION_FILES. */

@@ -108,7 +108,8 @@ export const COMPANY_HERO = {
     ),
   },
   'selskap-tilgang': {
-    ...SLATE,
+    ...BLUE,
+    wideArt: true,
     name: 'Tilgang',
     kicker: t('Selskap', 'Company'),
     title: t('Tilgang og rettigheter', 'Access and permissions'),

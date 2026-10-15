@@ -6,6 +6,7 @@
 import {
   defaultAnbudSubView,
   defaultArbeidSubView,
+  defaultHrSubView,
   defaultOkonomiSubView,
 } from '../navigation/shellModules.js';
 
@@ -39,6 +40,72 @@ export const COMPANY_HERO = {
     pitch: t(
       'Register, CV og tilgang for medarbeiderne.',
       'Directory, CV and access for the people who work here.',
+    ),
+  },
+  'hr-oversikt': {
+    ...MINT,
+    wideArt: true,
+    name: 'HR',
+    kicker: t('HR', 'HR'),
+    title: t('Personal og rekruttering', 'People and recruiting'),
+    pitch: t(
+      'Oversikt over jubileum, oppfølging, lønn og søknader.',
+      'Overview of anniversaries, follow-up, pay and applications.',
+    ),
+  },
+  'hr-personell': {
+    ...MINT,
+    wideArt: true,
+    name: 'Personell',
+    kicker: t('HR', 'HR'),
+    title: t('Personaloversikt', 'People overview'),
+    pitch: t(
+      'Ansatt dato, jubileum, fødselsdato og kontrakter.',
+      'Hire date, anniversary, birthday and contracts.',
+    ),
+  },
+  'hr-produktivitet': {
+    ...CYAN,
+    wideArt: true,
+    name: 'Produktivitet',
+    kicker: t('HR', 'HR'),
+    title: t('Utnyttelse av kapasitet', 'Capacity utilization'),
+    pitch: t(
+      'Utfakturerbare timer mot ikke-fakturerbare.',
+      'Billable hours versus non-billable.',
+    ),
+  },
+  'hr-lonn': {
+    ...SAND,
+    wideArt: true,
+    name: 'Lønn',
+    kicker: t('HR', 'HR'),
+    title: t('Lønn og justeringer', 'Pay and adjustments'),
+    pitch: t(
+      'Historikk, graf og plan for fremtidige justeringer.',
+      'History, chart and planned future adjustments.',
+    ),
+  },
+  'hr-oppfolging': {
+    ...SLATE,
+    wideArt: true,
+    name: 'Oppfølging',
+    kicker: t('HR', 'HR'),
+    title: t('Saker, samtaler og oppgaver', 'Cases, reviews and tasks'),
+    pitch: t(
+      'Medarbeidersamtaler, memo og tildelte gjøremål.',
+      'Reviews, memos and assigned to-dos.',
+    ),
+  },
+  'hr-rekruttering': {
+    ...BLUE,
+    wideArt: true,
+    name: 'Rekruttering',
+    kicker: t('HR', 'HR'),
+    title: t('Annonser og søknader', 'Jobs and applications'),
+    pitch: t(
+      'Registrer stillinger, vurder søkere og svar opp.',
+      'Post jobs, evaluate applicants and reply.',
     ),
   },
   kunder: {
@@ -373,6 +440,7 @@ export const COMPANY_HERO = {
 export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'projects') return 'projects';
   if (tab === 'ansatte') return 'ansatte';
+  if (tab === 'hr') return `hr-${defaultHrSubView(moreSubView)}`;
   if (tab === 'kunder') return 'kunder';
   if (tab === 'kontrakt') return 'kontrakt';
   if (tab === 'skjema') return 'skjema';

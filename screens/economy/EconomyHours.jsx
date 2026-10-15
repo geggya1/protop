@@ -97,6 +97,7 @@ export default function EconomyHours({
   projects: projectsProp = [],
   lockedEmployeeId = '',
   hideBillable = false,
+  embedded = false,
 }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
@@ -793,13 +794,13 @@ export default function EconomyHours({
         >
           <View style={styles.phoneTop}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              {hostedHero ? null : (
+              {hostedHero || embedded ? null : (
                 <>
                   <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
                   <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
-              {employeeHeading}
+              {embedded ? null : employeeHeading}
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {!ready || hoursLoading
                   ? 'Laster timer…'
@@ -864,13 +865,13 @@ export default function EconomyHours({
         <View style={styles.mainCol}>
           <View style={styles.toolbar}>
             <View style={{ flex: 1, gap: 4 }}>
-              {hostedHero ? null : (
+              {hostedHero || embedded ? null : (
                 <>
                   <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
                   <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
-              {employeeHeading}
+              {embedded ? null : employeeHeading}
               <Text style={{ color: colors.muted }}>
                 {!ready || hoursLoading
                   ? 'Laster timer…'

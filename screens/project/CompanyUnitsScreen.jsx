@@ -11,7 +11,7 @@ import { useLayout } from '../../src/theme';
 import { ShellPageHeroContext } from '../../components/ShellHeader';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
-import CompanyGroupChart from '../../components/project/CompanyGroupChart';
+import CompanyGroupChart, { GroupYearButton } from '../../components/project/CompanyGroupChart';
 import {
   OWNERSHIP_LEVELS,
   normalizeGroupChartSettings,
@@ -38,7 +38,13 @@ function GearButton({ open, colors, onPress }) {
   );
 }
 
-function PageHeading({ name, colors, open, onPress }) {
+function PageHeading({ name, colors, open, onPress, yearControl, wide }) {
+  const actions = (
+    <View style={styles.headingActions}>
+      {yearControl}
+      <GearButton open={open} colors={colors} onPress={onPress} />
+    </View>
+  );
   return (
     <View nativeID="company-units-heading" style={styles.heading}>
       <View style={styles.headingRow}>
@@ -48,8 +54,9 @@ function PageHeading({ name, colors, open, onPress }) {
           </Text>
           <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>Underenheter</Text>
         </View>
-        <GearButton open={open} colors={colors} onPress={onPress} />
+        {wide ? actions : null}
       </View>
+      {wide ? null : actions}
       <Text style={[styles.subtitle, { color: colors.muted }]}>
         {`Se konsernstruktur, eierandeler og nøkkeltall for ${name || 'selskapet'} og tilknyttede selskaper.`}
       </Text>
@@ -72,6 +79,9 @@ export default function CompanyUnitsScreen() {
   const [error, setError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(() => normalizeGroupChartSettings(company?.groupChart));
+  const [year, setYear] = useState(null);
+  const [yearOpen, setYearOpen] = useState(false);
+  const [years, setYears] = useState([]);
   const scrollRef = useRef(null);
   const settingsKey = `${company?.groupChart?.minOwnership ?? ''}:${company?.groupChart?.showUnits ?? ''}`;
 
@@ -81,7 +91,13 @@ export default function CompanyUnitsScreen() {
 
   useEffect(() => {
     setSettingsOpen(false);
+    setYear(null);
+    setYearOpen(false);
   }, [familyId]);
+
+  const onYears = useCallback((next) => {
+    setYears(Array.isArray(next) ? next : []);
+  }, []);
 
   const toggleSettings = useCallback(() => {
     setSettingsOpen((open) => {
@@ -96,8 +112,22 @@ export default function CompanyUnitsScreen() {
       colors={colors}
       open={settingsOpen}
       onPress={toggleSettings}
+      wide={isDesktop}
+      yearControl={(
+        <GroupYearButton
+          years={years}
+          year={year}
+          open={yearOpen}
+          colors={colors}
+          onToggle={() => setYearOpen((open) => !open)}
+          onSelect={(value) => {
+            setYear(value);
+            setYearOpen(false);
+          }}
+        />
+      )}
     />
-  ), [company?.navn, colors, settingsOpen, toggleSettings]);
+  ), [company?.navn, colors, settingsOpen, toggleSettings, years, year, yearOpen, isDesktop]);
   useShellPageHero(inChrome ? heading : null, { active: inChrome });
 
   async function saveCompany(next) {
@@ -210,6 +240,9 @@ export default function CompanyUnitsScreen() {
         company={company}
         settings={settings}
         colors={colors}
+        year={year}
+        onYearChange={setYear}
+        onYears={onYears}
         companyIdFor={companyIdFor}
         onOpenCompany={(id) => {
           selectFamily?.(id);
@@ -224,6 +257,7 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 14, maxWidth: 920, width: '100%', alignSelf: 'flex-start' },
   heading: { gap: 6, marginBottom: 2 },
   headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headingActions: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8 },
   kicker: { fontSize: 13, fontWeight: '500' },
   title: { fontSize: 28, lineHeight: 34, fontWeight: '600', letterSpacing: -0.4 },
   subtitle: { fontSize: 14, lineHeight: 20 },

@@ -183,20 +183,65 @@ function Rail({ children, colors }) {
   );
 }
 
+export function GroupYearButton({
+  years = [],
+  year = null,
+  open = false,
+  colors,
+  onToggle,
+  onSelect,
+}) {
+  if (!years.length) return null;
+  const current = years.find((row) => row.year === year) || years[0];
+  return (
+    <View style={styles.yearControl}>
+      <Pressable
+        nativeID="company-group-year"
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel="Velg regnskapsår"
+        onPress={onToggle}
+        style={[styles.yearButton, { backgroundColor: colors.brand }]}
+      >
+        <Ionicons name="calendar-outline" size={16} color="#fff" />
+        <Text style={styles.yearButtonText} numberOfLines={1}>{current?.label || 'Regnskapsår'}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color="#fff" />
+      </Pressable>
+      {open ? (
+        <View style={[styles.yearMenu, { backgroundColor: colors.card, borderColor: colors.line }]}>
+          {years.map((row) => (
+            <Pressable
+              key={row.year}
+              accessibilityRole="button"
+              onPress={() => onSelect?.(row.year)}
+              style={[styles.yearOption, { borderTopColor: colors.line }]}
+            >
+              <Text style={{ color: row.year === (year ?? years[0]?.year) ? colors.brand : colors.ink, fontSize: 14, fontWeight: '600' }}>
+                {row.menu}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function CompanyGroupChart({
   company,
   settings,
   colors,
   companyIdFor,
   onOpenCompany,
+  year = null,
+  onYearChange,
+  onYears,
 }) {
   const { width } = useWindowDimensions();
   const orgnr = digitsOrgnr(company?.organisasjonsnummer);
   const [sources, setSources] = useState(null);
   const [bundles, setBundles] = useState({});
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState(null);
-  const [yearOpen, setYearOpen] = useState(false);
   const inflight = useRef(new Set());
   const done = useRef(new Set());
 
@@ -204,8 +249,7 @@ export default function CompanyGroupChart({
     inflight.current = new Set();
     done.current = new Set();
     setBundles({});
-    setYear(null);
-    setYearOpen(false);
+    onYearChange?.(null);
     if (orgnr.length !== 9) {
       setSources(null);
       setLoading(false);
@@ -280,8 +324,12 @@ export default function CompanyGroupChart({
     sharesByYear: sources?.sharesByYear,
     childBundles: Object.values(bundles),
     year,
-    settings,
+    settings: { ...settings, showUnits: false },
   }), [company?.navn, orgnr, sources, bundles, year, settings]);
+
+  useEffect(() => {
+    onYears?.(model.years);
+  }, [model.years, onYears]);
 
   function openNode(node) {
     const linked = companyIdFor?.(node.organisasjonsnummer);
@@ -330,51 +378,11 @@ export default function CompanyGroupChart({
       ) : null}
 
       <View nativeID="company-group-totals" style={styles.summary}>
-        <View style={[styles.summaryTop, tight && styles.summaryTopTight]}>
-          <View style={styles.summaryTitle}>
-            <Text accessibilityRole="header" style={[styles.summaryName, { color: colors.ink }]}>
-              {model.totals.label}
-            </Text>
-            <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
-            <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
-          </View>
-          {model.years.length ? (
-            <View style={[styles.yearWrap, tight && styles.yearWrapTight]}>
-              <Pressable
-                nativeID="company-group-year"
-                accessibilityRole="button"
-                accessibilityState={{ expanded: yearOpen }}
-                accessibilityLabel="Velg regnskapsår"
-                onPress={() => setYearOpen((open) => !open)}
-                style={[styles.yearInline, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>
-                  {model.years.find((row) => row.year === model.year)?.label || 'Regnskapsår'}
-                </Text>
-                <Ionicons name={yearOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
-              </Pressable>
-              {yearOpen ? (
-                <View style={[styles.yearMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                  {model.years.map((row) => (
-                    <Pressable
-                      key={row.year}
-                      accessibilityRole="button"
-                      onPress={() => {
-                        setYear(row.year);
-                        setYearOpen(false);
-                      }}
-                      style={[styles.yearOption, { borderTopColor: colors.line }]}
-                    >
-                      <Text style={{ color: row.year === model.year ? colors.brand : colors.ink, fontSize: 13 }}>
-                        {row.menu}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
+        <Text accessibilityRole="header" style={[styles.summaryName, { color: colors.ink }]}>
+          {model.totals.label}
+        </Text>
+        <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
+        <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
         <Metrics node={model.totals} colors={colors} />
       </View>
 
@@ -520,14 +528,25 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   unitSide: { fontSize: 12, maxWidth: 110, textAlign: 'right' },
-  summary: { width: '100%', gap: 12 },
-  summaryTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  summaryTopTight: { flexDirection: 'column', gap: 8 },
-  summaryTitle: { flex: 1, minWidth: 0, gap: 2 },
+  summary: { width: '100%', gap: 4 },
   summaryName: { fontSize: 22, lineHeight: 28, fontWeight: '600', letterSpacing: -0.3 },
-  yearWrap: { width: 168, maxWidth: '46%' },
-  yearWrapTight: { width: 'auto', maxWidth: '100%', alignSelf: 'flex-start' },
-  yearMenu: { borderWidth: 1, borderRadius: 12, marginTop: 6, overflow: 'hidden' },
+  yearControl: { position: 'relative', zIndex: 4, maxWidth: 220 },
+  yearButton: {
+    height: 40,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  yearButtonText: { color: '#fff', fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  yearMenu: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    minWidth: 180,
+  },
   yearInline: {
     borderWidth: 1,
     borderRadius: 12,

@@ -28,8 +28,8 @@ export default function ModuleHero({
   const { lang } = useI18n();
   const { isPhone, isDesktop } = useLayout();
   const [useBundled, setUseBundled] = useState(Platform.OS !== 'web');
-  const [artRatio, setArtRatio] = useState(null);
-  useEffect(() => { setArtRatio(null); }, [moduleId, isPhone, useBundled]);
+  const [artRatio, setArtRatio] = useState(2.4);
+  useEffect(() => { setArtRatio(2.4); }, [moduleId, isPhone, useBundled]);
   const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
   const imgSource = useMemo(
     () => (moduleId ? illustrationSourceById(moduleId, { preferBundled: useBundled, phone: isPhone }) : null),
@@ -72,7 +72,6 @@ export default function ModuleHero({
         styles.copy,
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
-        wideArt && (isDesktop ? styles.copyWideDesk : isPhone ? styles.copyWidePhone : styles.copyWideTablet),
         chromePhone && styles.copyPhoneChrome,
       ]}>
         {overline ? (
@@ -99,7 +98,7 @@ export default function ModuleHero({
           style={[
             styles.artWrap,
             wideArt
-              ? styles.artWrapWide
+              ? (isDesktop ? styles.artWrapWideDesk : isPhone ? styles.artWrapWidePhone : styles.artWrapWideTablet)
               : (isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet),
             squareArt && !wideArt && styles.artWrapSquare,
             chromePhone && styles.artWrapPhoneChrome,
@@ -107,9 +106,7 @@ export default function ModuleHero({
         >
           <Image
             source={imgSource}
-            style={wideArt
-              ? [styles.artWide, { width: '100%', aspectRatio: artRatio || 2.6 }]
-              : styles.art}
+            style={wideArt ? [styles.artWide, { width: '100%', aspectRatio: artRatio }] : styles.art}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
             onLoad={wideArt ? (event) => {
@@ -259,24 +256,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     maxWidth: 220,
   },
-  copyWideDesk: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: 'auto',
-    maxWidth: 420,
-  },
-  copyWideTablet: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: 'auto',
-    maxWidth: 300,
-  },
-  copyWidePhone: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: 'auto',
-    maxWidth: 168,
-  },
   artWrap: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -302,15 +281,33 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingLeft: 4,
   },
-  /* Wide company art keeps its full width. Extra height is clipped. */
-  artWrapWide: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 0,
-    alignSelf: 'stretch',
+  /* Right-hand slot, widened by the old 1.4 scale so the picture stays
+     the same size and the sides are no longer clipped. Extra height is cut. */
+  artWrapWideDesk: {
+    width: 504,
+    flexShrink: 0,
     overflow: 'hidden',
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingLeft: 0,
+    paddingRight: 8,
+  },
+  artWrapWideTablet: {
+    width: 406,
+    flexShrink: 0,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingLeft: 0,
+    paddingRight: 8,
+  },
+  artWrapWidePhone: {
+    width: 218,
+    flexShrink: 0,
+    overflow: 'hidden',
+    justifyContent: 'center',
     paddingTop: 0,
     paddingBottom: 0,
     paddingLeft: 0,

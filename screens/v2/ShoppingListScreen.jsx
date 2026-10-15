@@ -34,6 +34,7 @@ import {
 } from '../../src/utils/shoppingSession';
 import { addDoneShoppingToPantry, addReceiptLinesToPantry, listenPantry } from '../../src/utils/familyPantry';
 import { storeById } from '../../src/data/groceryStores';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { illustrationSourceById } from '../../src/modules/moduleActivationAssets';
 import { useShowModuleHero } from '../../components/ModulePageBg';
 import IconBadge from '../../components/IconBadge';
@@ -1400,11 +1401,13 @@ const styles = StyleSheet.create({
     right: 8,
     bottom: 10,
     zIndex: 0,
+    overflow: 'hidden',
   },
   bgArt: {
     width: '100%',
     height: '100%',
     opacity: 0.88,
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
   page: {
     flex: 1,

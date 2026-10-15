@@ -10,6 +10,7 @@ import { useI18n } from '../../src/i18n';
 import { notifyUser } from '../../src/utils/dialog';
 import { useApp } from '../../src/context/AppContext';
 import { colors, radius } from '../../src/theme';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { GROUP_TYPES } from '../../src/data/avatars';
 import { createGroup, updateGroup } from '../../src/utils/groups';
 import { openPlatformHome } from '../../src/utils/platformNav';
@@ -616,7 +617,7 @@ const gs = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#c5daf3',
   },
-  heroImg: { width: '100%', height: '100%' },
+  heroImg: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   heroFade: {
     position: 'absolute',
     left: 0,

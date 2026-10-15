@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { View, Image, StyleSheet, Platform } from 'react-native';
+import { PAGE_ART_SCALE } from '../src/appearance/pageArtScale';
 import { useLayout } from '../src/theme';
 import {
   illustrationSourceById,
@@ -143,10 +144,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 8,
+    overflow: 'hidden',
   },
   bgArt: {
     width: '100%',
     height: '100%',
     opacity: 0.88,
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
 });

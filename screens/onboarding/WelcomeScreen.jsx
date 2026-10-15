@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../../src/i18n';
 import { colors, radius, space } from '../../src/theme';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import LanguageMenu from '../../components/LanguageMenu';
 import WelcomeTeasers from '../../components/WelcomeTeasers';
 import BrandLogo from '../../components/BrandLogo';
@@ -229,6 +230,7 @@ const styles = StyleSheet.create({
   heroImg: {
     width: '100%',
     height: '100%',
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
   heroFade: {
     position: 'absolute',

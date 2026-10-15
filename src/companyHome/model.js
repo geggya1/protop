@@ -1,6 +1,6 @@
 /**
- * Låst bedriftsforside. Privat hjem beholder egne widgets.
- * Bakgrunnsbildet er det samme lageret som privat landing.
+ * Låst bedriftsforside på telefon. Nettbrett/PC beholder bedriftsoversikten.
+ * Privat hjem beholder egne widgets. Bakgrunnsbildet er det samme lageret.
  */
 
 export const COMPANY_HOME_SHORTCUTS = [

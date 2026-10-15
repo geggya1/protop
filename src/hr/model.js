@@ -367,6 +367,8 @@ export function normalizeHrFile(row = {}) {
     memoId: text(row.memoId),
     contractId: text(row.contractId),
     applicationId: text(row.applicationId),
+    // Standalone-filer er HR-interne som standard (ikke Min side).
+    employeeVisible: !!row.employeeVisible,
   };
 }
 
@@ -451,10 +453,10 @@ export function employeeVisibleSlice(state, employeeId) {
     tasks: forEmployee(src.tasks, id).filter((row) => row.employeeVisible),
     salaries: forEmployee(src.salaries, id).filter((row) => row.employeeVisible),
     contracts: forEmployee(src.contracts, id).filter((row) => row.status === 'active' || row.status === 'ended'),
-    // Fil knyttet til privat memo skal ikke lekke til Min side.
+    // Memo-filer følger memo-synlighet; standalone krever employeeVisible.
     files: forEmployee(src.files, id).filter((file) => {
-      if (!file.memoId) return true;
-      return visibleMemoIds.has(file.memoId);
+      if (file.memoId) return visibleMemoIds.has(file.memoId);
+      return !!file.employeeVisible;
     }),
   };
 }

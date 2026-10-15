@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import { saveEmployee } from '../../src/employees/storage';
@@ -7,6 +7,7 @@ import {
   formatNbDate,
   normalizeContract,
   upsertActiveContract,
+  upsertRow,
 } from '../../src/hr/model';
 import { AML_CONTRACT_FIELDS, amlContractCompleteness, syncComplianceFromEvidence } from '../../src/hr/compliance';
 import {
@@ -62,6 +63,8 @@ export default function HrContracts({
   );
   const [employeeId, setEmployeeId] = useState(selectedEmployeeId || people[0]?.id || '');
   const activeId = employeeId || selectedEmployeeId || '';
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
   const selected = people.find((e) => e.id === activeId) || null;
   const contracts = useMemo(() => (hr.contracts || []).filter((c) => !activeId || c.employeeId === activeId), [hr.contracts, activeId]);
   const active = activeId ? activeContractFor(activeId, hr.contracts) : null;
@@ -84,7 +87,7 @@ export default function HrContracts({
 
   async function runOcr() {
     if (!ocrText.trim()) return;
-    const forEmployeeId = activeId;
+    const forEmployeeId = activeIdRef.current;
     setBusy(true);
     try {
       const result = await interpretEmploymentContract({
@@ -93,7 +96,7 @@ export default function HrContracts({
         filename: 'arbeidsavtale.txt',
       });
       // Hopp over hvis bruker byttet person under skanning.
-      if (forEmployeeId && forEmployeeId !== (employeeId || selectedEmployeeId || '')) {
+      if (forEmployeeId && forEmployeeId !== activeIdRef.current) {
         showSaveToast?.('OCR avbrutt — person byttet');
         return;
       }
@@ -121,15 +124,24 @@ export default function HrContracts({
     if (!canWrite || !activeId) return;
     // Tom draft.id = ny avtale (ikke fall tilbake til active.id — det overskriver).
     const existingId = String(draft.id || '').trim();
+    const prior = existingId
+      ? (hr.contracts || []).find((c) => c.id === existingId)
+      : null;
+    // Redigering av historisk/avsluttet avtale skal ikke aktivere den og demote dagens aktive.
+    const keepStatus = prior && prior.status && prior.status !== 'active'
+      ? prior.status
+      : 'active';
     const row = normalizeContract({
       ...draft,
       id: existingId || undefined,
       employeeId: activeId,
-      status: 'active',
+      status: keepStatus,
       title: draft.title || draft.positionTitle || 'Arbeidsavtale',
     });
     onPatch?.((state) => {
-      const contracts = upsertActiveContract(state.contracts || [], row);
+      const contracts = keepStatus === 'active'
+        ? upsertActiveContract(state.contracts || [], row)
+        : upsertRow(state.contracts || [], row, normalizeContract);
       const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId: activeId,
         contracts,
@@ -137,7 +149,7 @@ export default function HrContracts({
       });
       return { contracts, compliance };
     });
-    setDraft((prev) => ({ ...prev, id: row.id, employeeId: activeId }));
+    setDraft((prev) => ({ ...prev, id: row.id, employeeId: activeId, status: keepStatus }));
 
     if (selected && familyId) {
       try {

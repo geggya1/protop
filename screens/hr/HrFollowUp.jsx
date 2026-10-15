@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import {
@@ -49,13 +49,15 @@ const EMPTY_REVIEW = {
 };
 const EMPTY_MEMO = { title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '' };
 const EMPTY_TASK = { title: '', description: '', dueDate: '', status: 'open' };
-const EMPTY_FILE = { name: '', url: '' };
+const EMPTY_FILE = { name: '', url: '', employeeVisible: false };
 
 export default function HrFollowUp({
   colors, employees, hr, canWrite, onPatch, selectedEmployeeId, onSelectEmployee, familyId,
 }) {
   const [tab, setTab] = useState('cases');
   const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
+  const employeeIdRef = useRef(employeeId);
+  employeeIdRef.current = employeeId;
   const [selectedReviewId, setSelectedReviewId] = useState('');
   const [uploading, setUploading] = useState(false);
   const people = useMemo(
@@ -180,12 +182,17 @@ export default function HrFollowUp({
 
   async function uploadMemoFile() {
     if (!canWrite || !employeeId || !familyId || uploading) return;
+    const forEmployeeId = employeeId;
     setUploading(true);
     try {
       const picked = await pickDocument({ accept: DEFAULT_DOCUMENT_ACCEPT });
       if (!picked) return;
-      const path = `families/${familyId}/hr/${employeeId}/${Date.now()}_${picked.name || 'fil'}`;
+      const path = `families/${familyId}/hr/${forEmployeeId}/${Date.now()}_${picked.name || 'fil'}`;
       const url = await uploadFile(path, picked, picked.mimeType || 'application/octet-stream');
+      if (employeeIdRef.current !== forEmployeeId) {
+        showSaveToast?.('Opplasting avbrutt — person byttet');
+        return;
+      }
       setMemoDraft((prev) => ({
         ...prev,
         fileName: picked.name || 'Dokument',
@@ -201,19 +208,26 @@ export default function HrFollowUp({
 
   async function uploadStandaloneFile() {
     if (!canWrite || !employeeId || !familyId || uploading) return;
+    const forEmployeeId = employeeId;
+    const visible = !!fileDraft.employeeVisible;
     setUploading(true);
     try {
       const picked = await pickDocument({ accept: DEFAULT_DOCUMENT_ACCEPT });
       if (!picked) return;
-      const path = `families/${familyId}/hr/${employeeId}/${Date.now()}_${picked.name || 'fil'}`;
+      const path = `families/${familyId}/hr/${forEmployeeId}/${Date.now()}_${picked.name || 'fil'}`;
       const url = await uploadFile(path, picked, picked.mimeType || 'application/octet-stream');
+      if (employeeIdRef.current !== forEmployeeId) {
+        showSaveToast?.('Opplasting avbrutt — person byttet');
+        return;
+      }
       const file = normalizeHrFile({
-        employeeId,
+        employeeId: forEmployeeId,
         name: picked.name || 'Dokument',
         url,
         mime: picked.mimeType,
         size: picked.size,
         kind: 'document',
+        employeeVisible: visible,
       });
       onPatch?.((state) => ({ files: [file, ...(state.files || [])] }));
       showSaveToast?.('Fil lagret på ansatt');
@@ -232,6 +246,7 @@ export default function HrFollowUp({
       name: fileDraft.name || 'Dokument',
       url: fileDraft.url,
       kind: 'document',
+      employeeVisible: !!fileDraft.employeeVisible,
     });
     onPatch?.((state) => ({ files: [file, ...(state.files || [])] }));
     setFileDraft(EMPTY_FILE);
@@ -514,6 +529,12 @@ export default function HrFollowUp({
                   icon="cloud-upload-outline"
                   disabled={uploading}
                   onPress={uploadStandaloneFile}
+                />
+                <HrChip
+                  colors={colors}
+                  label={fileDraft.employeeVisible ? 'Synlig på Min side' : 'Kun HR'}
+                  active={!!fileDraft.employeeVisible}
+                  onPress={() => setFileDraft((p) => ({ ...p, employeeVisible: !p.employeeVisible }))}
                 />
                 <HrField colors={colors} label="Eller filnavn" value={fileDraft.name} onChangeText={(name) => setFileDraft((p) => ({ ...p, name }))} />
                 <HrField colors={colors} label="Dokument-URL" value={fileDraft.url} onChangeText={(url) => setFileDraft((p) => ({ ...p, url }))} />

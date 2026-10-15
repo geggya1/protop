@@ -19,6 +19,8 @@ import { emptyHrState, hrStateHasData, normalizeHrState } from './model.js';
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'storage.js'), 'utf8');
   assert.match(src, /export async function loadEmployeeHrSlice/);
   assert.match(src, /Do not putMemory|ikke.*MEMORY|Hydrer ikke MEMORY/i);
+  assert.match(src, /hr\/skip-uncertain/);
+  assert.match(src, /prevMeta !== 'error'/);
 }
 
 console.log('hr/storage.test.mjs ok');

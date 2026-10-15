@@ -113,7 +113,9 @@ async function readRemote(companyId) {
 export async function loadHrState(companyId) {
   const key = memoryKey(companyId);
   if (!companyId) return emptyHrState();
-  if (MEMORY.has(key)) return MEMORY.get(key);
+  const prevMeta = loadMeta.get(key) || '';
+  // Etter feilet lasting: ikke sticky MEMORY — forsøk sky på nytt.
+  if (MEMORY.has(key) && prevMeta !== 'error') return MEMORY.get(key);
   if (inflight.has(key)) return inflight.get(key);
 
   const job = (async () => {
@@ -135,8 +137,10 @@ export async function loadHrState(companyId) {
     if (remote.ok && remote.state) {
       const localHas = hrStateHasData(local);
       const remoteHas = hrStateHasData(remote.state);
-      const localNewer = local?.updatedAt && remote.state.updatedAt
-        && String(local.updatedAt) > String(remote.state.updatedAt);
+      const localNewer = !!(local?.updatedAt && (
+        !remote.state.updatedAt
+        || String(local.updatedAt) > String(remote.state.updatedAt)
+      ));
       // Behold lokal når skyen er tom eller eldre (offline-lagring som ikke nådde skyen).
       if (localHas && (!remoteHas || localNewer)) {
         loadMeta.set(key, 'local');
@@ -148,8 +152,8 @@ export async function loadHrState(companyId) {
       await writeLocal(companyId, remote.state);
       return remote.state;
     }
-    // Auth/permission-feil: behold lokal — ikke late som om skyen var tom.
-    loadMeta.set(key, remote.reason === 'auth' || remote.reason === 'permission' ? 'error' : 'local');
+    // Auth/permission/nettverk: behold lokal — ikke late som om skyen var tom.
+    loadMeta.set(key, 'error');
     return local;
   })();
 
@@ -200,8 +204,14 @@ export async function saveHrState(state, companyId) {
   if (!ref) return next;
 
   const meta = loadMeta.get(key) || '';
-  // Unngå å pushe en tom økt oppå skydata etter mislykket lasting.
-  if ((meta === 'error' || meta === 'local') && !hrStateHasData(next)) {
+  // Etter mislykket lasting: aldri remote-skriv (heller ikke delvis state).
+  if (meta === 'error') {
+    const err = new Error('HR-sky ikke klar — lagret bare lokalt');
+    err.code = 'hr/skip-uncertain';
+    throw err;
+  }
+  // Unngå å pushe en tom økt oppå skydata etter usikker lokal lasting.
+  if (meta === 'local' && !hrStateHasData(next)) {
     const err = new Error('Hopper over tom HR-skriving etter usikker lasting');
     err.code = 'hr/skip-empty';
     throw err;

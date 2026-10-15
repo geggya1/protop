@@ -127,7 +127,18 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     const outcome = boardId === 'completed'
       ? (app.outcome === 'hired' || app.outcome === 'rejected' ? app.outcome : 'pending')
       : 'pending';
-    moveApp(app, boardId, outcome);
+    moveApp(
+      app,
+      boardId,
+      outcome,
+      selectedAppId === app.id
+        ? {
+          evaluation: evalDraft.evaluation,
+          response: evalDraft.response,
+          rejectReason: evalDraft.rejectReason,
+        }
+        : {},
+    );
     setDragId('');
     if (boardId === 'completed' && outcome === 'pending') {
       setSelectedAppId(app.id);
@@ -274,6 +285,13 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                           b.id === 'completed'
                             ? (app.outcome === 'hired' || app.outcome === 'rejected' ? app.outcome : 'pending')
                             : 'pending',
+                          selectedAppId === app.id
+                            ? {
+                              evaluation: evalDraft.evaluation,
+                              response: evalDraft.response,
+                              rejectReason: evalDraft.rejectReason,
+                            }
+                            : {},
                         )}
                       />
                     ))}

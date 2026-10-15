@@ -62,6 +62,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
     const empty = emptyHrState();
     hrRef.current = empty;
     setHr(empty);
+    setEmployees([]);
+    setEntries([]);
+    setSelectedEmployeeId('');
     setReady(false);
     const companyId = familyId;
     loadHrState(companyId).then((state) => {
@@ -120,8 +123,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
           const code = String(err?.code || '');
           if (code === 'hr/auth') showSaveToast?.('Ikke innlogget — lagret lokalt');
           else if (code === 'hr/permission') showSaveToast?.('Mangler tilgang til å lagre HR');
-          else if (code === 'hr/skip-empty') showSaveToast?.('Hopper over tom lagring');
-          else showSaveToast?.('Kunne ikke lagre i skyen');
+          else if (code === 'hr/skip-empty' || code === 'hr/skip-uncertain') {
+            showSaveToast?.('Lagret lokalt — skyen ikke klar');
+          } else showSaveToast?.('Kunne ikke lagre i skyen');
         }
       });
     saveChainRef.current = job;
@@ -278,7 +282,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           />
         ))}
       </View>
-      {ready ? body : null}
+      {ready ? <View key={familyId || 'hr'}>{body}</View> : null}
     </ScrollView>
   );
 }

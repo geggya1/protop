@@ -109,8 +109,11 @@ for (const item of HR_MENU) {
   assert.equal(slice.tasks.length, 1);
   assert.equal(slice.tasks[0].title, 'Lever CV');
   assert.equal(slice.memos.length, 1);
-  assert.equal(slice.files.length, 2);
+  // åpen.pdf uten employeeVisible er HR-intern; lekasje følger privat memo.
+  assert.equal(slice.files.length, 1);
   assert.ok(!slice.files.some((f) => f.name === 'lekasje.pdf'));
+  assert.ok(!slice.files.some((f) => f.name === 'åpen.pdf'));
+  assert.ok(slice.files.some((f) => f.name === 'vedlegg.pdf'));
   assert.equal(slice.salaries[0].annualAmount, 650000);
 }
 

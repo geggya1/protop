@@ -181,9 +181,10 @@ import {
   assert.equal(state.memos[0].attachments.length, 1);
   const slice = employeeVisibleSlice(state, 'e1');
   assert.equal(slice.memos.length, 1);
-  assert.equal(slice.files.length, 2);
+  // f1 uten employeeVisible er HR-intern; f3 følger synlig memo.
+  assert.equal(slice.files.length, 1);
   assert.ok(slice.files.every((f) => f.id !== 'f2'));
-  assert.ok(slice.files.some((f) => f.id === 'f1'));
+  assert.ok(!slice.files.some((f) => f.id === 'f1'));
   assert.ok(slice.files.some((f) => f.id === 'f3'));
 }
 

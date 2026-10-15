@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
   APPLICATION_BOARD,
@@ -59,12 +59,29 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
   const buckets = useMemo(() => applicationsByBoard(filteredApps), [filteredApps]);
   const selectedApp = filteredApps.find((row) => row.id === selectedAppId) || filteredApps[0] || null;
 
+  useEffect(() => {
+    if (!selectedApp) {
+      setEvalDraft({ evaluation: '', response: '', rejectReason: '' });
+      return;
+    }
+    setEvalDraft({
+      evaluation: selectedApp.evaluation || '',
+      response: selectedApp.response || '',
+      rejectReason: selectedApp.rejectReason || '',
+    });
+  }, [selectedApp?.id, selectedApp?.evaluation, selectedApp?.response, selectedApp?.rejectReason]);
+
   function patchApps(nextApps) {
     onPatch?.({ applications: nextApps });
   }
 
   function moveApp(app, board, outcome) {
     if (!canWrite || !app) return;
+    if (board === 'completed' && outcome === 'rejected' && !String(app.rejectReason || '').trim()) {
+      setSelectedAppId(app.id);
+      showSaveToast?.('Fyll inn begrunnelse for avslag før ferdigbehandling');
+      return;
+    }
     const next = moveApplicationBoard(app, board, outcome);
     patchApps((hr.applications || []).map((row) => (row.id === app.id ? next : row)));
   }
@@ -99,9 +116,16 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     if (!canWrite || !dragId) return;
     const app = (hr.applications || []).find((row) => row.id === dragId);
     if (!app) return;
-    const outcome = boardId === 'completed' ? (app.outcome === 'hired' ? 'hired' : 'rejected') : 'pending';
+    // Behold utfall ved dra til ferdig; ellers pending til HR velger vunnet/avslått.
+    const outcome = boardId === 'completed'
+      ? (app.outcome === 'hired' || app.outcome === 'rejected' ? app.outcome : 'pending')
+      : 'pending';
     moveApp(app, boardId, outcome);
     setDragId('');
+    if (boardId === 'completed' && outcome === 'pending') {
+      setSelectedAppId(app.id);
+      showSaveToast?.('Velg vunnet eller avslått for søknaden');
+    }
   }
 
   return (
@@ -223,8 +247,10 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                   </Text>
                 ) : null}
                 {col.id === 'completed' ? (
-                  <Text style={[styles.cardMeta, { color: colors.ink }]}>
-                    {choiceLabel(APPLICATION_OUTCOMES, app.outcome)}
+                  <Text style={[styles.cardMeta, { color: app.outcome === 'pending' ? (colors.danger || '#b91c1c') : colors.ink }]}>
+                    {app.outcome === 'pending'
+                      ? 'Velg utfall'
+                      : choiceLabel(APPLICATION_OUTCOMES, app.outcome)}
                   </Text>
                 ) : null}
                 {canWrite ? (
@@ -235,7 +261,13 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                         colors={colors}
                         label={b.label.split(' ').slice(-1)[0]}
                         active={false}
-                        onPress={() => moveApp(app, b.id, b.id === 'completed' ? 'rejected' : 'pending')}
+                        onPress={() => moveApp(
+                          app,
+                          b.id,
+                          b.id === 'completed'
+                            ? (app.outcome === 'hired' || app.outcome === 'rejected' ? app.outcome : 'pending')
+                            : 'pending',
+                        )}
                       />
                     ))}
                   </View>

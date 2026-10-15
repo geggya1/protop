@@ -27,20 +27,22 @@ assert.ok(COMPLIANCE_CATALOG.some((row) => row.id === 'aml_written_contract' && 
 
 {
   const full = amlContractCompleteness({
-    employerName: 'A', employeeName: 'B', workplace: 'C', title: 'D',
+    employerName: 'A', employeeName: 'B', workplace: 'C', positionTitle: 'D',
     startDate: '2020-01-01', workPercent: '100', salaryAmount: '1',
     workHours: '37.5', noticePeriod: '1 mnd',
   });
   assert.equal(full.pct, 100);
   const empty = amlContractCompleteness({});
   assert.equal(empty.filled, 0);
+  // Dokumenttittel alene skal ikke telle som stilling
+  assert.equal(amlContractCompleteness({ title: 'Arbeidsavtale' }).filled, 0);
 }
 
 {
   const contract = {
     employeeId: 'e1',
     status: 'active',
-    employerName: 'A', employeeName: 'B', workplace: 'C', title: 'D',
+    employerName: 'A', employeeName: 'B', workplace: 'C', positionTitle: 'D',
     startDate: '2020-01-01', workPercent: '100', salaryAmount: '1',
     workHours: '37.5', noticePeriod: '1 mnd', probationMonths: '6',
   };

@@ -25,6 +25,7 @@ Arbeidstid: 37,5 timer per uke
   assert.equal(fields.employeeName, 'Ada Lovelace');
   assert.equal(fields.workplace, 'Oslo');
   assert.match(fields.title, /konsulent/i);
+  assert.match(fields.positionTitle, /konsulent/i);
   assert.equal(fields.startDate, '2024-03-01');
   assert.equal(fields.workPercent, '100');
   assert.equal(fields.probationMonths, '6');
@@ -32,15 +33,15 @@ Arbeidstid: 37,5 timer per uke
 }
 
 {
-  const merged = mergeContractExtract({ title: 'Behold' }, { title: 'Ny', workplace: 'Bergen' });
-  assert.equal(merged.title, 'Behold');
+  const merged = mergeContractExtract({ positionTitle: 'Behold' }, { positionTitle: 'Ny', workplace: 'Bergen' });
+  assert.equal(merged.positionTitle, 'Behold');
   assert.equal(merged.workplace, 'Bergen');
 }
 
 {
   const emp = applyContractFieldsToEmployee(
     { person: {}, company: {} },
-    { employeeName: 'Ada Lovelace', title: 'Konsulent', startDate: '2024-03-01', workPercent: '80', roleDescription: 'Rådgivning' },
+    { employeeName: 'Ada Lovelace', positionTitle: 'Konsulent', startDate: '2024-03-01', workPercent: '80', roleDescription: 'Rådgivning' },
   );
   assert.equal(emp.person.firstName, 'Ada');
   assert.equal(emp.person.lastName, 'Lovelace');

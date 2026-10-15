@@ -39,7 +39,8 @@ import {
     employerName: 'AS',
     employeeName: 'Ada',
     workplace: 'Oslo',
-    title: 'Konsulent',
+    title: 'Arbeidsavtale',
+    positionTitle: 'Konsulent',
     startDate: '01.03.2020',
     workPercent: '100',
     salaryAmount: '700000',
@@ -47,6 +48,8 @@ import {
     noticePeriod: '3 måneder',
   });
   assert.equal(contract.startDate, '2020-03-01');
+  assert.equal(contract.title, 'Arbeidsavtale');
+  assert.equal(contract.positionTitle, 'Konsulent');
   assert.equal(contract.aml.filled, 9);
   assert.equal(contract.aml.pct, 100);
 }
@@ -61,9 +64,14 @@ import {
   const moved = moveApplicationBoard(neu, 'processing');
   assert.equal(moved.board, 'processing');
   assert.equal(moved.outcome, 'pending');
+  const awaiting = moveApplicationBoard(moved, 'completed');
+  assert.equal(awaiting.board, 'completed');
+  assert.equal(awaiting.outcome, 'pending');
   const won = moveApplicationBoard(moved, 'completed', 'hired');
   assert.equal(won.outcome, 'hired');
   assert.equal(won.stage, 'hired');
+  const lost = moveApplicationBoard(awaiting, 'completed', 'rejected');
+  assert.equal(lost.outcome, 'rejected');
 }
 
 {

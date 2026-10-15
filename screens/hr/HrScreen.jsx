@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -7,7 +7,7 @@ import { CompanyAccessDenied } from '../../components/project/CompanyAccessSetti
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { emptyHrState, normalizeHrState, patchHrState } from '../../src/hr/model';
-import { loadHrState, saveHrState } from '../../src/hr/storage';
+import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { defaultHrSubView, HR_MENU } from '../../src/navigation/shellModules';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { HrChip } from './HrShared';
@@ -44,6 +44,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
+  const hrRef = useRef(hr);
+  hrRef.current = hr;
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -57,10 +59,16 @@ export default function HrScreen({ subView = 'oversikt' }) {
     loadHrState(familyId).then((state) => {
       if (!live) return;
       setHr(state);
+      hrRef.current = state;
       setReady(true);
+      if (hrLoadMeta(familyId) === 'error') {
+        showSaveToast?.('HR lastet fra lokal kopi — skyen ikke klar');
+      }
     }).catch(() => {
       if (!live) return;
-      setHr(emptyHrState());
+      const empty = emptyHrState();
+      setHr(empty);
+      hrRef.current = empty;
       setReady(true);
     });
     return () => { live = false; };
@@ -80,21 +88,25 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   const persist = useCallback(async (next) => {
     const normalized = normalizeHrState(next);
+    hrRef.current = normalized;
     setHr(normalized);
     if (!familyId) return;
     try {
       await saveHrState(normalized, familyId);
       showSaveToast?.('Lagret');
-    } catch {
-      showSaveToast?.('Kunne ikke lagre');
+    } catch (err) {
+      const code = String(err?.code || '');
+      if (code === 'hr/auth') showSaveToast?.('Ikke innlogget — lagret lokalt');
+      else if (code === 'hr/permission') showSaveToast?.('Mangler tilgang til å lagre HR');
+      else showSaveToast?.('Kunne ikke lagre i skyen');
     }
   }, [familyId]);
 
   const onPatch = useCallback((partial) => {
-    const next = patchHrState(hr, partial);
+    // Bruk ref slik at raske påfølgende patcher ikke overskriver hverandre.
+    const next = patchHrState(hrRef.current, partial);
     persist(next);
-  }, [hr, persist]);
-
+  }, [persist]);
   const go = useCallback((id) => {
     requestShellTab?.('hr', id);
   }, [requestShellTab]);

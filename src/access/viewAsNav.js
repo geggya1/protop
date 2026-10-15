@@ -1,5 +1,5 @@
 import { COMPANY_TAB_IDS, filterCompanyNav } from './companyAccess.js';
-import { companyNavItems } from '../navigation/shellModules.js';
+import { companyAccountNavItems, companyNavItems } from '../navigation/shellModules.js';
 
 /**
  * Øyet hører til bedriftsmodulene.
@@ -23,9 +23,14 @@ function flatten(items) {
   return rows;
 }
 
+/** Bedriftsmeny + bedriftsvalg under Konto. */
+function allCompanyMenuItems() {
+  return [...companyNavItems(), ...companyAccountNavItems()];
+}
+
 /** Synlige og skjulte moduler i bedriftsmenyen for et gitt rettighetssett. */
 export function companyModuleVisibility(grants) {
-  const items = companyNavItems();
+  const items = allCompanyMenuItems();
   const rows = flatten(items);
   if (!grants) return rows.map((row) => ({ ...row, visible: true }));
   const visible = filterCompanyNav(items, grants);

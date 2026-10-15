@@ -666,10 +666,20 @@ export function companyTabAllowed(tab, subView, grants) {
   return allows(grants, resource, 'see');
 }
 
+function hoursAllowed(grants) {
+  return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+}
+
 function navItemAllowed(id, grants) {
   if (id === 'tilgang') return allows(grants, 'companyProfile', 'read');
-  if (id === 'arbeid' || String(id).startsWith('arbeid-')) {
-    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  if (id === 'arbeid' || String(id).startsWith('arbeid-')) return hoursAllowed(grants);
+  if (id === 'fravaer' || String(id).startsWith('fravaer-')) return hoursAllowed(grants);
+  if (id === 'produkt-salg') return hoursAllowed(grants);
+  if (id === 'produkt-produkter') return allows(grants, 'economy', 'see');
+  if (id === 'produkt') return hoursAllowed(grants) || allows(grants, 'economy', 'see');
+  if (id === 'okonomi-prosjektutlegg') return hoursAllowed(grants);
+  if (id === 'okonomi') {
+    return allows(grants, 'economy', 'see') || hoursAllowed(grants);
   }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
   if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
@@ -692,10 +702,13 @@ export function filterCompanyNav(items, grants) {
     if (!item.children) return item;
     const next = { ...item, children };
     const currentSub = item.action?.subView;
-    const childStillThere = children.some((child) => child.action?.subView === currentSub);
-    const firstSub = children[0]?.action?.subView;
-    if (currentSub && firstSub && !childStillThere) {
-      next.action = { ...item.action, subView: firstSub };
+    const currentTab = item.action?.tab;
+    const childStillThere = children.some((child) => (
+      child.action?.tab === currentTab && child.action?.subView === currentSub
+    ));
+    const first = children[0];
+    if (currentSub && first && !childStillThere) {
+      next.action = { ...item.action, tab: first.action?.tab || item.action.tab, subView: first.action?.subView };
     }
     return next;
   }).filter(Boolean);

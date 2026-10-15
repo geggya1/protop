@@ -9,7 +9,12 @@ import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
-import { buildShellModules, isNavItemActive } from '../src/navigation/shellModules';
+import {
+  buildShellModules,
+  drawerHasSubmenuToggle,
+  drawerSubmenuOpen,
+  isNavItemActive,
+} from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
 import { useChatDockPreferred } from '../src/context/ChatDockContext';
@@ -35,35 +40,63 @@ function itemIcon(item, active) {
   return `${base}-outline`;
 }
 
-function NavRow({ item, active, nested, child, collapsed, onPress, badgeCount = 0 }) {
+function NavRow({
+  item, active, nested, child, collapsed, onPress, badgeCount = 0,
+  expanded = false, onToggle,
+}) {
   const colors = useColors();
   const color = active ? colors.brand : colors.ink;
+  const expandable = typeof onToggle === 'function' && !collapsed;
   return (
-    <TouchableOpacity
-      onPress={onPress}
+    <View
       style={[
-        styles.row,
+        styles.rowWrap,
         nested && styles.rowNested,
         child && styles.rowChild,
         active && styles.rowActive,
         active && { backgroundColor: colors.brandSoft },
         collapsed && styles.rowCollapsed,
       ]}
-      accessibilityRole="button"
-      accessibilityLabel={item.label}
-      nativeID={`module-nav-${item.id}`}
-      accessibilityState={{ selected: active }}
-      {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
     >
-      <IconBadge count={collapsed ? badgeCount : badgeCount} size={13} offset={-5}>
-        <Ionicons name={itemIcon(item, active)} size={16} color={color} />
-      </IconBadge>
-      {collapsed ? null : (
-        <Text style={[styles.rowLabel, active && styles.rowLabelActive]} numberOfLines={1}>
-          {item.label}
-        </Text>
-      )}
-    </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onPress}
+        style={styles.rowMain}
+        accessibilityRole="button"
+        accessibilityLabel={item.label}
+        nativeID={`module-nav-${item.id}`}
+        accessibilityState={{ selected: active }}
+        {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
+      >
+        <IconBadge count={collapsed ? badgeCount : badgeCount} size={13} offset={-5}>
+          <Ionicons name={itemIcon(item, active)} size={16} color={color} />
+        </IconBadge>
+        {collapsed ? null : (
+          <Text style={[styles.rowLabel, active && styles.rowLabelActive]} numberOfLines={1}>
+            {item.label}
+          </Text>
+        )}
+      </TouchableOpacity>
+      {expandable ? (
+        <TouchableOpacity
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            onToggle();
+          }}
+          style={styles.expandBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? 'Skjul' : 'Vis'} undermeny, ${item.label}`}
+          accessibilityState={{ expanded: !!expanded }}
+          nativeID={`module-nav-expand-${item.id}`}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+        >
+          <Ionicons
+            name={expanded ? 'chevron-down' : 'chevron-forward'}
+            size={16}
+            color={active ? colors.brand : colors.ink}
+          />
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
@@ -84,6 +117,7 @@ export default function DesktopRail({
   const searchRef = useRef(null);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(DEFAULT_OPEN);
+  const [submenuOpen, setSubmenuOpen] = useState({});
   const {
     isParent, isChild, isActingAsChild, isAdmin, isSuperAdmin, isGrandparent,
     family, familyId, kids, meChild, meParent, activeChild,
@@ -301,14 +335,21 @@ export default function DesktopRail({
               </TouchableOpacity>
               {expanded ? section.items.map((item) => {
                 const kids = item.children || [];
-                const showKids = kids.length > 0 && (item.action?.tab === activeTab || item.forceOpen || !!q);
+                const expandable = drawerHasSubmenuToggle(item);
+                const submenuExpanded = !!q || drawerSubmenuOpen(item, activeTab, submenuOpen, activeSubView);
+                const showKids = expandable && submenuExpanded;
                 return (
                   <View key={item.id}>
                     <NavRow
                       item={item}
                       nested
-                      active={isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab)}
+                      active={isItemActive(item)}
                       badgeCount={countForItem(unreadByModule, item)}
+                      expanded={submenuExpanded}
+                      onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                        ...prev,
+                        [item.id]: !drawerSubmenuOpen(item, activeTab, prev, activeSubView),
+                      })) : undefined}
                       onPress={() => runAction(item.action)}
                     />
                     {showKids ? kids.map((child) => (
@@ -412,12 +453,32 @@ const styles = StyleSheet.create({
     fontSize: 12, fontWeight: '400', color: colors.ink,
     textTransform: 'none', letterSpacing: 0,
   },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 5, paddingHorizontal: 8, borderRadius: 5, minHeight: 28,
+  rowWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 5, minHeight: 28, marginBottom: 1,
   },
-  rowNested: { paddingLeft: 8 },
-  rowChild: { paddingLeft: 22 },
+  rowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 5,
+    paddingLeft: 8,
+    paddingRight: 4,
+    minHeight: 28,
+  },
+  expandBtn: {
+    width: 28,
+    height: 28,
+    marginRight: 4,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+    flexShrink: 0,
+  },
+  rowNested: { paddingLeft: 0 },
+  rowChild: { paddingLeft: 14 },
   rowCollapsed: { justifyContent: 'center', paddingHorizontal: 6, width: 36 },
   rowActive: { backgroundColor: colors.brandSoft },
   rowLabel: { flex: 1, fontWeight: '400', fontSize: 13, color: colors.ink },

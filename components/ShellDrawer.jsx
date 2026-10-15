@@ -428,9 +428,9 @@ export default function ShellDrawer({
                     {expanded ? section.items.map((item) => {
                       const kids = item.children || [];
                       const expandable = drawerHasSubmenuToggle(item);
-                      const submenuExpanded = drawerSubmenuOpen(item, activeTab, submenuOpen);
+                      const submenuExpanded = drawerSubmenuOpen(item, activeTab, submenuOpen, activeSubView);
                       const showKids = expandable && submenuExpanded;
-                      const parentOn = isItemActive(item) || (kids.length > 0 && item.action?.tab === activeTab);
+                      const parentOn = isItemActive(item);
                       return (
                       <View
                         key={item.id}
@@ -447,7 +447,7 @@ export default function ShellDrawer({
                           expanded={submenuExpanded}
                           onToggle={expandable ? () => setSubmenuOpen((prev) => ({
                             ...prev,
-                            [item.id]: !drawerSubmenuOpen(item, activeTab, prev),
+                            [item.id]: !drawerSubmenuOpen(item, activeTab, prev, activeSubView),
                           })) : undefined}
                           onPress={() => runAction(item.action)}
                         />

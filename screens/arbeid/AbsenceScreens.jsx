@@ -526,11 +526,13 @@ export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {
       nativeID="employee-overview"
     >
       {embedded ? null : (
-        <Text style={[styles.crumb, { color: colors.muted }]}>Ansatte / Oversikt</Text>
+        <>
+          <Text style={[styles.crumb, { color: colors.muted }]}>Ansatte / Oversikt</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>
+            {employeeDisplayName(employee) || 'Oversikt'}
+          </Text>
+        </>
       )}
-      <Text style={[styles.title, { color: colors.ink }]}>
-        {embedded ? 'Oversikt' : (employeeDisplayName(employee) || 'Oversikt')}
-      </Text>
       <View style={styles.cards}>
         <Card colors={colors} label="Timer denne måneden" value={hours.toFixed(2)} />
         <Card colors={colors} label="Feriedager til gode" value={String(vacation.summary.remaining)} />

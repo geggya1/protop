@@ -9,6 +9,7 @@ import { applyEmployeeClassification, presentEmployee } from '../../src/employee
 import { emptyProjectState } from '../../src/project/engine';
 import ProjectDetail from '../../components/project/ProjectDetail';
 import EmployeeDetailView from './EmployeeDetailView';
+import EmployeePersonChrome from './EmployeePersonChrome';
 
 function mockEmployee(id, overrides = {}) {
   return presentEmployee({
@@ -184,57 +185,65 @@ export default function EmployeeDetailPreview() {
       <Text style={[styles.banner, { color: colors.muted, borderColor: colors.line, backgroundColor: colors.card }]}>
         Forhåndsvisning · /employee-detail-preview
       </Text>
-      <EmployeeDetailView
+      <EmployeePersonChrome
         employee={selected}
         colors={colors}
         companyName="Consult1"
-        departments={departments}
-        projectState={projectState}
-        reveal
-        gaps={{
-          register: [],
-          person: [],
-          cv: [{ key: 'cv.summary', label: 'Oppsummering' }],
-        }}
-        canEdit
-        isAdmin
-        isSelf
         siblings={people}
-        confirmDelete={confirmDelete}
+        activeTab="home"
         onBack={() => {}}
-        onCv={() => {}}
-        onHours={() => setOpenedId('hours')}
-        onOpenProject={(project) => setOpenedId(project.id)}
+        onTab={() => {}}
         onSelect={(row) => setSelectedId(row.id)}
-        onChange={(next) => {
-          setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));
-        }}
-        onSave={() => true}
-        onClassify={(patch) => {
-          setPeople((current) => current.map((row) => (
-            row.id === selected.id ? presentEmployee(applyEmployeeClassification(row, patch)) : row
-          )));
-        }}
-        onPushProfile={() => {}}
-        onPullToProfile={() => {}}
-        onConfirmDelete={() => setConfirmDelete(true)}
-        onCancelDelete={() => setConfirmDelete(false)}
-        onDestroy={() => {
-          setPeople((current) => current.map((row) => (
-            row.id === selected.id
-              ? presentEmployee(applyEmployeeClassification(row, { status: 'deleted' }))
-              : row
-          )));
-          setConfirmDelete(false);
-        }}
-        onRestore={() => {
-          setPeople((current) => current.map((row) => (
-            row.id === selected.id
-              ? presentEmployee(applyEmployeeClassification(row, { status: 'active' }))
-              : row
-          )));
-        }}
-      />
+      >
+        <EmployeeDetailView
+          employee={selected}
+          colors={colors}
+          companyName="Consult1"
+          departments={departments}
+          projectState={projectState}
+          reveal
+          gaps={{
+            register: [],
+            person: [],
+            cv: [{ key: 'cv.summary', label: 'Oppsummering' }],
+          }}
+          canEdit
+          isAdmin
+          isSelf
+          confirmDelete={confirmDelete}
+          onCv={() => {}}
+          onHours={() => setOpenedId('hours')}
+          onOpenProject={(project) => setOpenedId(project.id)}
+          onChange={(next) => {
+            setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));
+          }}
+          onSave={() => true}
+          onClassify={(patch) => {
+            setPeople((current) => current.map((row) => (
+              row.id === selected.id ? presentEmployee(applyEmployeeClassification(row, patch)) : row
+            )));
+          }}
+          onPushProfile={() => {}}
+          onPullToProfile={() => {}}
+          onConfirmDelete={() => setConfirmDelete(true)}
+          onCancelDelete={() => setConfirmDelete(false)}
+          onDestroy={() => {
+            setPeople((current) => current.map((row) => (
+              row.id === selected.id
+                ? presentEmployee(applyEmployeeClassification(row, { status: 'deleted' }))
+                : row
+            )));
+            setConfirmDelete(false);
+          }}
+          onRestore={() => {
+            setPeople((current) => current.map((row) => (
+              row.id === selected.id
+                ? presentEmployee(applyEmployeeClassification(row, { status: 'active' }))
+                : row
+            )));
+          }}
+        />
+      </EmployeePersonChrome>
       <View style={{ height: 40 }} />
     </ScrollView>
   );

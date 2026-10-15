@@ -447,11 +447,26 @@ export function recruitmentFunnel(applications) {
 
 export function openFollowUps(state) {
   const src = normalizeHrState(state);
+  const byDue = (a, b) => String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999'));
   return {
-    cases: src.cases.filter((row) => row.status !== 'closed'),
-    tasks: src.tasks.filter((row) => row.status !== 'done'),
-    reviews: src.reviews.filter((row) => row.status === 'planned'),
+    cases: src.cases.filter((row) => row.status !== 'closed').sort(byDue),
+    tasks: src.tasks.filter((row) => row.status !== 'done').sort(byDue),
+    reviews: src.reviews
+      .filter((row) => row.status === 'planned')
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))),
   };
+}
+
+/** Kontrakter som snart utløper (innen `withinDays`). */
+export function expiringContracts(contracts, { withinDays = 60, today = new Date() } = {}) {
+  const now = today instanceof Date ? today : new Date(today);
+  const start = now.toISOString().slice(0, 10);
+  const horizon = new Date(now);
+  horizon.setDate(horizon.getDate() + withinDays);
+  const end = horizon.toISOString().slice(0, 10);
+  return (contracts || [])
+    .filter((row) => row.status === 'active' && row.endDate && row.endDate >= start && row.endDate <= end)
+    .sort((a, b) => String(a.endDate).localeCompare(String(b.endDate)));
 }
 
 export function patchHrState(state, patch) {

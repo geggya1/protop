@@ -15,6 +15,7 @@ import {
 
 export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
   const [jobId, setJobId] = useState(hr.jobs?.[0]?.id || '');
+  const [selectedAppId, setSelectedAppId] = useState('');
   const [jobDraft, setJobDraft] = useState({
     title: '', department: '', location: '', description: '', requirements: '', status: 'open', headcount: '1',
   });
@@ -29,7 +30,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
     () => (hr.applications || []).filter((row) => !activeJobId || row.jobId === activeJobId),
     [hr.applications, activeJobId],
   );
-  const selectedApp = apps[0] || null;
+  const selectedApp = apps.find((row) => row.id === selectedAppId) || apps[0] || null;
 
   function moveStage(app, stage) {
     if (!canWrite) return;
@@ -141,7 +142,10 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
               title={app.name}
               subtitle={[app.email, app.phone, app.source].filter(Boolean).join(' · ') || 'Søker'}
               meta={`${choiceLabel(APPLICATION_STAGES, app.stage)} · ${app.score}/10`}
-              onPress={() => {}}
+              onPress={() => {
+                setSelectedAppId(app.id);
+                setEvalDraft({ evaluation: app.evaluation || '', response: app.response || '' });
+              }}
             />
             <Text style={[styles.meta, { color: colors.muted }]}>
               {`Søkt ${formatNbDate(app.appliedAt)}${app.evaluation ? ` · ${app.evaluation}` : ''}`}

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import {
   choiceLabel,
+  expiringContracts,
   formatNbDate,
   JOB_STATUSES,
   openFollowUps,
@@ -21,6 +22,7 @@ export default function HrDashboard({
     () => upcomingPeopleEvents(employees, { withinDays: 45 }),
     [employees],
   );
+  const ending = useMemo(() => expiringContracts(hr.contracts, { withinDays: 60 }), [hr.contracts]);
   const follow = useMemo(() => openFollowUps(hr), [hr]);
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const productivity = useMemo(() => companyProductivity(entries), [entries]);
@@ -60,6 +62,25 @@ export default function HrDashboard({
             onPress={onOpenPeople}
           />
         ))}
+        {ending.length ? (
+          <>
+            <Text style={[styles.meta, { color: colors.muted, marginTop: 6 }]}>Kontrakter som snart utløper</Text>
+            {ending.slice(0, 5).map((row) => {
+              const person = employees.find((e) => e.id === row.employeeId);
+              return (
+                <RowLink
+                  key={row.id}
+                  colors={colors}
+                  title={person ? displayName(person) : row.title}
+                  subtitle={row.title}
+                  meta={formatNbDate(row.endDate)}
+                  icon="alert-circle-outline"
+                  onPress={onOpenPeople}
+                />
+              );
+            })}
+          </>
+        ) : null}
       </HrCard>
 
       <HrCard colors={colors}>

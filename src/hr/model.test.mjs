@@ -12,6 +12,7 @@ import {
   normalizeApplication,
   normalizeHrState,
   normalizeSalary,
+  expiringContracts,
   openFollowUps,
   plannedSalariesFor,
   recruitmentFunnel,
@@ -141,13 +142,28 @@ import {
 
 {
   const open = openFollowUps({
-    cases: [{ status: 'open' }, { status: 'closed' }],
+    cases: [
+      { status: 'open', dueDate: '2026-12-01' },
+      { status: 'open', dueDate: '2026-11-01' },
+      { status: 'closed' },
+    ],
     tasks: [{ status: 'doing' }, { status: 'done' }],
     reviews: [{ status: 'planned' }, { status: 'done' }],
   });
-  assert.equal(open.cases.length, 1);
+  assert.equal(open.cases.length, 2);
+  assert.equal(open.cases[0].dueDate, '2026-11-01');
   assert.equal(open.tasks.length, 1);
   assert.equal(open.reviews.length, 1);
+}
+
+{
+  const ending = expiringContracts([
+    { id: 'c1', status: 'active', endDate: '2026-11-01', employeeId: 'e1' },
+    { id: 'c2', status: 'active', endDate: '2027-06-01', employeeId: 'e2' },
+    { id: 'c3', status: 'ended', endDate: '2026-10-20', employeeId: 'e3' },
+  ], { withinDays: 45, today: new Date('2026-10-15T12:00:00Z') });
+  assert.equal(ending.length, 1);
+  assert.equal(ending[0].id, 'c1');
 }
 
 console.log('hr/model.test.mjs ok');

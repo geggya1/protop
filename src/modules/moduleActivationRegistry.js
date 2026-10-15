@@ -17,6 +17,7 @@ export {
   ILLUSTRATION_DIR,
   ILLUSTRATION_CACHE,
   ILLUSTRATION_FILES,
+  PHONE_ILLUSTRATION_FILES,
   withIllustrationCache,
   publicIllustrationPathForId,
 } from './moduleActivationLogic.js';

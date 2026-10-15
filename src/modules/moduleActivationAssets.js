@@ -6,6 +6,8 @@
 import { Platform } from 'react-native';
 import {
   getModuleConfig,
+  ILLUSTRATION_DIR,
+  PHONE_ILLUSTRATION_FILES,
   publicIllustrationPathForId,
   withIllustrationCache,
 } from './moduleActivationRegistry';
@@ -65,6 +67,18 @@ const BUNDLED = {
   'okonomi-indeks': require('../../assets/module-activation/okonomi-indeks--module-activation-illustration.png'),
   'okonomi-fakturagrunnlag': require('../../assets/module-activation/okonomi-fakturagrunnlag--module-activation-illustration.png'),
   'okonomi-oversikt': require('../../assets/module-activation/okonomi-oversikt--module-activation-illustration.png'),
+  'okonomi-utlegg': require('../../assets/module-activation/okonomi-utlegg--module-activation-illustration.png'),
+};
+
+const BUNDLED_PHONE = {
+  'okonomi-faktura': require('../../assets/module-activation/okonomi-faktura-phone--module-activation-illustration.png'),
+  'arbeid-godkjenning': require('../../assets/module-activation/arbeid-godkjenning-phone--module-activation-illustration.png'),
+  'okonomi-produkter': require('../../assets/module-activation/okonomi-produkter-phone--module-activation-illustration.png'),
+  'okonomi-utlegg': require('../../assets/module-activation/okonomi-utlegg-phone--module-activation-illustration.png'),
+  'arbeid-fravaer': require('../../assets/module-activation/arbeid-fravaer-phone--module-activation-illustration.png'),
+  'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaer-phone--module-activation-illustration.png'),
+  timeliste: require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
+  'arbeid-timeliste': require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */
@@ -109,8 +123,16 @@ export function moduleIdForPageName(name) {
   return null;
 }
 
-export function illustrationSourceById(moduleId, { preferBundled = false } = {}) {
+export function illustrationSourceById(moduleId, { preferBundled = false, phone = false } = {}) {
   if (!moduleId) return null;
+  const phoneFile = phone ? PHONE_ILLUSTRATION_FILES[moduleId] : null;
+  if (phoneFile) {
+    if (preferBundled) return BUNDLED_PHONE[moduleId] || BUNDLED[moduleId] || null;
+    if (Platform.OS === 'web') {
+      return { uri: withIllustrationCache(`${ILLUSTRATION_DIR}/${phoneFile}`) };
+    }
+    if (BUNDLED_PHONE[moduleId]) return BUNDLED_PHONE[moduleId];
+  }
   if (preferBundled) return BUNDLED[moduleId] || illustrationSourceForModule(moduleId, null);
   const path = publicIllustrationPathForId(moduleId, getModuleConfig(moduleId)?.illustrationPath);
   return illustrationSourceForModule(moduleId, path);

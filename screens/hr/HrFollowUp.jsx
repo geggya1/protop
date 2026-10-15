@@ -18,6 +18,7 @@ import {
 } from '../../src/hr/model';
 import { performanceReviewFormTemplate } from '../../src/hr/forms';
 import { printReview } from '../../src/hr/reviewPdf';
+import { syncComplianceFromEvidence } from '../../src/hr/compliance';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
@@ -144,7 +145,12 @@ export default function HrFollowUp({
       });
       nextCases = [caseRow, ...nextCases];
     }
-    onPatch?.({ reviews: nextReviews, cases: nextCases });
+    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
+      employeeId,
+      contracts: hr.contracts || [],
+      reviews: nextReviews,
+    });
+    onPatch?.({ reviews: nextReviews, cases: nextCases, compliance });
     setSelectedReviewId(row.id);
     setReviewDraft({
       date: new Date().toISOString().slice(0, 10),

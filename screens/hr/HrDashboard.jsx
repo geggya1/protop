@@ -2,23 +2,29 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import {
+  caseFromExpiringContract,
+  caseFromPeopleEvent,
   choiceLabel,
-  daysUntil,
   expiringContracts,
   formatNbDate,
+  hasOpenCaseLike,
   JOB_STATUSES,
   openFollowUps,
   recruitmentFunnel,
   upcomingPeopleEvents,
 } from '../../src/hr/model';
-import { COMPLIANCE_CATALOG, complianceSummary, ensureEmployeeCompliance } from '../../src/hr/compliance';
-import { companyProductivity } from '../../src/hr/productivity';
 import {
-  EmptyHint, HrCard, HrSectionTitle, HrStat, RowLink, UtilizationBar,
+  COMPLIANCE_CATALOG,
+  companyComplianceOverview,
+} from '../../src/hr/compliance';
+import { companyProductivity } from '../../src/hr/productivity';
+import { showSaveToast } from '../../src/ui/saveToast';
+import {
+  EmptyHint, HrButton, HrCard, HrSectionTitle, HrStat, RowLink, UtilizationBar,
 } from './HrShared';
 
 export default function HrDashboard({
-  colors, employees, hr, entries,
+  colors, employees, hr, entries, canWrite, onPatch,
   onOpenPeople, onOpenFollowUp, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
 }) {
   const events = useMemo(
@@ -29,27 +35,49 @@ export default function HrDashboard({
   const follow = useMemo(() => openFollowUps(hr), [hr]);
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const productivity = useMemo(() => companyProductivity(entries), [entries]);
-  const openJobs = (hr.jobs || []).filter((job) => job.status === 'open').length;
   const activePeople = (employees || []).filter((row) => row?.company?.status !== 'deleted').length;
 
-  const complianceGap = useMemo(() => {
-    let missing = 0;
-    for (const emp of employees || []) {
-      if (emp?.company?.status === 'deleted') continue;
-      const rows = ensureEmployeeCompliance(
-        (hr.compliance || []).filter((c) => c.employeeId === emp.id),
-        emp.id,
-      );
-      missing += complianceSummary(rows).missing;
-    }
-    return missing;
-  }, [employees, hr.compliance]);
+  const complianceRows = useMemo(
+    () => companyComplianceOverview(employees, hr.compliance),
+    [employees, hr.compliance],
+  );
+  const complianceGap = complianceRows.reduce((sum, row) => sum + row.missing, 0);
+  const worstGaps = complianceRows.filter((row) => row.missing > 0).slice(0, 5);
 
   const received = funnel.board?.find((b) => b.id === 'received')?.count || 0;
   const processing = funnel.board?.find((b) => b.id === 'processing')?.count || 0;
 
+  function planEvent(event) {
+    if (!canWrite || !onPatch) return;
+    const row = caseFromPeopleEvent(event);
+    if (!row) return;
+    if (hasOpenCaseLike(hr.cases, row)) {
+      showSaveToast?.('Sak finnes allerede');
+      onOpenFollowUp?.();
+      return;
+    }
+    onPatch({ cases: [row, ...(hr.cases || [])] });
+    showSaveToast?.('Planleggingssak opprettet');
+  }
+
+  function planContract(contract) {
+    if (!canWrite || !onPatch) return;
+    const person = employees.find((e) => e.id === contract.employeeId);
+    const row = caseFromExpiringContract(contract, {
+      employeeName: person ? displayName(person) : '',
+    });
+    if (!row) return;
+    if (hasOpenCaseLike(hr.cases, row)) {
+      showSaveToast?.('Sak finnes allerede');
+      onOpenFollowUp?.();
+      return;
+    }
+    onPatch({ cases: [row, ...(hr.cases || [])] });
+    showSaveToast?.('Oppfølgingssak for avtale opprettet');
+  }
+
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="hr-dashboard">
       <View style={styles.statRow}>
         <HrStat colors={colors} label="Aktive" value={String(activePeople)} hint="personell" />
         <HrStat colors={colors} label="Åpne saker" value={String(follow.cases.length)} hint="oppfølging" />
@@ -61,20 +89,31 @@ export default function HrDashboard({
         <HrSectionTitle
           colors={colors}
           title="Go-to dashboard"
-          subtitle="Nedtelling til jubileum og bursdag — planlegg i god tid"
+          subtitle="Nedtelling til jubileum og bursdag — planlegg med ett trykk"
         />
         {events.length === 0 ? (
           <EmptyHint colors={colors} text="Ingen bursdager eller jubileum de neste 90 dagene." />
         ) : events.slice(0, 10).map((event) => (
-          <RowLink
-            key={`${event.type}-${event.employeeId}-${event.date}`}
-            colors={colors}
-            title={event.name}
-            subtitle={`${event.label} · ${formatNbDate(event.date)}`}
-            meta={event.days === 0 ? 'I dag' : `${event.days} dager`}
-            icon={event.type === 'birthday' ? 'gift-outline' : 'ribbon-outline'}
-            onPress={onOpenPeople}
-          />
+          <View key={`${event.type}-${event.employeeId}-${event.date}`} style={styles.actionRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <RowLink
+                colors={colors}
+                title={event.name}
+                subtitle={`${event.label} · ${formatNbDate(event.date)}`}
+                meta={event.days === 0 ? 'I dag' : `${event.days} dager`}
+                icon={event.type === 'birthday' ? 'gift-outline' : 'ribbon-outline'}
+                onPress={onOpenPeople}
+              />
+            </View>
+            {canWrite ? (
+              <HrButton
+                colors={colors}
+                label="Planlegg"
+                icon="flag-outline"
+                onPress={() => planEvent(event)}
+              />
+            ) : null}
+          </View>
         ))}
         {ending.length ? (
           <>
@@ -82,15 +121,26 @@ export default function HrDashboard({
             {ending.slice(0, 6).map((row) => {
               const person = employees.find((e) => e.id === row.employeeId);
               return (
-                <RowLink
-                  key={row.id}
-                  colors={colors}
-                  title={person ? displayName(person) : row.title}
-                  subtitle={row.title}
-                  meta={row.days != null ? `${row.days} dager` : formatNbDate(row.endDate)}
-                  icon="alert-circle-outline"
-                  onPress={onOpenContracts}
-                />
+                <View key={row.id} style={styles.actionRow}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <RowLink
+                      colors={colors}
+                      title={person ? displayName(person) : row.title}
+                      subtitle={row.title}
+                      meta={row.days != null ? `${row.days} dager` : formatNbDate(row.endDate)}
+                      icon="alert-circle-outline"
+                      onPress={onOpenContracts}
+                    />
+                  </View>
+                  {canWrite ? (
+                    <HrButton
+                      colors={colors}
+                      label="Følg opp"
+                      icon="flag-outline"
+                      onPress={() => planContract(row)}
+                    />
+                  ) : null}
+                </View>
               );
             })}
           </>
@@ -168,9 +218,24 @@ export default function HrDashboard({
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
-          title="Lov & ISO"
+          title="Lov & ISO — gap"
           subtitle={`${COMPLIANCE_CATALOG.length} sjekkpunkter · ${complianceGap} mangler på tvers`}
         />
+        {worstGaps.length === 0 ? (
+          <EmptyHint colors={colors} text="Ingen påkrevde mangler registrert." />
+        ) : worstGaps.map((row) => {
+          const person = employees.find((e) => e.id === row.employeeId);
+          return (
+            <RowLink
+              key={row.employeeId}
+              colors={colors}
+              title={person ? displayName(person) : row.employeeId}
+              subtitle={row.gaps.slice(0, 3).join(' · ') || 'Mangler'}
+              meta={`${row.pct} %`}
+              onPress={onOpenCompliance}
+            />
+          );
+        })}
         <RowLink colors={colors} title="Følg opp compliance per ansatt" onPress={onOpenCompliance} />
       </HrCard>
     </View>
@@ -191,4 +256,9 @@ const styles = StyleSheet.create({
   },
   funnelCount: { fontSize: 18, fontWeight: '700' },
   funnelLabel: { fontSize: 11, marginTop: 2 },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
 });

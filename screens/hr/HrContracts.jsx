@@ -7,7 +7,7 @@ import {
   formatNbDate,
   normalizeContract,
 } from '../../src/hr/model';
-import { AML_CONTRACT_FIELDS, amlContractCompleteness } from '../../src/hr/compliance';
+import { AML_CONTRACT_FIELDS, amlContractCompleteness, syncComplianceFromEvidence } from '../../src/hr/compliance';
 import {
   applyContractFieldsToEmployee,
   interpretEmploymentContract,
@@ -91,7 +91,13 @@ export default function HrContracts({
       status: 'active',
       title: draft.title || draft.roleDescription || 'Arbeidsavtale',
     });
-    onPatch?.({ contracts: [row, ...(hr.contracts || []).filter((c) => c.id !== row.id)] });
+    const contracts = [row, ...(hr.contracts || []).filter((c) => c.id !== row.id)];
+    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
+      employeeId: activeId,
+      contracts,
+      reviews: hr.reviews || [],
+    });
+    onPatch?.({ contracts, compliance });
 
     if (selected && familyId) {
       try {
@@ -101,7 +107,11 @@ export default function HrContracts({
         /* HR-kontrakt er lagret uansett */
       }
     }
-    showSaveToast?.('Avtale lagret på person');
+    showSaveToast?.(
+      row.aml?.pct >= 100
+        ? 'Avtale lagret · AML og compliance oppdatert'
+        : 'Avtale lagret på person',
+    );
   }
 
   async function ensureFormTemplate() {

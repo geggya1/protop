@@ -33,7 +33,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
   const [appDraft, setAppDraft] = useState({
     name: '', email: '', phone: '', source: '', notes: '', score: '5', documentName: '', documentUrl: '',
   });
-  const [evalDraft, setEvalDraft] = useState({ evaluation: '', response: '' });
+  const [evalDraft, setEvalDraft] = useState({ evaluation: '', response: '', rejectReason: '' });
   const [query, setQuery] = useState('');
   const [hiring, setHiring] = useState(false);
   const [dragId, setDragId] = useState('');
@@ -203,7 +203,11 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                   style={[styles.cardTitle, { color: colors.ink }]}
                   onPress={() => {
                     setSelectedAppId(app.id);
-                    setEvalDraft({ evaluation: app.evaluation || '', response: app.response || '' });
+                    setEvalDraft({
+                      evaluation: app.evaluation || '',
+                      response: app.response || '',
+                      rejectReason: app.rejectReason || '',
+                    });
                   }}
                 >
                   {app.name}
@@ -274,12 +278,34 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                 colors={colors}
                 label={o.label}
                 active={selectedApp.outcome === o.id}
-                onPress={() => moveApp(selectedApp, o.id === 'pending' ? 'processing' : 'completed', o.id)}
+                onPress={() => {
+                  if (o.id === 'rejected' && !String(evalDraft.rejectReason || selectedApp.rejectReason || '').trim()) {
+                    showSaveToast?.('Fyll inn begrunnelse for avslag først');
+                    return;
+                  }
+                  const next = moveApplicationBoard(
+                    {
+                      ...selectedApp,
+                      rejectReason: evalDraft.rejectReason || selectedApp.rejectReason,
+                    },
+                    o.id === 'pending' ? 'processing' : 'completed',
+                    o.id,
+                  );
+                  patchApps((hr.applications || []).map((row) => (row.id === selectedApp.id ? next : row)));
+                }}
               />
             ))}
           </View>
-          <HrField colors={colors} label="Evaluering" value={evalDraft.evaluation} onChangeText={(evaluation) => setEvalDraft((p) => ({ ...p, evaluation }))} multiline />
+          <HrField colors={colors} label="Evaluering / scorecard" value={evalDraft.evaluation} onChangeText={(evaluation) => setEvalDraft((p) => ({ ...p, evaluation }))} multiline />
           <HrField colors={colors} label="Svar til søker" value={evalDraft.response} onChangeText={(response) => setEvalDraft((p) => ({ ...p, response }))} multiline />
+          <HrField
+            colors={colors}
+            label="Begrunnelse ved avslag"
+            value={evalDraft.rejectReason}
+            onChangeText={(rejectReason) => setEvalDraft((p) => ({ ...p, rejectReason }))}
+            multiline
+            placeholder="Krav ikke møtt, annen kandidat, …"
+          />
           <View style={styles.chips}>
             <HrButton
               colors={colors}
@@ -288,7 +314,12 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
               onPress={() => {
                 patchApps((hr.applications || []).map((row) => (
                   row.id === selectedApp.id
-                    ? { ...row, evaluation: evalDraft.evaluation, response: evalDraft.response }
+                    ? {
+                      ...row,
+                      evaluation: evalDraft.evaluation,
+                      response: evalDraft.response,
+                      rejectReason: evalDraft.rejectReason,
+                    }
                     : row
                 )));
               }}
@@ -301,6 +332,26 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                 icon="person-add-outline"
                 disabled={hiring}
                 onPress={() => hireApplicant(selectedApp)}
+              />
+            ) : null}
+            {selectedApp.outcome !== 'rejected' ? (
+              <HrButton
+                colors={colors}
+                label="Avslå"
+                danger
+                icon="close-circle-outline"
+                onPress={() => {
+                  if (!String(evalDraft.rejectReason || '').trim()) {
+                    showSaveToast?.('Fyll inn begrunnelse for avslag');
+                    return;
+                  }
+                  const next = moveApplicationBoard(
+                    { ...selectedApp, rejectReason: evalDraft.rejectReason, response: evalDraft.response },
+                    'completed',
+                    'rejected',
+                  );
+                  patchApps((hr.applications || []).map((row) => (row.id === selectedApp.id ? next : row)));
+                }}
               />
             ) : null}
           </View>

@@ -199,6 +199,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
         employees={employees}
         hr={hr}
         entries={entries}
+        canWrite={canWrite}
+        onPatch={onPatch}
         onOpenPeople={() => go('personell')}
         onOpenFollowUp={() => go('oppfolging')}
         onOpenRecruitment={() => go('rekruttering')}

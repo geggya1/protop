@@ -204,3 +204,80 @@ export function amlContractCompleteness(contract = {}) {
     missing: requiredKeys.filter((key) => !String(contract[key] || '').trim()),
   };
 }
+
+function markOk(row, note = '') {
+  return {
+    ...row,
+    status: 'ok',
+    completedAt: row.completedAt || new Date().toISOString().slice(0, 10),
+    note: note || row.note,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Synkroniser sjekkliste fra avtaler og samtaler (Personio/BambooHR-mønster).
+ * Skriver bare opp mangler → OK når evidens finnes; overskriver ikke manuell OK/NA.
+ */
+export function syncComplianceFromEvidence(compliance, {
+  employeeId,
+  contracts = [],
+  reviews = [],
+} = {}) {
+  const emp = String(employeeId || '').trim();
+  if (!emp) return Array.isArray(compliance) ? compliance : [];
+  const rows = ensureEmployeeCompliance(compliance, emp);
+  const active = (contracts || []).find(
+    (c) => String(c.employeeId) === emp && c.status === 'active',
+  );
+  const aml = active ? amlContractCompleteness(active) : null;
+  const hasDoneReview = (reviews || []).some(
+    (r) => String(r.employeeId) === emp && r.status === 'done',
+  );
+
+  const next = rows.map((row) => {
+    if (row.status === 'ok' || row.status === 'na') return row;
+    if (row.catalogId === 'aml_written_contract' && active) {
+      return markOk(row, 'Aktiv arbeidsavtale i HR');
+    }
+    if (row.catalogId === 'aml_contract_minimum' && aml && aml.pct >= 100) {
+      return markOk(row, `AML-minimum dekket (${aml.filled}/${aml.total})`);
+    }
+    if (row.catalogId === 'aml_probation_documented' && active?.probationMonths) {
+      return markOk(row, `Prøvetid ${active.probationMonths} mnd i avtale`);
+    }
+    if (row.catalogId === 'aml_followup_dialogue' && hasDoneReview) {
+      return markOk(row, 'Medarbeidersamtale gjennomført');
+    }
+    return row;
+  });
+
+  const others = (compliance || []).filter((row) => String(row.employeeId) !== emp);
+  return [...others, ...next];
+}
+
+/** Oversikt over compliance-gap for hele selskapet (sortert verst først). */
+export function companyComplianceOverview(employees, compliance) {
+  const rows = [];
+  for (const emp of employees || []) {
+    if (emp?.company?.status === 'deleted') continue;
+    const id = String(emp?.id || '');
+    if (!id) continue;
+    const items = ensureEmployeeCompliance(compliance || [], id);
+    const summary = complianceSummary(items);
+    rows.push({
+      employeeId: id,
+      missing: summary.missing,
+      ok: summary.ok,
+      total: summary.total,
+      pct: summary.pct,
+      gaps: items
+        .filter((row) => {
+          const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+          return cat?.required && (row.status === 'missing' || row.status === 'overdue');
+        })
+        .map((row) => row.label),
+    });
+  }
+  return rows.sort((a, b) => b.missing - a.missing || a.pct - b.pct);
+}

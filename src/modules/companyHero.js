@@ -150,6 +150,7 @@ export const COMPANY_HERO = {
   },
   'anbud-vurdering': {
     ...BLUE,
+    wideArt: true,
     name: 'Vurdering',
     kicker: t('Anbud', 'Tenders'),
     title: t('Vurdering av aktuelle', 'Review the shortlist'),

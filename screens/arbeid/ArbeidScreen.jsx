@@ -107,6 +107,7 @@ export default function ArbeidScreen({
   personal = false,
   companyId = '',
   companyFamily = null,
+  embedded = false,
 } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
@@ -878,7 +879,9 @@ export default function ArbeidScreen({
         style={[styles.screen, { backgroundColor: colors.bg, position: 'relative' }]}
         nativeID="arbeid-screen"
       >
-        <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>{crumb}</Text>
+        {embedded ? null : (
+          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>{crumb}</Text>
+        )}
         <TimesheetEmployeePicker
           colors={colors}
           employees={employees}
@@ -906,9 +909,12 @@ export default function ArbeidScreen({
     <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.crumb, { color: colors.muted }]}>
-            {crumb}
-          </Text>
+          {embedded ? null : (
+            <Text style={[styles.crumb, { color: colors.muted }]}>
+              {crumb}
+            </Text>
+          )}
+          {embedded ? null : (
           <TouchableOpacity
             onPress={() => canSwitchPerson && setEmpPickerOpen(true)}
             style={[styles.empBtn, (personal || isPhone) && styles.empBtnPersonal]}
@@ -945,6 +951,7 @@ export default function ArbeidScreen({
             </Text>
             {canSwitchPerson ? <Ionicons name="chevron-down" size={isPhone ? 16 : 18} color={colors.muted} /> : null}
           </TouchableOpacity>
+          )}
         </View>
         <View style={styles.monthNav}>
           <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>

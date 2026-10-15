@@ -75,6 +75,7 @@ import {
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
+import EmployeePersonChrome from './EmployeePersonChrome';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
 import EconomyHours from '../economy/EconomyHours';
 import TimesaldoScreen from '../arbeid/TimesaldoScreen';
@@ -88,6 +89,7 @@ import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
+import { PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -714,6 +716,33 @@ export default function EmployeesScreen() {
     setView(nextView);
   }
 
+  /** Bytt person uten å miste aktiv fane (rød tråd). */
+  function openSibling(row) {
+    if (!row) return;
+    resetMessage();
+    clearSectionEdit();
+    setSelectedId(row.id);
+    setDraft(presentEmployee(row));
+    if (!PERSON_VIEWS.has(view)) setView('detail');
+  }
+
+  function openPersonTab(tabId) {
+    if (!selected) return;
+    if (tabId === 'home') {
+      openDetail(selected);
+      return;
+    }
+    if (tabId === 'hours') {
+      openHours(selected);
+      return;
+    }
+    if (tabId === 'cv') {
+      openCv(selected);
+      return;
+    }
+    openWork(selected, tabId);
+  }
+
   useEffect(() => {
     if (!pendingMyAbsence.current) return;
     const person = linked || mine;
@@ -1262,23 +1291,18 @@ export default function EmployeesScreen() {
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={[
         styles.inner,
-        (view === 'detail' || view === 'hours' || view === 'report' || view === 'settings') && styles.innerWide,
+        PERSON_VIEWS.has(view) && styles.innerWide,
         (view === 'hours' || view === 'report') && styles.innerHours,
         view === 'absence' && styles.innerAbsence,
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      {view !== 'list' && view !== 'detail' && view !== 'absence' ? (
+      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side'
             : view === 'import' ? 'Kontroller import'
               : view === 'invite' ? 'Inviter brukere'
-                : view === 'cv' && selected ? `CV · ${displayName(selected)}`
-                  : view === 'overview' && selected ? `Oversikt · ${displayName(selected)}`
-                    : view === 'hours' && selected ? `Timeføring · ${displayName(selected)}`
-                      : view === 'report' && selected ? `Timerapport · ${displayName(selected)}`
-                        : view === 'settings' && selected ? `Innstillinger · ${displayName(selected)}`
-                          : (selected ? displayName(selected) : 'Ansatte')}
+                : (selected ? displayName(selected) : 'Ansatte')}
         </Text>
       ) : null}
       {view === 'list' ? (
@@ -1386,71 +1410,275 @@ export default function EmployeesScreen() {
         </>
       ) : null}
 
-      {view !== 'list' && view !== 'detail' && view !== 'absence' ? (
+      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
           </TouchableOpacity>
-          {(view === 'cv' || view === 'overview' || view === 'hours' || view === 'report' || view === 'files' || view === 'absence' || view === 'saldo' || view === 'expenses' || view === 'settings') && selected ? (
-            <TouchableOpacity onPress={() => openDetail(selected)} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Hovedside</Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
       ) : null}
 
-      {view === 'overview' && selected ? (
-        <View nativeID="employee-overview-view">
-          <MyOverviewScreen lockedEmployeeId={selected.id} embedded />
-        </View>
-      ) : null}
-
-      {view === 'hours' && selected ? (
-        <View style={styles.hoursHost} nativeID="employee-hours-view">
-          <ArbeidScreen lockedEmployeeId={selected.id} />
-        </View>
-      ) : null}
-
-      {view === 'report' && selected ? (
-        <View style={styles.hoursHost} nativeID="employee-report-view">
-          <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} />
-        </View>
-      ) : null}
-
-      {view === 'files' && selected ? (
-        <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
-      ) : null}
-
-      {view === 'absence' && selected ? (
-        <View nativeID="employee-absence-view" style={styles.absenceHost}>
-          <AbsenceOverviewScreen
-            lockedEmployeeId={selected.id}
-            embedded
-            onBack={() => openDetail(selected)}
-          />
-        </View>
-      ) : null}
-
-      {view === 'saldo' && selected ? (
-        <View nativeID="employee-saldo-view">
-          <TimesaldoScreen lockedEmployeeId={selected.id} />
-        </View>
-      ) : null}
-
-      {view === 'expenses' && selected ? (
-        <View nativeID="employee-expenses-view">
-          <ProjectExpensesScreen lockedEmployeeId={selected.id} />
-        </View>
-      ) : null}
-
-      {view === 'settings' && selected ? (
-        <EmployeeWorkViews
-          mode="settings"
-          employee={draft || selected}
+      {PERSON_VIEWS.has(view) && selected ? (
+        <EmployeePersonChrome
+          employee={(view === 'detail' || view === 'settings' || view === 'cv') && draft && draft.id === selectedId
+            ? draft
+            : selected}
           colors={colors}
-          canEdit={isAdmin || selected.personUid === uid}
-          onSave={saveWork}
-        />
+          companyName={companyName}
+          siblings={visible}
+          activeTab={employeeViewToTab(view)}
+          onBack={openList}
+          onTab={openPersonTab}
+          onSelect={openSibling}
+        >
+          {view === 'overview' ? (
+            <View nativeID="employee-overview-view">
+              <MyOverviewScreen lockedEmployeeId={selected.id} embedded />
+            </View>
+          ) : null}
+
+          {view === 'hours' ? (
+            <View style={styles.hoursHost} nativeID="employee-hours-view">
+              <ArbeidScreen lockedEmployeeId={selected.id} embedded />
+            </View>
+          ) : null}
+
+          {view === 'report' ? (
+            <View style={styles.hoursHost} nativeID="employee-report-view">
+              <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded />
+            </View>
+          ) : null}
+
+          {view === 'files' ? (
+            <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
+          ) : null}
+
+          {view === 'absence' ? (
+            <View nativeID="employee-absence-view" style={styles.absenceHost}>
+              <AbsenceOverviewScreen
+                lockedEmployeeId={selected.id}
+                embedded
+                onBack={() => openDetail(selected)}
+              />
+            </View>
+          ) : null}
+
+          {view === 'saldo' ? (
+            <View nativeID="employee-saldo-view">
+              <TimesaldoScreen lockedEmployeeId={selected.id} embedded />
+            </View>
+          ) : null}
+
+          {view === 'expenses' ? (
+            <View nativeID="employee-expenses-view">
+              <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded />
+            </View>
+          ) : null}
+
+          {view === 'settings' ? (
+            <EmployeeWorkViews
+              mode="settings"
+              employee={draft || selected}
+              colors={colors}
+              canEdit={isAdmin || selected.personUid === uid}
+              onSave={saveWork}
+            />
+          ) : null}
+
+          {view === 'detail' && detailEmployee ? (
+            <EmployeeDetailView
+              employee={detailEmployee}
+              colors={colors}
+              companyName={companyName}
+              departments={departments}
+              members={people}
+              addressHits={addressHits}
+              reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
+              gaps={gaps}
+              canEdit={isAdmin || detailEmployee.personUid === uid}
+              canEditAccess={canEditAccess}
+              isAdmin={isAdmin}
+              isSelf={detailEmployee.personUid === uid}
+              confirmDelete={confirmDelete}
+              busy={busy}
+              onCv={() => openCv(detailEmployee)}
+              onHours={() => openHours(detailEmployee)}
+              projectState={projectState}
+              onOpenProject={(project) => {
+                if (!project?.id) return;
+                requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
+              }}
+              onChange={changeDetail}
+              onSave={save}
+              onClassify={classifyEmployee}
+              onPhoto={choosePhoto}
+              onPickAddress={pickAddress}
+              onPushProfile={pushProfile}
+              onPullToProfile={pullToProfile}
+              onConfirmDelete={() => setConfirmDelete(true)}
+              onCancelDelete={() => setConfirmDelete(false)}
+              onDestroy={destroy}
+              onRestore={restoreEmployee}
+              canInvite={canInvite}
+              onInvite={() => inviteEmployee(detailEmployee)}
+            />
+          ) : null}
+
+          {view === 'detail' && detailEmployee ? (
+            <EmployeeUsagePanel
+              companyId={familyId}
+              employee={detailEmployee}
+              colors={colors}
+              enabled={isAdmin || detailEmployee.personUid === uid}
+            />
+          ) : null}
+
+          {view === 'cv' && cv ? (
+            <View nativeID="employee-cv-editor" style={styles.stack}>
+              {canEditCv ? (
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    nativeID="employee-cv-save"
+                    onPress={save}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+                  >
+                    <Text style={styles.primaryText}>{busyLabel('Lagre CV')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    nativeID="employee-cv-import"
+                    onPress={importCvFile}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
+                  >
+                    <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    nativeID="employee-cv-export-pdf"
+                    onPress={downloadCvPdf}
+                    disabled={busy || !cv}
+                    accessibilityRole="button"
+                    accessibilityLabel="Eksporter CV som PDF"
+                    style={[styles.secondary, { borderColor: colors.line, opacity: busy || !cv ? 0.6 : 1 }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Eksporter PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              <CvAttention draft={cvEmployee} colors={colors} />
+              <EmployeeCvView
+                cv={cv}
+                colors={colors}
+                onEdit={canEditCv ? (sectionId) => beginSectionEdit(sectionId) : undefined}
+                onEditProject={canEditCv ? (project) => beginSectionEdit('projects', project.id) : undefined}
+              />
+              <Modal
+                visible={canEditCv && !!editSection}
+                transparent
+                animationType="fade"
+                onRequestClose={clearSectionEdit}
+              >
+                <View style={styles.modalRoot}>
+                  <Pressable
+                    style={styles.modalBackdrop}
+                    onPress={clearSectionEdit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk redigering"
+                  />
+                  <View
+                    nativeID="employee-cv-section"
+                    accessibilityRole="dialog"
+                    style={[
+                      styles.modalCard,
+                      editExpanded && styles.modalCardExpanded,
+                      { backgroundColor: colors.card, borderColor: colors.line },
+                    ]}
+                  >
+                    <View style={styles.modalHead}>
+                      <Text style={[styles.modalTitle, { color: colors.ink, flex: 1 }]}>{cvEditTitle()}</Text>
+                      <TouchableOpacity
+                        onPress={() => setEditExpanded((on) => !on)}
+                        accessibilityRole="button"
+                        accessibilityLabel={editExpanded ? 'Mindre vindu' : 'Utvid vindu'}
+                        style={[styles.secondary, { borderColor: colors.line }]}
+                      >
+                        <Text style={{ color: colors.ink }}>{editExpanded ? 'Mindre' : 'Utvid'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={clearSectionEdit}
+                        accessibilityRole="button"
+                        accessibilityLabel="Lagre og lukk"
+                        style={[styles.primary, { backgroundColor: colors.brand }]}
+                      >
+                        <Text style={styles.primaryText}>Lagre</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={clearSectionEdit}
+                        accessibilityRole="button"
+                        accessibilityLabel="Lukk"
+                        style={[styles.secondary, { borderColor: colors.line }]}
+                      >
+                        <Text style={{ color: colors.ink }}>Lukk</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {editSection === 'projects' && editItemId ? (
+                      <View style={styles.row}>
+                        <TouchableOpacity
+                          onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'pdf')}
+                          accessibilityRole="button"
+                          accessibilityLabel="Referanseark som PDF"
+                          style={[styles.secondary, { borderColor: colors.line }]}
+                        >
+                          <Text style={{ color: colors.ink }}>PDF</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'docx')}
+                          accessibilityRole="button"
+                          accessibilityLabel="Referanseark som Word"
+                          style={[styles.secondary, { borderColor: colors.line }]}
+                        >
+                          <Text style={{ color: colors.ink }}>Word</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                    <ScrollView
+                      style={styles.modalScroll}
+                      contentContainerStyle={styles.stack}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      <EmployeeFields
+                        key={`${editSection}:${editItemId}:${editToken}`}
+                        draft={draft}
+                        scope="employee"
+                        sections={cvEditorSections('employee').filter((section) => section.id === editSection)}
+                        showCustom={false}
+                        review
+                        startOpen={editSection}
+                        focusItemId={editItemId}
+                        openToken={editToken}
+                        hideItems={false}
+                        onClose={clearSectionEdit}
+                        onSave={clearSectionEdit}
+                        onAddedItem={focusAddedItem}
+                        colors={colors}
+                        canEditOwner={canEditOwner}
+                        departments={departments}
+                        members={people}
+                        addressHits={addressHits}
+                        onPickAddress={pickAddress}
+                        onChange={changeDraft}
+                        onPhoto={choosePhoto}
+                        onProjectImage={addProjectImages}
+                      />
+                    </ScrollView>
+                  </View>
+                </View>
+              </Modal>
+            </View>
+          ) : null}
+        </EmployeePersonChrome>
       ) : null}
 
       {view === 'import' && importPlan ? (
@@ -1490,63 +1718,6 @@ export default function EmployeesScreen() {
           })}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setDropped(new Set()); setView('list'); }}
-        />
-      ) : null}
-
-      {view === 'detail' && detailEmployee ? (
-        <EmployeeDetailView
-          employee={detailEmployee}
-          colors={colors}
-          companyName={companyName}
-          departments={departments}
-          members={people}
-          addressHits={addressHits}
-          reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
-          gaps={gaps}
-          canEdit={isAdmin || detailEmployee.personUid === uid}
-          canEditAccess={canEditAccess}
-          isAdmin={isAdmin}
-          isSelf={detailEmployee.personUid === uid}
-          siblings={visible}
-          confirmDelete={confirmDelete}
-          busy={busy}
-          onBack={openList}
-          onCv={() => openCv(detailEmployee)}
-          onOverview={() => openWork(detailEmployee, 'overview')}
-          onHours={() => openHours(detailEmployee)}
-          onReport={() => openWork(detailEmployee, 'report')}
-          onFiles={() => openWork(detailEmployee, 'files')}
-          onAbsence={() => openWork(detailEmployee, 'absence')}
-          onSaldo={() => openWork(detailEmployee, 'saldo')}
-          onExpenses={() => openWork(detailEmployee, 'expenses')}
-          onSettings={() => openWork(detailEmployee, 'settings')}
-          projectState={projectState}
-          onOpenProject={(project) => {
-            if (!project?.id) return;
-            requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
-          }}
-          onSelect={openDetail}
-          onChange={changeDetail}
-          onSave={save}
-          onClassify={classifyEmployee}
-          onPhoto={choosePhoto}
-          onPickAddress={pickAddress}
-          onPushProfile={pushProfile}
-          onPullToProfile={pullToProfile}
-          onConfirmDelete={() => setConfirmDelete(true)}
-          onCancelDelete={() => setConfirmDelete(false)}
-          onDestroy={destroy}
-          onRestore={restoreEmployee}
-          canInvite={canInvite}
-          onInvite={() => inviteEmployee(detailEmployee)}
-        />
-      ) : null}
-      {view === 'detail' && detailEmployee ? (
-        <EmployeeUsagePanel
-          companyId={familyId}
-          employee={detailEmployee}
-          colors={colors}
-          enabled={isAdmin || detailEmployee.personUid === uid}
         />
       ) : null}
 
@@ -1618,152 +1789,6 @@ export default function EmployeesScreen() {
           >
             <Text style={styles.primaryText}>{busyLabel('Lagre')}</Text>
           </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {view === 'cv' && cv ? (
-        <View nativeID="employee-cv-editor" style={styles.stack}>
-          {canEditCv ? (
-            <View style={styles.row}>
-              <TouchableOpacity
-                nativeID="employee-cv-save"
-                onPress={save}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={styles.primaryText}>{busyLabel('Lagre CV')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                nativeID="employee-cv-import"
-                onPress={importCvFile}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: colors.ink }}>{busy && busyKind === 'cv' ? 'Leser CV…' : 'Importer CV'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                nativeID="employee-cv-export-pdf"
-                onPress={downloadCvPdf}
-                disabled={busy || !cv}
-                accessibilityRole="button"
-                accessibilityLabel="Eksporter CV som PDF"
-                style={[styles.secondary, { borderColor: colors.line, opacity: busy || !cv ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: colors.ink }}>Eksporter PDF</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          <CvAttention draft={cvEmployee} colors={colors} />
-          <EmployeeCvView
-            cv={cv}
-            colors={colors}
-            onEdit={canEditCv ? (sectionId) => beginSectionEdit(sectionId) : undefined}
-            onEditProject={canEditCv ? (project) => beginSectionEdit('projects', project.id) : undefined}
-          />
-          <Modal
-            visible={canEditCv && !!editSection}
-            transparent
-            animationType="fade"
-            onRequestClose={clearSectionEdit}
-          >
-            <View style={styles.modalRoot}>
-              <Pressable
-                style={styles.modalBackdrop}
-                onPress={clearSectionEdit}
-                accessibilityRole="button"
-                accessibilityLabel="Lukk redigering"
-              />
-              <View
-                nativeID="employee-cv-section"
-                accessibilityRole="dialog"
-                style={[
-                  styles.modalCard,
-                  editExpanded && styles.modalCardExpanded,
-                  { backgroundColor: colors.card, borderColor: colors.line },
-                ]}
-              >
-                <View style={styles.modalHead}>
-                  <Text style={[styles.modalTitle, { color: colors.ink, flex: 1 }]}>{cvEditTitle()}</Text>
-                  <TouchableOpacity
-                    onPress={() => setEditExpanded((on) => !on)}
-                    accessibilityRole="button"
-                    accessibilityLabel={editExpanded ? 'Mindre vindu' : 'Utvid vindu'}
-                    style={[styles.secondary, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>{editExpanded ? 'Mindre' : 'Utvid'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={clearSectionEdit}
-                    accessibilityRole="button"
-                    accessibilityLabel="Lagre og lukk"
-                    style={[styles.primary, { backgroundColor: colors.brand }]}
-                  >
-                    <Text style={styles.primaryText}>Lagre</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={clearSectionEdit}
-                    accessibilityRole="button"
-                    accessibilityLabel="Lukk"
-                    style={[styles.secondary, { borderColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>Lukk</Text>
-                  </TouchableOpacity>
-                </View>
-                {editSection === 'projects' && editItemId ? (
-                  <View style={styles.row}>
-                    <TouchableOpacity
-                      onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'pdf')}
-                      accessibilityRole="button"
-                      accessibilityLabel="Referanseark som PDF"
-                      style={[styles.secondary, { borderColor: colors.line }]}
-                    >
-                      <Text style={{ color: colors.ink }}>PDF</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => downloadSheet((draft?.cv?.projects || []).find((row) => row.id === editItemId), 'docx')}
-                      accessibilityRole="button"
-                      accessibilityLabel="Referanseark som Word"
-                      style={[styles.secondary, { borderColor: colors.line }]}
-                    >
-                      <Text style={{ color: colors.ink }}>Word</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-                <ScrollView
-                  style={styles.modalScroll}
-                  contentContainerStyle={styles.stack}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <EmployeeFields
-                    key={`${editSection}:${editItemId}:${editToken}`}
-                    draft={draft}
-                    scope="employee"
-                    sections={cvEditorSections('employee').filter((section) => section.id === editSection)}
-                    showCustom={false}
-                    review
-                    startOpen={editSection}
-                    focusItemId={editItemId}
-                    openToken={editToken}
-                    hideItems={false}
-                    onClose={clearSectionEdit}
-                    onSave={clearSectionEdit}
-                    onAddedItem={focusAddedItem}
-                    colors={colors}
-                    canEditOwner={canEditOwner}
-                    departments={departments}
-                    members={people}
-                    addressHits={addressHits}
-                    onPickAddress={pickAddress}
-                    onChange={changeDraft}
-                    onPhoto={choosePhoto}
-                    onProjectImage={addProjectImages}
-                  />
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
         </View>
       ) : null}
 

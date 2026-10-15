@@ -34,7 +34,7 @@ function todayKey() {
   return toDateKey(new Date());
 }
 
-export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' } = {}) {
+export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '', embedded = false } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { family, isAdmin } = useApp();
@@ -145,7 +145,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' 
         style={[styles.screen, { backgroundColor: colors.bg }]}
         nativeID="timesaldo-screen"
       >
-        {hostedHero ? null : (
+        {hostedHero || embedded ? null : (
           <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>
             Arbeid / Timesaldo
           </Text>
@@ -176,12 +176,13 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' 
   return (
     <View style={[styles.screenRoot, { backgroundColor: colors.bg }]} nativeID="timesaldo-screen">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body}>
-        {hostedHero ? null : (
+        {hostedHero || embedded ? null : (
           <Text style={[styles.crumb, { color: colors.muted }]}>
             {lockedId ? 'Ansatte / Timesaldo' : 'Arbeid / Timesaldo'}
           </Text>
         )}
         <View style={styles.head}>
+          {embedded ? null : (
           <TouchableOpacity
             onPress={() => canSwitchPerson && setEmpPickerOpen(true)}
             style={styles.empBtn}
@@ -206,6 +207,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '' 
             </Text>
             {canSwitchPerson ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
           </TouchableOpacity>
+          )}
           <View style={styles.through}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Sluttdato</Text>
             <TextInput

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -10,6 +10,7 @@ import {
   normalizeSettings,
   starterForm,
 } from '../../src/anbud/formBuilder';
+import { agreementStarterTemplate } from '../../src/anbud/agreementCase';
 import { deleteFormTemplate, saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { askCompanyForm, FORM_IMPORT_ACCEPT, readFormImport } from '../../src/anbud/formImport';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -61,7 +62,7 @@ export default function FormBuilderScreen({
 }) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
-  const { family, familyId } = useApp();
+  const { family, familyId, shellIntent, clearShellIntent, requestShellTab } = useApp();
   const companyLogo = companyLogoOf(family?.company);
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
@@ -72,6 +73,9 @@ export default function FormBuilderScreen({
   const [reading, setReading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState('');
   const [scanToken, setScanToken] = useState(0);
+  const [fromAgreement, setFromAgreement] = useState(false);
+  const agreementReturnRef = useRef(null);
+  const agreementIntentHandled = useRef('');
 
   useEffect(() => {
     if (externalState) return undefined;
@@ -132,13 +136,74 @@ export default function FormBuilderScreen({
     openFresh(kind === 'blank' ? blankForm() : starterForm(kind));
   }
 
+  function returnToAgreement(templateId) {
+    const payload = agreementReturnRef.current;
+    if (!payload) return false;
+    agreementReturnRef.current = null;
+    setFromAgreement(false);
+    requestShellTab?.('kontrakt', null, {
+      type: 'agreementTemplateReady',
+      templateId: templateId || '',
+      returnDraft: payload.returnDraft || {},
+    });
+    return true;
+  }
+
+  useEffect(() => {
+    if (!state || !shellIntent || shellIntent.type !== 'composeAgreementTemplate') return;
+    const key = [
+      shellIntent.mode || '',
+      shellIntent.templateId || '',
+      shellIntent.nonce || '',
+    ].join(':');
+    if (agreementIntentHandled.current === key) return;
+    agreementIntentHandled.current = key;
+    agreementReturnRef.current = {
+      returnDraft: shellIntent.returnDraft && typeof shellIntent.returnDraft === 'object'
+        ? shellIntent.returnDraft
+        : {},
+    };
+    setFromAgreement(true);
+    clearShellIntent?.();
+    const mode = shellIntent.mode || 'blank';
+    if (mode === 'edit' && shellIntent.templateId) {
+      const existing = (state.formTemplates || []).find((row) => row.id === shellIntent.templateId);
+      if (existing) {
+        setDraft(draftFromTemplate({ ...existing, category: 'avtale' }));
+        say('Rediger avtalemalen. Lagre for å gå tilbake til avtalebehandlingen.');
+        return;
+      }
+    }
+    if (mode === 'starter') {
+      openFresh(agreementStarterTemplate());
+      say('Standard avtalemal. Juster feltene og lagre for å fortsette.');
+      return;
+    }
+    openFresh({
+      ...blankForm(),
+      category: 'avtale',
+      title: 'Avtalemal',
+      intro: 'Tom avtalemal. Legg inn feltene du trenger før du lagrer.',
+      fields: [{ id: '', label: 'Avtalen', kind: 'title', editor: 'fast', required: false, help: '', placeholder: '', width: 'full', options: [], value: '' }],
+    });
+    say('Tom avtalemal. Bygg malen og lagre for å gå tilbake til avtalebehandlingen.');
+  }, [state, shellIntent, clearShellIntent]);
+
   async function save() {
     const known = new Set((state.formTemplates || []).map((row) => row.id));
-    const result = await commit(saveFormTemplate(state, draft));
+    const toSave = agreementReturnRef.current
+      ? { ...draft, category: 'avtale' }
+      : draft;
+    const result = await commit(saveFormTemplate(state, toSave));
     if (!result) return;
     const saved = draft.id
       ? result.state.formTemplates.find((row) => row.id === draft.id)
-      : result.state.formTemplates.find((row) => row.title === draft.title && !known.has(row.id));
+      : result.state.formTemplates.find((row) => row.title === toSave.title && !known.has(row.id))
+        || result.state.formTemplates.find((row) => row.category === 'avtale' && !known.has(row.id));
+    if (saved && returnToAgreement(saved.id)) {
+      showSaveToast('Avtalemalen er lagret.');
+      return;
+    }
     say('Skjemaet er lagret.');
     showSaveToast('Skjemaet er lagret.');
     if (saved) setDraft(draftFromTemplate(saved));
@@ -224,11 +289,19 @@ export default function FormBuilderScreen({
           noteBad={noteBad}
           fill={fill}
           onDraft={setDraft}
-          onBack={() => { setDraft(null); say(''); }}
+          onBack={() => {
+            if (agreementReturnRef.current) {
+              returnToAgreement(draft.id || agreementReturnRef.current.returnDraft?.templateId || '');
+              return;
+            }
+            setDraft(null);
+            say('');
+          }}
           onSave={save}
           onScan={() => readDocument('scan')}
           onImport={() => readDocument('import')}
           companyLogo={companyLogo}
+          backLabel={fromAgreement ? 'Tilbake til avtale' : 'Alle skjema'}
         />
         {busyOverlay}
       </>

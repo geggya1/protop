@@ -384,33 +384,30 @@ export default function MoreHubScreen({ subView, setSubView }) {
             <View style={styles.companyBlock}>
               <Text style={styles.companyHeading}>{t('shell.company')}</Text>
               {filterCompanyNav(companyNavItems(), companyAccess.grants).map((item) => {
-                const expandable = drawerHasSubmenuToggle(item);
-                const submenuExpanded = drawerSubmenuOpen(item, null, submenuOpen, null);
-                return (
-                  <View key={item.id}>
-                    <Row
-                      icon={item.icon}
-                      label={item.label}
-                      moduleId={item.id}
-                      expanded={submenuExpanded}
-                      onToggle={expandable ? () => setSubmenuOpen((prev) => ({
-                        ...prev,
-                        [item.id]: !drawerSubmenuOpen(item, null, prev, null),
-                      })) : undefined}
-                      onPress={() => runAction(item.action, item.id)}
-                    />
-                    {expandable && submenuExpanded ? (item.children || []).map((child) => (
+                const renderNavBranch = (row, depth = 0) => {
+                  const expandable = drawerHasSubmenuToggle(row);
+                  const submenuExpanded = drawerSubmenuOpen(row, null, submenuOpen, null);
+                  return (
+                    <View key={row.id}>
                       <Row
-                        key={child.id}
-                        icon={child.icon}
-                        label={child.label}
-                        moduleId={child.id}
-                        compact
-                        onPress={() => runAction(child.action, child.id)}
+                        icon={row.icon}
+                        label={row.label}
+                        moduleId={row.id}
+                        compact={depth > 0}
+                        expanded={submenuExpanded}
+                        onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                          ...prev,
+                          [row.id]: !drawerSubmenuOpen(row, null, prev, null),
+                        })) : undefined}
+                        onPress={() => runAction(row.action, row.id)}
                       />
-                    )) : null}
-                  </View>
-                );
+                      {expandable && submenuExpanded
+                        ? (row.children || []).map((child) => renderNavBranch(child, depth + 1))
+                        : null}
+                    </View>
+                  );
+                };
+                return renderNavBranch(item);
               })}
             </View>
           ) : null}

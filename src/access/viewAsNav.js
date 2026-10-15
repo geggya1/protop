@@ -12,13 +12,11 @@ export function viewAsChromeVisible({ canViewAs = false, tab = '', previewing = 
   return COMPANY_TAB_IDS.includes(tab);
 }
 
-function flatten(items) {
+function flatten(items, parentId = '') {
   const rows = [];
   for (const item of items || []) {
-    rows.push({ id: item.id, label: item.label, child: false, parentId: '' });
-    for (const child of item.children || []) {
-      rows.push({ id: child.id, label: child.label, child: true, parentId: item.id });
-    }
+    rows.push({ id: item.id, label: item.label, child: !!parentId, parentId });
+    rows.push(...flatten(item.children || [], item.id));
   }
   return rows;
 }

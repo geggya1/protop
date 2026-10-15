@@ -28,7 +28,7 @@ const DRAWER_WIDTH = 268;
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
 
 function DrawerRow({
-  item, active, onPress, badgeCount = 0, nested = false, expanded = false, onToggle,
+  item, active, onPress, badgeCount = 0, nested = false, depth = 0, expanded = false, onToggle,
 }) {
   const colors = useColors();
   const highlight = !!item.highlight;
@@ -38,11 +38,12 @@ function DrawerRow({
     ? (alreadyOutline && (highlight || active) ? base.replace(/-outline$/, '') : base)
     : `${base}-outline`;
   const expandable = typeof onToggle === 'function';
+  const nestPad = depth > 0 ? Math.min(14 + (depth - 1) * 12, 38) : 0;
   return (
     <View
       style={[
         styles.row,
-        nested && styles.rowChild,
+        nested && { paddingLeft: nestPad },
         active && styles.rowActive,
         highlight && styles.rowHighlight,
       ]}
@@ -245,14 +246,17 @@ export default function ShellDrawer({
   ), [isItemActive]);
 
   const findActiveItem = useCallback(() => {
-    for (const section of sections) {
-      for (const item of section.items || []) {
-        const child = (item.children || []).find((row) => isItemActive(row));
-        if (child) return { itemId: child.id, sectionId: section.id };
-        if (isItemActive(item)) {
-          return { itemId: item.id, sectionId: section.id };
-        }
+    const walk = (items, sectionId) => {
+      for (const item of items || []) {
+        const nested = walk(item.children || [], sectionId);
+        if (nested) return nested;
+        if (isItemActive(item)) return { itemId: item.id, sectionId };
       }
+      return null;
+    };
+    for (const section of sections) {
+      const hit = walk(section.items, section.id);
+      if (hit) return hit;
     }
     return null;
   }, [sections, isItemActive]);
@@ -426,51 +430,38 @@ export default function ShellDrawer({
                       <Text style={styles.sectionTitle}>{section.title}</Text>
                     )}
                     {expanded ? section.items.map((item) => {
-                      const kids = item.children || [];
-                      const expandable = drawerHasSubmenuToggle(item);
-                      const submenuExpanded = drawerSubmenuOpen(item, activeTab, submenuOpen, activeSubView);
-                      const showKids = expandable && submenuExpanded;
-                      const parentOn = isItemActive(item);
-                      return (
-                      <View
-                        key={item.id}
-                        ref={(node) => {
-                          if (node) rowRefs.current[item.id] = node;
-                          else delete rowRefs.current[item.id];
-                        }}
-                        collapsable={false}
-                      >
-                        <DrawerRow
-                          item={item}
-                          active={parentOn}
-                          badgeCount={countForItem(unreadByModule, item)}
-                          expanded={submenuExpanded}
-                          onToggle={expandable ? () => setSubmenuOpen((prev) => ({
-                            ...prev,
-                            [item.id]: !drawerSubmenuOpen(item, activeTab, prev, activeSubView),
-                          })) : undefined}
-                          onPress={() => runAction(item.action)}
-                        />
-                        {showKids ? kids.map((child) => (
+                      const renderNavBranch = (row, depth = 0) => {
+                        const kids = row.children || [];
+                        const expandable = drawerHasSubmenuToggle(row);
+                        const submenuExpanded = drawerSubmenuOpen(row, activeTab, submenuOpen, activeSubView);
+                        const showKids = expandable && submenuExpanded;
+                        return (
                           <View
-                            key={child.id}
+                            key={row.id}
                             ref={(node) => {
-                              if (node) rowRefs.current[child.id] = node;
-                              else delete rowRefs.current[child.id];
+                              if (node) rowRefs.current[row.id] = node;
+                              else delete rowRefs.current[row.id];
                             }}
                             collapsable={false}
                           >
                             <DrawerRow
-                              item={child}
-                              nested
-                              active={isItemActive(child)}
-                              badgeCount={countForItem(unreadByModule, child)}
-                              onPress={() => runAction(child.action)}
+                              item={row}
+                              nested={depth > 0}
+                              depth={depth}
+                              active={isItemActive(row)}
+                              badgeCount={countForItem(unreadByModule, row)}
+                              expanded={submenuExpanded}
+                              onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                                ...prev,
+                                [row.id]: !drawerSubmenuOpen(row, activeTab, prev, activeSubView),
+                              })) : undefined}
+                              onPress={() => runAction(row.action)}
                             />
+                            {showKids ? kids.map((child) => renderNavBranch(child, depth + 1)) : null}
                           </View>
-                        )) : null}
-                      </View>
-                      );
+                        );
+                      };
+                      return renderNavBranch(item);
                     }) : null}
                   </View>
                 );
@@ -614,7 +605,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   expandBtnHighlight: { backgroundColor: 'rgba(255,255,255,0.22)' },
-  rowChild: { paddingLeft: 14 },
   rowActive: { backgroundColor: colors.brandSoft },
   rowHighlight: { backgroundColor: colors.brand },
   iconWrap: {

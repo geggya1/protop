@@ -154,6 +154,36 @@ function okonomiNavChild(item) {
   };
 }
 
+function arbeidNavItem() {
+  return {
+    id: 'arbeid',
+    icon: 'time',
+    label: 'Arbeid',
+    action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
+    children: ARBEID_MENU.map((item) => ({
+      id: `arbeid-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'arbeid', subView: item.id },
+    })),
+  };
+}
+
+function fravaerNavItem() {
+  return {
+    id: 'fravaer',
+    icon: 'sunny',
+    label: 'Fravær',
+    action: { type: 'tab', tab: 'arbeid', subView: 'fravaer' },
+    children: FRAVAER_MENU.map((item) => ({
+      id: `fravaer-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'arbeid', subView: item.id },
+    })),
+  };
+}
+
 export function companyNavItems() {
   return [
     {
@@ -169,9 +199,11 @@ export function companyNavItems() {
           label: 'Underenheter',
           action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
         },
+        { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
+        arbeidNavItem(),
+        fravaerNavItem(),
       ],
     },
-    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
@@ -187,30 +219,6 @@ export function companyNavItems() {
     },
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
-    {
-      id: 'arbeid',
-      icon: 'time',
-      label: 'Arbeid',
-      action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
-      children: ARBEID_MENU.map((item) => ({
-        id: `arbeid-${item.id}`,
-        icon: item.icon,
-        label: item.label,
-        action: { type: 'tab', tab: 'arbeid', subView: item.id },
-      })),
-    },
-    {
-      id: 'fravaer',
-      icon: 'sunny',
-      label: 'Fravær',
-      action: { type: 'tab', tab: 'arbeid', subView: 'fravaer' },
-      children: FRAVAER_MENU.map((item) => ({
-        id: `fravaer-${item.id}`,
-        icon: item.icon,
-        label: item.label,
-        action: { type: 'tab', tab: 'arbeid', subView: item.id },
-      })),
-    },
     {
       id: 'produkt',
       icon: 'cube',
@@ -273,12 +281,14 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
   return isNavItemActive(item, activeTab, activeSubView);
 }
 
+function collectNavIds(item, ids) {
+  ids.push(item.id);
+  for (const child of item.children || []) collectNavIds(child, ids);
+}
+
 function companyAllowIds() {
   const ids = [];
-  for (const item of companyNavItems()) {
-    ids.push(item.id);
-    for (const child of item.children || []) ids.push(child.id);
-  }
+  for (const item of companyNavItems()) collectNavIds(item, ids);
   for (const item of companyAccountNavItems()) ids.push(item.id);
   return ids;
 }

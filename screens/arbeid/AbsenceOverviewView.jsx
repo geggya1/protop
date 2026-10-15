@@ -314,7 +314,7 @@ export function AbsenceOverviewView({
   const body = (
     <View style={[styles.frame, wide && styles.frameWide]}>
       <View style={styles.companyRow}>
-        {onBack ? (
+        {onBack && !embedded ? (
           <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel="Tilbake til ansatt" style={styles.backBtn}>
             <Ionicons name="chevron-back" size={18} color={ui.ink} />
           </TouchableOpacity>
@@ -337,7 +337,7 @@ export function AbsenceOverviewView({
         />
       ) : null}
 
-      {hostedHero ? null : (
+      {hostedHero || embedded ? null : (
       <View style={[styles.heroBlock, wide && styles.heroBlockWide]}>
         <View style={[styles.heroCopy, wide && styles.heroCopyWide]}>
           <Text accessibilityRole="header" style={styles.title}>Fraværsoversikt</Text>

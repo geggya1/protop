@@ -14,7 +14,7 @@ function money(value) {
   return `${n.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
 }
 
-export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
+export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const year = new Date().getFullYear();
@@ -28,7 +28,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '' } = {}) {
   const rows = (workspace.state?.expenses || []).filter((row) => !activeId || row.employeeId === activeId);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="prosjektutlegg">
-      {hostedHero ? null : (
+      {hostedHero || embedded ? null : (
         <>
           <Text style={[styles.crumb, { color: colors.muted }]}>Medarbeidere / Prosjektutlegg</Text>
           <Text style={[styles.title, { color: colors.ink }]}>Prosjektutlegg</Text>

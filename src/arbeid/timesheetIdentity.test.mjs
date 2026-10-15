@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   canSwitchTimesheetPerson,
+  needsTimesheetPersonStep,
   timesheetCrumb,
   timesheetIdentity,
 } from './timesheetIdentity.js';
@@ -21,6 +22,10 @@ import {
   assert.equal(canSwitchTimesheetPerson({ personal: false, manager: true }), true);
   assert.equal(canSwitchTimesheetPerson({ personal: false, locked: true, manager: true }), false);
   assert.equal(canSwitchTimesheetPerson({ manager: false }), false);
+  assert.equal(needsTimesheetPersonStep({ manager: true }), true);
+  assert.equal(needsTimesheetPersonStep({ manager: true, employeeId: 'e1' }), false);
+  assert.equal(needsTimesheetPersonStep({ manager: true, locked: true }), false);
+  assert.equal(needsTimesheetPersonStep({ manager: false }), false);
   assert.equal(timesheetCrumb({ personal: true, companyLabel: 'CONSULT1 AS' }), 'Timeliste · CONSULT1 AS');
   assert.equal(timesheetCrumb({ locked: true }), 'Ansatte / Timeføring');
   assert.equal(timesheetCrumb({}), 'Arbeid / Timeføring');

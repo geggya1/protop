@@ -143,6 +143,45 @@ export function okonomiMenuTitle(subView) {
   return 'Økonomi';
 }
 
+/**
+ * Undermeny når HR er valgt.
+ * Dedikert for leder/HR — ikke den ansattes egen Min side.
+ */
+export const HR_MENU = [
+  { id: 'oversikt', icon: 'home', label: 'Oversikt' },
+  { id: 'personell', icon: 'people', label: 'Personell' },
+  { id: 'produktivitet', icon: 'speedometer', label: 'Produktivitet' },
+  { id: 'lonn', icon: 'cash', label: 'Lønn' },
+  { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
+  { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
+];
+
+export const HR_SUBVIEW_IDS = HR_MENU.map((item) => item.id);
+
+export function defaultHrSubView(subView) {
+  return HR_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
+}
+
+export function hrMenuTitle(subView) {
+  const row = HR_MENU.find((item) => item.id === subView);
+  return row?.label || 'HR';
+}
+
+function hrNavItem() {
+  return {
+    id: 'hr',
+    icon: 'people-circle',
+    label: 'HR',
+    action: { type: 'tab', tab: 'hr', subView: 'oversikt' },
+    children: HR_MENU.map((item) => ({
+      id: `hr-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'hr', subView: item.id },
+    })),
+  };
+}
+
 function okonomiNavChild(item) {
   const tab = item.tab || 'okonomi';
   const subView = item.subView || item.id;
@@ -200,10 +239,11 @@ export function companyNavItems() {
           action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
         },
         { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
-        arbeidNavItem(),
+        hrNavItem(),
         fravaerNavItem(),
       ],
     },
+    arbeidNavItem(),
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',

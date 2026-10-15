@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { accessLevelSections, accessSectionTitle, employeeLevelIds, levelById, placedLevelId, withToggledLevel } from '../../src/access/companyAccess';
 import { inviteStatusLabel } from '../../src/employees/invite';
 import {
-  cardSubtitle,
   choiceLabel,
   contactLine,
   departmentLabels,
@@ -20,7 +19,6 @@ import {
   personnelKind,
   personnelKindLabel,
   readPath,
-  statusLabel,
 } from '../../src/employees/model';
 import {
   FORM_SECTIONS, OWNER_LABEL,
@@ -32,19 +30,6 @@ import {
   monthsAgoIso,
   projectsWithEmployeeHours,
 } from '../../src/project/engine';
-
-const DETAIL_TABS = [
-  { id: 'home', label: 'Hovedside' },
-  { id: 'overview', label: 'Oversikt' },
-  { id: 'hours', label: 'Timer' },
-  { id: 'report', label: 'Timerapport' },
-  { id: 'files', label: 'Filer' },
-  { id: 'absence', label: 'Fraværsoversikt' },
-  { id: 'saldo', label: 'Timesaldo' },
-  { id: 'expenses', label: 'Prosjektutlegg' },
-  { id: 'settings', label: 'Innstillinger' },
-  { id: 'cv', label: 'CV' },
-];
 
 const MAIN_FACT_KEYS = [
   'company.title',
@@ -460,22 +445,12 @@ export default function EmployeeDetailView({
   canEditAccess = false,
   isAdmin = false,
   isSelf = false,
-  siblings = [],
   confirmDelete = false,
   busy = false,
-  onBack,
   onCv,
-  onOverview,
   onHours,
-  onReport,
-  onFiles,
-  onAbsence,
-  onSaldo,
-  onExpenses,
-  onSettings,
   onOpenProject,
   projectState = null,
-  onSelect,
   onChange,
   onSave,
   onClassify,
@@ -520,12 +495,7 @@ export default function EmployeeDetailView({
     });
   }, [employee?.id]);
 
-  const index = siblings.findIndex((row) => row.id === employee.id);
-  const prev = index > 0 ? siblings[index - 1] : null;
-  const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
-
   const name = displayName(employee);
-  const status = statusLabel(employee.company?.status);
   const deactivated = accountDeactivated(employee);
   const depts = departmentLabels(employee, departments);
   const tags = [
@@ -628,19 +598,6 @@ export default function EmployeeDetailView({
     setOpenSections((current) => ({ ...current, [id]: !current[id] }));
   }
 
-  function onTab(id) {
-    if (id === 'home') return;
-    if (id === 'cv') onCv?.();
-    if (id === 'overview') onOverview?.();
-    if (id === 'hours') onHours?.();
-    if (id === 'report') onReport?.();
-    if (id === 'files') onFiles?.();
-    if (id === 'absence') onAbsence?.();
-    if (id === 'saldo') onSaldo?.();
-    if (id === 'expenses') onExpenses?.();
-    if (id === 'settings') onSettings?.();
-  }
-
   function canEditOwner(owner) {
     if (owner === 'company') return !!isAdmin;
     return !!isAdmin || !!isSelf;
@@ -735,99 +692,6 @@ export default function EmployeeDetailView({
 
   return (
     <View nativeID="employee-detail" style={styles.root}>
-      <View style={styles.crumbRow}>
-        <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.crumbBtn}>
-          <Text style={{ color: colors.brand, fontSize: 13 }}>Ansatte</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.muted, fontSize: 13 }}> / </Text>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>Oversikt</Text>
-      </View>
-
-      <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
-        <View style={styles.titleBlock}>
-          <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
-          <Text style={{ color: colors.muted, fontSize: 14 }}>
-            {deactivated ? (
-              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
-            ) : (
-              <Text style={{ color: colors.muted }}>{status}</Text>
-            )}
-            {cardSubtitle(employee, companyName) ? ` · ${cardSubtitle(employee, companyName)}` : ''}
-          </Text>
-        </View>
-        <View style={styles.navActions}>
-          <TouchableOpacity
-            onPress={() => prev && onSelect?.(prev)}
-            disabled={!prev}
-            accessibilityRole="button"
-            accessibilityLabel="Forrige medarbeider"
-            style={[
-              styles.navBtn,
-              { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
-            ]}
-          >
-            <Ionicons name="chevron-back" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => next && onSelect?.(next)}
-            disabled={!next}
-            accessibilityRole="button"
-            accessibilityLabel="Neste medarbeider"
-            style={[
-              styles.navBtn,
-              { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
-            ]}
-          >
-            <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {deactivated ? (
-        <View
-          nativeID="employee-deactivated"
-          style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger || '#dc2626' }]}
-        >
-          <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
-            <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
-              {employee.company?.status === 'deleted'
-                ? 'Kontoen er deaktivert og ligger i papirkurven.'
-                : 'Kontoen er deaktivert. Personen har ikke vanlig tilgang.'}
-            </Text>
-          </View>
-        </View>
-      ) : null}
-
-      <View style={[styles.tabs, { borderBottomColor: colors.line }]} nativeID="employee-detail-tabs">
-        {DETAIL_TABS.map((tab) => {
-          const active = tab.id === 'home';
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => onTab(tab.id)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={tab.label}
-              nativeID={`employee-tab-${tab.id}`}
-              style={[styles.tab, active && { borderBottomColor: colors.brand }]}
-            >
-              <Text style={{
-                color: active ? colors.brand : colors.muted,
-                fontWeight: active ? '600' : '500',
-                fontSize: 14,
-              }}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
       <View style={[styles.columns, isPhone && styles.columnsPhone]}>
         <View style={[styles.mainCol, isPhone && styles.stackCol]}>
           <View
@@ -1307,34 +1171,6 @@ export default function EmployeeDetailView({
 
 const styles = StyleSheet.create({
   root: { gap: 14, width: '100%' },
-  crumbRow: { flexDirection: 'row', alignItems: 'center' },
-  crumbBtn: { paddingVertical: 2 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  titleRowPhone: { flexDirection: 'column' },
-  titleBlock: { flex: 1, gap: 4, minWidth: 180 },
-  name: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3 },
-  navActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  navBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  tabs: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   columnsPhone: { flexDirection: 'column', alignItems: 'stretch' },
   mainCol: { flex: 1.65, gap: 12, minWidth: 0 },
@@ -1440,7 +1276,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  deactivatedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
   accountSwitch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   accountSide: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   classify: { gap: 8, marginTop: 4 },

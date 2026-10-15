@@ -34,6 +34,11 @@ export const ACCESS_GROUPS = [
     resources: [
       { id: 'employees', label: 'Medarbeidere' },
       { id: 'ownProfile', label: 'Egen profil' },
+      {
+        id: 'hr',
+        label: 'HR',
+        hint: 'Personal, lønn, oppfølging og rekruttering. Ikke synlig for vanlige ansatte — de ser delte poster på Min side.',
+      },
     ],
   },
   {
@@ -247,6 +252,7 @@ const STANDARD = {
     units: 'write',
     employees: 'write',
     ownProfile: 'write',
+    hr: 'read',
     customers: 'write',
     tenders: 'read',
     offers: 'read',
@@ -264,6 +270,7 @@ const STANDARD = {
     units: 'read',
     employees: 'delete',
     ownProfile: 'write',
+    hr: 'delete',
     customers: 'delete',
     tenders: 'delete',
     offers: 'delete',
@@ -630,6 +637,7 @@ const COMPANY_TAB_RESOURCE = {
   selskap: 'companyPublic',
   underenheter: 'units',
   ansatte: 'employees',
+  hr: 'hr',
   kunder: 'customers',
   anbud: 'tenders',
   kontrakt: 'contracts',
@@ -640,7 +648,7 @@ const COMPANY_TAB_RESOURCE = {
 };
 
 export const COMPANY_TAB_IDS = [
-  'selskap', 'underenheter', 'ansatte', 'kunder', 'anbud', 'kontrakt',
+  'selskap', 'underenheter', 'ansatte', 'hr', 'kunder', 'anbud', 'kontrakt',
   'skjema', 'projects', 'arbeid', 'iso', 'okonomi',
 ];
 
@@ -682,6 +690,7 @@ function navItemAllowed(id, grants) {
     return allows(grants, 'economy', 'see') || hoursAllowed(grants);
   }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
+  if (id === 'hr' || String(id).startsWith('hr-')) return allows(grants, 'hr', 'see');
   if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   if (id === 'anbud-avtale') return allows(grants, 'offers', 'see') || allows(grants, 'tenders', 'see') || allows(grants, 'contracts', 'see');
   if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');

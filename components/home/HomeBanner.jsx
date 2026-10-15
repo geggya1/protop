@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { getHomeBanner, CUSTOM_BANNER_ID } from '../../src/homeBanners';
 import { soft } from '../parentHome/softTheme';
 import HelpTarget from '../HelpTarget';
@@ -91,6 +92,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+    transform: [{ scale: PAGE_ART_SCALE }],
     ...(Platform.OS === 'web' ? { objectPosition: 'right center' } : null),
   },
   imgContain: {

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
+import { PAGE_ART_SCALE } from '../src/appearance/pageArtScale';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
 
@@ -249,6 +250,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     paddingRight: 18,
     paddingLeft: 8,
+    overflow: 'hidden',
   },
   artWrapDesk: {
     width: 360,
@@ -282,9 +284,9 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingLeft: 4,
   },
-  /* Square tree art is height-limited in the 176px band. Keep enough inset
-     so the 20px heading radius does not clip foliage, portraits or the scroll.
-     minWidth:0 so intrinsic PNG-bredde (855px) ikke utvider hele appen. */
+  /* Square tree art is height-limited in the heading band.
+     minWidth:0 so intrinsic PNG-bredde (855px) ikke utvider hele appen.
+     The shared scale may crop the edges; the wrap keeps that inside the band. */
   artWrapSquare: {
     paddingTop: 6,
     paddingBottom: 10,
@@ -298,6 +300,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: 'transparent',
+    transform: [{ scale: PAGE_ART_SCALE }],
+    transformOrigin: 'right center',
     ...webContain,
   },
 });

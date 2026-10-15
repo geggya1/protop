@@ -3,6 +3,7 @@ import {
   Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text,
   TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
+import { PAGE_ART_SCALE } from '../src/appearance/pageArtScale';
 import BrandLogo from './BrandLogo';
 import { illustrationSourceForModule } from '../src/modules/moduleActivationAssets';
 import {
@@ -174,15 +175,20 @@ export default function ModuleWelcomeModal({
             ]}
           />
           {illustrationSrc ? (
-            <Image
-              source={illustrationSrc}
-              style={[styles.art, { width: artWidth, height: artHeight }]}
-              resizeMode="contain"
-              accessible={false}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              alt=""
-            />
+            <View style={[styles.artFrame, { width: artWidth, height: artHeight }]}>
+              <Image
+                source={illustrationSrc}
+                style={[styles.art, {
+                  width: Math.round(artWidth * PAGE_ART_SCALE),
+                  height: Math.round(artHeight * PAGE_ART_SCALE),
+                }]}
+                resizeMode="contain"
+                accessible={false}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                alt=""
+              />
+            </View>
           ) : null}
         </View>
       </View>
@@ -477,6 +483,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     backgroundImage: GLOW,
   } : null,
+  artFrame: {
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   art: {
     zIndex: 1,
     ...(Platform.OS === 'web' ? {

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AvatarBubble } from '../AvatarPicker';
 import IconBadge from '../IconBadge';
 import HelpTarget from '../HelpTarget';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { colors } from '../../src/theme';
 import { parentAppShortLabel, parentAppAccent } from '../../src/utils/parentHomeShortcuts';
 import { DASHBOARD_CARD_ART } from '../../src/parentDashboardThemes';
@@ -573,7 +574,9 @@ export function ShoppingCard({
         {note ? <Text style={styles.scriptNote}>{note}</Text> : null}
       </View>
       {image ? (
-        <Image source={image} style={styles.shopImage} resizeMode="cover" />
+        <View style={styles.shopImageFrame}>
+          <Image source={image} style={styles.shopImage} resizeMode="cover" />
+        </View>
       ) : null}
     </TouchableOpacity>
   );
@@ -607,7 +610,9 @@ export function MealsCard({
         <Text style={[styles.linkTxt, { marginTop: 10 }]}>Se måltidsplan ></Text>
       </View>
       {image ? (
-        <Image source={image} style={styles.mealImage} resizeMode="cover" />
+        <View style={styles.mealImageFrame}>
+          <Image source={image} style={styles.mealImage} resizeMode="cover" />
+        </View>
       ) : null}
     </TouchableOpacity>
   );
@@ -1005,6 +1010,7 @@ const styles = StyleSheet.create({
     top: '-42%',
     width: '104%',
     height: '160%',
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
 
   heroSceneCopy: {
@@ -1071,9 +1077,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   heroBleedTall: { height: 188 },
-  heroBleedImg: { width: '100%', height: '100%', transform: [{ scale: 1.25 }] },
+  heroBleedImg: { width: '100%', height: '100%', transform: [{ scale: 1.25 * PAGE_ART_SCALE }] },
   heroAccent: {
     position: 'absolute', right: 0, bottom: 0, width: 148, height: 100,
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
   dayPartChip: {
     position: 'absolute', left: 22, top: 10,
@@ -1123,7 +1130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth, borderColor: soft.line, zIndex: 1,
   },
-  nextAccent: { width: 88, height: 64, opacity: 0.95 },
+  nextAccent: { width: 88, height: 64, opacity: 0.95, transform: [{ scale: PAGE_ART_SCALE }] },
   scriptNote: {
     fontSize: 10, fontStyle: 'italic', color: soft.muted, marginTop: 2,
     fontWeight: soft.wReg, textAlign: 'center', fontFamily: soft.script, maxWidth: 72,
@@ -1238,8 +1245,10 @@ const styles = StyleSheet.create({
   shopCount: {
     fontSize: 11, fontWeight: soft.wReg, color: soft.muted, marginRight: 4, fontFamily: soft.body,
   },
-  shopImage: { width: 72, height: 72, borderRadius: 12, marginLeft: 6 },
-  mealImage: { width: 64, height: 64, borderRadius: 32, marginLeft: 6 },
+  shopImageFrame: { width: 72, height: 72, borderRadius: 12, marginLeft: 6, overflow: 'hidden' },
+  shopImage: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
+  mealImageFrame: { width: 64, height: 64, borderRadius: 32, marginLeft: 6, overflow: 'hidden' },
+  mealImage: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   mealsLead: {
     fontSize: 12, fontWeight: soft.wMed, color: soft.ink, marginBottom: 3, fontFamily: soft.body,
   },
@@ -1365,6 +1374,7 @@ const styles = StyleSheet.create({
   /* Landscape accent art (~16:9) — tall square boxes made the subject disappear. */
   focusAccent: {
     position: 'absolute', right: -6, bottom: -10, width: 188, height: 124, zIndex: 0,
+    transform: [{ scale: PAGE_ART_SCALE }],
   },
 
   familyDayBanner: {

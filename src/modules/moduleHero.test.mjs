@@ -185,22 +185,19 @@ assert.match(helpBtn, /HelpTarget id="helpBtn"/, 'help tour still anchors on the
 const heroSrc = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 assert.doesNotMatch(heroSrc, /if \(!force && isPhone\) return null/, 'phone must render ModuleHero, not skip it');
 assert.match(heroSrc, /isPhone \? 144/, 'phone heading stays compact (shorter than tablet)');
-assert.match(heroSrc, /artWrapPhone/, 'phone heading uses a narrower art wrap so copy still fits');
-assert.match(heroSrc, /objectFit: 'contain'/, 'hero art is sized with contain before the shared scale');
-assert.match(heroSrc, /PAGE_ART_SCALE/, 'hero art uses the shared 40% page scale');
-assert.match(heroSrc, /transformOrigin: 'right center'/, 'scaled art grows inward so the band can crop the edges');
-assert.equal(PAGE_ART_SCALE, 1.4, 'page illustrations are 40% larger');
-assert.match(heroSrc, /artWrap: \{[\s\S]*?overflow: 'hidden'/, 'art wrap crops the enlarged illustration');
+assert.match(heroSrc, /const ART_INSET = 8/, 'heading art sits 2mm from the top and bottom');
+assert.match(heroSrc, /heroH - ART_INSET \* 2/, 'art height follows the heading minus the 2mm inset');
+assert.match(heroSrc, /artWrapPhone/, 'phone heading caps the art so the band stays short');
+assert.match(heroSrc, /objectFit: 'contain'/, 'heading art scales inside the band without cropping');
+assert.doesNotMatch(heroSrc, /PAGE_ART_SCALE/, 'heading art is not zoomed past the 2mm inset');
+assert.equal(PAGE_ART_SCALE, 1.4, 'page illustrations outside the heading stay 40% larger');
+assert.match(heroSrc, /artWrap: \{[\s\S]*?overflow: 'hidden'/, 'art wrap keeps the picture inside the band');
 const welcomeSrc = readFileSync(join(ROOT, 'components/ModuleWelcomeModal.jsx'), 'utf8');
 assert.match(welcomeSrc, /PAGE_ART_SCALE/, 'welcome art uses the same 40% scale');
 assert.match(welcomeSrc, /artFrame:[\s\S]*overflow: 'hidden'/, 'welcome art can crop inside its frame');
 assert.match(frameSrc, /PAGE_ART_SCALE/, 'bottom page art uses the same 40% scale');
-assert.match(heroSrc, /paddingRight: 18/, 'hero art needs inset so rounded corners do not clip it');
-assert.match(heroSrc, /paddingBottom: 10/, 'hero art needs bottom inset so the band radius does not clip it');
-assert.match(heroSrc, /width: 360/, 'desktop hero art should be large enough to match other module headings');
+assert.match(heroSrc, /marginRight: ART_INSET/, 'heading art keeps a small gap at the right edge');
 assert.match(heroSrc, /resizeMode="contain"/, 'native hero art uses contain');
-assert.match(heroSrc, /moduleId === 'familyTree'/, 'familyTree uses a larger square art wrap');
-assert.match(heroSrc, /artWrapSquare/, 'familyTree heading art is enlarged');
 assert.match(heroSrc, /force = false/, 'force prop remains for SchoolPageLayout and similar stack screens');
 assert.match(heroSrc, /flush = false/, 'flush prop remains for shell/school bands');
 assert.match(heroSrc, /chrome = false/, 'chrome prop flattens the phone band into the header');
@@ -353,14 +350,11 @@ assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'weekplan palet
 assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'weekplan art slot is unchanged');
 assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
 assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');
-assert.match(heroSrc, /artWrapWidePhone:\s*\{[^}]*width:\s*397/, 'phone wide art is another 30% larger');
-assert.match(heroSrc, /artWrapWideTablet:\s*\{[^}]*width:\s*325/, 'tablet wide art is 20% shorter');
-assert.match(heroSrc, /artWrapWideDesk:\s*\{[^}]*width:\s*322/, 'desktop wide art is another 20% smaller');
-assert.match(heroSrc, /artWide:[\s\S]*transform:\s*'none'/, 'wide art is not scaled past its own width');
-assert.match(heroSrc, /artWide:[\s\S]*objectFit:\s*'contain'/, 'wide art keeps its full width inside the slot');
-assert.match(heroSrc, /artWrapWidePhone:\s*\{[^}]*position:\s*'absolute'/, 'phone art can fill the heading without clipping the sides');
-assert.match(heroSrc, /copyWidePhone:\s*\{[^}]*maxWidth:\s*'62%'/, 'phone title stays readable over the larger art');
-assert.match(heroSrc, /const phoneChip = wideArt && isPhone/, 'phone title sits on a chip so the picture stays visible');
+assert.match(heroSrc, /artWrapPhone:\s*\{[^}]*maxWidth:\s*'54%'/, 'phone art shrinks inside the short heading');
+assert.match(heroSrc, /artWrapTablet:\s*\{[^}]*maxWidth:\s*'50%'/, 'tablet art scales to the heading height');
+assert.match(heroSrc, /artWrapDesk:\s*\{[^}]*maxWidth:\s*'50%'/, 'desktop art scales to the heading height');
+assert.match(heroSrc, /artFit:[\s\S]*objectFit:\s*'contain'/, 'heading art keeps its full picture');
+assert.doesNotMatch(heroSrc, /artWrapPhone:\s*\{[^}]*position:\s*'absolute'/, 'phone art stays in the row');
 assert.match(heroSrc, /phone: isPhone/, 'phone can use the tighter illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
@@ -666,6 +660,6 @@ for (const file of [
   );
   assert.match(assetsSrc, new RegExp(file.replace(/[.]/g, '\\.')), `${file} is bundled for the phone slot`);
 }
-assert.match(heroSrc, /wideArt/, 'wide illustrations use the weekplan art slot');
+assert.match(heroSrc, /ART_INSET/, 'every heading picture uses the same 2mm inset');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

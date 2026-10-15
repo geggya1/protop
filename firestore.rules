@@ -34,6 +34,14 @@ service cloud.firestore {
           && canReadShoppingListData(request.resource.data);
       }
 
+      // HR (lønn, memo, ATS, avtaler). Ikke lesbart på tvers av selskaper —
+      // krever membership i familyId. Finer-grained hr-ressurs håndheves i klienten.
+      match /hr/{document=**} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create, update, delete: if isFamilyMember(familyId);
+      }
+
       match /{document=**} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);

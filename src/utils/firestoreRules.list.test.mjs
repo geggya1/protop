@@ -28,10 +28,19 @@ assert.doesNotMatch(
   /allow list: if isFamilyMember\(familyId\)/,
 );
 
+// HR under families/{familyId}/hr — membership-scoped (not cross-company).
+assert.match(familyBlock, /match \/hr\/\{document=\*\*\}/);
+const hrIdx = familyBlock.indexOf('match /hr/{document=**}');
+assert.ok(hrIdx >= 0, 'hr match missing');
+const hrBlock = familyBlock.slice(hrIdx, familyBlock.indexOf('match /{document=**}', hrIdx));
+assert.match(hrBlock, /allow get: if isFamilyMember\(familyId\)/);
+assert.match(hrBlock, /allow list: if isFamilyMemberLite\(familyId\)/);
+
 // Catch-all family subcollections (incl. chats/.../messages): GET uses full
 // isFamilyMember (parent/child docs OK), LIST uses Lite (members/activeUsers).
 const catchAllIdx = familyBlock.lastIndexOf('match /{document=**}');
 assert.ok(catchAllIdx >= 0, 'family catch-all match missing');
+assert.ok(hrIdx < catchAllIdx, 'hr match must precede catch-all');
 const catchAll = familyBlock.slice(catchAllIdx);
 assert.match(catchAll, /allow get: if isFamilyMember\(familyId\)/);
 assert.match(catchAll, /allow list: if isFamilyMemberLite\(familyId\)/);

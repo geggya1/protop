@@ -128,11 +128,12 @@ export default function HrScreen({ subView = 'oversikt' }) {
   }, []);
 
   const onPatch = useCallback((partialOrFn) => {
+    if (!canWrite) return;
     const base = hrRef.current || emptyHrState();
     const partial = typeof partialOrFn === 'function' ? partialOrFn(base) : partialOrFn;
     const next = patchHrState(base, partial);
     persist(next);
-  }, [persist]);
+  }, [persist, canWrite]);
   const go = useCallback((id) => {
     requestShellTab?.('hr', id);
   }, [requestShellTab]);

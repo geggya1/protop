@@ -10,7 +10,12 @@ import {
   isFirestorePermissionError,
   waitForFirestoreAccess,
 } from '../utils/firestoreAccess.js';
-import { emptyHrState, hrStateHasData, normalizeHrState } from './model.js';
+import {
+  emptyHrState,
+  employeeVisibleSlice,
+  hrStateHasData,
+  normalizeHrState,
+} from './model.js';
 
 const KEY = 'protop.hr.v1';
 const REMOTE_AUTH_MS = 8000;
@@ -154,6 +159,25 @@ export async function loadHrState(companyId) {
   } finally {
     inflight.delete(key);
   }
+}
+
+/**
+ * Min side: hent bare synlig snitt for én ansatt.
+ * Hydrer ikke MEMORY/AsyncStorage med hele selskapets HR-dokument.
+ */
+export async function loadEmployeeHrSlice(companyId, employeeId) {
+  const empId = String(employeeId || '').trim();
+  if (!companyId || !empId) return employeeVisibleSlice(emptyHrState(), empId);
+
+  const cached = peekHrState(companyId);
+  if (cached) return employeeVisibleSlice(cached, empId);
+
+  const remote = await readRemote(companyId);
+  if (remote.ok && remote.state) {
+    return employeeVisibleSlice(remote.state, empId);
+  }
+  const local = await readLocal(companyId);
+  return employeeVisibleSlice(local, empId);
 }
 
 export async function saveHrState(state, companyId) {

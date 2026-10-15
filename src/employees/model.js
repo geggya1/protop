@@ -568,6 +568,21 @@ function namesFromHint(value) {
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
+/**
+ * Ansatt-id for Min side / HR self-service.
+ * openMine() bygger et profil-draft uten id — bruk denne, ikke draft.id alene.
+ */
+export function resolveMineEmployeeId({ linked, mine, profile, familyId } = {}) {
+  const fromLinked = text(linked?.id);
+  if (fromLinked) return fromLinked;
+  const fromMine = text(mine?.id);
+  if (fromMine) return fromMine;
+  const companyId = text(familyId);
+  if (!companyId) return '';
+  const link = (profile?.links || []).find((row) => text(row?.companyId) === companyId);
+  return text(link?.employeeId);
+}
+
 /** Finn innlogget persons ansettelse, også når personUid ikke er satt. */
 export function ownEmployee(list, { uid = '', emails = [], name = '' } = {}) {
   const rows = list || [];

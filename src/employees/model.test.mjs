@@ -35,6 +35,7 @@ import {
   presentEmployee,
   profileFromEmployee,
   rememberLink,
+  resolveMineEmployeeId,
   sortEmployees,
   statusLabel,
   validNationalId,
@@ -271,6 +272,31 @@ const FNR = sampleNationalId();
   assert.equal(shown[0].id, 'emp-geir');
   assert.equal(ownEmployee([geir], { uid: 'uid-geir' }).id, 'emp-geir');
   assert.equal(ownEmployee([geir], { emails: ['GOA@consult1.no'] }).id, 'emp-geir');
+  assert.equal(resolveMineEmployeeId({
+    linked: null,
+    mine: null,
+    profile: { links: [{ companyId: 'co-1', employeeId: 'emp-geir' }] },
+    familyId: 'co-1',
+  }), 'emp-geir');
+  assert.equal(resolveMineEmployeeId({
+    linked: { id: 'emp-linked' },
+    mine: { id: 'emp-mine' },
+    profile: { links: [{ companyId: 'co-1', employeeId: 'emp-link' }] },
+    familyId: 'co-1',
+  }), 'emp-linked');
+  assert.equal(resolveMineEmployeeId({
+    linked: null,
+    mine: null,
+    profile: { links: [] },
+    familyId: 'co-1',
+  }), '');
+  // Tomt draft.id (som openMine tidligere laget) skal ikke skjule HR når linked finnes.
+  assert.equal(resolveMineEmployeeId({
+    linked: geir,
+    mine: geir,
+    profile: {},
+    familyId: 'co-1',
+  }), 'emp-geir');
   const rebuilt = employeeFromProfile({
     person: { firstName: 'Geir', middleName: 'Ove', lastName: 'Andersen', email: 'goa@consult1.no' },
     cv: { headline: 'Prosjekt- og byggeleder' },

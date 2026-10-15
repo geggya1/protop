@@ -119,6 +119,7 @@ export const COMPANY_HERO = {
   },
   underenheter: {
     ...SLATE,
+    wideArt: true,
     name: 'Underenheter',
     kicker: t('Selskap', 'Company'),
     title: t('Underenheter og konsern', 'Units and group'),
@@ -194,6 +195,7 @@ export const COMPANY_HERO = {
   },
   'arbeid-timesaldo': {
     ...CYAN,
+    wideArt: true,
     name: 'Timesaldo',
     kicker: t('Arbeid', 'Work'),
     title: t('Timesaldo', 'Hour balance'),

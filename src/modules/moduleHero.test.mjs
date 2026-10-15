@@ -303,6 +303,7 @@ assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the w
 assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours report uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
@@ -316,6 +317,15 @@ assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adj
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
 assert.equal(resolveModuleHero('selskap', 'nb').wideArt, true, 'company profile uses the wide illustration');
+assert.equal(resolveModuleHero('underenheter', 'nb').wideArt, true, 'units and group use the wide illustration');
+assert.equal(resolveModuleHero('plan', 'nb').wideArt, true, 'calendar uses the wide illustration');
+assert.equal(resolveModuleHero('mail', 'nb').wideArt, true, 'mail uses the wide illustration');
+assert.equal(resolveModuleHero('stars', 'nb').wideArt, true, 'tasks use the wide illustration');
+assert.equal(resolveModuleHero('notes', 'nb').wideArt, true, 'notes use the wide illustration');
+assert.equal(resolveModuleHero('friends', 'nb').wideArt, true, 'friends use the wide illustration');
+assert.equal(shellHeroModuleId('more', 'friends'), 'friends', 'venner uses the shared heading');
+assert.equal(resolveModuleHero('plan', 'nb').title, 'Din kalender, én plan', 'calendar title stays');
+assert.equal(resolveModuleHero('friends', 'nb').title, 'Venner', 'friends title stays the page name');
 const TEXT_ONLY_PASTEL = {
   'selskap-tilgang': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   underenheter: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
@@ -452,6 +462,7 @@ assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activat
 assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 for (const file of [
   'arbeid-timerapport--module-activation-illustration.png',
+  'arbeid-timesaldo--module-activation-illustration.png',
   'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaersrapport--module-activation-illustration.png',
 ]) {
@@ -466,6 +477,7 @@ for (const file of [
   );
 }
 assert.match(assetsSrc, /'arbeid-timerapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timerapport--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-timesaldo': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timesaldo--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
 const utleggFile = 'arbeid-utlegg--module-activation-illustration.png';
@@ -594,6 +606,30 @@ assert.equal(
   'selskap bundled != public',
 );
 assert.match(assetsSrc, /selskap: require\('\.\.\/\.\.\/assets\/module-activation\/selskap--module-activation-illustration\.png'\)/);
+for (const [id, file] of [
+  ['underenheter', 'underenheter--module-activation-illustration.png'],
+  ['friends', 'venner--module-activation-illustration.png'],
+  ['plan', 'kalender--module-activation-illustration.png'],
+  ['mail', 'e-post--module-activation-illustration.png'],
+  ['stars', 'oppgaver--module-activation-illustration.png'],
+  ['notes', 'notat--module-activation-illustration.png'],
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+  const key = /^[A-Za-z_$][\w$]*$/.test(id) ? id : `'${id}'`;
+  assert.match(
+    assetsSrc,
+    new RegExp(`${key}: require\\('\\.\\.\\/\\.\\.\\/assets\\/module-activation\\/${file.replace(/[.]/g, '\\.')}'\\)`),
+    `${id} require`,
+  );
+}
 for (const file of [
   'okonomi-faktura-phone--module-activation-illustration.png',
   'arbeid-godkjenning-phone--module-activation-illustration.png',

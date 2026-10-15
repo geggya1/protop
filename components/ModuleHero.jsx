@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
@@ -28,6 +28,8 @@ export default function ModuleHero({
   const { lang } = useI18n();
   const { isPhone, isDesktop } = useLayout();
   const [useBundled, setUseBundled] = useState(Platform.OS !== 'web');
+  const [artRatio, setArtRatio] = useState(null);
+  useEffect(() => { setArtRatio(null); }, [moduleId, isPhone, useBundled]);
   const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
   const imgSource = useMemo(
     () => (moduleId ? illustrationSourceById(moduleId, { preferBundled: useBundled, phone: isPhone }) : null),
@@ -70,6 +72,7 @@ export default function ModuleHero({
         styles.copy,
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
+        wideArt && (isDesktop ? styles.copyWideDesk : isPhone ? styles.copyWidePhone : styles.copyWideTablet),
         chromePhone && styles.copyPhoneChrome,
       ]}>
         {overline ? (
@@ -96,7 +99,7 @@ export default function ModuleHero({
           style={[
             styles.artWrap,
             wideArt
-              ? (isDesktop ? styles.artWrapWideDesk : isPhone ? styles.artWrapWidePhone : styles.artWrapWideTablet)
+              ? styles.artWrapWide
               : (isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet),
             squareArt && !wideArt && styles.artWrapSquare,
             chromePhone && styles.artWrapPhoneChrome,
@@ -104,9 +107,22 @@ export default function ModuleHero({
         >
           <Image
             source={imgSource}
-            style={styles.art}
+            style={wideArt
+              ? [styles.artWide, { width: '100%', aspectRatio: artRatio || 2.6 }]
+              : styles.art}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
+            onLoad={wideArt ? (event) => {
+              const src = event?.nativeEvent?.source;
+              let w = src?.width;
+              let h = src?.height;
+              if (!w || !h) {
+                const el = event?.nativeEvent?.target || event?.target;
+                w = el?.naturalWidth;
+                h = el?.naturalHeight;
+              }
+              if (w > 0 && h > 0) setArtRatio(w / h);
+            } : undefined}
             onError={() => {
               if (Platform.OS === 'web' && !useBundled) setUseBundled(true);
             }}
@@ -243,6 +259,24 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     maxWidth: 220,
   },
+  copyWideDesk: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    maxWidth: 420,
+  },
+  copyWideTablet: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    maxWidth: 300,
+  },
+  copyWidePhone: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    maxWidth: 168,
+  },
   artWrap: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -268,21 +302,19 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingLeft: 4,
   },
-  artWrapWideDesk: {
-    width: 360,
-    flexShrink: 0,
-  },
-  artWrapWideTablet: {
-    width: 290,
-    flexShrink: 0,
-  },
-  artWrapWidePhone: {
-    width: 156,
-    flexShrink: 0,
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingRight: 12,
-    paddingLeft: 4,
+  /* Wide company art keeps its full width. Extra height is clipped. */
+  artWrapWide: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingLeft: 0,
+    paddingRight: 6,
   },
   /* Square tree art is height-limited in the heading band.
      minWidth:0 so intrinsic PNG-bredde (855px) ikke utvider hele appen.
@@ -303,5 +335,18 @@ const styles = StyleSheet.create({
     transform: [{ scale: PAGE_ART_SCALE }],
     transformOrigin: 'right center',
     ...webContain,
+  },
+  artWide: {
+    width: '100%',
+    backgroundColor: 'transparent',
+    flexShrink: 0,
+    alignSelf: 'center',
+    ...(Platform.OS === 'web' ? {
+      height: 'auto',
+      maxWidth: '100%',
+      objectFit: 'contain',
+      objectPosition: 'center center',
+      transform: 'none',
+    } : null),
   },
 });

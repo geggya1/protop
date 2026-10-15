@@ -55,6 +55,7 @@ const BUNDLED = {
   skjema: require('../../assets/module-activation/skjema--module-activation-illustration.png'),
   timeliste: require('../../assets/module-activation/timeliste--module-activation-illustration.png'),
   'arbeid-timeliste': require('../../assets/module-activation/timeliste--module-activation-illustration.png'),
+  'arbeid-timesaldo': require('../../assets/module-activation/arbeid-timesaldo--module-activation-illustration.png'),
   'arbeid-fravaer': require('../../assets/module-activation/arbeid-fravaer--module-activation-illustration.png'),
   'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaersrapport--module-activation-illustration.png'),
   'arbeid-utlegg': require('../../assets/module-activation/arbeid-utlegg--module-activation-illustration.png'),

@@ -23,6 +23,7 @@ const DEFAULT_PALETTE = BLUE;
 export const MODULE_HERO = {
   stars: {
     ...BLUE,
+    wideArt: true,
     kicker: t('Oppgaver', 'Tasks'),
     title: t('Få oversikt og få ting gjort', 'See it all — and get it done'),
     pitch: t(
@@ -32,6 +33,7 @@ export const MODULE_HERO = {
   },
   notes: {
     ...LAVENDER,
+    wideArt: true,
     kicker: t('Notat', 'Notes'),
     title: t('Skap, samle og del tanker', 'Capture, collect and share ideas'),
     pitch: t(
@@ -202,6 +204,16 @@ export const MODULE_HERO = {
       'Give children clear tasks, the right amount of responsibility and encouragement to finish.',
     ),
   },
+  friends: {
+    ...BLUE,
+    wideArt: true,
+    kicker: t('Venner', 'Friends'),
+    title: t('Venner', 'Friends'),
+    pitch: t(
+      'Familien din vises øverst. Venner er personlige — de får ikke tilgang til familieplattformen.',
+      'Your family is shown first. Friends are personal — they never get family platform access.',
+    ),
+  },
   chat: {
     ...BLUE,
     kicker: t('Chat', 'Chat'),
@@ -213,6 +225,7 @@ export const MODULE_HERO = {
   },
   plan: {
     ...BLUE,
+    wideArt: true,
     kicker: t('Kalender', 'Calendar'),
     title: t('Din kalender, én plan', 'Your calendar, one plan'),
     pitch: t(
@@ -222,6 +235,7 @@ export const MODULE_HERO = {
   },
   mail: {
     ...BLUE,
+    wideArt: true,
     kicker: t('E-post', 'Mail'),
     title: t('Viktige meldinger, samlet', 'Important messages, together'),
     pitch: t(

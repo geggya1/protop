@@ -119,6 +119,7 @@ export const COMPANY_HERO = {
   },
   underenheter: {
     ...SLATE,
+    wideArt: true,
     name: 'Underenheter',
     kicker: t('Selskap', 'Company'),
     title: t('Underenheter og konsern', 'Units and group'),

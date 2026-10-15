@@ -17,6 +17,7 @@ const BUNDLED = {
   mail: require('../../assets/module-activation/e-post--module-activation-illustration.png'),
   stars: require('../../assets/module-activation/oppgaver--module-activation-illustration.png'),
   notes: require('../../assets/module-activation/notat--module-activation-illustration.png'),
+  friends: require('../../assets/module-activation/venner--module-activation-illustration.png'),
   chat: require('../../assets/module-activation/chat--module-activation-illustration.png'),
   chores: require('../../assets/module-activation/gjoremal--module-activation-illustration.png'),
   shop: require('../../assets/module-activation/handleliste--module-activation-illustration.png'),
@@ -72,6 +73,7 @@ const BUNDLED = {
   'okonomi-oversikt': require('../../assets/module-activation/okonomi-oversikt--module-activation-illustration.png'),
   'okonomi-utlegg': require('../../assets/module-activation/okonomi-utlegg--module-activation-illustration.png'),
   selskap: require('../../assets/module-activation/selskap--module-activation-illustration.png'),
+  underenheter: require('../../assets/module-activation/underenheter--module-activation-illustration.png'),
 };
 
 const BUNDLED_PHONE = {

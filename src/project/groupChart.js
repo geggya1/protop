@@ -16,7 +16,8 @@ export function normalizeGroupChartSettings(raw) {
   const known = OWNERSHIP_LEVELS.some((row) => row.id === min);
   return {
     minOwnership: known ? min : 50,
-    showUnits: raw?.showUnits !== false,
+    // Standard er skjult; konsernvisningen tvinger også false.
+    showUnits: raw?.showUnits === true,
   };
 }
 

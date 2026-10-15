@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -12,7 +12,7 @@ import { ShellPageHeroContext } from '../../components/ShellHeader';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
-import CompanyGroupChart from '../../components/project/CompanyGroupChart';
+import CompanyGroupChart, { GroupYearButton } from '../../components/project/CompanyGroupChart';
 import {
   OWNERSHIP_LEVELS,
   normalizeGroupChartSettings,
@@ -39,7 +39,19 @@ function GearButton({ open, colors, onPress }) {
   );
 }
 
-function PageHeading({ name, colors, open, onPress }) {
+function HeadingActions({ yearControl, open, colors, onPress }) {
+  return (
+    <View style={styles.headingActions}>
+      {yearControl}
+      <GearButton open={open} colors={colors} onPress={onPress} />
+    </View>
+  );
+}
+
+function PageHeading({ name, colors, open, onPress, yearControl, wide }) {
+  const actions = (
+    <HeadingActions yearControl={yearControl} open={open} colors={colors} onPress={onPress} />
+  );
   return (
     <View nativeID="company-units-heading" style={styles.heading}>
       <View style={styles.headingRow}>
@@ -49,8 +61,9 @@ function PageHeading({ name, colors, open, onPress }) {
           </Text>
           <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>Underenheter</Text>
         </View>
-        <GearButton open={open} colors={colors} onPress={onPress} />
+        {wide ? actions : null}
       </View>
+      {wide ? null : actions}
       <Text style={[styles.subtitle, { color: colors.muted }]}>
         {`Se konsernstruktur, eierandeler og nøkkeltall for ${name || 'selskapet'} og tilknyttede selskaper.`}
       </Text>
@@ -74,6 +87,9 @@ export default function CompanyUnitsScreen() {
   const [error, setError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(() => normalizeGroupChartSettings(company?.groupChart));
+  const [year, setYear] = useState(null);
+  const [yearOpen, setYearOpen] = useState(false);
+  const [years, setYears] = useState([]);
   const scrollRef = useRef(null);
   const settingsKey = `${company?.groupChart?.minOwnership ?? ''}:${company?.groupChart?.showUnits ?? ''}`;
 
@@ -83,7 +99,13 @@ export default function CompanyUnitsScreen() {
 
   useEffect(() => {
     setSettingsOpen(false);
+    setYear(null);
+    setYearOpen(false);
   }, [familyId]);
+
+  const onYears = useCallback((next) => {
+    setYears(Array.isArray(next) ? next : []);
+  }, []);
 
   const toggleSettings = useCallback(() => {
     setSettingsOpen((open) => {
@@ -92,14 +114,30 @@ export default function CompanyUnitsScreen() {
     });
   }, []);
 
+  const yearControl = (
+    <GroupYearButton
+      years={years}
+      year={year}
+      open={yearOpen}
+      colors={colors}
+      onToggle={() => setYearOpen((open) => !open)}
+      onSelect={(value) => {
+        setYear(value);
+        setYearOpen(false);
+      }}
+    />
+  );
+
   const heading = useMemo(() => (
     <PageHeading
       name={company?.navn || ''}
       colors={colors}
       open={settingsOpen}
       onPress={toggleSettings}
+      wide={isDesktop}
+      yearControl={yearControl}
     />
-  ), [company?.navn, colors, settingsOpen, toggleSettings]);
+  ), [company?.navn, colors, settingsOpen, toggleSettings, years, year, yearOpen, isDesktop]);
   useShellPageHero(inChrome ? heading : null, { active: inChrome });
 
   async function saveCompany(next) {
@@ -158,7 +196,12 @@ export default function CompanyUnitsScreen() {
       {hosted ? (
         <View nativeID="company-units-heading" style={styles.headingRow}>
           <View style={{ flex: 1 }} />
-          <GearButton open={settingsOpen} colors={colors} onPress={toggleSettings} />
+          <HeadingActions
+            yearControl={yearControl}
+            open={settingsOpen}
+            colors={colors}
+            onPress={toggleSettings}
+          />
         </View>
       ) : (inChrome ? null : heading)}
       {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
@@ -166,7 +209,7 @@ export default function CompanyUnitsScreen() {
         <View nativeID="company-units-settings" style={styles.settings}>
           <Text style={[styles.section, { color: colors.ink }]}>Visning</Text>
           <Text style={[styles.hint, { color: colors.muted }]}>
-            Terskelen gjelder eierandeler i Aksjonærregisteret. Underenheter leses fra Enhetsregisteret.
+            Terskelen gjelder eierandeler i Aksjonærregisteret.
           </Text>
           <View style={styles.choices}>
             {OWNERSHIP_LEVELS.map((level) => {
@@ -190,28 +233,6 @@ export default function CompanyUnitsScreen() {
               );
             })}
           </View>
-          <Pressable
-            nativeID="group-show-units"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: settings.showUnits }}
-            accessibilityLabel="Vis underenheter fra Enhetsregisteret"
-            disabled={busy}
-            onPress={() => saveView({ ...settings, showUnits: !settings.showUnits })}
-            style={[styles.toggle, { borderColor: colors.line, backgroundColor: colors.card }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.ink, fontSize: 14 }}>Underenheter</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Fra Enhetsregisteret</Text>
-            </View>
-            <Switch
-              value={settings.showUnits}
-              disabled={busy}
-              pointerEvents="none"
-              onValueChange={(showUnits) => saveView({ ...settings, showUnits })}
-              trackColor={{ true: colors.brand, false: colors.line }}
-              thumbColor={colors.card}
-            />
-          </Pressable>
           {!canEdit ? (
             <Text style={[styles.hint, { color: colors.muted }]}>Visningen gjelder denne økten.</Text>
           ) : null}
@@ -239,6 +260,9 @@ export default function CompanyUnitsScreen() {
         company={company}
         settings={settings}
         colors={colors}
+        year={year}
+        onYearChange={setYear}
+        onYears={onYears}
         companyIdFor={companyIdFor}
         onOpenCompany={(id) => {
           selectFamily?.(id);
@@ -253,6 +277,7 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48, gap: 14, maxWidth: 920, width: '100%', alignSelf: 'flex-start' },
   heading: { gap: 6, marginBottom: 2 },
   headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headingActions: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, zIndex: 5 },
   kicker: { fontSize: 13, fontWeight: '500' },
   title: { fontSize: 28, lineHeight: 34, fontWeight: '600', letterSpacing: -0.4 },
   subtitle: { fontSize: 14, lineHeight: 20 },
@@ -276,14 +301,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 2,
-  },
-  toggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
 });

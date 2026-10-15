@@ -57,8 +57,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useEffect(() => {
     let live = true;
     if (!familyId) return undefined;
-    // Bytt selskap: avbryt eldre lagrekø og nullstill lokal state.
-    saveChainRef.current = Promise.resolve();
+    // Bytt selskap: nullstill UI-state. Køede lagring for forrige selskap må fortsatt
+    // skrive sitt snapshot (se persist) — vi nullstiller ikke saveChainRef midt i jobber.
     const empty = emptyHrState();
     hrRef.current = empty;
     setHr(empty);
@@ -104,10 +104,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
     const job = saveChainRef.current
       .catch(() => {})
       .then(async () => {
-        // Aldri skriv til et annet selskap enn det patchen ble køet for.
-        if (familyIdRef.current !== companyId) return;
-        const latest = hrRef.current;
-        const toSave = (latest?.updatedAt && snapshot.updatedAt
+        const stillHere = familyIdRef.current === companyId;
+        // Etter selskapsbytte: lagre det fangede snapshotet til riktig selskap,
+        // aldri hrRef (som nå tilhører det nye selskapet).
+        const latest = stillHere ? hrRef.current : null;
+        const toSave = (stillHere && latest?.updatedAt && snapshot.updatedAt
           && String(latest.updatedAt) > String(snapshot.updatedAt))
           ? latest
           : snapshot;
@@ -205,6 +206,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hr}
           canWrite={canWrite}
           selectedEmployeeId={selectedEmployeeId}
+          onSelectEmployee={setSelectedEmployeeId}
           onPatch={onPatch}
           familyId={familyId}
         />

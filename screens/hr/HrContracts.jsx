@@ -84,6 +84,7 @@ export default function HrContracts({
 
   async function runOcr() {
     if (!ocrText.trim()) return;
+    const forEmployeeId = activeId;
     setBusy(true);
     try {
       const result = await interpretEmploymentContract({
@@ -91,6 +92,11 @@ export default function HrContracts({
         text: ocrText,
         filename: 'arbeidsavtale.txt',
       });
+      // Hopp over hvis bruker byttet person under skanning.
+      if (forEmployeeId && forEmployeeId !== (employeeId || selectedEmployeeId || '')) {
+        showSaveToast?.('OCR avbrutt — person byttet');
+        return;
+      }
       const fields = result.fields || parseEmploymentContractText(ocrText);
       setDraft((prev) => {
         const positionTitle = fields.positionTitle || fields.title || '';
@@ -113,7 +119,8 @@ export default function HrContracts({
 
   async function saveContract() {
     if (!canWrite || !activeId) return;
-    const existingId = draft.id || active?.id || '';
+    // Tom draft.id = ny avtale (ikke fall tilbake til active.id — det overskriver).
+    const existingId = String(draft.id || '').trim();
     const row = normalizeContract({
       ...draft,
       id: existingId || undefined,

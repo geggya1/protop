@@ -26,8 +26,7 @@ import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink }
 export default function HrPeople({
   colors, employees, hr, selectedId, onSelect, canWrite, onPatch, onGo,
 }) {
-  const [query, setQuery] = useState('');
-  const [contractDraft, setContractDraft] = useState({
+  const emptyQuickContract = () => ({
     title: 'Arbeidsavtale',
     startDate: '',
     endDate: '',
@@ -35,6 +34,8 @@ export default function HrPeople({
     employmentType: 'Fast',
     notes: '',
   });
+  const [query, setQuery] = useState('');
+  const [contractDraft, setContractDraft] = useState(emptyQuickContract);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (employees || [])
@@ -119,7 +120,10 @@ export default function HrPeople({
                 gap ? `Compliance ${gap.pct} %` : '',
               ].filter(Boolean).join(' · ')}
               meta={c ? (c.aml?.pct != null ? `AML ${c.aml.pct} %` : choiceLabel(CONTRACT_STATUSES, c.status)) : 'Uten kontrakt'}
-              onPress={() => onSelect?.(row.id)}
+              onPress={() => {
+                onSelect?.(row.id);
+                setContractDraft(emptyQuickContract());
+              }}
             />
           );
         })}
@@ -233,14 +237,7 @@ export default function HrPeople({
                     });
                     return { contracts, compliance };
                   });
-                  setContractDraft({
-                    title: 'Arbeidsavtale',
-                    startDate: '',
-                    endDate: '',
-                    workPercent: '100',
-                    employmentType: 'Fast',
-                    notes: '',
-                  });
+                  setContractDraft(emptyQuickContract());
                 }}
               />
               <HrButton

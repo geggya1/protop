@@ -607,10 +607,14 @@ export function salarySeriesFor(employeeId, salaries) {
 export function salarySeriesWithPercents(employeeId, salaries) {
   const series = salarySeriesFor(employeeId, salaries);
   return series.map((row, index) => {
+    // Preferer lagret prosent (riktig når mellomliggende rader er skjult for ansatt).
+    if (row.changePercent != null && row.changePercent !== '') {
+      return { ...row, changePercent: Number(row.changePercent) };
+    }
     const prev = series[index - 1];
     const changePercent = prev?.annualAmount
       ? Math.round(((row.annualAmount - prev.annualAmount) / prev.annualAmount) * 1000) / 10
-      : (row.changePercent ?? null);
+      : null;
     return { ...row, changePercent };
   });
 }

@@ -128,6 +128,16 @@ export async function loadHrState(companyId) {
       return empty;
     }
     if (remote.ok && remote.state) {
+      const localHas = hrStateHasData(local);
+      const remoteHas = hrStateHasData(remote.state);
+      const localNewer = local?.updatedAt && remote.state.updatedAt
+        && String(local.updatedAt) > String(remote.state.updatedAt);
+      // Behold lokal når skyen er tom eller eldre (offline-lagring som ikke nådde skyen).
+      if (localHas && (!remoteHas || localNewer)) {
+        loadMeta.set(key, 'local');
+        putMemory(companyId, local);
+        return local;
+      }
       loadMeta.set(key, 'ok');
       putMemory(companyId, remote.state);
       await writeLocal(companyId, remote.state);

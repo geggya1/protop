@@ -34,8 +34,25 @@ const TABS = [
   { id: 'tasks', label: 'Oppgaver' },
 ];
 
+const EMPTY_CASE = { title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false };
+const EMPTY_REVIEW = {
+  date: new Date().toISOString().slice(0, 10),
+  interviewer: '',
+  summary: '',
+  goals: '',
+  wellbeing: '',
+  strengths: '',
+  challenges: '',
+  development: '',
+  followUps: '',
+  status: 'done',
+};
+const EMPTY_MEMO = { title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '' };
+const EMPTY_TASK = { title: '', description: '', dueDate: '', status: 'open' };
+const EMPTY_FILE = { name: '', url: '' };
+
 export default function HrFollowUp({
-  colors, employees, hr, canWrite, onPatch, selectedEmployeeId, familyId,
+  colors, employees, hr, canWrite, onPatch, selectedEmployeeId, onSelectEmployee, familyId,
 }) {
   const [tab, setTab] = useState('cases');
   const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
@@ -46,26 +63,25 @@ export default function HrFollowUp({
     [employees],
   );
 
-  const [caseDraft, setCaseDraft] = useState({
-    title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false,
-  });
-  const [reviewDraft, setReviewDraft] = useState({
+  const [caseDraft, setCaseDraft] = useState(EMPTY_CASE);
+  const [reviewDraft, setReviewDraft] = useState(() => ({
+    ...EMPTY_REVIEW,
     date: new Date().toISOString().slice(0, 10),
-    interviewer: '',
-    summary: '',
-    goals: '',
-    wellbeing: '',
-    strengths: '',
-    challenges: '',
-    development: '',
-    followUps: '',
-    status: 'done',
-  });
-  const [memoDraft, setMemoDraft] = useState({
-    title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '',
-  });
-  const [taskDraft, setTaskDraft] = useState({ title: '', description: '', dueDate: '', status: 'open' });
-  const [fileDraft, setFileDraft] = useState({ name: '', url: '' });
+  }));
+  const [memoDraft, setMemoDraft] = useState(EMPTY_MEMO);
+  const [taskDraft, setTaskDraft] = useState(EMPTY_TASK);
+  const [fileDraft, setFileDraft] = useState(EMPTY_FILE);
+
+  function selectEmployee(id) {
+    setEmployeeId(id);
+    onSelectEmployee?.(id);
+    setSelectedReviewId('');
+    setCaseDraft(EMPTY_CASE);
+    setReviewDraft({ ...EMPTY_REVIEW, date: new Date().toISOString().slice(0, 10) });
+    setMemoDraft(EMPTY_MEMO);
+    setTaskDraft(EMPTY_TASK);
+    setFileDraft(EMPTY_FILE);
+  }
 
   function nameOf(id) {
     const hit = people.find((row) => row.id === id);
@@ -156,18 +172,7 @@ export default function HrFollowUp({
       return { reviews: nextReviews, cases: nextCases, compliance };
     });
     setSelectedReviewId(row.id);
-    setReviewDraft({
-      date: new Date().toISOString().slice(0, 10),
-      interviewer: '',
-      summary: '',
-      goals: '',
-      wellbeing: '',
-      strengths: '',
-      challenges: '',
-      development: '',
-      followUps: '',
-      status: 'done',
-    });
+    setReviewDraft({ ...EMPTY_REVIEW, date: new Date().toISOString().slice(0, 10) });
     showSaveToast?.(draftSnapshot.followUps?.trim()
       ? 'Samtale lagret · avvik opprettet som sak'
       : 'Samtale lagret');
@@ -229,7 +234,7 @@ export default function HrFollowUp({
       kind: 'document',
     });
     onPatch?.((state) => ({ files: [file, ...(state.files || [])] }));
-    setFileDraft({ name: '', url: '' });
+    setFileDraft(EMPTY_FILE);
   }
 
   return (
@@ -253,7 +258,7 @@ export default function HrFollowUp({
               colors={colors}
               label={displayName(emp)}
               active={emp.id === employeeId}
-              onPress={() => setEmployeeId(emp.id)}
+              onPress={() => selectEmployee(emp.id)}
             />
           ))}
         </View>
@@ -300,7 +305,7 @@ export default function HrFollowUp({
                   if (!caseDraft.title.trim()) return;
                   const row = normalizeCase({ ...caseDraft, employeeId });
                   onPatch?.((state) => ({ cases: [row, ...(state.cases || [])] }));
-                  setCaseDraft({ title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false });
+                  setCaseDraft(EMPTY_CASE);
                 }}
               />
             </View>
@@ -479,7 +484,7 @@ export default function HrFollowUp({
                         : state.files;
                       return { memos: [row, ...(state.memos || [])], files };
                     });
-                    setMemoDraft({ title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '' });
+                    setMemoDraft(EMPTY_MEMO);
                   }}
                 />
               </View>
@@ -555,7 +560,7 @@ export default function HrFollowUp({
                   if (!taskDraft.title.trim()) return;
                   const row = normalizeTask({ ...taskDraft, employeeId, employeeVisible: true });
                   onPatch?.((state) => ({ tasks: [row, ...(state.tasks || [])] }));
-                  setTaskDraft({ title: '', description: '', dueDate: '', status: 'open' });
+                  setTaskDraft(EMPTY_TASK);
                 }}
               />
             </View>

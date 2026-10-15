@@ -55,7 +55,7 @@ export default function HrSalary({
       memo: draft.memo || draft.notes,
       employeeVisible: !!draft.employeeVisible,
     });
-    onSaveSalaries?.([row, ...(hr.salaries || []).filter((item) => item.id !== row.id)]);
+    onSaveSalaries?.((salaries) => [row, ...(salaries || []).filter((item) => item.id !== row.id)]);
     setDraft((prev) => ({ ...prev, annualAmount: '', reason: '', notes: '', memo: '' }));
   }
 

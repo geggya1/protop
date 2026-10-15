@@ -67,4 +67,26 @@ assert.ok(COMPLIANCE_CATALOG.some((row) => row.id === 'aml_written_contract' && 
   assert.ok(overview[0].missing > 0);
 }
 
+{
+  const contract = {
+    employeeId: 'e1',
+    status: 'active',
+    employerName: 'A', employeeName: 'B', workplace: 'C', positionTitle: 'D',
+    startDate: '2020-01-01', workPercent: '100', salaryAmount: '1',
+    workHours: '37.5', noticePeriod: '1 mnd', probationMonths: '6',
+  };
+  const withEvidence = companyComplianceOverview(
+    [{ id: 'e1', company: { status: 'active' } }],
+    [],
+    { contracts: [contract], reviews: [{ employeeId: 'e1', status: 'done' }], applyEvidence: true },
+  );
+  const withoutEvidence = companyComplianceOverview(
+    [{ id: 'e1', company: { status: 'active' } }],
+    [],
+    { contracts: [contract], reviews: [{ employeeId: 'e1', status: 'done' }], applyEvidence: false },
+  );
+  assert.ok(withEvidence[0].missing < withoutEvidence[0].missing);
+  assert.ok(withEvidence[0].ok > 0);
+}
+
 console.log('hr/compliance.test.mjs ok');

@@ -6,6 +6,7 @@ import {
   activeContractFor,
   formatNbDate,
   normalizeContract,
+  upsertActiveContract,
 } from '../../src/hr/model';
 import { AML_CONTRACT_FIELDS, amlContractCompleteness, syncComplianceFromEvidence } from '../../src/hr/compliance';
 import {
@@ -20,6 +21,37 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
+
+const EMPTY_CONTRACT_DRAFT = {
+  id: '',
+  title: 'Arbeidsavtale',
+  startDate: '',
+  endDate: '',
+  workPercent: '100',
+  employmentType: 'Fast',
+  employerName: '',
+  employeeName: '',
+  workplace: '',
+  positionTitle: '',
+  roleDescription: '',
+  salaryAmount: '',
+  workHours: '',
+  noticePeriod: '',
+  probationMonths: '',
+  holidayTerms: '',
+  documentUrl: '',
+  notes: '',
+};
+
+function draftFromContract(row) {
+  if (!row) return { ...EMPTY_CONTRACT_DRAFT };
+  return {
+    ...EMPTY_CONTRACT_DRAFT,
+    ...row,
+    id: row.id || '',
+    title: row.title || 'Arbeidsavtale',
+  };
+}
 
 export default function HrContracts({
   colors, employees, hr, canWrite, onPatch, familyId, selectedEmployeeId, onSelectEmployee,
@@ -36,25 +68,15 @@ export default function HrContracts({
 
   const [ocrText, setOcrText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({
-    title: 'Arbeidsavtale',
-    startDate: '',
-    endDate: '',
-    workPercent: '100',
-    employmentType: 'Fast',
-    employerName: '',
-    employeeName: '',
-    workplace: '',
-    positionTitle: '',
-    roleDescription: '',
-    salaryAmount: '',
-    workHours: '',
-    noticePeriod: '',
-    probationMonths: '',
-    holidayTerms: '',
-    documentUrl: '',
-    notes: '',
-  });
+  const [draft, setDraft] = useState(() => draftFromContract(
+    activeContractFor(selectedEmployeeId || people[0]?.id || '', hr.contracts),
+  ));
+
+  function selectEmployee(id) {
+    setEmployeeId(id);
+    onSelectEmployee?.(id);
+    setDraft(draftFromContract(activeContractFor(id, hr.contracts)));
+  }
 
   function setField(key, value) {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -91,19 +113,24 @@ export default function HrContracts({
 
   async function saveContract() {
     if (!canWrite || !activeId) return;
+    const existingId = draft.id || active?.id || '';
     const row = normalizeContract({
       ...draft,
+      id: existingId || undefined,
       employeeId: activeId,
       status: 'active',
-      title: draft.title || draft.roleDescription || 'Arbeidsavtale',
+      title: draft.title || draft.positionTitle || 'Arbeidsavtale',
     });
-    const contracts = [row, ...(hr.contracts || []).filter((c) => c.id !== row.id)];
-    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
-      employeeId: activeId,
-      contracts,
-      reviews: hr.reviews || [],
+    onPatch?.((state) => {
+      const contracts = upsertActiveContract(state.contracts || [], row);
+      const compliance = syncComplianceFromEvidence(state.compliance || [], {
+        employeeId: activeId,
+        contracts,
+        reviews: state.reviews || [],
+      });
+      return { contracts, compliance };
     });
-    onPatch?.({ contracts, compliance });
+    setDraft((prev) => ({ ...prev, id: row.id, employeeId: activeId }));
 
     if (selected && familyId) {
       try {
@@ -159,13 +186,18 @@ export default function HrContracts({
               colors={colors}
               label={displayName(emp)}
               active={emp.id === activeId}
-              onPress={() => {
-                setEmployeeId(emp.id);
-                onSelectEmployee?.(emp.id);
-              }}
+              onPress={() => selectEmployee(emp.id)}
             />
           ))}
         </View>
+        {canWrite ? (
+          <HrButton
+            colors={colors}
+            label="Ny avtale"
+            icon="add-outline"
+            onPress={() => setDraft({ ...EMPTY_CONTRACT_DRAFT })}
+          />
+        ) : null}
         {active ? (
           <Text style={[styles.line, { color: colors.ink }]}>
             {`Aktiv avtale: ${active.title} · AML-dekning ${active.aml?.pct ?? 0} % · fra ${formatNbDate(active.startDate)}`}
@@ -181,11 +213,7 @@ export default function HrContracts({
             subtitle={`${formatNbDate(row.startDate)} · AML ${row.aml?.pct ?? 0} %`}
             meta={row.status}
             icon="document-text-outline"
-            onPress={() => setDraft({
-              ...draft,
-              ...row,
-              title: row.title,
-            })}
+            onPress={() => setDraft(draftFromContract(row))}
           />
         ))}
       </HrCard>

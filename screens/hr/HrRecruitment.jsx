@@ -71,8 +71,10 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     });
   }, [selectedApp?.id, selectedApp?.evaluation, selectedApp?.response, selectedApp?.rejectReason]);
 
-  function patchApps(nextApps) {
-    onPatch?.({ applications: nextApps });
+  function patchApps(mapper) {
+    onPatch?.((state) => ({
+      applications: mapper(state.applications || []),
+    }));
   }
 
   function moveApp(app, board, outcome) {
@@ -83,7 +85,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
       return;
     }
     const next = moveApplicationBoard(app, board, outcome);
-    patchApps((hr.applications || []).map((row) => (row.id === app.id ? next : row)));
+    patchApps((apps) => apps.map((row) => (row.id === app.id ? next : row)));
   }
 
   async function hireApplicant(app) {
@@ -98,12 +100,12 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
       });
       const saved = await saveEmployee(familyId, employee);
       const tasks = onboardingTasksFor(saved?.id || employee.id);
-      onPatch?.({
-        applications: (hr.applications || []).map((row) => (
+      onPatch?.((state) => ({
+        applications: (state.applications || []).map((row) => (
           row.id === app.id ? moveApplicationBoard(row, 'completed', 'hired') : row
         )),
-        tasks: [...tasks, ...(hr.tasks || [])],
-      });
+        tasks: [...tasks, ...(state.tasks || [])],
+      }));
       showSaveToast?.(`${draft.person.firstName || 'Søker'} er ansatt`);
     } catch {
       showSaveToast?.('Kunne ikke ansette søker');
@@ -179,7 +181,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                   publishedAt: new Date().toISOString().slice(0, 10),
                   status: 'open',
                 });
-                onPatch?.({ jobs: [row, ...(hr.jobs || [])] });
+                onPatch?.((state) => ({ jobs: [row, ...(state.jobs || [])] }));
                 setJobId(row.id);
                 setJobDraft({ title: '', department: '', location: '', description: '', requirements: '', status: 'open', headcount: '1' });
               }}
@@ -323,7 +325,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                     o.id === 'pending' ? 'processing' : 'completed',
                     o.id,
                   );
-                  patchApps((hr.applications || []).map((row) => (row.id === selectedApp.id ? next : row)));
+                  patchApps((apps) => apps.map((row) => (row.id === selectedApp.id ? next : row)));
                 }}
               />
             ))}
@@ -344,7 +346,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
               label="Lagre vurdering"
               primary
               onPress={() => {
-                patchApps((hr.applications || []).map((row) => (
+                patchApps((apps) => apps.map((row) => (
                   row.id === selectedApp.id
                     ? {
                       ...row,
@@ -382,7 +384,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                     'completed',
                     'rejected',
                   );
-                  patchApps((hr.applications || []).map((row) => (row.id === selectedApp.id ? next : row)));
+                  patchApps((apps) => apps.map((row) => (row.id === selectedApp.id ? next : row)));
                 }}
               />
             ) : null}
@@ -450,7 +452,7 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                 stage: 'new',
                 attachments,
               });
-              onPatch?.({ applications: [row, ...(hr.applications || [])] });
+              onPatch?.((state) => ({ applications: [row, ...(state.applications || [])] }));
               setAppDraft({
                 name: '', email: '', phone: '', source: '', notes: '', score: '5', documentName: '', documentUrl: '',
               });

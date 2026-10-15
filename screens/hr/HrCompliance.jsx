@@ -33,67 +33,97 @@ export default function HrCompliance({
   const activeId = employeeId || selectedEmployeeId || '';
 
   const overview = useMemo(
-    () => companyComplianceOverview(people, hr.compliance),
-    [people, hr.compliance],
+    () => companyComplianceOverview(people, hr.compliance, {
+      contracts: hr.contracts,
+      reviews: hr.reviews,
+      applyEvidence: true,
+    }),
+    [people, hr.compliance, hr.contracts, hr.reviews],
   );
   const totalMissing = overview.reduce((sum, row) => sum + row.missing, 0);
+  const [noteDrafts, setNoteDrafts] = useState({});
 
-  const rows = useMemo(
-    () => ensureEmployeeCompliance(hr.compliance || [], activeId),
-    [hr.compliance, activeId],
-  );
+  const rows = useMemo(() => {
+    if (!activeId) return [];
+    const sourced = syncComplianceFromEvidence(hr.compliance || [], {
+      employeeId: activeId,
+      contracts: hr.contracts || [],
+      reviews: hr.reviews || [],
+    });
+    return ensureEmployeeCompliance(sourced, activeId);
+  }, [hr.compliance, hr.contracts, hr.reviews, activeId]);
   const visible = sourceFilter === 'all'
     ? rows
     : rows.filter((row) => row.source === sourceFilter);
   const summary = complianceSummary(rows);
 
-  function setStatus(catalogId, status) {
-    if (!canWrite || !activeId) return;
-    const nextRows = ensureEmployeeCompliance(hr.compliance || [], activeId).map((row) => (
-      row.catalogId === catalogId
-        ? {
-          ...row,
-          status,
-          completedAt: status === 'ok' ? new Date().toISOString().slice(0, 10) : '',
-          updatedAt: new Date().toISOString(),
-        }
-        : row
-    ));
-    const others = (hr.compliance || []).filter((row) => row.employeeId !== activeId);
-    onPatch?.({ compliance: [...others, ...nextRows] });
+  function noteKey(catalogId, empId = activeId) {
+    return `${empId || ''}:${catalogId}`;
   }
 
-  function setNote(catalogId, note) {
+  function selectEmployee(id) {
+    setEmployeeId(id);
+    onSelectEmployee?.(id);
+    setNoteDrafts({});
+  }
+
+  function setStatus(catalogId, status) {
     if (!canWrite || !activeId) return;
-    const nextRows = ensureEmployeeCompliance(hr.compliance || [], activeId).map((row) => (
-      row.catalogId === catalogId ? { ...row, note, updatedAt: new Date().toISOString() } : row
-    ));
-    const others = (hr.compliance || []).filter((row) => row.employeeId !== activeId);
-    onPatch?.({ compliance: [...others, ...nextRows] });
+    onPatch?.((state) => {
+      const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => (
+        row.catalogId === catalogId
+          ? {
+            ...row,
+            status,
+            completedAt: status === 'ok' ? new Date().toISOString().slice(0, 10) : '',
+            updatedAt: new Date().toISOString(),
+          }
+          : row
+      ));
+      const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
+      return { compliance: [...others, ...nextRows] };
+    });
+  }
+
+  function commitNote(catalogId) {
+    if (!canWrite || !activeId) return;
+    const note = noteDrafts[noteKey(catalogId)];
+    if (note == null) return;
+    onPatch?.((state) => {
+      const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => (
+        row.catalogId === catalogId ? { ...row, note, updatedAt: new Date().toISOString() } : row
+      ));
+      const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
+      return { compliance: [...others, ...nextRows] };
+    });
   }
 
   function syncFromEvidence() {
     if (!canWrite || !activeId) return;
-    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
-      employeeId: activeId,
-      contracts: hr.contracts || [],
-      reviews: hr.reviews || [],
+    onPatch?.((state) => {
+      const compliance = syncComplianceFromEvidence(state.compliance || [], {
+        employeeId: activeId,
+        contracts: state.contracts || [],
+        reviews: state.reviews || [],
+      });
+      return { compliance };
     });
-    onPatch?.({ compliance });
     showSaveToast?.('Compliance synket fra avtaler og samtaler');
   }
 
   function syncAll() {
     if (!canWrite) return;
-    let compliance = hr.compliance || [];
-    for (const emp of people) {
-      compliance = syncComplianceFromEvidence(compliance, {
-        employeeId: emp.id,
-        contracts: hr.contracts || [],
-        reviews: hr.reviews || [],
-      });
-    }
-    onPatch?.({ compliance });
+    onPatch?.((state) => {
+      let compliance = state.compliance || [];
+      for (const emp of people) {
+        compliance = syncComplianceFromEvidence(compliance, {
+          employeeId: emp.id,
+          contracts: state.contracts || [],
+          reviews: state.reviews || [],
+        });
+      }
+      return { compliance };
+    });
     showSaveToast?.('Compliance synket for alle');
   }
 
@@ -125,10 +155,7 @@ export default function HrCompliance({
               title={person ? displayName(person) : row.employeeId}
               subtitle={row.gaps.slice(0, 4).join(' · ') || 'Mangler'}
               meta={`${row.ok}/${row.total} · ${row.pct} %`}
-              onPress={() => {
-                setEmployeeId(row.employeeId);
-                onSelectEmployee?.(row.employeeId);
-              }}
+              onPress={() => selectEmployee(row.employeeId)}
             />
           );
         })}
@@ -146,10 +173,7 @@ export default function HrCompliance({
               colors={colors}
               label={displayName(emp)}
               active={emp.id === activeId}
-              onPress={() => {
-                setEmployeeId(emp.id);
-                onSelectEmployee?.(emp.id);
-              }}
+              onPress={() => selectEmployee(emp.id)}
             />
           ))}
         </View>
@@ -207,12 +231,22 @@ export default function HrCompliance({
                   ))}
                 </View>
                 {canWrite ? (
-                  <HrField
-                    colors={colors}
-                    label="Notat / bevis"
-                    value={row.note || ''}
-                    onChangeText={(note) => setNote(row.catalogId, note)}
-                  />
+                  <>
+                    <HrField
+                      colors={colors}
+                      label="Notat / bevis"
+                      value={noteDrafts[noteKey(row.catalogId)] ?? row.note ?? ''}
+                      onChangeText={(note) => setNoteDrafts((prev) => ({
+                        ...prev,
+                        [noteKey(row.catalogId)]: note,
+                      }))}
+                    />
+                    <HrButton
+                      colors={colors}
+                      label="Lagre notat"
+                      onPress={() => commitNote(row.catalogId)}
+                    />
+                  </>
                 ) : null}
               </View>
             );
@@ -226,18 +260,20 @@ export default function HrCompliance({
           label="Marker alle påkrevde som OK"
           primary
           onPress={() => {
-            const nextRows = ensureEmployeeCompliance(hr.compliance || [], activeId).map((row) => {
-              const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-              if (!cat?.required) return row;
-              return {
-                ...row,
-                status: 'ok',
-                completedAt: new Date().toISOString().slice(0, 10),
-                updatedAt: new Date().toISOString(),
-              };
+            onPatch?.((state) => {
+              const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => {
+                const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+                if (!cat?.required) return row;
+                return {
+                  ...row,
+                  status: 'ok',
+                  completedAt: new Date().toISOString().slice(0, 10),
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
+              return { compliance: [...others, ...nextRows] };
             });
-            const others = (hr.compliance || []).filter((row) => row.employeeId !== activeId);
-            onPatch?.({ compliance: [...others, ...nextRows] });
           }}
         />
       ) : null}

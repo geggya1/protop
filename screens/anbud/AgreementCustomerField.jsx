@@ -28,6 +28,7 @@ export default function AgreementCustomerField({
   const [sheet, setSheet] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createKind, setCreateKind] = useState('org');
+  const [createDraft, setCreateDraft] = useState(null);
   const [brregHits, setBrregHits] = useState([]);
   const [brregSearching, setBrregSearching] = useState(false);
   const selected = customers.find((row) => row.id === customerId) || null;
@@ -79,9 +80,23 @@ export default function AgreementCustomerField({
       closeSheet();
       return;
     }
-    onBrregDraft?.(draft, null);
-    onSelect?.(null);
+    // Uten onBrregDraft: åpne opprettelse med Brreg-data i stedet for å nullstille valget.
+    if (!onBrregDraft) {
+      closeSheet();
+      setCreateKind('org');
+      setCreateDraft(draft);
+      setCreateOpen(true);
+      return;
+    }
+    onBrregDraft(draft, null);
     closeSheet();
+  }
+
+  function openCreate(kind) {
+    closeSheet();
+    setCreateKind(kind);
+    setCreateDraft(null);
+    setCreateOpen(true);
   }
 
   return (
@@ -95,7 +110,7 @@ export default function AgreementCustomerField({
       >
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : 'Søk i kunder eller Brønnøysund'}</Text>
+          <Text style={{ color: colors.ink }}>{selected ? selected.name : 'Søk i kunder eller Brønnøysund'}</Text>
           {selected ? (
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               {[meta(selected), selected.email].filter(Boolean).join(' · ')}
@@ -128,18 +143,18 @@ export default function AgreementCustomerField({
           <View style={styles.actions}>
             <TouchableOpacity
               nativeID="agreement-customer-new"
-              onPress={() => { closeSheet(); setCreateKind('org'); setCreateOpen(true); }}
+              onPress={() => openCreate('org')}
               accessibilityRole="button"
               style={[styles.create, { borderColor: colors.brand }]}
             >
-              <Text style={{ color: colors.brand, fontWeight: '600' }}>Ny kunde</Text>
+              <Text style={{ color: colors.brand }}>Ny kunde</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => { closeSheet(); setCreateKind('person'); setCreateOpen(true); }}
+              onPress={() => openCreate('person')}
               accessibilityRole="button"
               style={[styles.create, { borderColor: colors.line }]}
             >
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>Privatkunde</Text>
+              <Text style={{ color: colors.ink }}>Privatkunde</Text>
             </TouchableOpacity>
           </View>
           {query.trim() ? (
@@ -204,11 +219,13 @@ export default function AgreementCustomerField({
         customers={customers}
         people={people}
         initialKind={createKind}
-        onClose={() => setCreateOpen(false)}
+        initialDraft={createDraft}
+        onClose={() => { setCreateOpen(false); setCreateDraft(null); }}
         onSaved={(customer, saved) => {
           if (saved) onSavedState?.(saved);
           if (customer) onSelect?.(customer);
           setQuery('');
+          setCreateDraft(null);
           setCreateOpen(false);
         }}
       />

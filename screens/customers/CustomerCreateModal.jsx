@@ -70,6 +70,7 @@ export default function CustomerCreateModal({
   customers = [],
   people = [],
   initialKind = 'org',
+  initialDraft = null,
 }) {
   const [form, setForm] = useState(EMPTY);
   const [hits, setHits] = useState([]);
@@ -87,14 +88,31 @@ export default function CustomerCreateModal({
   useEffect(() => {
     if (!visible) return undefined;
     lookupRef.current = '';
-    setForm(applyCustomerKind({ ...EMPTY }, initialKind === 'person' ? 'person' : 'org'));
+    const kind = initialDraft?.kind === 'person' || initialKind === 'person' ? 'person' : 'org';
+    const base = initialDraft && typeof initialDraft === 'object'
+      ? {
+        ...EMPTY,
+        name: initialDraft.name || '',
+        kind,
+        orgnr: initialDraft.orgnr || '',
+        personnummer: initialDraft.personnummer || '',
+        address: initialDraft.address || '',
+        place: initialDraft.place || '',
+        postalCode: initialDraft.postalCode || '',
+        contactName: initialDraft.contactName || '',
+        email: initialDraft.email || '',
+        phone: initialDraft.phone || '',
+        notes: initialDraft.notes || '',
+      }
+      : { ...EMPTY };
+    setForm(applyCustomerKind(base, kind));
     setHits([]);
     setError('');
-    setNote('');
+    setNote(initialDraft?.name ? 'Feltene er fylt fra søket. Kontroller og lagre.' : '');
     setClash(null);
     setBusy(false);
     return undefined;
-  }, [visible, initialKind]);
+  }, [visible, initialKind, initialDraft]);
 
   useEffect(() => {
     if (!visible || form.kind !== 'org') {

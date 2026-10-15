@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AGREEMENT_CASE_KINDS, agreementTemplates } from '../../src/anbud/agreementCase';
+import { upsertCustomer } from '../../src/anbud/customers';
 import { askCompanyForm, FORM_IMPORT_ACCEPT, readFormImport } from '../../src/anbud/formImport';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { AGREEMENT_IMPORT_ACCEPT } from '../../src/anbud/openDocument';
@@ -18,6 +19,7 @@ if (Platform.OS === 'web') {
 
 const STEPS_UTKAST = ['path', 'kind', 'customer', 'template'];
 const STEPS_INGATT = ['path', 'upload'];
+const CARD_HEIGHT = 560;
 
 function stepIndex(path, step) {
   const list = path === 'inngatt' ? STEPS_INGATT : STEPS_UTKAST;
@@ -35,6 +37,7 @@ function emptyDraft() {
     customerName: '',
     email: '',
     parentId: '',
+    parentTitle: '',
     templateId: '',
     templateTitle: '',
     createProject: false,
@@ -50,37 +53,32 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-function ChoiceCard({ colors, title, hint, onPress, primary = false }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      accessibilityRole="button"
-      style={[
-        styles.choice,
-        primary
-          ? { backgroundColor: colors.brand, borderColor: colors.brand }
-          : { backgroundColor: colors.card, borderColor: colors.line },
-      ]}
-    >
-      <Text style={{ color: primary ? '#fff' : colors.ink, fontWeight: '600', fontSize: 16 }}>{title}</Text>
-      {hint ? (
-        <Text style={{ color: primary ? 'rgba(255,255,255,0.88)' : colors.muted, fontSize: 13, lineHeight: 18 }}>
-          {hint}
-        </Text>
-      ) : null}
-    </TouchableOpacity>
-  );
+function parentLabel(row) {
+  return [
+    row?.title || 'Rammeavtale',
+    row?.counterparty?.name || row?.buyer || '',
+    row?.oppdragId || '',
+  ].filter(Boolean).join(' · ');
 }
 
-function Chip({ colors, label, on, onPress }) {
+function ChoiceRow({ colors, title, hint, onPress, selected = false }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+      accessibilityState={{ selected }}
+      style={[
+        styles.choice,
+        {
+          borderColor: selected ? colors.brand : colors.line,
+          backgroundColor: selected ? colors.brandSoft : colors.bg,
+        },
+      ]}
     >
-      <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{label}</Text>
+      <Text style={{ color: colors.ink, fontSize: 15 }}>{title}</Text>
+      {hint ? (
+        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{hint}</Text>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -111,12 +109,19 @@ export default function AgreementCreateWizard({
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
   const [allowDismiss, setAllowDismiss] = useState(false);
+  const [parentQuery, setParentQuery] = useState('');
 
   const templates = useMemo(() => agreementTemplates(state), [state]);
   const parents = useMemo(
     () => [...(state?.agreementCases || []), ...(contracts || [])].filter((row) => row.kind === 'rammeavtale' && !row.deletedAt),
     [state, contracts],
   );
+  const parentMatches = useMemo(() => {
+    const needle = parentQuery.trim().toLocaleLowerCase('nb-NO');
+    if (!needle) return parents.slice(0, 12);
+    return parents.filter((row) => parentLabel(row).toLocaleLowerCase('nb-NO').includes(needle)).slice(0, 12);
+  }, [parents, parentQuery]);
+  const selectedParent = parents.find((row) => row.id === draft.parentId) || null;
 
   useEffect(() => {
     if (!visible || !companyId) return undefined;
@@ -143,6 +148,7 @@ export default function AgreementCreateWizard({
       setFiles(Array.isArray(seed.files) ? seed.files : []);
       setNote(seed.note || '');
       setNoteBad(false);
+      setParentQuery('');
       return;
     }
     setPath('');
@@ -152,6 +158,7 @@ export default function AgreementCreateWizard({
     setNote('');
     setNoteBad(false);
     setBusy(false);
+    setParentQuery('');
   }, [visible, seed]);
 
   function say(text, bad = false) {
@@ -209,6 +216,50 @@ export default function AgreementCreateWizard({
 
   function removeFile(name) {
     setFiles((current) => current.filter((row) => row.name !== name));
+  }
+
+  async function registerBrregCustomer(brregDraft, existing) {
+    if (existing) {
+      setDraft((current) => ({
+        ...current,
+        customerId: existing.id,
+        customerName: existing.name || '',
+        email: existing.email || current.email,
+      }));
+      say(`${existing.name} er valgt.`);
+      return;
+    }
+    if (!brregDraft?.name) {
+      say('Fant ikke kundedata i søket.', true);
+      return;
+    }
+    const result = upsertCustomer(state, {
+      ...brregDraft,
+      kind: 'org',
+    });
+    if (!result.ok) {
+      if (result.customer) {
+        setDraft((current) => ({
+          ...current,
+          customerId: result.customer.id,
+          customerName: result.customer.name || '',
+          email: result.customer.email || current.email,
+        }));
+        say(`${result.customer.name} finnes allerede og er valgt.`);
+        return;
+      }
+      say(result.error || 'Kunne ikke lagre kunden.', true);
+      return;
+    }
+    const saved = await saveAnbudState(result.state, companyId);
+    setState(saved);
+    setDraft((current) => ({
+      ...current,
+      customerId: result.customer.id,
+      customerName: result.customer.name || '',
+      email: result.customer.email || current.email,
+    }));
+    say(`${result.customer.name} er registrert som kunde.`);
   }
 
   async function finishInngatt() {
@@ -295,7 +346,7 @@ export default function AgreementCreateWizard({
         templateId: saved.id,
         templateTitle: saved.title,
       }));
-      say(`Malen «${saved.title}» er lagret som avtalemal. Fortsett for å låse utkastet.`);
+      say(`Malen «${saved.title}» er lagret som avtalemal.`);
     } catch (error) {
       say(error?.message || 'Kunne ikke tolke malen.', true);
     } finally {
@@ -317,8 +368,85 @@ export default function AgreementCreateWizard({
           ? 'Registrer kunde'
           : 'Velg avtalemal';
 
+  const subtitle = step === 'path'
+    ? 'Velg om avtalen allerede er inngått, eller om dere skal behandle et nytt utkast.'
+    : step === 'upload'
+      ? 'Dra inn filene eller velg dem. Deretter åpnes registreringssiden til gjennomgang.'
+      : step === 'kind'
+        ? 'Hvilken type avtale skal behandles?'
+        : step === 'customer'
+          ? 'Velg kunde og e-post til motparten. Opplysningene fylles inn automatisk.'
+          : 'Velg eksisterende avtalemal, lag ny, eller last opp og tolk en mal.';
+
+  let footer = null;
+  if (step === 'upload') {
+    footer = (
+      <TouchableOpacity
+        onPress={finishInngatt}
+        disabled={busy || !files.length}
+        accessibilityRole="button"
+        style={[styles.primary, { backgroundColor: files.length ? colors.brand : colors.muted }]}
+      >
+        <Text style={{ color: '#fff' }}>{busy ? 'Åpner…' : 'Fullfør og gjennomgå'}</Text>
+      </TouchableOpacity>
+    );
+  } else if (step === 'kind') {
+    footer = (
+      <TouchableOpacity
+        onPress={() => {
+          if (draft.kind === 'avrop' && !draft.parentId) {
+            say('Søk opp og velg rammeavtalen avropet hører til.', true);
+            return;
+          }
+          setStep('customer');
+          say('');
+        }}
+        accessibilityRole="button"
+        style={[styles.primary, { backgroundColor: colors.brand }]}
+      >
+        <Text style={{ color: '#fff' }}>Neste</Text>
+      </TouchableOpacity>
+    );
+  } else if (step === 'customer') {
+    footer = (
+      <TouchableOpacity
+        onPress={() => {
+          if (!draft.customerId) {
+            say('Velg en kunde for å gå videre.', true);
+            return;
+          }
+          if (!String(draft.email || '').trim()) {
+            say('Fyll inn e-post til motpart.', true);
+            return;
+          }
+          setStep('template');
+          say('');
+        }}
+        accessibilityRole="button"
+        style={[styles.primary, { backgroundColor: colors.brand }]}
+      >
+        <Text style={{ color: '#fff' }}>Neste</Text>
+      </TouchableOpacity>
+    );
+  } else if (step === 'template') {
+    footer = (
+      <TouchableOpacity
+        onPress={finishUtkast}
+        disabled={busy || !draft.templateId}
+        accessibilityRole="button"
+        style={[styles.primary, { backgroundColor: draft.templateId ? colors.brand : colors.muted }]}
+      >
+        <Text style={{ color: '#fff' }}>{busy ? 'Åpner…' : 'Fortsett til utkast'}</Text>
+      </TouchableOpacity>
+    );
+  }
+
   const body = (
-    <View style={[styles.card, { backgroundColor: colors.card }]} accessibilityRole="dialog" accessibilityViewIsModal>
+    <View
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, height: CARD_HEIGHT }]}
+      accessibilityRole="dialog"
+      accessibilityViewIsModal
+    >
       <View style={styles.topRow}>
         <TouchableOpacity onPress={back} accessibilityRole="button" disabled={busy}>
           <Text style={{ color: colors.brand }}>{step === 'path' ? 'Lukk' : 'Tilbake'}</Text>
@@ -326,253 +454,234 @@ export default function AgreementCreateWizard({
         <Text style={{ color: colors.muted, fontSize: 12 }}>{progress}</Text>
       </View>
       <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
-      {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
+      <Text style={{ color: colors.muted, lineHeight: 20, fontSize: 14 }}>{subtitle}</Text>
+      {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand, fontSize: 13 }}>{note}</Text>}
 
-      {step === 'path' ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Velg om avtalen allerede er inngått, eller om dere skal behandle et nytt utkast med motparten.
-          </Text>
-          <ChoiceCard
-            colors={colors}
-            primary
-            title="Registrer inngått"
-            hint="Last opp alle avtaledokumentene. Feltene fylles ut til gjennomgang og godkjenning."
-            onPress={() => choosePath('inngatt')}
-          />
-          <ChoiceCard
-            colors={colors}
-            title="Registrering nytt utkast"
-            hint="Velg type, kunde og avtalemal. Utkastet sendes mellom partene i ProTop."
-            onPress={() => choosePath('utkast')}
-          />
-        </View>
-      ) : null}
-
-      {step === 'upload' ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Last opp alle avtaledokumentene. Deretter åpnes registreringssiden ferdig utfylt til gjennomgang.
-          </Text>
-          <View
-            {...(Platform.OS === 'web' ? {
-              onDragEnter: (event) => { event.preventDefault?.(); setDragOver(true); },
-              onDragOver: (event) => { event.preventDefault?.(); setDragOver(true); },
-              onDragLeave: () => setDragOver(false),
-              onDrop: (event) => {
-                event.preventDefault?.();
-                setDragOver(false);
-                const list = Array.from(event?.dataTransfer?.files || []).map((file) => ({
-                  name: file.name,
-                  mimeType: file.type || 'application/octet-stream',
-                  size: file.size || 0,
-                  blob: file,
-                }));
-                if (list.length) addPicks(list);
-              },
-            } : {})}
-            style={[
-              styles.drop,
-              {
-                borderColor: dragOver ? colors.brand : colors.line,
-                backgroundColor: dragOver ? colors.sunken : colors.bg,
-              },
-            ]}
-          >
-            <Ionicons name="cloud-upload-outline" size={28} color={colors.brand} />
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>Slipp dokumenter her</Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>PDF, Word eller bilde</Text>
-            <TouchableOpacity
-              onPress={pickUploadFiles}
-              disabled={busy}
-              accessibilityRole="button"
-              style={[styles.primary, { backgroundColor: colors.brand }]}
-            >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Velg filer</Text>
-            </TouchableOpacity>
-          </View>
-          {files.length ? (
-            <View style={styles.stack}>
-              {files.map((file) => (
-                <View key={file.name} style={styles.fileRow}>
-                  <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{file.name}</Text>
-                  <TouchableOpacity onPress={() => removeFile(file.name)} accessibilityRole="button">
-                    <Text style={{ color: colors.muted }}>Fjern</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>Ingen dokumenter er valgt ennå.</Text>
-          )}
-          <TouchableOpacity
-            onPress={finishInngatt}
-            disabled={busy || !files.length}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: files.length ? colors.brand : colors.muted }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>{busy ? 'Åpner…' : 'Fullfør og gjennomgå'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {step === 'kind' ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>Hvilken type avtale skal behandles?</Text>
-          {AGREEMENT_CASE_KINDS.map((item) => (
-            <ChoiceCard
-              key={item.id}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollInner}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {step === 'path' ? (
+          <View style={styles.stack}>
+            <ChoiceRow
               colors={colors}
-              primary={draft.kind === item.id}
-              title={item.label}
-              onPress={() => setDraft((current) => ({ ...current, kind: item.id, parentId: item.id === 'avrop' ? current.parentId : '' }))}
+              selected={false}
+              title="Registrer inngått"
+              hint="Last opp alle avtaledokumentene. Feltene fylles ut til gjennomgang og godkjenning."
+              onPress={() => choosePath('inngatt')}
             />
-          ))}
-          {draft.kind === 'avrop' ? (
-            <View style={styles.stack}>
-              <Text style={{ color: colors.muted }}>Knytt avropet til en rammeavtale</Text>
-              <View style={styles.wrap}>
-                {parents.map((item) => (
-                  <Chip
+            <ChoiceRow
+              colors={colors}
+              selected={false}
+              title="Registrering nytt utkast"
+              hint="Velg type, kunde og avtalemal. Utkastet sendes mellom partene i ProTop."
+              onPress={() => choosePath('utkast')}
+            />
+          </View>
+        ) : null}
+
+        {step === 'upload' ? (
+          <View style={styles.stack}>
+            <View
+              {...(Platform.OS === 'web' ? {
+                onDragEnter: (event) => { event.preventDefault?.(); setDragOver(true); },
+                onDragOver: (event) => { event.preventDefault?.(); setDragOver(true); },
+                onDragLeave: () => setDragOver(false),
+                onDrop: (event) => {
+                  event.preventDefault?.();
+                  setDragOver(false);
+                  const list = Array.from(event?.dataTransfer?.files || []).map((file) => ({
+                    name: file.name,
+                    mimeType: file.type || 'application/octet-stream',
+                    size: file.size || 0,
+                    blob: file,
+                  }));
+                  if (list.length) addPicks(list);
+                },
+              } : {})}
+              style={[
+                styles.drop,
+                {
+                  borderColor: dragOver ? colors.brand : colors.line,
+                  backgroundColor: dragOver ? colors.sunken : colors.bg,
+                },
+              ]}
+            >
+              <Ionicons name="cloud-upload-outline" size={26} color={colors.brand} />
+              <Text style={{ color: colors.ink }}>Slipp dokumenter her</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>PDF, Word eller bilde</Text>
+              <TouchableOpacity
+                onPress={pickUploadFiles}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.brand }]}
+              >
+                <Text style={{ color: colors.brand }}>Velg filer</Text>
+              </TouchableOpacity>
+            </View>
+            {files.length ? files.map((file) => (
+              <View key={file.name} style={[styles.fileRow, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+                <TouchableOpacity onPress={() => removeFile(file.name)} accessibilityRole="button">
+                  <Text style={{ color: colors.muted }}>Fjern</Text>
+                </TouchableOpacity>
+              </View>
+            )) : (
+              <Text style={{ color: colors.muted }}>Ingen dokumenter er valgt ennå.</Text>
+            )}
+          </View>
+        ) : null}
+
+        {step === 'kind' ? (
+          <View style={styles.stack}>
+            {AGREEMENT_CASE_KINDS.map((item) => (
+              <ChoiceRow
+                key={item.id}
+                colors={colors}
+                selected={draft.kind === item.id}
+                title={item.label}
+                onPress={() => setDraft((current) => ({
+                  ...current,
+                  kind: item.id,
+                  parentId: item.id === 'avrop' ? current.parentId : '',
+                  parentTitle: item.id === 'avrop' ? current.parentTitle : '',
+                }))}
+              />
+            ))}
+            {draft.kind === 'avrop' ? (
+              <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                <Text style={{ color: colors.ink }}>Knytt til rammeavtale</Text>
+                <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+                  Søk blant registrerte rammeavtaler på tittel, kunde eller oppdrags-ID.
+                </Text>
+                <TextInput
+                  value={parentQuery}
+                  onChangeText={setParentQuery}
+                  placeholder="Søk i rammeavtaler"
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+                />
+                {selectedParent ? (
+                  <View style={styles.stack}>
+                    <Text style={{ color: colors.brand }}>Valgt: {parentLabel(selectedParent)}</Text>
+                    <TouchableOpacity
+                      onPress={() => setDraft((current) => ({ ...current, parentId: '', parentTitle: '' }))}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ color: colors.muted }}>Fjern valg</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+                {parentMatches.length ? parentMatches.map((item) => (
+                  <ChoiceRow
                     key={item.id}
                     colors={colors}
-                    label={item.title}
-                    on={draft.parentId === item.id}
-                    onPress={() => setDraft((current) => ({ ...current, parentId: item.id }))}
+                    selected={draft.parentId === item.id}
+                    title={item.title || 'Rammeavtale'}
+                    hint={[item.counterparty?.name || item.buyer || '', item.oppdragId || ''].filter(Boolean).join(' · ')}
+                    onPress={() => setDraft((current) => ({
+                      ...current,
+                      parentId: item.id,
+                      parentTitle: item.title || '',
+                    }))}
                   />
-                ))}
+                )) : (
+                  <Text style={{ color: colors.muted }}>
+                    {parents.length ? 'Ingen rammeavtale treffer søket.' : 'Ingen rammeavtale er registrert ennå.'}
+                  </Text>
+                )}
               </View>
-              {!parents.length ? <Text style={{ color: colors.muted }}>Ingen rammeavtale er registrert ennå.</Text> : null}
-            </View>
-          ) : null}
-          <TouchableOpacity
-            onPress={() => {
-              if (draft.kind === 'avrop' && !draft.parentId) {
-                say('Velg rammeavtalen avropet hører til.', true);
-                return;
-              }
-              setStep('customer');
-              say('');
-            }}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: colors.brand }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Neste</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+            ) : null}
+          </View>
+        ) : null}
 
-      {step === 'customer' ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Velg kunde og e-post til motparten. Opplysningene fylles inn i avtalen automatisk.
-          </Text>
-          <AgreementCustomerField
-            colors={colors}
-            customers={state?.customers || []}
-            customerId={draft.customerId}
-            companyId={companyId}
-            people={people}
-            onSelect={(customer) => setDraft((current) => {
-              const previous = (state?.customers || []).find((row) => row.id === current.customerId);
-              const email = customer
-                ? (customer.email || '')
-                : (previous?.email && current.email === previous.email ? '' : current.email);
-              return {
-                ...current,
-                customerId: customer?.id || '',
-                customerName: customer?.name || '',
-                email,
-              };
-            })}
-            onSavedState={(saved) => setState(saved)}
-          />
-          <TextInput
-            value={draft.email}
-            onChangeText={(email) => setDraft((current) => ({ ...current, email }))}
-            placeholder="E-post til motpart"
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-          <TouchableOpacity
-            onPress={() => setDraft((current) => ({ ...current, createProject: !current.createProject }))}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: colors.ink }}>
-              {draft.createProject ? 'Prosjekt opprettes sammen med avtalen' : 'Opprett også prosjekt'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              if (!draft.customerId) {
-                say('Velg en kunde for å gå videre.', true);
-                return;
-              }
-              if (!String(draft.email || '').trim()) {
-                say('Fyll inn e-post til motpart.', true);
-                return;
-              }
-              setStep('template');
-              say('');
-            }}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: colors.brand }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Neste</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+        {step === 'customer' ? (
+          <View style={styles.stack}>
+            <AgreementCustomerField
+              colors={colors}
+              customers={state?.customers || []}
+              customerId={draft.customerId}
+              companyId={companyId}
+              people={people}
+              onSelect={(customer) => setDraft((current) => {
+                const previous = (state?.customers || []).find((row) => row.id === current.customerId);
+                const email = customer
+                  ? (customer.email || '')
+                  : (previous?.email && current.email === previous.email ? '' : current.email);
+                return {
+                  ...current,
+                  customerId: customer?.id || '',
+                  customerName: customer?.name || '',
+                  email,
+                };
+              })}
+              onBrregDraft={registerBrregCustomer}
+              onSavedState={(saved) => setState(saved)}
+            />
+            <TextInput
+              value={draft.email}
+              onChangeText={(email) => setDraft((current) => ({ ...current, email }))}
+              placeholder="E-post til motpart"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <TouchableOpacity
+              onPress={() => setDraft((current) => ({ ...current, createProject: !current.createProject }))}
+              accessibilityRole="button"
+              style={[styles.checkRow, { borderColor: colors.line, backgroundColor: colors.bg }]}
+            >
+              <Text style={{ color: colors.ink, flex: 1 }}>
+                {draft.createProject ? 'Prosjekt opprettes sammen med avtalen' : 'Opprett også prosjekt'}
+              </Text>
+              <Text style={{ color: draft.createProject ? colors.brand : colors.muted }}>
+                {draft.createProject ? 'På' : 'Av'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
-      {step === 'template' ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Velg hvordan avtalemalen skal komme på plass. Bare maler merket som avtalemal i skjemabyggeren vises her.
-          </Text>
-          <ChoiceCard
-            colors={colors}
-            title="Opprett ny fra begynnelsen"
-            hint="Åpner skjemabyggeren. Lagre malen der for å fortsette her."
-            onPress={openNewTemplate}
-          />
-          <ChoiceCard
-            colors={colors}
-            title="Last opp og tolk mal"
-            hint="PDF, Word eller bilde. AI bygger en avtalemal du kan bruke videre."
-            onPress={importTemplateFile}
-          />
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Eksisterende avtalemaler</Text>
-          {templates.length ? (
-            <View style={styles.wrap}>
-              {templates.map((item) => (
-                <Chip
-                  key={item.id}
-                  colors={colors}
-                  label={`${item.title} · ${item.fields?.length || 0} felt`}
-                  on={draft.templateId === item.id}
-                  onPress={() => setDraft((current) => ({
-                    ...current,
-                    templateId: item.id,
-                    templateTitle: item.title,
-                  }))}
-                />
-              ))}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>
-              Ingen avtalemaler ennå. Opprett ny, last opp, eller merk en mal som avtalemal under Skjema.
-            </Text>
-          )}
-          <TouchableOpacity
-            onPress={finishUtkast}
-            disabled={busy || !draft.templateId}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: draft.templateId ? colors.brand : colors.muted }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>{busy ? 'Åpner…' : 'Fortsett til utkast'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+        {step === 'template' ? (
+          <View style={styles.stack}>
+            <ChoiceRow
+              colors={colors}
+              title="Opprett ny fra begynnelsen"
+              hint="Åpner skjemabyggeren. Lagre malen der for å fortsette her."
+              onPress={openNewTemplate}
+            />
+            <ChoiceRow
+              colors={colors}
+              title="Last opp og tolk mal"
+              hint="PDF, Word eller bilde. AI bygger en avtalemal du kan bruke videre."
+              onPress={importTemplateFile}
+            />
+            <Text style={{ color: colors.muted, fontSize: 12, letterSpacing: 0.3 }}>Eksisterende avtalemaler</Text>
+            {templates.length ? templates.map((item) => (
+              <ChoiceRow
+                key={item.id}
+                colors={colors}
+                selected={draft.templateId === item.id}
+                title={item.title}
+                hint={`${item.fields?.length || 0} felt`}
+                onPress={() => setDraft((current) => ({
+                  ...current,
+                  templateId: item.id,
+                  templateTitle: item.title,
+                }))}
+              />
+            )) : (
+              <Text style={{ color: colors.muted }}>
+                Ingen avtalemaler ennå. Opprett ny, last opp, eller merk en mal som avtalemal under Skjema.
+              </Text>
+            )}
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {footer ? <View style={styles.footer}>{footer}</View> : null}
     </View>
   );
 
@@ -620,64 +729,89 @@ const webBackdropStyle = {
   left: 0,
   right: 0,
   bottom: 0,
-  background: 'rgba(26, 39, 68, 0.55)',
+  background: 'rgba(26, 39, 68, 0.45)',
 };
 const webDialogStyle = {
   position: 'relative',
   zIndex: 1,
   width: '100%',
   maxWidth: 520,
-  maxHeight: '90vh',
-  overflow: 'auto',
 };
 
 const styles = StyleSheet.create({
   nativeRoot: { flex: 1 },
   nativeBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(26, 39, 68, 0.5)',
+    backgroundColor: 'rgba(26, 39, 68, 0.45)',
   },
   nativeCenter: { flex: 1, justifyContent: 'center', padding: 20 },
   card: {
-    borderRadius: 18,
+    borderRadius: 16,
+    borderWidth: 1,
     padding: 18,
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
-    gap: 12,
+    gap: 10,
   },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
-  stack: { gap: 10 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  title: { fontSize: 18, fontWeight: '400' },
+  scroll: { flex: 1, minHeight: 0 },
+  scrollInner: { paddingBottom: 8, gap: 10 },
+  stack: { gap: 8 },
   choice: {
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
-  chip: {
+  panel: {
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
   },
   drop: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 14,
-    padding: 18,
+    borderRadius: 12,
+    padding: 20,
     gap: 8,
     alignItems: 'center',
   },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  fileRow: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  checkRow: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  secondary: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
   primary: {
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     alignItems: 'center',
   },
+  footer: { paddingTop: 4 },
 });

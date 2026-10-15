@@ -302,6 +302,7 @@ assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the w
 assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours report uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
@@ -440,6 +441,7 @@ assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activat
 assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 for (const file of [
   'arbeid-timerapport--module-activation-illustration.png',
+  'arbeid-timesaldo--module-activation-illustration.png',
   'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaersrapport--module-activation-illustration.png',
 ]) {
@@ -454,6 +456,7 @@ for (const file of [
   );
 }
 assert.match(assetsSrc, /'arbeid-timerapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timerapport--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-timesaldo': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timesaldo--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
 const utleggFile = 'arbeid-utlegg--module-activation-illustration.png';

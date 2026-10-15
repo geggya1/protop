@@ -72,6 +72,7 @@ export const ILLUSTRATION_FILES = {
   timeliste: 'timeliste--module-activation-illustration.png',
   'arbeid-timeliste': 'timeliste--module-activation-illustration.png',
   'arbeid-timerapport': 'arbeid-timerapport--module-activation-illustration.png',
+  'arbeid-timesaldo': 'arbeid-timesaldo--module-activation-illustration.png',
   'arbeid-fravaer': 'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaersrapport': 'arbeid-fravaersrapport--module-activation-illustration.png',
   'arbeid-utlegg': 'arbeid-utlegg--module-activation-illustration.png',

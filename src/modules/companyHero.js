@@ -193,6 +193,7 @@ export const COMPANY_HERO = {
   },
   'arbeid-timesaldo': {
     ...CYAN,
+    wideArt: true,
     name: 'Timesaldo',
     kicker: t('Arbeid', 'Work'),
     title: t('Timesaldo', 'Hour balance'),

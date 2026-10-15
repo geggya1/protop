@@ -563,6 +563,9 @@ for (const file of [
   'okonomi-faktura-phone--module-activation-illustration.png',
   'arbeid-godkjenning-phone--module-activation-illustration.png',
   'okonomi-produkter-phone--module-activation-illustration.png',
+  'okonomi-utlegg-phone--module-activation-illustration.png',
+  'arbeid-fravaer-phone--module-activation-illustration.png',
+  'timeliste-phone--module-activation-illustration.png',
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);

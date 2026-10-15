@@ -318,6 +318,7 @@ assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, '
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
 assert.equal(resolveModuleHero('selskap', 'nb').wideArt, true, 'company profile uses the wide illustration');
 assert.equal(resolveModuleHero('underenheter', 'nb').wideArt, true, 'units and group use the wide illustration');
+assert.equal(resolveModuleHero('selskap-tilgang', 'nb').wideArt, true, 'access and permissions use the wide illustration');
 assert.equal(resolveModuleHero('plan', 'nb').wideArt, true, 'calendar uses the wide illustration');
 assert.equal(resolveModuleHero('mail', 'nb').wideArt, true, 'mail uses the wide illustration');
 assert.equal(resolveModuleHero('stars', 'nb').wideArt, true, 'tasks use the wide illustration');
@@ -327,7 +328,6 @@ assert.equal(shellHeroModuleId('more', 'friends'), 'friends', 'venner uses the s
 assert.equal(resolveModuleHero('plan', 'nb').title, 'Din kalender, én plan', 'calendar title stays');
 assert.equal(resolveModuleHero('friends', 'nb').title, 'Venner', 'friends title stays the page name');
 const TEXT_ONLY_PASTEL = {
-  'selskap-tilgang': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   underenheter: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   'anbud-foresporsel': ['#E5F6FE', '#f7fbff', '#1099F4'],
   'anbud-vurdering': ['#E5F6FE', '#f7fbff', '#1099F4'],
@@ -609,6 +609,7 @@ assert.equal(
 assert.match(assetsSrc, /selskap: require\('\.\.\/\.\.\/assets\/module-activation\/selskap--module-activation-illustration\.png'\)/);
 for (const [id, file] of [
   ['underenheter', 'underenheter--module-activation-illustration.png'],
+  ['selskap-tilgang', 'selskap-tilgang--module-activation-illustration.png'],
   ['friends', 'venner--module-activation-illustration.png'],
   ['plan', 'kalender--module-activation-illustration.png'],
   ['mail', 'e-post--module-activation-illustration.png'],

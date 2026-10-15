@@ -17,7 +17,6 @@ import {
 import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard } from '../../src/arbeid/absenceDashboard.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';

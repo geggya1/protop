@@ -6,6 +6,15 @@ import { PAGE_ART_SCALE } from '../src/appearance/pageArtScale';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
 
+function fadeHex(hex, alpha) {
+  const n = String(hex || '').replace('#', '');
+  if (n.length < 6) return `rgba(229, 246, 254, ${alpha})`;
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 /**
  * Compact module heading: pastel band, overlay copy, transparent art.
  * Same visual thread on phone, tablet and desktop — phone is a few cm shorter.
@@ -44,6 +53,15 @@ export default function ModuleHero({
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
   const wideArt = !!hero.wideArt && !!imgSource;
+  const phoneChip = wideArt && isPhone ? {
+    alignSelf: 'flex-start',
+    backgroundColor: fadeHex(hero.bg, 0.9),
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web' ? { width: 'fit-content', maxWidth: '100%' } : null),
+  } : null;
   const heroH = isDesktop ? 176 : isPhone ? 144 : 156;
   const titleColor = hero.ink || colors.ink;
   const pitchColor = hero.muted || colors.muted;
@@ -73,18 +91,19 @@ export default function ModuleHero({
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
         chromePhone && styles.copyPhoneChrome,
+        wideArt && isPhone && styles.copyWidePhone,
       ]}>
         {overline ? (
-          <Text style={[styles.kicker, { color: hero.accent }]} numberOfLines={1}>
+          <Text style={[styles.kicker, phoneChip, { color: hero.accent }]} numberOfLines={1}>
             {overline}
           </Text>
         ) : null}
-        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
+        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, phoneChip, { color: titleColor }]} numberOfLines={2}>
           {heading}
         </Text>
         {lead ? (
           <Text
-            style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, { color: pitchColor }]}
+            style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, phoneChip, { color: pitchColor }]}
             numberOfLines={isDesktop ? 3 : 2}
           >
             {lead}
@@ -214,6 +233,13 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     paddingRight: 4,
   },
+  /* Phone art fills the heading. Chips keep the title readable without hiding the picture. */
+  copyWidePhone: {
+    maxWidth: '62%',
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
   kicker: {
     fontSize: 11,
     fontWeight: '400',
@@ -281,10 +307,10 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingLeft: 4,
   },
-  /* Right-hand slot. Web and tablet are 20% shorter than the enlarged
-     size. Phone is 40% larger. Extra height is cut; the width stays whole. */
+  /* Right-hand slot. The browser picture is another 20% smaller.
+     Phone is another 30% larger. Extra height is cut; the width stays whole. */
   artWrapWideDesk: {
-    width: 403,
+    width: 322,
     flexShrink: 0,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -304,14 +330,18 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   artWrapWidePhone: {
-    width: 305,
-    flexShrink: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 397,
+    maxWidth: '100%',
     overflow: 'hidden',
     justifyContent: 'center',
     paddingTop: 0,
     paddingBottom: 0,
     paddingLeft: 0,
-    paddingRight: 6,
+    paddingRight: 0,
   },
   /* Square tree art is height-limited in the heading band.
      minWidth:0 so intrinsic PNG-bredde (855px) ikke utvider hele appen.

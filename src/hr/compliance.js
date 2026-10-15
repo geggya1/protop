@@ -171,7 +171,7 @@ export const AML_CONTRACT_FIELDS = [
   { key: 'employerName', label: 'Arbeidsgiver (part)', aml: 'a' },
   { key: 'employeeName', label: 'Arbeidstaker (part)', aml: 'a' },
   { key: 'workplace', label: 'Arbeidssted', aml: 'b' },
-  { key: 'title', label: 'Stilling / tittel', aml: 'c' },
+  { key: 'positionTitle', label: 'Stilling / tittel', aml: 'c' },
   { key: 'roleDescription', label: 'Beskrivelse av arbeidet / rollen', aml: 'c' },
   { key: 'startDate', label: 'Startdato', aml: 'd' },
   { key: 'endDate', label: 'Sluttdato (hvis midlertidig)', aml: 'e' },
@@ -193,7 +193,7 @@ export const AML_CONTRACT_FIELDS = [
 
 export function amlContractCompleteness(contract = {}) {
   const requiredKeys = [
-    'employerName', 'employeeName', 'workplace', 'title', 'startDate',
+    'employerName', 'employeeName', 'workplace', 'positionTitle', 'startDate',
     'workPercent', 'salaryAmount', 'workHours', 'noticePeriod',
   ];
   const filled = requiredKeys.filter((key) => String(contract[key] || '').trim()).length;

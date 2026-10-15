@@ -12,10 +12,12 @@ import {
   assert.equal(form.category, 'avtale');
   assert.ok(form.fields.length >= 12);
   form.fields.find((f) => f.label === 'Arbeidsgiver').value = 'AS';
+  form.fields.find((f) => f.label === 'Stilling / tittel').value = 'Konsulent';
   form.fields.find((f) => f.label === 'Stillingsprosent').value = '100';
   form.fields.find((f) => f.label === 'Årslønn / lønn').value = '700000';
   const fields = answersToContractFields(form);
   assert.equal(fields.employerName, 'AS');
+  assert.equal(fields.positionTitle, 'Konsulent');
   assert.equal(fields.workPercent, '100');
   assert.equal(fields.salaryAmount, '700000');
 }

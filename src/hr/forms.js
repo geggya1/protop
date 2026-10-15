@@ -82,7 +82,7 @@ export function answersToContractFields(form) {
     employerName: g('Arbeidsgiver'),
     employeeName: g('Arbeidstaker'),
     workplace: g('Arbeidssted'),
-    title: g('Stilling / tittel', 'Stilling'),
+    positionTitle: g('Stilling / tittel', 'Stilling'),
     roleDescription: g('Beskrivelse av arbeidet / rollen'),
     startDate: g('Startdato'),
     endDate: g('Sluttdato (midlertidig)'),

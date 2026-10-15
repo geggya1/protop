@@ -40,6 +40,7 @@ export function parseEmploymentContractText(text) {
     employeeName: pick(/arbeidstaker[:\s]+([^\n,]+)/i) || pick(/navn[:\s]+([^\n,]+)/i),
     workplace: pick(/arbeidssted[:\s]+([^\n]+)/i) || pick(/arbeidsplass[:\s]+([^\n]+)/i),
     title: pick(/stilling(?:stittel)?[:\s]+([^\n]+)/i) || pick(/tittel[:\s]+([^\n]+)/i),
+    positionTitle: pick(/stilling(?:stittel)?[:\s]+([^\n]+)/i) || pick(/tittel[:\s]+([^\n]+)/i),
     roleDescription: pick(/arbeidsoppgaver[:\s]+([^\n]+(?:\n(?![A-ZÆØÅ]).+)*)/i),
     startDate: iso(pick(/tiltrer[:\s]+([^\n]+)/i) || pick(/startdato[:\s]+([^\n]+)/i) || pick(/fra\s+og\s+med[:\s]+([^\n]+)/i)),
     endDate: iso(pick(/til\s+og\s+med[:\s]+([^\n]+)/i) || pick(/sluttdato[:\s]+([^\n]+)/i)),
@@ -110,7 +111,10 @@ export async function interpretEmploymentContract({
         fromAi.employeeName = [row.person?.firstName || row.firstName, row.person?.lastName || row.lastName]
           .filter(Boolean).join(' ');
       }
-      if (row.company?.title) fromAi.title = String(row.company.title);
+      if (row.company?.title) {
+        fromAi.title = String(row.company.title);
+        fromAi.positionTitle = String(row.company.title);
+      }
       if (row.company?.periodFrom) fromAi.startDate = String(row.company.periodFrom).slice(0, 10);
       if (row.company?.workPercent) fromAi.workPercent = String(row.company.workPercent);
     }
@@ -140,7 +144,9 @@ export function applyContractFieldsToEmployee(employee, fields = {}) {
     next.person.firstName = parts[0] || '';
     next.person.lastName = parts.slice(1).join(' ');
   }
-  if (fields.title) next.company.title = fields.title;
+  if (fields.positionTitle || fields.title) {
+    next.company.title = fields.positionTitle || fields.title;
+  }
   if (fields.startDate) next.company.periodFrom = fields.startDate;
   if (fields.endDate) next.company.periodTo = fields.endDate;
   if (fields.workPercent) next.company.workPercent = String(fields.workPercent).replace(/[^\d.]/g, '') || next.company.workPercent;

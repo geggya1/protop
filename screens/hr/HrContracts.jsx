@@ -13,7 +13,7 @@ import {
   interpretEmploymentContract,
   parseEmploymentContractText,
 } from '../../src/hr/contractOcr';
-import { answersToContractFields, employmentContractFormTemplate } from '../../src/hr/forms';
+import { employmentContractFormTemplate } from '../../src/hr/forms';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -45,6 +45,7 @@ export default function HrContracts({
     employerName: '',
     employeeName: '',
     workplace: '',
+    positionTitle: '',
     roleDescription: '',
     salaryAmount: '',
     workHours: '',
@@ -69,14 +70,19 @@ export default function HrContracts({
         filename: 'arbeidsavtale.txt',
       });
       const fields = result.fields || parseEmploymentContractText(ocrText);
-      setDraft((prev) => ({
-        ...prev,
-        ...Object.fromEntries(
-          Object.entries(fields).filter(([, v]) => String(v || '').trim()),
-        ),
-        title: fields.title ? `Arbeidsavtale · ${fields.title}` : prev.title,
-        ocrSource: result.source,
-      }));
+      setDraft((prev) => {
+        const positionTitle = fields.positionTitle || fields.title || '';
+        const mapped = Object.fromEntries(
+          Object.entries(fields).filter(([key, v]) => key !== 'title' && String(v || '').trim()),
+        );
+        return {
+          ...prev,
+          ...mapped,
+          positionTitle: positionTitle || prev.positionTitle,
+          title: positionTitle ? `Arbeidsavtale · ${positionTitle}` : prev.title,
+          ocrSource: result.source,
+        };
+      });
       showSaveToast?.(result.source === 'ai' ? 'Nøkkeldata hentet med AI' : 'Nøkkeldata hentet lokalt');
     } finally {
       setBusy(false);
@@ -201,7 +207,7 @@ export default function HrContracts({
             />
             <HrField colors={colors} label="Tittel på avtalen" value={draft.title} onChangeText={(v) => setField('title', v)} />
             {AML_CONTRACT_FIELDS.filter((f) => [
-              'employerName', 'employeeName', 'workplace', 'title', 'roleDescription',
+              'employerName', 'employeeName', 'workplace', 'positionTitle', 'roleDescription',
               'startDate', 'endDate', 'workPercent', 'salaryAmount', 'workHours',
               'noticePeriod', 'probationMonths', 'holidayTerms', 'passportOrId', 'loanOrAdvance', 'otherTerms',
             ].includes(f.key)).map((field) => (

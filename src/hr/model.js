@@ -164,6 +164,15 @@ export function normalizeContract(row = {}) {
     employerName: text(row.employerName),
     employeeName: text(row.employeeName),
     workplace: text(row.workplace),
+    // Stilling (AML) — ikke det samme som avtalens dokumenttittel
+    positionTitle: text(row.positionTitle)
+      || text(row.jobTitle)
+      || (
+        text(row.title)
+        && !/^arbeidsavtale/i.test(text(row.title))
+          ? text(row.title)
+          : ''
+      ),
     roleDescription: text(row.roleDescription),
     temporaryBasis: text(row.temporaryBasis),
     probationMonths: text(row.probationMonths),
@@ -602,13 +611,22 @@ export function applicationsByBoard(applications) {
 export function moveApplicationBoard(application, board, outcome) {
   const nextBoard = APPLICATION_BOARD.some((b) => b.id === board) ? board : 'received';
   let nextOutcome = APPLICATION_OUTCOMES.some((o) => o.id === outcome) ? outcome : application?.outcome || 'pending';
+  // Utfall (vunnet/avslått) gjelder bare i ferdigbehandlet. Ellers tilbakestilles.
   if (nextBoard !== 'completed' && nextOutcome !== 'pending') nextOutcome = 'pending';
-  if (nextBoard === 'completed' && nextOutcome === 'pending') nextOutcome = 'rejected';
+  // Ferdigbehandlet kan være «pending» til HR velger vunnet/avslått — ikke auto-avslå.
   return normalizeApplication({
     ...application,
     board: nextBoard,
     outcome: nextOutcome,
-    stage: nextOutcome === 'hired' ? 'hired' : nextOutcome === 'rejected' ? 'rejected' : nextBoard === 'received' ? 'new' : 'screening',
+    stage: nextOutcome === 'hired'
+      ? 'hired'
+      : nextOutcome === 'rejected'
+        ? 'rejected'
+        : nextBoard === 'received'
+          ? 'new'
+          : nextBoard === 'completed'
+            ? 'offer'
+            : 'screening',
   });
 }
 

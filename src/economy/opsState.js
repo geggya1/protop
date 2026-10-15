@@ -138,3 +138,25 @@ export function markOperationsInvoiced(state, {
   ));
   return { ...state, expenses, mileageTrips, sales };
 }
+
+/** Frigjør utlegg/kjøring/varer knyttet til en slettet faktura. */
+export function clearOperationsInvoice(state, invoiceId = '') {
+  const id = String(invoiceId || '').trim();
+  if (!id) return state;
+  const stampAt = stamp();
+  let changed = false;
+  const release = (row, approvedStatus) => {
+    if (String(row?.invoiceId || '').trim() !== id) return row;
+    changed = true;
+    return {
+      ...row,
+      invoiceId: '',
+      status: row.status === 'invoiced' ? approvedStatus : row.status,
+      updatedAt: stampAt,
+    };
+  };
+  const expenses = (state.expenses || []).map((row) => normalizeExpense(release(row, 'approved')));
+  const mileageTrips = (state.mileageTrips || []).map((row) => normalizeTrip(release(row, 'approved')));
+  const sales = (state.sales || []).map((row) => normalizeSale(release(row, 'approved')));
+  return changed ? { ...state, expenses, mileageTrips, sales } : state;
+}

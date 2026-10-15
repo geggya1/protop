@@ -77,6 +77,8 @@ export default function ContractFollowUp({
   intent = null,
   onClearIntent,
   composeNonce = 0,
+  seedPicks = null,
+  onSeedPicksConsumed,
 }) {
   const { requestShellTab, family } = useApp();
   const companyName = family?.company?.navn || family?.name || '';
@@ -422,6 +424,8 @@ export default function ContractFollowUp({
           parentId={composeParent}
           kind={composeKind}
           customerId={composeCustomer}
+          seedPicks={seedPicks}
+          onSeedPicksConsumed={onSeedPicksConsumed}
           onCancel={() => setView('list')}
           onRegister={register}
           onOpenCustomer={onOpenCustomer}

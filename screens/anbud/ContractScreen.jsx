@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import CreateMenu from '../../components/CreateMenu';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { agreementResponsiblePeople } from '../../src/anbud/customers';
+import { loadAnbudState } from '../../src/anbud/storage';
+import { watchEmployees } from '../../src/employees/storage';
 import ContractFollowUp from './ContractFollowUp';
 import AgreementTreatment from './AgreementTreatment';
+import AgreementCreateWizard from './AgreementCreateWizard';
 
 export default function ContractScreen() {
   const colors = useColors();
@@ -17,6 +21,28 @@ export default function ContractScreen() {
       : 'inngatt'
   ));
   const [composeNonce, setComposeNonce] = useState(0);
+  const [seedPicks, setSeedPicks] = useState(null);
+  const [seedDraft, setSeedDraft] = useState(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardSeed, setWizardSeed] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [contracts, setContracts] = useState([]);
+
+  useEffect(() => {
+    if (!familyId) return undefined;
+    return watchEmployees(familyId, setEmployees);
+  }, [familyId]);
+
+  useEffect(() => {
+    if (!familyId) return undefined;
+    let live = true;
+    loadAnbudState(familyId).then((loaded) => {
+      if (live) setContracts((loaded?.contracts || []).filter((row) => !row.deletedAt));
+    });
+    return () => { live = false; };
+  }, [familyId, composeNonce, part]);
+
+  const people = useMemo(() => agreementResponsiblePeople(members, employees), [members, employees]);
 
   useEffect(() => {
     if (!shellIntent) return;
@@ -24,13 +50,50 @@ export default function ContractScreen() {
       setPart('inngatt');
     }
     if (shellIntent.type === 'agreementTemplateReady' || shellIntent.type === 'composeAgreementTreatment') {
+      const returned = shellIntent.returnDraft && typeof shellIntent.returnDraft === 'object'
+        ? shellIntent.returnDraft
+        : {};
+      if (returned.wizardPath === 'utkast') {
+        setPart('behandling');
+        setWizardSeed({
+          path: 'utkast',
+          step: returned.wizardStep || 'template',
+          draft: {
+            kind: returned.kind || 'oppdrag',
+            customerId: returned.customerId || '',
+            customerName: returned.customerName || '',
+            email: returned.email || '',
+            parentId: returned.parentId || '',
+            createProject: !!returned.createProject,
+            templateId: shellIntent.templateId || returned.templateId || '',
+            templateTitle: returned.templateTitle || '',
+          },
+          note: shellIntent.templateId
+            ? 'Avtalemalen er lagret. Velg den og fortsett til utkast.'
+            : '',
+        });
+        setWizardOpen(true);
+        clearShellIntent?.();
+        return;
+      }
       setPart('behandling');
     }
-  }, [shellIntent]);
+  }, [shellIntent, clearShellIntent]);
 
-  function startInngattCompose() {
+  function openWizard() {
+    setWizardSeed(null);
+    setWizardOpen(true);
+  }
+
+  function startInngatt(files = null) {
     setPart('inngatt');
+    setSeedPicks(files);
     setComposeNonce((value) => value + 1);
+  }
+
+  function startUtkast(draft) {
+    setSeedDraft(draft || null);
+    setPart('behandling');
   }
 
   return (
@@ -40,23 +103,27 @@ export default function ContractScreen() {
     >
       <CreateMenu
         label="Ny avtale"
-        title="Ny avtale"
-        info="Velg hvordan avtalen skal opprettes."
-        actions={[
-          {
-            id: 'inngatt',
-            label: 'Registrer inngått',
-            hint: 'Avtalen er allerede inngått eller signert et annet sted. Last opp dokumentet, la AI lese feltene, og knytt den til et prosjekt.',
-            primary: true,
-            onPress: startInngattCompose,
-          },
-          {
-            id: 'behandling',
-            label: 'Behandle med motpart',
-            hint: 'Utkastet sendes mellom partene, med merknader og signering i ProTop.',
-            onPress: () => setPart('behandling'),
-          },
-        ]}
+        actions={[{ id: 'start', label: 'Ny avtale', onPress: openWizard }]}
+      />
+      <AgreementCreateWizard
+        visible={wizardOpen}
+        colors={colors}
+        companyId={familyId}
+        people={people}
+        contracts={contracts}
+        seed={wizardSeed}
+        onClose={() => { setWizardOpen(false); setWizardSeed(null); }}
+        onCompleteInngatt={({ files }) => startInngatt(files)}
+        onCompleteUtkast={({ draft }) => startUtkast(draft)}
+        onOpenFormBuilder={({ mode, returnDraft }) => {
+          requestShellTab?.('skjema', null, {
+            type: 'composeAgreementTemplate',
+            mode: mode || 'blank',
+            templateId: returnDraft?.templateId || '',
+            nonce: `${Date.now()}`,
+            returnDraft: returnDraft || {},
+          });
+        }}
       />
       {part === 'behandling' ? (
         <AgreementTreatment
@@ -70,6 +137,9 @@ export default function ContractScreen() {
           colors={colors}
           shellIntent={shellIntent}
           onClearIntent={clearShellIntent}
+          seedDraft={seedDraft}
+          onSeedDraftConsumed={() => setSeedDraft(null)}
+          onRequestCreate={openWizard}
         />
       ) : (
         <ContractFollowUp
@@ -79,6 +149,8 @@ export default function ContractScreen() {
           intent={shellIntent}
           onClearIntent={clearShellIntent}
           composeNonce={composeNonce}
+          seedPicks={seedPicks}
+          onSeedPicksConsumed={() => setSeedPicks(null)}
           onOpenIndex={(intent) => requestShellTab?.('okonomi', 'indeks', intent)}
           onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         />

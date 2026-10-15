@@ -122,11 +122,17 @@ function PdfPreview({ draft, logo, colors, wide }) {
   );
 }
 
-function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onToggleLogo, onCover, onAddField, editor }) {
+function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onCategory, onToggleLogo, onCover, onAddField, editor }) {
+  const category = draft.category === 'avtale' ? 'avtale' : 'skjema';
   const tools = (
     <View style={styles.row}>
+      {[['skjema', 'Utfylling'], ['avtale', 'Avtalemal']].map(([id, label]) => (
+        <TouchableOpacity key={`cat-${id}`} onPress={() => onCategory?.(id)} accessibilityRole="button" accessibilityLabel={`Kategori ${label}`} style={[styles.typeChip, { backgroundColor: category === id ? colors.brand : colors.sunken }]}>
+          <Text style={{ color: category === id ? '#fff' : colors.ink }}>{label}</Text>
+        </TouchableOpacity>
+      ))}
       {[['brev', 'Brev'], ['skjema', 'Skjema']].map(([id, label]) => (
-        <TouchableOpacity key={id} onPress={() => onLayout(id)} accessibilityRole="button" accessibilityLabel={`Utseende ${label}`} style={[styles.typeChip, { backgroundColor: layout === id ? colors.brand : colors.sunken }]}>
+        <TouchableOpacity key={`layout-${id}`} onPress={() => onLayout(id)} accessibilityRole="button" accessibilityLabel={`Utseende ${label}`} style={[styles.typeChip, { backgroundColor: layout === id ? colors.brand : colors.sunken }]}>
           <Text style={{ color: layout === id ? '#fff' : colors.ink }}>{label}</Text>
         </TouchableOpacity>
       ))}
@@ -432,6 +438,7 @@ export default function FormStudio({
             logo={settings.useCompanyLogo ? companyLogo?.dataUrl : ''}
             layout={settings.layout === 'skjema' ? 'skjema' : 'brev'}
             onLayout={(layout) => onDraft({ ...draft, settings: { ...settings, layout } })}
+            onCategory={(category) => onDraft({ ...draft, category: category === 'avtale' ? 'avtale' : 'skjema' })}
             onToggleLogo={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })}
             onCover={setCover}
             onAddField={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }}

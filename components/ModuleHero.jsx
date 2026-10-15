@@ -281,10 +281,10 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingLeft: 4,
   },
-  /* Right-hand slot, widened by the old 1.4 scale so the picture stays
-     the same size and the sides are no longer clipped. Extra height is cut. */
+  /* Right-hand slot. Web and tablet are 20% shorter than the enlarged
+     size. Phone is 40% larger. Extra height is cut; the width stays whole. */
   artWrapWideDesk: {
-    width: 504,
+    width: 403,
     flexShrink: 0,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   artWrapWideTablet: {
-    width: 406,
+    width: 325,
     flexShrink: 0,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   artWrapWidePhone: {
-    width: 218,
+    width: 305,
     flexShrink: 0,
     overflow: 'hidden',
     justifyContent: 'center',

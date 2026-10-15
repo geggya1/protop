@@ -4,12 +4,15 @@ import {
   applicationsByBoard,
   compareReviews,
   daysUntil,
+  caseFromExpiringContract,
+  caseFromPeopleEvent,
   employeeDraftFromApplication,
   employeeVisibleSlice,
   emptyHrState,
   expiringContracts,
   formatMoney,
   formatNbDate,
+  hasOpenCaseLike,
   moveApplicationBoard,
   normalizeApplication,
   normalizeContract,
@@ -162,6 +165,22 @@ import {
 {
   const list = upsertRow([], { employeeId: 'e1', annualAmount: 1, effectiveDate: '2024-01-01' }, normalizeSalary);
   assert.equal(list.length, 1);
+}
+
+{
+  const eventCase = caseFromPeopleEvent({
+    type: 'anniversary', employeeId: 'e1', name: 'Ada', label: '5-årsjubileum',
+    date: '2026-11-01', days: 17,
+  });
+  assert.match(eventCase.title, /jubileum/i);
+  assert.equal(eventCase.priority, 'normal');
+  assert.equal(hasOpenCaseLike([eventCase], eventCase), true);
+  const urgent = caseFromExpiringContract({
+    employeeId: 'e1', title: 'Avtale', endDate: '2026-10-20', days: 5,
+  });
+  assert.equal(urgent.priority, 'high');
+  const rejected = normalizeApplication({ name: 'Bo', outcome: 'rejected', rejectReason: 'Annen kandidat' });
+  assert.equal(rejected.rejectReason, 'Annen kandidat');
 }
 
 console.log('hr/model.test.mjs ok');

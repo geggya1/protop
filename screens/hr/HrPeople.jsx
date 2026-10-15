@@ -11,8 +11,14 @@ import {
   formatMoney,
   formatNbDate,
   normalizeContract,
+  upcomingPeopleEvents,
   yearsBetween,
 } from '../../src/hr/model';
+import {
+  companyComplianceOverview,
+  complianceSummary,
+  ensureEmployeeCompliance,
+} from '../../src/hr/compliance';
 import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink } from './HrShared';
 
 export default function HrPeople({
@@ -44,6 +50,13 @@ export default function HrPeople({
       .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
   }, [employees, query]);
 
+  const complianceByEmp = useMemo(
+    () => Object.fromEntries(
+      companyComplianceOverview(employees, hr.compliance).map((row) => [row.employeeId, row]),
+    ),
+    [employees, hr.compliance],
+  );
+
   const selected = rows.find((row) => row.id === selectedId) || employees.find((row) => row.id === selectedId) || null;
   const contract = selected ? activeContractFor(selected.id, hr.contracts) : null;
   const salary = selected ? currentSalaryFor(selected.id, hr.salaries) : null;
@@ -52,14 +65,21 @@ export default function HrPeople({
   const personCases = selected ? (hr.cases || []).filter((r) => r.employeeId === selected.id && r.status !== 'closed') : [];
   const personTasks = selected ? (hr.tasks || []).filter((r) => r.employeeId === selected.id && r.status !== 'done') : [];
   const personMemos = selected ? (hr.memos || []).filter((r) => r.employeeId === selected.id) : [];
+  const personFiles = selected ? (hr.files || []).filter((r) => r.employeeId === selected.id) : [];
+  const nextEvents = selected
+    ? upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2)
+    : [];
+  const compliance = selected
+    ? complianceSummary(ensureEmployeeCompliance(hr.compliance || [], selected.id))
+    : null;
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="hr-people">
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
           title="Personell"
-          subtitle="Ansatt dato, jubileum, fødselsdato og kontraktstatus"
+          subtitle="Personalmappe: jubileum, kontrakt, compliance og snareveier"
         />
         <TextInput
           value={query}
@@ -74,6 +94,7 @@ export default function HrPeople({
           const hired = row?.company?.periodFrom;
           const years = yearsBetween(hired);
           const c = activeContractFor(row.id, hr.contracts);
+          const gap = complianceByEmp[row.id];
           return (
             <RowLink
               key={row.id}
@@ -82,9 +103,9 @@ export default function HrPeople({
               subtitle={[
                 row?.company?.title || statusLabel(row?.company?.status),
                 hired ? `Ansatt ${empFormatNbDate(hired)}${years != null ? ` · ${years} år` : ''}` : '',
-                row?.person?.birthDate ? `Født ${empFormatNbDate(row.person.birthDate)}` : '',
+                gap ? `Compliance ${gap.pct} %` : '',
               ].filter(Boolean).join(' · ')}
-              meta={c ? choiceLabel(CONTRACT_STATUSES, c.status) : 'Uten kontrakt'}
+              meta={c ? (c.aml?.pct != null ? `AML ${c.aml.pct} %` : choiceLabel(CONTRACT_STATUSES, c.status)) : 'Uten kontrakt'}
               onPress={() => onSelect?.(row.id)}
             />
           );
@@ -100,13 +121,13 @@ export default function HrPeople({
           />
           <View style={styles.facts}>
             <Fact colors={colors} label="Ansatt dato" value={empFormatNbDate(selected?.company?.periodFrom) || '—'} />
-            <Fact colors={colors} label="Jubileum" value={tenure != null ? `${tenure} år` : '—'} />
+            <Fact colors={colors} label="Ansiennitet" value={tenure != null ? `${tenure} år` : '—'} />
             <Fact colors={colors} label="Fødselsdato" value={empFormatNbDate(selected?.person?.birthDate) || '—'} />
             <Fact
               colors={colors}
-              label="Kontrakt"
+              label="Kontrakt / AML"
               value={contract
-                ? `${choiceLabel(CONTRACT_STATUSES, contract.status)} · ${formatNbDate(contract.startDate)}`
+                ? `${choiceLabel(CONTRACT_STATUSES, contract.status)} · AML ${contract.aml?.pct ?? 0} %`
                 : 'Ikke registrert'}
             />
             <Fact
@@ -114,11 +135,39 @@ export default function HrPeople({
               label="Lønn"
               value={salary ? formatMoney(salary.annualAmount, salary.currency) : 'Ikke registrert'}
             />
+            <Fact
+              colors={colors}
+              label="Compliance"
+              value={compliance ? `${compliance.ok}/${compliance.total} (${compliance.pct} %)` : '—'}
+            />
             <Fact colors={colors} label="Åpne saker" value={String(personCases.length)} />
             <Fact colors={colors} label="Oppgaver" value={String(personTasks.length)} />
             <Fact colors={colors} label="Samtaler" value={String(personReviews.length)} />
             <Fact colors={colors} label="Memo" value={String(personMemos.length)} />
+            <Fact colors={colors} label="Filer" value={String(personFiles.length)} />
           </View>
+
+          {nextEvents.length ? (
+            <View style={styles.block}>
+              <Text style={[styles.blockTitle, { color: colors.ink }]}>Neste milepæl</Text>
+              {nextEvents.map((event) => (
+                <Text key={`${event.type}-${event.date}`} style={[styles.line, { color: colors.muted }]}>
+                  {`${event.label} · ${formatNbDate(event.date)} · ${event.days === 0 ? 'i dag' : `${event.days} dager`}`}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {personFiles.slice(0, 4).map((file) => (
+            <RowLink
+              key={file.id}
+              colors={colors}
+              title={file.name}
+              subtitle={file.kind || 'Dokument'}
+              icon="document-attach-outline"
+              onPress={() => onGo?.('oppfolging')}
+            />
+          ))}
           {personMemos.slice(0, 3).map((memo) => (
             <RowLink
               key={memo.id}
@@ -127,7 +176,7 @@ export default function HrPeople({
               subtitle={memo.body}
               meta={memo.employeeVisible ? 'Synlig' : 'HR'}
               icon="document-text-outline"
-              onPress={() => {}}
+              onPress={() => onGo?.('oppfolging')}
             />
           ))}
           <View style={styles.chips}>
@@ -215,4 +264,7 @@ const styles = StyleSheet.create({
   form: { gap: 10, marginTop: 8 },
   formTitle: { fontSize: 14, fontWeight: '600' },
   formHint: { fontSize: 12, lineHeight: 17 },
+  block: { gap: 4, marginTop: 4 },
+  blockTitle: { fontSize: 14, fontWeight: '600' },
+  line: { fontSize: 13, lineHeight: 18 },
 });

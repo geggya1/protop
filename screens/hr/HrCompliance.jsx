@@ -4,11 +4,14 @@ import { displayName } from '../../src/employees/model';
 import {
   COMPLIANCE_CATALOG,
   COMPLIANCE_SOURCES,
+  companyComplianceOverview,
   complianceSummary,
   ensureEmployeeCompliance,
+  syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
-  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle,
+  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
 
 const STATUS = [
@@ -28,6 +31,12 @@ export default function HrCompliance({
   const [employeeId, setEmployeeId] = useState(selectedEmployeeId || people[0]?.id || '');
   const [sourceFilter, setSourceFilter] = useState('all');
   const activeId = employeeId || selectedEmployeeId || '';
+
+  const overview = useMemo(
+    () => companyComplianceOverview(people, hr.compliance),
+    [people, hr.compliance],
+  );
+  const totalMissing = overview.reduce((sum, row) => sum + row.missing, 0);
 
   const rows = useMemo(
     () => ensureEmployeeCompliance(hr.compliance || [], activeId),
@@ -63,14 +72,73 @@ export default function HrCompliance({
     onPatch?.({ compliance: [...others, ...nextRows] });
   }
 
+  function syncFromEvidence() {
+    if (!canWrite || !activeId) return;
+    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
+      employeeId: activeId,
+      contracts: hr.contracts || [],
+      reviews: hr.reviews || [],
+    });
+    onPatch?.({ compliance });
+    showSaveToast?.('Compliance synket fra avtaler og samtaler');
+  }
+
+  function syncAll() {
+    if (!canWrite) return;
+    let compliance = hr.compliance || [];
+    for (const emp of people) {
+      compliance = syncComplianceFromEvidence(compliance, {
+        employeeId: emp.id,
+        contracts: hr.contracts || [],
+        reviews: hr.reviews || [],
+      });
+    }
+    onPatch?.({ compliance });
+    showSaveToast?.('Compliance synket for alle');
+  }
+
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="hr-compliance">
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
           title="Lovpålagt og ISO-oppfølging"
-          subtitle="AML, internkontroll, ISO 9001 / 14001 / 45001 og GDPR — per ansatt"
+          subtitle="AML, internkontroll, ISO 9001 / 14001 / 45001 og GDPR — selskapsoversikt og per ansatt"
         />
+        <Text style={[styles.summary, { color: colors.ink }]}>
+          {`${totalMissing} påkrevde mangler på tvers · ${people.length} ansatte`}
+        </Text>
+        {canWrite ? (
+          <HrButton
+            colors={colors}
+            label="Synk alle fra avtaler/samtaler"
+            icon="sync-outline"
+            onPress={syncAll}
+          />
+        ) : null}
+        {overview.filter((row) => row.missing > 0).slice(0, 12).map((row) => {
+          const person = people.find((e) => e.id === row.employeeId);
+          return (
+            <RowLink
+              key={row.employeeId}
+              colors={colors}
+              title={person ? displayName(person) : row.employeeId}
+              subtitle={row.gaps.slice(0, 4).join(' · ') || 'Mangler'}
+              meta={`${row.ok}/${row.total} · ${row.pct} %`}
+              onPress={() => {
+                setEmployeeId(row.employeeId);
+                onSelectEmployee?.(row.employeeId);
+              }}
+            />
+          );
+        })}
+        {overview.every((row) => row.missing === 0) ? (
+          <EmptyHint colors={colors} text="Ingen gap i påkrevde punkter — eller ingen ansatte valgt ennå." />
+        ) : null}
+      </HrCard>
+
+      <HrCard colors={colors}>
+        <HrSectionTitle colors={colors} title="Per ansatt" />
         <View style={styles.chips}>
           {people.map((emp) => (
             <HrChip
@@ -108,6 +176,14 @@ export default function HrCompliance({
               />
             ))}
           </View>
+          {canWrite ? (
+            <HrButton
+              colors={colors}
+              label="Synk fra avtale + samtale"
+              icon="sync-outline"
+              onPress={syncFromEvidence}
+            />
+          ) : null}
 
           {visible.map((row) => {
             const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);

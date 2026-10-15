@@ -338,6 +338,7 @@ export function normalizeApplication(row = {}) {
     score: Math.min(10, Math.max(0, num(row.score, 0))),
     evaluation: text(row.evaluation),
     response: text(row.response),
+    rejectReason: text(row.rejectReason),
     notes: text(row.notes),
     source: text(row.source),
     appliedAt: normalizeIsoDate(row.appliedAt) || new Date().toISOString().slice(0, 10),
@@ -717,6 +718,53 @@ export function onboardingTasksFor(employeeId, { assignedBy = '' } = {}) {
     assignedBy,
     employeeVisible: true,
   }));
+}
+
+/** Opprett planleggingssak fra jubileum/bursdag (dashboard one-click). */
+export function caseFromPeopleEvent(event) {
+  if (!event?.employeeId) return null;
+  const kind = event.type === 'birthday' ? 'Bursdag' : 'Jubileum';
+  return normalizeCase({
+    employeeId: event.employeeId,
+    title: `Planlegg ${kind.toLowerCase()}: ${event.label || kind}`,
+    description: [
+      event.name,
+      event.label,
+      event.date ? `Dato ${formatNbDate(event.date)}` : '',
+      event.days != null ? `Om ${event.days} dager` : '',
+    ].filter(Boolean).join(' · '),
+    dueDate: event.date || '',
+    priority: event.days != null && event.days <= 14 ? 'high' : 'normal',
+    status: 'open',
+  });
+}
+
+/** Opprett sak for utløpende kontrakt. */
+export function caseFromExpiringContract(contract, { employeeName = '' } = {}) {
+  if (!contract?.employeeId) return null;
+  return normalizeCase({
+    employeeId: contract.employeeId,
+    title: `Forny / avslutt avtale: ${contract.title || 'Arbeidsavtale'}`,
+    description: [
+      employeeName,
+      contract.endDate ? `Utløper ${formatNbDate(contract.endDate)}` : '',
+      contract.days != null ? `${contract.days} dager igjen` : '',
+    ].filter(Boolean).join(' · '),
+    dueDate: contract.endDate || '',
+    priority: contract.days != null && contract.days <= 30 ? 'high' : 'normal',
+    status: 'open',
+  });
+}
+
+/** Finnes allerede åpen sak med samme tittel for personen? */
+export function hasOpenCaseLike(cases, { employeeId, title }) {
+  const id = text(employeeId);
+  const t = text(title).toLowerCase();
+  return (cases || []).some(
+    (row) => row.status !== 'closed'
+      && text(row.employeeId) === id
+      && text(row.title).toLowerCase() === t,
+  );
 }
 
 export {

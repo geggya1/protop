@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // One family-document read. LIST must use this, not parent/child exists().
+    function isFamilyMemberLite(familyId) {
+      let family = get(/databases/$(database)/documents/families/$(familyId)).data;
+      return isSignedIn() && (
+        request.auth.uid in family.get('members', [])
+        || request.auth.uid in family.get('activeUsers', [])
+        || request.auth.uid in family.get('memberIds', [])
+      );
+    }
+
+    // GET may also accept a parent or child document. Too expensive for LIST.
+    function isFamilyMember(familyId) {
+      return isFamilyMemberLite(familyId)
+        || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/parents/$(request.auth.uid)))
+        || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid)));
+    }
+
+    function canReadShoppingListData(d) {
+      return isSignedIn() && request.auth.uid in d.get('memberIds', []);
+    }
+
+    match /families/{familyId} {
+      match /{path=**}/shoppingLists/{listId} {
+        allow get: if isFamilyMember(familyId) && canReadShoppingListData(resource.data);
+        allow list: if isFamilyMemberLite(familyId) && canReadShoppingListData(resource.data);
+        allow create, update, delete: if isFamilyMember(familyId)
+          && canReadShoppingListData(request.resource.data);
+      }
+
+      match /{document=**} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create, update, delete: if isFamilyMember(familyId);
+      }
+    }
+
+    match /parents/{parentId} {
+      allow read, write: if isSignedIn() && request.auth.uid == parentId;
+    }
+  }
+}

@@ -568,6 +568,7 @@ export const hospSavePartnerCredentials = onCall({ region: 'europe-west1', cors:
       airbnbClientSecret: clientSecret,
       airbnbCredsUpdatedAt: FieldValue.serverTimestamp(),
       airbnbCredsUpdatedBy: uid,
+      ownerUid: uid,
     }
     : {
       bookingClientId: clientId,

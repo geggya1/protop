@@ -26,6 +26,7 @@ const fokus = HOME_LOOKS.find((l) => l.id === 'fokus');
 assert.match(oversikt.hint, /Dagens plan|handleliste|progresjon/i);
 assert.match(fokus.hint, /Dagens plan|handleliste|progresjon/i);
 assert.match(lookHintForRole(oversikt, 'child'), /Dagens plan|lekser|skole|snarveier/i);
-assert.match(lookHintForRole(fokus, 'parent'), /progresjon/i);
+assert.match(lookHintForRole(fokus, 'parent'), /Dagens plan/i);
+assert.match(lookHintForRole(fokus, 'parent'), /varsler/i);
 
 console.log('homeSetupWizard.test.mjs: ok');

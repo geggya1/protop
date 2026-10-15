@@ -9,16 +9,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import {
+  APP_UPDATES,
   formatMajorVersion,
   formatUpdateDate,
   getAppMajor,
   groupUpdatesByDay,
   latestMajorUpdateForVersion as latestMajorFromList,
-  localizeUpdates,
+  listAppUpdates,
   majorNotifyDecision,
   parseSemver,
   pickUpdateText,
-} from './appUpdatesLogic';
+} from './appUpdatesLogic.js';
 
 const T = (nb, en) => ({ nb, en });
 
@@ -26,71 +27,16 @@ export const APP_VERSION_FALLBACK = '2.0.0';
 export const MAJOR_SEEN_PREFIX = 'weekplan.appUpdates.majorSeen.v1';
 
 export {
+  APP_UPDATES,
   formatMajorVersion,
   formatUpdateDate,
   getAppMajor,
   groupUpdatesByDay,
+  listAppUpdates,
   majorNotifyDecision,
   parseSemver,
   pickUpdateText,
 };
-
-/**
- * Newest first. Dates are calendar days (YYYY-MM-DD) — never clock times.
- * - level 'major': bumps marketing version; users get a one-shot popup
- * - level 'fix': silent day note (bugfix / polish)
- */
-export const APP_UPDATES = [
-  {
-    id: '2026-09-16-help-portal',
-    date: '2026-09-16',
-    level: 'fix',
-    title: T('Hjelp & support-portal', 'Help & support portal'),
-    summary: T(
-      'Ny hjelpeside med søk, modulartikler, Skjetten-boten, support-saker med saksnummer, og nyheter etter deploy.',
-      'New help centre with search, module articles, Skjetten bot, support tickets with ticket numbers, and post-deploy news.',
-    ),
-    modules: ['settings', 'support', 'ai'],
-    tags: ['hjelp', 'support', 'ai'],
-  },
-  {
-    id: '2026-09-10-module-intros',
-    date: '2026-09-10',
-    level: 'fix',
-    title: T('Lyspære-guider for flere moduler', 'Lightbulb guides for more modules'),
-    summary: T(
-      'Flere sider har korte introkort og steg-for-steg bak lyspæren.',
-      'More pages have short intro cards and step-by-step help behind the lightbulb.',
-    ),
-    modules: ['home', 'plan', 'stars'],
-    tags: ['lyspære', 'guide'],
-  },
-  {
-    id: '2026-09-01-ai-chat',
-    date: '2026-09-01',
-    level: 'fix',
-    title: T('AI-chat med trådhistorikk', 'AI chat with thread history'),
-    summary: T(
-      'Spør AI husker samtaler, og foresatte får rikere svar om planlegging og hverdag.',
-      'Ask AI remembers threads, and parents get richer answers about planning and everyday life.',
-    ),
-    modules: ['ai'],
-    tags: ['ai', 'chat'],
-  },
-  {
-    id: '2026-08-01-v2',
-    date: '2026-08-01',
-    level: 'major',
-    version: '2.0.0',
-    title: T('ProTop 2.0', 'ProTop 2.0'),
-    summary: T(
-      'Ny app med hjem, plan, oppgaver, handleliste og familieverkøy samlet på ett sted.',
-      'New app with home, plan, tasks, shopping list and family tools in one place.',
-    ),
-    modules: ['home', 'plan', 'stars', 'shop'],
-    tags: ['major', 'versjon'],
-  },
-];
 
 /** Marketing version from Expo config (MAJOR.0.0). */
 export function getAppVersion() {
@@ -116,10 +62,6 @@ export async function saveSeenMajor(uid, major) {
   try {
     await AsyncStorage.setItem(majorSeenKey(uid), String(Math.max(0, Number(major) || 0)));
   } catch { /* ignore */ }
-}
-
-export function listAppUpdates({ lang = 'nb', limit = 40, level = null } = {}) {
-  return localizeUpdates(APP_UPDATES, { lang, limit, level });
 }
 
 export function latestMajorUpdateForVersion(version = getAppVersion()) {

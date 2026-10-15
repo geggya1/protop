@@ -59,7 +59,7 @@ export function parseMercellCatalog(html, pageUrl = '') {
   const source = String(html || '');
   const files = [];
   const seen = new Set();
-  const row = /<(?:td|div)[^>]*(?:WantToDownload|rDynamicDocuments)[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>(?:[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>)?/gi;
+  const row = /<(?:td|div)[^>]*(?:WantToDownload|tdDownload|rDynamicDocuments)[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>(?:[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>)?/gi;
   let match = row.exec(source);
   while (match) {
     const name = decode(match[1].replace(/<[^>]+>/g, ''));

@@ -8,7 +8,7 @@ import {
   formatUpdateDate,
   listAppUpdates,
   pickUpdateText,
-} from './appUpdates';
+} from './appUpdatesLogic.js';
 
 /** @deprecated Prefer APP_UPDATES — kept for older imports. */
 export const HELP_NEWS = APP_UPDATES;

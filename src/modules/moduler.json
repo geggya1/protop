@@ -12,10 +12,10 @@
       "name": "Kalender",
       "category": "main",
       "eyebrow": "Plan. Oversikt. Ro.",
-      "headline": "Hele familien, én plan",
-      "pitch": "Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.",
+      "headline": "Din kalender, én plan",
+      "pitch": "Samle egne avtaler, aktiviteter og påminnelser, så du vet hva som skjer – og når.",
       "benefits": [
-        "Se dagen og uken på tvers av familien",
+        "Se dagen og uken i din egen kalender",
         "Fordel avtaler og få varsler i tide",
         "Unngå dobbeltbookinger og glemte aktiviteter"
       ],
@@ -148,8 +148,9 @@
       "category": "food",
       "eyebrow": "Kjøleskap. Fryser. Oversikt.",
       "headline": "Se hva dere har før dere handler",
-      "pitch": "Registrer kjøleskap, fryser og tørrvarer. ProTop hjelper dere å bruke det som allerede finnes hjemme.",
+      "pitch": "Ta bilde — AI lager innholdslisten. Registrer kjøleskap, fryser og tørrvarer, så ProTop bruker det som allerede finnes hjemme.",
       "benefits": [
+        "Ta bilde — AI lager innholdslisten",
         "Unngå å kjøpe det samme to ganger",
         "Skann strekkoder for rask registrering",
         "Trekk lageret fra handlelisten automatisk"

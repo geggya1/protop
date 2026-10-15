@@ -2235,6 +2235,89 @@ export const MODULE_CATALOG_I18N = {
       ],
     },
 
+    mattehjelp: {
+      name: L('Lær skole', 'Learn school', 'Lær skole', 'Lär skola', 'Opi koulua', 'Ucz się szkoły', 'Aprende el colegio', 'Apprends l’école', 'Schule lernen'),
+      eyebrow: L(
+        'Øv. Spill. Stjerner.',
+        'Practice. Play. Stars.',
+        'Øv. Spil. Stjerner.',
+        'Öva. Spela. Stjärnor.',
+        'Harjoittele. Pelaa. Tähdet.',
+        'Ćwicz. Graj. Gwiazdki.',
+        'Practica. Juega. Estrellas.',
+        'Entraîne-toi. Joue. Étoiles.',
+        'Üben. Spielen. Sterne.'
+      ),
+      headline: L(
+        'Frivillig trening — egen fra leksehjelp',
+        'Voluntary practice — separate from homework help',
+        'Frivillig træning — adskilt fra lektiehjælp',
+        'Frivillig träning — skild från läxhjälp',
+        'Vapaaehtoinen harjoittelu — erillään läksyavusta',
+        'Dobrowolny trening — osobno od pomocy w zadaniach',
+        'Práctica voluntaria — aparte de la ayuda con deberes',
+        'Entraînement libre — à part de l’aide aux devoirs',
+        'Freiwilliges Üben — getrennt von der Hausaufgabenhilfe'
+      ),
+      pitch: L(
+        'Spill og oppdrag fra 3 år — matte, norsk og engelsk med stjerner og hint først. Leksehjelpen er for ekte lekser.',
+        'Games and missions from age 3 — maths, Norwegian and English with stars and hints first. Homework help is for real homework.',
+        'Spil og opgaver fra 3 år — matematik, norsk og engelsk med stjerner og tip først. Lektiehjælpen er til rigtige lektier.',
+        'Spel och uppdrag från 3 år — matte, norska och engelska med stjärnor och tips först. Läxhjälpen är för riktiga läxor.',
+        'Pelejä ja tehtäviä 3 vuodesta — matematiikkaa, norjaa ja englantia tähdillä ja vihjeillä ensin. Läksyapu on oikeisiin läksyihin.',
+        'Gry i zadania od 3 lat — matematyka, norweski i angielski z gwiazdkami i wskazówkami najpierw. Pomoc w zadaniach jest do prawdziwych lekcji.',
+        'Juegos y misiones desde los 3 años — mates, noruego e inglés con estrellas y pistas primero. La ayuda con deberes es para deberes de verdad.',
+        'Jeux et missions dès 3 ans — maths, norvégien et anglais avec étoiles et indices d’abord. L’aide aux devoirs est pour les vrais devoirs.',
+        'Spiele und Aufträge ab 3 Jahren — Mathe, Norwegisch und Englisch zuerst mit Sternen und Hinweisen. Die Hausaufgabenhilfe ist für echte Hausaufgaben.'
+      ),
+      activationLabel: L(
+        'Aktiver Lær skole',
+        'Activate Learn school',
+        'Aktiver Lær skole',
+        'Aktivera Lär skola',
+        'Aktivoi Opi koulua',
+        'Aktywuj Ucz się szkoły',
+        'Activar Aprende el colegio',
+        'Activer Apprends l’école',
+        'Schule lernen aktivieren'
+      ),
+      benefits: [
+        L(
+          'Aldersverdener: Småtroll, Oppdagere, Mestring, Utfordring',
+          'Age worlds: Little trolls, Explorers, Mastery, Challenge',
+          'Aldersverdener: Småtrolde, Opdagere, Mestring, Udfordring',
+          'Åldersvärldar: Småtroll, Upptäckare, Behärskning, Utmaning',
+          'Ikämaailmat: Pikkutrollit, Löytöretkeilijät, Osaaminen, Haaste',
+          'Światy wieku: Małe trolle, Odkrywcy, Opanowanie, Wyzwanie',
+          'Mundos por edad: Duendecillos, Exploradores, Dominio, Reto',
+          'Mondes par âge : Petits trolls, Explorateurs, Maîtrise, Défi',
+          'Alterswelten: Kleine Trolle, Entdecker, Können, Herausforderung'
+        ),
+        L(
+          'Interaktive spill + dagens oppdrag + AI-los',
+          'Interactive games + today’s mission + AI guide',
+          'Interaktive spil + dagens opgave + AI-los',
+          'Interaktiva spel + dagens uppdrag + AI-lots',
+          'Interaktiiviset pelit + päivän tehtävä + AI-opas',
+          'Interaktywne gry + zadanie dnia + przewodnik AI',
+          'Juegos interactivos + misión del día + guía de IA',
+          'Jeux interactifs + mission du jour + guide IA',
+          'Interaktive Spiele + Auftrag des Tages + KI-Lotse'
+        ),
+        L(
+          'Tydelig skilt fra Leksehjelpen (ekte lekser)',
+          'Clearly separate from Homework help (real homework)',
+          'Tydeligt adskilt fra Lektiehjælpen (rigtige lektier)',
+          'Tydligt skild från Läxhjälpen (riktiga läxor)',
+          'Selvästi erillään Läksyavusta (oikeat läksyt)',
+          'Wyraźnie oddzielone od Pomocy w zadaniach (prawdziwe lekcje)',
+          'Claramente aparte de la Ayuda con deberes (deberes de verdad)',
+          'Clairement séparé de l’Aide aux devoirs (vrais devoirs)',
+          'Klar getrennt von der Hausaufgabenhilfe (echte Hausaufgaben)'
+        ),
+      ],
+    },
+
     'week-plan': {
       name: L('Ukeplan', 'Week plan', 'Ugeplan', 'Veckoplan', 'Viikkosuunnitelma', 'Plan tygodnia', 'Plan semanal', 'Planning hebdo', 'Wochenplan'),
       eyebrow: L(

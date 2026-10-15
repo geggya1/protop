@@ -277,7 +277,7 @@ export const FORM_SECTIONS = [
     repeatable: true,
     collection: 'cv.projects',
     itemLabel: 'Prosjekt',
-    blurb: 'Referanseprosjekter knyttet til personen. På CV-en åpner blyanten prosjektet, og PDF og Word lager referansearket.',
+    blurb: 'Referanseprosjekter knyttet til personen. Kobling til bedriftens prosjektregister kan settes senere. På CV-en åpner blyanten prosjektet, og PDF og Word lager referansearket.',
     fields: [
       { key: 'title', label: 'Prosjekt', type: 'text' },
       { key: 'images', label: 'Bilder', type: 'photos' },

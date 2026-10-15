@@ -24,3 +24,13 @@ export function timesheetIdentity({ personal = false, compact = false } = {}) {
 export function canSwitchTimesheetPerson({ personal = false, locked = false, manager = false } = {}) {
   return !personal && !locked && !!manager;
 }
+
+/** Steg 1 før timeliste/timesaldo: leder må velge person først. */
+export function needsTimesheetPersonStep({
+  personal = false,
+  locked = false,
+  manager = false,
+  employeeId = '',
+} = {}) {
+  return canSwitchTimesheetPerson({ personal, locked, manager }) && !String(employeeId || '').trim();
+}

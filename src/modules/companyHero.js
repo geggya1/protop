@@ -182,6 +182,7 @@ export const COMPANY_HERO = {
   },
   'arbeid-timerapport': {
     ...CYAN,
+    wideArt: true,
     name: 'Timerapport',
     kicker: t('Arbeid', 'Work'),
     title: t('Timerapport', 'Hours report'),

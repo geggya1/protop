@@ -13,6 +13,7 @@ import {
   formatMoney,
   formatNbDate,
   hasOpenCaseLike,
+  hrStateHasData,
   moveApplicationBoard,
   normalizeApplication,
   normalizeContract,
@@ -23,6 +24,7 @@ import {
   recruitmentFunnel,
   salarySeriesWithPercents,
   upcomingPeopleEvents,
+  upsertActiveContract,
   upsertRow,
   yearsBetween,
 } from './model.js';
@@ -136,13 +138,37 @@ import {
 
 {
   const state = normalizeHrState({
-    memos: [{ employeeId: 'e1', title: 'Synlig', employeeVisible: true, attachments: [{ name: 'a.pdf', url: 'https://x' }] }],
+    memos: [
+      { id: 'm-vis', employeeId: 'e1', title: 'Synlig', employeeVisible: true, attachments: [{ name: 'a.pdf', url: 'https://x' }] },
+      { id: 'm-priv', employeeId: 'e1', title: 'Privat', employeeVisible: false },
+    ],
+    files: [
+      { id: 'f1', employeeId: 'e1', name: 'cv.pdf', memoId: '' },
+      { id: 'f2', employeeId: 'e1', name: 'privat.pdf', memoId: 'm-priv' },
+      { id: 'f3', employeeId: 'e1', name: 'synlig.pdf', memoId: 'm-vis' },
+    ],
     applications: [{ name: 'Ada', stage: 'interview' }],
   });
   assert.equal(state.applications[0].board, 'processing');
   assert.equal(state.memos[0].attachments.length, 1);
   const slice = employeeVisibleSlice(state, 'e1');
   assert.equal(slice.memos.length, 1);
+  assert.equal(slice.files.length, 2);
+  assert.ok(slice.files.every((f) => f.id !== 'f2'));
+  assert.ok(slice.files.some((f) => f.id === 'f1'));
+  assert.ok(slice.files.some((f) => f.id === 'f3'));
+}
+
+{
+  const first = upsertActiveContract([], {
+    id: 'c1', employeeId: 'e1', title: 'Avtale 1', startDate: '2024-01-01', status: 'active',
+  });
+  const second = upsertActiveContract(first, {
+    id: 'c2', employeeId: 'e1', title: 'Avtale 2', startDate: '2025-01-01', status: 'active',
+  });
+  assert.equal(second.filter((c) => c.status === 'active').length, 1);
+  assert.equal(second.find((c) => c.id === 'c1').status, 'ended');
+  assert.equal(second.find((c) => c.id === 'c2').status, 'active');
 }
 
 {
@@ -173,6 +199,8 @@ import {
 {
   const list = upsertRow([], { employeeId: 'e1', annualAmount: 1, effectiveDate: '2024-01-01' }, normalizeSalary);
   assert.equal(list.length, 1);
+  assert.equal(hrStateHasData(emptyHrState()), false);
+  assert.equal(hrStateHasData({ contracts: [{ employeeId: 'e1', title: 'Avtale' }] }), true);
 }
 
 {

@@ -9,6 +9,7 @@ import {
   employeeVisibleSlice,
   formatMoney,
   formatNbDate,
+  salarySeriesWithPercents,
   TASK_STATUSES,
 } from '../../src/hr/model';
 import { loadHrState } from '../../src/hr/storage';
@@ -131,10 +132,19 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
         {slice.salaries.length ? (
           <View style={styles.block}>
             <Text style={[styles.blockTitle, { color: colors.ink }]}>Lønn</Text>
-            <SalarySparkline colors={colors} series={slice.salaries.filter((s) => s.kind === 'actual')} />
-            {slice.salaries.map((row) => (
+            <SalarySparkline
+              colors={colors}
+              series={salarySeriesWithPercents(employeeId, slice.salaries)}
+              showPercent
+            />
+            {salarySeriesWithPercents(employeeId, slice.salaries).map((row) => (
               <Text key={row.id} style={[styles.salaryLine, { color: colors.muted }]}>
-                {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}${row.kind === 'planned' ? ' (planlagt)' : ''}`}
+                {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}${row.changePercent != null ? ` · ${row.changePercent > 0 ? '+' : ''}${row.changePercent} %` : ''}`}
+              </Text>
+            ))}
+            {slice.salaries.filter((s) => s.kind === 'planned').map((row) => (
+              <Text key={row.id} style={[styles.salaryLine, { color: colors.muted }]}>
+                {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)} (planlagt)`}
               </Text>
             ))}
           </View>

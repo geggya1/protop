@@ -398,6 +398,27 @@ export function upsertRow(list, row, normalizeOne) {
   return rows;
 }
 
+/** Sett inn/oppdater aktiv avtale og avslutt øvrige aktive for samme person. */
+export function upsertActiveContract(list, contract) {
+  const row = normalizeContract({ ...contract, status: 'active' });
+  const emp = text(row.employeeId);
+  const today = new Date().toISOString().slice(0, 10);
+  const rest = (Array.isArray(list) ? list : [])
+    .filter((item) => item.id !== row.id)
+    .map((item) => {
+      if (text(item.employeeId) === emp && item.status === 'active') {
+        return {
+          ...item,
+          status: 'ended',
+          endDate: item.endDate || today,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return item;
+    });
+  return [row, ...rest];
+}
+
 export function removeRow(list, id) {
   const wanted = text(id);
   return (Array.isArray(list) ? list : []).filter((row) => row.id !== wanted);
@@ -409,17 +430,32 @@ export function forEmployee(list, employeeId) {
   return (Array.isArray(list) ? list : []).filter((row) => text(row.employeeId) === id);
 }
 
+/** True når HR-state inneholder minst én lagret samling (ikke bare tom skall). */
+export function hrStateHasData(state) {
+  const src = normalizeHrState(state);
+  return [
+    'contracts', 'reviews', 'cases', 'memos', 'tasks',
+    'salaries', 'jobs', 'applications', 'compliance', 'files',
+  ].some((key) => (src[key] || []).length > 0);
+}
+
 export function employeeVisibleSlice(state, employeeId) {
   const id = text(employeeId);
   const src = normalizeHrState(state);
+  const visibleMemos = forEmployee(src.memos, id).filter((row) => row.employeeVisible);
+  const visibleMemoIds = new Set(visibleMemos.map((row) => row.id));
   return {
     reviews: forEmployee(src.reviews, id).filter((row) => row.employeeVisible),
     cases: forEmployee(src.cases, id).filter((row) => row.employeeVisible),
-    memos: forEmployee(src.memos, id).filter((row) => row.employeeVisible),
+    memos: visibleMemos,
     tasks: forEmployee(src.tasks, id).filter((row) => row.employeeVisible),
     salaries: forEmployee(src.salaries, id).filter((row) => row.employeeVisible),
     contracts: forEmployee(src.contracts, id).filter((row) => row.status === 'active' || row.status === 'ended'),
-    files: forEmployee(src.files, id),
+    // Fil knyttet til privat memo skal ikke lekke til Min side.
+    files: forEmployee(src.files, id).filter((file) => {
+      if (!file.memoId) return true;
+      return visibleMemoIds.has(file.memoId);
+    }),
   };
 }
 

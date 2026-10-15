@@ -12,12 +12,14 @@ import {
   formatNbDate,
   normalizeContract,
   upcomingPeopleEvents,
+  upsertActiveContract,
   yearsBetween,
 } from '../../src/hr/model';
 import {
   companyComplianceOverview,
   complianceSummary,
   ensureEmployeeCompliance,
+  syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
 import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink } from './HrShared';
 
@@ -52,9 +54,13 @@ export default function HrPeople({
 
   const complianceByEmp = useMemo(
     () => Object.fromEntries(
-      companyComplianceOverview(employees, hr.compliance).map((row) => [row.employeeId, row]),
+      companyComplianceOverview(employees, hr.compliance, {
+        contracts: hr.contracts,
+        reviews: hr.reviews,
+        applyEvidence: true,
+      }).map((row) => [row.employeeId, row]),
     ),
-    [employees, hr.compliance],
+    [employees, hr.compliance, hr.contracts, hr.reviews],
   );
 
   const selected = rows.find((row) => row.id === selectedId) || employees.find((row) => row.id === selectedId) || null;
@@ -70,7 +76,14 @@ export default function HrPeople({
     ? upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2)
     : [];
   const compliance = selected
-    ? complianceSummary(ensureEmployeeCompliance(hr.compliance || [], selected.id))
+    ? complianceSummary(ensureEmployeeCompliance(
+      syncComplianceFromEvidence(hr.compliance || [], {
+        employeeId: selected.id,
+        contracts: hr.contracts || [],
+        reviews: hr.reviews || [],
+      }),
+      selected.id,
+    ))
     : null;
 
   return (
@@ -211,7 +224,15 @@ export default function HrPeople({
                     employeeId: selected.id,
                     status: 'active',
                   });
-                  onPatch?.({ contracts: [row, ...(hr.contracts || [])] });
+                  onPatch?.((state) => {
+                    const contracts = upsertActiveContract(state.contracts || [], row);
+                    const compliance = syncComplianceFromEvidence(state.compliance || [], {
+                      employeeId: selected.id,
+                      contracts,
+                      reviews: state.reviews || [],
+                    });
+                    return { contracts, compliance };
+                  });
                   setContractDraft({
                     title: 'Arbeidsavtale',
                     startDate: '',

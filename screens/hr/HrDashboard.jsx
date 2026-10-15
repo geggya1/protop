@@ -38,8 +38,12 @@ export default function HrDashboard({
   const activePeople = (employees || []).filter((row) => row?.company?.status !== 'deleted').length;
 
   const complianceRows = useMemo(
-    () => companyComplianceOverview(employees, hr.compliance),
-    [employees, hr.compliance],
+    () => companyComplianceOverview(employees, hr.compliance, {
+      contracts: hr.contracts,
+      reviews: hr.reviews,
+      applyEvidence: true,
+    }),
+    [employees, hr.compliance, hr.contracts, hr.reviews],
   );
   const complianceGap = complianceRows.reduce((sum, row) => sum + row.missing, 0);
   const worstGaps = complianceRows.filter((row) => row.missing > 0).slice(0, 5);
@@ -51,13 +55,17 @@ export default function HrDashboard({
     if (!canWrite || !onPatch) return;
     const row = caseFromPeopleEvent(event);
     if (!row) return;
-    if (hasOpenCaseLike(hr.cases, row)) {
+    let created = false;
+    onPatch((state) => {
+      if (hasOpenCaseLike(state.cases, row)) return {};
+      created = true;
+      return { cases: [row, ...(state.cases || [])] };
+    });
+    if (created) showSaveToast?.('Planleggingssak opprettet');
+    else {
       showSaveToast?.('Sak finnes allerede');
       onOpenFollowUp?.();
-      return;
     }
-    onPatch({ cases: [row, ...(hr.cases || [])] });
-    showSaveToast?.('Planleggingssak opprettet');
   }
 
   function planContract(contract) {
@@ -67,13 +75,17 @@ export default function HrDashboard({
       employeeName: person ? displayName(person) : '',
     });
     if (!row) return;
-    if (hasOpenCaseLike(hr.cases, row)) {
+    let created = false;
+    onPatch((state) => {
+      if (hasOpenCaseLike(state.cases, row)) return {};
+      created = true;
+      return { cases: [row, ...(state.cases || [])] };
+    });
+    if (created) showSaveToast?.('Oppfølgingssak for avtale opprettet');
+    else {
       showSaveToast?.('Sak finnes allerede');
       onOpenFollowUp?.();
-      return;
     }
-    onPatch({ cases: [row, ...(hr.cases || [])] });
-    showSaveToast?.('Oppfølgingssak for avtale opprettet');
   }
 
   return (

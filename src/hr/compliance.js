@@ -257,13 +257,24 @@ export function syncComplianceFromEvidence(compliance, {
 }
 
 /** Oversikt over compliance-gap for hele selskapet (sortert verst først). */
-export function companyComplianceOverview(employees, compliance) {
+export function companyComplianceOverview(employees, compliance, {
+  contracts = [],
+  reviews = [],
+  applyEvidence = true,
+} = {}) {
   const rows = [];
   for (const emp of employees || []) {
     if (emp?.company?.status === 'deleted') continue;
     const id = String(emp?.id || '');
     if (!id) continue;
-    const items = ensureEmployeeCompliance(compliance || [], id);
+    const sourced = applyEvidence
+      ? syncComplianceFromEvidence(compliance || [], {
+        employeeId: id,
+        contracts,
+        reviews,
+      })
+      : (compliance || []);
+    const items = ensureEmployeeCompliance(sourced, id);
     const summary = complianceSummary(items);
     rows.push({
       employeeId: id,

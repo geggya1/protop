@@ -45,7 +45,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
-  hrRef.current = hr;
+  const familyIdRef = useRef(familyId);
+  const saveChainRef = useRef(Promise.resolve());
+  familyIdRef.current = familyId;
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -55,20 +57,26 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useEffect(() => {
     let live = true;
     if (!familyId) return undefined;
+    // Bytt selskap: avbryt eldre lagrekø og nullstill lokal state.
+    saveChainRef.current = Promise.resolve();
+    const empty = emptyHrState();
+    hrRef.current = empty;
+    setHr(empty);
     setReady(false);
-    loadHrState(familyId).then((state) => {
-      if (!live) return;
-      setHr(state);
+    const companyId = familyId;
+    loadHrState(companyId).then((state) => {
+      if (!live || familyIdRef.current !== companyId) return;
       hrRef.current = state;
+      setHr(state);
       setReady(true);
-      if (hrLoadMeta(familyId) === 'error') {
+      if (hrLoadMeta(companyId) === 'error') {
         showSaveToast?.('HR lastet fra lokal kopi — skyen ikke klar');
       }
     }).catch(() => {
-      if (!live) return;
-      const empty = emptyHrState();
-      setHr(empty);
-      hrRef.current = empty;
+      if (!live || familyIdRef.current !== companyId) return;
+      const fallback = emptyHrState();
+      hrRef.current = fallback;
+      setHr(fallback);
       setReady(true);
     });
     return () => { live = false; };
@@ -86,25 +94,42 @@ export default function HrScreen({ subView = 'oversikt' }) {
     return () => { live = false; };
   }, [familyId, months]);
 
-  const persist = useCallback(async (next) => {
+  const persist = useCallback((next) => {
     const normalized = normalizeHrState(next);
+    const companyId = familyIdRef.current;
     hrRef.current = normalized;
     setHr(normalized);
-    if (!familyId) return;
-    try {
-      await saveHrState(normalized, familyId);
-      showSaveToast?.('Lagret');
-    } catch (err) {
-      const code = String(err?.code || '');
-      if (code === 'hr/auth') showSaveToast?.('Ikke innlogget — lagret lokalt');
-      else if (code === 'hr/permission') showSaveToast?.('Mangler tilgang til å lagre HR');
-      else showSaveToast?.('Kunne ikke lagre i skyen');
-    }
-  }, [familyId]);
+    if (!companyId) return;
+    const snapshot = normalized;
+    const job = saveChainRef.current
+      .catch(() => {})
+      .then(async () => {
+        // Aldri skriv til et annet selskap enn det patchen ble køet for.
+        if (familyIdRef.current !== companyId) return;
+        const latest = hrRef.current;
+        const toSave = (latest?.updatedAt && snapshot.updatedAt
+          && String(latest.updatedAt) > String(snapshot.updatedAt))
+          ? latest
+          : snapshot;
+        try {
+          await saveHrState(toSave, companyId);
+          if (familyIdRef.current === companyId) showSaveToast?.('Lagret');
+        } catch (err) {
+          if (familyIdRef.current !== companyId) return;
+          const code = String(err?.code || '');
+          if (code === 'hr/auth') showSaveToast?.('Ikke innlogget — lagret lokalt');
+          else if (code === 'hr/permission') showSaveToast?.('Mangler tilgang til å lagre HR');
+          else if (code === 'hr/skip-empty') showSaveToast?.('Hopper over tom lagring');
+          else showSaveToast?.('Kunne ikke lagre i skyen');
+        }
+      });
+    saveChainRef.current = job;
+  }, []);
 
-  const onPatch = useCallback((partial) => {
-    // Bruk ref slik at raske påfølgende patcher ikke overskriver hverandre.
-    const next = patchHrState(hrRef.current, partial);
+  const onPatch = useCallback((partialOrFn) => {
+    const base = hrRef.current || emptyHrState();
+    const partial = typeof partialOrFn === 'function' ? partialOrFn(base) : partialOrFn;
+    const next = patchHrState(base, partial);
     persist(next);
   }, [persist]);
   const go = useCallback((id) => {
@@ -164,7 +189,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
           canWrite={canWrite}
           selectedEmployeeId={selectedEmployeeId}
           onSelectEmployee={setSelectedEmployeeId}
-          onSaveSalaries={(salaries) => onPatch({ salaries })}
+          onSaveSalaries={(salariesOrFn) => onPatch((state) => ({
+            salaries: typeof salariesOrFn === 'function'
+              ? salariesOrFn(state.salaries || [])
+              : salariesOrFn,
+          }))}
         />
       );
     }

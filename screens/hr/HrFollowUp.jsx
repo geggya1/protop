@@ -124,33 +124,37 @@ export default function HrFollowUp({
 
   function saveReview() {
     if (!canWrite || !employeeId) return;
-    const prev = latestReviewsFor(employeeId, hr.reviews, 1)[0];
+    const draftSnapshot = { ...reviewDraft };
     const row = normalizeReview({
-      ...reviewDraft,
+      ...draftSnapshot,
       employeeId,
-      previousReviewId: prev?.id || '',
+      previousReviewId: '',
       employeeVisible: true,
-      status: reviewDraft.status || 'done',
+      status: draftSnapshot.status || 'done',
     });
-    const nextReviews = [row, ...(hr.reviews || [])];
-    let nextCases = hr.cases || [];
-    if (String(reviewDraft.followUps || '').trim()) {
-      const caseRow = normalizeCase({
+    onPatch?.((state) => {
+      const prev = latestReviewsFor(employeeId, state.reviews, 1)[0];
+      const saved = { ...row, previousReviewId: prev?.id || '' };
+      const nextReviews = [saved, ...(state.reviews || [])];
+      let nextCases = state.cases || [];
+      if (String(draftSnapshot.followUps || '').trim()) {
+        const caseRow = normalizeCase({
+          employeeId,
+          title: `Oppfølging fra samtale ${formatNbDate(saved.date)}`,
+          description: draftSnapshot.followUps,
+          priority: 'normal',
+          sourceReviewId: saved.id,
+          status: 'open',
+        });
+        nextCases = [caseRow, ...nextCases];
+      }
+      const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId,
-        title: `Oppfølging fra samtale ${formatNbDate(row.date)}`,
-        description: reviewDraft.followUps,
-        priority: 'normal',
-        sourceReviewId: row.id,
-        status: 'open',
+        contracts: state.contracts || [],
+        reviews: nextReviews,
       });
-      nextCases = [caseRow, ...nextCases];
-    }
-    const compliance = syncComplianceFromEvidence(hr.compliance || [], {
-      employeeId,
-      contracts: hr.contracts || [],
-      reviews: nextReviews,
+      return { reviews: nextReviews, cases: nextCases, compliance };
     });
-    onPatch?.({ reviews: nextReviews, cases: nextCases, compliance });
     setSelectedReviewId(row.id);
     setReviewDraft({
       date: new Date().toISOString().slice(0, 10),
@@ -164,7 +168,7 @@ export default function HrFollowUp({
       followUps: '',
       status: 'done',
     });
-    showSaveToast?.(reviewDraft.followUps?.trim()
+    showSaveToast?.(draftSnapshot.followUps?.trim()
       ? 'Samtale lagret · avvik opprettet som sak'
       : 'Samtale lagret');
   }
@@ -206,7 +210,7 @@ export default function HrFollowUp({
         size: picked.size,
         kind: 'document',
       });
-      onPatch?.({ files: [file, ...(hr.files || [])] });
+      onPatch?.((state) => ({ files: [file, ...(state.files || [])] }));
       showSaveToast?.('Fil lagret på ansatt');
     } catch {
       showSaveToast?.('Kunne ikke lagre fil');
@@ -224,7 +228,7 @@ export default function HrFollowUp({
       url: fileDraft.url,
       kind: 'document',
     });
-    onPatch?.({ files: [file, ...(hr.files || [])] });
+    onPatch?.((state) => ({ files: [file, ...(state.files || [])] }));
     setFileDraft({ name: '', url: '' });
   }
 
@@ -268,9 +272,9 @@ export default function HrFollowUp({
               onPress={() => {
                 if (!canWrite) return;
                 const status = row.status === 'closed' ? 'open' : 'closed';
-                onPatch?.({
-                  cases: (hr.cases || []).map((item) => (item.id === row.id ? { ...item, status } : item)),
-                });
+                onPatch?.((state) => ({
+                  cases: (state.cases || []).map((item) => (item.id === row.id ? { ...item, status } : item)),
+                }));
               }}
             />
           ))}
@@ -295,7 +299,7 @@ export default function HrFollowUp({
                 onPress={() => {
                   if (!caseDraft.title.trim()) return;
                   const row = normalizeCase({ ...caseDraft, employeeId });
-                  onPatch?.({ cases: [row, ...(hr.cases || [])] });
+                  onPatch?.((state) => ({ cases: [row, ...(state.cases || [])] }));
                   setCaseDraft({ title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false });
                 }}
               />
@@ -460,19 +464,21 @@ export default function HrFollowUp({
                       ? [{ name: memoDraft.fileName || 'Dokument', url: memoDraft.fileUrl }]
                       : [];
                     const row = normalizeMemo({ ...memoDraft, employeeId, attachments });
-                    const files = attachments.length
-                      ? [
-                        normalizeHrFile({
-                          employeeId,
-                          name: attachments[0].name,
-                          url: attachments[0].url,
-                          memoId: row.id,
-                          kind: 'memo',
-                        }),
-                        ...(hr.files || []),
-                      ]
-                      : hr.files;
-                    onPatch?.({ memos: [row, ...(hr.memos || [])], files });
+                    onPatch?.((state) => {
+                      const files = attachments.length
+                        ? [
+                          normalizeHrFile({
+                            employeeId,
+                            name: attachments[0].name,
+                            url: attachments[0].url,
+                            memoId: row.id,
+                            kind: 'memo',
+                          }),
+                          ...(state.files || []),
+                        ]
+                        : state.files;
+                      return { memos: [row, ...(state.memos || [])], files };
+                    });
                     setMemoDraft({ title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '' });
                   }}
                 />
@@ -526,9 +532,9 @@ export default function HrFollowUp({
               onPress={() => {
                 if (!canWrite) return;
                 const status = row.status === 'done' ? 'open' : 'done';
-                onPatch?.({
-                  tasks: (hr.tasks || []).map((item) => (item.id === row.id ? { ...item, status } : item)),
-                });
+                onPatch?.((state) => ({
+                  tasks: (state.tasks || []).map((item) => (item.id === row.id ? { ...item, status } : item)),
+                }));
               }}
             />
           ))}
@@ -548,7 +554,7 @@ export default function HrFollowUp({
                 onPress={() => {
                   if (!taskDraft.title.trim()) return;
                   const row = normalizeTask({ ...taskDraft, employeeId, employeeVisible: true });
-                  onPatch?.({ tasks: [row, ...(hr.tasks || [])] });
+                  onPatch?.((state) => ({ tasks: [row, ...(state.tasks || [])] }));
                   setTaskDraft({ title: '', description: '', dueDate: '', status: 'open' });
                 }}
               />

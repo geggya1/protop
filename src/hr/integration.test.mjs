@@ -50,12 +50,23 @@ for (const item of HR_MENU) {
 }
 
 {
+  const visibleMemo = normalizeMemo({
+    id: 'm1', employeeId: 'e1', title: 'Tips', body: 'Bra jobb', employeeVisible: true,
+  });
+  const privateMemo = normalizeMemo({
+    id: 'm2', employeeId: 'e1', title: 'Intern', body: 'Hemmelig', employeeVisible: false,
+  });
   const state = normalizeHrState({
     tasks: [
       normalizeTask({ employeeId: 'e1', title: 'Lever CV', employeeVisible: true }),
       normalizeTask({ employeeId: 'e1', title: 'Hemmelig', employeeVisible: false }),
     ],
-    memos: [normalizeMemo({ employeeId: 'e1', title: 'Tips', body: 'Bra jobb', employeeVisible: true })],
+    memos: [visibleMemo, privateMemo],
+    files: [
+      { employeeId: 'e1', name: 'åpen.pdf' },
+      { employeeId: 'e1', name: 'lekasje.pdf', memoId: privateMemo.id },
+      { employeeId: 'e1', name: 'vedlegg.pdf', memoId: visibleMemo.id },
+    ],
     salaries: [
       normalizeSalary({
         employeeId: 'e1', kind: 'actual', effectiveDate: '2024-01-01',
@@ -67,6 +78,8 @@ for (const item of HR_MENU) {
   assert.equal(slice.tasks.length, 1);
   assert.equal(slice.tasks[0].title, 'Lever CV');
   assert.equal(slice.memos.length, 1);
+  assert.equal(slice.files.length, 2);
+  assert.ok(!slice.files.some((f) => f.name === 'lekasje.pdf'));
   assert.equal(slice.salaries[0].annualAmount, 650000);
 }
 

@@ -10,7 +10,7 @@ import {
   isFirestorePermissionError,
   waitForFirestoreAccess,
 } from '../utils/firestoreAccess.js';
-import { emptyHrState, normalizeHrState } from './model.js';
+import { emptyHrState, hrStateHasData, normalizeHrState } from './model.js';
 
 const KEY = 'protop.hr.v1';
 const REMOTE_AUTH_MS = 8000;
@@ -95,7 +95,7 @@ async function readRemote(companyId) {
   if (!authed) return { ok: false, state: null, reason: 'auth' };
   try {
     const snap = await getDoc(ref);
-    if (!snap.exists()) return { ok: true, state: emptyHrState(), reason: 'missing' };
+    if (!snap.exists()) return { ok: true, state: null, reason: 'missing' };
     return { ok: true, state: normalizeHrState(snap.data()), reason: 'ok' };
   } catch (err) {
     if (isFirestorePermissionError(err)) {
@@ -116,6 +116,17 @@ export async function loadHrState(companyId) {
     // Vis lokal cache med en gang, men ikke marker ok før skyen svarer.
     putMemory(companyId, local);
     const remote = await readRemote(companyId);
+    if (remote.ok && remote.reason === 'missing') {
+      // Tom sky: behold lokal data hvis den finnes (offline / ikke synket ennå).
+      if (hrStateHasData(local)) {
+        loadMeta.set(key, 'local');
+        return local;
+      }
+      const empty = emptyHrState();
+      loadMeta.set(key, 'ok');
+      putMemory(companyId, empty);
+      return empty;
+    }
     if (remote.ok && remote.state) {
       loadMeta.set(key, 'ok');
       putMemory(companyId, remote.state);
@@ -136,15 +147,31 @@ export async function loadHrState(companyId) {
 }
 
 export async function saveHrState(state, companyId) {
+  const incoming = normalizeHrState(state);
+  const key = memoryKey(companyId);
+  const cached = MEMORY.get(key);
+  // Ikke la en eldre lagring overskrive nyere in-memory state for samme selskap.
+  if (cached?.updatedAt && incoming.updatedAt
+    && String(cached.updatedAt) > String(incoming.updatedAt)) {
+    return cached;
+  }
   const next = normalizeHrState({
-    ...state,
-    updatedAt: new Date().toISOString(),
+    ...incoming,
+    updatedAt: incoming.updatedAt || new Date().toISOString(),
   });
   putMemory(companyId, next);
   await writeLocal(companyId, next);
 
   const ref = hrDoc(companyId);
   if (!ref) return next;
+
+  const meta = loadMeta.get(key) || '';
+  // Unngå å pushe en tom økt oppå skydata etter mislykket lasting.
+  if ((meta === 'error' || meta === 'local') && !hrStateHasData(next)) {
+    const err = new Error('Hopper over tom HR-skriving etter usikker lasting');
+    err.code = 'hr/skip-empty';
+    throw err;
+  }
 
   const authed = await ensureRemoteAuth();
   if (!authed) {

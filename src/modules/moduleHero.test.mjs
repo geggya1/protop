@@ -249,6 +249,12 @@ const COMPANY_PAGES = [
   ['skjema', null, 'skjema'],
   ['iso', null, 'iso'],
   ['timeliste', null, 'timeliste'],
+  ['hr', 'oversikt', 'hr-oversikt'],
+  ['hr', 'personell', 'hr-personell'],
+  ['hr', 'produktivitet', 'hr-produktivitet'],
+  ['hr', 'lonn', 'hr-lonn'],
+  ['hr', 'oppfolging', 'hr-oppfolging'],
+  ['hr', 'rekruttering', 'hr-rekruttering'],
   ['selskap', null, 'selskap'],
   ['selskap', 'tilgang', 'selskap-tilgang'],
   ['selskap', 'underenheter', 'underenheter'],
@@ -334,6 +340,11 @@ const TEXT_ONLY_PASTEL = {
   'arbeid-planlagt': ['#f4efe6', '#fbf8f2', '#b45309'],
   'okonomi-kunder': ['#e7f7ee', '#f5fcf8', '#15803d'],
   'okonomi-avtaler': ['#e7f7ee', '#f5fcf8', '#15803d'],
+  'hr-oversikt': ['#e7f7ee', '#f5fcf8', '#15803d'],
+  'hr-personell': ['#e7f7ee', '#f5fcf8', '#15803d'],
+  'hr-produktivitet': ['#e6f5fb', '#f4fbfe', '#0284c7'],
+  'hr-lonn': ['#f4efe6', '#fbf8f2', '#b45309'],
+  'hr-oppfolging': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
 };
 for (const id of Object.keys(COMPANY_HERO)) {
   const band = resolveModuleHero(id, 'nb');

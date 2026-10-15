@@ -27,7 +27,9 @@ import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
 import IsoScreen from '../screens/project/IsoScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
+import HrScreen from '../screens/hr/HrScreen';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
+import { defaultHrSubView } from '../src/navigation/shellModules';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { configForType } from '../src/platform/platformConfigs';
 import PlatformHeader from './platform/PlatformHeader';
@@ -82,6 +84,7 @@ const TITLES = {
   skjema: 'Skjema',
   selskap: 'Selskap',
   ansatte: 'Ansatte',
+  hr: 'HR',
   projects: 'Prosjekt',
   arbeid: 'Arbeid',
   iso: 'ISO',
@@ -209,6 +212,7 @@ export default function SocialPlatformShell({ platformType }) {
     }
     if (tab === 'kunder') return <CustomersScreen />;
     if (tab === 'ansatte') return <EmployeesScreen />;
+    if (tab === 'hr') return <HrScreen subView={route.params?.subView || defaultHrSubView(null)} />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (

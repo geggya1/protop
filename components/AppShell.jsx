@@ -35,11 +35,12 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
+import HrScreen from '../screens/hr/HrScreen';
 import UsageRecorder from './UsageRecorder';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -481,6 +482,11 @@ function AppShellInner() {
       setTab('okonomi');
       return;
     }
+    if (id === 'hr') {
+      setMoreSubView(defaultHrSubView(subView));
+      setTab('hr');
+      return;
+    }
     setMoreSubView(subView);
     setTab(id);
   };
@@ -607,6 +613,7 @@ function AppShellInner() {
     }
     if (tab === 'kunder') return <CustomersScreen />;
     if (tab === 'ansatte') return <EmployeesScreen />;
+    if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (
@@ -793,7 +800,7 @@ function AppShellInner() {
 
   const showDeskAside = isDesktop && !kitchenMode
     && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
-    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'iso' && tab !== 'ansatte';
+    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'iso' && tab !== 'ansatte' && tab !== 'hr';
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

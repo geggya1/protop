@@ -149,9 +149,7 @@ export function normalizeMemberIds(ids) {
 export function assertValidVisitInput(data) {
   const code = String(data.countryCode || '').toUpperCase();
   if (!COUNTRY_BY_CODE[code]) throw new Error('Ukjent land.');
-  const skipYear = data.skipYear === true
-    || data.year == null
-    || data.year === '';
+  const skipYear = data.skipYear === true;
   let year = null;
   if (!skipYear) {
     year = Number(data.year);

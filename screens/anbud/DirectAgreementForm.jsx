@@ -768,7 +768,7 @@ export default function DirectAgreementForm({
         </View>
       ) : (
         <Text style={{ color: colors.muted }}>
-          Last opp avtaledokumentene. Kjente felt fylles ut til venstre. Originalfilen lagres og forhåndsvises til høyre. Felt med ! må kontrolleres.
+          Last opp avtaledokumentene. OCR og KI leser kjente felt til venstre. Originalfilen lagres og forhåndsvises til høyre. Felt med ! må kontrolleres.
         </Text>
       )}
       {reading ? (

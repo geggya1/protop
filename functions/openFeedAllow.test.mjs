@@ -29,6 +29,6 @@ assert.match(feed, /Mozilla\/5\.0/);
 assert.match(feed, /invoker: 'public'/);
 
 const feedIndex = readFileSync(new URL('./openFeedIndex.js', import.meta.url), 'utf8');
-assert.match(feedIndex, /export \{ fetchOpenFeed \}/);
+assert.match(feedIndex, /export \{ fetchOpenFeedHttp \}/);
 
 console.log('openFeedAllow.test.mjs: ok');

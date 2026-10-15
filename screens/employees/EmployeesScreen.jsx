@@ -1821,6 +1821,7 @@ export default function EmployeesScreen() {
     </ScrollView>
     <BrandBusyOverlay
       visible={!directoryReady || !!showBusyOverlay}
+      testID={busyKind === 'save' ? 'employee-cv-progress' : 'brand-busy-overlay'}
       label={!directoryReady && !showBusyOverlay ? 'Vent…' : busyLabel('Jobber…')}
       detail={
         !directoryReady && !showBusyOverlay

@@ -76,7 +76,11 @@ for (const lang of LANG_IDS) {
     childForSchedule: null,
     firstKid: { id: 'c1' },
   });
-  assert.ok(mods.length >= 5, `${lang} shell sections`);
+  assert.ok(mods.length >= 2, `${lang} shell sections`);
+  const ids = mods.flatMap((section) => section.items.map((item) => item.id));
+  for (const id of ['home', 'plan', 'mail', 'stars', 'notes']) {
+    assert.ok(ids.includes(id), `${lang} missing ${id}`);
+  }
   const flat = mods.flatMap((s) => [s.title, ...s.items.map((i) => i.label)]);
   for (const label of flat) {
     assert.ok(label && !String(label).startsWith('apps.'), `no raw key: ${label}`);

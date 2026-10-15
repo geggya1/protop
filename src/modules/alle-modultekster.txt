@@ -4,12 +4,12 @@ Teksten vises første gang en inaktiv modul åpnes.
 Bildet er dekorativt; verdi og funksjon skal alltid forklares i tekst.
 1. Kalender
 Id: plan
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Plan. Oversikt. Ro.
-Overskrift: Hele familien, én plan
-Introduksjon: Samle avtaler, aktiviteter og påminnelser, så alle vet hva som skjer – og når.
+Overskrift: Din kalender, én plan
+Introduksjon: Samle egne avtaler, aktiviteter og påminnelser, så du vet hva som skjer – og når.
 Fordeler:
-- Se dagen og uken på tvers av familien
+- Se dagen og uken i din egen kalender
 - Fordel avtaler og få varsler i tide
 - Unngå dobbeltbookinger og glemte aktiviteter
 Primærknapp: Aktiver Kalender
@@ -21,7 +21,7 @@ Illustrasjon: kalender--module-activation-illustration.png
 
 2. E-post
 Id: mail
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Innboks. Jobb. Privat.
 Overskrift: Viktige meldinger, samlet
 Introduksjon: Koble jobb- og privatkontoer og finn det som krever oppmerksomhet, uten å hoppe mellom apper.
@@ -38,7 +38,7 @@ Illustrasjon: e-post--module-activation-illustration.png
 
 3. Oppgaver
 Id: stars
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Fokus. Fremgang. Ferdig.
 Overskrift: Få det ut av hodet
 Introduksjon: Samle egne oppgaver, frister og oppfølging på ett oversiktlig sted.
@@ -55,7 +55,7 @@ Illustrasjon: oppgaver--module-activation-illustration.png
 
 4. Notat
 Id: notes
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Tanker. Stemme. Struktur.
 Overskrift: Fang det før du glemmer det
 Introduksjon: Skriv eller snakk inn et notat. ProTop hjelper deg å bevare, rydde og finne det igjen.
@@ -72,7 +72,7 @@ Illustrasjon: notat--module-activation-illustration.png
 
 5. Chat
 Id: chat
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Familie. Beskjeder. Sammen.
 Overskrift: Snakk sammen uten støy
 Introduksjon: Hold familiepraten samlet med tydelige samtaler for familien, grupper og direkte meldinger.
@@ -89,7 +89,7 @@ Illustrasjon: chat--module-activation-illustration.png
 
 6. Gjøremål
 Id: chores
-Kategori: Hoved
+Kategori: Personlig
 Overlinje: Små steg. Gode vaner.
 Overskrift: Gjør innsats synlig
 Introduksjon: Gi barna tydelige oppgaver, passende ansvar og oppmuntring til å fullføre.
@@ -160,8 +160,9 @@ Id: pantry
 Kategori: Mat & innkjøp
 Overlinje: Kjøleskap. Fryser. Oversikt.
 Overskrift: Se hva dere har før dere handler
-Introduksjon: Registrer kjøleskap, fryser og tørrvarer. ProTop hjelper dere å bruke det som allerede finnes hjemme.
+Introduksjon: Ta bilde — AI lager innholdslisten. Registrer kjøleskap, fryser og tørrvarer, så ProTop bruker det som allerede finnes hjemme.
 Fordeler:
+- Ta bilde — AI lager innholdslisten
 - Unngå å kjøpe det samme to ganger
 - Skann strekkoder for rask registrering
 - Trekk lageret fra handlelisten automatisk
@@ -444,17 +445,17 @@ Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere
 Trygghetstekst barn: Du kan åpne modulen når du vil. En voksen kan slå den av senere.
 Illustrasjon: leksehjelp--module-activation-illustration.png
 
-27. Mattehjelpen
+27. Lær skole
 Id: mattehjelp
 Kategori: Skole
-Overlinje: Lek. Oppdrag. AI-los.
-Overskrift: Læring som føles som lek
-Introduksjon: Spill og oppgaver fra 3 år og oppover i matte, norsk og engelsk — med stjerner, ros og en AI-los som gir hint, ikke fasit først.
+Overlinje: Øv. Spill. Stjerner.
+Overskrift: Frivillig trening — egen fra leksehjelp
+Introduksjon: Spill og oppdrag fra 3 år — matte, norsk og engelsk med stjerner og hint først. Leksehjelpen er for ekte lekser.
 Fordeler:
 - Aldersverdener: Småtroll, Oppdagere, Mestring, Utfordring
 - Interaktive spill + dagens oppdrag + AI-los
-- Forankret i rammeplan og LK20 — norske metoder
-Primærknapp: Aktiver Mattehjelpen
+- Tydelig skilt fra Leksehjelpen (ekte lekser)
+Primærknapp: Aktiver Lær skole
 Sekundærknapp: Tilbake
 Trygghetstekst: Aktivering er gratis nå. Du kan deaktivere modulen senere.
 Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere

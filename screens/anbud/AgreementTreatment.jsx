@@ -37,6 +37,7 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
+import AgreementCustomerField from './AgreementCustomerField';
 import AgreementPersonField from './AgreementPersonField';
 import ProcessTrail from './ProcessTrail';
 
@@ -532,12 +533,29 @@ export default function AgreementTreatment({
             {kindCaseLabel(view.kind)} · {view.sender?.name || 'Avsender'} og {view.counterparty?.name || 'Motpart'}
           </Text>
           {party === 'avsender' && (view.status === 'utkast' || view.status === 'merknader') ? (
-            <AgreementPersonField
-              colors={colors}
-              people={people}
-              ownerUid={view.ownerUid || draft.ownerUid}
-              onSelect={(person) => setDraft((current) => ({ ...current, ownerUid: person?.uid || '' }))}
-            />
+            <>
+              <AgreementCustomerField
+                colors={colors}
+                customers={state?.customers || []}
+                customerId={view.customerId || draft.customerId}
+                companyId={companyId}
+                people={people}
+                onSelect={(customer) => setDraft((current) => ({
+                  ...current,
+                  customerId: customer?.id || '',
+                  customerName: customer?.name || '',
+                }))}
+              />
+              <AgreementPersonField
+                colors={colors}
+                people={people}
+                ownerUid={view.ownerUid || draft.ownerUid}
+                onSelect={(person) => setDraft((current) => ({ ...current, ownerUid: person?.uid || '' }))}
+              />
+              {!(view.ownerUid || draft.ownerUid) ? (
+                <Text style={{ color: colors.muted }}>Ansvarlig tildeles senere</Text>
+              ) : null}
+            </>
           ) : null}
           <View style={styles.row}>
             {(view.versions || []).map((item) => (

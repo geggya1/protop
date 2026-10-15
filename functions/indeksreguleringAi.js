@@ -10,8 +10,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from './security.js';
 import { touchGeminiEnv } from './geminiEnv.js';
 import { handleInterpretIndeks } from './interpretAvtaleCore.js';
-import { fetchAllIndices } from '../src/indeksregulering/ssb.js';
-import { indexNews, latestMap } from '../src/indeksregulering/watch.js';
+import { fetchAllIndices } from './indeksregulering/ssb.js';
+import { indexNews, latestMap } from './indeksregulering/watch.js';
 
 export { handleInterpretIndeks } from './interpretAvtaleCore.js';
 

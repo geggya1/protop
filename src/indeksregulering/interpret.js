@@ -119,7 +119,7 @@ export function interpretContract(text) {
   draft.address = plausible(labeledParty(source, ['adresse']));
   draft.description = plausible(labeledParty(source, ['beskrivelse av oppdraget']));
   draft.poNumber = plausible(labeledParty(source, ['eksternt po\\. nr', 'po\\. nr', 'po-nr', 'po nummer']));
-  draft.honorar = honorarForm(source) || honorarText(source);
+  draft.honorar = honorarText(source) || honorarForm(source);
   draft.phone = labeledPhone(source);
   draft.email = labeledEmail(source, { buyer: draft.buyer, supplier: draft.supplier });
   draft.personnummer = labeledPersonnummer(source);

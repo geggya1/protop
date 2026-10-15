@@ -21,6 +21,7 @@ import {
   normalizeEmployeeLevelIds,
   normalizeOverrides,
   placedLevelId,
+  suggestedLevelId,
 } from '../access/companyAccess.js';
 import { normalizeInviteState } from './invite.js';
 import { normalizeUsageSummary } from './usage.js';
@@ -452,6 +453,18 @@ function normalizeCompany(raw) {
   const primary = levelById(company.accessLevels[company.accessLevels.length - 1]);
   company.accessLevel = primary?.id || '';
   company.accessRole = primary?.label || '';
+  if (!company.accessLevel) {
+    const suggested = levelById(suggestedLevelId({ company }));
+    if (suggested) {
+      company.accessLevel = suggested.id;
+      company.accessRole = suggested.label;
+      company.accessLevels = [suggested.id];
+      const aligned = alignCompanyEmployment(company);
+      company.personnelKind = aligned.personnelKind;
+      company.external = aligned.external;
+      company.employmentType = aligned.employmentType;
+    }
+  }
   company.accessOverrides = normalizeOverrides(source.accessOverrides);
   company.permissions = stringList(source.permissions);
   company.canHandleLegal = bool(source.canHandleLegal);

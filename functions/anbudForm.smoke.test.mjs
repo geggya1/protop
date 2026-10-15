@@ -54,6 +54,7 @@ for (const name of copies) {
 
 const indeksAi = readFileSync(join(__dirname, 'indeksreguleringAi.js'), 'utf8');
 assert.doesNotMatch(indeksAi, /\.\.\/src\//);
-assert.match(indeksAi, /from '\.\/indeksregulering\/interpret\.js'/);
+assert.match(indeksAi, /from '\.\/indeksregulering\/ssb\.js'/);
+assert.match(indeksAi, /from '\.\/indeksregulering\/watch\.js'/);
 
 console.log('functions/anbudForm.smoke.test.mjs: all passed');

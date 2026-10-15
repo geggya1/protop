@@ -41,18 +41,19 @@ function itemIcon(item, active) {
 }
 
 function NavRow({
-  item, active, nested, child, collapsed, onPress, badgeCount = 0,
+  item, active, nested, child, depth = 0, collapsed, onPress, badgeCount = 0,
   expanded = false, onToggle,
 }) {
   const colors = useColors();
   const color = active ? colors.brand : colors.ink;
   const expandable = typeof onToggle === 'function' && !collapsed;
+  const nestPad = depth > 0 ? Math.min(8 + depth * 12, 32) : 0;
   return (
     <View
       style={[
         styles.rowWrap,
         nested && styles.rowNested,
-        child && styles.rowChild,
+        depth > 0 && { paddingLeft: nestPad },
         active && styles.rowActive,
         active && { backgroundColor: colors.brandSoft },
         collapsed && styles.rowCollapsed,
@@ -334,37 +335,31 @@ export default function DesktopRail({
                 />
               </TouchableOpacity>
               {expanded ? section.items.map((item) => {
-                const kids = item.children || [];
-                const expandable = drawerHasSubmenuToggle(item);
-                const submenuExpanded = !!q || drawerSubmenuOpen(item, activeTab, submenuOpen, activeSubView);
-                const showKids = expandable && submenuExpanded;
-                return (
-                  <View key={item.id}>
-                    <NavRow
-                      item={item}
-                      nested
-                      active={isItemActive(item)}
-                      badgeCount={countForItem(unreadByModule, item)}
-                      expanded={submenuExpanded}
-                      onToggle={expandable ? () => setSubmenuOpen((prev) => ({
-                        ...prev,
-                        [item.id]: !drawerSubmenuOpen(item, activeTab, prev, activeSubView),
-                      })) : undefined}
-                      onPress={() => runAction(item.action)}
-                    />
-                    {showKids ? kids.map((child) => (
+                const renderNavBranch = (row, depth = 0) => {
+                  const kids = row.children || [];
+                  const expandable = drawerHasSubmenuToggle(row);
+                  const submenuExpanded = !!q || drawerSubmenuOpen(row, activeTab, submenuOpen, activeSubView);
+                  const showKids = expandable && submenuExpanded;
+                  return (
+                    <View key={row.id}>
                       <NavRow
-                        key={child.id}
-                        item={child}
+                        item={row}
                         nested
-                        child
-                        active={isItemActive(child)}
-                        badgeCount={countForItem(unreadByModule, child)}
-                        onPress={() => runAction(child.action)}
+                        depth={depth}
+                        active={isItemActive(row)}
+                        badgeCount={countForItem(unreadByModule, row)}
+                        expanded={submenuExpanded}
+                        onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                          ...prev,
+                          [row.id]: !drawerSubmenuOpen(row, activeTab, prev, activeSubView),
+                        })) : undefined}
+                        onPress={() => runAction(row.action)}
                       />
-                    )) : null}
-                  </View>
-                );
+                      {showKids ? kids.map((child) => renderNavBranch(child, depth + 1)) : null}
+                    </View>
+                  );
+                };
+                return renderNavBranch(item);
               }) : null}
             </View>
           );

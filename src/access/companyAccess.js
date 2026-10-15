@@ -692,26 +692,35 @@ function navItemAllowed(id, grants) {
   return allows(grants, resource, 'see');
 }
 
+function filterCompanyNavItem(item, grants) {
+  const rawChildren = item.children || [];
+  const children = rawChildren
+    .map((child) => filterCompanyNavItem(child, grants))
+    .filter(Boolean);
+  const self = navItemAllowed(item.id, grants);
+  if (!self && children.length === 0) return null;
+  if (!self) return null;
+  if (!item.children) return item;
+  const next = { ...item, children };
+  const currentSub = item.action?.subView;
+  const currentTab = item.action?.tab;
+  const childStillThere = children.some((child) => (
+    child.action?.tab === currentTab && child.action?.subView === currentSub
+  ));
+  const first = children[0];
+  if (currentSub && first && !childStillThere) {
+    next.action = {
+      ...item.action,
+      tab: first.action?.tab || item.action.tab,
+      subView: first.action?.subView,
+    };
+  }
+  return next;
+}
+
 export function filterCompanyNav(items, grants) {
   if (!grants) return items || [];
-  return (items || []).map((item) => {
-    const children = (item.children || []).filter((child) => navItemAllowed(child.id, grants));
-    const self = navItemAllowed(item.id, grants);
-    if (!self && children.length === 0) return null;
-    if (!self) return null;
-    if (!item.children) return item;
-    const next = { ...item, children };
-    const currentSub = item.action?.subView;
-    const currentTab = item.action?.tab;
-    const childStillThere = children.some((child) => (
-      child.action?.tab === currentTab && child.action?.subView === currentSub
-    ));
-    const first = children[0];
-    if (currentSub && first && !childStillThere) {
-      next.action = { ...item.action, tab: first.action?.tab || item.action.tab, subView: first.action?.subView };
-    }
-    return next;
-  }).filter(Boolean);
+  return (items || []).map((item) => filterCompanyNavItem(item, grants)).filter(Boolean);
 }
 
 export function loadingGrants() {

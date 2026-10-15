@@ -84,34 +84,36 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'ansatte', 'kunder', 'anbud', 'kontrakt', 'projects', 'arbeid', 'fravaer', 'produkt', 'iso', 'okonomi'],
+    ['selskap', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
   assert.equal(companyItems[0].forceOpen, true);
+  const selskapKids = companyItems.find((i) => i.id === 'selskap').children;
   assert.deepEqual(
-    companyItems.find((i) => i.id === 'selskap').children.map((i) => i.label),
-    ['Underenheter'],
+    selskapKids.map((i) => i.label),
+    ['Underenheter', 'Ansatte', 'Arbeid', 'Fravær'],
   );
-  assert.equal(companyItems.find((i) => i.id === 'selskap').children[0].action.subView, 'underenheter');
+  assert.equal(selskapKids[0].action.subView, 'underenheter');
+  assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud'],
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
-  assert.equal(companyItems.find((i) => i.id === 'ansatte').label, 'Ansatte');
-  assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
+  const arbeid = selskapKids.find((i) => i.id === 'arbeid');
+  const fravaer = selskapKids.find((i) => i.id === 'fravaer');
   assert.deepEqual(
-    companyItems.find((i) => i.id === 'arbeid').children.map((i) => i.label),
+    arbeid.children.map((i) => i.label),
     ['Timeliste', 'Timerapport', 'Timesaldo', 'Godkjenninger'],
   );
   assert.deepEqual(
-    companyItems.find((i) => i.id === 'fravaer').children.map((i) => i.label),
+    fravaer.children.map((i) => i.label),
     ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær'],
   );
   assert.deepEqual(
@@ -122,9 +124,9 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'produkt').children[0].action.subView, 'salg');
   assert.equal(companyItems.find((i) => i.id === 'produkt').children[1].action.tab, 'okonomi');
   assert.equal(companyItems.find((i) => i.id === 'produkt').children[1].action.subView, 'produkter');
-  assert.equal(companyItems.find((i) => i.id === 'arbeid').action.subView, 'timeliste');
-  assert.equal(companyItems.find((i) => i.id === 'arbeid').children[1].action.tab, 'arbeid');
-  assert.equal(companyItems.find((i) => i.id === 'arbeid').children[1].action.subView, 'timerapport');
+  assert.equal(arbeid.action.subView, 'timeliste');
+  assert.equal(arbeid.children[1].action.tab, 'arbeid');
+  assert.equal(arbeid.children[1].action.subView, 'timerapport');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
     ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Kjørebok', 'Indeksregulering'],
@@ -437,8 +439,8 @@ assert.match(railSrc, /module-nav-expand-/);
   const selskap = items.find((item) => item.id === 'selskap');
   const okonomi = items.find((item) => item.id === 'okonomi');
   const anbud = items.find((item) => item.id === 'anbud');
-  const arbeid = items.find((item) => item.id === 'arbeid');
-  const fravaer = items.find((item) => item.id === 'fravaer');
+  const arbeid = selskap.children.find((item) => item.id === 'arbeid');
+  const fravaer = selskap.children.find((item) => item.id === 'fravaer');
   const produkt = items.find((item) => item.id === 'produkt');
   const kunder = items.find((item) => item.id === 'kunder');
   assert.equal(drawerHasSubmenuToggle(selskap), true);
@@ -462,6 +464,7 @@ assert.match(railSrc, /module-nav-expand-/);
   assert.equal(drawerSubmenuOpen(arbeid, 'arbeid', {}, 'fravaer'), false);
   assert.equal(drawerSubmenuOpen(fravaer, 'arbeid', {}, 'fravaer'), true);
   assert.equal(drawerSubmenuOpen(fravaer, 'arbeid', {}, 'timeliste'), false);
+  assert.equal(drawerSubmenuOpen(selskap, 'arbeid', {}, 'timeliste'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'salg'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'okonomi', {}, 'produkter'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'timeliste'), false);

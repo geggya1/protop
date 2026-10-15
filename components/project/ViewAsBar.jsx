@@ -39,18 +39,19 @@ function levelLabel(employee) {
 }
 
 function moduleLabel(tab, subView) {
-  const items = [...companyNavItems(), ...companyAccountNavItems()];
-  for (const item of items) {
-    if (subView) {
-      const child = (item.children || []).find((row) => (
-        row.action?.tab === tab && row.action?.subView === subView
-      ));
-      if (child) return child.label;
-      if (item.action?.tab === tab && item.action?.subView === subView) return item.label;
+  const walk = (items) => {
+    for (const item of items || []) {
+      if (subView) {
+        if (item.action?.tab === tab && item.action?.subView === subView) return item.label;
+      } else if (item.id === tab || (item.action?.tab === tab && !item.action?.subView)) {
+        return item.label;
+      }
+      const nested = walk(item.children || []);
+      if (nested) return nested;
     }
-    if (item.id === tab || (item.action?.tab === tab && !item.action?.subView)) return item.label;
-  }
-  return 'denne modulen';
+    return null;
+  };
+  return walk([...companyNavItems(), ...companyAccountNavItems()]) || 'denne modulen';
 }
 
 function PersonButton({ person, active, colors, onPress }) {

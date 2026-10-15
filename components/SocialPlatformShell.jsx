@@ -283,7 +283,7 @@ export default function SocialPlatformShell({ platformType }) {
 
       <View style={styles.body}>
         <View style={styles.bodyFill}>
-          <ShellErrorBoundary>{body}</ShellErrorBoundary>
+          <ShellErrorBoundary key={tab}>{body}</ShellErrorBoundary>
           <ModuleIntroHost scope={platformType} moduleId={tab} />
         </View>
       </View>

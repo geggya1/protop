@@ -647,7 +647,11 @@ function AppShellInner() {
           <PlanScreen active={tab === 'plan'} />
         </View>
       ) : null}
-      {tab !== 'plan' ? <ShellErrorBoundary>{otherBody}</ShellErrorBoundary> : null}
+      {tab !== 'plan' ? (
+        <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
+          {otherBody}
+        </ShellErrorBoundary>
+      ) : null}
     </>
   );
 

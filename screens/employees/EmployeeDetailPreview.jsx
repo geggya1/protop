@@ -10,6 +10,7 @@ import { emptyProjectState } from '../../src/project/engine';
 import ProjectDetail from '../../components/project/ProjectDetail';
 import EmployeeDetailView from './EmployeeDetailView';
 import EmployeePersonChrome from './EmployeePersonChrome';
+import { EMPLOYEE_DETAIL_TABS } from '../../src/employees/personTabs.js';
 
 function mockEmployee(id, overrides = {}) {
   return presentEmployee({
@@ -114,10 +115,12 @@ export default function EmployeeDetailPreview() {
     }),
   ]), []);
   const [selectedId, setSelectedId] = useState(siblings[0].id);
+  const [activeTab, setActiveTab] = useState('home');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [people, setPeople] = useState(siblings);
   const [openedId, setOpenedId] = useState('');
   const selected = people.find((row) => row.id === selectedId) || people[0];
+  const activeLabel = EMPLOYEE_DETAIL_TABS.find((tab) => tab.id === activeTab)?.label || activeTab;
   const departments = [{ id: 'dep-bygg', name: 'Bygg' }];
   const projectState = useMemo(() => {
     const now = new Date();
@@ -190,59 +193,73 @@ export default function EmployeeDetailPreview() {
         colors={colors}
         companyName="Consult1"
         siblings={people}
-        activeTab="home"
+        activeTab={activeTab}
         onBack={() => {}}
-        onTab={() => {}}
-        onSelect={(row) => setSelectedId(row.id)}
+        onTab={setActiveTab}
+        onSelect={(row) => {
+          setSelectedId(row.id);
+        }}
       >
-        <EmployeeDetailView
-          employee={selected}
-          colors={colors}
-          companyName="Consult1"
-          departments={departments}
-          projectState={projectState}
-          reveal
-          gaps={{
-            register: [],
-            person: [],
-            cv: [{ key: 'cv.summary', label: 'Oppsummering' }],
-          }}
-          canEdit
-          isAdmin
-          isSelf
-          confirmDelete={confirmDelete}
-          onCv={() => {}}
-          onHours={() => setOpenedId('hours')}
-          onOpenProject={(project) => setOpenedId(project.id)}
-          onChange={(next) => {
-            setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));
-          }}
-          onSave={() => true}
-          onClassify={(patch) => {
-            setPeople((current) => current.map((row) => (
-              row.id === selected.id ? presentEmployee(applyEmployeeClassification(row, patch)) : row
-            )));
-          }}
-          onPushProfile={() => {}}
-          onPullToProfile={() => {}}
-          onConfirmDelete={() => setConfirmDelete(true)}
-          onCancelDelete={() => setConfirmDelete(false)}
-          onDestroy={() => {
-            setPeople((current) => current.map((row) => (
-              row.id === selected.id
-                ? presentEmployee(applyEmployeeClassification(row, { status: 'deleted' }))
-                : row
-            )));
-            setConfirmDelete(false);
-          }}
-          onRestore={() => {
-            setPeople((current) => current.map((row) => (
-              row.id === selected.id
-                ? presentEmployee(applyEmployeeClassification(row, { status: 'active' }))
-                : row
-            )));
-          }}
-        />
+        {activeTab === 'home' ? (
+          <EmployeeDetailView
+            employee={selected}
+            colors={colors}
+            companyName="Consult1"
+            departments={departments}
+            projectState={projectState}
+            reveal
+            gaps={{
+              register: [],
+              person: [],
+              cv: [{ key: 'cv.summary', label: 'Oppsummering' }],
+            }}
+            canEdit
+            isAdmin
+            isSelf
+            confirmDelete={confirmDelete}
+            onCv={() => setActiveTab('cv')}
+            onHours={() => setActiveTab('hours')}
+            onOpenProject={(project) => setOpenedId(project.id)}
+            onChange={(next) => {
+              setPeople((current) => current.map((row) => (row.id === next.id ? next : row)));
+            }}
+            onSave={() => true}
+            onClassify={(patch) => {
+              setPeople((current) => current.map((row) => (
+                row.id === selected.id ? presentEmployee(applyEmployeeClassification(row, patch)) : row
+              )));
+            }}
+            onPushProfile={() => {}}
+            onPullToProfile={() => {}}
+            onConfirmDelete={() => setConfirmDelete(true)}
+            onCancelDelete={() => setConfirmDelete(false)}
+            onDestroy={() => {
+              setPeople((current) => current.map((row) => (
+                row.id === selected.id
+                  ? presentEmployee(applyEmployeeClassification(row, { status: 'deleted' }))
+                  : row
+              )));
+              setConfirmDelete(false);
+            }}
+            onRestore={() => {
+              setPeople((current) => current.map((row) => (
+                row.id === selected.id
+                  ? presentEmployee(applyEmployeeClassification(row, { status: 'active' }))
+                  : row
+              )));
+            }}
+          />
+        ) : (
+          <View
+            nativeID="employee-preview-tab-body"
+            style={[styles.stub, { borderColor: colors.line, backgroundColor: colors.card }]}
+          >
+            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '600' }}>{activeLabel}</Text>
+            <Text style={{ color: colors.muted, fontSize: 14 }}>
+              Forhåndsvisning: skilleark og navn står fast mens innholdet byttes.
+            </Text>
+          </View>
+        )}
       </EmployeePersonChrome>
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -258,5 +275,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     alignSelf: 'flex-start',
+  },
+  stub: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 20,
+    gap: 8,
+    minHeight: 160,
   },
 });

@@ -2,18 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
-import { PAGE_ART_SCALE } from '../src/appearance/pageArtScale';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
 
-function fadeHex(hex, alpha) {
-  const n = String(hex || '').replace('#', '');
-  if (n.length < 6) return `rgba(229, 246, 254, ${alpha})`;
-  const r = parseInt(n.slice(0, 2), 16);
-  const g = parseInt(n.slice(2, 4), 16);
-  const b = parseInt(n.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+/** 2mm at the CSS reference pixel (96px = 1in). The picture scales to this inset. */
+const ART_INSET = 8;
 
 /**
  * Compact module heading: pastel band, overlay copy, transparent art.
@@ -52,20 +45,10 @@ export default function ModuleHero({
   const lead = subtitle || hero.pitch;
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
-  const wideArt = !!hero.wideArt && !!imgSource;
-  const phoneChip = wideArt && isPhone ? {
-    alignSelf: 'flex-start',
-    backgroundColor: fadeHex(hero.bg, 0.9),
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    overflow: 'hidden',
-    ...(Platform.OS === 'web' ? { width: 'fit-content', maxWidth: '100%' } : null),
-  } : null;
   const heroH = isDesktop ? 176 : isPhone ? 144 : 156;
+  const artH = heroH - ART_INSET * 2;
   const titleColor = hero.ink || colors.ink;
   const pitchColor = hero.muted || colors.muted;
-  const squareArt = moduleId === 'familyTree';
   const webBand = Platform.OS === 'web'
     ? { backgroundImage: `linear-gradient(105deg, ${hero.bg} 0%, ${hero.bg2} 55%, ${hero.bg} 100%)` }
     : null;
@@ -91,19 +74,18 @@ export default function ModuleHero({
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
         chromePhone && styles.copyPhoneChrome,
-        wideArt && isPhone && styles.copyWidePhone,
       ]}>
         {overline ? (
-          <Text style={[styles.kicker, phoneChip, { color: hero.accent }]} numberOfLines={1}>
+          <Text style={[styles.kicker, { color: hero.accent }]} numberOfLines={1}>
             {overline}
           </Text>
         ) : null}
-        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, phoneChip, { color: titleColor }]} numberOfLines={2}>
+        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
           {heading}
         </Text>
         {lead ? (
           <Text
-            style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, phoneChip, { color: pitchColor }]}
+            style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, { color: pitchColor }]}
             numberOfLines={isDesktop ? 3 : 2}
           >
             {lead}
@@ -116,19 +98,17 @@ export default function ModuleHero({
           pointerEvents="none"
           style={[
             styles.artWrap,
-            wideArt
-              ? (isDesktop ? styles.artWrapWideDesk : isPhone ? styles.artWrapWidePhone : styles.artWrapWideTablet)
-              : (isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet),
-            squareArt && !wideArt && styles.artWrapSquare,
+            { height: artH, aspectRatio: artRatio },
+            isPhone ? styles.artWrapPhone : isDesktop ? styles.artWrapDesk : styles.artWrapTablet,
             chromePhone && styles.artWrapPhoneChrome,
           ]}
         >
           <Image
             source={imgSource}
-            style={wideArt ? [styles.artWide, { width: '100%', aspectRatio: artRatio }] : styles.art}
+            style={styles.artFit}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
-            onLoad={wideArt ? (event) => {
+            onLoad={(event) => {
               const src = event?.nativeEvent?.source;
               let w = src?.width;
               let h = src?.height;
@@ -138,7 +118,7 @@ export default function ModuleHero({
                 h = el?.naturalHeight;
               }
               if (w > 0 && h > 0) setArtRatio(w / h);
-            } : undefined}
+            }}
             onError={() => {
               if (Platform.OS === 'web' && !useBundled) setUseBundled(true);
             }}
@@ -157,10 +137,6 @@ const webShadow = Platform.OS === 'web'
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   };
-
-const webContain = Platform.OS === 'web'
-  ? { objectFit: 'contain', objectPosition: 'right center', maxWidth: '100%', maxHeight: '100%' }
-  : null;
 
 const styles = StyleSheet.create({
   hero: {
@@ -188,9 +164,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   artWrapPhoneChrome: {
-    paddingTop: 6,
-    paddingBottom: 10,
-    paddingRight: 12,
+    marginRight: 44,
   },
   heroDesk: {
     marginBottom: 12,
@@ -232,13 +206,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingLeft: 14,
     paddingRight: 4,
-  },
-  /* Phone art fills the heading. Chips keep the title readable without hiding the picture. */
-  copyWidePhone: {
-    maxWidth: '62%',
-    paddingVertical: 8,
-    paddingLeft: 12,
-    paddingRight: 8,
   },
   kicker: {
     fontSize: 11,
@@ -282,98 +249,33 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     maxWidth: 220,
   },
+  /* Height is the heading minus 2mm top and bottom. Width follows the picture. */
   artWrap: {
+    alignSelf: 'center',
+    marginRight: ART_INSET,
+    flexShrink: 1,
+    minWidth: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingRight: 18,
-    paddingLeft: 8,
     overflow: 'hidden',
   },
   artWrapDesk: {
-    width: 360,
-    flexShrink: 0,
+    maxWidth: '50%',
   },
   artWrapTablet: {
-    width: 290,
-    flexShrink: 0,
+    maxWidth: '50%',
   },
+  /* Phone heading stays short. A wide picture shrinks so the title still fits. */
   artWrapPhone: {
-    width: 156,
-    flexShrink: 0,
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingRight: 12,
-    paddingLeft: 4,
+    maxWidth: '54%',
   },
-  /* Right-hand slot. The browser picture is another 20% smaller.
-     Phone is another 30% larger. Extra height is cut; the width stays whole. */
-  artWrapWideDesk: {
-    width: 322,
-    flexShrink: 0,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingLeft: 0,
-    paddingRight: 8,
-  },
-  artWrapWideTablet: {
-    width: 325,
-    flexShrink: 0,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingLeft: 0,
-    paddingRight: 8,
-  },
-  artWrapWidePhone: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 397,
-    maxWidth: '100%',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingLeft: 0,
-    paddingRight: 0,
-  },
-  /* Square tree art is height-limited in the heading band.
-     minWidth:0 so intrinsic PNG-bredde (855px) ikke utvider hele appen.
-     The shared scale may crop the edges; the wrap keeps that inside the band. */
-  artWrapSquare: {
-    paddingTop: 6,
-    paddingBottom: 10,
-    paddingRight: 16,
-    paddingLeft: 6,
-    minWidth: 0,
-    overflow: 'hidden',
-    flexShrink: 1,
-  },
-  art: {
+  artFit: {
     width: '100%',
     height: '100%',
     backgroundColor: 'transparent',
-    transform: [{ scale: PAGE_ART_SCALE }],
-    transformOrigin: 'right center',
-    ...webContain,
-  },
-  artWide: {
-    width: '100%',
-    backgroundColor: 'transparent',
-    flexShrink: 0,
-    alignSelf: 'center',
     ...(Platform.OS === 'web' ? {
-      height: 'auto',
-      maxWidth: '100%',
       objectFit: 'contain',
       objectPosition: 'center center',
-      transform: 'none',
     } : null),
   },
 });

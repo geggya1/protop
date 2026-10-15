@@ -52,6 +52,7 @@ const BUNDLED = {
   kunder: require('../../assets/module-activation/kunder--module-activation-illustration.png'),
   'anbud-varsling': require('../../assets/module-activation/anbud-varsling--module-activation-illustration.png'),
   'anbud-vurdering': require('../../assets/module-activation/anbud-vurdering--module-activation-illustration.png'),
+  'anbud-foresporsel': require('../../assets/module-activation/anbud-foresporsel--module-activation-illustration.png'),
   'anbud-tilbud': require('../../assets/module-activation/anbud-tilbud--module-activation-illustration.png'),
   kontrakt: require('../../assets/module-activation/kontrakt--module-activation-illustration.png'),
   skjema: require('../../assets/module-activation/skjema--module-activation-illustration.png'),

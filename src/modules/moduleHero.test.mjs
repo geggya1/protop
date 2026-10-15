@@ -297,6 +297,7 @@ assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the
 assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvarsling uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-vurdering', 'nb').wideArt, true, 'vurdering av aktuelle uses the wide illustration');
+assert.equal(resolveModuleHero('anbud-foresporsel', 'nb').wideArt, true, 'tender enquiry uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-tilbud', 'nb').wideArt, true, 'tilbud uses the wide illustration');
 assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses the wide illustration');
 assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the wide illustration');
@@ -427,6 +428,17 @@ assert.equal(
   'vurdering bundled != public',
 );
 assert.match(assetsSrc, /'anbud-vurdering': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-vurdering--module-activation-illustration\.png'\)/);
+const foresporselFile = 'anbud-foresporsel--module-activation-illustration.png';
+const foresporselBundled = join(ROOT, 'assets/module-activation', foresporselFile);
+const foresporselPublic = join(ROOT, 'public/assets/module-activation', foresporselFile);
+assert.equal(existsSync(foresporselBundled), true, 'foresporsel bundled art');
+assert.equal(existsSync(foresporselPublic), true, 'foresporsel public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(foresporselBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(foresporselPublic)).digest('hex'),
+  'foresporsel bundled != public',
+);
+assert.match(assetsSrc, /'anbud-foresporsel': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-foresporsel--module-activation-illustration\.png'\)/);
 const kontraktFile = 'kontrakt--module-activation-illustration.png';
 const kontraktBundled = join(ROOT, 'assets/module-activation', kontraktFile);
 const kontraktPublic = join(ROOT, 'public/assets/module-activation', kontraktFile);

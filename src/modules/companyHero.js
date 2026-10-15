@@ -142,6 +142,7 @@ export const COMPANY_HERO = {
   },
   'anbud-foresporsel': {
     ...BLUE,
+    wideArt: true,
     name: 'Anbudsforespørsel',
     kicker: t('Anbud', 'Tenders'),
     title: t('Anbudsforespørsel', 'Tender enquiry'),

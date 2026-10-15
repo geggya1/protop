@@ -352,10 +352,11 @@ assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'weekplan palet
 assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'weekplan art slot is unchanged');
 assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
 assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');
-assert.match(heroSrc, /artWrapWidePhone:\s*\{[^}]*width:\s*156/, 'phone wide art uses the weekplan phone slot');
-assert.match(heroSrc, /artWrapWideTablet:\s*\{[^}]*width:\s*290/, 'tablet wide art uses the weekplan tablet slot');
-assert.match(heroSrc, /artWrapWideDesk:\s*\{[^}]*width:\s*360/, 'desktop wide art uses the weekplan desktop slot');
-assert.doesNotMatch(heroSrc, /artWrapWidePhone:\s*\{[^}]*position:\s*'absolute'/, 'phone wide art stays in the row');
+assert.match(heroSrc, /artWrapWide:\s*\{[^}]*flex:\s*1/, 'wide art takes the free width beside the title');
+assert.match(heroSrc, /artWrapWide:\s*\{[^}]*overflow:\s*'hidden'/, 'wide art may crop top and bottom');
+assert.match(heroSrc, /artWide:[\s\S]*transform:\s*'none'/, 'wide art is not scaled past its own width');
+assert.match(heroSrc, /aspectRatio: artRatio/, 'wide art keeps its full width');
+assert.doesNotMatch(heroSrc, /artWrapWide:\s*\{[^}]*position:\s*'absolute'/, 'wide art stays in the row');
 assert.match(heroSrc, /phone: isPhone/, 'phone can use the tighter illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');

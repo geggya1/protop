@@ -50,18 +50,27 @@ assert.deepEqual(COMPANY_BOTTOM_NAV.map((row) => row.label), [
   'Hjem', 'Prosjekter', 'Time', 'Oppgaver', 'Mer',
 ]);
 
+const phoneHome = readFileSync(new URL('../../screens/project/CompanyHomePhone.jsx', import.meta.url), 'utf8');
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
-const bold = landing.match(/fontWeight:\s*'700'/g) || [];
+const desktopLanding = readFileSync(new URL('../../screens/project/CompanyDesktopLanding.jsx', import.meta.url), 'utf8');
+const bold = phoneHome.match(/fontWeight:\s*'700'/g) || [];
 assert.equal(bold.length, 1);
-assert.match(landing, /Mine gjøremål/);
-assert.match(landing, /DashboardThemeSettings/);
-assert.match(landing, /item\.intent/);
-assert.match(landing, /company-home-sheet/);
-assert.match(landing, /minHeight: Math\.max\(160, frameHeight - topHeight\)/);
-assert.match(landing, /paddingBottom: contentPaddingBottom/);
-assert.equal(landing.includes('paddingBottom: contentPaddingBottom }]'), false);
-assert.equal(landing.includes('WidgetBoard'), false);
-assert.equal(landing.includes('onToggleEdit'), false);
+assert.match(phoneHome, /Mine gjøremål/);
+assert.match(phoneHome, /DashboardThemeSettings/);
+assert.match(phoneHome, /item\.intent/);
+assert.match(phoneHome, /company-home-sheet/);
+assert.match(phoneHome, /minHeight: Math\.max\(160, frameHeight - topHeight\)/);
+assert.match(phoneHome, /paddingBottom: contentPaddingBottom/);
+assert.equal(phoneHome.includes('paddingBottom: contentPaddingBottom }]'), false);
+assert.equal(phoneHome.includes('WidgetBoard'), false);
+assert.equal(phoneHome.includes('onToggleEdit'), false);
+assert.match(landing, /isPhone/);
+assert.match(landing, /CompanyHomePhone/);
+assert.match(landing, /CompanyDesktopLanding/);
+assert.match(desktopLanding, /company-landing-konsern/);
+assert.match(desktopLanding, /Om bedriften/);
+assert.equal(desktopLanding.includes('COMPANY_HOME_SHORTCUTS'), false);
+assert.equal(desktopLanding.includes('Mine gjøremål'), false);
 
 const employees = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 assert.match(employees, /openMyAbsence/);

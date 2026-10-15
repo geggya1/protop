@@ -82,6 +82,7 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', 'tilgang', innleie), false);
+  assert.equal(companyTabAllowed('selskap', 'innstillinger', innleie), false);
 }
 
 {

@@ -621,20 +621,10 @@ function AppShellInner() {
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
+    if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
-    if (
-      isOrganizationType(family?.type)
-      && tab === 'home'
-      && !isChild
-      && !isActingAsChild
-      && !kitchenMode
-    ) {
-      return <CompanyLanding />;
-    }
-    if (tab === 'selskap') {
-      return <ProjectPlatformScreen />;
-    }
+    if (tab === 'selskap') return <CompanyLanding />;
     if (tab === 'more') {
       return (
         <MoreHubScreen
@@ -644,7 +634,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, kitchenMode]);
+  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess]);
 
   const body = (
     <>

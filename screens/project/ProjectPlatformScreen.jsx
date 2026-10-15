@@ -95,7 +95,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           egneNaeringskoder: ownTrades,
         },
       });
-      setPage('oversikt');
+      requestShellTab?.('selskap');
     } catch (e) {
       setError(e?.message || 'Kunne ikke lagre innstillingene.');
     } finally {
@@ -185,8 +185,8 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         </>
       ) : null}
       {startPage === 'tilgang' ? null : (
-        <TouchableOpacity onPress={() => requestShellTab?.('home')} accessibilityRole="button">
-          <Text style={{ color: colors.brand, fontWeight: '400' }}>Til forsiden</Text>
+        <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityRole="button">
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskap</Text>
         </TouchableOpacity>
       )}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
@@ -224,7 +224,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         <View style={styles.column}>
           <View style={styles.settingsHead}>
             <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Innstillinger</Text>
-            <TouchableOpacity onPress={() => requestShellTab?.('home')} accessibilityLabel="Lukk innstillinger">
+            <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityLabel="Lukk innstillinger">
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
           </View>

@@ -16,6 +16,7 @@ import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
+import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
@@ -220,8 +221,9 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'arbeid') return <ArbeidHub subView={route.params?.subView} />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
-    if (tab === 'selskap' && route.params?.subView !== 'underenheter') return <ProjectPlatformScreen />;
+    if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
+    if (tab === 'selskap') return <CompanyLanding />;
     if (tab === 'okonomi') return <EconomyScreen subView={route.params?.subView} />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;

@@ -648,6 +648,7 @@ export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
   if (tab === 'selskap' && subView === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
+  if (tab === 'selskap' && subView === 'innstillinger') return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'arbeid') {
     return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');

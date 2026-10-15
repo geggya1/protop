@@ -18,6 +18,7 @@ import {
 import { companyLogoOf } from '../../src/project/companyLogo';
 import { groupOverview } from '../../src/project/companyUnits';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import CompanyNewsWall from '../../components/project/CompanyNewsWall';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -71,8 +72,8 @@ function Stat({ label, value, colors }) {
 }
 
 /**
- * Tidligere bedriftsoversikt for nettbrett og PC.
- * Telefon bruker CompanyHomePhone via CompanyLanding.
+ * Offentlig bedriftsoversikt på Selskap-siden (alle flater).
+ * Innstillinger åpnes via tannhjulet.
  */
 export default function CompanyDesktopLanding({
   stored,
@@ -264,10 +265,12 @@ export default function CompanyDesktopLanding({
             <View style={styles.heroActions}>
               <TouchableOpacity
                 onPress={onSettings}
+                accessibilityRole="button"
                 accessibilityLabel="Innstillinger for bedriften"
+                nativeID="company-landing-gear"
                 style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
               >
-                <Ionicons name="pencil" size={16} color={colors.ink} />
+                <Ionicons name="settings-outline" size={18} color={colors.ink} />
               </TouchableOpacity>
             </View>
           ) : null}
@@ -290,6 +293,8 @@ export default function CompanyDesktopLanding({
 
       {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
       {loading && !live ? <Text style={{ color: colors.muted }}>Henter offentlige opplysninger…</Text> : null}
+
+      <CompanyNewsWall />
 
       <View style={[styles.columns, wide && styles.columnsWide]}>
         <View style={styles.mainCol}>
@@ -407,7 +412,7 @@ export default function CompanyDesktopLanding({
 
           {live?.brregUrl ? (
             <TouchableOpacity onPress={() => openUrl(live.brregUrl)}>
-              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Registerdetaljene ligger på forsiden. CPV-koder til anbudsvarsling endres med tannhjulet på anbudsvarslingen.</Text>
+              <Text style={[styles.source, { color: colors.muted }]}>Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret. Bedriftsinnstillinger og CPV-koder endres via tannhjulet.</Text>
             </TouchableOpacity>
           ) : null}
         </View>

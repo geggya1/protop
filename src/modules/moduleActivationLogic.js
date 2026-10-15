@@ -18,7 +18,7 @@ export const ILLUSTRATION_DIR = '/assets/module-activation';
 /** Bump when illustration bytes change. Filenames stay stable, so web URLs
  *  must change or browsers keep the old PNG (Firebase caches /assets/* as
  *  immutable for a year). */
-export const ILLUSTRATION_CACHE = '20260917e';
+export const ILLUSTRATION_CACHE = '20261015a';
 
 export function withIllustrationCache(path) {
   if (!path) return path;
@@ -83,6 +83,14 @@ export const ILLUSTRATION_FILES = {
   'okonomi-indeks': 'okonomi-indeks--module-activation-illustration.png',
   'okonomi-fakturagrunnlag': 'okonomi-fakturagrunnlag--module-activation-illustration.png',
   'okonomi-oversikt': 'okonomi-oversikt--module-activation-illustration.png',
+  'okonomi-utlegg': 'okonomi-utlegg--module-activation-illustration.png',
+};
+
+/** Tighter phone compositions. Tablet and desktop keep ILLUSTRATION_FILES. */
+export const PHONE_ILLUSTRATION_FILES = {
+  'okonomi-faktura': 'okonomi-faktura-phone--module-activation-illustration.png',
+  'arbeid-godkjenning': 'arbeid-godkjenning-phone--module-activation-illustration.png',
+  'okonomi-produkter': 'okonomi-produkter-phone--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

@@ -29,8 +29,8 @@ export default function ModuleHero({
   const [useBundled, setUseBundled] = useState(Platform.OS !== 'web');
   const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
   const imgSource = useMemo(
-    () => (moduleId ? illustrationSourceById(moduleId, { preferBundled: useBundled }) : null),
-    [moduleId, useBundled],
+    () => (moduleId ? illustrationSourceById(moduleId, { preferBundled: useBundled, phone: isPhone }) : null),
+    [moduleId, useBundled, isPhone],
   );
 
   if (!moduleId && !title) return null;
@@ -41,12 +41,9 @@ export default function ModuleHero({
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
   const wideArt = !!hero.wideArt && !!imgSource;
-  const heroH = wideArt
-    ? (isDesktop ? 196 : isPhone ? 156 : 168)
-    : (isDesktop ? 176 : isPhone ? 144 : 156);
+  const heroH = isDesktop ? 176 : isPhone ? 144 : 156;
   const titleColor = hero.ink || colors.ink;
   const pitchColor = hero.muted || colors.muted;
-  const phoneWide = wideArt && isPhone;
   const squareArt = moduleId === 'familyTree';
   const webBand = Platform.OS === 'web'
     ? { backgroundImage: `linear-gradient(105deg, ${hero.bg} 0%, ${hero.bg2} 55%, ${hero.bg} 100%)` }
@@ -73,7 +70,6 @@ export default function ModuleHero({
         isDesktop && styles.copyDesk,
         isPhone && styles.copyPhone,
         chromePhone && styles.copyPhoneChrome,
-        wideArt && (isDesktop ? styles.copyWideDesk : isPhone ? styles.copyWidePhone : styles.copyWideTablet),
       ]}>
         {overline ? (
           <Text style={[styles.kicker, { color: hero.accent }]} numberOfLines={1}>
@@ -102,13 +98,12 @@ export default function ModuleHero({
               ? (isDesktop ? styles.artWrapWideDesk : isPhone ? styles.artWrapWidePhone : styles.artWrapWideTablet)
               : (isDesktop ? styles.artWrapDesk : isPhone ? styles.artWrapPhone : styles.artWrapTablet),
             squareArt && !wideArt && styles.artWrapSquare,
-            chromePhone && !wideArt && styles.artWrapPhoneChrome,
-            wideArt && chromePhone && styles.artWrapWidePhoneChrome,
+            chromePhone && styles.artWrapPhoneChrome,
           ]}
         >
           <Image
             source={imgSource}
-            style={[styles.art, phoneWide && styles.artWidePhone]}
+            style={styles.art}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
             onError={() => {
@@ -132,10 +127,6 @@ const webShadow = Platform.OS === 'web'
 
 const webContain = Platform.OS === 'web'
   ? { objectFit: 'contain', objectPosition: 'right center', maxWidth: '100%', maxHeight: '100%' }
-  : null;
-
-const webCoverPhone = Platform.OS === 'web'
-  ? { objectFit: 'cover', objectPosition: 'center center', maxWidth: '100%', maxHeight: '100%' }
   : null;
 
 const styles = StyleSheet.create({
@@ -196,7 +187,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingLeft: 16,
     paddingRight: 8,
-    zIndex: 2,
+    zIndex: 1,
     minWidth: 0,
   },
   copyDesk: {
@@ -276,49 +267,20 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   artWrapWideDesk: {
-    width: '58%',
-    maxWidth: 640,
-    flexShrink: 1,
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingRight: 0,
-    paddingLeft: 0,
+    width: 360,
+    flexShrink: 0,
   },
   artWrapWideTablet: {
-    width: '52%',
-    maxWidth: 460,
-    flexShrink: 1,
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingRight: 8,
-    paddingLeft: 0,
+    width: 290,
+    flexShrink: 0,
   },
   artWrapWidePhone: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    zIndex: 0,
-    width: '64%',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingRight: 0,
-    paddingLeft: 0,
-  },
-  artWrapWidePhoneChrome: {
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingRight: 0,
-  },
-  copyWideDesk: {
-    maxWidth: 520,
-  },
-  copyWideTablet: {
-    maxWidth: 420,
-  },
-  copyWidePhone: {
-    paddingRight: 8,
-    maxWidth: '36%',
+    width: 156,
+    flexShrink: 0,
+    paddingTop: 8,
+    paddingBottom: 10,
+    paddingRight: 12,
+    paddingLeft: 4,
   },
   /* Square tree art is height-limited in the 176px band. Keep enough inset
      so the 20px heading radius does not clip foliage, portraits or the scroll.
@@ -337,8 +299,5 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'transparent',
     ...webContain,
-  },
-  artWidePhone: {
-    ...webCoverPhone,
   },
 });

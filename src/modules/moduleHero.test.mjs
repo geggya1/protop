@@ -304,17 +304,38 @@ assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
+const TEXT_ONLY_PASTEL = {
+  selskap: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
+  'selskap-tilgang': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
+  underenheter: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
+  'anbud-foresporsel': ['#E5F6FE', '#f7fbff', '#1099F4'],
+  'anbud-vurdering': ['#E5F6FE', '#f7fbff', '#1099F4'],
+  'arbeid-timerapport': ['#e6f5fb', '#f4fbfe', '#0284c7'],
+  'arbeid-timesaldo': ['#e6f5fb', '#f4fbfe', '#0284c7'],
+  'arbeid-planlagt': ['#f4efe6', '#fbf8f2', '#b45309'],
+  'okonomi-kunder': ['#e7f7ee', '#f5fcf8', '#15803d'],
+  'okonomi-avtaler': ['#e7f7ee', '#f5fcf8', '#15803d'],
+};
 for (const id of Object.keys(COMPANY_HERO)) {
   const band = resolveModuleHero(id, 'nb');
-  assert.equal(band.bg, '#1B2026', `${id} uses the anthracite band`);
-  assert.equal(band.bg2, '#3C4550', `${id} anthracite gradient`);
-  assert.equal(band.ink, '#F4F7FB', `${id} light title on the dark band`);
+  assert.equal(band.ink, '', `${id} keeps dark text on the pastel band`);
+  assert.equal(band.muted, '', `${id} keeps the default muted pitch`);
+  assert.notEqual(band.bg, '#1B2026', `${id} is not anthracite`);
+  const pastel = TEXT_ONLY_PASTEL[id] || ['#E5F6FE', '#f7fbff', '#1099F4'];
+  assert.equal(band.bg, pastel[0], `${id} pastel bg`);
+  assert.equal(band.bg2, pastel[1], `${id} pastel bg2`);
+  assert.equal(band.accent, pastel[2], `${id} pastel accent`);
 }
-assert.match(
-  readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8'),
-  /width: '64%'/,
-  'phone wide art fills at least half the band from the right',
-);
+assert.equal(resolveModuleHero('okonomi-utlegg', 'nb').wideArt, true, 'economy expenses use the illustration');
+assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'weekplan palette stays sand');
+assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'weekplan art slot is unchanged');
+assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
+assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');
+assert.match(heroSrc, /artWrapWidePhone:\s*\{[^}]*width:\s*156/, 'phone wide art uses the weekplan phone slot');
+assert.match(heroSrc, /artWrapWideTablet:\s*\{[^}]*width:\s*290/, 'tablet wide art uses the weekplan tablet slot');
+assert.match(heroSrc, /artWrapWideDesk:\s*\{[^}]*width:\s*360/, 'desktop wide art uses the weekplan desktop slot');
+assert.doesNotMatch(heroSrc, /artWrapWidePhone:\s*\{[^}]*position:\s*'absolute'/, 'phone wide art stays in the row');
+assert.match(heroSrc, /phone: isPhone/, 'phone can use the tighter illustration');
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
@@ -527,6 +548,33 @@ assert.equal(
   'oversikt bundled != public',
 );
 assert.match(assetsSrc, /'okonomi-oversikt': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-oversikt--module-activation-illustration\.png'\)/);
-assert.match(heroSrc, /wideArt/, 'wide illustrations use a wider art slot');
+const utleggOkonomiFile = 'okonomi-utlegg--module-activation-illustration.png';
+const utleggOkonomiBundled = join(ROOT, 'assets/module-activation', utleggOkonomiFile);
+const utleggOkonomiPublic = join(ROOT, 'public/assets/module-activation', utleggOkonomiFile);
+assert.equal(existsSync(utleggOkonomiBundled), true, 'okonomi utlegg bundled art');
+assert.equal(existsSync(utleggOkonomiPublic), true, 'okonomi utlegg public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(utleggOkonomiBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(utleggOkonomiPublic)).digest('hex'),
+  'okonomi utlegg bundled != public',
+);
+assert.match(assetsSrc, /'okonomi-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-utlegg--module-activation-illustration\.png'\)/);
+for (const file of [
+  'okonomi-faktura-phone--module-activation-illustration.png',
+  'arbeid-godkjenning-phone--module-activation-illustration.png',
+  'okonomi-produkter-phone--module-activation-illustration.png',
+]) {
+  const bundled = join(ROOT, 'assets/module-activation', file);
+  const published = join(ROOT, 'public/assets/module-activation', file);
+  assert.equal(existsSync(bundled), true, `${file} bundled`);
+  assert.equal(existsSync(published), true, `${file} public`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(bundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(published)).digest('hex'),
+    `${file} bundled != public`,
+  );
+  assert.match(assetsSrc, new RegExp(file.replace(/[.]/g, '\\.')), `${file} is bundled for the phone slot`);
+}
+assert.match(heroSrc, /wideArt/, 'wide illustrations use the weekplan art slot');
 
 console.log(`moduleHero.test.mjs: ok (${MOCKUP_IDS.length} mockup modules, ${COMPANY_PAGES.length} company pages)`);

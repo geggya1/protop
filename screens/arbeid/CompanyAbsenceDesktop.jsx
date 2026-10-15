@@ -278,7 +278,7 @@ export function CompanyAbsenceDesktop({
             ) : null}
           </View>
 
-          <View style={styles.kpis} accessibilityRole="summary">
+          <View style={styles.kpis}>
             <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" />
             <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label="På ferie" />
             <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label="Sykemeldte" />

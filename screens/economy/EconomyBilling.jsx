@@ -109,6 +109,14 @@ export default function EconomyBilling() {
         setLastEhf(ehf.xml);
       }
 
+      // Behold alltid utkast til admin aktivt sender fra fakturalisten.
+      invoice = {
+        ...invoice,
+        status: 'draft',
+        exportStatus: invoice.exportStatus || 'utkast',
+        sent: '',
+        sentAt: '',
+      };
       await invoiceStorage.saveInvoice(familyId, invoice);
       const nextState = markProposalInvoiced(projectState, proposal, invoice.id);
       await saveProjectState(nextState, familyId);
@@ -116,7 +124,8 @@ export default function EconomyBilling() {
       setInvoices(await invoiceStorage.loadInvoices(familyId));
       setLastInvoice(invoice);
       const parts = [
-        `Faktura ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}).`,
+        `Utkast ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}).`,
+        'Send fakturaen fra Faktura-listen når den er klar.',
         `KID ${invoice.kid || '—'}.`,
       ];
       if (voucher.ok) parts.push('Bilag bokført.');
@@ -124,7 +133,7 @@ export default function EconomyBilling() {
       if (ehf.ok) parts.push('EHF klar.');
       else parts.push(`EHF: ${ehf.error}`);
       setNote(parts.join(' '));
-      showSaveToast(parts[0] || 'Fakturaen er opprettet.');
+      showSaveToast(parts[0] || 'Fakturautkast er opprettet.');
     } catch (cause) {
       setError(String(cause?.message || cause) || 'Kunne ikke opprette faktura.');
     } finally {
@@ -300,7 +309,7 @@ export default function EconomyBilling() {
           >
             <Ionicons name="document-text-outline" size={16} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '600' }}>
-              {busyKey === proposal.key ? 'Oppretter…' : 'Opprett faktura'}
+              {busyKey === proposal.key ? 'Oppretter utkast…' : 'Opprett utkast'}
             </Text>
           </TouchableOpacity>
         </View>

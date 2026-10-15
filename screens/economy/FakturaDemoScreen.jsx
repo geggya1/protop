@@ -102,6 +102,12 @@ function createMemoryStorage(seed = []) {
       emit();
       return { saved: list.length, invoices: list };
     },
+    async removeInvoice(_companyId, invoiceId) {
+      const id = String(invoiceId || '');
+      if (!id) return;
+      rows = sortInvoices(rows.filter((row) => row.id !== id));
+      emit();
+    },
   };
 }
 
@@ -201,8 +207,9 @@ function buildDemoSeedInvoice() {
     outstandingAmount: amountInclVat,
     outstanding: String(amountInclVat),
     currency: 'NOK',
-    status: 'registered',
-    notes: 'Demo-faktura fra godkjente timer (ordinær + overtid).',
+    status: 'draft',
+    exportStatus: 'utkast',
+    notes: 'Demo-utkast fra godkjente timer (ordinær + overtid). Send fra detaljvisningen.',
     createdAt: '2026-10-06T10:00:00.000Z',
     updatedAt: '2026-10-06T10:00:00.000Z',
   });
@@ -218,7 +225,7 @@ export default function FakturaDemoScreen() {
   const seed = useMemo(() => [buildDemoSeedInvoice()], []);
   const storage = useMemo(() => createMemoryStorage(seed), [seed]);
   const [note] = useState(
-    'Demo: minnelagring (ingen Firestore). Seed-faktura #10001 med linjer, KID, bilag og EHF.',
+    'Demo: minnelagring (ingen Firestore). Seed-utkast #10001 med linjer, KID, bilag og EHF — send eller slett som admin.',
   );
 
   return (
@@ -233,6 +240,7 @@ export default function FakturaDemoScreen() {
         projects={DEMO_PROJECTS}
         storage={storage}
         supplier={DEMO_SUPPLIER}
+        isAdmin
       />
     </View>
   );

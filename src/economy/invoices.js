@@ -464,6 +464,34 @@ export function isInvoiceSent(invoice) {
   return sent === 'sent' || !!text(invoice?.sentAt) || invoice?.status === 'sent' || invoice?.status === 'overdue' || invoice?.status === 'paid';
 }
 
+/** Utkast eller aldri sendt — kan slettes. Sendte/betalte/krediterte må kreditnota. */
+export function canDeleteInvoice(invoice) {
+  const row = invoice || {};
+  if (!text(row.id) && !text(row.invoiceNumber)) return false;
+  if (row.status === 'paid' || row.status === 'credited' || row.status === 'written_off') return false;
+  if (row.status === 'draft') return true;
+  if (/utkast|draft/i.test(text(row.exportStatus)) && !isInvoiceSent(row)) return true;
+  return !isInvoiceSent(row);
+}
+
+/** Marker utkast som sendt (status + sentAt). Endrer ikke linjer eller beløp. */
+export function markInvoiceAsSent(invoice, at = new Date().toISOString()) {
+  const stamp = text(at) || new Date().toISOString();
+  const day = stamp.slice(0, 10);
+  const exportStatus = /utkast|draft/i.test(text(invoice?.exportStatus))
+    ? 'sendt'
+    : (text(invoice?.exportStatus) || 'sendt');
+  return normalizeInvoice({
+    ...invoice,
+    status: 'sent',
+    sent: 'sent',
+    sentAt: day,
+    exportStatus,
+    lockedAt: text(invoice?.lockedAt) || day,
+    updatedAt: stamp,
+  });
+}
+
 /** Summeringslinje som i Moment-detalj: eks. mva → øreavrunding → å betale. */
 export function invoicePaymentSummary(invoice) {
   const row = normalizeInvoice(invoice);

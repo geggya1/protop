@@ -4,6 +4,7 @@
 
 import {
   buildBillingProposals,
+  clearEntriesInvoice,
   createInvoiceFromProposal,
   linesFromEntries,
   markEntriesInvoiced,
@@ -14,7 +15,7 @@ import { normalizeSale, saleInvoiceLine } from './products.js';
 import { invoiceVatTotals, roundMoney } from './vat.js';
 import { emptyInvoice, newInvoiceId, parseDate, text } from './invoices.js';
 import { buildKid } from './kid.js';
-import { markOperationsInvoiced } from './opsState.js';
+import { clearOperationsInvoice, markOperationsInvoiced } from './opsState.js';
 
 function groupKey(row, project = {}) {
   const cust = row.customerId || project.customerId || row.customerNumber || project.customerNumber || 'ukjent';
@@ -226,6 +227,14 @@ export function markProposalInvoiced(state, proposal, invoiceId) {
     saleIds: (proposal.sales || []).map((row) => row.id),
     invoiceId,
   });
+}
+
+/**
+ * Frigjør timer + utlegg/kjøring/varer etter sletting av fakturautkast.
+ */
+export function clearProposalInvoice(state, invoiceId) {
+  const next = clearEntriesInvoice(state, invoiceId);
+  return clearOperationsInvoice(next, invoiceId);
 }
 
 export function proposalSummary(proposal) {

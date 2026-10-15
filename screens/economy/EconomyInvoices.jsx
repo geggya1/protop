@@ -16,6 +16,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
@@ -31,6 +32,7 @@ import {
 import { readInvoiceImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import {
+  canDeleteInvoice,
   filterInvoices,
   filterInvoicesByPeriod,
   formatDate,
@@ -42,12 +44,15 @@ import {
   INVOICE_STATUSES,
   isInvoiceOverdue,
   isInvoiceSent,
+  markInvoiceAsSent,
   parseMoney,
   statusLabel,
 } from '../../src/economy/invoices.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
+import { clearProposalInvoice } from '../../src/economy/billingFromOperations.js';
 import { buildEhfXml } from '../../src/economy/ehf.js';
 import { validateKid } from '../../src/economy/kid.js';
+import { loadProjectState, saveProjectState } from '../../src/project/storage';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -68,7 +73,7 @@ const PERIODS = [
   { id: 'year', label: 'I år' },
 ];
 
-const COLUMNS = [
+const BASE_COLUMNS = [
   { key: 'invoiceNumber', label: 'Fakturanr', width: 88 },
   { key: 'docs', label: 'PDF', width: 52 },
   { key: 'invoiceDate', label: 'Fakturadato', width: 100 },
@@ -86,7 +91,15 @@ const COLUMNS = [
   { key: 'loss', label: 'Tap', width: 72 },
 ];
 
-const TABLE_MIN = COLUMNS.reduce((sum, column) => sum + (column.minWidth || column.width), 0);
+const ACTIONS_COLUMN = { key: 'actions', label: '', width: 44 };
+
+function tableColumns(showActions) {
+  return showActions ? [...BASE_COLUMNS, ACTIONS_COLUMN] : BASE_COLUMNS;
+}
+
+function tableMinWidth(columns) {
+  return columns.reduce((sum, column) => sum + (column.minWidth || column.width), 0);
+}
 
 function columnStyle(column) {
   if (column.flex) {
@@ -201,12 +214,20 @@ function InvoiceDetail({
   onUploadPdf,
   uploading,
   supplier = {},
+  canManage = false,
+  onSend,
+  onDelete,
+  sending = false,
+  deleting = false,
 }) {
   const [tab, setTab] = useState('overview');
   const [ehfNote, setEhfNote] = useState('');
   const sections = useMemo(() => invoiceDetailSections(invoice), [invoice]);
   const payment = useMemo(() => invoicePaymentSummary(invoice), [invoice]);
   const overdue = isInvoiceOverdue(invoice);
+  const draft = invoice?.status === 'draft' || /utkast|draft/i.test(String(invoice?.exportStatus || ''));
+  const showSend = canManage && draft && !isInvoiceSent(invoice);
+  const showDelete = canManage && canDeleteInvoice(invoice);
   const kidCheck = invoice.kid ? validateKid(invoice.kid) : null;
   const index = invoices.findIndex((row) => row.id === invoice.id);
   const prev = index > 0 ? invoices[index - 1] : null;
@@ -368,6 +389,37 @@ function InvoiceDetail({
           {overdue ? ' · forfalt' : ''}
         </Text>
         <Text style={{ color: colors.muted }}>{invoice.exportStatus || '—'}</Text>
+        {showSend ? (
+          <TouchableOpacity
+            onPress={onSend}
+            disabled={sending || deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Send faktura"
+            style={[styles.primaryAction, { backgroundColor: colors.brand, opacity: sending || deleting ? 0.6 : 1 }]}
+          >
+            <Ionicons name="send-outline" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{sending ? 'Sender…' : 'Send faktura'}</Text>
+          </TouchableOpacity>
+        ) : null}
+        {showDelete ? (
+          <TouchableOpacity
+            onPress={onDelete}
+            disabled={sending || deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Slett faktura"
+            style={[styles.dangerAction, { borderColor: colors.danger || '#b42318', opacity: sending || deleting ? 0.6 : 1 }]}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.danger || '#b42318'} />
+            <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
+              {deleting ? 'Sletter…' : 'Slett faktura'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {draft && !showSend ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Fakturaen er et utkast. Send når du er klar.
+          </Text>
+        ) : null}
       </View>
       <InvoicePreviewPanel
         invoice={invoice}
@@ -478,12 +530,14 @@ export default function EconomyInvoices({
   onOpenProject,
   storage = null,
   supplier = {},
+  isAdmin = false,
 }) {
   const store = storage || invoiceStorage;
   const {
     loadInvoice,
     saveInvoice,
     saveInvoiceImport,
+    removeInvoice,
     watchInvoices,
   } = store;
   const colors = useColors();
@@ -492,6 +546,9 @@ export default function EconomyInvoices({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
+  const canManage = !!isAdmin;
+  const columns = useMemo(() => tableColumns(canManage), [canManage]);
+  const tableMin = useMemo(() => tableMinWidth(columns), [columns]);
 
   const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(false);
@@ -505,6 +562,9 @@ export default function EconomyInvoices({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
@@ -718,10 +778,72 @@ export default function EconomyInvoices({
     setImportReport(null);
   }
 
+  async function releaseLinkedWork(invoiceId) {
+    if (!familyId || familyId === '__demo__' || !invoiceId) return;
+    try {
+      const projectState = await loadProjectState(familyId);
+      const nextState = clearProposalInvoice(projectState, invoiceId);
+      if (nextState !== projectState) {
+        await saveProjectState(nextState, familyId);
+      }
+    } catch {
+      // Fakturasletting skal ikke feile hvis prosjektstate ikke kan oppdateres.
+    }
+  }
+
+  async function sendSelectedInvoice() {
+    if (!selected || !canManage || sending || deleting) return;
+    if (typeof saveInvoice !== 'function') {
+      setError('Kan ikke lagre sendt-status i denne visningen.');
+      return;
+    }
+    setSending(true);
+    setError('');
+    try {
+      const next = await saveInvoice(familyId, markInvoiceAsSent(selected));
+      setSelected(next);
+      setNote(`Faktura ${next.invoiceNumber} er markert som sendt.`);
+      showSaveToast(`Faktura ${next.invoiceNumber} er sendt.`);
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke sende fakturaen.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function confirmDeleteInvoice() {
+    const target = confirmDelete;
+    setConfirmDelete(null);
+    if (!target?.id || !canManage || typeof removeInvoice !== 'function') return;
+    setDeleting(true);
+    setError('');
+    try {
+      await removeInvoice(familyId, target.id);
+      await releaseLinkedWork(target.id);
+      if (selectedId === target.id) {
+        setView('list');
+        setSelectedId('');
+        setSelected(null);
+      }
+      setNote(`Faktura ${target.invoiceNumber || target.id} er slettet.`);
+      showSaveToast(`Faktura ${target.invoiceNumber || ''} er slettet.`);
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke slette fakturaen.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function requestDelete(row) {
+    if (!canManage || !canDeleteInvoice(row) || deleting || sending) return;
+    setConfirmDelete(row);
+  }
+
   function renderListRow({ item: row, index }) {
     const overdue = isInvoiceOverdue(row);
     const sent = isInvoiceSent(row);
     const danger = colors.danger || '#b42318';
+    const deletable = canManage && canDeleteInvoice(row);
     if (stackRows) {
       return (
         <TouchableOpacity
@@ -730,9 +852,25 @@ export default function EconomyInvoices({
           accessibilityLabel={`Faktura ${row.invoiceNumber}`}
           style={[styles.phoneRow, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
         >
-          <Text style={[styles.phoneName, { color: colors.ink }]}>
-            {row.invoiceNumber} · {formatDate(row.invoiceDate)}
-          </Text>
+          <View style={styles.phoneTop}>
+            <Text style={[styles.phoneName, { color: colors.ink, flex: 1 }]}>
+              {row.invoiceNumber} · {formatDate(row.invoiceDate)}
+            </Text>
+            {deletable ? (
+              <TouchableOpacity
+                onPress={(event) => {
+                  event?.stopPropagation?.();
+                  requestDelete(row);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.rowDelete}
+              >
+                <Ionicons name="trash-outline" size={18} color={danger} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
           <Text style={[styles.phoneIdentity, { color: colors.ink }]} numberOfLines={1}>
             {row.customerName || '—'}
           </Text>
@@ -773,7 +911,7 @@ export default function EconomyInvoices({
         accessibilityLabel={`Faktura ${row.invoiceNumber}`}
         style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
       >
-        {COLUMNS.map((column) => {
+        {columns.map((column) => {
           if (column.key === 'docs') {
             return (
               <View key={column.key} style={[columnStyle(column), styles.docCell]}>
@@ -790,6 +928,25 @@ export default function EconomyInvoices({
             return (
               <View key={column.key} style={[columnStyle(column), styles.docCell]}>
                 {sent ? <Ionicons name="checkmark-circle" size={18} color="#15803d" /> : <Text style={{ color: colors.muted }}>—</Text>}
+              </View>
+            );
+          }
+          if (column.key === 'actions') {
+            return (
+              <View key={column.key} style={[columnStyle(column), styles.docCell]}>
+                {deletable ? (
+                  <TouchableOpacity
+                    onPress={(event) => {
+                      event?.stopPropagation?.();
+                      requestDelete(row);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={danger} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
             );
           }
@@ -812,6 +969,22 @@ export default function EconomyInvoices({
     );
   }
 
+  const deleteDialog = (
+    <ConfirmDialog
+      visible={!!confirmDelete}
+      title="Slett faktura?"
+      message={confirmDelete
+        ? `Faktura ${confirmDelete.invoiceNumber || ''} slettes permanent. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.`
+        : ''}
+      confirmText="Slett"
+      cancelText="Avbryt"
+      danger
+      onCancel={() => setConfirmDelete(null)}
+      onConfirm={confirmDeleteInvoice}
+      onClose={() => setConfirmDelete(null)}
+    />
+  );
+
   if (view === 'detail' && selected) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
@@ -821,14 +994,20 @@ export default function EconomyInvoices({
           colors={colors}
           wide={wideDetail}
           supplier={supplier}
+          canManage={canManage}
+          sending={sending}
+          deleting={deleting}
           onBack={() => { setView('list'); setSelectedId(''); }}
           onOpenCustomer={onOpenCustomer}
           onOpenProject={onOpenProject}
           onNavigate={(row) => openInvoice(row)}
           onUploadPdf={uploadPdf}
           uploading={uploading}
+          onSend={sendSelectedInvoice}
+          onDelete={() => requestDelete(selected)}
         />
         {busyOverlay}
+        {deleteDialog}
       </View>
     );
   }
@@ -891,7 +1070,7 @@ export default function EconomyInvoices({
     >
       {!stackRows ? (
         <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
           ))}
         </View>
@@ -1010,13 +1189,14 @@ export default function EconomyInvoices({
           <ActivityIndicator color={colors.brand} />
         ) : stackRows ? table : (
           <ScrollView horizontal showsHorizontalScrollIndicator>
-            <View style={{ minWidth: TABLE_MIN }}>
+            <View style={{ minWidth: tableMin }}>
               {table}
             </View>
           </ScrollView>
         )}
       </View>
       {busyOverlay}
+      {deleteDialog}
     </View>
   );
 }
@@ -1040,9 +1220,32 @@ const styles = StyleSheet.create({
   td: { fontSize: 12 },
   docCell: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 2 },
   phoneRow: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
+  phoneTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phoneName: { fontSize: 15, fontWeight: '700' },
   phoneIdentity: { fontSize: 14 },
   phoneMeta: { fontSize: 13 },
+  rowDelete: { padding: 4 },
+  primaryAction: {
+    marginTop: 4,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+  },
+  dangerAction: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+  },
   detailInner: { padding: 16, paddingBottom: 48, gap: 14, maxWidth: 1200, width: '100%' },
   detailInnerWide: { alignSelf: 'flex-start' },
   detailTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },

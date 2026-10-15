@@ -381,3 +381,25 @@ export function markEntriesInvoiced(state, entryIds, invoiceId) {
   });
   return changed ? { ...state, timeEntries } : state;
 }
+
+/**
+ * Frigjør timer knyttet til en slettet faktura (f.eks. utkast).
+ * Setter status tilbake til godkjent når posten var låst.
+ */
+export function clearEntriesInvoice(state, invoiceId) {
+  const id = text(invoiceId);
+  if (!id) return state;
+  let changed = false;
+  const stampAt = new Date().toISOString();
+  const timeEntries = (state.timeEntries || []).map((row) => {
+    if (text(row.invoiceId) !== id) return row;
+    changed = true;
+    return {
+      ...row,
+      invoiceId: '',
+      status: row.status === 'låst' ? 'godkjent' : row.status,
+      updatedAt: stampAt,
+    };
+  });
+  return changed ? { ...state, timeEntries } : state;
+}

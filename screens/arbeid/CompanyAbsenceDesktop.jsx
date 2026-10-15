@@ -182,34 +182,37 @@ export function CompanyAbsenceDesktop({
   const person = board.staff[0];
   const summary = board.dash.summary || {};
 
+  const ferieNow = away.filter((row) => row.bucket === 'ferie').length;
+  const sykNow = away.filter((row) => row.bucket === 'sykdom').length;
+  const annetNow = away.filter((row) => row.bucket === 'annet').length;
+  const planned = board.planned || [];
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: '#F4F7FB' }}
       contentContainerStyle={styles.page}
       nativeID="fravaer-oversikt-web"
     >
-      <View style={styles.toolbar}>
-        {employeeId ? (
+      {employeeId ? (
+        <View style={styles.toolbar}>
           <TouchableOpacity onPress={() => onSelectEmployee?.('')} style={styles.back} accessibilityRole="button" nativeID="fravaer-tilbake">
             <Ionicons name="chevron-back" size={16} color={blue} />
             <Text style={styles.backTxt}>Alle i utvalget</Text>
           </TouchableOpacity>
-        ) : (
-          <Text style={styles.lead}>Egne aktive ansatte. Velg flere grupper, periode og diagram eller tabell.</Text>
-        )}
-        {canChooseEmployee ? (
-          <TouchableOpacity
-            onPress={() => setPeopleOpen((value) => !value)}
-            style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
-            accessibilityRole="button"
-            accessibilityLabel="Velg ansatt"
-          >
-            <Ionicons name="people" size={15} color={blue} />
-            <Text style={styles.personTxt}>{selectedName}</Text>
-            <Ionicons name="chevron-down" size={14} color={muted} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
+          {canChooseEmployee ? (
+            <TouchableOpacity
+              onPress={() => setPeopleOpen((value) => !value)}
+              style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+              accessibilityRole="button"
+              accessibilityLabel="Velg ansatt"
+            >
+              <Ionicons name="people" size={14} color={blue} />
+              <Text style={styles.personTxt}>{selectedName}</Text>
+              <Ionicons name="chevron-down" size={13} color={muted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
       {peopleOpen ? (
         <View style={[styles.menu, { borderColor: line }]}>
           <MenuRow label="Alle i utvalget" on={!employeeId} onPress={() => { setPeopleOpen(false); onSelectEmployee?.(''); }} />
@@ -223,7 +226,7 @@ export function CompanyAbsenceDesktop({
           ))}
         </View>
       ) : null}
-      {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+      {error ? <Text style={styles.errorTxt}>{error}</Text> : null}
       {employeeId ? (
         <EmployeePane
           name={selectedName}
@@ -234,7 +237,7 @@ export function CompanyAbsenceDesktop({
           yearUsed={yearUsed}
           remaining={remaining}
           hasQuota={hasQuota}
-          planned={board.planned || []}
+          planned={planned}
           lines={board.lines}
           opening={opening}
           openingPlaceholder={formatCount(summary.opening || 0)}
@@ -245,148 +248,187 @@ export function CompanyAbsenceDesktop({
         />
       ) : (
         <>
-          {canChooseEmployee ? (
-            <AudienceBar
-              kinds={audience.kinds}
-              onToggleKind={audience.toggleKind}
-              includeInactive={audience.includeInactive}
-              onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
+          <View style={styles.controlStrip}>
+            {canChooseEmployee ? (
+              <AudienceBar
+                kinds={audience.kinds}
+                onToggleKind={audience.toggleKind}
+                includeInactive={audience.includeInactive}
+                onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
+              />
+            ) : null}
+            <PeriodBar
+              span={span}
+              label={period.label}
+              onSpan={setSpan}
+              onStep={(delta) => setCursor(stepCursor(span, cursor || today, delta))}
+              view={view}
+              onView={setView}
             />
-          ) : null}
-          <PeriodBar
-            span={span}
-            label={period.label}
-            onSpan={setSpan}
-            onStep={(delta) => setCursor(stepCursor(span, cursor || today, delta))}
-            view={view}
-            onView={setView}
-          />
-
-      <View style={styles.kpis}>
-        <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" />
-        <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={away.filter((row) => row.bucket === 'ferie').length} label="På ferie nå" />
-        <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={away.filter((row) => row.bucket === 'sykdom').length} label="Sykemeldte nå" />
-        <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={away.filter((row) => row.bucket === 'annet').length} label="Annet fravær nå" />
-      </View>
-
-      <View style={[styles.card, styles.awayCard]}>
-        <Text style={styles.cardTitle}>Borte i dag</Text>
-        {away.length ? (
-          <View style={styles.awayRow}>
-            {away.map((row) => (
-              <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.awayPill} accessibilityRole="button">
-                <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
-                <Text style={styles.awayName}>{row.employeeName}</Text>
-                <Text style={styles.awayType}>{row.typeLabel}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.empty}>Ingen er registrert borte i dag.</Text>
-        )}
-      </View>
-
-      {view === 'diagram' ? (
-        <>
-      <PlannedCard rows={board.planned || []} onOpen={openPerson} />
-
-      <View style={styles.split}>
-        <View style={[styles.card, styles.splitCard]}>
-          <Text style={styles.cardTitle}>{`Feriebruk ${board.year}`}</Text>
-          <View style={styles.donutRow}>
-            <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
-            <View style={styles.legend}>
-              <Legend color={blue} label="Feriedager i år" value={formatCount(yearUsed)} />
-              {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
-              {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
-            </View>
-          </View>
-        </View>
-        <View
-          style={[styles.card, styles.splitCard]}
-          onLayout={(event) => setChartWidth(Math.max(220, event.nativeEvent.layout.width - 36))}
-        >
-          <Text style={styles.cardTitle}>{period.label}</Text>
-          <MonthChart months={grid.totals} width={Math.max(chartWidth, grid.days.length * 18)} />
-          <View style={styles.keys}>
-            <Key color={BARS.ferie} label="Ferie" />
-            <Key color={BARS.sykdom} label="Sykdom" />
-            <Key color={BARS.annet} label="Annet" />
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{`Fravær i ${board.year}`}</Text>
-        <Text style={styles.hint}>Dager per måned. Feriesaldoen er lagret startsaldo minus registrert ferie.</Text>
-        {board.staff.length ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.matrix}>
-              <View style={styles.matrixHead}>
-                <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
-                {board.months.map((label) => (
-                  <Text key={label} style={[styles.monthCol, styles.headTxt]}>{label}</Text>
-                ))}
-                <Text style={[styles.numCol, styles.headTxt]}>Ferie</Text>
-                <Text style={[styles.numCol, styles.headTxt]}>Til gode</Text>
-              </View>
-              {board.staff.map((person) => (
-                <TouchableOpacity key={person.id} onPress={() => openPerson(person.id)} style={styles.matrixRow} accessibilityRole="button">
-                  <Text style={[styles.nameCol, styles.nameTxt]} numberOfLines={1}>{person.name}</Text>
-                  {person.months.map((month) => {
-                    const total = monthTotal(month);
-                    return (
-                      <Text key={month.label} style={[styles.monthCol, styles.monthNum, total ? { color: monthTone(month) } : null]}>
-                        {total ? formatCount(total) : ''}
-                      </Text>
-                    );
-                  })}
-                  <Text style={[styles.numCol, styles.numTxt]}>{person.vacationUsed ? formatCount(person.vacationUsed) : ''}</Text>
-                  <Text style={[styles.numCol, styles.numTxt]}>{person.earned ? formatCount(person.remaining) : '–'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        ) : (
-          <Text style={styles.empty}>{`Ingen fravær er registrert i ${board.year}.`}</Text>
-        )}
-      </View>
-
-      <View style={styles.card} nativeID="fravaer-perioder">
-        <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>Registrerte perioder</Text>
-          <View style={styles.filters}>
-            {FILTERS.map((item) => (
+            {canChooseEmployee ? (
               <TouchableOpacity
-                key={item.id}
-                onPress={() => setKind(item.id)}
-                style={[styles.filter, kind === item.id && styles.filterOn]}
+                onPress={() => setPeopleOpen((value) => !value)}
+                style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
                 accessibilityRole="button"
-                accessibilityState={{ selected: kind === item.id }}
+                accessibilityLabel="Velg ansatt"
               >
-                <Text style={[styles.filterTxt, kind === item.id && styles.filterTxtOn]}>{item.label}</Text>
+                <Ionicons name="people" size={14} color={blue} />
+                <Text style={styles.personTxt}>{selectedName}</Text>
+                <Ionicons name="chevron-down" size={13} color={muted} />
               </TouchableOpacity>
-            ))}
+            ) : null}
           </View>
-        </View>
-        {lines.length ? lines.map((row) => (
-          <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
-            <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
-              <Text style={styles.periodMeta}>{`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}</Text>
-            </View>
-            <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
-            <Text style={styles.periodStatus}>{STATUS[row.status] || 'Registrert'}</Text>
-          </TouchableOpacity>
-        )) : (
-          <Text style={styles.empty}>Ingen perioder i dette utvalget.</Text>
-        )}
-      </View>
-        </>
-      ) : (
-        <PeriodTable grid={grid} today={today} onOpen={openPerson} />
-      )}
+
+          <View style={styles.kpis} accessibilityRole="summary">
+            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" />
+            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label="På ferie" />
+            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label="Sykemeldte" />
+            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label="Annet fravær" />
+          </View>
+
+          {view === 'diagram' ? (
+            <>
+              <View style={styles.statusSplit}>
+                <StatusCard
+                  title="Borte i dag"
+                  count={away.length}
+                  empty="Ingen registrert borte i dag"
+                  nativeID="borte-i-dag"
+                >
+                  {away.map((row) => (
+                    <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.awayPill} accessibilityRole="button">
+                      <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+                      <Text style={styles.awayName} numberOfLines={1}>{row.employeeName}</Text>
+                      <Text style={styles.awayType} numberOfLines={1}>{row.typeLabel}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </StatusCard>
+                <StatusCard
+                  title="Planlagt fremover"
+                  count={planned.length}
+                  empty="Ingen planlagt fravær"
+                  nativeID="planlagt-fravaer"
+                >
+                  {planned.slice(0, 6).map((row) => (
+                    <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
+                      <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
+                        <Text style={styles.periodMeta} numberOfLines={1}>
+                          {`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}
+                        </Text>
+                      </View>
+                      <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {planned.length > 6 ? (
+                    <Text style={styles.moreHint}>{`+ ${planned.length - 6} til i listen under`}</Text>
+                  ) : null}
+                </StatusCard>
+              </View>
+
+              <View style={styles.split}>
+                <View style={[styles.card, styles.splitCard]}>
+                  <Text style={styles.cardTitle}>{`Feriebruk ${board.year}`}</Text>
+                  <Text style={styles.hint}>Brukte feriedager mot startsaldo for utvalget.</Text>
+                  <View style={styles.donutRow}>
+                    <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
+                    <View style={styles.legend}>
+                      <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
+                      {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
+                      {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
+                      {!hasQuota ? <Legend label="Ingen startsaldo satt" value="" /> : null}
+                    </View>
+                  </View>
+                </View>
+                <View
+                  style={[styles.card, styles.splitCard]}
+                  onLayout={(event) => setChartWidth(Math.max(180, event.nativeEvent.layout.width - 28))}
+                >
+                  <Text style={styles.cardTitle}>Fravær i perioden</Text>
+                  <Text style={styles.hint}>{period.label}</Text>
+                  <MonthChart months={grid.totals} width={Math.max(chartWidth, grid.days.length * 16)} />
+                  <View style={styles.keys}>
+                    <Key color={BARS.ferie} label="Ferie" />
+                    <Key color={BARS.sykdom} label="Sykdom" />
+                    <Key color={BARS.annet} label="Annet" />
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{`Fravær i ${board.year}`}</Text>
+                <Text style={styles.hint}>Dager per måned. Til gode = startsaldo minus registrert ferie.</Text>
+                {board.staff.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.matrix}>
+                      <View style={styles.matrixHead}>
+                        <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
+                        {board.months.map((label) => (
+                          <Text key={label} style={[styles.monthCol, styles.headTxt]}>{label}</Text>
+                        ))}
+                        <Text style={[styles.numCol, styles.headTxt]}>Ferie</Text>
+                        <Text style={[styles.numCol, styles.headTxt]}>Til gode</Text>
+                      </View>
+                      {board.staff.map((staffRow) => (
+                        <TouchableOpacity key={staffRow.id} onPress={() => openPerson(staffRow.id)} style={styles.matrixRow} accessibilityRole="button">
+                          <Text style={[styles.nameCol, styles.nameTxt]} numberOfLines={1}>{staffRow.name}</Text>
+                          {staffRow.months.map((month) => {
+                            const total = monthTotal(month);
+                            return (
+                              <Text key={month.label} style={[styles.monthCol, styles.monthNum, total ? { color: monthTone(month) } : null]}>
+                                {total ? formatCount(total) : ''}
+                              </Text>
+                            );
+                          })}
+                          <Text style={[styles.numCol, styles.numTxt]}>{staffRow.vacationUsed ? formatCount(staffRow.vacationUsed) : ''}</Text>
+                          <Text style={[styles.numCol, styles.numTxt]}>{staffRow.earned ? formatCount(staffRow.remaining) : '–'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.empty}>{`Ingen fravær registrert i ${board.year}.`}</Text>
+                )}
+              </View>
+
+              <View style={styles.card} nativeID="fravaer-perioder">
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardTitle}>
+                    {`Registrerte perioder${lines.length ? ` · ${lines.length}` : ''}`}
+                  </Text>
+                  <View style={styles.filters}>
+                    {FILTERS.map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => setKind(item.id)}
+                        style={[styles.filter, kind === item.id && styles.filterOn]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: kind === item.id }}
+                      >
+                        <Text style={[styles.filterTxt, kind === item.id && styles.filterTxtOn]}>{item.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                {lines.length ? lines.map((row) => (
+                  <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
+                    <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
+                      <Text style={styles.periodMeta}>{`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}</Text>
+                    </View>
+                    <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
+                    <Text style={styles.periodStatus}>{STATUS[row.status] || 'Registrert'}</Text>
+                  </TouchableOpacity>
+                )) : (
+                  <Text style={styles.empty}>Ingen perioder i dette utvalget.</Text>
+                )}
+              </View>
+            </>
+          ) : (
+            <PeriodTable grid={grid} today={today} onOpen={openPerson} />
+          )}
         </>
       )}
     </ScrollView>
@@ -581,7 +623,7 @@ export function AbsenceReportDesktop({
       style={{ padding: 14, alignItems: 'center' }}
       nativeID="absence-report-more"
     >
-      <Text style={{ color: colors.brand, fontWeight: '600' }}>
+      <Text style={{ color: colors.brand, fontWeight: '400' }}>
         Vis flere ({pageRows.length} av {visible.length})
       </Text>
     </TouchableOpacity>
@@ -619,8 +661,8 @@ export function AbsenceReportDesktop({
                         reportStyles.td,
                         reportColumnStyle(column),
                         { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
-                        (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '600' },
-                        column.key === 'employeeName' && { fontWeight: '600', color: colors.ink },
+                        (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '400' },
+                        column.key === 'employeeName' && { fontWeight: '400', color: colors.ink },
                       ]}
                       numberOfLines={2}
                     >
@@ -687,7 +729,7 @@ export function AbsenceReportDesktop({
                   style={[reportStyles.ghostBtn, { borderColor: colors.line }]}
                 >
                   <Ionicons name="options-outline" size={18} color={colors.ink} />
-                  <Text style={{ color: colors.ink, fontWeight: '600' }}>Filter</Text>
+                  <Text style={{ color: colors.ink, fontWeight: '400' }}>Filter</Text>
                 </TouchableOpacity>
               ) : null}
               {canImport && absenceCount > 0 && onClearImported ? (
@@ -699,7 +741,7 @@ export function AbsenceReportDesktop({
                   nativeID="fravaer-clear-imported"
                 >
                   <Ionicons name="trash-outline" size={15} color={colors.muted} />
-                  <Text style={{ color: colors.muted, fontWeight: '600' }}>Tøm import</Text>
+                  <Text style={{ color: colors.muted, fontWeight: '400' }}>Tøm import</Text>
                 </TouchableOpacity>
               ) : null}
               {canImport ? (
@@ -762,7 +804,7 @@ export function PlannedAbsenceDesktop({
       nativeID="planlagt-fravaer-side"
     >
       <View style={styles.toolbar}>
-        <Text style={styles.lead}>Fravær som er registrert frem i tid, også inn i neste år.</Text>
+        <Text style={styles.hint}>Fravær som er registrert frem i tid, også inn i neste år.</Text>
         {canChooseEmployee ? (
           <TouchableOpacity
             onPress={() => setPeopleOpen((value) => !value)}
@@ -847,11 +889,11 @@ function PeriodBar({ span, label, onSpan, onStep, view, onView }) {
       </View>
       <View style={styles.stepper}>
         <TouchableOpacity onPress={() => onStep(-1)} accessibilityRole="button" accessibilityLabel="Forrige periode" nativeID="periode-forrige">
-          <Ionicons name="chevron-back" size={16} color={ink} />
+          <Ionicons name="chevron-back" size={15} color={ink} />
         </TouchableOpacity>
         <Text style={styles.stepLabel}>{label}</Text>
         <TouchableOpacity onPress={() => onStep(1)} accessibilityRole="button" accessibilityLabel="Neste periode" nativeID="periode-neste">
-          <Ionicons name="chevron-forward" size={16} color={ink} />
+          <Ionicons name="chevron-forward" size={15} color={ink} />
         </TouchableOpacity>
       </View>
       <View style={styles.filters}>
@@ -862,6 +904,18 @@ function PeriodBar({ span, label, onSpan, onStep, view, onView }) {
           <Text style={[styles.filterTxt, view === 'tabell' && styles.filterTxtOn]}>Tabell</Text>
         </TouchableOpacity>
       </View>
+    </View>
+  );
+}
+
+function StatusCard({ title, count, empty, children, nativeID }) {
+  return (
+    <View style={[styles.card, styles.statusCard]} nativeID={nativeID}>
+      <View style={styles.statusHead}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.countBadge}>{count}</Text>
+      </View>
+      {count > 0 ? children : <Text style={styles.empty}>{empty}</Text>}
     </View>
   );
 }
@@ -919,7 +973,7 @@ function EmployeePane({
   opening, openingPlaceholder, onOpeningChange, onSaveOpening, chartWidth, onChartWidth,
 }) {
   return (
-    <View nativeID="fravaer-ansatt" style={{ gap: 14 }}>
+    <View nativeID="fravaer-ansatt" style={{ gap: 10 }}>
       <View>
         <Text style={styles.personHeading}>{name}</Text>
         <Text style={styles.hint}>{kind}</Text>
@@ -930,7 +984,7 @@ function EmployeePane({
           <View style={styles.donutRow}>
             <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
             <View style={styles.legend}>
-              <Legend color={blue} label="Feriedager i år" value={formatCount(yearUsed)} />
+              <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
               {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
               {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
             </View>
@@ -952,7 +1006,7 @@ function EmployeePane({
             </TouchableOpacity>
           </View>
         </View>
-        <View style={[styles.card, styles.splitCard]} onLayout={(event) => onChartWidth?.(Math.max(220, event.nativeEvent.layout.width - 36))}>
+        <View style={[styles.card, styles.splitCard]} onLayout={(event) => onChartWidth?.(Math.max(180, event.nativeEvent.layout.width - 28))}>
           <Text style={styles.cardTitle}>{`Fravær i ${year}`}</Text>
           <MonthChart months={person?.months || []} width={chartWidth} />
           <View style={styles.keys}>
@@ -976,7 +1030,7 @@ function EmployeePane({
             <Text style={styles.periodStatus}>{STATUS[row.status] || 'Registrert'}</Text>
           </View>
         )) : (
-          <Text style={styles.empty}>{`Ingen fravær er registrert i ${year}.`}</Text>
+          <Text style={styles.empty}>{`Ingen fravær registrert i ${year}.`}</Text>
         )}
       </View>
     </View>
@@ -986,8 +1040,13 @@ function EmployeePane({
 function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
   return (
     <View style={styles.card} nativeID="planlagt-fravaer">
-      {heading ? <Text style={styles.cardTitle}>{heading}</Text> : null}
-      <Text style={styles.hint}>Registrert fravær som ligger frem i tid.</Text>
+      {heading ? (
+        <View style={styles.statusHead}>
+          <Text style={styles.cardTitle}>{heading}</Text>
+          <Text style={styles.countBadge}>{rows.length}</Text>
+        </View>
+      ) : null}
+      <Text style={styles.hint}>Registrert fravær frem i tid.</Text>
       {rows.length ? rows.map((row) => (
         <TouchableOpacity
           key={row.id}
@@ -1015,10 +1074,12 @@ function Kpi({ icon, tint, bg, value, label }) {
   return (
     <View style={styles.kpi}>
       <View style={[styles.kpiIcon, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={16} color={tint} />
+        <Ionicons name={icon} size={14} color={tint} />
       </View>
-      <Text style={styles.kpiValue}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
+      <View style={styles.kpiCopy}>
+        <Text style={styles.kpiValue}>{value}</Text>
+        <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
+      </View>
     </View>
   );
 }
@@ -1051,8 +1112,8 @@ function MenuRow({ label, on, onPress }) {
 }
 
 function Donut({ used, total, hasQuota }) {
-  const size = 128;
-  const stroke = 12;
+  const size = 88;
+  const stroke = 9;
   const radius = (size - stroke) / 2;
   const c = 2 * Math.PI * radius;
   const ratio = hasQuota && total > 0 ? Math.min(1, Math.max(0, used / total)) : 0;
@@ -1086,10 +1147,10 @@ function Donut({ used, total, hasQuota }) {
 }
 
 function MonthChart({ months, width }) {
-  const plotH = 140;
-  const gap = 10;
+  const plotH = 88;
+  const gap = 6;
   const count = Math.max(1, months.length);
-  const barW = Math.max(12, (width - 28 - gap * (count - 1)) / count);
+  const barW = Math.max(10, (width - 24 - gap * (count - 1)) / count);
   const max = Math.max(1, ...months.map((month) => month.ferie + month.sykdom + month.annet));
   return (
     <View nativeID="fravaer-maneder">
@@ -1102,7 +1163,7 @@ function MonthChart({ months, width }) {
             return parts.map(([key, value]) => {
               const h = Math.max(3, (value / max) * (plotH - 6));
               y -= h;
-              return <Rect key={`${month.key || month.label}-${key}`} x={x} y={y} width={barW} height={h} rx={3} fill={BARS[key]} />;
+              return <Rect key={`${month.key || month.label}-${key}`} x={x} y={y} width={barW} height={h} rx={2} fill={BARS[key]} />;
             });
           })}
         </Svg>
@@ -1121,7 +1182,7 @@ const reportStyles = StyleSheet.create({
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
   crumb: { fontSize: 12 },
-  heading: { fontSize: 24, fontWeight: '800' },
+  heading: { fontSize: 22, fontWeight: '400' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   toolbarRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   ghostBtn: {
@@ -1142,12 +1203,12 @@ const reportStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '700' },
+  primaryBtnText: { color: '#fff', fontWeight: '400' },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 40 },
   head: { minHeight: 42 },
-  th: { fontSize: 11, fontWeight: '700', paddingVertical: 10, paddingHorizontal: 4 },
+  th: { fontSize: 11, fontWeight: '400', paddingVertical: 10, paddingHorizontal: 4 },
   td: { fontSize: 13, paddingVertical: 8, paddingHorizontal: 4 },
   modalBg: { flex: 1, backgroundColor: 'rgba(15,23,42,0.35)', justifyContent: 'flex-end' },
   filterSheet: {
@@ -1160,92 +1221,134 @@ const reportStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  page: { padding: 20, gap: 14, paddingBottom: 48 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  lead: { color: muted, fontSize: 14, flex: 1 },
+  page: { padding: 14, gap: 10, paddingBottom: 36 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  controlStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
+    flexWrap: 'wrap',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  errorTxt: { color: '#b42318', fontSize: 13, fontWeight: '400' },
   personBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
   },
-  personTxt: { color: ink, fontWeight: '600' },
-  menu: { borderWidth: 1, borderRadius: 12, backgroundColor: '#fff', maxHeight: 280, overflow: 'hidden' },
-  menuRow: { paddingHorizontal: 12, paddingVertical: 8 },
-  kpis: { flexDirection: 'row', gap: 12 },
+  personTxt: { color: ink, fontWeight: '400', fontSize: 13 },
+  menu: { borderWidth: 1, borderRadius: 10, backgroundColor: '#fff', maxHeight: 280, overflow: 'hidden' },
+  menuRow: { paddingHorizontal: 12, paddingVertical: 7 },
+  kpis: {
+    flexDirection: 'row',
+    gap: 0,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   kpi: {
-    flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: line, borderRadius: 14,
-    padding: 14, gap: 4,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: line,
   },
-  kpiIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  kpiValue: { color: ink, fontSize: 26, fontWeight: '800' },
-  kpiLabel: { color: muted, fontSize: 13 },
-  card: { backgroundColor: '#fff', borderWidth: 1, borderColor: line, borderRadius: 14, padding: 16, gap: 10 },
-  awayCard: { gap: 8 },
-  cardTitle: { color: ink, fontSize: 16, fontWeight: '700' },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  hint: { color: muted, fontSize: 12, marginTop: -4 },
-  empty: { color: muted, fontSize: 14 },
-  awayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  kpiIcon: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  kpiCopy: { flex: 1, minWidth: 0, gap: 1 },
+  kpiValue: { color: ink, fontSize: 18, fontWeight: '400', fontVariant: ['tabular-nums'] },
+  kpiLabel: { color: muted, fontSize: 12, fontWeight: '400' },
+  card: { backgroundColor: '#fff', borderWidth: 1, borderColor: line, borderRadius: 12, padding: 12, gap: 6 },
+  statusCard: { flex: 1, minWidth: 240, gap: 4 },
+  statusSplit: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
+  statusHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  countBadge: {
+    color: muted,
+    fontSize: 12,
+    fontWeight: '400',
+    fontVariant: ['tabular-nums'],
+    backgroundColor: '#F3F6FA',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  cardTitle: { color: ink, fontSize: 14, fontWeight: '400' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+  hint: { color: muted, fontSize: 12, fontWeight: '400', marginTop: -2 },
+  empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
+  moreHint: { color: muted, fontSize: 12, fontWeight: '400', paddingTop: 2 },
   awayPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#F4F7FB', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: '#F4F7FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
+    marginTop: 2,
   },
-  awayName: { color: ink, fontWeight: '700', fontSize: 13 },
-  awayType: { color: muted, fontSize: 12 },
-  split: { flexDirection: 'row', gap: 14, alignItems: 'stretch' },
-  splitCard: { flex: 1, minWidth: 280 },
-  donutRow: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  awayName: { color: ink, fontWeight: '400', fontSize: 13, flexShrink: 1 },
+  awayType: { color: muted, fontSize: 12, fontWeight: '400', marginLeft: 'auto' },
+  split: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
+  splitCard: { flex: 1, minWidth: 260 },
+  donutRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 2 },
   donutCenter: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  donutValue: { color: ink, fontSize: 22, fontWeight: '800' },
-  donutCaption: { color: muted, fontSize: 11 },
-  legend: { flex: 1, gap: 8 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendLabel: { color: muted, flex: 1 },
-  legendValue: { color: ink, fontWeight: '700' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  swatch: { width: 8, height: 8, borderRadius: 2 },
-  keys: { flexDirection: 'row', gap: 14 },
-  key: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chartPlot: { paddingTop: 4 },
+  donutValue: { color: ink, fontSize: 16, fontWeight: '400' },
+  donutCaption: { color: muted, fontSize: 10, fontWeight: '400' },
+  legend: { flex: 1, gap: 5 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  legendLabel: { color: muted, flex: 1, fontSize: 12, fontWeight: '400' },
+  legendValue: { color: ink, fontWeight: '400', fontSize: 13, fontVariant: ['tabular-nums'] },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  swatch: { width: 7, height: 7, borderRadius: 2 },
+  keys: { flexDirection: 'row', gap: 12, marginTop: 2 },
+  key: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  chartPlot: { paddingTop: 2 },
   monthLabels: { flexDirection: 'row' },
-  monthLabel: { color: muted, fontSize: 11, textAlign: 'center' },
+  monthLabel: { color: muted, fontSize: 10, textAlign: 'center', fontWeight: '400' },
   opening: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  openingLabel: { color: muted, fontSize: 12 },
-  input: { borderWidth: 1, borderColor: line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, minWidth: 72, color: ink },
-  save: { backgroundColor: blue, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  saveTxt: { color: '#fff', fontWeight: '700' },
-  matrix: { minWidth: 920, gap: 2 },
-  matrixHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
-  matrixRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 6 },
+  openingLabel: { color: muted, fontSize: 12, fontWeight: '400' },
+  input: { borderWidth: 1, borderColor: line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, minWidth: 72, color: ink },
+  save: { backgroundColor: blue, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  saveTxt: { color: '#fff', fontWeight: '400' },
+  matrix: { minWidth: 920, gap: 0 },
+  matrixHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 4 },
+  matrixRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 5 },
   nameCol: { width: 150 },
   monthCol: { width: 48, textAlign: 'center' },
   numCol: { width: 72, textAlign: 'right' },
-  headTxt: { color: muted, fontSize: 11, fontWeight: '700' },
-  nameTxt: { color: ink, fontWeight: '600', fontSize: 13 },
-  monthNum: { fontSize: 12, fontWeight: '700' },
-  numTxt: { color: ink, fontWeight: '700', fontSize: 13, textAlign: 'right' },
-  filters: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  filter: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#F3F6FA' },
+  headTxt: { color: muted, fontSize: 11, fontWeight: '400' },
+  nameTxt: { color: ink, fontWeight: '400', fontSize: 13 },
+  monthNum: { fontSize: 12, fontWeight: '400' },
+  numTxt: { color: ink, fontWeight: '400', fontSize: 13, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  filters: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
+  filter: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#F3F6FA' },
   filterOn: { backgroundColor: '#102848' },
-  filterTxt: { color: muted, fontSize: 13 },
-  filterTxtOn: { color: '#fff', fontWeight: '700' },
-  periodBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepLabel: { color: ink, fontWeight: '700', minWidth: 160, textAlign: 'center' },
+  filterTxt: { color: muted, fontSize: 12, fontWeight: '400' },
+  filterTxtOn: { color: '#fff', fontWeight: '400' },
+  periodBar: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexGrow: 1 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepLabel: { color: ink, fontWeight: '400', fontSize: 13, minWidth: 148, textAlign: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backTxt: { color: blue, fontWeight: '700' },
-  personHeading: { color: ink, fontSize: 22, fontWeight: '800' },
+  backTxt: { color: blue, fontWeight: '400', fontSize: 13 },
+  personHeading: { color: ink, fontSize: 18, fontWeight: '400' },
   gridHead: { flexDirection: 'row', alignItems: 'flex-end' },
-  gridRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 4 },
+  gridRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 3 },
   gridName: { width: 160 },
   gridDay: { width: 36, textAlign: 'center', fontSize: 10 },
   gridToday: { color: blue },
-  gridCell: { width: 28, height: 22, marginHorizontal: 4, borderRadius: 4, backgroundColor: '#F4F7FB' },
+  gridCell: { width: 28, height: 20, marginHorizontal: 4, borderRadius: 4, backgroundColor: '#F4F7FB' },
   gridCellEnd: { backgroundColor: '#EEF2F6' },
-  period: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line },
-  periodName: { color: ink, fontWeight: '700' },
-  periodMeta: { color: muted, fontSize: 12 },
-  periodDays: { color: ink, fontWeight: '700', width: 48, textAlign: 'right' },
-  periodStatus: { color: muted, width: 88, textAlign: 'right', fontSize: 12 },
+  period: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line },
+  periodName: { color: ink, fontWeight: '400', fontSize: 13 },
+  periodMeta: { color: muted, fontSize: 12, fontWeight: '400' },
+  periodDays: { color: ink, fontWeight: '400', width: 44, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  periodStatus: { color: muted, width: 80, textAlign: 'right', fontSize: 12, fontWeight: '400' },
   tableHead: { flexDirection: 'row', paddingBottom: 6 },
   tableRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 8 },
   colGrow: { flex: 1, minWidth: 0 },

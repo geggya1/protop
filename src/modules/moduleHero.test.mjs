@@ -304,8 +304,8 @@ assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
+assert.equal(resolveModuleHero('selskap', 'nb').wideArt, true, 'company profile uses the wide illustration');
 const TEXT_ONLY_PASTEL = {
-  selskap: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   'selskap-tilgang': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   underenheter: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   'anbud-foresporsel': ['#E5F6FE', '#f7fbff', '#1099F4'],
@@ -559,6 +559,17 @@ assert.equal(
   'okonomi utlegg bundled != public',
 );
 assert.match(assetsSrc, /'okonomi-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-utlegg--module-activation-illustration\.png'\)/);
+const selskapFile = 'selskap--module-activation-illustration.png';
+const selskapBundled = join(ROOT, 'assets/module-activation', selskapFile);
+const selskapPublic = join(ROOT, 'public/assets/module-activation', selskapFile);
+assert.equal(existsSync(selskapBundled), true, 'selskap bundled art');
+assert.equal(existsSync(selskapPublic), true, 'selskap public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(selskapBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(selskapPublic)).digest('hex'),
+  'selskap bundled != public',
+);
+assert.match(assetsSrc, /selskap: require\('\.\.\/\.\.\/assets\/module-activation\/selskap--module-activation-illustration\.png'\)/);
 for (const file of [
   'okonomi-faktura-phone--module-activation-illustration.png',
   'arbeid-godkjenning-phone--module-activation-illustration.png',

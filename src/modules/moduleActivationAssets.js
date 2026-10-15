@@ -68,6 +68,7 @@ const BUNDLED = {
   'okonomi-fakturagrunnlag': require('../../assets/module-activation/okonomi-fakturagrunnlag--module-activation-illustration.png'),
   'okonomi-oversikt': require('../../assets/module-activation/okonomi-oversikt--module-activation-illustration.png'),
   'okonomi-utlegg': require('../../assets/module-activation/okonomi-utlegg--module-activation-illustration.png'),
+  selskap: require('../../assets/module-activation/selskap--module-activation-illustration.png'),
 };
 
 const BUNDLED_PHONE = {

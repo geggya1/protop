@@ -97,7 +97,8 @@ export const COMPANY_HERO = {
     ),
   },
   selskap: {
-    ...SLATE,
+    ...BLUE,
+    wideArt: true,
     name: 'Selskap',
     kicker: t('Selskap', 'Company'),
     title: t('Bedriften', 'The company'),

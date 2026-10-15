@@ -84,7 +84,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
+    ['selskap', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -92,7 +92,7 @@ function idsIn(sections) {
   const selskapKids = companyItems.find((i) => i.id === 'selskap').children;
   assert.deepEqual(
     selskapKids.map((i) => i.label),
-    ['Underenheter', 'Ansatte', 'Arbeid', 'Fravær'],
+    ['Underenheter', 'Ansatte', 'Fravær'],
   );
   assert.equal(selskapKids[0].action.subView, 'underenheter');
   assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
@@ -106,7 +106,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
-  const arbeid = selskapKids.find((i) => i.id === 'arbeid');
+  const arbeid = companyItems.find((i) => i.id === 'arbeid');
   const fravaer = selskapKids.find((i) => i.id === 'fravaer');
   assert.deepEqual(
     arbeid.children.map((i) => i.label),
@@ -439,7 +439,7 @@ assert.match(railSrc, /module-nav-expand-/);
   const selskap = items.find((item) => item.id === 'selskap');
   const okonomi = items.find((item) => item.id === 'okonomi');
   const anbud = items.find((item) => item.id === 'anbud');
-  const arbeid = selskap.children.find((item) => item.id === 'arbeid');
+  const arbeid = items.find((item) => item.id === 'arbeid');
   const fravaer = selskap.children.find((item) => item.id === 'fravaer');
   const produkt = items.find((item) => item.id === 'produkt');
   const kunder = items.find((item) => item.id === 'kunder');

@@ -18,6 +18,7 @@ import { toDateKey } from '../../src/arbeid/calendar.js';
 import { addAbsence } from '../../src/project/engine';
 import { dateKey } from '../../src/utils/dates';
 import { isOrganizationType } from '../../src/utils/groupTypes';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { CompanyAbsenceView } from './CompanyAbsenceView';
@@ -448,7 +449,9 @@ export function AbsenceOverviewView({
         </View>
 
         <View style={[styles.beachCard, wide && styles.columnSide]}>
-          <Image source={BEACH} resizeMode="contain" style={[styles.beachImage, wide && styles.beachImageWide]} />
+          <View style={[styles.beachFrame, wide && styles.beachFrameWide]}>
+            <Image source={BEACH} resizeMode="contain" style={styles.beachFill} />
+          </View>
           <View style={styles.beachCopy}>
             <Text style={styles.beachTitle}>
               {spotlight
@@ -822,7 +825,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   heroWide: { width: 380, height: 176, top: -20, right: -8 },
-  heroImage: { width: '100%', height: '100%' },
+  heroImage: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   heroFade: {
     position: 'absolute',
     left: 0,
@@ -916,8 +919,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 168,
   },
-  beachImage: { width: 148, height: 156 },
-  beachImageWide: { width: 240, height: 210 },
+  beachFrame: { width: 148, height: 156, overflow: 'hidden' },
+  beachFrameWide: { width: 240, height: 210 },
+  beachFill: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   beachCopy: { flex: 1, paddingVertical: 16, paddingRight: 16, paddingLeft: 12, gap: 8 },
   beachTitle: { color: ui.ink, fontSize: 16, fontWeight: '800', lineHeight: 21 },
   beachBody: { color: '#66758A', fontSize: 13, lineHeight: 18 },

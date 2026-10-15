@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PAGE_ART_SCALE } from '../appearance/pageArtScale.js';
 import { MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroModuleId } from './moduleHero.js';
 import {
   ACTIVATABLE_MODULE_IDS,
@@ -114,7 +115,7 @@ assert.match(shellSrc, /shellHeroModuleId/, 'shell draws the shared heading abov
 assert.match(shellSrc, /phoneChromeHeroId/, 'phone heading id is resolved for Mer-subviews including Husk dato');
 assert.match(shellSrc, /<ModuleHero /, 'shell heading is ModuleHero');
 assert.match(shellSrc, /ModuleHeroHostProvider/, 'shell marks the heading as hosted');
-assert.match(shellSrc, /hero=\{headerHeroId/, 'phone heading replaces the shell page title');
+assert.match(shellSrc, /hero=\{shellPageHero \|\| \(headerHeroId/, 'phone heading replaces the shell page title');
 assert.match(shellSrc, /pageHeroId && !headerHeroId/, 'tablet\/web keep the heading in the content band');
 assert.match(shellSrc, /flush chrome/, 'phone heading is flattened into the shell chrome');
 assert.doesNotMatch(shellSrc, /heroBandPhone/, 'phone no longer draws a second heading below the title');
@@ -184,7 +185,15 @@ const heroSrc = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 assert.doesNotMatch(heroSrc, /if \(!force && isPhone\) return null/, 'phone must render ModuleHero, not skip it');
 assert.match(heroSrc, /isPhone \? 144/, 'phone heading stays compact (shorter than tablet)');
 assert.match(heroSrc, /artWrapPhone/, 'phone heading uses a narrower art wrap so copy still fits');
-assert.match(heroSrc, /objectFit: 'contain'/, 'hero art must fit inside the band, not crop');
+assert.match(heroSrc, /objectFit: 'contain'/, 'hero art is sized with contain before the shared scale');
+assert.match(heroSrc, /PAGE_ART_SCALE/, 'hero art uses the shared 40% page scale');
+assert.match(heroSrc, /transformOrigin: 'right center'/, 'scaled art grows inward so the band can crop the edges');
+assert.equal(PAGE_ART_SCALE, 1.4, 'page illustrations are 40% larger');
+assert.match(heroSrc, /artWrap: \{[\s\S]*?overflow: 'hidden'/, 'art wrap crops the enlarged illustration');
+const welcomeSrc = readFileSync(join(ROOT, 'components/ModuleWelcomeModal.jsx'), 'utf8');
+assert.match(welcomeSrc, /PAGE_ART_SCALE/, 'welcome art uses the same 40% scale');
+assert.match(welcomeSrc, /artFrame:[\s\S]*overflow: 'hidden'/, 'welcome art can crop inside its frame');
+assert.match(frameSrc, /PAGE_ART_SCALE/, 'bottom page art uses the same 40% scale');
 assert.match(heroSrc, /paddingRight: 18/, 'hero art needs inset so rounded corners do not clip it');
 assert.match(heroSrc, /paddingBottom: 10/, 'hero art needs bottom inset so the band radius does not clip it');
 assert.match(heroSrc, /width: 360/, 'desktop hero art should be large enough to match other module headings');

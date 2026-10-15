@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { DASHBOARD_CARD_ART } from '../../src/parentDashboardThemes';
 import { parentAppShortLabel, parentAppAccent, MORE_FOLDER_GLYPHS } from '../../src/utils/parentHomeShortcuts';
 import IconBadge from '../IconBadge';
@@ -438,7 +439,9 @@ export function MealsPastel({ dinner, onPress, link = false, compact = false }) 
       </View>
       {!compact ? <Text style={styles.mealsLead}>{lead}</Text> : null}
       {!compact && MEAL_IMG ? (
-        <Image source={MEAL_IMG} style={styles.mealImg} resizeMode="cover" />
+        <View style={styles.mealImgFrame}>
+          <Image source={MEAL_IMG} style={styles.mealImg} resizeMode="cover" />
+        </View>
       ) : null}
       <Text style={styles.mealName} numberOfLines={2}>
         {dinner?.title || 'Ingen middag satt'}
@@ -1179,7 +1182,8 @@ const styles = StyleSheet.create({
   progressKidHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 },
   progressKidName: { fontSize: 13, color: soft.ink, fontFamily: sans, flex: 1, fontWeight: '500' },
   progressKidMeta: { fontSize: 11, color: soft.muted, fontFamily: sans, flexShrink: 0 },
-  mealImg: { width: '100%', height: 36, borderRadius: 8, marginBottom: 3, backgroundColor: '#fff' },
+  mealImgFrame: { width: '100%', height: 36, borderRadius: 8, marginBottom: 3, overflow: 'hidden', backgroundColor: '#fff' },
+  mealImg: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   mealsLead: { fontSize: 11, color: soft.muted, fontFamily: sans, marginBottom: 2 },
   mealName: { fontSize: 12, color: soft.ink, fontFamily: sans },
   calRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 16 },

@@ -45,7 +45,7 @@ export default function ModuleHero({
   const lead = subtitle || hero.pitch;
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
-  const heroH = isDesktop ? 176 : isPhone ? 144 : 156;
+  const heroH = isDesktop ? 148 : isPhone ? 144 : 148;
   const artH = heroH - ART_INSET * 2;
   const titleColor = hero.ink || colors.ink;
   const pitchColor = hero.muted || colors.muted;
@@ -222,8 +222,8 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   titleDesk: {
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: '400',
   },
   titlePhone: {
@@ -231,17 +231,17 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   pitch: {
-    marginTop: 6,
+    marginTop: 4,
     fontWeight: '400',
     fontSize: 13,
     color: colors.muted,
-    lineHeight: 18,
+    lineHeight: 17,
     maxWidth: 440,
   },
   pitchDesk: {
     fontSize: 13,
-    lineHeight: 19,
-    maxWidth: 520,
+    lineHeight: 18,
+    maxWidth: 480,
   },
   pitchPhone: {
     marginTop: 4,

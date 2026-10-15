@@ -1,21 +1,28 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
-  APPLICATION_STAGES,
+  APPLICATION_BOARD,
+  APPLICATION_OUTCOMES,
+  applicationsByBoard,
   choiceLabel,
   employeeDraftFromApplication,
   formatNbDate,
   JOB_STATUSES,
+  moveApplicationBoard,
   normalizeApplication,
   normalizeJob,
+  onboardingTasksFor,
   recruitmentFunnel,
 } from '../../src/hr/model';
 import { emptyEmployee, normalizeEmployee } from '../../src/employees/model';
 import { saveEmployee } from '../../src/employees/storage';
+import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
+
+const isWeb = Platform.OS === 'web';
 
 export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId }) {
   const [jobId, setJobId] = useState(hr.jobs?.[0]?.id || '');
@@ -24,16 +31,19 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     title: '', department: '', location: '', description: '', requirements: '', status: 'open', headcount: '1',
   });
   const [appDraft, setAppDraft] = useState({
-    name: '', email: '', phone: '', source: '', notes: '', score: '5',
+    name: '', email: '', phone: '', source: '', notes: '', score: '5', documentName: '', documentUrl: '',
   });
   const [evalDraft, setEvalDraft] = useState({ evaluation: '', response: '' });
   const [query, setQuery] = useState('');
   const [hiring, setHiring] = useState(false);
+  const [dragId, setDragId] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const activeJobId = jobId || hr.jobs?.[0]?.id || '';
   const activeJob = (hr.jobs || []).find((row) => row.id === activeJobId) || null;
-  const apps = useMemo(() => {
+
+  const filteredApps = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (hr.applications || [])
       .filter((row) => !activeJobId || row.jobId === activeJobId)
@@ -45,7 +55,19 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
           .includes(q);
       });
   }, [hr.applications, activeJobId, query]);
-  const selectedApp = apps.find((row) => row.id === selectedAppId) || apps[0] || null;
+
+  const buckets = useMemo(() => applicationsByBoard(filteredApps), [filteredApps]);
+  const selectedApp = filteredApps.find((row) => row.id === selectedAppId) || filteredApps[0] || null;
+
+  function patchApps(nextApps) {
+    onPatch?.({ applications: nextApps });
+  }
+
+  function moveApp(app, board, outcome) {
+    if (!canWrite || !app) return;
+    const next = moveApplicationBoard(app, board, outcome);
+    patchApps((hr.applications || []).map((row) => (row.id === app.id ? next : row)));
+  }
 
   async function hireApplicant(app) {
     if (!canWrite || !familyId || !app || hiring) return;
@@ -57,15 +79,15 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
         person: { ...emptyEmployee().person, ...draft.person },
         company: { ...emptyEmployee().company, ...draft.company },
       });
-      await saveEmployee(familyId, employee);
+      const saved = await saveEmployee(familyId, employee);
+      const tasks = onboardingTasksFor(saved?.id || employee.id);
       onPatch?.({
         applications: (hr.applications || []).map((row) => (
-          row.id === app.id
-            ? { ...row, stage: 'hired', updatedAt: new Date().toISOString() }
-            : row
+          row.id === app.id ? moveApplicationBoard(row, 'completed', 'hired') : row
         )),
+        tasks: [...tasks, ...(hr.tasks || [])],
       });
-      showSaveToast?.(`${draft.person.firstName || 'Søker'} er lagt inn som ansatt`);
+      showSaveToast?.(`${draft.person.firstName || 'Søker'} er ansatt`);
     } catch {
       showSaveToast?.('Kunne ikke ansette søker');
     } finally {
@@ -73,30 +95,13 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     }
   }
 
-  function moveStage(app, stage) {
-    if (!canWrite) return;
-    onPatch?.({
-      applications: (hr.applications || []).map((row) => (
-        row.id === app.id ? { ...row, stage, updatedAt: new Date().toISOString() } : row
-      )),
-    });
-  }
-
-  function saveEvaluation(app) {
-    if (!canWrite || !app) return;
-    onPatch?.({
-      applications: (hr.applications || []).map((row) => (
-        row.id === app.id
-          ? {
-            ...row,
-            evaluation: evalDraft.evaluation || row.evaluation,
-            response: evalDraft.response || row.response,
-            updatedAt: new Date().toISOString(),
-          }
-          : row
-      )),
-    });
-    setEvalDraft({ evaluation: '', response: '' });
+  function onDropToBoard(boardId) {
+    if (!canWrite || !dragId) return;
+    const app = (hr.applications || []).find((row) => row.id === dragId);
+    if (!app) return;
+    const outcome = boardId === 'completed' ? (app.outcome === 'hired' ? 'hired' : 'rejected') : 'pending';
+    moveApp(app, boardId, outcome);
+    setDragId('');
   }
 
   return (
@@ -105,10 +110,10 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
         <HrSectionTitle
           colors={colors}
           title="Rekruttering"
-          subtitle="Stillingsannonser, søknader, evaluering og svar — inspirert av moderne ATS"
+          subtitle="Tre kolonner: mottatt → til behandling → ferdigbehandlet. Dra søknader mellom stegene."
         />
         <View style={styles.funnel}>
-          {funnel.filter((s) => s.id !== 'withdrawn').map((stage) => (
+          {(funnel.board || []).map((stage) => (
             <View key={stage.id} style={[styles.funnelCell, { borderColor: colors.line, backgroundColor: colors.bg }]}>
               <Text style={[styles.funnelCount, { color: colors.ink }]}>{stage.count}</Text>
               <Text style={[styles.funnelLabel, { color: colors.muted }]}>{stage.label}</Text>
@@ -130,17 +135,6 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
             />
           ))}
         </View>
-        {(hr.jobs || []).map((job) => (
-          <RowLink
-            key={job.id}
-            colors={colors}
-            title={job.title}
-            subtitle={[job.department, job.location, job.description].filter(Boolean).join(' · ')}
-            meta={`${job.headcount} stilling${job.headcount > 1 ? 'er' : ''}`}
-            onPress={() => setJobId(job.id)}
-          />
-        ))}
-        {(hr.jobs || []).length === 0 ? <EmptyHint colors={colors} text="Ingen annonser ennå." /> : null}
         {canWrite ? (
           <View style={styles.form}>
             <HrField colors={colors} label="Tittel" value={jobDraft.title} onChangeText={(title) => setJobDraft((p) => ({ ...p, title }))} />
@@ -170,103 +164,217 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
         ) : null}
       </HrCard>
 
-      <HrCard colors={colors}>
-        <HrSectionTitle
-          colors={colors}
-          title="Søknader"
-          subtitle={activeJobId ? 'Filtrert på valgt stilling' : 'Alle søknader'}
-        />
-        <HrField
-          colors={colors}
-          label="Søk"
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Navn, e-post, kilde …"
-        />
-        {apps.map((app) => (
-          <View key={app.id} style={[styles.appBlock, { borderColor: colors.line }]}>
-            <RowLink
-              colors={colors}
-              title={app.name}
-              subtitle={[app.email, app.phone, app.source].filter(Boolean).join(' · ') || 'Søker'}
-              meta={`${choiceLabel(APPLICATION_STAGES, app.stage)} · ${app.score}/10`}
-              onPress={() => {
-                setSelectedAppId(app.id);
-                setEvalDraft({ evaluation: app.evaluation || '', response: app.response || '' });
-              }}
-            />
-            <Text style={[styles.meta, { color: colors.muted }]}>
-              {`Søkt ${formatNbDate(app.appliedAt)}${app.evaluation ? ` · ${app.evaluation}` : ''}`}
+      <HrField
+        colors={colors}
+        label="Søk i søknader"
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Navn, e-post, kilde …"
+      />
+
+      <View style={styles.board} nativeID="hr-ats-board">
+        {APPLICATION_BOARD.map((col) => (
+          <View
+            key={col.id}
+            style={[styles.column, { borderColor: colors.line, backgroundColor: colors.card }]}
+            // @ts-ignore web DnD
+            onDragOver={isWeb ? (e) => { e?.preventDefault?.(); } : undefined}
+            onDrop={isWeb ? () => onDropToBoard(col.id) : undefined}
+          >
+            <Text style={[styles.columnTitle, { color: colors.ink }]}>{col.label}</Text>
+            <Text style={[styles.columnCount, { color: colors.muted }]}>
+              {(buckets[col.id] || []).length} søknader
             </Text>
-            {app.response ? (
-              <Text style={[styles.meta, { color: colors.ink }]}>{`Svar: ${app.response}`}</Text>
-            ) : null}
-            {canWrite ? (
-              <View style={styles.chips}>
-                {APPLICATION_STAGES.filter((s) => !['withdrawn'].includes(s.id)).map((stage) => (
-                  <HrChip
-                    key={stage.id}
-                    colors={colors}
-                    label={stage.label}
-                    active={app.stage === stage.id}
-                    onPress={() => moveStage(app, stage.id)}
-                  />
-                ))}
-                {app.stage !== 'hired' && app.stage !== 'rejected' ? (
-                  <HrButton
-                    colors={colors}
-                    label={hiring ? 'Ansetter…' : 'Ansett'}
-                    primary
-                    icon="person-add-outline"
-                    disabled={hiring}
-                    onPress={() => hireApplicant(app)}
-                  />
+            {(buckets[col.id] || []).map((app) => (
+              <View
+                key={app.id}
+                // @ts-ignore web
+                draggable={isWeb && canWrite}
+                onDragStart={isWeb ? () => setDragId(app.id) : undefined}
+                style={[
+                  styles.card,
+                  {
+                    borderColor: selectedApp?.id === app.id ? colors.brand : colors.line,
+                    backgroundColor: colors.bg,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.cardTitle, { color: colors.ink }]}
+                  onPress={() => {
+                    setSelectedAppId(app.id);
+                    setEvalDraft({ evaluation: app.evaluation || '', response: app.response || '' });
+                  }}
+                >
+                  {app.name}
+                </Text>
+                <Text style={[styles.cardMeta, { color: colors.muted }]} numberOfLines={2}>
+                  {[app.email, app.source, app.score ? `${app.score}/10` : '']
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+                {app.attachments?.length ? (
+                  <Text style={[styles.cardMeta, { color: colors.muted }]}>
+                    {`${app.attachments.length} dokument${app.attachments.length > 1 ? 'er' : ''}`}
+                  </Text>
+                ) : null}
+                {col.id === 'completed' ? (
+                  <Text style={[styles.cardMeta, { color: colors.ink }]}>
+                    {choiceLabel(APPLICATION_OUTCOMES, app.outcome)}
+                  </Text>
+                ) : null}
+                {canWrite ? (
+                  <View style={styles.cardActions}>
+                    {APPLICATION_BOARD.filter((b) => b.id !== col.id).map((b) => (
+                      <HrChip
+                        key={b.id}
+                        colors={colors}
+                        label={b.label.split(' ').slice(-1)[0]}
+                        active={false}
+                        onPress={() => moveApp(app, b.id, b.id === 'completed' ? 'rejected' : 'pending')}
+                      />
+                    ))}
+                  </View>
                 ) : null}
               </View>
+            ))}
+            {(buckets[col.id] || []).length === 0 ? (
+              <EmptyHint colors={colors} text="Tom kolonne — dra søknader hit." />
             ) : null}
           </View>
         ))}
-        {apps.length === 0 ? <EmptyHint colors={colors} text="Ingen søknader på denne stillingen." /> : null}
+      </View>
 
-        {canWrite && activeJobId ? (
-          <View style={styles.form}>
-            <Text style={[styles.formTitle, { color: colors.ink }]}>Registrer søknad</Text>
-            <HrField colors={colors} label="Navn" value={appDraft.name} onChangeText={(name) => setAppDraft((p) => ({ ...p, name }))} />
-            <HrField colors={colors} label="E-post" value={appDraft.email} onChangeText={(email) => setAppDraft((p) => ({ ...p, email }))} />
-            <HrField colors={colors} label="Telefon" value={appDraft.phone} onChangeText={(phone) => setAppDraft((p) => ({ ...p, phone }))} />
-            <HrField colors={colors} label="Kilde" value={appDraft.source} onChangeText={(source) => setAppDraft((p) => ({ ...p, source }))} placeholder="FINN, LinkedIn, tips …" />
-            <HrField colors={colors} label="Notat" value={appDraft.notes} onChangeText={(notes) => setAppDraft((p) => ({ ...p, notes }))} multiline />
-            <HrField colors={colors} label="Score 0–10" value={appDraft.score} onChangeText={(score) => setAppDraft((p) => ({ ...p, score }))} keyboardType="numeric" />
-            <HrButton
+      {selectedApp && canWrite ? (
+        <HrCard colors={colors}>
+          <HrSectionTitle
+            colors={colors}
+            title={`${selectedApp.name}`}
+            subtitle="Evaluering, svar og utfall (vunnet / avslått)"
+          />
+          <Text style={[styles.cardMeta, { color: colors.muted }]}>
+            {`Søkt ${formatNbDate(selectedApp.appliedAt)} · ${choiceLabel(APPLICATION_BOARD, selectedApp.board)}`}
+          </Text>
+          {(selectedApp.attachments || []).map((att) => (
+            <RowLink
+              key={att.id}
               colors={colors}
-              label="Legg inn søknad"
-              primary
+              title={att.name}
+              subtitle={att.url || 'Dokument'}
+              icon="attach-outline"
               onPress={() => {
-                if (!appDraft.name.trim()) return;
-                const row = normalizeApplication({
-                  ...appDraft,
-                  jobId: activeJobId,
-                  score: Number(appDraft.score) || 0,
-                  stage: 'new',
-                });
-                onPatch?.({ applications: [row, ...(hr.applications || [])] });
-                setAppDraft({ name: '', email: '', phone: '', source: '', notes: '', score: '5' });
+                if (att.url && typeof window !== 'undefined') window.open(att.url, '_blank');
               }}
             />
+          ))}
+          <View style={styles.chips}>
+            {APPLICATION_OUTCOMES.map((o) => (
+              <HrChip
+                key={o.id}
+                colors={colors}
+                label={o.label}
+                active={selectedApp.outcome === o.id}
+                onPress={() => moveApp(selectedApp, o.id === 'pending' ? 'processing' : 'completed', o.id)}
+              />
+            ))}
           </View>
-        ) : null}
+          <HrField colors={colors} label="Evaluering" value={evalDraft.evaluation} onChangeText={(evaluation) => setEvalDraft((p) => ({ ...p, evaluation }))} multiline />
+          <HrField colors={colors} label="Svar til søker" value={evalDraft.response} onChangeText={(response) => setEvalDraft((p) => ({ ...p, response }))} multiline />
+          <View style={styles.chips}>
+            <HrButton
+              colors={colors}
+              label="Lagre vurdering"
+              primary
+              onPress={() => {
+                patchApps((hr.applications || []).map((row) => (
+                  row.id === selectedApp.id
+                    ? { ...row, evaluation: evalDraft.evaluation, response: evalDraft.response }
+                    : row
+                )));
+              }}
+            />
+            {selectedApp.outcome !== 'hired' ? (
+              <HrButton
+                colors={colors}
+                label={hiring ? 'Ansetter…' : 'Ansett (vunnet)'}
+                primary
+                icon="person-add-outline"
+                disabled={hiring}
+                onPress={() => hireApplicant(selectedApp)}
+              />
+            ) : null}
+          </View>
+        </HrCard>
+      ) : null}
 
-        {canWrite && selectedApp ? (
-          <View style={styles.form}>
-            <Text style={[styles.formTitle, { color: colors.ink }]}>
-              {`Evaluer / svar · ${selectedApp.name}`}
+      {canWrite && activeJobId ? (
+        <HrCard colors={colors}>
+          <HrSectionTitle colors={colors} title="Registrer søknad" subtitle="Navn og dokumenter følger søknaden" />
+          <HrField colors={colors} label="Navn" value={appDraft.name} onChangeText={(name) => setAppDraft((p) => ({ ...p, name }))} />
+          <HrField colors={colors} label="E-post" value={appDraft.email} onChangeText={(email) => setAppDraft((p) => ({ ...p, email }))} />
+          <HrField colors={colors} label="Telefon" value={appDraft.phone} onChangeText={(phone) => setAppDraft((p) => ({ ...p, phone }))} />
+          <HrField colors={colors} label="Kilde" value={appDraft.source} onChangeText={(source) => setAppDraft((p) => ({ ...p, source }))} />
+          <HrButton
+            colors={colors}
+            label={uploading ? 'Laster CV…' : 'Last opp CV / dokument'}
+            icon="attach-outline"
+            disabled={uploading || !familyId}
+            onPress={async () => {
+              if (!familyId || uploading) return;
+              setUploading(true);
+              try {
+                const picked = await pickDocument({ accept: DEFAULT_DOCUMENT_ACCEPT });
+                if (!picked) return;
+                const path = `families/${familyId}/hr/applications/${Date.now()}_${picked.name || 'cv'}`;
+                const url = await uploadFile(path, picked, picked.mimeType || 'application/octet-stream');
+                setAppDraft((p) => ({
+                  ...p,
+                  documentName: picked.name || 'CV',
+                  documentUrl: url,
+                }));
+                showSaveToast?.('Dokument lastet opp');
+              } catch {
+                showSaveToast?.('Kunne ikke laste opp dokument');
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
+          {appDraft.documentUrl ? (
+            <Text style={[styles.cardMeta, { color: colors.muted }]}>
+              {`Vedlegg: ${appDraft.documentName || 'Dokument'}`}
             </Text>
-            <HrField colors={colors} label="Evaluering" value={evalDraft.evaluation} onChangeText={(evaluation) => setEvalDraft((p) => ({ ...p, evaluation }))} multiline />
-            <HrField colors={colors} label="Svar til søker" value={evalDraft.response} onChangeText={(response) => setEvalDraft((p) => ({ ...p, response }))} multiline />
-            <HrButton colors={colors} label="Lagre vurdering" primary onPress={() => saveEvaluation(selectedApp)} />
-          </View>
-        ) : null}
-      </HrCard>
+          ) : null}
+          <HrField colors={colors} label="Dokumentnavn (CV)" value={appDraft.documentName} onChangeText={(documentName) => setAppDraft((p) => ({ ...p, documentName }))} placeholder="cv-ada.pdf" />
+          <HrField colors={colors} label="Dokument-URL" value={appDraft.documentUrl} onChangeText={(documentUrl) => setAppDraft((p) => ({ ...p, documentUrl }))} placeholder="https://… eller storage-sti" />
+          <HrField colors={colors} label="Notat" value={appDraft.notes} onChangeText={(notes) => setAppDraft((p) => ({ ...p, notes }))} multiline />
+          <HrField colors={colors} label="Score 0–10" value={appDraft.score} onChangeText={(score) => setAppDraft((p) => ({ ...p, score }))} keyboardType="numeric" />
+          <HrButton
+            colors={colors}
+            label="Legg inn søknad (mottatt)"
+            primary
+            onPress={() => {
+              if (!appDraft.name.trim()) return;
+              const attachments = appDraft.documentName || appDraft.documentUrl
+                ? [{ name: appDraft.documentName || 'CV', url: appDraft.documentUrl }]
+                : [];
+              const row = normalizeApplication({
+                ...appDraft,
+                jobId: activeJobId,
+                score: Number(appDraft.score) || 0,
+                board: 'received',
+                outcome: 'pending',
+                stage: 'new',
+                attachments,
+              });
+              onPatch?.({ applications: [row, ...(hr.applications || [])] });
+              setAppDraft({
+                name: '', email: '', phone: '', source: '', notes: '', score: '5', documentName: '', documentUrl: '',
+              });
+            }}
+          />
+        </HrCard>
+      ) : null}
     </View>
   );
 }
@@ -274,12 +382,26 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
 const styles = StyleSheet.create({
   page: { gap: 14 },
   funnel: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  funnelCell: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minWidth: 72 },
+  funnelCell: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minWidth: 96 },
   funnelCount: { fontSize: 18, fontWeight: '700' },
   funnelLabel: { fontSize: 11, marginTop: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   form: { gap: 10, marginTop: 10 },
-  formTitle: { fontSize: 14, fontWeight: '600' },
-  appBlock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 8 },
-  meta: { fontSize: 12, lineHeight: 17 },
+  board: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' },
+  column: {
+    flexGrow: 1,
+    flexBasis: 240,
+    minWidth: 220,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    gap: 8,
+    minHeight: 180,
+  },
+  columnTitle: { fontSize: 15, fontWeight: '700' },
+  columnCount: { fontSize: 12, marginBottom: 4 },
+  card: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 4 },
+  cardTitle: { fontSize: 14, fontWeight: '600' },
+  cardMeta: { fontSize: 12, lineHeight: 16 },
+  cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
 });

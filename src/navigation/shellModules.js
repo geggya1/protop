@@ -150,9 +150,11 @@ export function okonomiMenuTitle(subView) {
 export const HR_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'personell', icon: 'people', label: 'Personell' },
+  { id: 'avtaler', icon: 'document-text', label: 'Avtaler' },
   { id: 'produktivitet', icon: 'speedometer', label: 'Produktivitet' },
   { id: 'lonn', icon: 'cash', label: 'Lønn' },
   { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
+  { id: 'compliance', icon: 'shield-checkmark', label: 'Lov & ISO' },
   { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
 ];
 

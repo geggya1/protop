@@ -92,8 +92,10 @@ function idsIn(sections) {
   const selskapKids = companyItems.find((i) => i.id === 'selskap').children;
   assert.deepEqual(
     selskapKids.map((i) => i.label),
-    ['Underenheter', 'Ansatte', 'Fravær'],
+    ['Underenheter', 'Ansatte', 'HR', 'Fravær'],
   );
+  assert.equal(selskapKids.find((i) => i.id === 'hr').action.tab, 'hr');
+  assert.equal(selskapKids.find((i) => i.id === 'hr').children.length, 8);
   assert.equal(selskapKids[0].action.subView, 'underenheter');
   assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.deepEqual(
@@ -324,8 +326,9 @@ assert.equal(anbudScreen.includes('motta eller send'), false);
 const contractScreen = readFileSync(new URL('../../screens/anbud/ContractScreen.jsx', import.meta.url), 'utf8');
 assert.equal(contractScreen.includes('AVROP_PATH'), false);
 assert.equal(contractScreen.includes('CalloffInbox'), false);
-assert.match(contractScreen, /Registrer inngått/);
-assert.match(contractScreen, /Behandle med motpart/);
+assert.match(contractScreen, /Ny avtale/);
+assert.match(contractScreen, /AgreementCreateWizard/);
+assert.match(contractScreen, /AgreementTreatment/);
 assert.equal(contractScreen.includes('Pipeline'), false);
 
 const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.jsx', import.meta.url), 'utf8');

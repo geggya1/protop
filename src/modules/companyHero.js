@@ -64,6 +64,17 @@ export const COMPANY_HERO = {
       'Hire date, anniversary, birthday and contracts.',
     ),
   },
+  'hr-avtaler': {
+    ...SAND,
+    wideArt: true,
+    name: 'Avtaler',
+    kicker: t('HR', 'HR'),
+    title: t('Ansettelsesavtaler', 'Employment contracts'),
+    pitch: t(
+      'Last opp, OCR-skann og lagre nøkkeldata på personen.',
+      'Upload, OCR-scan and store key fields on the person.',
+    ),
+  },
   'hr-produktivitet': {
     ...CYAN,
     wideArt: true,
@@ -95,6 +106,17 @@ export const COMPANY_HERO = {
     pitch: t(
       'Medarbeidersamtaler, memo og tildelte gjøremål.',
       'Reviews, memos and assigned to-dos.',
+    ),
+  },
+  'hr-compliance': {
+    ...SLATE,
+    wideArt: true,
+    name: 'Lov & ISO',
+    kicker: t('HR', 'HR'),
+    title: t('Lovpålagt og ISO-oppfølging', 'Legal and ISO follow-up'),
+    pitch: t(
+      'AML, internkontroll og ISO 9001 / 14001 / 45001 per ansatt.',
+      'Working Environment Act, internal control and ISO per employee.',
     ),
   },
   'hr-rekruttering': {

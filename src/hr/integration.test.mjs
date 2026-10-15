@@ -22,7 +22,13 @@ import { productivityByEmployee } from './productivity.js';
 assert.equal(defaultHrSubView('lonn'), 'lonn');
 assert.equal(defaultHrSubView('nope'), 'oversikt');
 assert.equal(hrMenuTitle('rekruttering'), 'Rekruttering');
-assert.equal(HR_MENU.length, 6);
+assert.equal(HR_MENU.length, 8);
+assert.ok(HR_MENU.some((item) => item.id === 'avtaler'));
+assert.ok(HR_MENU.some((item) => item.id === 'compliance'));
+assert.equal(defaultHrSubView('avtaler'), 'avtaler');
+assert.equal(defaultHrSubView('compliance'), 'compliance');
+assert.equal(hrMenuTitle('avtaler'), 'Avtaler');
+assert.equal(hrMenuTitle('compliance'), 'Lov & ISO');
 
 for (const item of HR_MENU) {
   assert.equal(companyHeroId('hr', item.id), `hr-${item.id}`);
@@ -33,7 +39,7 @@ for (const item of HR_MENU) {
     .find((item) => item.id === 'selskap');
   const hr = adminNav.children.find((child) => child.id === 'hr');
   assert.ok(hr);
-  assert.equal(hr.children.length, 6);
+  assert.equal(hr.children.length, 8);
   assert.equal(hr.action.tab, 'hr');
 }
 

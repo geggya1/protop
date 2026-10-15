@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   absenceReportTotals,
   dayRowAsPeriod,
@@ -6,6 +9,8 @@ import {
   hydrateAbsenceReportRow,
   sortAbsenceReport,
 } from './absenceReport.js';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 const rows = [
   {
@@ -93,6 +98,15 @@ const rows = [
   assert.equal(period.start, '2018-06-15');
   assert.equal(period.end, '2018-06-15');
   assert.deepEqual(period.ids, ['a1']);
+}
+
+{
+  // Regression: fraværsrapport crashed with ReferenceError when these were dropped (#289).
+  const desktop = readFileSync(join(ROOT, 'screens/arbeid/CompanyAbsenceDesktop.jsx'), 'utf8');
+  assert.match(desktop, /const TABLE_MIN_FALLBACK = 720/);
+  assert.match(desktop, /const PAGE_STEP = 80/);
+  assert.match(desktop, /useState\(PAGE_STEP\)/);
+  assert.match(desktop, /TABLE_MIN_FALLBACK/);
 }
 
 console.log('absenceReport.test.mjs: ok');

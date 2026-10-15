@@ -51,6 +51,10 @@ const SPANS = [
   { id: 'maned', label: 'Måned' },
 ];
 
+/** Minste tabellbredde og antall rader per «Vis flere» i fraværsrapporten. */
+const TABLE_MIN_FALLBACK = 720;
+const PAGE_STEP = 80;
+
 function formatCount(value) {
   const n = Math.round((Number(value) || 0) * 100) / 100;
   if (Number.isInteger(n)) return String(n);

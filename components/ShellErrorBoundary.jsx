@@ -11,6 +11,10 @@ export default class ShellErrorBoundary extends React.Component {
     return { error };
   }
 
+  componentDidCatch(error, info) {
+    console.error('[ShellErrorBoundary]', error, info?.componentStack);
+  }
+
   render() {
     if (!this.state.error) return this.props.children;
     return (

@@ -46,6 +46,7 @@ import {
 } from '../../src/arbeid/roles.js';
 import {
   canSwitchTimesheetPerson,
+  needsTimesheetPersonStep,
   timesheetCrumb,
   timesheetIdentity,
 } from '../../src/arbeid/timesheetIdentity.js';
@@ -862,7 +863,12 @@ export default function ArbeidScreen({
   const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
-  const needsPersonStep = canSwitchPerson && !employeeId;
+  const needsPersonStep = needsTimesheetPersonStep({
+    personal,
+    locked: !!lockedId,
+    manager,
+    employeeId,
+  });
   const identity = timesheetIdentity({ personal, compact: isPhone });
   const currentMonthLabel = monthLabel(year, monthIndex);
 

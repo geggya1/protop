@@ -77,15 +77,20 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
     }));
   }
 
-  function moveApp(app, board, outcome) {
+  function moveApp(app, board, outcome, patch = {}) {
     if (!canWrite || !app) return;
-    if (board === 'completed' && outcome === 'rejected' && !String(app.rejectReason || '').trim()) {
+    const reason = patch.rejectReason != null ? patch.rejectReason : app.rejectReason;
+    if (board === 'completed' && outcome === 'rejected' && !String(reason || '').trim()) {
       setSelectedAppId(app.id);
       showSaveToast?.('Fyll inn begrunnelse for avslag før ferdigbehandling');
       return;
     }
-    const next = moveApplicationBoard(app, board, outcome);
-    patchApps((apps) => apps.map((row) => (row.id === app.id ? next : row)));
+    const appId = app.id;
+    patchApps((apps) => apps.map((row) => (
+      row.id === appId
+        ? moveApplicationBoard({ ...row, ...patch }, board, outcome)
+        : row
+    )));
   }
 
   async function hireApplicant(app) {
@@ -317,15 +322,16 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                     showSaveToast?.('Fyll inn begrunnelse for avslag først');
                     return;
                   }
-                  const next = moveApplicationBoard(
-                    {
-                      ...selectedApp,
-                      rejectReason: evalDraft.rejectReason || selectedApp.rejectReason,
-                    },
+                  moveApp(
+                    selectedApp,
                     o.id === 'pending' ? 'processing' : 'completed',
                     o.id,
+                    {
+                      rejectReason: evalDraft.rejectReason || selectedApp.rejectReason,
+                      evaluation: evalDraft.evaluation,
+                      response: evalDraft.response,
+                    },
                   );
-                  patchApps((apps) => apps.map((row) => (row.id === selectedApp.id ? next : row)));
                 }}
               />
             ))}
@@ -346,13 +352,15 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
               label="Lagre vurdering"
               primary
               onPress={() => {
+                const appId = selectedApp.id;
+                const snap = { ...evalDraft };
                 patchApps((apps) => apps.map((row) => (
-                  row.id === selectedApp.id
+                  row.id === appId
                     ? {
                       ...row,
-                      evaluation: evalDraft.evaluation,
-                      response: evalDraft.response,
-                      rejectReason: evalDraft.rejectReason,
+                      evaluation: snap.evaluation,
+                      response: snap.response,
+                      rejectReason: snap.rejectReason,
                     }
                     : row
                 )));
@@ -379,12 +387,11 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
                     showSaveToast?.('Fyll inn begrunnelse for avslag');
                     return;
                   }
-                  const next = moveApplicationBoard(
-                    { ...selectedApp, rejectReason: evalDraft.rejectReason, response: evalDraft.response },
-                    'completed',
-                    'rejected',
-                  );
-                  patchApps((apps) => apps.map((row) => (row.id === selectedApp.id ? next : row)));
+                  moveApp(selectedApp, 'completed', 'rejected', {
+                    rejectReason: evalDraft.rejectReason,
+                    response: evalDraft.response,
+                    evaluation: evalDraft.evaluation,
+                  });
                 }}
               />
             ) : null}

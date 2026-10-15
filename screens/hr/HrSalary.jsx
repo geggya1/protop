@@ -18,8 +18,7 @@ import {
 export default function HrSalary({
   colors, employees, hr, canWrite, onSaveSalaries, selectedEmployeeId, onSelectEmployee,
 }) {
-  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
-  const [draft, setDraft] = useState({
+  const emptySalaryDraft = () => ({
     kind: 'actual',
     effectiveDate: new Date().toISOString().slice(0, 10),
     annualAmount: '',
@@ -28,6 +27,8 @@ export default function HrSalary({
     memo: '',
     employeeVisible: true,
   });
+  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
+  const [draft, setDraft] = useState(emptySalaryDraft);
 
   const activeId = employeeId || selectedEmployeeId || '';
   const series = useMemo(() => salarySeriesWithPercents(activeId, hr.salaries), [activeId, hr.salaries]);
@@ -42,21 +43,31 @@ export default function HrSalary({
     return { amount, pct };
   }, [current, draft.annualAmount]);
 
+  function selectEmployee(id) {
+    setEmployeeId(id);
+    onSelectEmployee?.(id);
+    setDraft(emptySalaryDraft());
+  }
+
   function saveDraft() {
     if (!canWrite || !activeId) return;
     const amount = Number(String(draft.annualAmount).replace(/\s/g, '').replace(',', '.'));
     if (!(amount > 0) || !draft.effectiveDate) return;
-    const previousAmount = current?.annualAmount || 0;
-    const row = normalizeSalary({
-      ...draft,
-      employeeId: activeId,
-      annualAmount: amount,
-      previousAmount,
-      memo: draft.memo || draft.notes,
-      employeeVisible: !!draft.employeeVisible,
+    const draftSnapshot = { ...draft };
+    const targetId = activeId;
+    onSaveSalaries?.((salaries) => {
+      const prev = currentSalaryFor(targetId, salaries);
+      const row = normalizeSalary({
+        ...draftSnapshot,
+        employeeId: targetId,
+        annualAmount: amount,
+        previousAmount: prev?.annualAmount || 0,
+        memo: draftSnapshot.memo || draftSnapshot.notes,
+        employeeVisible: !!draftSnapshot.employeeVisible,
+      });
+      return [row, ...(salaries || []).filter((item) => item.id !== row.id)];
     });
-    onSaveSalaries?.((salaries) => [row, ...(salaries || []).filter((item) => item.id !== row.id)]);
-    setDraft((prev) => ({ ...prev, annualAmount: '', reason: '', notes: '', memo: '' }));
+    setDraft(emptySalaryDraft());
   }
 
   return (
@@ -74,10 +85,7 @@ export default function HrSalary({
               colors={colors}
               label={displayName(emp)}
               active={emp.id === activeId}
-              onPress={() => {
-                setEmployeeId(emp.id);
-                onSelectEmployee?.(emp.id);
-              }}
+              onPress={() => selectEmployee(emp.id)}
             />
           ))}
         </View>

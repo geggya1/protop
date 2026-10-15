@@ -119,6 +119,34 @@ import {
   assert.match(formatMoney(660000), /660/);
   assert.equal(formatNbDate('2025-01-01'), '01.01.2025');
   assert.equal(salaries[2].changePercent, Math.round((40000 / 660000) * 1000) / 10);
+
+  // Lagret prosent vinner når mellomliggende rad er skjult for ansatt.
+  const visibleOnly = salarySeriesWithPercents('e1', [
+    normalizeSalary({
+      employeeId: 'e1', kind: 'actual', effectiveDate: '2023-01-01',
+      annualAmount: 500000, changePercent: null,
+    }),
+    normalizeSalary({
+      employeeId: 'e1', kind: 'actual', effectiveDate: '2025-01-01',
+      annualAmount: 600000, previousAmount: 550000, changePercent: 9.1,
+    }),
+  ]);
+  assert.equal(visibleOnly[1].changePercent, 9.1);
+}
+
+{
+  // Ny avtale uten id skal ikke gjenbruke forrige aktive id.
+  const first = upsertActiveContract([], {
+    id: 'c1', employeeId: 'e1', title: 'Gammel', startDate: '2024-01-01',
+  });
+  const fresh = normalizeContract({
+    employeeId: 'e1', title: 'Ny', startDate: '2025-06-01',
+  });
+  assert.ok(!fresh.id || fresh.id !== 'c1');
+  const next = upsertActiveContract(first, fresh);
+  assert.equal(next.filter((c) => c.status === 'active').length, 1);
+  assert.equal(next.find((c) => c.id === 'c1').status, 'ended');
+  assert.equal(next.find((c) => c.status === 'active').title, 'Ny');
 }
 
 {

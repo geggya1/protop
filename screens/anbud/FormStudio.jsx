@@ -174,6 +174,7 @@ export default function FormStudio({
   onScan,
   onImport,
   companyLogo = null,
+  backLabel = 'Alle skjema',
 }) {
   const [tab, setTab] = useState('questions');
   const [selected, setSelected] = useState(-1);
@@ -316,7 +317,7 @@ export default function FormStudio({
       <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setPaneWidth(event.nativeEvent.layout.width)}>
         <View style={[styles.toolbar, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
           <TouchableOpacity onPress={onBack} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Alle skjema</Text>
+            <Text style={{ color: colors.brand }}>{backLabel}</Text>
           </TouchableOpacity>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setReadOpen((open) => !open)} disabled={busy} accessibilityRole="button" accessibilityLabel="Les inn dokument">

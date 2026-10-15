@@ -35,12 +35,14 @@ import { actOnAgreementShare, notifyAgreementParty, publishAgreementShare } from
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { mergeAnbudStates } from '../../src/anbud/model';
+import { processStepsForAgreement } from '../../src/anbud/processTrail';
 import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
 import AgreementCustomerField from './AgreementCustomerField';
 import AgreementPersonField from './AgreementPersonField';
+import ProcessTrail from './ProcessTrail';
 
 function statusTone(status, colors) {
   if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };
@@ -90,6 +92,8 @@ export default function AgreementTreatment({
   sharedRow = null,
   onShared,
   onRegisterExisting,
+  shellIntent = null,
+  onClearIntent,
 }) {
   const { user, requestShellTab } = useApp();
   const { isPhone } = useLayout();
@@ -104,7 +108,9 @@ export default function AgreementTreatment({
   const [draft, setDraft] = useState({
     kind: 'oppdrag',
     templateId: '',
+    templateTitle: '',
     customerId: '',
+    customerName: '',
     bidId: '',
     projectId: '',
     parentId: '',
@@ -118,6 +124,7 @@ export default function AgreementTreatment({
   const [signerName, setSignerName] = useState('');
   const [fieldDrafts, setFieldDrafts] = useState({});
   const fieldDraftRef = useRef({});
+  const returnIntentHandled = useRef('');
   const actorName = party === 'motpart'
     ? (signerName || sharedRow?.counterparty?.personName || 'Motpart')
     : (user?.displayName || user?.email || 'Avsender');
@@ -162,12 +169,60 @@ export default function AgreementTreatment({
   const proposals = (view ? visibleProposals(view, party) : []).filter((item) => item.sentAt && (!version || item.version === version.number));
   const movements = view ? agreementMovements(view, party) : [];
   const waitingBids = bidsAwaitingAgreement(state);
+  const selectedTemplate = templates.find((row) => row.id === draft.templateId) || null;
+  const trailDraft = {
+    ...draft,
+    templateTitle: selectedTemplate?.title || draft.templateTitle || '',
+    customerName: draft.customerName
+      || (state?.customers || []).find((row) => row.id === draft.customerId)?.name
+      || '',
+  };
+  const processSteps = processStepsForAgreement(view || selected, party === 'avsender' && !selected ? trailDraft : null);
+  const canLockDraft = !!(draft.customerId && draft.templateId && String(draft.email || '').trim());
 
   function say(text, bad = false) {
     setNote(text);
     setNoteBad(bad);
     if (!bad && text) showSaveToast(text);
   }
+
+  useEffect(() => {
+    if (party !== 'avsender' || !shellIntent || shellIntent.type !== 'agreementTemplateReady') return;
+    const key = `${shellIntent.templateId || ''}:${shellIntent.nonce || ''}`;
+    if (returnIntentHandled.current === key) return;
+    returnIntentHandled.current = key;
+    const returned = shellIntent.returnDraft && typeof shellIntent.returnDraft === 'object'
+      ? shellIntent.returnDraft
+      : {};
+    const template = templates.find((row) => row.id === shellIntent.templateId)
+      || (state?.formTemplates || []).find((row) => row.id === shellIntent.templateId);
+    setSelectedId('');
+    setDraft((current) => ({
+      ...current,
+      kind: returned.kind || current.kind,
+      customerId: returned.customerId || current.customerId,
+      customerName: returned.customerName || current.customerName,
+      email: returned.email || current.email,
+      createProject: typeof returned.createProject === 'boolean' ? returned.createProject : current.createProject,
+      parentId: returned.parentId || current.parentId,
+      bidId: returned.bidId || current.bidId,
+      projectId: returned.projectId || current.projectId,
+      templateId: shellIntent.templateId || returned.templateId || current.templateId,
+      templateTitle: template?.title || returned.templateTitle || current.templateTitle || '',
+    }));
+    setNote(template
+      ? `Avtalemalen «${template.title}» er klar. Lås utkastet for å fortsette.`
+      : 'Avtalemalen er lagret. Velg den og lås utkastet.');
+    setNoteBad(false);
+    if (template) showSaveToast(`Avtalemalen «${template.title}» er klar.`);
+    onClearIntent?.();
+  }, [shellIntent, party, state, templates, onClearIntent]);
+
+  useEffect(() => {
+    if (!draft.templateId || draft.templateTitle || !templates.length) return;
+    const match = templates.find((row) => row.id === draft.templateId);
+    if (match) setDraft((current) => (current.templateId === match.id ? { ...current, templateTitle: match.title } : current));
+  }, [draft.templateId, draft.templateTitle, templates]);
 
   async function commitLocal(result, movement) {
     if (!result?.ok) {
@@ -280,9 +335,58 @@ export default function AgreementTreatment({
     if (saved) { setEditingNote(''); setEditBody(''); }
   }
 
+  function draftReturnPayload() {
+    return {
+      kind: draft.kind,
+      customerId: draft.customerId,
+      customerName: draft.customerName
+        || (state?.customers || []).find((row) => row.id === draft.customerId)?.name
+        || '',
+      email: draft.email,
+      createProject: draft.createProject,
+      parentId: draft.parentId,
+      bidId: draft.bidId,
+      projectId: draft.projectId,
+      templateId: draft.templateId,
+      templateTitle: draft.templateTitle || selectedTemplate?.title || '',
+    };
+  }
+
+  function openTemplateBuilder(mode, templateId = '') {
+    requestShellTab?.('skjema', null, {
+      type: 'composeAgreementTemplate',
+      mode,
+      templateId: templateId || '',
+      nonce: `${Date.now()}`,
+      returnDraft: draftReturnPayload(),
+    });
+  }
+
+  function pickTemplate(template) {
+    if (!template) {
+      setDraft((current) => ({ ...current, templateId: '', templateTitle: '' }));
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      templateId: template.id,
+      templateTitle: template.title || '',
+    }));
+  }
+
   async function createCase(partial = {}) {
-    const template = templates.find((row) => row.id === (partial.templateId || draft.templateId));
+    const templateId = partial.templateId || draft.templateId;
+    const template = templates.find((row) => row.id === templateId)
+      || (state?.formTemplates || []).find((row) => row.id === templateId && row.category === 'avtale');
+    if (!template) {
+      say('Velg en avtalemal, eller lag en i skjemabyggeren før du låser utkastet.', true);
+      return;
+    }
     const customer = (state?.customers || []).find((row) => row.id === (partial.customerId || draft.customerId));
+    if (!customer) {
+      say('Velg en kunde før du låser utkastet.', true);
+      return;
+    }
     const bid = (state?.bids || []).find((row) => row.id === (partial.bidId || draft.bidId));
     const project = projects.find((row) => row.id === (partial.projectId || draft.projectId));
     const owner = people.find((row) => row.uid === (partial.ownerUid || draft.ownerUid));
@@ -297,7 +401,7 @@ export default function AgreementTreatment({
       projectName: project?.name || '',
       parentId: parent?.id || '',
       parentTitle: parent?.title || '',
-      title: partial.title || bid?.title || project?.name || '',
+      title: partial.title || bid?.title || project?.name || customer?.name || template.title,
       ownerName: owner?.name || '',
       ownerUid: owner?.uid || '',
       counterpartyEmail: partial.email || draft.email || customer?.email,
@@ -338,13 +442,27 @@ export default function AgreementTreatment({
   }
 
   async function ensureStarter() {
+    const existing = templates.find((row) => row.title === 'Oppdragsavtale');
+    if (existing) {
+      pickTemplate(existing);
+      say(`Avtalemalen «${existing.title}» er valgt.`);
+      return;
+    }
     const starter = agreementStarterTemplate();
+    const before = new Set((state?.formTemplates || []).map((row) => row.id));
     const result = saveFormTemplate(state, starter);
     if (!result.ok) {
       say(result.error, true);
       return;
     }
     await commitLocal(result);
+    const saved = (result.state.formTemplates || []).find((row) => row.category === 'avtale' && !before.has(row.id))
+      || (result.state.formTemplates || []).find((row) => row.title === starter.title);
+    if (saved) {
+      pickTemplate(saved);
+      say(`Standardavtalen «${saved.title}» er klar. Lås utkastet for å fortsette.`);
+      return;
+    }
     say('Standard avtalemal er lagret. Velg den for å opprette utkastet.');
   }
 
@@ -372,28 +490,21 @@ export default function AgreementTreatment({
       )}
       {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
 
+      {party === 'avsender' ? (
+        <ProcessTrail colors={colors} steps={processSteps} />
+      ) : null}
+
       {party === 'avsender' && !selected ? (
         <View style={[styles.card, styles.draftCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt utkast</Text>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Velg avtaletype og kunde. Ansvarlig tildeles senere i behandlingen.
+            Velg type og kunde, deretter avtalemal. Når malen er klar, låses utkastet med kunde og oppdragstaker utfylt.
           </Text>
           <View style={styles.row}>
             {AGREEMENT_CASE_KINDS.map((item) => (
               <Chip key={item.id} colors={colors} label={item.label} on={draft.kind === item.id} onPress={() => setDraft({ ...draft, kind: item.id })} />
             ))}
           </View>
-          {!templates.length ? (
-            <TouchableOpacity onPress={ensureStarter} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Lag standard avtalemal i skjemabyggeren</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.row}>
-              {templates.map((item) => (
-                <Chip key={item.id} colors={colors} label={item.title} on={draft.templateId === item.id} onPress={() => setDraft({ ...draft, templateId: item.id })} />
-              ))}
-            </View>
-          )}
           <AgreementCustomerField
             colors={colors}
             customers={state?.customers || []}
@@ -405,7 +516,12 @@ export default function AgreementTreatment({
               const email = customer
                 ? (customer.email || '')
                 : (previous?.email && current.email === previous.email ? '' : current.email);
-              return { ...current, customerId: customer?.id || '', email };
+              return {
+                ...current,
+                customerId: customer?.id || '',
+                customerName: customer?.name || '',
+                email,
+              };
             })}
             onSavedState={(saved) => setState(saved)}
           />
@@ -424,20 +540,76 @@ export default function AgreementTreatment({
             autoCapitalize="none"
             style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
           />
+
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Avtalemal</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Velg en eksisterende mal, åpne den for justering, eller lag en tom mal i skjemabyggeren. Lagre der for å komme tilbake hit.
+            </Text>
+            {templates.length ? (
+              <View style={styles.row}>
+                {templates.map((item) => (
+                  <Chip
+                    key={item.id}
+                    colors={colors}
+                    label={item.title}
+                    on={draft.templateId === item.id}
+                    onPress={() => pickTemplate(item)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen avtalemaler ennå.</Text>
+            )}
+            <View style={styles.row}>
+              <TouchableOpacity onPress={ensureStarter} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>{templates.length ? 'Bruk standardmal' : 'Lag standardmal'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openTemplateBuilder('blank')} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink }}>Lag tom mal</Text>
+              </TouchableOpacity>
+              {selectedTemplate ? (
+                <TouchableOpacity onPress={() => openTemplateBuilder('edit', selectedTemplate.id)} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.brand }]}>
+                  <Text style={{ color: colors.brand }}>Åpne valgt mal</Text>
+                </TouchableOpacity>
+              ) : templates.length ? (
+                <TouchableOpacity onPress={() => openTemplateBuilder('edit', templates[0].id)} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink }}>Åpne eksisterende</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
           <TouchableOpacity onPress={() => setDraft({ ...draft, createProject: !draft.createProject })} accessibilityRole="button">
             <Text style={{ color: colors.ink }}>{draft.createProject ? 'Prosjekt opprettes sammen med avtalen' : 'Opprett også prosjekt'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => createCase()} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
+          <TouchableOpacity
+            onPress={() => createCase()}
+            disabled={!canLockDraft || busy}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canLockDraft || busy }}
+            style={[styles.primary, { backgroundColor: canLockDraft ? colors.brand : colors.muted }]}
+          >
             <Text style={{ color: '#fff', fontWeight: '600' }}>Lås utkast 1</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => requestShellTab?.('skjema')} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Åpne skjemabyggeren</Text>
-          </TouchableOpacity>
+          {!canLockDraft ? (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {!draft.customerId
+                ? 'Velg kunde for å gå videre.'
+                : !String(draft.email || '').trim()
+                  ? 'Fyll inn e-post til motpart.'
+                  : 'Velg eller lag en avtalemal før du låser utkastet.'}
+            </Text>
+          ) : null}
           {waitingBids.length ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.muted }}>Vunne tilbud uten avtale</Text>
               {waitingBids.map((bid) => (
-                <TouchableOpacity key={bid.id} onPress={() => createCase({ bidId: bid.id, title: bid.title, customerId: draft.customerId })} accessibilityRole="button">
+                <TouchableOpacity
+                  key={bid.id}
+                  onPress={() => createCase({ bidId: bid.id, title: bid.title, customerId: draft.customerId || bid.customerId })}
+                  accessibilityRole="button"
+                >
                   <Text style={{ color: colors.ink }}>{bid.title}</Text>
                 </TouchableOpacity>
               ))}

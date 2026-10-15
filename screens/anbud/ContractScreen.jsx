@@ -11,13 +11,20 @@ export default function ContractScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { requestShellTab, familyId, family, shellIntent, clearShellIntent, members } = useApp();
-  const [part, setPart] = useState('inngatt');
+  const [part, setPart] = useState(() => (
+    shellIntent?.type === 'agreementTemplateReady' || shellIntent?.type === 'composeAgreementTreatment'
+      ? 'behandling'
+      : 'inngatt'
+  ));
   const [composeNonce, setComposeNonce] = useState(0);
 
   useEffect(() => {
     if (!shellIntent) return;
     if (shellIntent.type === 'composeAgreement' || shellIntent.type === 'openContract') {
       setPart('inngatt');
+    }
+    if (shellIntent.type === 'agreementTemplateReady' || shellIntent.type === 'composeAgreementTreatment') {
+      setPart('behandling');
     }
   }, [shellIntent]);
 
@@ -57,9 +64,12 @@ export default function ContractScreen() {
           company={{
             name: family?.company?.navn || family?.name || '',
             orgnr: family?.company?.organisasjonsnummer || '',
+            email: family?.company?.epostadresse || '',
           }}
           members={members}
           colors={colors}
+          shellIntent={shellIntent}
+          onClearIntent={clearShellIntent}
         />
       ) : (
         <ContractFollowUp

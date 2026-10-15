@@ -4,6 +4,7 @@ import {
   assignmentHint,
   directQueueItems,
   noticesAwaitingBid,
+  processStepsForAgreement,
   processStepsForBid,
   processStepsForInquiry,
   processStepsForNotice,
@@ -166,5 +167,38 @@ const declined = processStepsForNotice({
 assert.equal(declined[1].detail, 'Ikke gi tilbud');
 assert.equal(declined[1].done, true);
 assert.equal(declined[2].done, false);
+
+const draftTrail = processStepsForAgreement(null, {
+  kind: 'oppdrag',
+  customerId: 'kun_1',
+  customerName: 'Byggherre AS',
+  templateId: '',
+});
+assert.equal(draftTrail[0].label, 'Kunde og type');
+assert.equal(draftTrail[0].done, true);
+assert.equal(draftTrail[0].detail, 'Enkeltoppdrag · Byggherre AS');
+assert.equal(draftTrail[1].label, 'Avtalemal');
+assert.equal(draftTrail[1].done, false);
+assert.equal(draftTrail[2].done, false);
+assert.equal(draftTrail[4].label, 'Signert');
+
+const lockedTrail = processStepsForAgreement({
+  kind: 'rammeavtale',
+  status: 'hos-motpart',
+  version: 1,
+  createdAt: '2026-10-14T10:00:00.000Z',
+  templateTitle: 'Oppdragsavtale',
+  counterparty: { name: 'Byggherre AS' },
+  versions: [{ number: 1, sentAt: '2026-10-14T11:00:00.000Z' }],
+  signatures: [],
+  events: [{ action: 'sendt', at: '2026-10-14T11:00:00.000Z' }],
+});
+assert.equal(lockedTrail[0].done, true);
+assert.equal(lockedTrail[1].done, true);
+assert.equal(lockedTrail[1].detail, 'Oppdragsavtale');
+assert.equal(lockedTrail[2].done, true);
+assert.equal(lockedTrail[3].done, true);
+assert.equal(lockedTrail[3].label, 'Hos motpart');
+assert.equal(lockedTrail[4].done, false);
 
 console.log('processTrail.test.mjs ok');

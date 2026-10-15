@@ -136,6 +136,62 @@ export function processStepsForBid(bid, notice = null) {
   }, bid);
 }
 
+/** Avtalebehandling: kunde → mal → utkast → motpart → signert. */
+export function processStepsForAgreement(row = null, draft = null) {
+  const kind = row?.kind || draft?.kind || 'oppdrag';
+  const kindLabel = kind === 'rammeavtale' ? 'Rammeavtale' : (kind === 'avrop' ? 'Avrop' : 'Enkeltoppdrag');
+  const customerName = row?.counterparty?.name || draft?.customerName || '';
+  const customerDone = !!(row || draft?.customerId);
+  const templateTitle = row?.templateTitle || draft?.templateTitle || '';
+  const templateDone = !!(row || draft?.templateId);
+  const locked = !!row;
+  const lockedAt = row?.createdAt || row?.versions?.[0]?.lockedAt || '';
+  const withParty = !!row && row.status !== 'utkast';
+  const remarks = row?.status === 'merknader';
+  const signed = row?.status === 'signert';
+  const partyAt = row?.versions?.find((item) => item.sentAt)?.sentAt
+    || row?.events?.find((event) => event.action === 'sendt')?.at
+    || '';
+  const signedAt = row?.signatures?.at(-1)?.at || row?.events?.find((event) => event.action === 'signert')?.at || '';
+  return [
+    step(
+      'kunde',
+      'Kunde og type',
+      customerDone ? [kindLabel, customerName].filter(Boolean).join(' · ') : '',
+      customerDone ? (row?.createdAt || '') : '',
+      customerDone,
+    ),
+    step(
+      'mal',
+      'Avtalemal',
+      templateDone ? (templateTitle || 'Valgt') : '',
+      templateDone && locked ? lockedAt : '',
+      templateDone,
+    ),
+    step(
+      'utkast',
+      'Utkast låst',
+      locked ? `Versjon ${row.version || 1}` : '',
+      locked ? lockedAt : '',
+      locked,
+    ),
+    step(
+      'motpart',
+      remarks ? 'Merknader i retur' : 'Hos motpart',
+      withParty ? (remarks ? 'Tilbake hos avsender' : (signed ? 'Behandlet' : 'Til behandling')) : '',
+      withParty ? partyAt : '',
+      withParty,
+    ),
+    step(
+      'signert',
+      'Signert',
+      signed ? 'Forseglet' : '',
+      signed ? signedAt : '',
+      signed,
+    ),
+  ];
+}
+
 export function noticesAwaitingBid(notices) {
   return (Array.isArray(notices) ? notices : [])
     .filter((row) => row?.id && row.decision === 'aktuell')

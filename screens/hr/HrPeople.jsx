@@ -131,13 +131,18 @@ export default function HrPeople({
             />
           ))}
           <View style={styles.chips}>
+            <HrChip colors={colors} label="Avtaler" active={false} onPress={() => onGo?.('avtaler')} />
             <HrChip colors={colors} label="Lønn" active={false} onPress={() => onGo?.('lonn')} />
             <HrChip colors={colors} label="Oppfølging" active={false} onPress={() => onGo?.('oppfolging')} />
+            <HrChip colors={colors} label="Lov & ISO" active={false} onPress={() => onGo?.('compliance')} />
             <HrChip colors={colors} label="Produktivitet" active={false} onPress={() => onGo?.('produktivitet')} />
           </View>
           {canWrite ? (
             <View style={styles.form}>
-              <Text style={[styles.formTitle, { color: colors.ink }]}>Registrer ansettelseskontrakt</Text>
+              <Text style={[styles.formTitle, { color: colors.ink }]}>Hurtigregistrer kontrakt</Text>
+              <Text style={[styles.formHint, { color: colors.muted }]}>
+                For OCR/AI, AML-nøkkeldata og skjemamal — bruk Avtaler.
+              </Text>
               <HrField colors={colors} label="Tittel" value={contractDraft.title} onChangeText={(title) => setContractDraft((p) => ({ ...p, title }))} />
               <HrField colors={colors} label="Fra dato" value={contractDraft.startDate} onChangeText={(startDate) => setContractDraft((p) => ({ ...p, startDate }))} placeholder="ÅÅÅÅ-MM-DD" />
               <HrField colors={colors} label="Til dato" value={contractDraft.endDate} onChangeText={(endDate) => setContractDraft((p) => ({ ...p, endDate }))} placeholder="Tom = løpende" />
@@ -167,6 +172,12 @@ export default function HrPeople({
                     notes: '',
                   });
                 }}
+              />
+              <HrButton
+                colors={colors}
+                label="Åpne full avtale + OCR"
+                icon="scan-outline"
+                onPress={() => onGo?.('avtaler')}
               />
             </View>
           ) : (
@@ -203,4 +214,5 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   form: { gap: 10, marginTop: 8 },
   formTitle: { fontSize: 14, fontWeight: '600' },
+  formHint: { fontSize: 12, lineHeight: 17 },
 });

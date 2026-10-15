@@ -17,6 +17,8 @@ import HrProductivity from './HrProductivity';
 import HrSalary from './HrSalary';
 import HrFollowUp from './HrFollowUp';
 import HrRecruitment from './HrRecruitment';
+import HrContracts from './HrContracts';
+import HrCompliance from './HrCompliance';
 
 function periodWindow(months = 3) {
   const to = new Date();
@@ -112,6 +114,20 @@ export default function HrScreen({ subView = 'oversikt' }) {
         />
       );
     }
+    if (page === 'avtaler') {
+      return (
+        <HrContracts
+          colors={colors}
+          employees={employees}
+          hr={hr}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          familyId={familyId}
+          selectedEmployeeId={selectedEmployeeId}
+          onSelectEmployee={setSelectedEmployeeId}
+        />
+      );
+    }
     if (page === 'produktivitet') {
       return (
         <HrProductivity
@@ -149,6 +165,20 @@ export default function HrScreen({ subView = 'oversikt' }) {
           canWrite={canWrite}
           selectedEmployeeId={selectedEmployeeId}
           onPatch={onPatch}
+          familyId={familyId}
+        />
+      );
+    }
+    if (page === 'compliance') {
+      return (
+        <HrCompliance
+          colors={colors}
+          employees={employees}
+          hr={hr}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          selectedEmployeeId={selectedEmployeeId}
+          onSelectEmployee={setSelectedEmployeeId}
         />
       );
     }
@@ -173,6 +203,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
         onOpenFollowUp={() => go('oppfolging')}
         onOpenRecruitment={() => go('rekruttering')}
         onOpenProductivity={() => go('produktivitet')}
+        onOpenCompliance={() => go('compliance')}
+        onOpenContracts={() => go('avtaler')}
       />
     );
   }, [
@@ -189,7 +221,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.content}
       nativeID="hr-screen"
     >
-      <View style={styles.tabs}>
+      <View style={styles.tabs} nativeID="hr-tabs">
         {HR_MENU.map((item) => (
           <HrChip
             key={item.id}

@@ -48,6 +48,7 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
     || slice.salaries.length
     || slice.contracts.length
     || slice.cases.length
+    || (slice.files || []).length
   );
 
   return (
@@ -149,6 +150,22 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
                 title={row.title}
                 subtitle={row.description}
                 icon="flag-outline"
+                onPress={() => {}}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {(slice.files || []).length ? (
+          <View style={styles.block}>
+            <Text style={[styles.blockTitle, { color: colors.ink }]}>Dokumenter</Text>
+            {slice.files.map((row) => (
+              <RowLink
+                key={row.id}
+                colors={colors}
+                title={row.name}
+                subtitle={row.kind || 'Dokument'}
+                icon="document-attach-outline"
                 onPress={() => {}}
               />
             ))}

@@ -113,7 +113,7 @@ export function UtilizationBar({ colors, billablePct, targetPct, band }) {
   );
 }
 
-export function SalarySparkline({ colors, series }) {
+export function SalarySparkline({ colors, series, showPercent = false }) {
   const amounts = (series || []).map((row) => Number(row.annualAmount) || 0);
   if (amounts.length < 2) {
     return (
@@ -129,8 +129,14 @@ export function SalarySparkline({ colors, series }) {
     <View style={styles.sparkRow}>
       {amounts.map((amount, index) => {
         const h = 18 + ((amount - min) / span) * 52;
+        const pct = series[index]?.changePercent;
         return (
           <View key={`${index}-${amount}`} style={styles.sparkCol}>
+            {showPercent && pct != null ? (
+              <Text style={[styles.sparkPct, { color: pct >= 0 ? (colors.brand || '#15803d') : (colors.danger || '#b91c1c') }]}>
+                {`${pct > 0 ? '+' : ''}${pct}%`}
+              </Text>
+            ) : null}
             <View style={[styles.sparkBar, { height: h, backgroundColor: colors.brand }]} />
             <Text style={[styles.sparkLabel, { color: colors.muted }]}>
               {String(series[index].effectiveDate || '').slice(0, 4)}
@@ -229,10 +235,11 @@ const styles = StyleSheet.create({
   utilMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   utilPct: { fontSize: 14, fontWeight: '700' },
   utilBand: { fontSize: 12 },
-  sparkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, minHeight: 80, paddingTop: 8 },
+  sparkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, minHeight: 96, paddingTop: 8 },
   sparkCol: { alignItems: 'center', gap: 4, flex: 1 },
   sparkBar: { width: '70%', maxWidth: 28, borderRadius: 6, minHeight: 18 },
   sparkLabel: { fontSize: 11 },
+  sparkPct: { fontSize: 10, fontWeight: '700' },
   sparkEmpty: { fontSize: 13 },
   empty: { fontSize: 13, lineHeight: 18 },
   row: {

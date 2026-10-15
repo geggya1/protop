@@ -8,7 +8,7 @@ import {
   formatNbDate,
   normalizeSalary,
   plannedSalariesFor,
-  salarySeriesFor,
+  salarySeriesWithPercents,
   SALARY_KINDS,
 } from '../../src/hr/model';
 import {
@@ -25,35 +25,47 @@ export default function HrSalary({
     annualAmount: '',
     reason: '',
     notes: '',
+    memo: '',
     employeeVisible: true,
   });
 
   const activeId = employeeId || selectedEmployeeId || '';
-  const series = useMemo(() => salarySeriesFor(activeId, hr.salaries), [activeId, hr.salaries]);
+  const series = useMemo(() => salarySeriesWithPercents(activeId, hr.salaries), [activeId, hr.salaries]);
   const planned = useMemo(() => plannedSalariesFor(activeId, hr.salaries), [activeId, hr.salaries]);
   const current = useMemo(() => currentSalaryFor(activeId, hr.salaries), [activeId, hr.salaries]);
+
+  const nextYearPreview = useMemo(() => {
+    if (!current || !draft.annualAmount) return null;
+    const amount = Number(String(draft.annualAmount).replace(/\s/g, '').replace(',', '.'));
+    if (!(amount > 0) || !(current.annualAmount > 0)) return null;
+    const pct = Math.round(((amount - current.annualAmount) / current.annualAmount) * 1000) / 10;
+    return { amount, pct };
+  }, [current, draft.annualAmount]);
 
   function saveDraft() {
     if (!canWrite || !activeId) return;
     const amount = Number(String(draft.annualAmount).replace(/\s/g, '').replace(',', '.'));
     if (!(amount > 0) || !draft.effectiveDate) return;
+    const previousAmount = current?.annualAmount || 0;
     const row = normalizeSalary({
       ...draft,
       employeeId: activeId,
       annualAmount: amount,
+      previousAmount,
+      memo: draft.memo || draft.notes,
       employeeVisible: !!draft.employeeVisible,
     });
     onSaveSalaries?.([row, ...(hr.salaries || []).filter((item) => item.id !== row.id)]);
-    setDraft((prev) => ({ ...prev, annualAmount: '', reason: '', notes: '' }));
+    setDraft((prev) => ({ ...prev, annualAmount: '', reason: '', notes: '', memo: '' }));
   }
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="hr-salary">
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
           title="Lønn"
-          subtitle="Historikk, graf over år og plan for fremtidige justeringer"
+          subtitle="Historikk, prosentutvikling og plan for neste år — memo på hver bevegelse"
         />
         <View style={styles.chips}>
           {(employees || []).filter((e) => e?.company?.status !== 'deleted').map((emp) => (
@@ -78,24 +90,46 @@ export default function HrSalary({
                 ? `Gjeldende: ${formatMoney(current.annualAmount, current.currency)} fra ${formatNbDate(current.effectiveDate)}`
                 : 'Ingen lønn registrert ennå'}
             </Text>
-            <SalarySparkline colors={colors} series={series} />
+            <SalarySparkline colors={colors} series={series} showPercent />
             {series.map((row) => (
-              <Text key={row.id} style={[styles.line, { color: colors.muted }]}>
-                {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}${row.reason ? ` · ${row.reason}` : ''}`}
-              </Text>
+              <View key={row.id} style={[styles.rowBlock, { borderColor: colors.line }]}>
+                <Text style={[styles.line, { color: colors.ink }]}>
+                  {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}`}
+                  {row.changePercent != null
+                    ? ` · ${row.changePercent > 0 ? '+' : ''}${row.changePercent} %`
+                    : ''}
+                </Text>
+                {row.reason ? (
+                  <Text style={[styles.meta, { color: colors.muted }]}>{row.reason}</Text>
+                ) : null}
+                {(row.memo || row.notes) ? (
+                  <Text style={[styles.meta, { color: colors.muted }]}>
+                    {`Memo: ${row.memo || row.notes}`}
+                  </Text>
+                ) : null}
+              </View>
             ))}
           </>
         )}
       </HrCard>
 
       <HrCard colors={colors}>
-        <HrSectionTitle colors={colors} title="Planlagte justeringer" />
+        <HrSectionTitle colors={colors} title="Planlagte justeringer (neste år)" />
         {planned.length === 0 ? (
           <EmptyHint colors={colors} text="Ingen planlagte justeringer." />
         ) : planned.map((row) => (
-          <Text key={row.id} style={[styles.line, { color: colors.ink }]}>
-            {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}${row.reason ? ` · ${row.reason}` : ''}`}
-          </Text>
+          <View key={row.id} style={[styles.rowBlock, { borderColor: colors.line }]}>
+            <Text style={[styles.line, { color: colors.ink }]}>
+              {`${formatNbDate(row.effectiveDate)} · ${formatMoney(row.annualAmount, row.currency)}`}
+              {row.changePercent != null
+                ? ` · ${row.changePercent > 0 ? '+' : ''}${row.changePercent} %`
+                : ''}
+            </Text>
+            {row.reason ? <Text style={[styles.meta, { color: colors.muted }]}>{row.reason}</Text> : null}
+            {(row.memo || row.notes) ? (
+              <Text style={[styles.meta, { color: colors.muted }]}>{`Memo: ${row.memo || row.notes}`}</Text>
+            ) : null}
+          </View>
         ))}
       </HrCard>
 
@@ -126,6 +160,11 @@ export default function HrSalary({
             onChangeText={(annualAmount) => setDraft((prev) => ({ ...prev, annualAmount }))}
             keyboardType="numeric"
           />
+          {nextYearPreview ? (
+            <Text style={[styles.preview, { color: colors.brand }]}>
+              {`Endring mot gjeldende: ${nextYearPreview.pct > 0 ? '+' : ''}${nextYearPreview.pct} %`}
+            </Text>
+          ) : null}
           <HrField
             colors={colors}
             label="Begrunnelse"
@@ -135,10 +174,11 @@ export default function HrSalary({
           />
           <HrField
             colors={colors}
-            label="Notat"
-            value={draft.notes}
-            onChangeText={(notes) => setDraft((prev) => ({ ...prev, notes }))}
+            label="Memo knyttet til bevegelsen"
+            value={draft.memo}
+            onChangeText={(memo) => setDraft((prev) => ({ ...prev, memo }))}
             multiline
+            placeholder="Bakgrunn, forhandling, forutsetninger…"
           />
           <HrChip
             colors={colors}
@@ -160,6 +200,13 @@ const styles = StyleSheet.create({
   page: { gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   current: { fontSize: 16, fontWeight: '600' },
-  line: { fontSize: 13, lineHeight: 18 },
+  line: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  meta: { fontSize: 13, lineHeight: 18 },
   hint: { fontSize: 12, lineHeight: 17 },
+  preview: { fontSize: 14, fontWeight: '600' },
+  rowBlock: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    gap: 2,
+  },
 });

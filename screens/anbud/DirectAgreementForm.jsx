@@ -259,6 +259,8 @@ export default function DirectAgreementForm({
   kind = '',
   customerId = '',
   people = [],
+  seedPicks = null,
+  onSeedPicksConsumed,
   onCancel,
   onRegister,
   onOpenCustomer,
@@ -554,6 +556,19 @@ export default function DirectAgreementForm({
       setReading(false);
     }
   }
+
+  useEffect(() => {
+    const list = Array.isArray(seedPicks) ? seedPicks.filter(Boolean) : [];
+    if (!list.length) return undefined;
+    let live = true;
+    (async () => {
+      await importDropped(list);
+      if (live) onSeedPicksConsumed?.();
+    })();
+    return () => { live = false; };
+    // Kun når nye seed-filer kommer inn fra wizard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedPicks]);
 
   function removeFile(id) {
     const docs = files.filter((doc) => doc.id !== id);

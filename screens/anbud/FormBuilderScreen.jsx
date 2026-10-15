@@ -350,7 +350,7 @@ export default function FormBuilderScreen({
             <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
               <Text style={{ color: colors.ink, fontWeight: '600' }}>{template.title}</Text>
               <Text style={{ color: colors.muted }}>
-                {template.category === 'avtale' ? 'Avtalemal · ' : ''}
+                {template.category === 'avtale' ? 'Avtalemal · ' : 'Utfylling · '}
                 {template.fields.length} spørsmål
                 {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
                 {template.intro ? ` · ${template.intro}` : ''}
@@ -364,6 +364,21 @@ export default function FormBuilderScreen({
               ) : null}
               <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template)); say(''); }} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>Åpne</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  const nextCategory = template.category === 'avtale' ? 'skjema' : 'avtale';
+                  const result = await commit(saveFormTemplate(state, { ...template, category: nextCategory }));
+                  if (result?.ok) {
+                    say(nextCategory === 'avtale' ? 'Merket som avtalemal.' : 'Merket som utfyllingsskjema.');
+                    showSaveToast(nextCategory === 'avtale' ? 'Merket som avtalemal.' : 'Merket som utfyllingsskjema.');
+                  }
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.brand }}>
+                  {template.category === 'avtale' ? 'Fjern avtalemerking' : 'Merk som avtalemal'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setDraft(draftFromTemplate(template, { copy: true })); say(`Kopi av ${template.title}.`); }} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>Kopier</Text>

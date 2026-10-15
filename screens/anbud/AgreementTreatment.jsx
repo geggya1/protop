@@ -7,13 +7,11 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import {
-  AGREEMENT_CASE_KINDS,
   acceptProposals,
   acceptRemarks,
   addAgreementNote,
   agreementMovements,
   agreementNoticeText,
-  agreementStarterTemplate,
   agreementTemplates,
   bidsAwaitingAgreement,
   createAgreementCase,
@@ -32,7 +30,6 @@ import {
 } from '../../src/anbud/agreementCase';
 import { agreementFileBase, agreementToPdf, agreementToWordHtml } from '../../src/anbud/agreementExport';
 import { actOnAgreementShare, notifyAgreementParty, publishAgreementShare } from '../../src/anbud/agreementClient';
-import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { mergeAnbudStates } from '../../src/anbud/model';
 import { processStepsForAgreement } from '../../src/anbud/processTrail';
@@ -40,7 +37,6 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { watchEmployees } from '../../src/employees/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
-import AgreementCustomerField from './AgreementCustomerField';
 import AgreementPersonField from './AgreementPersonField';
 import ProcessTrail from './ProcessTrail';
 
@@ -94,8 +90,11 @@ export default function AgreementTreatment({
   onRegisterExisting,
   shellIntent = null,
   onClearIntent,
+  seedDraft = null,
+  onSeedDraftConsumed,
+  onRequestCreate,
 }) {
-  const { user, requestShellTab } = useApp();
+  const { user } = useApp();
   const { isPhone } = useLayout();
   const [state, setState] = useState(null);
   const [employees, setEmployees] = useState([]);
@@ -224,6 +223,27 @@ export default function AgreementTreatment({
     if (match) setDraft((current) => (current.templateId === match.id ? { ...current, templateTitle: match.title } : current));
   }, [draft.templateId, draft.templateTitle, templates]);
 
+  useEffect(() => {
+    if (!seedDraft || typeof seedDraft !== 'object') return;
+    setSelectedId('');
+    setDraft((current) => ({
+      ...current,
+      kind: seedDraft.kind || current.kind,
+      customerId: seedDraft.customerId || '',
+      customerName: seedDraft.customerName || '',
+      email: seedDraft.email || '',
+      parentId: seedDraft.parentId || '',
+      createProject: !!seedDraft.createProject,
+      templateId: seedDraft.templateId || '',
+      templateTitle: seedDraft.templateTitle || '',
+      bidId: seedDraft.bidId || '',
+      projectId: seedDraft.projectId || '',
+    }));
+    setNote('Utkastet er klart. Lås for å starte behandlingen med motparten.');
+    setNoteBad(false);
+    onSeedDraftConsumed?.();
+  }, [seedDraft, onSeedDraftConsumed]);
+
   async function commitLocal(result, movement) {
     if (!result?.ok) {
       say(result?.error || 'Kunne ikke lagre avtalen.', true);
@@ -335,45 +355,6 @@ export default function AgreementTreatment({
     if (saved) { setEditingNote(''); setEditBody(''); }
   }
 
-  function draftReturnPayload() {
-    return {
-      kind: draft.kind,
-      customerId: draft.customerId,
-      customerName: draft.customerName
-        || (state?.customers || []).find((row) => row.id === draft.customerId)?.name
-        || '',
-      email: draft.email,
-      createProject: draft.createProject,
-      parentId: draft.parentId,
-      bidId: draft.bidId,
-      projectId: draft.projectId,
-      templateId: draft.templateId,
-      templateTitle: draft.templateTitle || selectedTemplate?.title || '',
-    };
-  }
-
-  function openTemplateBuilder(mode, templateId = '') {
-    requestShellTab?.('skjema', null, {
-      type: 'composeAgreementTemplate',
-      mode,
-      templateId: templateId || '',
-      nonce: `${Date.now()}`,
-      returnDraft: draftReturnPayload(),
-    });
-  }
-
-  function pickTemplate(template) {
-    if (!template) {
-      setDraft((current) => ({ ...current, templateId: '', templateTitle: '' }));
-      return;
-    }
-    setDraft((current) => ({
-      ...current,
-      templateId: template.id,
-      templateTitle: template.title || '',
-    }));
-  }
-
   async function createCase(partial = {}) {
     const templateId = partial.templateId || draft.templateId;
     const template = templates.find((row) => row.id === templateId)
@@ -441,31 +422,6 @@ export default function AgreementTreatment({
     }
   }
 
-  async function ensureStarter() {
-    const existing = templates.find((row) => row.title === 'Oppdragsavtale');
-    if (existing) {
-      pickTemplate(existing);
-      say(`Avtalemalen «${existing.title}» er valgt.`);
-      return;
-    }
-    const starter = agreementStarterTemplate();
-    const before = new Set((state?.formTemplates || []).map((row) => row.id));
-    const result = saveFormTemplate(state, starter);
-    if (!result.ok) {
-      say(result.error, true);
-      return;
-    }
-    await commitLocal(result);
-    const saved = (result.state.formTemplates || []).find((row) => row.category === 'avtale' && !before.has(row.id))
-      || (result.state.formTemplates || []).find((row) => row.title === starter.title);
-    if (saved) {
-      pickTemplate(saved);
-      say(`Standardavtalen «${saved.title}» er klar. Lås utkastet for å fortsette.`);
-      return;
-    }
-    say('Standard avtalemal er lagret. Velg den for å opprette utkastet.');
-  }
-
   function run(op) {
     if (party === 'motpart') return commitRemote(op.name, op.extra);
     return commitLocal(op.local(), op.movement);
@@ -496,118 +452,55 @@ export default function AgreementTreatment({
 
       {party === 'avsender' && !selected ? (
         <View style={[styles.card, styles.draftCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt utkast</Text>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Velg type og kunde, deretter avtalemal. Når malen er klar, låses utkastet med kunde og oppdragstaker utfylt.
-          </Text>
-          <View style={styles.row}>
-            {AGREEMENT_CASE_KINDS.map((item) => (
-              <Chip key={item.id} colors={colors} label={item.label} on={draft.kind === item.id} onPress={() => setDraft({ ...draft, kind: item.id })} />
-            ))}
-          </View>
-          <AgreementCustomerField
-            colors={colors}
-            customers={state?.customers || []}
-            customerId={draft.customerId}
-            companyId={companyId}
-            people={people}
-            onSelect={(customer) => setDraft((current) => {
-              const previous = (state?.customers || []).find((row) => row.id === current.customerId);
-              const email = customer
-                ? (customer.email || '')
-                : (previous?.email && current.email === previous.email ? '' : current.email);
-              return {
-                ...current,
-                customerId: customer?.id || '',
-                customerName: customer?.name || '',
-                email,
-              };
-            })}
-            onSavedState={(saved) => setState(saved)}
-          />
-          {draft.kind === 'avrop' ? (
-            <View style={styles.row}>
-              {[...cases, ...(state?.contracts || [])].filter((row) => row.kind === 'rammeavtale' && !row.deletedAt).map((item) => (
-                <Chip key={item.id} colors={colors} label={item.title} on={draft.parentId === item.id} onPress={() => setDraft({ ...draft, parentId: item.id })} />
-              ))}
-            </View>
-          ) : null}
-          <TextInput
-            value={draft.email}
-            onChangeText={(email) => setDraft({ ...draft, email })}
-            placeholder="E-post til motpart"
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>Avtalemal</Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              Velg en eksisterende mal, åpne den for justering, eller lag en tom mal i skjemabyggeren. Lagre der for å komme tilbake hit.
-            </Text>
-            {templates.length ? (
-              <View style={styles.row}>
-                {templates.map((item) => (
-                  <Chip
-                    key={item.id}
-                    colors={colors}
-                    label={item.title}
-                    on={draft.templateId === item.id}
-                    onPress={() => pickTemplate(item)}
-                  />
-                ))}
-              </View>
-            ) : (
-              <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen avtalemaler ennå.</Text>
-            )}
-            <View style={styles.row}>
-              <TouchableOpacity onPress={ensureStarter} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>{templates.length ? 'Bruk standardmal' : 'Lag standardmal'}</Text>
+          {canLockDraft ? (
+            <>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Klar til å låse utkast</Text>
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                {[kindCaseLabel(draft.kind), draft.customerName || 'Kunde', draft.templateTitle || selectedTemplate?.title || 'Avtalemal']
+                  .filter(Boolean)
+                  .join(' · ')}
+                {draft.email ? ` · ${draft.email}` : ''}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                Kunde, oppdragstaker og øvrige kjente felt fylles inn automatisk når utkastet låses.
+              </Text>
+              <TouchableOpacity onPress={() => setDraft({ ...draft, createProject: !draft.createProject })} accessibilityRole="button">
+                <Text style={{ color: colors.ink }}>{draft.createProject ? 'Prosjekt opprettes sammen med avtalen' : 'Opprett også prosjekt'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => openTemplateBuilder('blank')} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Lag tom mal</Text>
+              <TouchableOpacity
+                onPress={() => createCase()}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand }]}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Lås utkast 1</Text>
               </TouchableOpacity>
-              {selectedTemplate ? (
-                <TouchableOpacity onPress={() => openTemplateBuilder('edit', selectedTemplate.id)} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.brand }]}>
-                  <Text style={{ color: colors.brand }}>Åpne valgt mal</Text>
-                </TouchableOpacity>
-              ) : templates.length ? (
-                <TouchableOpacity onPress={() => openTemplateBuilder('edit', templates[0].id)} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
-                  <Text style={{ color: colors.ink }}>Åpne eksisterende</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-
-          <TouchableOpacity onPress={() => setDraft({ ...draft, createProject: !draft.createProject })} accessibilityRole="button">
-            <Text style={{ color: colors.ink }}>{draft.createProject ? 'Prosjekt opprettes sammen med avtalen' : 'Opprett også prosjekt'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => createCase()}
-            disabled={!canLockDraft || busy}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canLockDraft || busy }}
-            style={[styles.primary, { backgroundColor: canLockDraft ? colors.brand : colors.muted }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Lås utkast 1</Text>
-          </TouchableOpacity>
-          {!canLockDraft ? (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {!draft.customerId
-                ? 'Velg kunde for å gå videre.'
-                : !String(draft.email || '').trim()
-                  ? 'Fyll inn e-post til motpart.'
-                  : 'Velg eller lag en avtalemal før du låser utkastet.'}
-            </Text>
-          ) : null}
+              <TouchableOpacity onPress={() => onRequestCreate?.()} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Endre valg i veiviseren</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Nytt utkast</Text>
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                Start med Ny avtale for å velge type, kunde og avtalemal i en ryddig stegvis popup.
+              </Text>
+              <TouchableOpacity
+                onPress={() => onRequestCreate?.()}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand }]}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Start ny avtale</Text>
+              </TouchableOpacity>
+            </>
+          )}
           {waitingBids.length ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.muted }}>Vunne tilbud uten avtale</Text>
               {waitingBids.map((bid) => (
                 <TouchableOpacity
                   key={bid.id}
-                  onPress={() => createCase({ bidId: bid.id, title: bid.title, customerId: draft.customerId || bid.customerId })}
+                  onPress={() => onRequestCreate?.()}
                   accessibilityRole="button"
                 >
                   <Text style={{ color: colors.ink }}>{bid.title}</Text>

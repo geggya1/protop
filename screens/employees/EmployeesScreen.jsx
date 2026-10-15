@@ -86,6 +86,7 @@ import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
+import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
 import { PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
@@ -1743,6 +1744,13 @@ export default function EmployeesScreen() {
           ) : (
             <Text style={{ color: colors.muted }}>Åpne ett avsnitt om gangen. Bildet vises på profilen og øverst i CV-en.</Text>
           )}
+          {view === 'mine' && draft?.id ? (
+            <EmployeeHrSelfService
+              colors={colors}
+              companyId={familyId}
+              employeeId={draft.id}
+            />
+          ) : null}
           {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (
             <TouchableOpacity
               nativeID="employee-project-import"

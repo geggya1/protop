@@ -313,10 +313,18 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.ok(admin.includes('produkt'));
   const selskap = filterCompanyNav(companyNavItems(), standardGrants('administrator'))
     .find((item) => item.id === 'selskap');
-  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'hr', 'fravaer']);
   const ansattNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt'))
     .find((item) => item.id === 'selskap');
   assert.deepEqual(ansattNav.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  const lederHr = standardGrants('leder');
+  assert.equal(lederHr.hr, 'delete');
+  assert.equal(companyTabAllowed('hr', 'oversikt', lederHr), true);
+  assert.equal(companyTabAllowed('hr', null, standardGrants('ansatt')), false);
+  const avd = standardGrants('avdelingsleder');
+  assert.equal(avd.hr, 'read');
+  const avdSelskap = filterCompanyNav(companyNavItems(), avd).find((item) => item.id === 'selskap');
+  assert.ok(avdSelskap.children.some((child) => child.id === 'hr'));
   const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
     .find((item) => item.id === 'anbud');
   assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud']);
@@ -366,7 +374,8 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   }), true);
   const selskap = filterCompanyNav(companyNavItems(), narrowed.grants)
     .find((item) => item.id === 'selskap');
-  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  // companySettings-linse beholder aktørens øvrige rettigheter (inkl. HR for eier/bypass).
+  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'hr', 'fravaer']);
   assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'arbeid'));
   assert.equal(
     filterCompanyNav(companyNavItems(), narrowed.grants).find((item) => item.id === 'selskap')

@@ -96,7 +96,8 @@ const webRootBottom = {
   left: 0,
   right: 0,
   bottom: 0,
-  zIndex: 2147483646,
+  // Over CreateMenu / AgreementCreateWizard (2147483646) så søk i popup fungerer.
+  zIndex: 2147483647,
   display: 'flex',
   alignItems: 'flex-end',
   justifyContent: 'center',
@@ -109,7 +110,7 @@ const webRootCenter = {
   left: 0,
   right: 0,
   bottom: 0,
-  zIndex: 2147483646,
+  zIndex: 2147483647,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  title: { fontSize: 18, fontWeight: '600' },
+  title: { fontSize: 17, fontWeight: '400' },
   scroll: { maxHeight: Math.round(Dimensions.get('window').height * 0.78) },
   scrollInner: { paddingHorizontal: 16, paddingBottom: 28 },
 });

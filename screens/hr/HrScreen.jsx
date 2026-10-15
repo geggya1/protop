@@ -40,6 +40,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [hr, setHr] = useState(emptyHrState());
   const [entries, setEntries] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -66,14 +67,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useEffect(() => {
     let live = true;
     if (!familyId) return undefined;
-    const window = periodWindow(3);
+    const window = periodWindow(months);
     loadTimeEntries(familyId, window).then((rows) => {
       if (live) setEntries(Array.isArray(rows) ? rows : []);
     }).catch(() => {
       if (live) setEntries([]);
     });
     return () => { live = false; };
-  }, [familyId]);
+  }, [familyId, months]);
 
   const persist = useCallback(async (next) => {
     const normalized = normalizeHrState(next);
@@ -107,6 +108,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           onSelect={setSelectedEmployeeId}
           canWrite={canWrite}
           onPatch={onPatch}
+          onGo={go}
         />
       );
     }
@@ -116,6 +118,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           employees={employees}
           entries={entries}
+          months={months}
+          onMonthsChange={setMonths}
           onSelectEmployee={(id) => {
             setSelectedEmployeeId(id);
             go('personell');
@@ -155,6 +159,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hr}
           canWrite={canWrite}
           onPatch={onPatch}
+          familyId={familyId}
         />
       );
     }
@@ -171,7 +176,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       />
     );
   }, [
-    page, colors, employees, hr, entries, selectedEmployeeId, canWrite, onPatch, go,
+    page, colors, employees, hr, entries, selectedEmployeeId, canWrite, onPatch, go, months, familyId,
   ]);
 
   if (access.active && access.ready && !canSee) {

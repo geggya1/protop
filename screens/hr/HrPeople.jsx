@@ -13,10 +13,10 @@ import {
   normalizeContract,
   yearsBetween,
 } from '../../src/hr/model';
-import { EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink } from './HrShared';
+import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink } from './HrShared';
 
 export default function HrPeople({
-  colors, employees, hr, selectedId, onSelect, canWrite, onPatch,
+  colors, employees, hr, selectedId, onSelect, canWrite, onPatch, onGo,
 }) {
   const [query, setQuery] = useState('');
   const [contractDraft, setContractDraft] = useState({
@@ -130,6 +130,11 @@ export default function HrPeople({
               onPress={() => {}}
             />
           ))}
+          <View style={styles.chips}>
+            <HrChip colors={colors} label="Lønn" active={false} onPress={() => onGo?.('lonn')} />
+            <HrChip colors={colors} label="Oppfølging" active={false} onPress={() => onGo?.('oppfolging')} />
+            <HrChip colors={colors} label="Produktivitet" active={false} onPress={() => onGo?.('produktivitet')} />
+          </View>
           {canWrite ? (
             <View style={styles.form}>
               <Text style={[styles.formTitle, { color: colors.ink }]}>Registrer ansettelseskontrakt</Text>
@@ -195,6 +200,7 @@ const styles = StyleSheet.create({
   fact: { minWidth: '45%', flexGrow: 1, gap: 2 },
   factLabel: { fontSize: 12 },
   factValue: { fontSize: 15, fontWeight: '600' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   form: { gap: 10, marginTop: 8 },
   formTitle: { fontSize: 14, fontWeight: '600' },
 });

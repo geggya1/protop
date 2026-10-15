@@ -12,6 +12,7 @@ import {
   normalizeApplication,
   normalizeHrState,
   normalizeSalary,
+  employeeDraftFromApplication,
   expiringContracts,
   openFollowUps,
   plannedSalariesFor,
@@ -164,6 +165,18 @@ import {
   ], { withinDays: 45, today: new Date('2026-10-15T12:00:00Z') });
   assert.equal(ending.length, 1);
   assert.equal(ending[0].id, 'c1');
+}
+
+{
+  const draft = employeeDraftFromApplication(
+    { name: 'Ada Lovelace', email: 'ada@example.com', phone: '999', notes: 'Sterk' },
+    { title: 'Konsulent' },
+  );
+  assert.equal(draft.person.firstName, 'Ada');
+  assert.equal(draft.person.lastName, 'Lovelace');
+  assert.equal(draft.person.email, 'ada@example.com');
+  assert.equal(draft.company.title, 'Konsulent');
+  assert.match(draft.company.comment, /rekruttering/);
 }
 
 console.log('hr/model.test.mjs ok');

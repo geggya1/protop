@@ -3,17 +3,21 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
   APPLICATION_STAGES,
   choiceLabel,
+  employeeDraftFromApplication,
   formatNbDate,
   JOB_STATUSES,
   normalizeApplication,
   normalizeJob,
   recruitmentFunnel,
 } from '../../src/hr/model';
+import { emptyEmployee, normalizeEmployee } from '../../src/employees/model';
+import { saveEmployee } from '../../src/employees/storage';
+import { showSaveToast } from '../../src/ui/saveToast';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
 
-export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
+export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId }) {
   const [jobId, setJobId] = useState(hr.jobs?.[0]?.id || '');
   const [selectedAppId, setSelectedAppId] = useState('');
   const [jobDraft, setJobDraft] = useState({
@@ -23,14 +27,51 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
     name: '', email: '', phone: '', source: '', notes: '', score: '5',
   });
   const [evalDraft, setEvalDraft] = useState({ evaluation: '', response: '' });
+  const [query, setQuery] = useState('');
+  const [hiring, setHiring] = useState(false);
 
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const activeJobId = jobId || hr.jobs?.[0]?.id || '';
-  const apps = useMemo(
-    () => (hr.applications || []).filter((row) => !activeJobId || row.jobId === activeJobId),
-    [hr.applications, activeJobId],
-  );
+  const activeJob = (hr.jobs || []).find((row) => row.id === activeJobId) || null;
+  const apps = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (hr.applications || [])
+      .filter((row) => !activeJobId || row.jobId === activeJobId)
+      .filter((row) => {
+        if (!q) return true;
+        return [row.name, row.email, row.phone, row.source, row.evaluation]
+          .join(' ')
+          .toLowerCase()
+          .includes(q);
+      });
+  }, [hr.applications, activeJobId, query]);
   const selectedApp = apps.find((row) => row.id === selectedAppId) || apps[0] || null;
+
+  async function hireApplicant(app) {
+    if (!canWrite || !familyId || !app || hiring) return;
+    setHiring(true);
+    try {
+      const draft = employeeDraftFromApplication(app, activeJob);
+      const employee = normalizeEmployee({
+        ...emptyEmployee(),
+        person: { ...emptyEmployee().person, ...draft.person },
+        company: { ...emptyEmployee().company, ...draft.company },
+      });
+      await saveEmployee(familyId, employee);
+      onPatch?.({
+        applications: (hr.applications || []).map((row) => (
+          row.id === app.id
+            ? { ...row, stage: 'hired', updatedAt: new Date().toISOString() }
+            : row
+        )),
+      });
+      showSaveToast?.(`${draft.person.firstName || 'Søker'} er lagt inn som ansatt`);
+    } catch {
+      showSaveToast?.('Kunne ikke ansette søker');
+    } finally {
+      setHiring(false);
+    }
+  }
 
   function moveStage(app, stage) {
     if (!canWrite) return;
@@ -135,6 +176,13 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
           title="Søknader"
           subtitle={activeJobId ? 'Filtrert på valgt stilling' : 'Alle søknader'}
         />
+        <HrField
+          colors={colors}
+          label="Søk"
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Navn, e-post, kilde …"
+        />
         {apps.map((app) => (
           <View key={app.id} style={[styles.appBlock, { borderColor: colors.line }]}>
             <RowLink
@@ -164,6 +212,16 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch }) {
                     onPress={() => moveStage(app, stage.id)}
                   />
                 ))}
+                {app.stage !== 'hired' && app.stage !== 'rejected' ? (
+                  <HrButton
+                    colors={colors}
+                    label={hiring ? 'Ansetter…' : 'Ansett'}
+                    primary
+                    icon="person-add-outline"
+                    disabled={hiring}
+                    onPress={() => hireApplicant(app)}
+                  />
+                ) : null}
               </View>
             ) : null}
           </View>

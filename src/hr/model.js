@@ -475,6 +475,37 @@ export function patchHrState(state, patch) {
   return next;
 }
 
+/**
+ * Bygg et enkelt ansattdraft fra en ansatt-søker (Personio/BambooHR-mønster:
+ * Hire → ny medarbeider i registeret). UI lagrer via Ansatte-storage.
+ */
+export function employeeDraftFromApplication(application, job = null) {
+  const app = normalizeApplication(application || {});
+  const parts = text(app.name).split(/\s+/).filter(Boolean);
+  const firstName = parts[0] || '';
+  const lastName = parts.slice(1).join(' ');
+  return {
+    person: {
+      firstName,
+      lastName,
+      email: app.email,
+      phone: app.phone,
+    },
+    company: {
+      status: 'active',
+      personnelKind: 'staff',
+      title: text(job?.title),
+      periodFrom: new Date().toISOString().slice(0, 10),
+      comment: [
+        `Ansatt via rekruttering${job?.title ? ` · ${job.title}` : ''}`,
+        text(app.notes),
+      ].filter(Boolean).join(' — '),
+    },
+    applicationId: app.id,
+    jobId: app.jobId,
+  };
+}
+
 export {
   text as hrText,
   normalizeIsoDate,

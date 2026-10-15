@@ -296,11 +296,13 @@ assert.equal(resolveModuleHero('projects', 'nb').wideArt, true, 'project overvie
 assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the wide illustration');
 assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-varsling', 'nb').wideArt, true, 'anbudsvarsling uses the wide illustration');
+assert.equal(resolveModuleHero('anbud-vurdering', 'nb').wideArt, true, 'vurdering av aktuelle uses the wide illustration');
 assert.equal(resolveModuleHero('anbud-tilbud', 'nb').wideArt, true, 'tilbud uses the wide illustration');
 assert.equal(resolveModuleHero('kontrakt', 'nb').wideArt, true, 'kontrakt uses the wide illustration');
 assert.equal(resolveModuleHero('skjema', 'nb').wideArt, true, 'skjema uses the wide illustration');
 assert.equal(resolveModuleHero('timeliste', 'nb').wideArt, true, 'personal timesheet uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timeliste', 'nb').wideArt, true, 'company timesheet uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours report uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
@@ -404,6 +406,17 @@ assert.equal(
   'tilbud bundled != public',
 );
 assert.match(assetsSrc, /'anbud-tilbud': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-tilbud--module-activation-illustration\.png'\)/);
+const vurderingFile = 'anbud-vurdering--module-activation-illustration.png';
+const vurderingBundled = join(ROOT, 'assets/module-activation', vurderingFile);
+const vurderingPublic = join(ROOT, 'public/assets/module-activation', vurderingFile);
+assert.equal(existsSync(vurderingBundled), true, 'vurdering bundled art');
+assert.equal(existsSync(vurderingPublic), true, 'vurdering public art');
+assert.equal(
+  createHash('sha256').update(readFileSync(vurderingBundled)).digest('hex'),
+  createHash('sha256').update(readFileSync(vurderingPublic)).digest('hex'),
+  'vurdering bundled != public',
+);
+assert.match(assetsSrc, /'anbud-vurdering': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-vurdering--module-activation-illustration\.png'\)/);
 const kontraktFile = 'kontrakt--module-activation-illustration.png';
 const kontraktBundled = join(ROOT, 'assets/module-activation', kontraktFile);
 const kontraktPublic = join(ROOT, 'public/assets/module-activation', kontraktFile);
@@ -439,6 +452,7 @@ assert.equal(
 assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
 for (const file of [
+  'arbeid-timerapport--module-activation-illustration.png',
   'arbeid-timesaldo--module-activation-illustration.png',
   'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaersrapport--module-activation-illustration.png',
@@ -453,6 +467,7 @@ for (const file of [
     `${file} bundled != public`,
   );
 }
+assert.match(assetsSrc, /'arbeid-timerapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timerapport--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-timesaldo': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timesaldo--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
 assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);

@@ -58,8 +58,9 @@ const investments = [
   investment('999999999', 'LITE AS', '2025', 150, 1000),
 ];
 
-assert.deepEqual(normalizeGroupChartSettings(null), { minOwnership: 50, showUnits: true });
+assert.deepEqual(normalizeGroupChartSettings(null), { minOwnership: 50, showUnits: false });
 assert.equal(normalizeGroupChartSettings({ minOwnership: 20, showUnits: false }).minOwnership, 20);
+assert.equal(normalizeGroupChartSettings({ showUnits: true }).showUnits, true);
 assert.equal(normalizeGroupChartSettings({ showUnits: false }).showUnits, false);
 assert.equal(formatCompactAmount(50613141), '50,6\u00a0MNOK');
 assert.equal(formatCompactAmount(-198513).replace(/\u00a0/g, ' '), '−198 513 kr');
@@ -123,8 +124,7 @@ assert.equal(model.children[0].ownershipLabel, '85 %');
 assert.equal(model.children[0].role, 'Datterselskap');
 assert.equal(model.children[1].ownershipLabel, '100 %');
 assert.equal(model.children[1].employeesLabel, '9');
-assert.equal(model.units.length, 1);
-assert.equal(model.units[0].poststed, 'SANDNES');
+assert.equal(model.units.length, 0);
 assert.equal(model.totals.countLabel, '3 enheter (2 datterselskaper)');
 assert.equal(model.totals.source, 'Sum av selskapsregnskapene');
 assert.equal(model.totals.employeesLabel, '32');
@@ -132,6 +132,33 @@ assert.equal(model.totals.revenueLabel, '66,0\u00a0MNOK');
 assert.equal(model.year, 2025);
 assert.equal(model.years[0].label, 'Siste regnskapsår');
 assert.equal(model.emptyOwnership, '');
+
+const withUnits = buildGroupChart({
+  entity: {
+    organisasjonsnummer: '916538804',
+    navn: 'CONSULT1 AS',
+    antallAnsatte: 18,
+    harRegistrertAntallAnsatte: true,
+  },
+  unitPayload: {
+    _embedded: {
+      underenheter: [
+        {
+          organisasjonsnummer: '916570783',
+          navn: 'CONSULT1 AS',
+          beliggenhetsadresse: { adresse: ['Svanholmen 7'], postnummer: '4313', poststed: 'SANDNES' },
+        },
+      ],
+    },
+  },
+  accountPayload: parentAccounts,
+  investmentRows: investments,
+  childBundles: [],
+  year: 2025,
+  settings: { minOwnership: 50, showUnits: true },
+});
+assert.equal(withUnits.units.length, 1);
+assert.equal(withUnits.units[0].poststed, 'SANDNES');
 
 const wide = buildGroupChart({
   entity: { organisasjonsnummer: '916538804', navn: 'CONSULT1 AS' },

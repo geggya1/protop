@@ -19,7 +19,7 @@ import {
   useViewAsSelection,
   viewAsKey,
 } from '../../src/access/viewAsStore';
-import { companyNavItems } from '../../src/navigation/shellModules';
+import { companyAccountNavItems, companyNavItems } from '../../src/navigation/shellModules';
 import { displayName } from '../../src/employees/model';
 
 const RANK_PHRASE = {
@@ -39,14 +39,16 @@ function levelLabel(employee) {
 }
 
 function moduleLabel(tab, subView) {
-  for (const item of companyNavItems()) {
+  const items = [...companyNavItems(), ...companyAccountNavItems()];
+  for (const item of items) {
     if (subView) {
       const child = (item.children || []).find((row) => (
         row.action?.tab === tab && row.action?.subView === subView
       ));
       if (child) return child.label;
+      if (item.action?.tab === tab && item.action?.subView === subView) return item.label;
     }
-    if (item.id === tab || item.action?.tab === tab) return item.label;
+    if (item.id === tab || (item.action?.tab === tab && !item.action?.subView)) return item.label;
   }
   return 'denne modulen';
 }

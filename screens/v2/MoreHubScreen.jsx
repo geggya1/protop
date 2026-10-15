@@ -53,7 +53,14 @@ import {
 } from '../settings/GroupSettingsScreen';
 import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
 import AiImportChildPicker from '../../components/AiImportChildPicker';
-import { buildChildDashboardApps, buildParentDashboardApps, buildShellModules, companyNavItems } from '../../src/navigation/shellModules';
+import {
+  buildChildDashboardApps,
+  buildParentDashboardApps,
+  buildShellModules,
+  companyNavItems,
+  drawerHasSubmenuToggle,
+  drawerSubmenuOpen,
+} from '../../src/navigation/shellModules';
 import { filterCompanyNav } from '../../src/access/companyAccess';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
@@ -65,39 +72,60 @@ import { allowedAppsForChild, isChildAppAllowed } from '../../src/utils/childApp
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../../src/utils/grandparentAccess';
 import HelpTarget from '../../components/HelpTarget';
 
-function Row({ icon, label, onPress, highlight, badgeCount = 0, compact = false, showChevron = true, moduleId }) {
+function Row({
+  icon, label, onPress, highlight, badgeCount = 0, compact = false, showChevron = true, moduleId,
+  expanded = false, onToggle,
+}) {
+  const expandable = typeof onToggle === 'function';
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[
-        styles.row,
-        compact && styles.rowCompact,
-        highlight && styles.rowHighlight,
-      ]}
-      accessibilityRole="button"
-      nativeID={moduleId ? `module-nav-${moduleId}` : undefined}
-    >
-      <View style={[
-        styles.iconCircle,
-        compact && styles.iconCircleCompact,
-        highlight && styles.iconCircleHighlight,
-      ]}
+    <View style={[!compact && styles.rowWrap, highlight && styles.rowHighlight]}>
+      <TouchableOpacity
+        onPress={onPress}
+        style={[styles.row, compact && styles.rowCompact, styles.rowMain]}
+        accessibilityRole="button"
+        nativeID={moduleId ? `module-nav-${moduleId}` : undefined}
       >
-        <IconBadge count={badgeCount} size={compact ? 13 : 15} offset={compact ? -4 : -5} borderColor={highlight ? colors.brand : '#fff'}>
-          <Ionicons name={icon} size={compact ? 15 : 20} color={highlight ? '#fff' : colors.brand} />
-        </IconBadge>
-      </View>
-      <Text style={[styles.label, compact && styles.labelCompact, highlight && styles.labelHighlight]} numberOfLines={1}>
-        {label}
-      </Text>
-      {showChevron ? (
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={highlight ? 'rgba(255,255,255,0.8)' : colors.muted}
-        />
+        <View style={[
+          styles.iconCircle,
+          compact && styles.iconCircleCompact,
+          highlight && styles.iconCircleHighlight,
+        ]}
+        >
+          <IconBadge count={badgeCount} size={compact ? 13 : 15} offset={compact ? -4 : -5} borderColor={highlight ? colors.brand : '#fff'}>
+            <Ionicons name={icon} size={compact ? 15 : 20} color={highlight ? '#fff' : colors.brand} />
+          </IconBadge>
+        </View>
+        <Text style={[styles.label, compact && styles.labelCompact, highlight && styles.labelHighlight]} numberOfLines={1}>
+          {label}
+        </Text>
+        {!expandable && showChevron ? (
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={highlight ? 'rgba(255,255,255,0.8)' : colors.muted}
+          />
+        ) : null}
+      </TouchableOpacity>
+      {expandable ? (
+        <TouchableOpacity
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            onToggle();
+          }}
+          style={[styles.expandBtn, highlight && styles.expandBtnHighlight]}
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? 'Skjul' : 'Vis'} undermeny, ${label}`}
+          accessibilityState={{ expanded: !!expanded }}
+          nativeID={moduleId ? `module-nav-expand-${moduleId}` : undefined}
+        >
+          <Ionicons
+            name={expanded ? 'chevron-down' : 'chevron-forward'}
+            size={18}
+            color={highlight ? '#fff' : colors.ink}
+          />
+        </TouchableOpacity>
       ) : null}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -156,6 +184,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const multiCol = hasRail && !isDesktop;
   const colWidth = isDesktop ? '100%' : isTablet ? '48.5%' : '100%';
   const [query, setQuery] = useState('');
+  const [submenuOpen, setSubmenuOpen] = useState({});
   const searchRef = useRef(null);
 
   const {
@@ -354,26 +383,35 @@ export default function MoreHubScreen({ subView, setSubView }) {
           footer={isOrganizationType(family?.type) ? (
             <View style={styles.companyBlock}>
               <Text style={styles.companyHeading}>{t('shell.company')}</Text>
-              {filterCompanyNav(companyNavItems(), companyAccess.grants).map((item) => (
-                <View key={item.id}>
-                  <Row
-                    icon={item.icon}
-                    label={item.label}
-                    moduleId={item.id}
-                    onPress={() => runAction(item.action, item.id)}
-                  />
-                  {((item.forceOpen && item.children) || []).map((child) => (
+              {filterCompanyNav(companyNavItems(), companyAccess.grants).map((item) => {
+                const expandable = drawerHasSubmenuToggle(item);
+                const submenuExpanded = drawerSubmenuOpen(item, null, submenuOpen, null);
+                return (
+                  <View key={item.id}>
                     <Row
-                      key={child.id}
-                      icon={child.icon}
-                      label={child.label}
-                      moduleId={child.id}
-                      compact
-                      onPress={() => runAction(child.action, child.id)}
+                      icon={item.icon}
+                      label={item.label}
+                      moduleId={item.id}
+                      expanded={submenuExpanded}
+                      onToggle={expandable ? () => setSubmenuOpen((prev) => ({
+                        ...prev,
+                        [item.id]: !drawerSubmenuOpen(item, null, prev, null),
+                      })) : undefined}
+                      onPress={() => runAction(item.action, item.id)}
                     />
-                  ))}
-                </View>
-              ))}
+                    {expandable && submenuExpanded ? (item.children || []).map((child) => (
+                      <Row
+                        key={child.id}
+                        icon={child.icon}
+                        label={child.label}
+                        moduleId={child.id}
+                        compact
+                        onPress={() => runAction(child.action, child.id)}
+                      />
+                    )) : null}
+                  </View>
+                );
+              })}
             </View>
           ) : null}
         />
@@ -558,11 +596,21 @@ const styles = StyleSheet.create({
   },
   companyBlock: { marginTop: 18, paddingHorizontal: 6 },
   companyHeading: { fontSize: 13, fontWeight: '600', color: colors.muted, marginBottom: 8, marginLeft: 4 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card,
-    borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.line, minHeight: 58,
+  rowWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
     marginBottom: 8,
+    minHeight: 58,
   },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, minHeight: 58,
+  },
+  rowMain: { flex: 1 },
   rowCompact: {
     backgroundColor: 'transparent',
     borderWidth: 0,
@@ -575,6 +623,17 @@ const styles = StyleSheet.create({
   rowHighlight: {
     backgroundColor: colors.brand, borderColor: colors.brand,
   },
+  expandBtn: {
+    width: 40,
+    height: 40,
+    marginRight: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+    flexShrink: 0,
+  },
+  expandBtnHighlight: { backgroundColor: 'rgba(255,255,255,0.22)' },
   iconCircle: {
     width: 36, height: 36, borderRadius: 10, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center',

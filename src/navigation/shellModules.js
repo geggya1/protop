@@ -50,29 +50,51 @@ export function selskapMenuTitle(subView) {
  * Undermeny når Arbeid er valgt.
  * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
  * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
+ * Fravær, produktsalg og prosjektutlegg ligger i egne menykategorier.
  */
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
   { id: 'timerapport', icon: 'list', label: 'Timerapport' },
   { id: 'timesaldo', icon: 'hourglass', label: 'Timesaldo' },
-  { id: 'fravaer', icon: 'sunny', label: 'Fraværsoversikt' },
-  { id: 'fravaersrapport', icon: 'bar-chart', label: 'Fraværsrapport' },
-  { id: 'planlagt', icon: 'calendar-outline', label: 'Planlagt fravær' },
-  { id: 'utlegg', icon: 'card', label: 'Prosjektutlegg' },
-  { id: 'salg', icon: 'cube', label: 'Mine produktsalg' },
   { id: 'godkjenning', icon: 'checkmark-done', label: 'Godkjenninger' },
 ];
 
-export const ARBEID_SUBVIEW_IDS = ARBEID_MENU.map((item) => item.id);
+/** Undersider som fortsatt åpnes via Arbeid-fanen, også når menyen ligger annet sted. */
+export const ARBEID_ROUTE_IDS = [
+  ...ARBEID_MENU.map((item) => item.id),
+  'fravaer',
+  'fravaersrapport',
+  'planlagt',
+  'utlegg',
+  'salg',
+];
+
+export const ARBEID_SUBVIEW_IDS = ARBEID_ROUTE_IDS;
 
 export function defaultArbeidSubView(subView) {
   return ARBEID_SUBVIEW_IDS.includes(subView) ? subView : 'timeliste';
 }
 
 export function arbeidMenuTitle(subView) {
+  if (subView === 'fravaer') return 'Fraværsoversikt';
+  if (subView === 'fravaersrapport') return 'Fraværsrapport';
+  if (subView === 'planlagt') return 'Planlagt fravær';
+  if (subView === 'utlegg') return 'Prosjektutlegg';
+  if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
   return row?.label || 'Arbeid';
 }
+
+export const FRAVAER_MENU = [
+  { id: 'fravaer', icon: 'sunny', label: 'Fraværsoversikt' },
+  { id: 'fravaersrapport', icon: 'bar-chart', label: 'Fraværsrapport' },
+  { id: 'planlagt', icon: 'calendar-outline', label: 'Planlagt fravær' },
+];
+
+export const PRODUKT_MENU = [
+  { id: 'salg', icon: 'cube', label: 'Produktsalg', tab: 'arbeid' },
+  { id: 'produkter', icon: 'pricetag', label: 'Produkt', tab: 'okonomi' },
+];
 
 /**
  * Undermeny når Økonomi er valgt.
@@ -81,7 +103,7 @@ export function arbeidMenuTitle(subView) {
  * I mobilskuffen har hver rad med undermeny en ekspander, så valgene kan
  * åpnes uten å velge raden. Økonomi er lukket til modulen er valgt eller
  * ekspanderen trykkes, så Kunder ikke blandes med Kundesummer.
- * Timerapport ligger under Arbeid.
+ * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
  */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
@@ -90,12 +112,20 @@ export const OKONOMI_MENU = [
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
+  { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
   { id: 'kjorebok', icon: 'car', label: 'Kjørebok' },
-  { id: 'produkter', icon: 'cube', label: 'Produkter' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
-export const OKONOMI_SUBVIEW_IDS = OKONOMI_MENU.map((item) => item.id);
+/** Undersider som åpnes via Økonomi-fanen, også når menyen ligger under Produkt. */
+export const OKONOMI_ROUTE_IDS = [
+  ...OKONOMI_MENU
+    .filter((item) => !item.tab || item.tab === 'okonomi')
+    .map((item) => item.id),
+  'produkter',
+];
+
+export const OKONOMI_SUBVIEW_IDS = OKONOMI_ROUTE_IDS;
 
 export function defaultOkonomiSubView(subView) {
   return OKONOMI_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
@@ -109,8 +139,19 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'fakturagrunnlag') return 'Fakturagrunnlag';
   if (subView === 'utlegg') return 'Utlegg';
   if (subView === 'kjorebok') return 'Kjørebok';
-  if (subView === 'produkter') return 'Produkter';
+  if (subView === 'produkter') return 'Produkt';
   return 'Økonomi';
+}
+
+function okonomiNavChild(item) {
+  const tab = item.tab || 'okonomi';
+  const subView = item.subView || item.id;
+  return {
+    id: `okonomi-${item.id}`,
+    icon: item.icon,
+    label: item.label,
+    action: { type: 'tab', tab, subView },
+  };
 }
 
 export function companyNavItems() {
@@ -127,12 +168,6 @@ export function companyNavItems() {
           icon: 'git-network',
           label: 'Underenheter',
           action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
-        },
-        {
-          id: 'tilgang',
-          icon: 'key',
-          label: 'Tilgang',
-          action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
         },
       ],
     },
@@ -151,7 +186,6 @@ export function companyNavItems() {
       })),
     },
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
-    { id: 'skjema', icon: 'clipboard', label: 'Skjema', action: { type: 'tab', tab: 'skjema' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     {
       id: 'arbeid',
@@ -165,38 +199,78 @@ export function companyNavItems() {
         action: { type: 'tab', tab: 'arbeid', subView: item.id },
       })),
     },
+    {
+      id: 'fravaer',
+      icon: 'sunny',
+      label: 'Fravær',
+      action: { type: 'tab', tab: 'arbeid', subView: 'fravaer' },
+      children: FRAVAER_MENU.map((item) => ({
+        id: `fravaer-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: 'arbeid', subView: item.id },
+      })),
+    },
+    {
+      id: 'produkt',
+      icon: 'cube',
+      label: 'Produkt',
+      action: { type: 'tab', tab: 'arbeid', subView: 'salg' },
+      children: PRODUKT_MENU.map((item) => ({
+        id: `produkt-${item.id}`,
+        icon: item.icon,
+        label: item.label,
+        action: { type: 'tab', tab: item.tab, subView: item.id },
+      })),
+    },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'okonomi',
       icon: 'wallet',
       label: 'Økonomi',
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
-      children: OKONOMI_MENU.map((item) => ({
-        id: `okonomi-${item.id}`,
-        icon: item.icon,
-        label: item.label,
-        action: { type: 'tab', tab: 'okonomi', subView: item.id },
-      })),
+      children: OKONOMI_MENU.map(okonomiNavChild),
     },
   ];
 }
 
-/** Mobilskuff: rad med undermeny kan åpnes uten å velge raden. */
+/** Bedriftsvalg som ligger under Konto (ikke i bedriftslisten). */
+export function companyAccountNavItems() {
+  return [
+    {
+      id: 'tilgang',
+      icon: 'key',
+      label: 'Tilgang',
+      action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
+    },
+    {
+      id: 'skjema',
+      icon: 'clipboard',
+      label: 'Skjemabygger',
+      action: { type: 'tab', tab: 'skjema' },
+    },
+  ];
+}
+
+/** Mobilskuff og desktop-rail: rad med undermeny kan åpnes uten å velge raden. */
 export function drawerHasSubmenuToggle(item) {
   return (item?.children || []).length > 0;
 }
 
 /**
- * Om undermenyen vises i mobilskuffen.
+ * Om undermenyen vises.
  * Et trykk på ekspanderen lagres i `overrides` og vinner over standarden.
- * Standard er åpen når modulen er valgt, og når raden er forceOpen.
+ * Standard er åpen når raden eller en undermeny er valgt, og når raden er forceOpen.
+ * Flere kategorier kan dele fane (f.eks. Arbeid / Fravær / Produkt), så vi
+ * bruker aktiv undermeny — ikke bare fanen — for å unngå at alle åpnes samtidig.
  */
-export function drawerSubmenuOpen(item, activeTab, overrides = {}) {
+export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView = null) {
   if (!drawerHasSubmenuToggle(item)) return false;
   if (overrides && Object.prototype.hasOwnProperty.call(overrides, item.id)) {
     return !!overrides[item.id];
   }
-  return item.action?.tab === activeTab || !!item.forceOpen;
+  if (item.forceOpen) return true;
+  return isNavItemActive(item, activeTab, activeSubView);
 }
 
 function companyAllowIds() {
@@ -205,6 +279,7 @@ function companyAllowIds() {
     ids.push(item.id);
     for (const child of item.children || []) ids.push(child.id);
   }
+  for (const item of companyAccountNavItems()) ids.push(item.id);
   return ids;
 }
 
@@ -502,9 +577,14 @@ export function buildShellModules({
     });
   }
 
+  const onCompany = isOrganizationType(family?.type);
+  if (onCompany) {
+    const companyAccount = filterCompanyNav(companyAccountNavItems(), companyGrants);
+    accountItems.unshift(...companyAccount);
+  }
+
   sections.push({ id: 'account', title: t('shell.account'), items: accountItems });
 
-  const onCompany = isOrganizationType(family?.type);
   if (onCompany) {
     const accountAt = sections.findIndex((section) => section.id === 'account');
     const companySection = {

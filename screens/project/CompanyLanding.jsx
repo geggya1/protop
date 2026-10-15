@@ -6,21 +6,18 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
-import CompanyHomePhone from './CompanyHomePhone';
 import CompanyDesktopLanding from './CompanyDesktopLanding';
 
 /**
- * Bedriftsforside: låst mobiloppsett på telefon, tidligere bedriftsoversikt
- * på nettbrett og PC.
+ * Selskap: offentlig bedriftsinfo og nyhetsvegg.
+ * Innstillinger åpnes via tannhjulet (selskap/innstillinger).
  */
 export default function CompanyLanding() {
-  const { isPhone, pad } = useLayout();
+  const { pad } = useLayout();
   const colors = useColors();
   const nav = useNavigation();
   const { family, requestShellTab, uid } = useApp();
   const access = useCompanyAccess();
-
-  if (isPhone) return <CompanyHomePhone />;
 
   const stored = family?.company?.navn ? family.company : null;
   const owner = isSuperAdmin(family, uid);
@@ -54,7 +51,7 @@ export default function CompanyLanding() {
     >
       <CompanyDesktopLanding
         stored={stored}
-        onSettings={canOpenSettings ? () => requestShellTab?.('selskap') : null}
+        onSettings={canOpenSettings ? () => requestShellTab?.('selskap', 'innstillinger') : null}
         onUnits={() => requestShellTab?.('selskap', 'underenheter')}
       />
     </ScrollView>

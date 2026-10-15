@@ -64,11 +64,13 @@ assert.match(phoneHome, /paddingBottom: contentPaddingBottom/);
 assert.equal(phoneHome.includes('paddingBottom: contentPaddingBottom }]'), false);
 assert.equal(phoneHome.includes('WidgetBoard'), false);
 assert.equal(phoneHome.includes('onToggleEdit'), false);
-assert.match(landing, /isPhone/);
-assert.match(landing, /CompanyHomePhone/);
+assert.equal(landing.includes('CompanyHomePhone'), false);
 assert.match(landing, /CompanyDesktopLanding/);
+assert.match(landing, /innstillinger/);
 assert.match(desktopLanding, /company-landing-konsern/);
 assert.match(desktopLanding, /Om bedriften/);
+assert.match(desktopLanding, /CompanyNewsWall/);
+assert.match(desktopLanding, /settings-outline/);
 assert.equal(desktopLanding.includes('COMPANY_HOME_SHORTCUTS'), false);
 assert.equal(desktopLanding.includes('Mine gjøremål'), false);
 

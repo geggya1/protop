@@ -62,6 +62,7 @@ import {
   ownEmployee,
   presentEmployee,
   rememberLink,
+  resolveMineEmployeeId,
   sortEmployees,
 } from '../../src/employees/model';
 
@@ -249,6 +250,10 @@ export default function EmployeesScreen() {
     name: userProfile?.displayName || user?.displayName || '',
   }), [rows, uid, user, userProfile, profile]);
   const linked = mine?.personUid === uid ? mine : (rows.find((row) => row.personUid && row.personUid === uid) || null);
+  const mineHrEmployeeId = useMemo(
+    () => resolveMineEmployeeId({ linked, mine, profile, familyId }),
+    [linked, mine, profile, familyId],
+  );
   const visible = useMemo(
     () => filterEmployees(rows, {
       status: 'all',
@@ -907,8 +912,10 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     const base = profile || { person: {}, cv: {}, customFields: [] };
     const seed = !hasPersonContent(base) && linked ? absorbCompanyIntoProfile(base, linked) : base;
+    const employeeId = resolveMineEmployeeId({ linked, mine, profile, familyId });
     setDraft(presentEmployee({
-      ...emptyEmployee(),
+      ...emptyEmployee(employeeId),
+      personUid: uid || linked?.personUid || '',
       person: seed.person,
       cv: seed.cv,
       customFields: seed.customFields || [],
@@ -1744,11 +1751,11 @@ export default function EmployeesScreen() {
           ) : (
             <Text style={{ color: colors.muted }}>Åpne ett avsnitt om gangen. Bildet vises på profilen og øverst i CV-en.</Text>
           )}
-          {view === 'mine' && draft?.id ? (
+          {view === 'mine' && mineHrEmployeeId ? (
             <EmployeeHrSelfService
               colors={colors}
               companyId={familyId}
-              employeeId={draft.id}
+              employeeId={mineHrEmployeeId}
             />
           ) : null}
           {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (

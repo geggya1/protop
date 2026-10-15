@@ -12,7 +12,7 @@ import {
   salarySeriesWithPercents,
   TASK_STATUSES,
 } from '../../src/hr/model';
-import { loadHrState } from '../../src/hr/storage';
+import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId }) {
@@ -24,9 +24,8 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
       setSlice(null);
       return undefined;
     }
-    loadHrState(companyId).then((state) => {
-      if (!live) return;
-      setSlice(employeeVisibleSlice(state, employeeId));
+    loadEmployeeHrSlice(companyId, employeeId).then((next) => {
+      if (live) setSlice(next);
     }).catch(() => {
       if (live) setSlice(employeeVisibleSlice({}, employeeId));
     });

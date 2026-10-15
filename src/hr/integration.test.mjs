@@ -18,6 +18,10 @@ import {
   upcomingPeopleEvents,
 } from './model.js';
 import { productivityByEmployee } from './productivity.js';
+import { resolveMineEmployeeId } from '../employees/model.js';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 assert.equal(defaultHrSubView('lonn'), 'lonn');
 assert.equal(defaultHrSubView('nope'), 'oversikt');
@@ -47,6 +51,33 @@ for (const item of HR_MENU) {
   assert.equal(companyTabAllowed('hr', 'rekruttering', standardGrants('ansatt')), false);
   assert.equal(companyTabAllowed('hr', 'lonn', standardGrants('leder')), true);
   assert.equal(companyTabAllowed('hr', 'oversikt', standardGrants('avdelingsleder')), true);
+  assert.equal(standardGrants('ansatt').hr, 'none');
+  assert.equal(standardGrants('tilbud').hr, 'none');
+}
+
+{
+  // Min side: HR self-service må bruke ansettelses-id, ikke tomt profil-draft.
+  assert.equal(resolveMineEmployeeId({
+    linked: { id: 'emp-1' },
+    mine: null,
+    profile: {},
+    familyId: 'co',
+  }), 'emp-1');
+}
+
+{
+  const selfSrc = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../screens/hr/EmployeeHrSelfService.jsx'),
+    'utf8',
+  );
+  assert.match(selfSrc, /loadEmployeeHrSlice/);
+  assert.doesNotMatch(selfSrc, /loadHrState\(/);
+  const mineSrc = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../screens/employees/EmployeesScreen.jsx'),
+    'utf8',
+  );
+  assert.match(mineSrc, /mineHrEmployeeId/);
+  assert.match(mineSrc, /resolveMineEmployeeId/);
 }
 
 {
@@ -78,8 +109,11 @@ for (const item of HR_MENU) {
   assert.equal(slice.tasks.length, 1);
   assert.equal(slice.tasks[0].title, 'Lever CV');
   assert.equal(slice.memos.length, 1);
-  assert.equal(slice.files.length, 2);
+  // åpen.pdf uten employeeVisible er HR-intern; lekasje følger privat memo.
+  assert.equal(slice.files.length, 1);
   assert.ok(!slice.files.some((f) => f.name === 'lekasje.pdf'));
+  assert.ok(!slice.files.some((f) => f.name === 'åpen.pdf'));
+  assert.ok(slice.files.some((f) => f.name === 'vedlegg.pdf'));
   assert.equal(slice.salaries[0].annualAmount, 650000);
 }
 

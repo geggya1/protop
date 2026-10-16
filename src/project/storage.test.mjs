@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {
+  applyAbsencesOntoState,
+  applyHoursOntoState,
   applyRemoteProjectRead,
   clearProjectStateMemory,
   loadProjectState,
@@ -73,6 +75,35 @@ assert.equal(projectLoadMeta('co1'), 'ok');
   const remoteStillHasOld = applyRemoteProjectRead(saved, { ok: true, state: localBefore });
   assert.equal(remoteStillHasOld.state.projects.length, 1);
   assert.equal(remoteStillHasOld.state.projects[0].number, '56');
+}
+
+{
+  const onScreen = {
+    absences: [{ id: 'fra-1', employeeId: 'e1', date: '2026-10-14', hours: 8, type: 'ferie' }],
+    absenceAdjustments: [{ id: 'adj-1', employeeId: 'e1', days: 25 }],
+    timeEntries: [],
+  };
+  const hoursLoad = {
+    absences: [],
+    absenceAdjustments: [],
+    timeEntries: [{ id: 'tid-1', date: '2026-10-14', hours: 7.5 }],
+    projects: [{ id: 'p1' }],
+  };
+  const kept = applyHoursOntoState(onScreen, hoursLoad);
+  assert.equal(kept.absences.length, 1, 'time-lasting skal ikke tømme fravær');
+  assert.equal(kept.absenceAdjustments.length, 1, 'time-lasting skal ikke tømme startsaldo');
+  assert.equal(kept.timeEntries[0].id, 'tid-1');
+  assert.equal(kept.projects[0].id, 'p1');
+
+  const absenceLoad = applyAbsencesOntoState(
+    { timeEntries: [{ id: 'tid-1' }], absences: [] },
+    { timeEntries: [], absences: [{ id: 'fra-1' }, { id: 'fra-2' }] },
+  );
+  assert.equal(absenceLoad.timeEntries[0].id, 'tid-1');
+  assert.equal(absenceLoad.absences.length, 2);
+
+  const emptyAbsenceLoad = applyAbsencesOntoState(onScreen, { absences: [], timeEntries: [] });
+  assert.equal(emptyAbsenceLoad.absences.length, 1, 'tom fraværslasting skal beholde radene på skjermen');
 }
 
 console.log('storage.test.mjs: ok');

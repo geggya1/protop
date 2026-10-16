@@ -7,6 +7,9 @@ import { canManageTimesheets, findLinkedEmployee } from '../../src/arbeid/roles.
 import { emptyProjectState, normalizeAbsenceRow } from '../../src/project/engine';
 import { withoutDeletedAbsences } from '../../src/arbeid/absenceStorage.js';
 import {
+  applyAbsencesOntoState,
+  applyHoursOntoState,
+  keepFilledList,
   ensureProjectAbsences,
   ensureProjectHours,
   loadProjectState,
@@ -39,7 +42,6 @@ export function useTimesheetWorkspace({
   const [ready, setReady] = useState(!!cached);
   const [error, setError] = useState('');
   const skipSave = useRef(true);
-  const absenceLive = useRef(false);
   const absenceAll = absences === true || absences === 'all' || absences?.all === true;
   const absenceOff = absences === false || absences === 'none';
   const absenceFrom = !absenceAll && !absenceOff ? String(absences?.fromDate || fromDate || '') : '';
@@ -56,9 +58,15 @@ export function useTimesheetWorkspace({
     }
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
-      setState(loaded);
-      setReady(true);
       skipSave.current = true;
+      setState((current) => {
+        const next = applyHoursOntoState(current, loaded);
+        return {
+          ...next,
+          timeEntries: keepFilledList(current?.timeEntries, loaded?.timeEntries),
+        };
+      });
+      setReady(true);
     });
     return () => { live = false; };
   }, [workspaceId]);
@@ -68,8 +76,8 @@ export function useTimesheetWorkspace({
     let live = true;
     ensureProjectHours(workspaceId, { fromDate, toDate: toDate || fromDate }).then((loaded) => {
       if (!live) return;
-      setState(loaded);
       skipSave.current = true;
+      setState((current) => applyHoursOntoState(current, loaded));
     }).catch(() => {});
     return () => { live = false; };
   }, [ready, workspaceId, fromDate, toDate]);
@@ -77,14 +85,13 @@ export function useTimesheetWorkspace({
   useEffect(() => {
     if (!ready || !workspaceId || absenceOff) return undefined;
     let live = true;
-    absenceLive.current = false;
     const range = absenceAll
       ? { all: true }
       : { fromDate: absenceFrom, toDate: absenceTo || absenceFrom, employeeId: absenceEmployee };
     ensureProjectAbsences(workspaceId, range).then((loaded) => {
-      if (!live || absenceLive.current) return;
-      setState(loaded);
+      if (!live) return;
       skipSave.current = true;
+      setState((current) => applyAbsencesOntoState(current, loaded));
     }).catch(() => {});
     return () => { live = false; };
   }, [ready, workspaceId, absenceOff, absenceAll, absenceFrom, absenceTo, absenceEmployee]);
@@ -100,7 +107,6 @@ export function useTimesheetWorkspace({
       ),
       (rows) => {
         const next = Array.isArray(rows) ? rows : [];
-        absenceLive.current = true;
         setState((current) => {
           const prev = current?.absences || [];
           if (!next.length && prev.length) return current;

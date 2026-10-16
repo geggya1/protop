@@ -14,7 +14,7 @@ import {
   readAbsenceImport,
   toggleAbsenceReviewRow,
 } from '../../src/arbeid/absenceImport.js';
-import { clearAbsences, saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
+import { clearAbsences, removeAbsences, saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
 import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { pickDocument } from '../../src/utils/media';
@@ -205,6 +205,44 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       setImportReport(null);
     } catch (cause) {
       setError(String(cause?.message || 'Kunne ikke tømme fravær.'));
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }
+
+  async function deleteSelectedAbsences(ids) {
+    if (!workspace.manager || busy) return;
+    const unique = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))];
+    if (!unique.length) return;
+    const message = unique.length === 1
+      ? 'Slette den valgte fraværslinjen?'
+      : `Slette ${unique.length} valgte fraværslinjer?`;
+    const ok = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.confirm(message)
+      : true;
+    if (!ok) return;
+    setBusy(true);
+    setError('');
+    setProgress({ label: 'Sletter fravær…', done: 0, total: unique.length });
+    try {
+      const removed = await removeAbsences(workspace.workspaceId, unique, {
+        onProgress: (done, total) => setProgress({ label: 'Sletter fravær…', done, total }),
+      });
+      const next = deleteAbsences(workspace.state, unique);
+      if (!next.ok) throw new Error(next.error || 'Kunne ikke slette fravær.');
+      noteAbsencesImported(workspace.workspaceId, next.state.absences || []);
+      putProjectState(next.state, workspace.workspaceId);
+      workspace.setState(next.state);
+      try {
+        await persistProjectState(next.state, workspace.workspaceId);
+      } catch (projectError) {
+        console.warn('Prosjektstate etter sletting av fravær', projectError);
+      }
+      setNote(`${removed.removed} fraværslinjer er slettet.`);
+      showSaveToast(`${removed.removed} fraværslinjer er slettet.`);
+    } catch (cause) {
+      setError(String(cause?.message || 'Kunne ikke slette fravær.'));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -437,6 +475,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
         canImport={!!workspace.manager}
         onImport={importFile}
         onClearImported={confirmClearImported}
+        onDeleteSelected={deleteSelectedAbsences}
         absenceCount={(workspace.state.absences || []).length}
         onOpenPeriod={setOpenPeriod}
         note={note}

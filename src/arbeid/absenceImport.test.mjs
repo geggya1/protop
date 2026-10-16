@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { excelDateKind, excelSerialToIso } from '../anbud/customerImport.js';
 import {
   absenceColumnField,
   absenceFingerprint,
@@ -147,6 +151,40 @@ import { emptyProjectState, importAbsences } from '../project/engine.js';
     assert.equal(first.status, 'Pending approval');
     assert.ok(!first.percent);
     assert.ok(Number(first.hours) > 0 && Number(first.hours) < 1);
+  }
+}
+
+{
+  assert.equal(excelDateKind('dd.MM.yyyy'), 'date');
+  assert.equal(excelDateKind('dd.MM.yyyy HH:mm'), 'datetime');
+  assert.equal(excelDateKind('[h]:mm'), '');
+  assert.equal(excelDateKind('#,##0.00%'), '');
+  assert.equal(excelSerialToIso(44925, { date1904: true }), '2026-12-31');
+  assert.equal(excelSerialToIso(44925, { date1904: false }), '2022-12-30');
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/fravaer-1904.xlsx');
+  const rows = await readAbsenceTable(new Uint8Array(readFileSync(fixture)), 'fravær.xlsx');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].date, '2026-12-31');
+  assert.equal(rows[0].employeeName, 'Håvard Gidskehaug');
+  assert.equal(rows[0].typeLabel, 'Ferie');
+  assert.ok(Number(rows[0].hours) > 0 && Number(rows[0].hours) < 1);
+}
+
+{
+  // Moment-eksport bruker Excel 1904-datoer (workbookPr date1904="true").
+  // Serienummer 44925 er 31.12.2026, ikke 30.12.2022 fra 1900-systemet.
+  const { readFileSync, existsSync } = await import('node:fs');
+  const sample = '/home/ubuntu/.cursor/projects/workspace/uploads/frav_r_2be1.xlsx';
+  if (existsSync(sample)) {
+    const bytes = new Uint8Array(readFileSync(sample));
+    const rows = await readAbsenceTable(bytes, 'fravær.xlsx');
+    assert.ok(rows.length > 1000);
+    assert.equal(rows[0].date, '2026-12-31');
+    assert.equal(rows[0].employeeName, 'Håvard Gidskehaug');
+    assert.equal(rows[0].typeLabel, 'Ferie');
+    assert.ok(rows.every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date)));
+    assert.ok(rows.some((row) => row.date.startsWith('2016-')));
+    assert.ok(!rows.some((row) => row.date < '2016-01-01' || row.date > '2027-01-01'));
   }
 }
 

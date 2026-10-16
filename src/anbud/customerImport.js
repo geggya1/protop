@@ -353,7 +353,85 @@ function sharedStrings(xml) {
   ));
 }
 
-function parseSheetRows(xml, strings) {
+/** Innebygde Excel-formater som er dato (ikke ren klokkeslett). */
+const BUILTIN_DATE_FORMATS = {
+  14: 'mm-dd-yy',
+  15: 'd-mmm-yy',
+  16: 'd-mmm',
+  17: 'mmm-yy',
+  22: 'm/d/yy h:mm',
+  27: 'yyyy-mm-dd',
+  28: 'yyyy-mm-dd',
+  29: 'yyyy-mm-dd',
+  30: 'yyyy-mm-dd',
+  31: 'yyyy-mm-dd',
+  32: 'yyyy-mm-dd',
+  33: 'yyyy-mm-dd',
+  34: 'yyyy-mm-dd',
+  35: 'yyyy-mm-dd',
+  36: 'yyyy-mm-dd',
+};
+
+/** 'date' | 'datetime' | '' — [h]:mm og prosent skal ikke bli dato. */
+export function excelDateKind(formatCode) {
+  const cleaned = String(formatCode || '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/"[^"]*"/g, '')
+    .replace(/\\./g, '');
+  if (!cleaned || /%/.test(cleaned)) return '';
+  const hasDay = /d/i.test(cleaned);
+  const hasYear = /y/i.test(cleaned);
+  if (!hasDay && !hasYear) return '';
+  return /h/i.test(cleaned) ? 'datetime' : 'date';
+}
+
+function styleDateKinds(stylesXml) {
+  const customs = new Map();
+  for (const match of String(stylesXml || '').matchAll(/<numFmt\b([^>]*)\/?>/gi)) {
+    const attrs = match[1];
+    const id = attrs.match(/\bnumFmtId="(\d+)"/)?.[1];
+    const code = attrs.match(/\bformatCode="([^"]*)"/)?.[1];
+    if (id && code) customs.set(id, decodeEntities(code));
+  }
+  const block = String(stylesXml || '').match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/i)?.[1] || '';
+  const kinds = [];
+  for (const match of block.matchAll(/<xf\b([^>]*)\/?>/gi)) {
+    const id = match[1].match(/\bnumFmtId="(\d+)"/)?.[1] || '0';
+    const code = customs.get(id) || BUILTIN_DATE_FORMATS[id] || '';
+    kinds.push(excelDateKind(code));
+  }
+  return kinds;
+}
+
+function workbookUses1904(xml) {
+  return /<workbookPr\b[^>]*\bdate1904="(?:true|1)"/i.test(String(xml || ''));
+}
+
+/**
+ * Excel-serienummer → ISO-dato.
+ * 1900-systemet (Windows) teller fra 1899-12-30. 1904-systemet (Moment/Mac) fra 1904-01-01.
+ */
+export function excelSerialToIso(serial, { date1904 = false, withTime = false } = {}) {
+  const n = Number(serial);
+  if (!Number.isFinite(n)) return '';
+  const whole = Math.floor(n);
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+  const day = new Date(epoch + whole * 86400000);
+  if (Number.isNaN(day.getTime())) return '';
+  const iso = day.toISOString().slice(0, 10);
+  if (!withTime) return iso;
+  const frac = Math.abs(n - whole);
+  if (frac < 1e-8) return iso;
+  const clock = new Date(Math.round(frac * 86400000));
+  const hh = String(clock.getUTCHours()).padStart(2, '0');
+  const mm = String(clock.getUTCMinutes()).padStart(2, '0');
+  const ss = clock.getUTCSeconds();
+  return ss
+    ? `${iso} ${hh}:${mm}:${String(ss).padStart(2, '0')}`
+    : `${iso} ${hh}:${mm}`;
+}
+
+function parseSheetRows(xml, strings, { date1904 = false, dateKinds = [] } = {}) {
   const rows = [];
   for (const rowMatch of String(xml || '').matchAll(/<row\b[\s\S]*?<\/row>/gi)) {
     const cells = [];
@@ -373,15 +451,16 @@ function parseSheetRows(xml, strings) {
       } else {
         value = decodeEntities(body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/i)?.[1] || '');
       }
+      const kind = dateKinds[Number(attrs.match(/\bs="(\d+)"/)?.[1])] || '';
+      if (kind && type !== 's' && type !== 'inlineStr' && /^-?\d+(?:\.\d+)?$/.test(value)) {
+        const iso = excelSerialToIso(value, { date1904, withTime: kind === 'datetime' });
+        if (iso) value = iso;
+      }
       cells[index] = value.trim();
     }
     rows.push(cells.map((cell) => cell || ''));
   }
   return rows;
-}
-
-function parseSheetTable(xml, strings) {
-  return recordsFromTable(parseSheetRows(xml, strings));
 }
 
 function spreadsheetMlRows(text) {
@@ -410,9 +489,13 @@ export async function readSpreadsheetTables(bytes, filename = '') {
         return left - right;
       });
     if (!sheets.length) throw new Error('Fant ingen regneark i Excel-filen.');
+    const workbookFile = files.find((file) => /xl\/workbook\.xml$/i.test(file.name));
+    const stylesFile = files.find((file) => /xl\/styles\.xml$/i.test(file.name));
+    const date1904 = workbookFile ? workbookUses1904(decodeText(workbookFile.data)) : false;
+    const dateKinds = stylesFile ? styleDateKinds(decodeText(stylesFile.data)) : [];
     return sheets.map((sheet) => ({
       name: sheet.name,
-      table: parseSheetRows(decodeText(sheet.data), strings),
+      table: parseSheetRows(decodeText(sheet.data), strings, { date1904, dateKinds }),
     }));
   }
   const text = decodeText(raw);
@@ -423,13 +506,8 @@ export async function readSpreadsheetTables(bytes, filename = '') {
 }
 
 async function parseXlsxCustomers(bytes) {
-  const files = await zipEntries(bytes);
-  const stringsFile = files.find((file) => /xl\/sharedStrings\.xml$/i.test(file.name));
-  const sheet = files.find((file) => /xl\/worksheets\/sheet1\.xml$/i.test(file.name))
-    || files.find((file) => /xl\/worksheets\/sheet\d+\.xml$/i.test(file.name));
-  if (!sheet) throw new Error('Fant ingen regneark i Excel-filen.');
-  const strings = stringsFile ? sharedStrings(decodeText(stringsFile.data)) : [];
-  return parseSheetTable(decodeText(sheet.data), strings);
+  const tables = await readSpreadsheetTables(bytes, 'kunder.xlsx');
+  return recordsFromTable(tables[0]?.table || []);
 }
 
 export async function parseCustomerFile(bytes, filename = '') {

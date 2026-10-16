@@ -9,6 +9,9 @@ const phone = readFileSync(join(ROOT, 'screens/arbeid/CompanyAbsenceView.jsx'), 
 const hero = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 
 assert.match(desktop, /nativeID="fravaer-oversikt-web"/);
+assert.match(desktop, /nativeID="absence-report-select-all"/);
+assert.match(desktop, /nativeID="absence-report-delete-selected"/);
+assert.match(desktop, /accessibilityRole="checkbox"/);
 assert.match(desktop, /controlStrip/);
 assert.match(desktop, /statusSplit/);
 assert.match(desktop, /StatusCard/);

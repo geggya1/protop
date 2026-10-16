@@ -51,6 +51,8 @@ const ABSENCE_WINDOW = new Map();
 /** Inflight for ensureProjectHours per selskap+vindu. */
 const hoursInflight = new Map();
 const absencesInflight = new Map();
+/** Vinduer som allerede ligger i minnet denne økten. */
+const HOURS_COVERED = new Map();
 
 const REMOTE_AUTH_MS = 8000;
 const REMOTE_READ_MS = 12000;
@@ -165,6 +167,75 @@ function setHoursMode(companyId, mode) {
 
 export function peekHoursMode(companyId) {
   return HOURS_MODE.get(hoursModeKey(companyId)) || 'none';
+}
+
+function rangeCovers(have, need) {
+  if (!have) return false;
+  if (have.all) return true;
+  if (need?.all) return false;
+  const haveEmp = String(have.employeeId || '');
+  const needEmp = String(need?.employeeId || '');
+  if (haveEmp && haveEmp !== needEmp) return false;
+  const haveFrom = String(have.fromDate || '');
+  const haveTo = String(have.toDate || '');
+  const needFrom = String(need?.fromDate || '');
+  const needTo = String(need?.toDate || '');
+  if (needFrom) {
+    if (!haveFrom || haveFrom > needFrom) return false;
+  } else if (haveFrom) return false;
+  if (needTo) {
+    if (!haveTo || haveTo < needTo) return false;
+  } else if (haveTo) return false;
+  return true;
+}
+
+/** Husk at et vindu er lest, så neste besøk ikke venter på nett. */
+export function noteLoadedHoursRange(companyId, opts = {}) {
+  if (!opts || opts.hours === false) return;
+  const key = memoryKey(companyId);
+  if (opts.all) {
+    HOURS_COVERED.set(key, [{ all: true }]);
+    return;
+  }
+  const next = {
+    all: false,
+    fromDate: String(opts.fromDate || ''),
+    toDate: String(opts.toDate || ''),
+    employeeId: String(opts.employeeId || ''),
+  };
+  if (!next.fromDate && !next.toDate && !next.employeeId) return;
+  const list = HOURS_COVERED.get(key) || [];
+  if (list.some((have) => rangeCovers(have, next))) return;
+  const kept = list.filter((have) => !rangeCovers(next, have));
+  HOURS_COVERED.set(key, [...kept, next]);
+}
+
+export function hoursRangeCovered(companyId, range = {}) {
+  if (peekHoursMode(companyId) === 'all') return true;
+  const need = range?.all
+    ? { all: true }
+    : {
+      all: false,
+      fromDate: String(range.fromDate || ''),
+      toDate: String(range.toDate || ''),
+      employeeId: String(range.employeeId || ''),
+    };
+  const list = HOURS_COVERED.get(memoryKey(companyId)) || [];
+  return list.some((have) => rangeCovers(have, need));
+}
+
+/**
+ * Ta imot en time-lasting uten å miste rader skjermen allerede viser
+ * (lokal føring eller cache som kom inn mens nett-kallet pågikk).
+ */
+export function adoptLoadedHours(current, loaded, companyId = '') {
+  const next = applyHoursOntoState(current, loaded);
+  const merged = mergeEntryLists(current?.timeEntries, loaded?.timeEntries);
+  return {
+    ...next,
+    timeEntries: companyId ? withoutDeletedTimeEntries(companyId, merged) : merged,
+    members: mergeMemberLists(current?.members, next.members),
+  };
 }
 
 function localKey(companyId) {
@@ -480,6 +551,7 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
     ? healed
     : healed.filter((row) => attachedIds.has(row.id));
   noteHoursWindow(companyId, hoursOpts);
+  noteLoadedHoursRange(companyId, hoursOpts);
   if (hoursOpts?.all) {
     setHoursMode(companyId, 'all');
     markTimeEntriesSynced(companyId, healed);
@@ -487,9 +559,12 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
     setHoursMode(companyId, 'partial');
     markTimeEntriesSyncedMerge(companyId, healedSlice);
   }
-  syncTimeEntriesRemote(companyId, attached, healedSlice, {
-    allowRemovals: !!hoursOpts?.all,
-  }).catch(() => {});
+  // Diff og eventuell tilbakeskriving skal ikke forsinke det skjermen viser.
+  setTimeout(() => {
+    syncTimeEntriesRemote(companyId, attached, healedSlice, {
+      allowRemovals: !!hoursOpts?.all,
+    }).catch(() => {});
+  }, 0);
   return stored;
 }
 
@@ -562,6 +637,9 @@ export async function ensureProjectHours(companyId, range = {}) {
   const id = String(companyId || '').trim();
   if (!id) return putProjectState(emptyProjectState(), '');
   const hoursOpts = resolveHoursOpts(range.all ? 'all' : range);
+  if (hoursRangeCovered(id, hoursOpts) && MEMORY.has(memoryKey(id))) {
+    return MEMORY.get(memoryKey(id));
+  }
   const inflightKey = `${id}:${hoursOpts.fromDate || ''}:${hoursOpts.toDate || ''}:${hoursOpts.employeeId || ''}:${hoursOpts.all ? 'all' : 'w'}`;
   if (hoursInflight.has(inflightKey)) return hoursInflight.get(inflightKey);
 
@@ -783,6 +861,7 @@ export function clearProjectStateMemory(companyId) {
     SYNCED_ABSENCES.delete(key);
     HOURS_MODE.delete(key);
     HOURS_WINDOW.delete(key);
+    HOURS_COVERED.delete(key);
     ABSENCE_MODE.delete(key);
     ABSENCE_WINDOW.delete(key);
     clearDeletedTimeEntries(key);
@@ -795,6 +874,7 @@ export function clearProjectStateMemory(companyId) {
   SYNCED_ABSENCES.clear();
   HOURS_MODE.clear();
   HOURS_WINDOW.clear();
+  HOURS_COVERED.clear();
   ABSENCE_MODE.clear();
   ABSENCE_WINDOW.clear();
   hoursInflight.clear();

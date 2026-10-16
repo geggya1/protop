@@ -1,7 +1,7 @@
 /** Synlige prosjekter i timelisten: timer siste to måneder, eller stjernemerket. */
 
 import { parseHours } from './hours.js';
-import { pad2, toDateKey } from './calendar.js';
+import { monthDateRange, pad2, toDateKey } from './calendar.js';
 
 /**
  * Aktivitetsvindu: fra 1. i måneden to måneder tilbake, til i dag.
@@ -26,6 +26,26 @@ export function timesheetHoursLoadRange(activity, monthRange) {
     .sort()
     .at(-1) || '';
   return { fromDate, toDate };
+}
+
+/**
+ * Vinduer timelisten faktisk skal hente.
+ * Overlapp med aktivitetsperioden blir ett vindu.
+ * En eldre måned hentes for seg, så januar ikke drar med hele året frem til i dag.
+ */
+export function timesheetHourWindows(today, year, monthIndex) {
+  const activity = timesheetActivityRange(today);
+  const month = monthDateRange(year, monthIndex);
+  const monthInside = month.fromDate >= activity.fromDate && month.toDate <= activity.toDate;
+  if (monthInside) return [activity];
+  const overlaps = month.fromDate <= activity.toDate && month.toDate >= activity.fromDate;
+  if (overlaps) {
+    return [{
+      fromDate: month.fromDate < activity.fromDate ? month.fromDate : activity.fromDate,
+      toDate: month.toDate > activity.toDate ? month.toDate : activity.toDate,
+    }];
+  }
+  return [activity, month];
 }
 
 function hasHoursInWindow(entries, employeeId, projectId, fromDate, toDate) {

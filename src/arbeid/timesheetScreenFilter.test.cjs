@@ -141,6 +141,7 @@ function loadJsx(rel) {
         peekProjectState: () => projectState,
         loadProjectState: async () => projectState,
         ensureProjectHours: async () => projectState,
+        hoursRangeCovered: () => true,
         putProjectState: () => projectState,
         saveProjectState: async () => {},
         applyHoursOntoState: (current, loaded) => ({
@@ -159,7 +160,11 @@ function loadJsx(rel) {
     if (id.includes('usageClient')) return { recordUsage: () => {} };
     if (id.includes('timeEntryStorage')) {
       // Timelisten henter tidligere måneder. Uten disse blir deployen rød fra februar av.
-      return { removeTimeEntry: async () => {}, loadTimeEntries: async () => [] };
+      return {
+        removeTimeEntry: async () => {},
+        loadTimeEntries: async () => [],
+        readCachedTimeEntries: async () => [],
+      };
     }
     if (id.includes('absenceStorage')) return { loadAbsences: async () => [] };
     if (id.includes('TimesheetGrid')) {
@@ -308,6 +313,7 @@ const { default: ArbeidScreen } = loadJsx('screens/arbeid/ArbeidScreen.jsx');
   const text = acc.text.join('\n');
   const names = gridProjects.map((row) => row.project.id).sort();
   assert.deepEqual(names, ['p-hours', 'p-star'], `synlige prosjekt: ${names.join(', ')}`);
+  assert.ok(!text.includes('Henter timer'), 'timelisten skal ikke låse skjermen på «Henter timer»');
   assert.ok(text.includes('Legg til prosjekt'));
   assert.ok(text.includes('Legg til fravær / ferie'));
   const fills = acc.styles.flatMap((style) => backgroundColors(style));

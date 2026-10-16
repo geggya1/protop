@@ -116,6 +116,13 @@ function hookedRequire(orig, id) {
     return {
       loadProjectState: async () => fixture,
       ensureProjectHours: async () => fixture,
+      peekProjectState: () => null,
+      hoursRangeCovered: () => false,
+      adoptLoadedHours: (current, loaded) => ({
+        ...(current || {}),
+        ...(loaded || {}),
+        timeEntries: loaded?.timeEntries?.length ? loaded.timeEntries : (current?.timeEntries || []),
+      }),
       persistProjectState: async (state) => state,
       putProjectState() {},
     };

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -57,12 +57,15 @@ import {
   reportEntryEditor,
 } from '../../src/economy/hourReportEdit.js';
 import {
+  adoptLoadedHours,
   ensureProjectHours,
+  hoursRangeCovered,
   loadProjectState,
+  peekProjectState,
   persistProjectState,
   putProjectState,
 } from '../../src/project/storage';
-import { saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
+import { readCachedTimeEntries, saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
 import { watchEmployees } from '../../src/employees/storage';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
@@ -113,10 +116,10 @@ export default function EconomyHours({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
 
-  const [state, setState] = useState(emptyProjectState());
+  const [state, setState] = useState(() => peekProjectState(resolvedFamilyId) || emptyProjectState());
   const [employees, setEmployees] = useState([]);
   const [anbudCustomers, setAnbudCustomers] = useState([]);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => !!peekProjectState(resolvedFamilyId));
   const [view, setView] = useState('list');
   /** Mobil: listekort vs tabell. */
   const [displayMode, setDisplayMode] = useState('list');
@@ -153,10 +156,13 @@ export default function EconomyHours({
   // Prosjektstate først, deretter timer for valgt periode (standard siste uke).
   useEffect(() => {
     let live = true;
-    setReady(false);
+    loadKeyRef.current = '';
+    const warm = peekProjectState(resolvedFamilyId);
+    setState(warm || emptyProjectState());
+    setReady(!!warm);
     loadProjectState(resolvedFamilyId, { hours: false }).then((loaded) => {
       if (!live) return;
-      setState(loaded);
+      setState((current) => adoptLoadedHours(current, loaded, resolvedFamilyId));
       setReady(true);
     }).catch((cause) => {
       if (!live) return;
@@ -175,12 +181,31 @@ export default function EconomyHours({
       : `${range.fromDate}|${range.toDate}|${range.employeeId || ''}`;
     if (loadKeyRef.current === key) return undefined;
     let live = true;
+    if (hoursRangeCovered(resolvedFamilyId, range)) {
+      loadKeyRef.current = key;
+      const cached = peekProjectState(resolvedFamilyId);
+      if (cached) {
+        startTransition(() => {
+          setState((current) => adoptLoadedHours(current, cached, resolvedFamilyId));
+        });
+      }
+      setHoursLoading(false);
+      return undefined;
+    }
     setHoursLoading(true);
+    readCachedTimeEntries(resolvedFamilyId, range).then((rows) => {
+      if (!live || !rows?.length) return;
+      startTransition(() => {
+        setState((current) => adoptLoadedHours(current, { ...current, timeEntries: rows }, resolvedFamilyId));
+      });
+    }).catch(() => {});
     ensureProjectHours(resolvedFamilyId, range).then((loaded) => {
       if (!live) return;
       loadKeyRef.current = key;
-      setState(loaded);
-      setHoursLoading(false);
+      startTransition(() => {
+        setState((current) => adoptLoadedHours(current, loaded, resolvedFamilyId));
+        setHoursLoading(false);
+      });
     }).catch((cause) => {
       if (!live) return;
       setHoursLoading(false);
@@ -552,14 +577,13 @@ export default function EconomyHours({
     );
   }
 
-  const loadingHours = !ready || hoursLoading;
   const busyOverlay = (
     <BrandBusyOverlay
-      visible={busy || loadingHours}
-      label={busy ? (progress?.label || 'Jobber…') : 'Vent…'}
-      detail={busy ? 'Vent til operasjonen er ferdig før du går videre.' : 'Henter timer.'}
-      done={busy ? progress?.done : undefined}
-      total={busy ? progress?.total : undefined}
+      visible={busy}
+      label={progress?.label || 'Jobber…'}
+      detail="Vent til operasjonen er ferdig før du går videre."
+      done={progress?.done}
+      total={progress?.total}
     />
   );
 

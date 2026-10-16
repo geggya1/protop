@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Modal,
@@ -33,8 +33,9 @@ import {
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
-  applyHoursOntoState,
+  adoptLoadedHours,
   ensureProjectHours,
+  hoursRangeCovered,
   loadProjectState,
   peekProjectState,
   putProjectState,
@@ -70,7 +71,7 @@ import {
 import {
   filterTimesheetProjects,
   timesheetActivityRange,
-  timesheetHoursLoadRange,
+  timesheetHourWindows,
 } from '../../src/arbeid/timesheetProjects.js';
 import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
@@ -84,7 +85,7 @@ import ScrollSheet from '../../components/ScrollSheet';
 import { agreedHoursForDate, redDayMap } from '../../src/arbeid/holidays.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
-import { loadTimeEntries } from '../../src/economy/timeEntryStorage.js';
+import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
 import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { isDateLocked } from '../../src/arbeid/locks.js';
@@ -140,18 +141,17 @@ export default function ArbeidScreen({
 
   function applyLoadedState(loaded) {
     setState((current) => {
-      const next = applyHoursOntoState(current, loaded);
-      const members = mergeMemberLists(current?.members, next.members);
-      const keptLocalEdit = memberSignature(members) !== memberSignature(loaded?.members);
+      const next = adoptLoadedHours(current, loaded, workspaceId);
+      const keptLocalEdit = memberSignature(next.members) !== memberSignature(loaded?.members);
       if (!keptLocalEdit) skipSave.current = true;
-      return { ...next, members };
+      return next;
     });
   }
 
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [monthIndex, setMonthIndex] = useState(today.getMonth());
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState(lockedId);
   const [projectQuery, setProjectQuery] = useState('');
   const [selectedDay, setSelectedDay] = useState(toDateKey(today));
   const [editor, setEditor] = useState(null);
@@ -189,26 +189,52 @@ export default function ArbeidScreen({
     return () => { live = false; };
   }, [workspaceId]);
 
-  // Timer for synlig måned + aktivitetsvindu (siste ~2 mnd) for prosjektfilter.
+  // Timer for valgt medarbeider: aktivitetsvindu, og eldre måned som eget vindu.
   useEffect(() => {
-    if (!ready || !workspaceId) return undefined;
+    if (!ready || !workspaceId || !employeeId) {
+      setHoursLoading(false);
+      return undefined;
+    }
     let live = true;
-    const range = timesheetHoursLoadRange(
-      timesheetActivityRange(today),
-      monthDateRange(year, monthIndex),
-    );
+    const windows = timesheetHourWindows(today, year, monthIndex).map((range) => ({
+      ...range,
+      employeeId,
+    }));
+    const missing = windows.filter((range) => !hoursRangeCovered(workspaceId, range));
+    if (!missing.length) {
+      setHoursLoading(false);
+      return undefined;
+    }
     setHoursLoading(true);
-    ensureProjectHours(workspaceId, range).then((loaded) => {
+    Promise.all(missing.map((range) => readCachedTimeEntries(workspaceId, range))).then((groups) => {
       if (!live) return;
-      applyLoadedState(loaded);
-      setHoursLoading(false);
-    }).catch(() => {
-      if (!live) return;
-      setHoursLoading(false);
-      setError('Kunne ikke laste timer for måneden.');
-    });
+      const rows = groups.flat().filter(Boolean);
+      if (!rows.length) return;
+      skipSave.current = true;
+      startTransition(() => {
+        setState((current) => adoptLoadedHours(current, { ...current, timeEntries: rows }, workspaceId));
+      });
+    }).catch(() => {});
+    (async () => {
+      try {
+        let loaded = null;
+        for (const range of missing) {
+          loaded = await ensureProjectHours(workspaceId, range);
+          if (!live) return;
+        }
+        if (!live) return;
+        startTransition(() => {
+          if (loaded) applyLoadedState(loaded);
+          setHoursLoading(false);
+        });
+      } catch {
+        if (!live) return;
+        setHoursLoading(false);
+        setError('Kunne ikke laste timer for måneden.');
+      }
+    })();
     return () => { live = false; };
-  }, [ready, workspaceId, year, monthIndex, today]);
+  }, [ready, workspaceId, year, monthIndex, today, employeeId]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -446,7 +472,7 @@ export default function ArbeidScreen({
   const historyReady = !!carriedKey && carriedHours.key === carriedKey && !carriedHours.failed;
 
   useEffect(() => {
-    if (!ready || !workspaceId || !employeeId) return undefined;
+    if (!ready || !workspaceId || !employeeId || hoursLoading) return undefined;
     const fromDate = `${year}-01-01`;
     const monthEnd = monthDateRange(year, monthIndex).toDate;
     const priorEnd = monthIndex === 0 ? '' : monthDateRange(year, monthIndex - 1).toDate;
@@ -469,7 +495,7 @@ export default function ArbeidScreen({
       setCarriedHours({ key: carriedKey, failed: true, entries: [], absences: [] });
     });
     return () => { live = false; };
-  }, [ready, workspaceId, employeeId, year, monthIndex, carriedKey]);
+  }, [ready, workspaceId, employeeId, year, monthIndex, carriedKey, hoursLoading]);
 
   const agreedForDate = useMemo(() => (dateKey) => {
     const date = parseDateKey(dateKey);
@@ -1106,7 +1132,11 @@ export default function ArbeidScreen({
         </View>
       </ScrollSheet>
 
-      {hoursLoading ? <Text style={{ color: colors.muted, marginBottom: 6 }}>Laster timer for måneden…</Text> : null}
+      {!ready || hoursLoading ? (
+        <Text style={{ color: colors.muted, marginBottom: 6 }}>
+          {hoursLoading ? 'Laster timer for måneden…' : 'Henter timeføring…'}
+        </Text>
+      ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
@@ -1361,11 +1391,6 @@ export default function ArbeidScreen({
           </Pressable>
         </Pressable>
       </Modal>
-      <BrandBusyOverlay
-        visible={!ready || hoursLoading}
-        label="Vent…"
-        detail="Henter timer."
-      />
     </View>
   );
 }

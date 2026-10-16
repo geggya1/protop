@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { planAbsenceRemovals } from '../arbeid/absenceStorage.js';
 import {
+  adoptLoadedHours,
   applyAbsencesOntoState,
   applyHoursOntoState,
   applyRemoteProjectRead,
   clearProjectStateMemory,
+  ensureProjectHours,
+  hoursRangeCovered,
   loadProjectState,
+  noteLoadedHoursRange,
   peekProjectState,
   projectLoadMeta,
   putProjectState,
@@ -117,6 +121,78 @@ assert.equal(projectLoadMeta('co1'), 'ok');
     'én fjernet rad skal fortsatt kunne slettes',
   );
   assert.deepEqual(planAbsenceRemovals(imported, [], { allowRemovals: false }), []);
+}
+
+{
+  clearProjectStateMemory('co-hours');
+  const base = emptyProjectState();
+  base.projects = [{ id: 'p1', number: '100', name: 'Test', status: 'aktiv' }];
+  base.timeEntries = [{
+    id: 't1',
+    projectId: 'p1',
+    employeeId: 'e1',
+    date: '2026-10-02',
+    hours: 4,
+    updatedAt: '2026-10-02T12:00:00.000Z',
+  }];
+  putProjectState(base, 'co-hours');
+  noteLoadedHoursRange('co-hours', {
+    fromDate: '2026-08-01',
+    toDate: '2026-10-31',
+    employeeId: 'e1',
+  });
+  assert.equal(
+    hoursRangeCovered('co-hours', { fromDate: '2026-10-01', toDate: '2026-10-31', employeeId: 'e1' }),
+    true,
+  );
+  assert.equal(
+    hoursRangeCovered('co-hours', { fromDate: '2026-10-01', toDate: '2026-10-31', employeeId: 'e2' }),
+    false,
+  );
+  assert.equal(
+    hoursRangeCovered('co-hours', { fromDate: '2026-01-01', toDate: '2026-01-31', employeeId: 'e1' }),
+    false,
+  );
+  assert.equal(
+    hoursRangeCovered('co-hours', { fromDate: '2026-10-01', toDate: '2026-10-31' }),
+    false,
+    'ansattvindu dekker ikke hele selskapet',
+  );
+  const again = await ensureProjectHours('co-hours', {
+    fromDate: '2026-10-01',
+    toDate: '2026-10-31',
+    employeeId: 'e1',
+  });
+  assert.equal(again, peekProjectState('co-hours'), 'dekket vindu skal bruke minnet');
+  assert.equal(again.timeEntries[0].id, 't1');
+
+  const edited = adoptLoadedHours(
+    {
+      ...again,
+      timeEntries: [{ ...again.timeEntries[0], hours: 8, updatedAt: '2026-10-03T08:00:00.000Z' }],
+      absences: [{ id: 'a1', employeeId: 'e1', date: '2026-10-02', hours: 8, type: 'ferie' }],
+    },
+    {
+      ...again,
+      timeEntries: [
+        again.timeEntries[0],
+        {
+          id: 't2',
+          projectId: 'p1',
+          employeeId: 'e1',
+          date: '2026-10-03',
+          hours: 2,
+          updatedAt: '2026-10-03T09:00:00.000Z',
+        },
+      ],
+      absences: [],
+    },
+    'co-hours',
+  );
+  assert.equal(edited.absences.length, 1, 'time-lasting skal ikke tømme fravær');
+  assert.equal(edited.timeEntries.find((row) => row.id === 't1').hours, 8);
+  assert.ok(edited.timeEntries.some((row) => row.id === 't2'));
+  clearProjectStateMemory('co-hours');
 }
 
 console.log('storage.test.mjs: ok');

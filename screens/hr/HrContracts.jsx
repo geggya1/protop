@@ -1,6 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { displayName } from '../../src/employees/model';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { saveEmployee } from '../../src/employees/storage';
 import {
   activeContractFor,
@@ -18,10 +17,17 @@ import {
 import { employmentContractFormTemplate } from '../../src/hr/forms';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
-  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
+  EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
+
+const KEY_FIELDS = [
+  'employerName', 'employeeName', 'workplace', 'positionTitle', 'roleDescription',
+  'startDate', 'endDate', 'workPercent', 'salaryAmount', 'workHours',
+  'noticePeriod', 'probationMonths', 'holidayTerms', 'passportOrId', 'loanOrAdvance', 'otherTerms',
+];
 
 const EMPTY_CONTRACT_DRAFT = {
   id: '',
@@ -41,6 +47,7 @@ const EMPTY_CONTRACT_DRAFT = {
   probationMonths: '',
   holidayTerms: '',
   documentUrl: '',
+  documentName: '',
   notes: '',
 };
 
@@ -51,38 +58,49 @@ function draftFromContract(row) {
     ...row,
     id: row.id || '',
     title: row.title || 'Arbeidsavtale',
+    documentName: row.documentName || row.attachments?.[0]?.name || '',
   };
 }
 
 export default function HrContracts({
-  colors, employees, hr, canWrite, onPatch, familyId, selectedEmployeeId, onSelectEmployee,
+  colors, employees, hr, canWrite, onPatch, familyId, lockedEmployeeId,
 }) {
-  const people = useMemo(
-    () => (employees || []).filter((e) => e?.company?.status !== 'deleted'),
-    [employees],
-  );
-  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || people[0]?.id || '');
-  const activeId = employeeId || selectedEmployeeId || '';
+  const activeId = String(lockedEmployeeId || '');
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
-  const selected = people.find((e) => e.id === activeId) || null;
-  const contracts = useMemo(() => (hr.contracts || []).filter((c) => !activeId || c.employeeId === activeId), [hr.contracts, activeId]);
+  const selected = (employees || []).find((row) => row.id === activeId) || null;
+  const contracts = useMemo(
+    () => (hr.contracts || []).filter((row) => row.employeeId === activeId),
+    [hr.contracts, activeId],
+  );
   const active = activeId ? activeContractFor(activeId, hr.contracts) : null;
 
   const [ocrText, setOcrText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState(() => draftFromContract(
-    activeContractFor(selectedEmployeeId || people[0]?.id || '', hr.contracts),
-  ));
+  const [uploading, setUploading] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [draft, setDraft] = useState(EMPTY_CONTRACT_DRAFT);
 
-  function selectEmployee(id) {
-    setEmployeeId(id);
-    onSelectEmployee?.(id);
-    setDraft(draftFromContract(activeContractFor(id, hr.contracts)));
-  }
+  useEffect(() => {
+    setComposerOpen(false);
+    setOcrText('');
+    setDraft(EMPTY_CONTRACT_DRAFT);
+  }, [activeId]);
 
   function setField(key, value) {
     setDraft((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function openNew() {
+    setDraft({ ...EMPTY_CONTRACT_DRAFT });
+    setOcrText('');
+    setComposerOpen(true);
+  }
+
+  function openExisting(row) {
+    setDraft(draftFromContract(row));
+    setOcrText('');
+    setComposerOpen(true);
   }
 
   async function runOcr() {
@@ -95,7 +113,6 @@ export default function HrContracts({
         text: ocrText,
         filename: 'arbeidsavtale.txt',
       });
-      // Hopp over hvis bruker byttet person under skanning.
       if (forEmployeeId && forEmployeeId !== activeIdRef.current) {
         showSaveToast?.('OCR avbrutt — person byttet');
         return;
@@ -104,7 +121,7 @@ export default function HrContracts({
       setDraft((prev) => {
         const positionTitle = fields.positionTitle || fields.title || '';
         const mapped = Object.fromEntries(
-          Object.entries(fields).filter(([key, v]) => key !== 'title' && String(v || '').trim()),
+          Object.entries(fields).filter(([key, value]) => key !== 'title' && String(value || '').trim()),
         );
         return {
           ...prev,
@@ -120,36 +137,69 @@ export default function HrContracts({
     }
   }
 
+  async function attachFile() {
+    if (!canWrite || !activeId || !familyId || uploading) return;
+    const forEmployeeId = activeIdRef.current;
+    setUploading(true);
+    try {
+      const picked = await pickDocument({ accept: DEFAULT_DOCUMENT_ACCEPT });
+      if (!picked) return;
+      const path = `families/${familyId}/hr/${forEmployeeId}/${Date.now()}_${picked.name || 'avtale'}`;
+      const url = await uploadFile(path, picked, picked.mimeType || 'application/octet-stream');
+      if (forEmployeeId !== activeIdRef.current) {
+        showSaveToast?.('Opplasting avbrutt — person byttet');
+        return;
+      }
+      setDraft((prev) => ({
+        ...prev,
+        documentUrl: url,
+        documentName: picked.name || 'Avtale',
+      }));
+      showSaveToast?.('Avtale lastet opp');
+    } catch {
+      showSaveToast?.('Kunne ikke laste opp avtale');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function saveContract() {
     if (!canWrite || !activeId) return;
-    // Tom draft.id = ny avtale (ikke fall tilbake til active.id — det overskriver).
     const existingId = String(draft.id || '').trim();
     const prior = existingId
-      ? (hr.contracts || []).find((c) => c.id === existingId)
+      ? (hr.contracts || []).find((row) => row.id === existingId)
       : null;
-    // Redigering av historisk/avsluttet avtale skal ikke aktivere den og demote dagens aktive.
     const keepStatus = prior && prior.status && prior.status !== 'active'
       ? prior.status
       : 'active';
+    const attachments = Array.isArray(draft.attachments) ? [...draft.attachments] : [];
+    if (draft.documentUrl && !attachments.some((row) => row.url === draft.documentUrl)) {
+      attachments.push({
+        name: draft.documentName || 'Avtale',
+        url: draft.documentUrl,
+      });
+    }
     const row = normalizeContract({
       ...draft,
+      attachments,
       id: existingId || undefined,
       employeeId: activeId,
       status: keepStatus,
       title: draft.title || draft.positionTitle || 'Arbeidsavtale',
     });
     onPatch?.((state) => {
-      const contracts = keepStatus === 'active'
+      const nextContracts = keepStatus === 'active'
         ? upsertActiveContract(state.contracts || [], row)
         : upsertRow(state.contracts || [], row, normalizeContract);
       const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId: activeId,
-        contracts,
+        contracts: nextContracts,
         reviews: state.reviews || [],
       });
-      return { contracts, compliance };
+      return { contracts: nextContracts, compliance };
     });
-    setDraft((prev) => ({ ...prev, id: row.id, employeeId: activeId, status: keepStatus }));
+    setComposerOpen(false);
+    setDraft(EMPTY_CONTRACT_DRAFT);
 
     if (selected && familyId) {
       try {
@@ -170,7 +220,7 @@ export default function HrContracts({
     if (!familyId) return;
     try {
       const state = await loadAnbudState(familyId);
-      const exists = (state?.formTemplates || []).some((t) => t.title === 'Arbeidsavtale' && t.category === 'avtale');
+      const exists = (state?.formTemplates || []).some((row) => row.title === 'Arbeidsavtale' && row.category === 'avtale');
       if (exists) {
         showSaveToast?.('Mal finnes allerede i skjemabygger');
         return;
@@ -189,40 +239,30 @@ export default function HrContracts({
   }
 
   const completeness = amlContractCompleteness(draft);
+  const previewUrl = /^https?:\/\//i.test(String(draft.documentUrl || '')) ? draft.documentUrl : '';
+
+  if (!activeId) {
+    return (
+      <HrCard colors={colors}>
+        <EmptyHint colors={colors} text="Velg en ansatt i personellisten for å registrere avtale." />
+      </HrCard>
+    );
+  }
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="hr-employee-contract">
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
-          title="Ansettelsesavtaler"
-          subtitle="Lagres på personnivå. OCR/AI fyller AML § 14-6-nøkkeldata automatisk."
+          title="Ansettelsesavtale"
+          subtitle="Avtalen ligger på denne personen."
         />
-        <View style={styles.chips}>
-          {people.map((emp) => (
-            <HrChip
-              key={emp.id}
-              colors={colors}
-              label={displayName(emp)}
-              active={emp.id === activeId}
-              onPress={() => selectEmployee(emp.id)}
-            />
-          ))}
-        </View>
-        {canWrite ? (
-          <HrButton
-            colors={colors}
-            label="Ny avtale"
-            icon="add-outline"
-            onPress={() => setDraft({ ...EMPTY_CONTRACT_DRAFT })}
-          />
-        ) : null}
         {active ? (
           <Text style={[styles.line, { color: colors.ink }]}>
             {`Aktiv avtale: ${active.title} · AML-dekning ${active.aml?.pct ?? 0} % · fra ${formatNbDate(active.startDate)}`}
           </Text>
         ) : (
-          <EmptyHint colors={colors} text="Ingen aktiv avtale på valgt person." />
+          <EmptyHint colors={colors} text="Ingen avtale registrert." />
         )}
         {contracts.map((row) => (
           <RowLink
@@ -232,45 +272,95 @@ export default function HrContracts({
             subtitle={`${formatNbDate(row.startDate)} · AML ${row.aml?.pct ?? 0} %`}
             meta={row.status}
             icon="document-text-outline"
-            onPress={() => setDraft(draftFromContract(row))}
+            onPress={() => openExisting(row)}
           />
         ))}
+        {canWrite && !composerOpen ? (
+          <HrButton
+            colors={colors}
+            label="Registrer avtale"
+            primary
+            icon="add-outline"
+            onPress={openNew}
+          />
+        ) : null}
       </HrCard>
 
-      {canWrite && activeId ? (
-        <>
-          <HrCard colors={colors}>
-            <HrSectionTitle colors={colors} title="OCR / AI-skann" subtitle="Lim inn tekst fra PDF eller avtaledokument" />
-            <HrField colors={colors} label="Avtaletekst" value={ocrText} onChangeText={setOcrText} multiline />
-            <HrButton colors={colors} label={busy ? 'Skanner…' : 'Skann og fyll ut'} primary icon="scan-outline" disabled={busy} onPress={runOcr} />
-            <HrButton colors={colors} label="Opprett mal i skjemabygger" icon="clipboard-outline" onPress={ensureFormTemplate} />
-          </HrCard>
-
-          <HrCard colors={colors}>
-            <HrSectionTitle
-              colors={colors}
-              title="Nøkkeldata"
-              subtitle={`AML-minimum: ${completeness.filled}/${completeness.total} (${completeness.pct} %)`}
-            />
-            <HrField colors={colors} label="Tittel på avtalen" value={draft.title} onChangeText={(v) => setField('title', v)} />
-            {AML_CONTRACT_FIELDS.filter((f) => [
-              'employerName', 'employeeName', 'workplace', 'positionTitle', 'roleDescription',
-              'startDate', 'endDate', 'workPercent', 'salaryAmount', 'workHours',
-              'noticePeriod', 'probationMonths', 'holidayTerms', 'passportOrId', 'loanOrAdvance', 'otherTerms',
-            ].includes(f.key)).map((field) => (
-              <HrField
-                key={field.key}
+      {canWrite && composerOpen ? (
+        <HrCard colors={colors}>
+          <HrSectionTitle
+            colors={colors}
+            title="Registrer avtale"
+            subtitle={`AML-minimum: ${completeness.filled}/${completeness.total} (${completeness.pct} %)`}
+          />
+          <View style={styles.split}>
+            <View style={styles.pane}>
+              <HrField colors={colors} label="Tittel på avtalen" value={draft.title} onChangeText={(value) => setField('title', value)} />
+              {AML_CONTRACT_FIELDS.filter((field) => KEY_FIELDS.includes(field.key)).map((field) => (
+                <HrField
+                  key={field.key}
+                  colors={colors}
+                  label={field.label}
+                  value={String(draft[field.key] || '')}
+                  onChangeText={(value) => setField(field.key, value)}
+                  multiline={field.key === 'roleDescription' || field.key === 'otherTerms'}
+                />
+              ))}
+              <HrButton colors={colors} label="Lagre avtale på person" primary icon="save-outline" onPress={saveContract} />
+              <HrButton colors={colors} label="Avbryt" onPress={() => setComposerOpen(false)} />
+            </View>
+            <View style={styles.pane}>
+              <Text style={[styles.paneTitle, { color: colors.ink }]}>Avtalen</Text>
+              <HrButton
                 colors={colors}
-                label={field.label}
-                value={String(draft[field.key] || '')}
-                onChangeText={(v) => setField(field.key, v)}
-                multiline={field.key === 'roleDescription' || field.key === 'otherTerms'}
+                label={uploading ? 'Laster opp…' : 'Last opp avtale'}
+                icon="cloud-upload-outline"
+                disabled={uploading}
+                onPress={attachFile}
               />
-            ))}
-            <HrField colors={colors} label="Dokument-URL" value={draft.documentUrl} onChangeText={(v) => setField('documentUrl', v)} />
-            <HrButton colors={colors} label="Lagre avtale på person" primary icon="save-outline" onPress={saveContract} />
-          </HrCard>
-        </>
+              <HrField
+                colors={colors}
+                label="Lim inn tekst fra PDF eller avtaledokument"
+                value={ocrText}
+                onChangeText={setOcrText}
+                multiline
+              />
+              <HrButton
+                colors={colors}
+                label={busy ? 'Skanner…' : 'Skann og fyll ut'}
+                primary
+                icon="scan-outline"
+                disabled={busy}
+                onPress={runOcr}
+              />
+              <HrButton colors={colors} label="Opprett mal i skjemabygger" icon="clipboard-outline" onPress={ensureFormTemplate} />
+              {draft.documentName ? (
+                <Text style={[styles.line, { color: colors.muted }]}>{draft.documentName}</Text>
+              ) : null}
+              {Platform.OS === 'web' && previewUrl ? (
+                React.createElement('iframe', {
+                  src: previewUrl,
+                  title: 'Forhåndsvisning av avtale',
+                  style: {
+                    width: '100%',
+                    height: 520,
+                    border: `1px solid ${colors.line || '#e5e7eb'}`,
+                    borderRadius: 10,
+                    background: '#fff',
+                  },
+                })
+              ) : (
+                <ScrollView style={[styles.preview, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                  <Text style={[styles.previewText, { color: colors.ink }]}>
+                    {ocrText.trim()
+                      ? ocrText
+                      : 'Forhåndsvisning av avtalen vises her etter opplasting, eller som innlimt tekst.'}
+                  </Text>
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </HrCard>
       ) : null}
     </View>
   );
@@ -278,6 +368,10 @@ export default function HrContracts({
 
 const styles = StyleSheet.create({
   page: { gap: 14 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   line: { fontSize: 14, lineHeight: 20 },
+  split: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' },
+  pane: { flex: 1, minWidth: 280, gap: 10 },
+  paneTitle: { fontSize: 15, fontWeight: '600' },
+  preview: { maxHeight: 520, minHeight: 220, borderWidth: 1, borderRadius: 10, padding: 12 },
+  previewText: { fontSize: 13, lineHeight: 18 },
 });

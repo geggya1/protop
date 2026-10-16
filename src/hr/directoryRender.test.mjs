@@ -205,6 +205,7 @@ let sheetHtml = '';
 let controlHtml = '';
 let avtalerHtml = '';
 let complianceHtml = '';
+let followHtml = '';
 
 {
   peopleHtml = renderToStaticMarkup(React.createElement(HrPeople, {
@@ -324,6 +325,36 @@ let complianceHtml = '';
 }
 
 {
+  followHtml = renderToStaticMarkup(React.createElement(HrControl, {
+    colors,
+    page: 'oppfolging',
+    employees: [
+      ...employees,
+      {
+        id: 'e3',
+        person: { firstName: 'Aina', lastName: 'Jespersen' },
+        company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
+      },
+    ],
+    hr,
+    entries: [],
+    onOpenEmployee: () => {},
+  }));
+  const html = followHtml;
+  const staffAt = html.indexOf('Ada Nordmann');
+  const sectionAt = html.indexOf('id="hr-follow-external"');
+  const externalAt = html.indexOf('Aina Jespersen');
+  assert.ok(staffAt >= 0 && sectionAt > staffAt && externalAt > sectionAt);
+  assert.match(html, /Aktive/);
+  assert.match(html, /Deaktiverte/);
+  assert.match(html, /Egen oppfølging/);
+  assert.equal(html.includes('Intern ·'), false);
+  assert.equal(html.includes('Ekstern ·'), false);
+  assert.equal(html.slice(0, sectionAt).includes('Siste samtale'), true);
+  assert.equal(html.slice(sectionAt).includes('Siste samtale'), false);
+}
+
+{
   const html = renderToStaticMarkup(React.createElement(HrContracts, {
     colors,
     employees,
@@ -406,6 +437,7 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-oversikt.html'), page('HR-oversikt', dashboardHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-lov-iso.html'), page('Lov og ISO', complianceHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
 }
 
 console.log('hr directory render ok');

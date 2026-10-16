@@ -33,14 +33,20 @@ const PAGES = {
   },
   oppfolging: {
     title: 'Oppfølging',
-    subtitle: 'Åpne saker, siste medarbeidersamtale og oppgaver — samlet fra alle ansatte.',
+    subtitle: 'Åpne saker, siste medarbeidersamtale og oppgaver for egne ansatte.',
     sheet: 'oppfolging',
+    splitExternal: true,
     columns: [
       { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
-      { key: 'kind', label: 'Type', width: 100, value: (row) => row.cells.kindLabel },
       { key: 'cases', label: 'Åpne saker', width: 110, value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
-      { key: 'review', label: 'Siste samtale', width: 140, value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
-      { key: 'tasks', label: 'Åpne oppgaver', width: 130, value: (row) => row.cells.openTasks },
+      { key: 'review', label: 'Siste samtale', width: 160, value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
+      { key: 'tasks', label: 'Åpne oppgaver', width: 140, value: (row) => row.cells.openTasks },
+    ],
+    externalColumns: [
+      { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
+      { key: 'kind', label: 'Type', width: 110, value: (row) => row.cells.kindLabel },
+      { key: 'cases', label: 'Åpne saker', width: 110, value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
+      { key: 'tasks', label: 'Åpne oppgaver', width: 140, value: (row) => row.cells.openTasks },
     ],
   },
   compliance: {
@@ -80,6 +86,59 @@ export default function HrControl({
     ));
   }, [dir.rows, hr, entries, page]);
 
+  const openRow = (row) => onOpenEmployee?.(row.employee.id, spec.sheet);
+  if (spec.splitExternal) {
+    const internalRows = rows.filter((row) => row.cells.kind !== 'external');
+    const externalRows = rows.filter((row) => row.cells.kind === 'external');
+    return (
+      <View nativeID={`hr-control-${page}`} style={styles.stack}>
+        <HrCard colors={colors}>
+          <HrSectionTitle
+            colors={colors}
+            title={spec.title}
+            subtitle={`${spec.subtitle} ${internalRows.length} i listen.`}
+          />
+          <HrFilterBar
+            colors={colors}
+            query={dir.query}
+            onQuery={dir.setQuery}
+            status={dir.status}
+            onStatus={dir.setStatus}
+            kind={dir.kind}
+            onKind={dir.setKind}
+            counts={dir.counts}
+            showKind={false}
+          />
+          <HrTable
+            colors={colors}
+            columns={spec.columns}
+            rows={internalRows}
+            rowKey={(row) => row.employee.id}
+            emptyText="Ingen ansatte i dette utvalget."
+            onPressRow={openRow}
+          />
+        </HrCard>
+        <HrCard colors={colors}>
+          <View nativeID="hr-follow-external">
+            <HrSectionTitle
+              colors={colors}
+              title="Eksterne"
+              subtitle={`Egen oppfølging, atskilt fra medarbeiderne. Saker og oppgaver. ${externalRows.length} i listen.`}
+            />
+            <HrTable
+              colors={colors}
+              columns={spec.externalColumns}
+              rows={externalRows}
+              rowKey={(row) => row.employee.id}
+              emptyText="Ingen eksterne i dette utvalget."
+              onPressRow={openRow}
+            />
+          </View>
+        </HrCard>
+      </View>
+    );
+  }
+
   return (
     <View nativeID={`hr-control-${page}`}>
       <HrCard colors={colors}>
@@ -105,9 +164,11 @@ export default function HrControl({
           rows={rows}
           rowKey={(row) => row.employee.id}
           emptyText="Ingen ansatte i dette utvalget."
-          onPressRow={(row) => onOpenEmployee?.(row.employee.id, spec.sheet)}
+          onPressRow={openRow}
         />
       </HrCard>
     </View>
   );
 }
+
+const styles = { stack: { gap: 14 } };

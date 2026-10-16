@@ -189,6 +189,34 @@ export function peekProjectState(companyId) {
   return MEMORY.get(memoryKey(companyId)) || null;
 }
 
+/**
+ * Behold en liste som allerede er fylt. Tomt svar fra en parallell lesing
+ * (timer mens fravær lastes, eller motsatt) skal ikke viske ut radene.
+ */
+export function keepFilledList(existing, incoming) {
+  const current = Array.isArray(existing) ? existing : [];
+  if (current.length) return current;
+  return Array.isArray(incoming) ? incoming : [];
+}
+
+/** Time-lasting får oppdatere timer, men ikke tømme fravær som kom inn underveis. */
+export function applyHoursOntoState(current, loaded) {
+  return {
+    ...(loaded || {}),
+    absences: keepFilledList(current?.absences, loaded?.absences),
+    absenceAdjustments: keepFilledList(current?.absenceAdjustments, loaded?.absenceAdjustments),
+  };
+}
+
+/** Fraværslasting får oppdatere fravær, men ikke tømme timer som kom inn underveis. */
+export function applyAbsencesOntoState(current, loaded) {
+  return {
+    ...(loaded || {}),
+    timeEntries: keepFilledList(current?.timeEntries, loaded?.timeEntries),
+    absences: keepFilledList(loaded?.absences, current?.absences),
+  };
+}
+
 /** Synkroniser minne uten å vente på disk (brukes ved lokale mutasjoner). */
 export function putProjectState(state, companyId) {
   const next = normalizeProjectState(state);
@@ -417,8 +445,13 @@ function resolveHoursOpts(hours) {
  */
 async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
   if (hoursOpts?.hours === false) {
-    const existing = MEMORY.get(memoryKey(companyId))?.timeEntries || [];
-    const stored = putProjectState({ ...baseState, timeEntries: existing }, companyId);
+    const latest = MEMORY.get(memoryKey(companyId));
+    const existing = latest?.timeEntries || [];
+    const patched = applyHoursOntoState(latest, { ...baseState, timeEntries: existing });
+    const stored = putProjectState({
+      ...patched,
+      members: mergeMemberLists(latest?.members, patched.members),
+    }, companyId);
     setHoursMode(companyId, existing.length ? peekHoursMode(companyId) : 'none');
     return stored;
   }
@@ -426,13 +459,16 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
   const attached = withoutDeletedTimeEntries(companyId, withHours.timeEntries || []);
   const live = MEMORY.get(memoryKey(companyId));
   const existing = withoutDeletedTimeEntries(companyId, live?.timeEntries || []);
-  const mergedAttach = hoursOpts?.all
+  const withEntries = hoursOpts?.all
     ? { ...withHours, timeEntries: attached }
     : { ...withHours, timeEntries: mergeEntryLists(existing, attached) };
-  // Timekall startet med et øyeblikksbilde. Stjerne avhuket mens kallene pågikk
-  // ligger i MEMORY og skal ikke skrives tilbake til gammel medlemsrad.
-  const members = mergeMemberLists(live?.members, mergedAttach.members);
-  const stored = putProjectState({ ...mergedAttach, members }, companyId);
+  // Timekall startet med et øyeblikksbilde. Fravær og stjerne som kom inn
+  // mens kallet pågikk ligger i MEMORY og skal ikke skrives tilbake.
+  const patched = applyHoursOntoState(live, withEntries);
+  const stored = putProjectState({
+    ...patched,
+    members: mergeMemberLists(live?.members, patched.members),
+  }, companyId);
   const healed = stored.timeEntries || [];
   const attachedIds = new Set(attached.map((row) => row.id));
   const healedSlice = hoursOpts?.all
@@ -557,18 +593,28 @@ function resolveAbsenceOpts(absences) {
 
 async function loadStateWithHealedAbsences(companyId, baseState, absenceOpts) {
   if (absenceOpts?.absences === false) {
-    const existing = MEMORY.get(memoryKey(companyId))?.absences || [];
-    const stored = putProjectState({ ...baseState, absences: existing }, companyId);
+    const latest = MEMORY.get(memoryKey(companyId));
+    const existing = latest?.absences || [];
+    const patched = applyAbsencesOntoState(latest, { ...baseState, absences: existing });
+    const stored = putProjectState({
+      ...patched,
+      members: mergeMemberLists(latest?.members, patched.members),
+    }, companyId);
     setAbsenceMode(companyId, existing.length ? (ABSENCE_MODE.get(hoursModeKey(companyId)) || 'none') : 'none');
     return stored;
   }
   const withAbsences = await attachAbsencesToState(companyId, baseState, absenceOpts);
   const attached = withoutDeletedAbsences(companyId, withAbsences.absences || []);
   const existing = withoutDeletedAbsences(companyId, MEMORY.get(memoryKey(companyId))?.absences || []);
-  const mergedAttach = absenceOpts?.all
+  const live = MEMORY.get(memoryKey(companyId));
+  const withRows = absenceOpts?.all
     ? { ...withAbsences, absences: attached }
     : { ...withAbsences, absences: mergeAbsenceLists(existing, attached) };
-  const stored = putProjectState(mergedAttach, companyId);
+  const patched = applyAbsencesOntoState(live, withRows);
+  const stored = putProjectState({
+    ...patched,
+    members: mergeMemberLists(live?.members, patched.members),
+  }, companyId);
   const healed = stored.absences || [];
   const attachedIds = new Set(attached.map((row) => row.id));
   const healedSlice = absenceOpts?.all

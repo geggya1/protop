@@ -1,6 +1,6 @@
 /**
  * Mobil Timeliste-visning (Moment-stil):
- * dagpil → Lønnsgrunnlag + sum → prosjekt-rader med kunde, rolle og timer.
+ * dagpil → Lønnsgrunnlag + sum → prosjekt-rader med kunde og timer.
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -62,7 +62,6 @@ export function TimesheetProjectRow({
   number,
   name,
   customer,
-  role,
   hours,
   onPress,
   testID,
@@ -81,14 +80,11 @@ export function TimesheetProjectRow({
         <Text style={[styles.projectTitle, { color: colors.ink }]} numberOfLines={2}>
           {number ? `#${number} ` : ''}{name || 'Prosjekt'}
         </Text>
-        <View style={styles.metaRow}>
-          <Text style={[styles.meta, { color: colors.muted, flex: 1 }]} numberOfLines={1}>
-            {customer || '—'}
-          </Text>
+        {customer ? (
           <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={1}>
-            {role || ''}
+            {customer}
           </Text>
-        </View>
+        ) : null}
       </View>
       <View style={[styles.hoursCol, { borderLeftColor: colors.line }]}>
         <Text style={[styles.hoursText, { color: hasHours ? colors.ink : colors.placeholder }]}>
@@ -139,7 +135,6 @@ export default function TimesheetDayView({
           number={row.number}
           name={row.name}
           customer={row.customer}
-          role={row.role}
           hours={row.hours}
           onPress={row.onPress}
           testID={row.testID}

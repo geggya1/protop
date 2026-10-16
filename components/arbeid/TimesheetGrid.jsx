@@ -12,6 +12,7 @@ function dayHeadColor(day, colors) {
 
 /**
  * Månedsruten for timelisten: uke, dag med hengelås, avtale, saldo, lønn og prosjekt.
+ * Timebalanse er dagsavvik. Endene er inngående og utgående timebank.
  * Topp (dato → timebalanse) er fryst; prosjektlisten scroller. Kolonner fyller bredden.
  */
 export default function TimesheetGrid({
@@ -23,7 +24,10 @@ export default function TimesheetGrid({
   hiddenProjects = [],
   absenceRows = [],
   agreedByDay,
-  balanceCells,
+  balanceCells = [],
+  incomingBalance = 0,
+  outgoingBalance = 0,
+  balanceReady = true,
   payrollByDay,
   selectedDay,
   todayKey,
@@ -44,6 +48,7 @@ export default function TimesheetGrid({
   );
   const { labelW, dayW, totalW, gridWidth, daysWidth } = metrics;
   const lockLine = lockThrough;
+  const dayLocked = (day) => isDateLocked(lockLine, day.key);
 
   function cellBg(day, { hours = 0, selected = false } = {}) {
     if (lockLine && day.key === lockLine) return '#d7f7f3';
@@ -122,7 +127,7 @@ export default function TimesheetGrid({
             >
               <TouchableOpacity onPress={() => onSelectDay?.(day.key)} accessibilityRole="button">
                 <Text style={{ color: dayHeadColor(day, colors), fontSize: 10, textAlign: 'center' }}>{day.weekday}</Text>
-                <Text style={{ color: dayHeadColor(day, colors), fontSize: 12, fontWeight: '700', textAlign: 'center' }}>{day.day}</Text>
+                <Text style={{ color: dayHeadColor(day, colors), fontSize: 13, fontWeight: '700', textAlign: 'center' }} dataSet={{ ts: 'strong' }}>{day.day}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => onToggleLock?.(day.key)}
@@ -149,27 +154,48 @@ export default function TimesheetGrid({
         days={days}
         values={days.map((day) => agreedByDay.get(day.key) || 0)}
         cellBg={cellBg}
+        locked={dayLocked}
         total={sumMap(agreedByDay)}
         labelW={labelW}
         dayW={dayW}
         totalW={totalW}
       />
       {showFlex ? (
-        <View style={styles.row}>
-          <View style={[styles.labelCell, { width: labelW, borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontSize: 13 }}>Timebalanse</Text>
+        <View style={styles.row} nativeID="timesheet-balance-row">
+          <View style={[styles.labelCell, { width: labelW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}>
+            <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }} dataSet={{ ts: 'strong' }}>Timebalanse</Text>
+            <Text style={styles.bankCaption}>Inngående</Text>
+            <Text
+              nativeID="timesheet-balance-in"
+              style={[styles.bankFigure, { color: balanceColor(incomingBalance, colors) }]}
+              dataSet={{ ts: 'strong' }}
+            >
+              {balanceReady ? formatHours(incomingBalance, { signed: true }) : '…'}
+            </Text>
           </View>
-          {balanceCells.map((value, index) => {
-            const day = days[index];
+          {days.map((day, index) => {
+            const delta = Number(balanceCells[index]) || 0;
             return (
               <View key={`b-${day.key}`} style={[styles.cell, { width: dayW, borderColor: colors.line, backgroundColor: cellBg(day) }]}>
-                <Text style={[styles.cellText, { color: value >= 0 ? (colors.success || '#15803d') : (colors.danger || '#dc2626'), fontSize: 10 }]}>
-                  {day.workday || day.half || value !== balanceCells[index - 1] ? formatHours(value, { signed: true, empty: '0:00' }) : ''}
+                <LockMark locked={dayLocked(day)} />
+                <Text
+                  style={[styles.cellText, { color: balanceColor(delta, colors), fontWeight: delta ? '600' : '400' }]}
+                  dataSet={delta ? { ts: 'strong' } : undefined}
+                >
+                  {balanceReady && delta ? formatHours(delta, { signed: true }) : ''}
                 </Text>
               </View>
             );
           })}
-          <Total value={balanceCells.at(-1) || 0} colors={colors} signed totalW={totalW} />
+          <View
+            nativeID="timesheet-balance-out"
+            style={[styles.totalCell, styles.bankOut, { width: totalW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}
+          >
+            <Text style={styles.bankCaption}>Utgående</Text>
+            <Text style={[styles.bankFigure, { color: balanceColor(outgoingBalance, colors) }]} dataSet={{ ts: 'strong' }}>
+              {balanceReady ? formatHours(outgoingBalance, { signed: true }) : '…'}
+            </Text>
+          </View>
         </View>
       ) : null}
     </View>
@@ -183,6 +209,7 @@ export default function TimesheetGrid({
         days={days}
         values={days.map((day) => payrollByDay.get(day.key) || 0)}
         cellBg={cellBg}
+        locked={dayLocked}
         total={[...payrollByDay.values()].reduce((sum, n) => sum + n, 0)}
         emphasize
         labelW={labelW}
@@ -199,6 +226,7 @@ export default function TimesheetGrid({
           subtitle="Fravær"
           hoursFor={row.hoursFor}
           cellBg={cellBg}
+          locked={dayLocked}
           selectedDay={selectedDay}
           onPressDay={(day) => onOpenAbsence?.(row, day)}
           tint="#fffbeb"
@@ -214,9 +242,10 @@ export default function TimesheetGrid({
           colors={colors}
           days={days}
           title={`#${row.project.number} ${row.project.name}`}
-          subtitle={`${row.project.client || '—'} · ${row.member?.role || 'Deltaker'}`}
+          subtitle={row.project.client || ''}
           hoursFor={(day) => row.hoursFor(day)}
           cellBg={cellBg}
+          locked={dayLocked}
           selectedDay={selectedDay}
           onPressDay={(day) => onOpenProject?.(row.project, day)}
           starred={row.starred}
@@ -289,25 +318,29 @@ export default function TimesheetGrid({
 }
 
 function SummaryRow({
-  label, colors, days, values, cellBg, total, emphasize = false, labelW, dayW, totalW,
+  label, colors, days, values, cellBg, locked, total, emphasize = false, labelW, dayW, totalW,
 }) {
   return (
-    <View style={[styles.row, { backgroundColor: colors.sunken || colors.bg }]}>
+    <View style={[styles.row, { backgroundColor: colors.sunken || '#f8fafc' }]}>
       <View style={[styles.labelCell, { width: labelW, borderColor: colors.line }]}>
-        <Text style={{ color: colors.ink, fontSize: 13, fontWeight: emphasize ? '700' : '500' }}>{label}</Text>
+        <Text
+          style={{ color: colors.ink, fontSize: 13, fontWeight: emphasize ? '700' : '500' }}
+          dataSet={emphasize ? { ts: 'strong' } : undefined}
+        >{label}</Text>
       </View>
       {days.map((day, index) => (
         <View key={`${label}-${day.key}`} style={[styles.cell, { width: dayW, borderColor: colors.line, backgroundColor: cellBg(day) }]}>
+          <LockMark locked={locked?.(day)} />
           <Text style={styles.cellText}>{values[index] ? formatHours(values[index]) : ''}</Text>
         </View>
       ))}
-      <Total value={total} colors={colors} totalW={totalW} />
+      <Total value={total} colors={colors} totalW={totalW} strong={emphasize} />
     </View>
   );
 }
 
 function HourRow({
-  colors, days, title, subtitle, hoursFor, cellBg, selectedDay, onPressDay, starred, onStar, onHide, tint,
+  colors, days, title, subtitle, hoursFor, cellBg, locked, selectedDay, onPressDay, starred, onStar, onHide, tint,
   labelW, dayW, totalW,
 }) {
   let monthSum = 0;
@@ -315,7 +348,7 @@ function HourRow({
     <View style={[styles.row, tint ? { backgroundColor: tint } : null]}>
       <View style={[styles.labelCell, styles.projectLabel, { width: labelW, borderColor: colors.line }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>{title}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }} numberOfLines={1} dataSet={{ ts: 'title' }}>{title}</Text>
           {subtitle ? <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
         {onStar ? (
@@ -340,7 +373,8 @@ function HourRow({
             style={[styles.cell, { width: dayW, borderColor: colors.line, backgroundColor: cellBg(day, { hours, selected }) }]}
             accessibilityRole="button"
           >
-            <Text style={[styles.cellText, hours ? { color: colors.ink, fontWeight: '600' } : { color: colors.placeholder }]}>
+            <LockMark locked={locked?.(day)} />
+            <Text style={[styles.cellText, hours ? { color: colors.ink, fontWeight: '600' } : { color: colors.placeholder }]} dataSet={hours ? { ts: 'strong' } : undefined}>
               {hours ? formatHours(hours) : ''}
             </Text>
           </TouchableOpacity>
@@ -352,20 +386,37 @@ function HourRow({
 }
 
 function Total({ value, colors, signed = false, strong = false, totalW }) {
-  const color = signed
-    ? ((value || 0) >= 0 ? (colors.success || '#15803d') : (colors.danger || '#dc2626'))
-    : colors.ink;
+  const color = signed ? balanceColor(value, colors) : colors.ink;
   return (
-    <View style={[styles.totalCell, { width: totalW, borderColor: colors.line }]}>
-      <Text style={[styles.cellText, { color, fontWeight: strong ? '700' : '500' }]}>
+    <View style={[styles.totalCell, { width: totalW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}>
+      <Text
+        style={[styles.cellText, { color, fontWeight: strong ? '700' : '600' }]}
+        dataSet={{ ts: 'strong' }}
+      >
         {formatHours(value || 0, signed ? { signed: true } : undefined)}
       </Text>
     </View>
   );
 }
 
+function balanceColor(value, colors) {
+  const n = Number(value) || 0;
+  if (n > 0) return colors.success || '#047857';
+  if (n < 0) return colors.danger || '#dc2626';
+  return colors.muted || '#64748b';
+}
+
+function LockMark({ locked }) {
+  if (!locked) return null;
+  return (
+    <View pointerEvents="none" style={styles.lockMark} accessibilityElementsHidden>
+      <Ionicons name="lock-closed" size={11} color="#94a3b8" />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  gridRoot: { flex: 1, alignSelf: 'stretch', width: '100%', maxWidth: '100%', borderWidth: 1, borderRadius: 10, minHeight: 280, overflow: 'hidden' },
+  gridRoot: { flex: 1, alignSelf: 'stretch', width: '100%', maxWidth: '100%', borderWidth: 1, borderRadius: 8, minHeight: 280, overflow: 'hidden' },
   gridScroll: { flex: 1, width: '100%', alignSelf: 'stretch' },
   gridColumn: { flex: 1, minHeight: 0 },
   frozenHeader: {
@@ -407,9 +458,19 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 34,
+    position: 'relative',
   },
-  cellText: { fontSize: 11, fontVariant: ['tabular-nums'] },
+  cellText: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  bankCaption: { color: '#64748b', fontSize: 10, marginTop: 2 },
+  bankFigure: { fontSize: 12, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  bankOut: { paddingVertical: 4 },
+  lockMark: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    opacity: 0.85,
+  },
   totalHead: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
@@ -417,6 +478,7 @@ const styles = StyleSheet.create({
   },
   totalCell: {
     borderBottomWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },

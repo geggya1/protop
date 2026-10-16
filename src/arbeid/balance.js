@@ -143,6 +143,69 @@ export function buildTimesaldo({
   return { rows, totals, opening };
 }
 
+function addRegisteredHours(map, seen, prefix, rows, employeeId, allow) {
+  const id = String(employeeId || '');
+  for (const row of rows || []) {
+    if (!row || String(row.employeeId || '') !== id || !row.date) continue;
+    if (allow && !allow(row)) continue;
+    const stamp = row.id ? `${prefix}:${row.id}` : '';
+    if (stamp) {
+      if (seen.has(stamp)) continue;
+      seen.add(stamp);
+    }
+    map.set(row.date, roundHours((map.get(row.date) || 0) + parseHours(row.hours)));
+  }
+}
+
+/**
+ * Timebalanse i timelisten.
+ * Hver dag er avviket registrert − avtalt. Fravær dekker avtalen, unntatt
+ * avspasering som tas ut av timebanken. Inngående er saldo ved månedsskifte
+ * (startsaldo + tidligere måneder i året). Utgående bæres til neste måned.
+ */
+export function monthTimebank({
+  year,
+  monthIndex,
+  employeeId,
+  entries = [],
+  absences = [],
+  adjustments = [],
+  agreedForDate,
+} = {}) {
+  const y = Number(year);
+  const month = Number(monthIndex);
+  const registered = new Map();
+  const seen = new Set();
+  addRegisteredHours(registered, seen, 'e', entries, employeeId);
+  addRegisteredHours(registered, seen, 'a', absences, employeeId, (row) => !absenceTypeById(row.type).flex);
+
+  let incoming = adjustmentHours(adjustments, employeeId, 'opening');
+  for (let index = 0; index < month; index += 1) {
+    const grid = buildMonthGrid(y, index);
+    let flex = 0;
+    for (const day of grid.days) {
+      const agreed = agreedForDate ? Number(agreedForDate(day.key)) || 0 : 0;
+      flex += (registered.get(day.key) || 0) - agreed;
+    }
+    const key = `${y}-${String(index + 1).padStart(2, '0')}`;
+    incoming = roundHours(incoming + flex + adjustmentHours(adjustments, employeeId, key));
+  }
+
+  const grid = buildMonthGrid(y, month);
+  const byDate = new Map();
+  let monthFlex = 0;
+  for (const day of grid.days) {
+    const agreed = agreedForDate ? Number(agreedForDate(day.key)) || 0 : 0;
+    const delta = roundHours((registered.get(day.key) || 0) - agreed);
+    byDate.set(day.key, delta);
+    monthFlex += delta;
+  }
+  const monthKey = `${y}-${String(month + 1).padStart(2, '0')}`;
+  const adjustment = adjustmentHours(adjustments, employeeId, monthKey);
+  const outgoing = roundHours(incoming + monthFlex + adjustment);
+  return { byDate, incoming, outgoing, adjustment };
+}
+
 export function payrollHoursOnDate({
   entries = [],
   absences = [],

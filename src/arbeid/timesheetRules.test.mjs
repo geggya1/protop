@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { easterSunday, norwegianHolidays, agreedHoursForDate } from './holidays.js';
 import { isDateLocked, lockThroughDate } from './locks.js';
-import { buildTimesaldo, buildAbsenceOverview, hoursToDays } from './balance.js';
+import { buildTimesaldo, buildAbsenceOverview, hoursToDays, monthTimebank } from './balance.js';
 import { scheduleFromPercent, scheduledHours } from './schedule.js';
 import {
   importHolidayYear,
@@ -147,6 +147,43 @@ import { emptyProjectState } from '../project/engine.js';
   assert.equal(scheduledHours(employee, new Date(2026, 9, 13), 7.5), 8);
   assert.equal(scheduledHours(employee, new Date(2026, 9, 17), 7.5), 0);
   assert.equal(scheduledHours({ company: { workPercent: '50' } }, new Date(2026, 9, 13), 8), 4);
+}
+
+{
+  const agreed = {
+    '2026-09-01': 8,
+    '2026-10-01': 8,
+    '2026-10-02': 8,
+    '2026-10-05': 8,
+  };
+  const bank = monthTimebank({
+    year: 2026,
+    monthIndex: 9,
+    employeeId: 'e1',
+    entries: [
+      { id: 'a', employeeId: 'e1', date: '2026-09-01', hours: 10 },
+      { id: 'a', employeeId: 'e1', date: '2026-09-01', hours: 10 },
+      { id: 'b', employeeId: 'e1', date: '2026-10-01', hours: 9.5 },
+      { id: 'c', employeeId: 'e2', date: '2026-10-01', hours: 8 },
+    ],
+    absences: [
+      { id: 'v', employeeId: 'e1', date: '2026-10-02', hours: 8, type: 'ferie' },
+      { id: 'f', employeeId: 'e1', date: '2026-10-05', hours: 8, type: 'avspasering' },
+    ],
+    adjustments: [
+      { employeeId: 'e1', month: 'opening', hours: 20 },
+      { employeeId: 'e1', month: '2026-09', hours: -2 },
+      { employeeId: 'e1', month: '2026-10', hours: -1 },
+    ],
+    agreedForDate: (key) => agreed[key] || 0,
+  });
+  assert.equal(bank.byDate.get('2026-09-01'), undefined);
+  assert.equal(bank.byDate.get('2026-10-01'), 1.5);
+  assert.equal(bank.byDate.get('2026-10-02'), 0);
+  assert.equal(bank.byDate.get('2026-10-05'), -8);
+  assert.equal(bank.incoming, 20);
+  assert.equal(bank.outgoing, 12.5);
+  assert.equal(bank.adjustment, -1);
 }
 
 console.log('timesheetRules.test.mjs: ok');

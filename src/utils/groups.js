@@ -20,24 +20,29 @@ import {
   groupInviteCopy,
 } from './inviteIdentifiers';
 import { setMemberPassword } from './setMemberPassword';
+import {
+  isSuperAdmin,
+  isGroupAdmin,
+  normalizeAdultRole,
+  isGroupDeleted,
+  isGroupDeactivated,
+  deactivateGroupPatch,
+  reactivateGroupPatch,
+  deleteGroupPatch,
+  buildNewFamilyRecords,
+  buildChildMemberRecord,
+  memberRemovalPlan,
+} from './groupLifecycleLogic';
 
 export { memberDocGrantsAccess } from './memberAccess';
 
-export function isSuperAdmin(family, uid) {
-  return !!(uid && family && (family.ownerUid === uid || family.ownerId === uid));
-}
-
-export function isGroupAdmin(family, uid) {
-  if (!uid || !family) return false;
-  if (isSuperAdmin(family, uid)) return true;
-  return Array.isArray(family.adminUids) && family.adminUids.includes(uid);
-}
-
-/** Rolle for voksne i familien: foresatt eller besteforeldre. */
-export function normalizeAdultRole(value, { asGrandparent = false } = {}) {
-  if (value === 'grandparent' || asGrandparent === true) return 'grandparent';
-  return 'parent';
-}
+export {
+  isSuperAdmin,
+  isGroupAdmin,
+  normalizeAdultRole,
+  isGroupDeleted,
+  isGroupDeactivated,
+};
 
 function adultRoleFields({ asGrandparent = false, adultRole = null, grandparentModules = null } = {}) {
   const role = normalizeAdultRole(adultRole, { asGrandparent });
@@ -91,50 +96,19 @@ export async function createGroup({
   const batch = writeBatch(db);
   const famRef = doc(collection(db, 'families'));
   const now = serverTimestamp();
-  const email = (user.email || '').toLowerCase();
-  const personal = !!isPersonal;
-  batch.set(famRef, {
-    name,
-    type: resolvedType,
-    language: language || 'nb',
-    ownerUid: user.uid,
-    adminUids: [user.uid],
-    members: [user.uid],
-    moduleAccess: {},
-    // Schema flag only — does not unlock modules. New families still see Aktiver.
-    moduleAccessInitialized: true,
-    active: true,
-    archived: false,
-    deleted: false,
-    // Solo workspace until the user names/promotes it as a real family.
-    isPersonal: personal,
-    photoURL: profile?.photoURL || null,
-    avatarId: profile?.avatarId || (personal ? 'fox' : 'home'),
-    createdAt: now,
-    updatedAt: now,
+  const records = buildNewFamilyRecords({
+    name, type: resolvedType, language, user, profile, isPersonal, familyId: famRef.id,
   });
   const parentPayload = {
-    uid: user.uid,
-    email,
-    phone: profile?.phone || '',
-    name: profile?.displayName || profile?.name || user.displayName || email.split('@')[0],
-    username: profile?.username || '',
-    usernameLower: profile?.usernameLower || '',
-    admin: true,
-    superAdmin: true,
-    active: true,
-    archived: false,
-    placeholder: false,
-    emailVerified: !!user.emailVerified,
-    photoURL: profile?.photoURL || user.photoURL || '',
-    avatarId: profile?.avatarId || null,
-    gender: profile?.gender || null,
-    birthday: profile?.birthday || null,
-    age: profile?.age ?? null,
-    location: profile?.location || null,
+    ...records.parent,
     createdAt: now,
     updatedAt: now,
   };
+  batch.set(famRef, {
+    ...records.family,
+    createdAt: now,
+    updatedAt: now,
+  });
   batch.set(doc(db, 'families', famRef.id, 'parents', user.uid), parentPayload);
   batch.set(doc(db, 'parents', user.uid), {
     ...parentPayload,
@@ -156,30 +130,17 @@ export async function updateGroup(familyId, patch) {
   await updateDoc(doc(db, 'families', familyId), { ...safe, updatedAt: serverTimestamp() });
 }
 
-export function isGroupDeactivated(group) {
-  if (!group || isGroupDeleted(group)) return false;
-  return group.archived === true || group.active === false;
-}
-
-export function isGroupDeleted(group) {
-  return group?.deleted === true || group?.hiddenFromApp === true;
-}
-
 /** Deaktiver: vises nedtonet, kan reaktiveres. Dokumentet beholdes. */
 export async function deactivateGroup(familyId) {
   await updateGroup(familyId, {
-    archived: true,
-    active: false,
+    ...deactivateGroupPatch(),
     deactivatedAt: serverTimestamp(),
   });
 }
 
 export async function reactivateGroup(familyId) {
   await updateGroup(familyId, {
-    archived: false,
-    active: true,
-    deleted: false,
-    hiddenFromApp: false,
+    ...reactivateGroupPatch(),
     reactivatedAt: serverTimestamp(),
   });
 }
@@ -194,16 +155,9 @@ export async function deleteGroup(familyId) {
   const prev = snap.exists() ? (snap.data() || {}) : {};
   const prevCode = prev.joinCode || null;
   await updateGroup(familyId, {
-    deleted: true,
-    active: false,
-    archived: true,
-    hiddenFromApp: true,
+    ...deleteGroupPatch(prev),
     deletedAt: serverTimestamp(),
-    subscriptionStatus: 'cancelled',
     subscriptionCancelledAt: serverTimestamp(),
-    subscriptionCancelReason: 'group_deleted',
-    joinCode: null,
-    joinCodePrevious: prev.joinCode || prev.joinCodePrevious || null,
   });
   if (prevCode) {
     await deleteDoc(doc(db, 'joinCodes', prevCode)).catch(() => {});
@@ -234,28 +188,24 @@ export async function addChildMember({
   }
   const now = serverTimestamp();
   const payload = {
-    uid,
-    name: name.trim(),
-    username: uname,
-    usernameLower: uname,
-    usernameEmail: authEmail,
-    birthday: birthday || null,
-    age: age ?? null,
-    gender: gender || null,
-    location: location || null,
-    phone: phone || '',
-    email: (email || '').toLowerCase(),
-    photoURL: photoURL || '',
-    avatarId: avatarId || 'fox',
-    familyId,
-    createdBy,
+    ...buildChildMemberRecord({
+      uid,
+      name,
+      username: uname,
+      birthday,
+      age,
+      gender,
+      location,
+      phone,
+      email,
+      photoURL,
+      avatarId,
+      familyId,
+      createdBy,
+      authEmail,
+    }),
     createdAt: now,
     updatedAt: now,
-    active: true,
-    archived: false,
-    deleted: false,
-    linkedParents: createdBy ? [createdBy] : [],
-    rewardMode: 'points',
   };
   await Promise.all([
     setDoc(doc(db, 'families', familyId, 'children', uid), payload, { merge: true }).catch(() => {}),
@@ -1139,7 +1089,7 @@ async function adminCompletePendingMemberInvite({ familyId, parentId, parent }) 
  *
  * Note: clearing users/{uid} and parents/{uid} familyIds only succeeds when the
  * signed-in user is the member (self-leave) or via Admin SDK. Family admins
- * still revoke access by updating families.members/adminUids + the parent doc;
+ * revoke list access by clearing members, activeUsers, memberIds and adminUids.
  * Firestore rules and listMyFamilies deny access even if familyIds is stale.
  */
 export async function revokeMemberFamilyAccess({ familyId, uid }) {
@@ -1147,6 +1097,8 @@ export async function revokeMemberFamilyAccess({ familyId, uid }) {
   const now = serverTimestamp();
   await updateDoc(doc(db, 'families', familyId), {
     members: arrayRemove(uid),
+    activeUsers: arrayRemove(uid),
+    memberIds: arrayRemove(uid),
     adminUids: arrayRemove(uid),
     updatedAt: now,
   }).catch(() => {});
@@ -1335,11 +1287,10 @@ export async function setMemberGrandparentModules({ familyId, uid, grandparentMo
 }
 
 export async function removeMemberFromGroup({ familyId, role, member, wipePersonal }) {
-  const col = role === 'child' ? 'children' : 'parents';
-  const id = member.uid || member.id;
-  const email = member.email;
-  const phone = member.phone;
-  const keepProfile = hasContact(email, phone) && !wipePersonal;
+  const plan = memberRemovalPlan({ role, member, wipePersonal });
+  const col = plan.collection;
+  const id = plan.id;
+  const keepProfile = plan.keepProfile;
 
   if (keepProfile) {
     await updateDoc(doc(db, 'families', familyId, col, id), {
@@ -1363,7 +1314,7 @@ export async function removeMemberFromGroup({ familyId, role, member, wipePerson
     await deleteDoc(doc(db, 'families', familyId, 'parents', id)).catch(() => {});
   }
   await revokeMemberFamilyAccess({ familyId, uid: id });
-  const uname = normalizeUsername(member.username || member.usernameLower || '');
+  const uname = plan.username;
   if (uname) await deleteDoc(doc(db, 'usernames', uname)).catch(() => {});
   return { keptProfile: false };
 }

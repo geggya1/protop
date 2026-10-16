@@ -1,27 +1,19 @@
 import { isValidUsername, suggestUsername, usernameTaken } from './usernames';
-import { hasValidPhone } from './phone';
+import {
+  isSyntheticEmail,
+  isValidEmail,
+  hasContactInfo,
+  hasContactAccount,
+  passwordStrength,
+} from './accountContact';
 
-const SYNTHETIC = /@weekplan\.app$/i;
-
-export function isSyntheticEmail(email) {
-  return SYNTHETIC.test(String(email || ''));
-}
-
-export function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || '').trim());
-}
-
-export function hasContactInfo(email, phone) {
-  return isValidEmail(email) || hasValidPhone(phone);
-}
-
-export function hasContactAccount(user, extra = {}) {
-  const email = extra.email || user?.email || '';
-  const phone = extra.phone || user?.phoneNumber || '';
-  const realEmail = isValidEmail(email) && !isSyntheticEmail(email);
-  const realPhone = hasValidPhone(phone);
-  return realEmail || realPhone;
-}
+export {
+  isSyntheticEmail,
+  isValidEmail,
+  hasContactInfo,
+  hasContactAccount,
+  passwordStrength,
+};
 
 export async function uniqueUsername(base, exceptUid) {
   let uname = isValidUsername(base) ? String(base).trim().toLowerCase() : suggestUsername(base || 'user');

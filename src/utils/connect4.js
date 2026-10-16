@@ -17,13 +17,11 @@ import {
 } from './familyGamesShared';
 import {
   C4_COLS,
+  C4_STATUS,
   emptyBoard,
   boardToFlat,
-  boardFromStored,
-  hasConnect4Win,
-  isBoardFull,
-  dropRow,
-  myConnect4Mark,
+  resolveConnect4Accept,
+  resolveConnect4Move,
 } from './connect4Logic';
 
 export {
@@ -38,11 +36,7 @@ export {
   myConnect4Mark,
 } from './connect4Logic';
 
-export const C4_STATUS = {
-  waiting: 'waiting',
-  playing: 'playing',
-  finished: 'finished',
-};
+export { C4_STATUS };
 
 const ACTIVE = [C4_STATUS.waiting, C4_STATUS.playing];
 
@@ -90,18 +84,13 @@ export async function createConnect4Game(familyId, { uid, name, invitedUids = []
 export async function acceptConnect4Invite(familyId, { gameId, uid, name }) {
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const data = snap.data() || {};
-  if (data.player1?.uid === uid || data.player2?.uid === uid) {
+  const resolved = resolveConnect4Accept(snap.data() || {}, { uid, name });
+  if (resolved.alreadyIn) {
     await setGameInviteResponse(familyId, 'connect4Games', gameId, uid, 'accepted');
     return gameId;
   }
-  if (data.player2) throw new Error('Spillet er fullt (2 spillere).');
-  if (data.status !== C4_STATUS.waiting) throw new Error('Spillet er ikke lenger åpent.');
-
   await updateDoc(gameDoc(familyId, gameId), {
-    player2: { uid, name: String(name || 'Spiller').trim() || 'Spiller' },
-    status: C4_STATUS.playing,
-    [`inviteStatus.${uid}`]: 'accepted',
+    ...resolved.patch,
     updatedAt: serverTimestamp(),
   });
   return gameId;
@@ -132,32 +121,11 @@ export async function playConnect4Move(familyId, gameId, { uid, col }) {
   if (column < 0 || column >= C4_COLS) throw new Error('Ugyldig kolonne.');
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const g = snap.data() || {};
-  if (g.status !== C4_STATUS.playing) throw new Error('Spillet er ikke aktivt.');
-
-  const isP1 = g.player1?.uid === uid;
-  const isP2 = g.player2?.uid === uid;
-  if (!isP1 && !isP2) throw new Error('Du er ikke med i dette spillet.');
-  const mark = isP1 ? 1 : 2;
-  if (g.currentTurn !== mark) throw new Error('Ikke din tur.');
-
-  const board = boardFromStored(g.board);
-  const row = dropRow(board, column);
-  if (row < 0) throw new Error('Kolonnen er full.');
-
-  board[row][column] = mark;
-  const won = hasConnect4Win(board, row, column, mark);
-  const draw = !won && isBoardFull(board);
-  const payload = {
-    board: boardToFlat(board),
-    currentTurn: won || draw ? g.currentTurn : (mark === 1 ? 2 : 1),
+  const { patch } = resolveConnect4Move(snap.data() || {}, { uid, col });
+  await updateDoc(gameDoc(familyId, gameId), {
+    ...patch,
     updatedAt: serverTimestamp(),
-  };
-  if (won || draw) {
-    payload.status = C4_STATUS.finished;
-    payload.winner = won ? mark : 'draw';
-  }
-  await updateDoc(gameDoc(familyId, gameId), payload);
+  });
 }
 
 export async function resetConnect4Game(familyId, gameId) {

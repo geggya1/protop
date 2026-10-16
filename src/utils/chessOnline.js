@@ -14,26 +14,19 @@ import {
   setGameInviteResponse,
   GAME_TYPES,
 } from './familyGamesShared';
+import { createInitialState, toFen } from './chessEngine';
 import {
-  createInitialState,
-  fromFen,
-  toFen,
-  makeMove,
-  findMove,
-  getGameResult,
-  isGameOver,
-  WHITE,
-  BLACK,
-} from './chessEngine';
+  CHESS_STATUS,
+  chessStartFen,
+  myChessColor,
+  resolveChessAccept,
+  resolveChessOnlineMove,
+} from './chessOnlineLogic';
 
-export const CHESS_STATUS = {
-  waiting: 'waiting',
-  playing: 'playing',
-  finished: 'finished',
-};
+export { CHESS_STATUS, myChessColor };
 
 const ACTIVE = [CHESS_STATUS.waiting, CHESS_STATUS.playing];
-const START_FEN = toFen(createInitialState());
+const START_FEN = chessStartFen();
 
 function gamesCol(familyId) {
   return collection(db, 'families', familyId, 'chessGames');
@@ -41,24 +34,6 @@ function gamesCol(familyId) {
 
 function gameDoc(familyId, gameId) {
   return doc(db, 'families', familyId, 'chessGames', gameId);
-}
-
-function resultPayload(state, roundId) {
-  const result = getGameResult(state);
-  if (!isGameOver(result)) {
-    return {
-      status: CHESS_STATUS.playing,
-      winner: null,
-      resultStatus: result.status,
-      roundId,
-    };
-  }
-  return {
-    status: CHESS_STATUS.finished,
-    winner: result.winner === WHITE ? 'w' : result.winner === BLACK ? 'b' : 'draw',
-    resultStatus: result.status,
-    roundId,
-  };
 }
 
 export async function createChessGame(familyId, { uid, name, invitedUids = [] }) {
@@ -100,18 +75,13 @@ export async function createChessGame(familyId, { uid, name, invitedUids = [] })
 export async function acceptChessInvite(familyId, { gameId, uid, name }) {
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const data = snap.data() || {};
-  if (data.playerWhite?.uid === uid || data.playerBlack?.uid === uid) {
+  const resolved = resolveChessAccept(snap.data() || {}, { uid, name });
+  if (resolved.alreadyIn) {
     await setGameInviteResponse(familyId, 'chessGames', gameId, uid, 'accepted');
     return gameId;
   }
-  if (data.playerBlack) throw new Error('Spillet er fullt (2 spillere).');
-  if (data.status !== CHESS_STATUS.waiting) throw new Error('Spillet er ikke lenger åpent.');
-
   await updateDoc(gameDoc(familyId, gameId), {
-    playerBlack: { uid, name: String(name || 'Spiller').trim() || 'Spiller' },
-    status: CHESS_STATUS.playing,
-    [`inviteStatus.${uid}`]: 'accepted',
+    ...resolved.patch,
     updatedAt: serverTimestamp(),
   });
   return gameId;
@@ -132,47 +102,14 @@ export function listenChessGame(familyId, gameId, cb) {
   }, () => cb(null));
 }
 
-export function myChessColor(game, uid) {
-  if (!game || !uid) return null;
-  if (game.playerWhite?.uid === uid) return 'w';
-  if (game.playerBlack?.uid === uid) return 'b';
-  return null;
-}
-
 export async function playChessMove(familyId, gameId, {
   uid, fr, fc, tr, tc, promo,
 }) {
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const g = snap.data() || {};
-  if (g.status !== CHESS_STATUS.playing) throw new Error('Spillet er ikke aktivt.');
-
-  const color = myChessColor(g, uid);
-  if (!color) throw new Error('Du er ikke med i dette spillet.');
-  if (g.currentTurn !== color) throw new Error('Ikke din tur.');
-
-  const state = fromFen(g.fen || START_FEN);
-  // Rebuild keys so draw-by-repetition still works for online games.
-  if (Array.isArray(g.keys) && g.keys.length) {
-    state.keys = g.keys.slice();
-  }
-  const move = findMove(state, fr, fc, tr, tc, promo);
-  if (!move) throw new Error('Ugyldig trekk.');
-
-  const next = makeMove(state, move);
-  const roundId = g.roundId || 1;
-  const outcome = resultPayload(next, roundId);
-  const keys = (next.keys || []).slice(-40);
-
+  const patch = resolveChessOnlineMove(snap.data() || {}, { uid, fr, fc, tr, tc, promo });
   await updateDoc(gameDoc(familyId, gameId), {
-    fen: toFen(next),
-    keys,
-    lastMove: {
-      fr: move.fr, fc: move.fc, tr: move.tr, tc: move.tc,
-      ...(move.promo ? { promo: move.promo } : {}),
-    },
-    currentTurn: next.turn,
-    ...outcome,
+    ...patch,
     updatedAt: serverTimestamp(),
   });
 }

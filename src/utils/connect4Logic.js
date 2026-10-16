@@ -76,3 +76,57 @@ export function myConnect4Mark(game, uid) {
   if (game.player2?.uid === uid) return 2;
   return null;
 }
+
+export const C4_STATUS = {
+  waiting: 'waiting',
+  playing: 'playing',
+  finished: 'finished',
+};
+
+export function resolveConnect4Accept(game, { uid, name } = {}) {
+  if (!game) throw new Error('Spill finnes ikke.');
+  if (game.player1?.uid === uid || game.player2?.uid === uid) {
+    return { alreadyIn: true };
+  }
+  if (game.player2) throw new Error('Spillet er fullt (2 spillere).');
+  if (game.status !== C4_STATUS.waiting) throw new Error('Spillet er ikke lenger åpent.');
+  return {
+    alreadyIn: false,
+    patch: {
+      player2: { uid, name: String(name || 'Spiller').trim() || 'Spiller' },
+      status: C4_STATUS.playing,
+      [`inviteStatus.${uid}`]: 'accepted',
+    },
+  };
+}
+
+/** Returns the Firestore patch for one legal drop, or throws the same errors as playConnect4Move. */
+export function resolveConnect4Move(game, { uid, col } = {}) {
+  const column = Number(col);
+  if (column < 0 || column >= C4_COLS) throw new Error('Ugyldig kolonne.');
+  if (!game) throw new Error('Spill finnes ikke.');
+  if (game.status !== C4_STATUS.playing) throw new Error('Spillet er ikke aktivt.');
+
+  const isP1 = game.player1?.uid === uid;
+  const isP2 = game.player2?.uid === uid;
+  if (!isP1 && !isP2) throw new Error('Du er ikke med i dette spillet.');
+  const mark = isP1 ? 1 : 2;
+  if (game.currentTurn !== mark) throw new Error('Ikke din tur.');
+
+  const board = boardFromStored(game.board);
+  const row = dropRow(board, column);
+  if (row < 0) throw new Error('Kolonnen er full.');
+
+  board[row][column] = mark;
+  const won = hasConnect4Win(board, row, column, mark);
+  const draw = !won && isBoardFull(board);
+  const patch = {
+    board: boardToFlat(board),
+    currentTurn: won || draw ? game.currentTurn : (mark === 1 ? 2 : 1),
+  };
+  if (won || draw) {
+    patch.status = C4_STATUS.finished;
+    patch.winner = won ? mark : 'draw';
+  }
+  return { patch, row, mark, won, draw };
+}

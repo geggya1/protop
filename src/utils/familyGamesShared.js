@@ -8,7 +8,9 @@ import {
 import { db } from '../../firebase';
 import { notifyUsers } from './notifications';
 import { listenAfterAccess, warnPermissionOnce } from './firestoreAccess';
-import { normalizeInviteAuthUids } from './inviteAuthUid';
+import { normalizeInviteUids, inviteFields } from './gameInviteLogic';
+
+export { normalizeInviteUids, inviteFields };
 
 export const GAME_TYPES = {
   quiz: 'quiz',
@@ -56,24 +58,6 @@ export const GAME_TYPE_SCREENS = {
 
 export function gameInviteDocId(gameType, gameId) {
   return `${gameType}_${gameId}`;
-}
-
-/** Normaliser inviterte uid-er (uten vert) — kun Auth-UIDs. */
-export function normalizeInviteUids(invitedUids, hostUid) {
-  return normalizeInviteAuthUids(invitedUids, hostUid);
-}
-
-/** Felter som legges på nytt spill-dokument. */
-export function inviteFields(hostUid, invitedUids = []) {
-  const invited = normalizeInviteUids(invitedUids, hostUid);
-  const inviteStatus = { [hostUid]: 'accepted' };
-  invited.forEach((id) => {
-    inviteStatus[id] = 'pending';
-  });
-  return {
-    invitedUids: invited,
-    inviteStatus,
-  };
 }
 
 async function writeGameInviteInbox(inviteeUid, payload) {

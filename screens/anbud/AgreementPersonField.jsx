@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ScrollSheet from '../../components/ScrollSheet';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 
 const BROWSE_LIMIT = 40;
 
@@ -19,6 +20,7 @@ export default function AgreementPersonField({
   label = 'Ansvarlig',
   placeholder = 'Søk eller bla blant aktive ansatte',
   suggested = false,
+  attention = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
@@ -40,14 +42,13 @@ export default function AgreementPersonField({
         accessibilityRole="button"
         accessibilityLabel={selected ? `${label} ${selected.name}` : placeholder}
         style={[styles.trigger, {
-          borderColor: suggested ? '#d4a017' : colors.line,
-          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+          borderColor: suggested || attention ? FOCUS_FIELD_BORDER : colors.line,
+          backgroundColor: suggested || attention ? FOCUS_FIELD_BG : colors.bg,
         }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
-            {suggested ? `${label} · forslag` : label}
-          </Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>{label}</Text>
+          {suggested ? <Text style={{ color: '#8a5a00', fontSize: 11, fontWeight: '700' }}>{SUGGESTION_MARK}</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : placeholder}</Text>
         </View>
         <Text style={{ color: colors.brand }}>{selected ? 'Endre' : 'Søk'}</Text>

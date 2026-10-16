@@ -1,6 +1,7 @@
 /** Tilbudsstrategi, kravsjekk, kontrakt og logg for en utførende bedrift. */
 
 import { AGREEMENT_KINDS, emptyOption } from './agreementTemplate.js';
+import { normalizeAssignees } from './assignees.js';
 import { normalizeOrgnr, normalizePersonnummer } from './customers.js';
 import { assignContractNumbers, claimContractNumbers, normalizeNumberId } from './numbering.js';
 
@@ -238,6 +239,7 @@ function normalizeFields(raw) {
     resourceName: text(raw.resourceName).slice(0, 80),
     resourceEmail: text(raw.resourceEmail).slice(0, 80),
     resourcePhone: text(raw.resourcePhone).slice(0, 40),
+    assignees: normalizeAssignees(raw.assignees),
     honorarForm: text(raw.honorarForm).slice(0, 160),
     biomkostninger: text(raw.biomkostninger).slice(0, 400),
     indexBase: text(raw.indexBase).slice(0, 40),
@@ -287,6 +289,7 @@ function emptyCoverFields() {
     resourceName: '',
     resourceEmail: '',
     resourcePhone: '',
+    assignees: [],
     honorarForm: '',
     biomkostninger: '',
     indexBase: '',

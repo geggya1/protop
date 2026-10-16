@@ -306,9 +306,19 @@ const FNR = sampleNationalId();
   assert.equal(rebuilt.company.personnelKind, 'staff');
   assert.equal(rebuilt.company.accessLevel, 'administrator');
   // Førstenavn som allerede inneholder mellomnavn skal ikke gi «Ove Ove».
-  assert.equal(displayName(normalizeEmployee({
+  const doubled = normalizeEmployee({
     person: { firstName: 'Geir Ove', middleName: 'Ove', lastName: 'Andersen' },
-  })), 'Geir Ove Andersen');
+  });
+  assert.equal(doubled.person.firstName, 'Geir Ove');
+  assert.equal(doubled.person.middleName, '');
+  assert.equal(doubled.person.lastName, 'Andersen');
+  assert.equal(displayName(doubled), 'Geir Ove Andersen');
+  const splitGiven = normalizeEmployee({
+    person: { firstName: 'Jan Erik', middleName: 'Erik', lastName: 'Aanestad' },
+  });
+  assert.equal(splitGiven.person.firstName, 'Jan Erik');
+  assert.equal(splitGiven.person.middleName, '');
+  assert.equal(displayName(splitGiven), 'Jan Erik Aanestad');
 }
 
 {

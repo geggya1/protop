@@ -13,6 +13,13 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { useColors } from '../../src/context/ThemeContext';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import {
+  isExternalExpense,
+  loadProjectExpenses,
+  mergeExpenseLists,
+  saveProjectExpenses,
+  withoutExternalExpenses,
+} from '../../src/economy/expenseStorage.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 import { createCreditNoteFromInvoice } from '../../src/economy/billingFromHours.js';
 import {
@@ -56,9 +63,13 @@ export default function EconomyBilling() {
     Promise.all([
       loadProjectState(familyId),
       invoiceStorage.loadInvoices(familyId),
-    ]).then(([projects, inv]) => {
+      loadProjectExpenses(familyId).catch(() => []),
+    ]).then(([projects, inv, remoteExpenses]) => {
       if (!live) return;
-      setProjectState(projects);
+      setProjectState({
+        ...projects,
+        expenses: mergeExpenseLists(remoteExpenses, projects?.expenses || []),
+      });
       setInvoices(inv);
       setReady(true);
     }).catch(() => setReady(true));
@@ -119,7 +130,14 @@ export default function EconomyBilling() {
       };
       await invoiceStorage.saveInvoice(familyId, invoice);
       const nextState = markProposalInvoiced(projectState, proposal, invoice.id);
-      await saveProjectState(nextState, familyId);
+      const touched = (nextState.expenses || []).filter((row) => (
+        isExternalExpense(row) && (proposal.expenses || []).some((item) => item.id === row.id)
+      ));
+      if (touched.length) await saveProjectExpenses(familyId, touched);
+      await saveProjectState({
+        ...nextState,
+        expenses: withoutExternalExpenses(nextState.expenses),
+      }, familyId);
       setProjectState(nextState);
       setInvoices(await invoiceStorage.loadInvoices(familyId));
       setLastInvoice(invoice);

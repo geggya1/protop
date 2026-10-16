@@ -11,6 +11,7 @@ export default function ProjectPhoneRow({
   checked = false,
   onToggle,
   onPress,
+  onOpenAgreement,
 }) {
   const danger = colors.danger || '#b42318';
   const title = lines?.title || 'Prosjekt';
@@ -50,6 +51,15 @@ export default function ProjectPhoneRow({
         <Text style={[styles.title, { color: colors.ink }]} numberOfLines={2}>{title}</Text>
         {lines?.meta ? (
           <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>{lines.meta}</Text>
+        ) : null}
+        {lines?.agreement ? (
+          <TouchableOpacity
+            onPress={onOpenAgreement}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne avtalen ${lines.agreement}`}
+          >
+            <Text style={[styles.meta, { color: colors.brand }]} numberOfLines={1}>{lines.agreement}</Text>
+          </TouchableOpacity>
         ) : null}
         {lines?.missingAgreement ? (
           <View style={styles.warn}>

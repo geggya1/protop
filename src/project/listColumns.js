@@ -86,6 +86,7 @@ export function projectPhoneLines(project, helpers = {}) {
     title: [number, name].filter(Boolean).join(' · ') || 'Prosjekt',
     meta: [customer, status].filter(Boolean).join(' · '),
     missingAgreement: !!helpers.missingAgreement,
+    agreement: String(helpers.agreementTitle || '').trim(),
   };
 }
 
@@ -125,6 +126,7 @@ export function projectColumnValue(project, key, helpers = {}) {
     case 'place':
       return project?.place || '';
     case 'feeEstimate':
+      if (helpers.feeText) return helpers.feeText(project);
       return project?.feeEstimate === 0 || project?.feeEstimate
         ? String(project.feeEstimate)
         : '';

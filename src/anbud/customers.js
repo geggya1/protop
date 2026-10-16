@@ -1,4 +1,5 @@
 /** Kunderegister for bedriften. Knyttes til avtaler via customerId. */
+import { collapseNameTokens, displayName } from '../employees/model.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -544,6 +545,42 @@ export function isActiveEmployee(employee) {
   return status !== 'inactive' && status !== 'former' && status !== 'deleted';
 }
 
+function personIds(person) {
+  const listed = Array.isArray(person?.ids) ? person.ids : [];
+  return [...new Set([person?.uid, person?.id, ...listed].map(text).filter(Boolean))];
+}
+
+/** Medlemskap og ansettelse for samme menneske treffer samme rad. */
+export function personOwnsId(person, id) {
+  const wanted = text(id);
+  if (!wanted) return false;
+  return personIds(person).includes(wanted);
+}
+
+function rememberPerson(rows, byName, row) {
+  const name = collapseNameTokens(row.name);
+  const uid = text(row.uid);
+  if (!name || name === 'Uten navn' || !uid) return;
+  const key = name.toLocaleLowerCase('nb-NO');
+  const extra = [uid, text(row.personUid), ...(Array.isArray(row.ids) ? row.ids : [])].map(text).filter(Boolean);
+  const existing = byName.get(key);
+  if (existing) {
+    for (const id of extra) {
+      if (!existing.ids.includes(id)) existing.ids.push(id);
+    }
+    return;
+  }
+  const next = {
+    uid,
+    id: uid,
+    name,
+    source: row.source,
+    ids: [...new Set(extra)],
+  };
+  rows.push(next);
+  byName.set(key, next);
+}
+
 /** Medlemmer og aktive ansatte som kan velges som ansvarlig for avtale/kunde. */
 export function agreementResponsiblePeople(members = [], employees = []) {
   const roster = Array.isArray(employees) ? employees : [];
@@ -552,29 +589,37 @@ export function agreementResponsiblePeople(members = [], employees = []) {
     const id = text(row?.id);
     if (id && !isActiveEmployee(row)) inactiveIds.add(id);
   }
-  const fromMembers = companyFollowUpPeople(members).map((row) => ({
-    uid: row.uid || row.id,
-    id: row.uid || row.id,
-    name: text(row.name),
-    source: 'member',
-  })).filter((row) => row.uid && row.name && !inactiveIds.has(row.uid));
-  const seen = new Set(fromMembers.map((row) => row.uid));
-  const fromEmployees = roster.map((row) => {
-    const person = row?.person || {};
-    const name = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean).join(' ');
+  const rows = [];
+  const byName = new Map();
+  for (const row of companyFollowUpPeople(members)) {
+    const uid = text(row.uid || row.id);
+    if (!uid || inactiveIds.has(uid)) continue;
+    rememberPerson(rows, byName, { uid, name: row.name, source: 'member', ids: [uid] });
+  }
+  for (const row of roster) {
     const id = text(row?.id);
-    if (!id || !name || seen.has(id) || !isActiveEmployee(row)) return null;
-    seen.add(id);
-    return { uid: id, id, name, source: 'employee' };
-  }).filter(Boolean);
-  return [...fromMembers, ...fromEmployees].sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+    const personUid = text(row?.personUid);
+    if (!id || !isActiveEmployee(row)) continue;
+    const linked = personUid ? rows.find((item) => personOwnsId(item, personUid)) : null;
+    if (linked) {
+      if (!linked.ids.includes(id)) linked.ids.push(id);
+      continue;
+    }
+    if (rows.some((item) => personOwnsId(item, id))) continue;
+    rememberPerson(rows, byName, {
+      uid: id,
+      personUid,
+      name: displayName(row),
+      source: 'employee',
+      ids: [id, personUid],
+    });
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
 }
 
 export function ownerLabel(customer, people = []) {
   if (!customer?.ownerUid) return '';
-  const hit = (Array.isArray(people) ? people : []).find((row) => (
-    (row.uid || row.id) === customer.ownerUid
-  ));
+  const hit = (Array.isArray(people) ? people : []).find((row) => personOwnsId(row, customer.ownerUid));
   return text(hit?.name) || text(customer.ownerName);
 }
 

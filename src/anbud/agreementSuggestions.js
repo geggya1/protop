@@ -11,7 +11,10 @@ import {
 } from './agreementTemplate.js';
 import { matchCustomer, namesLikelyMatch, normalizeOrgnr } from './customers.js';
 
-export const SUGGESTION_NOTE = 'Gule felt er forslag fra dokumentet og må kontrolleres særskilt.';
+export const SUGGESTION_MARK = 'Automatisk foreslått (kontroller)';
+export const FOCUS_FIELD_BG = '#fff4cc';
+export const FOCUS_FIELD_BORDER = '#d4a017';
+export const SUGGESTION_NOTE = 'Lyse gule felt skal fylles inn. «Automatisk foreslått (kontroller)» er lest fra dokumentet og må kontrolleres.';
 
 export const INVOICE_METHODS = [
   { id: 'EPOST', label: 'E-post' },

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ScrollSheet from '../../components/ScrollSheet';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 import { customerDraftFromBrreg, formatOrgnr, rankCustomerMatches } from '../../src/anbud/customers';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import CustomerCreateModal from '../customers/CustomerCreateModal';
@@ -24,6 +25,7 @@ export default function AgreementCustomerField({
   onBrregDraft,
   label = 'Kunde',
   suggested = false,
+  attention = false,
   proposal = '',
 }) {
   const [query, setQuery] = useState('');
@@ -109,14 +111,13 @@ export default function AgreementCustomerField({
         accessibilityRole="button"
         accessibilityLabel={selected ? `Kunde ${selected.name}` : 'Søk opp kunde'}
         style={[styles.trigger, {
-          borderColor: suggested ? '#d4a017' : colors.line,
-          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+          borderColor: suggested || attention ? FOCUS_FIELD_BORDER : colors.line,
+          backgroundColor: suggested || attention ? FOCUS_FIELD_BG : colors.bg,
         }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
-            {suggested ? `${label} · forslag` : label}
-          </Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>{label}</Text>
+          {suggested ? <Text style={styles.mark}>{SUGGESTION_MARK}</Text> : null}
           <Text style={{ color: colors.ink }}>{selected ? selected.name : (proposal || 'Søk i kunder eller Brønnøysund')}</Text>
           {selected ? (
             <Text style={{ color: colors.muted, fontSize: 13 }}>
@@ -247,4 +248,10 @@ const styles = StyleSheet.create({
   trigger: { borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   results: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   result: { paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
+  mark: {
+    alignSelf: 'flex-start',
+    color: '#8a5a00',
+    fontSize: 11,
+    fontWeight: '700',
+  },
 });

@@ -412,6 +412,7 @@ export default function ContractFollowUp({
           contracts={contracts}
           customers={customers}
           people={followPeople}
+          employees={employees}
           parentId={composeParent}
           kind={composeKind}
           customerId={composeCustomer}
@@ -433,6 +434,7 @@ export default function ContractFollowUp({
           customers={customers}
           projects={projects}
           people={followPeople}
+          employees={employees}
           colors={colors}
           companyId={companyId}
           onCommit={commit}

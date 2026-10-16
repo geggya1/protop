@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import ScrollSheet from '../../components/ScrollSheet';
+import { personOwnsId } from '../../src/anbud/customers';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 
 const BROWSE_LIMIT = 40;
 
@@ -15,14 +18,17 @@ export default function AgreementPersonField({
   colors,
   people = [],
   ownerUid = '',
+  ownerName = '',
   onSelect,
   label = 'Ansvarlig',
-  placeholder = 'Søk eller bla blant aktive ansatte',
+  placeholder = 'Ikke tildelt',
   suggested = false,
+  attention = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
-  const selected = people.find((person) => (person.uid || person.id) === ownerUid) || null;
+  const selected = people.find((person) => personOwnsId(person, ownerUid))
+    || (ownerUid && ownerName ? { uid: ownerUid, id: ownerUid, name: ownerName } : null);
   const listed = useMemo(() => listedPeople(people, query), [people, query]);
   const shown = listed.filter((_, index) => index < BROWSE_LIMIT);
   const total = listed.length;
@@ -34,33 +40,29 @@ export default function AgreementPersonField({
 
   return (
     <View style={{ gap: 8, flexBasis: '100%' }}>
-      <TouchableOpacity
-        nativeID="agreement-person-open"
-        onPress={() => setSheet(true)}
-        accessibilityRole="button"
-        accessibilityLabel={selected ? `${label} ${selected.name}` : placeholder}
-        style={[styles.trigger, {
-          borderColor: suggested ? '#d4a017' : colors.line,
-          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+      <View
+        style={[styles.compact, {
+          borderColor: suggested || (attention && !selected) ? FOCUS_FIELD_BORDER : 'transparent',
+          backgroundColor: suggested || (attention && !selected) ? FOCUS_FIELD_BG : 'transparent',
         }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
-            {suggested ? `${label} · forslag` : label}
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>{label}</Text>
+          {suggested ? <Text style={{ color: '#8a5a00', fontSize: 11, fontWeight: '700' }}>{SUGGESTION_MARK}</Text> : null}
+          <Text style={{ color: selected ? colors.ink : colors.muted, fontWeight: '600', fontSize: 16 }}>
+            {selected ? selected.name : placeholder}
           </Text>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : placeholder}</Text>
         </View>
-        <Text style={{ color: colors.brand }}>{selected ? 'Endre' : 'Søk'}</Text>
-      </TouchableOpacity>
-      {selected ? (
         <TouchableOpacity
-          onPress={() => onSelect?.(null)}
+          nativeID="agreement-person-open"
+          onPress={() => setSheet(true)}
           accessibilityRole="button"
-          accessibilityLabel={`Fjern ${label.toLowerCase()}`}
+          accessibilityLabel={selected ? `Endre ${label}` : `Velg ${label.toLowerCase()}`}
+          style={[styles.pencil, { borderColor: colors.line, backgroundColor: colors.bg }]}
         >
-          <Text style={{ color: colors.brand }}>{`Fjern ${label.toLowerCase()}`}</Text>
+          <Ionicons name="pencil" size={18} color={colors.brand} />
         </TouchableOpacity>
-      ) : null}
+      </View>
       <ScrollSheet visible={sheet} title={label} onClose={closeSheet} placement="center">
         <View style={{ gap: 8 }}>
           <TextInput
@@ -99,6 +101,18 @@ export default function AgreementPersonField({
               {query.trim() ? 'Ingen aktive ansatte treffer søket.' : 'Ingen aktive ansatte å velge blant.'}
             </Text>
           )}
+          {selected ? (
+            <TouchableOpacity
+              onPress={() => {
+                onSelect?.(null);
+                closeSheet();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Fjern ${label.toLowerCase()}`}
+            >
+              <Text style={{ color: colors.brand }}>{`Fjern ${label.toLowerCase()}`}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScrollSheet>
     </View>
@@ -107,7 +121,8 @@ export default function AgreementPersonField({
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10, fontSize: 16 },
-  trigger: { borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  compact: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingVertical: 4, paddingLeft: 2 },
+  pencil: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   results: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   result: { paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
 });

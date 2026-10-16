@@ -74,16 +74,29 @@ export function normalizeExpense(input = {}) {
   const vatCode = text(row.vatCode) || category.vatCode;
   const amountEx = Number(row.amountExVat);
   const amountIncl = Number(row.amountInclVat);
+  const signedEx = Number.isFinite(amountEx) && amountEx !== 0 ? amountEx : null;
+  const signedIncl = Number.isFinite(amountIncl) && amountIncl !== 0 ? amountIncl : null;
+  const sign = (signedEx != null ? signedEx : signedIncl) < 0 ? -1 : 1;
+  const absEx = signedEx != null ? Math.abs(signedEx) : 0;
+  const absIncl = signedIncl != null ? Math.abs(signedIncl) : 0;
   let calc;
-  if (Number.isFinite(amountEx) && amountEx > 0) {
-    calc = calcLineVat({ quantity: 1, unitPrice: amountEx, vatCode });
-  } else if (Number.isFinite(amountIncl) && amountIncl > 0) {
+  if (absEx > 0) {
+    calc = calcLineVat({ quantity: 1, unitPrice: absEx, vatCode });
+  } else if (absIncl > 0) {
     const known = calcLineVat({ quantity: 1, unitPrice: 100, vatCode });
     const factor = 1 + (known.vatPercent || 0) / 100;
-    const ex = roundMoney(amountIncl / factor);
+    const ex = roundMoney(absIncl / factor);
     calc = calcLineVat({ quantity: 1, unitPrice: ex, vatCode });
   } else {
     calc = calcLineVat({ quantity: 1, unitPrice: 0, vatCode });
+  }
+  if (sign < 0) {
+    calc = {
+      ...calc,
+      amountExVat: roundMoney(-calc.amountExVat),
+      vatAmount: roundMoney(-calc.vatAmount),
+      amountInclVat: roundMoney(-calc.amountInclVat),
+    };
   }
   const status = EXPENSE_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
   return {
@@ -120,6 +133,25 @@ export function normalizeExpense(input = {}) {
     updatedAt: text(row.updatedAt),
     account: category.account,
     inputFactor: !!category.inputFactor,
+    importFingerprint: text(row.importFingerprint),
+    externalStore: row.externalStore === true || row.storage === 'projectExpenses',
+    externalId: text(row.externalId),
+    externalInvoiceNumber: text(row.externalInvoiceNumber),
+    voucherNumber: text(row.voucherNumber),
+    activityName: text(row.activityName),
+    period: text(row.period),
+    quantity: Number(row.quantity) || 0,
+    unitPrice: Number(row.unitPrice) || 0,
+    supplierNumber: text(row.supplierNumber),
+    supplierInvoice: text(row.supplierInvoice),
+    accountLabel: text(row.accountLabel),
+    attachmentNames: text(row.attachmentNames),
+    source: row.source && typeof row.source === 'object'
+      ? {
+        filename: text(row.source.filename),
+        importedAt: text(row.source.importedAt),
+      }
+      : { filename: '', importedAt: '' },
   };
 }
 
@@ -143,7 +175,7 @@ export function expenseBillableExVat(expense) {
 export function validateExpense(expense) {
   const row = normalizeExpense(expense);
   if (!row.date) return { ok: false, error: 'Dato mangler.' };
-  if (!(row.amountInclVat > 0 || row.amountExVat > 0)) return { ok: false, error: 'Beløp mangler.' };
+  if (!(Math.abs(row.amountInclVat) > 0 || Math.abs(row.amountExVat) > 0)) return { ok: false, error: 'Beløp mangler.' };
   if (!row.description && !row.purpose) return { ok: false, error: 'Beskrivelse eller formål mangler.' };
   if (expenseNeedsNamedBuyer(row) && !row.receiptUri) {
     return { ok: false, error: 'Utlegg over 1 000 kr til videresalg/innsats krever kvittering med arbeidsgiver som kjøper.' };

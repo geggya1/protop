@@ -28,6 +28,7 @@ import {
   relatedProjectsForCustomer,
   agreementResponsiblePeople,
   isActiveEmployee,
+  personOwnsId,
   setCustomerOwner,
   upsertCustomer,
 } from './customers.js';
@@ -507,8 +508,50 @@ const activeRoster = agreementResponsiblePeople(
 assert.deepEqual(activeRoster.map((row) => row.uid).sort(), ['e1', 'e3', 'm1']);
 assert.equal(isActiveEmployee({ company: { status: 'inactive' } }), false);
 assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
+
+const doubledRoster = agreementResponsiblePeople(
+  [
+    { uid: 'user-geir', role: 'parent', name: 'Geir Ove Andersen' },
+    { uid: 'user-oyvind', role: 'adult', name: 'Øyvind Granberg' },
+    { uid: 'user-kurt', role: 'parent', name: 'Kurt Magnus Ludvigsen' },
+  ],
+  [
+    {
+      id: 'emp-geir',
+      personUid: 'user-geir',
+      company: { status: 'active' },
+      person: { firstName: 'Geir Ove', middleName: 'Ove', lastName: 'Andersen' },
+    },
+    {
+      id: 'emp-oyvind',
+      company: { status: 'active' },
+      person: { firstName: 'Øyvind', lastName: 'Granberg' },
+    },
+    {
+      id: 'emp-kurt-ext',
+      company: { status: 'active' },
+      person: { firstName: 'Kurt Magnus', lastName: 'Ludvigsen (ekstern)' },
+    },
+  ],
+);
+assert.deepEqual(
+  doubledRoster.map((row) => row.name).sort((a, b) => a.localeCompare(b, 'nb')),
+  ['Geir Ove Andersen', 'Kurt Magnus Ludvigsen', 'Kurt Magnus Ludvigsen (ekstern)', 'Øyvind Granberg'],
+);
+const geir = doubledRoster.find((row) => row.name === 'Geir Ove Andersen');
+assert.equal(geir.uid, 'user-geir');
+assert.equal(personOwnsId(geir, 'user-geir'), true);
+assert.equal(personOwnsId(geir, 'emp-geir'), true);
+assert.equal(ownerLabel({ ownerUid: 'emp-geir' }, doubledRoster), 'Geir Ove Andersen');
+assert.equal(doubledRoster.some((row) => row.name.includes('Ove Ove')), false);
+assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
 assert.equal(personPicker.includes('people.slice'), false);
 assert.match(personPicker, /agreement-person-results/);
+assert.match(personPicker, /pencil/);
 assert.equal(personPicker.includes('Ansatte vises ikke før det er et søk'), false);
+const ownerPicker = readFileSync(new URL('../../screens/anbud/OwnerPicker.jsx', import.meta.url), 'utf8');
+assert.match(ownerPicker, /AgreementPersonField/);
+assert.equal(ownerPicker.includes('Velg blant ansatte og medlemmer'), false);
+assert.equal(ownerPicker.includes('people.map'), false);
 
 console.log('customers.test.mjs: ok');

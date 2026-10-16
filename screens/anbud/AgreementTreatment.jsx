@@ -30,7 +30,7 @@ import {
 } from '../../src/anbud/agreementCase';
 import { agreementFileBase, agreementToPdf, agreementToWordHtml } from '../../src/anbud/agreementExport';
 import { actOnAgreementShare, notifyAgreementParty, publishAgreementShare } from '../../src/anbud/agreementClient';
-import { agreementResponsiblePeople } from '../../src/anbud/customers';
+import { agreementResponsiblePeople, personOwnsId } from '../../src/anbud/customers';
 import { mergeAnbudStates } from '../../src/anbud/model';
 import { processStepsForAgreement } from '../../src/anbud/processTrail';
 import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -372,7 +372,7 @@ export default function AgreementTreatment({
     }
     const bid = (state?.bids || []).find((row) => row.id === (partial.bidId || draft.bidId));
     const project = projects.find((row) => row.id === (partial.projectId || draft.projectId));
-    const owner = people.find((row) => row.uid === (partial.ownerUid || draft.ownerUid));
+    const owner = people.find((row) => personOwnsId(row, partial.ownerUid || draft.ownerUid));
     const parent = [...cases, ...(state?.contracts || [])].find((row) => row.id === (partial.parentId || draft.parentId));
     const result = createAgreementCase(state, {
       template,

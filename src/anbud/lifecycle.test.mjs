@@ -310,6 +310,9 @@ const rich = registerDirectContract(emptyAnbudState(), {
     leaderUid: 'leder-1',
     gnrBnr: '12/345',
     paymentTerms: '14 dager',
+    assignees: [
+      { source: 'intern', employeeId: 'e1', name: 'Geir Ove Andersen', email: 'geir@consult1.no', phone: '90000000' },
+    ],
     lines: [{ text: 'Kontraktssum', rate: '1350' }],
   },
 });
@@ -323,10 +326,13 @@ assert.equal(rich.state.contracts[0].fields.invoiceMethod, 'EHF');
 assert.equal(rich.state.contracts[0].fields.leaderUid, 'leder-1');
 assert.equal(rich.state.contracts[0].fields.gnrBnr, '12/345');
 assert.equal(rich.state.contracts[0].fields.paymentTerms, '14 dager');
+assert.equal(rich.state.contracts[0].fields.assignees[0].name, 'Geir Ove Andersen');
+assert.equal(rich.state.contracts[0].fields.assignees[0].email, 'geir@consult1.no');
 assert.equal(rich.state.contracts[0].fields.lines[0].text, 'Kontraktssum');
 const reloadedRich = normalizeAnbudState(rich.state);
 assert.equal(reloadedRich.contracts[0].fields.postalCode, '4006');
 assert.equal(reloadedRich.contracts[0].fields.leaderName, 'Kari Nordmann');
+assert.equal(reloadedRich.contracts[0].fields.assignees[0].source, 'intern');
 assert.equal(reloadedRich.contracts[0].ownerName, 'Geir Ove Andersen');
 const linked = updateContractDetails(rich.state, rich.state.contracts[0].id, {
   customerId: 'kunde-2',

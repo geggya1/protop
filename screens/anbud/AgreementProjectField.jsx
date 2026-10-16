@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ScrollSheet from '../../components/ScrollSheet';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 
 function matches(projects, query) {
   const needle = String(query || '').trim().toLocaleLowerCase('nb-NO');
@@ -18,6 +19,7 @@ export default function AgreementProjectField({
   projectId = '',
   onSelect,
   suggested = false,
+  attention = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
@@ -38,14 +40,13 @@ export default function AgreementProjectField({
         accessibilityRole="button"
         accessibilityLabel={selected ? `Prosjekt ${selected.name}` : 'Koble til prosjekt'}
         style={[styles.trigger, {
-          borderColor: suggested ? '#d4a017' : colors.line,
-          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+          borderColor: suggested || attention ? FOCUS_FIELD_BORDER : colors.line,
+          backgroundColor: suggested || attention ? FOCUS_FIELD_BG : colors.bg,
         }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
-            {suggested ? 'Koble til prosjekt · forslag' : 'Koble til prosjekt'}
-          </Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>Koble til prosjekt</Text>
+          {suggested ? <Text style={{ color: '#8a5a00', fontSize: 11, fontWeight: '700' }}>{SUGGESTION_MARK}</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '600' }}>
             {selected ? selected.name : 'Søk eller bla blant prosjekter'}
           </Text>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateField from '../../components/DateField';
 import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
@@ -20,7 +20,10 @@ import {
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
 import { formatOrgnr, matchCustomer, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople, customerDraftFromBrreg } from '../../src/anbud/customers';
 import {
+  FOCUS_FIELD_BG,
+  FOCUS_FIELD_BORDER,
   INVOICE_METHODS,
+  SUGGESTION_MARK,
   SUGGESTION_NOTE,
   brregSuggestion,
   lookupPostalCode,
@@ -34,10 +37,12 @@ import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, o
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
+import AgreementAssigneesField from './AgreementAssigneesField';
 import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
 import AgreementProjectField from './AgreementProjectField';
+import FileDropZone from './FileDropZone';
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
 
@@ -166,23 +171,33 @@ async function attachmentFromPick(file) {
   return { name, mimeType, size, dataUrl, uri: file?.uri || '' };
 }
 
-const SUGGEST_BG = '#fff4cc';
-const SUGGEST_BORDER = '#d4a017';
+const SUGGEST_BG = FOCUS_FIELD_BG;
+const SUGGEST_BORDER = FOCUS_FIELD_BORDER;
+const RESOURCE_KEYS = new Set(['resourceName', 'resourceEmail', 'resourcePhone']);
+
+function SuggestMark() {
+  return <Text style={styles.suggestMark}>{SUGGESTION_MARK}</Text>;
+}
 
 function Field({ colors, field, value, onChange, warning, hint, suggested }) {
   const [methodOpen, setMethodOpen] = useState(false);
   const warnColor = colors.warn || '#d97706';
   const readOnly = field.readOnly || READ_ONLY_KEYS.has(field.key);
+  const empty = !String(value || '').trim();
+  const focus = !!suggested || (!readOnly && empty);
+  const showMark = !!suggested && !empty;
+  const borderColor = focus ? SUGGEST_BORDER : (warning ? warnColor : colors.line);
+  const backgroundColor = focus ? SUGGEST_BG : (readOnly ? colors.sunken : colors.bg);
+  const labelColor = suggested ? '#8a5a00' : colors.muted;
   if (field.key === 'indexId') {
     const selected = INDEX_SERIES.find((row) => row.id === value) || INDEX_SERIES.find((row) => row.id === DEFAULT_INDEX_ID);
     return (
       <View style={{ gap: 6, flexGrow: 1, flexBasis: '100%', minWidth: 220 }}>
         <View style={styles.labelRow}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
-            {field.label}{suggested ? ' · forslag' : ''}
-          </Text>
+          <Text style={{ color: labelColor, fontSize: 12 }}>{field.label}</Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
+        {showMark ? <SuggestMark /> : null}
         <Text style={{ color: colors.ink, fontWeight: '600' }}>
           {selected ? `${selected.name} · tabell ${selected.table}` : 'Ikke valgt'}
         </Text>
@@ -209,12 +224,11 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
     return (
       <View style={{ gap: 4, flexGrow: 1, flexBasis: 200, minWidth: 160 }}>
         <View style={styles.labelRow}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
-            {field.label}{suggested ? ' · forslag' : ''}
-          </Text>
+          <Text style={{ color: labelColor, fontSize: 12 }}>{field.label}</Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
-        <View style={[styles.dateBox, { borderColor: suggested ? SUGGEST_BORDER : (warning ? warnColor : colors.line), backgroundColor: suggested ? SUGGEST_BG : colors.bg }]}>
+        {showMark ? <SuggestMark /> : null}
+        <View style={[styles.dateBox, { borderColor, backgroundColor }]}>
           <DateField
             value={value || null}
             onChange={(date) => onChange(isoFromDate(date))}
@@ -233,22 +247,15 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
     return (
       <View style={{ gap: 4, flexGrow: 1, flexBasis: 200, minWidth: 160 }}>
         <View style={styles.labelRow}>
-          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
-            {`Faktura mottak${suggested ? ' · forslag' : ''}`}
-          </Text>
+          <Text style={{ color: labelColor, fontSize: 12 }}>Faktura mottak</Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
+        {showMark ? <SuggestMark /> : null}
         <TouchableOpacity
           onPress={() => setMethodOpen((open) => !open)}
           accessibilityRole="button"
           accessibilityLabel="Velg faktura mottak"
-          style={[
-            styles.input,
-            {
-              borderColor: suggested ? SUGGEST_BORDER : colors.line,
-              backgroundColor: suggested ? SUGGEST_BG : colors.bg,
-            },
-          ]}
+          style={[styles.input, { borderColor, backgroundColor }]}
         >
           <Text style={{ color: colors.ink }}>{current ? current.label : 'Velg e-post, EHF eller post'}</Text>
         </TouchableOpacity>
@@ -278,11 +285,10 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
   return (
     <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 200, minWidth: 160 }}>
       <View style={styles.labelRow}>
-        <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
-          {field.label}{suggested ? ' · forslag' : ''}
-        </Text>
+        <Text style={{ color: labelColor, fontSize: 12 }}>{field.label}</Text>
         {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
       </View>
+      {showMark ? <SuggestMark /> : null}
       <TextInput
         value={value}
         onChangeText={readOnly ? undefined : onChange}
@@ -296,14 +302,70 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
           MULTILINE.has(field.key) && styles.inputMulti,
           {
             color: colors.ink,
-            borderColor: suggested ? SUGGEST_BORDER : (warning ? warnColor : colors.line),
-            backgroundColor: suggested ? SUGGEST_BG : (readOnly ? colors.sunken : colors.bg),
+            borderColor,
+            backgroundColor,
           },
         ]}
       />
       {field.key === 'value' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Eks. mva</Text> : null}
       {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
       {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
+    </View>
+  );
+}
+
+const READ_STEPS = [
+  { id: 'store', label: 'Lagrer originalfilen' },
+  { id: 'read', label: 'Leser dokumentet' },
+  { id: 'suggest', label: 'Fyller inn forslag' },
+];
+
+function readStepIndex(step) {
+  if (step === 'scan') return 1;
+  return Math.max(0, READ_STEPS.findIndex((row) => row.id === step));
+}
+
+function ReadJob({ colors, job, status }) {
+  const current = readStepIndex(job.step);
+  const middle = job.step === 'scan' ? 'Tolker skannet avtale' : READ_STEPS[1].label;
+  const steps = [
+    READ_STEPS[0],
+    { id: 'read', label: middle },
+    READ_STEPS[2],
+  ];
+  return (
+    <View nativeID="agreement-read-job" style={styles.job}>
+      <View style={[styles.jobCard, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+        <ActivityIndicator size="large" color={colors.brand} />
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>Leser avtalen</Text>
+        <Text style={{ color: colors.muted, textAlign: 'center' }}>
+          {job.name ? job.name : 'Dokumentet'}
+          {job.total > 1 ? ` · ${job.index} av ${job.total}` : ''}
+        </Text>
+        <View style={{ gap: 8, alignSelf: 'stretch' }}>
+          {steps.map((row, index) => {
+            const done = index < current;
+            const active = index === current;
+            return (
+              <View key={row.id} style={styles.jobStep}>
+                <View style={[styles.jobDot, {
+                  borderColor: done || active ? colors.brand : colors.line,
+                  backgroundColor: done ? colors.brand : (active ? (colors.brandSoft || colors.bg) : colors.bg),
+                }]}
+                >
+                  <Text style={{ color: done ? '#fff' : colors.brand, fontSize: 12, fontWeight: '700' }}>
+                    {done ? '✓' : index + 1}
+                  </Text>
+                </View>
+                <Text style={{ color: active ? colors.ink : colors.muted, fontWeight: active ? '700' : '400', flex: 1 }}>
+                  {row.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        <Text style={{ color: colors.brand }}>{status || 'Dette tar litt tid. Feltene fylles ut når lesingen er ferdig.'}</Text>
+      </View>
     </View>
   );
 }
@@ -333,6 +395,7 @@ export default function DirectAgreementForm({
   kind = '',
   customerId = '',
   people = [],
+  employees = [],
   seedPicks = null,
   onSeedPicksConsumed,
   onCancel,
@@ -350,13 +413,13 @@ export default function DirectAgreementForm({
     indexId: DEFAULT_INDEX_ID,
   }));
   const [reading, setReading] = useState(false);
+  const [readJob, setReadJob] = useState({ step: '', name: '', index: 0, total: 0 });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
   const [files, setFiles] = useState([]);
   const [previewId, setPreviewId] = useState('');
   const [registerHit, setRegisterHit] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
   const [indexHint, setIndexHint] = useState('');
   const [suggested, setSuggested] = useState({});
   const [customerChoices, setCustomerChoices] = useState([]);
@@ -468,7 +531,7 @@ export default function DirectAgreementForm({
     });
   }
 
-  async function applyDocs(docs, note) {
+  async function applyDocs(docs, note, { job = false } = {}) {
     const usable = docs.filter((doc) => {
       const body = String(doc?.text || '').trim();
       return body.length >= 20 && pdfTextLooksReadable(body);
@@ -493,6 +556,8 @@ export default function DirectAgreementForm({
     setPreviewId((current) => (
       docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')
     ));
+    if (job) setReadJob((current) => ({ ...current, step: 'suggest' }));
+    setStatus(job ? 'Fyller inn forslag…' : note);
     const planned = planAgreementSuggestions({
       previous: form,
       next: formFromInput(next, form),
@@ -511,7 +576,8 @@ export default function DirectAgreementForm({
     setError('');
     const generation = suggestGen.current + 1;
     suggestGen.current = generation;
-    completeSuggestions(planned.form, generation);
+    const pending = completeSuggestions(planned.form, generation);
+    if (job) await pending;
   }
 
   async function completeSuggestions(snapshot, generation) {
@@ -613,6 +679,7 @@ export default function DirectAgreementForm({
 
   async function readOneFile(file, existing, index, total) {
     const label = total > 1 ? ` (${index + 1}/${total})` : '';
+    setReadJob({ step: 'store', name: file.name || 'Avtale', index: index + 1, total });
     setStatus(`Lagrer originalfil${label}…`);
     await yieldUi();
     const attached = await attachmentFromPick(file).catch(() => ({
@@ -628,6 +695,7 @@ export default function DirectAgreementForm({
     } catch (cause) {
       if (!attached.dataUrl) throw cause;
     }
+    setReadJob((current) => ({ ...current, step: 'read' }));
     setStatus(`Leser dokumentet${label}…`);
     await yieldUi();
     let bytes = await bytesFromFile(file);
@@ -650,6 +718,7 @@ export default function DirectAgreementForm({
       return documentRow(existing, attached, file, text, original, index);
     } catch {
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
+      setReadJob((current) => ({ ...current, step: 'scan' }));
       setStatus(`Leser skannet dokument${label}…`);
       await yieldUi();
       try {
@@ -696,11 +765,12 @@ export default function DirectAgreementForm({
       const note = list.length > 1
         ? `${list.length} dokumenter er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.`
         : 'Dokumentet er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.';
-      await applyDocs(docs, note);
+      await applyDocs(docs, note, { job: true });
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentene. Prøv en annen fil, eller fyll inn feltene manuelt.');
     } finally {
       setReading(false);
+      setReadJob({ step: '', name: '', index: 0, total: 0 });
     }
   }
 
@@ -724,11 +794,12 @@ export default function DirectAgreementForm({
       }
       await applyDocs([...files, ...added], list.length > 1
         ? `${list.length} dokumenter er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.`
-        : 'Dokumentet er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.');
+        : 'Dokumentet er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.', { job: true });
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentene.');
     } finally {
       setReading(false);
+      setReadJob({ step: '', name: '', index: 0, total: 0 });
     }
   }
 
@@ -855,9 +926,10 @@ export default function DirectAgreementForm({
         leaderName: form.leaderName,
         leaderEmail: form.leaderEmail,
         leaderPhone: form.leaderPhone,
-        resourceName: form.resourceName,
-        resourceEmail: form.resourceEmail,
-        resourcePhone: form.resourcePhone,
+        resourceName: form.assignees?.[0]?.name || form.resourceName,
+        resourceEmail: form.assignees?.[0]?.email || form.resourceEmail,
+        resourcePhone: form.assignees?.[0]?.phone || form.resourcePhone,
+        assignees: form.assignees || [],
         reference: form.oppdragId || form.reference,
         surchargePercent: form.surchargePercent,
         contractDate: form.contractDate,
@@ -951,16 +1023,9 @@ export default function DirectAgreementForm({
           Last opp avtaledokumentene. OCR og KI leser kjente felt til venstre. Originalfilen lagres og forhåndsvises til høyre. Gule felt er forslag. Felt med ! må kontrolleres.
         </Text>
       )}
-      {Object.keys(suggested).length ? (
-        <View style={[styles.banner, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}>
-          <Text style={{ color: '#8a5a00', fontWeight: '700' }}>{SUGGESTION_NOTE}</Text>
-        </View>
-      ) : null}
-      {reading ? (
-        <View style={[styles.banner, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>{status || 'Leser avtalen…'}</Text>
-        </View>
-      ) : null}
+      <View style={[styles.banner, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}>
+        <Text style={{ color: '#8a5a00', fontWeight: '700' }}>{SUGGESTION_NOTE}</Text>
+      </View>
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
 
       <View style={styles.row}>
@@ -970,23 +1035,16 @@ export default function DirectAgreementForm({
       </View>
 
       <Drawer colors={colors} title={`Dokumenter (${files.length})`} open={open.dokumenter} onToggle={() => toggle('dokumenter')}>
-        <View
-          {...(Platform.OS === 'web' ? {
-            onDragEnter: (event) => { event.preventDefault?.(); setDragOver(true); },
-            onDragOver: (event) => { event.preventDefault?.(); setDragOver(true); },
-            onDragLeave: () => setDragOver(false),
-            onDrop: (event) => {
-              event.preventDefault?.();
-              setDragOver(false);
-              const list = Array.from(event?.dataTransfer?.files || []);
-              if (list.length) importDropped(list);
-            },
-          } : {})}
+        <FileDropZone
+          colors={colors}
+          disabled={reading}
+          nativeID="agreement-form-drop"
+          onFiles={(list) => importDropped(list)}
           style={[
             styles.drop,
             {
-              borderColor: dragOver ? colors.brand : colors.line,
-              backgroundColor: dragOver ? colors.sunken : colors.bg,
+              borderColor: colors.line,
+              backgroundColor: colors.bg,
             },
           ]}
         >
@@ -1002,7 +1060,7 @@ export default function DirectAgreementForm({
           >
             <Text style={{ color: '#fff' }}>{reading ? 'Leser…' : files.length ? 'Legg til dokumenter' : 'Last opp dokumenter'}</Text>
           </TouchableOpacity>
-        </View>
+        </FileDropZone>
         {files.length ? files.map((doc) => (
           <View key={doc.id} style={styles.row}>
             <TouchableOpacity
@@ -1051,6 +1109,7 @@ export default function DirectAgreementForm({
         people={followPeople}
         label="Kunde / oppdragsgiver"
         suggested={!!suggested.customerId || (!!suggested.buyer && !form.customerId)}
+        attention={!form.customerId && !suggested.customerId && !suggested.buyer}
         proposal={!form.customerId && form.createCustomer ? form.buyer : ''}
         onSelect={(customer) => applyCustomerRow(customer)}
         onBrregDraft={applyBrregDraft}
@@ -1108,6 +1167,7 @@ export default function DirectAgreementForm({
         ownerUid={form.ownerUid}
         label="Ansvarlig for avtalen"
         placeholder="Søk blant ansatte"
+        attention={!form.ownerUid}
         onSelect={(person) => patch({
           ownerUid: person?.uid || person?.id || '',
           ownerName: person?.name || '',
@@ -1118,6 +1178,7 @@ export default function DirectAgreementForm({
         projects={projects}
         projectId={form.projectId}
         suggested={!!suggested.projectId}
+        attention={!form.projectId && !suggested.projectId}
         onSelect={(project) => patch({
           projectId: project?.id || '',
           projectName: project?.name || form.projectName || '',
@@ -1153,10 +1214,9 @@ export default function DirectAgreementForm({
           {group.id === 'sted' ? (
             <View style={{ gap: 10 }}>
               <View style={{ gap: 4 }}>
-                <Text style={{ color: suggested.address ? '#8a5a00' : colors.muted, fontSize: 12 }}>
-                  {suggested.address ? 'Adresse · forslag' : 'Adresse'}
-                </Text>
-                <View style={suggested.address ? [styles.suggestWrap, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }] : null}>
+                <Text style={{ color: suggested.address ? '#8a5a00' : colors.muted, fontSize: 12 }}>Adresse</Text>
+                {suggested.address && form.address ? <SuggestMark /> : null}
+                <View style={(!form.address || suggested.address) ? [styles.suggestWrap, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }] : null}>
                 <LocationPicker
                   value={form.address ? { label: form.address, postnummer: form.postalCode, place: form.place } : null}
                   onChange={(loc) => {
@@ -1200,12 +1260,17 @@ export default function DirectAgreementForm({
                     label="Oppdragsleder"
                     placeholder="Søk blant ansatte"
                     suggested={!!suggested.leaderUid || !!suggested.leaderName}
-                    onSelect={(person) => patch({
-                      leaderUid: person?.uid || person?.id || '',
-                      leaderName: person?.name || '',
-                      leaderEmail: person?.email || form.leaderEmail || '',
-                      leaderPhone: person?.phone || form.leaderPhone || '',
-                    })}
+                    attention={!form.leaderUid && !form.leaderName && !suggested.leaderName}
+                    onSelect={(person) => {
+                      const id = person?.uid || person?.id || '';
+                      const employee = employees.find((row) => row.id === id);
+                      patch({
+                        leaderUid: id,
+                        leaderName: person?.name || '',
+                        leaderEmail: person ? (person.email || employee?.company?.email || employee?.person?.email || '') : '',
+                        leaderPhone: person ? (person.phone || employee?.person?.phone || '') : '',
+                      });
+                    }}
                   />
                   {unmatchedLeader && !form.leaderUid ? (
                     <Text style={{ color: '#8a5a00', fontSize: 13 }}>
@@ -1214,7 +1279,20 @@ export default function DirectAgreementForm({
                   ) : null}
                 </>
               ) : null}
-              {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
+              {group.id === 'leverandor' ? (
+                <AgreementAssigneesField
+                  colors={colors}
+                  employees={employees}
+                  assignees={form.assignees || []}
+                  onChange={(assignees) => patch({
+                    assignees,
+                    resourceName: assignees[0]?.name || '',
+                    resourceEmail: assignees[0]?.email || '',
+                    resourcePhone: assignees[0]?.phone || '',
+                  })}
+                />
+              ) : null}
+              {group.fields.filter((field) => !SKIP_GENERIC.has(field.key) && !RESOURCE_KEYS.has(field.key)).map((field) => (
                 <Field
                   key={field.key}
                   colors={colors}
@@ -1222,7 +1300,7 @@ export default function DirectAgreementForm({
                   value={form[field.key] || ''}
                   warning={flags[field.key]}
                   suggested={!!suggested[field.key]}
-                  hint={field.key === 'indexId' || field.key === 'indexBase' ? indexHint : (field.key === 'invoiceMethod' && suggested.invoiceMethod ? 'Valgt fra dokumentet' : '')}
+                  hint={field.key === 'indexId' || field.key === 'indexBase' ? indexHint : ''}
                   onChange={(value) => patch({ [field.key]: value })}
                 />
               ))}
@@ -1295,19 +1373,22 @@ export default function DirectAgreementForm({
     </View>
   );
 
-  if (splitPreview) {
-    return (
-      <View style={styles.split}>
-        <View style={styles.splitLeft}>{fields}</View>
-        <View style={styles.splitRight}>{previewPane}</View>
-      </View>
-    );
-  }
-
-  return (
+  const body = splitPreview ? (
+    <View style={styles.split}>
+      <View style={styles.splitLeft}>{fields}</View>
+      <View style={styles.splitRight}>{previewPane}</View>
+    </View>
+  ) : (
     <View style={styles.stack}>
       {fields}
       {previewPane}
+    </View>
+  );
+
+  return (
+    <View style={styles.jobHost}>
+      {body}
+      {reading ? <ReadJob colors={colors} job={readJob} status={status} /> : null}
     </View>
   );
 }
@@ -1328,6 +1409,50 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { position: 'sticky', top: 12 } : null),
   },
   stack: { gap: 12, width: '100%' },
+  jobHost: { position: 'relative', width: '100%' },
+  job: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  jobCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 22,
+    gap: 12,
+    alignItems: 'center',
+  },
+  jobStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  jobDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestMark: {
+    alignSelf: 'flex-start',
+    color: '#8a5a00',
+    backgroundColor: '#fff4cc',
+    borderColor: '#d4a017',
+    borderWidth: 1,
+    borderRadius: 999,
+    overflow: 'hidden',
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },

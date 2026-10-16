@@ -48,6 +48,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
     toDate: through,
   });
   const [employeeId, setEmployeeId] = useState('');
+  const [chosen, setChosen] = useState(false);
   const [edit, setEdit] = useState(null);
   const [draft, setDraft] = useState('');
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
@@ -62,6 +63,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
     locked: !!lockedId,
     manager,
     employeeId: activeId,
+    chosen: canSwitchPerson ? chosen : null,
   });
 
   useEffect(() => {
@@ -159,6 +161,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
           onQueryChange={setEmpPickerQuery}
           onSelect={(row) => {
             setEmployeeId(row.id);
+            setChosen(true);
             setEmpPickerQuery('');
           }}
           title="Velg medarbeider"
@@ -321,6 +324,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
               subtitle=""
               onSelect={(row) => {
                 setEmployeeId(row.id);
+                setChosen(true);
                 setEmpPickerOpen(false);
                 setEmpPickerQuery('');
               }}
@@ -334,7 +338,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
 
 const styles = StyleSheet.create({
   screenRoot: { flex: 1, minHeight: 0 },
-  screen: { flex: 1, padding: 16, minHeight: 0 },
+  screen: { flex: 1, padding: 16, minHeight: 420 },
   body: { padding: 16, gap: 4, paddingBottom: 40 },
   crumb: { fontSize: 12, marginBottom: 4 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 8 },

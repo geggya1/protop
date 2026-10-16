@@ -23,9 +23,9 @@ const PAGES = {
     title: 'Lønn',
     subtitle: 'Gjeldende lønn og neste plan. Registrering skjer inne på den enkelte.',
     sheet: 'lonn',
+    staffOnly: true,
     columns: [
       { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
-      { key: 'kind', label: 'Type', width: 100, value: (row) => row.cells.kindLabel },
       { key: 'salary', label: 'Gjeldende lønn', width: 160, value: (row) => row.cells.salary, warn: (row) => row.cells.salary === 'Mangler' },
       { key: 'from', label: 'Fra', width: 120, value: (row) => row.cells.salaryFrom },
       { key: 'plan', label: 'Neste plan', width: 220, value: (row) => row.cells.nextPlan },

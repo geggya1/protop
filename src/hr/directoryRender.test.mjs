@@ -244,7 +244,14 @@ let avtalerHtml = '';
   controlHtml = renderToStaticMarkup(React.createElement(HrControl, {
     colors,
     page: 'lonn',
-    employees,
+    employees: [
+      ...employees,
+      {
+        id: 'e3',
+        person: { firstName: 'Aina', lastName: 'Jespersen' },
+        company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
+      },
+    ],
     hr,
     entries: [],
     onOpenEmployee: () => {},
@@ -253,7 +260,11 @@ let avtalerHtml = '';
   assert.match(html, /Gjeldende lønn/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Mangler/);
-  assert.match(html, /Intern/);
+  assert.match(html, /Aktive/);
+  assert.match(html, /Deaktiverte/);
+  assert.equal(html.includes('Intern ·'), false);
+  assert.equal(html.includes('Ekstern ·'), false);
+  assert.equal(html.includes('Aina Jespersen'), false);
   assert.equal(html.includes('Bo Ekstern'), false);
 }
 

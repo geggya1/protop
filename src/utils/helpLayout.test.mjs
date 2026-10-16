@@ -85,14 +85,15 @@ assert.ok(clamped.w <= 392);
 const phoneHelp = fallbackTargetRect('helpBtn', {
   width: 390, height: 844, isPhone: true, isDesktop: false, hasRail: false,
 });
-assert.ok(phoneHelp.y >= 56, 'phone help sits below the header, under the profile');
+assert.ok(phoneHelp.y >= 32 && phoneHelp.y < 56, 'phone help overlays just under the profile');
 assert.ok(phoneHelp.x > 320, 'phone help is right-aligned under the avatar');
 assert.equal(phoneHelp.w, 40);
 
 const deskHelp = fallbackTargetRect('helpBtn', {
   width: 1440, height: 900, isPhone: false, isDesktop: true, hasRail: true, railWidth: 220,
 });
-assert.ok(deskHelp.y < 40, 'desktop help stays in the compact header');
+assert.ok(deskHelp.y >= 28 && deskHelp.y < 48, 'desktop help overlays just under the profile');
+assert.equal(deskHelp.w, 32);
 
 const phoneAdd = fallbackTargetRect('add', {
   width: 390, height: 844, isPhone: true, isDesktop: false, hasRail: false,

@@ -9,8 +9,8 @@ const NATIVE_DRIVER = Platform.OS !== 'web';
 
 /**
  * Lightbulb — on-demand help for the current page.
- * `floating` is the phone placement: a round chip under the title-right
- * action (e.g. «Ny hendelse»), so it stays clear of page toolbars.
+ * `floating` is the overlay chip that sits under the profile photo.
+ * Pair it with `compact` on tablet/desktop for a smaller circle.
  */
 export default function HelpButton({
   compact = false,
@@ -39,8 +39,10 @@ export default function HelpButton({
     return () => loop.stop();
   }, [hasHelp, moduleSeen, mode, pulse]);
 
+  const lively = floating && !compact;
+
   useEffect(() => {
-    if (!floating || !hasHelp) {
+    if (!lively || !hasHelp) {
       bob.setValue(0);
       return undefined;
     }
@@ -52,12 +54,12 @@ export default function HelpButton({
     );
     loop.start();
     return () => loop.stop();
-  }, [floating, hasHelp, bob]);
+  }, [lively, hasHelp, bob]);
 
   if (!hasHelp && !moduleId) return null;
 
-  const size = floating ? 40 : compact ? 32 : 36;
-  const radius = floating ? size / 2 : compact ? 6 : size / 2;
+  const size = floating ? (compact ? 32 : 40) : compact ? 32 : 36;
+  const radius = floating || !compact ? size / 2 : 6;
   const translateY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
 
   return (

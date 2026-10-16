@@ -1131,13 +1131,13 @@ const styles = StyleSheet.create({
   heroBandDesk: {
     paddingLeft: 16,
     paddingRight: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 2,
+    paddingBottom: 2,
   },
   heroBandTablet: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 0,
+    paddingBottom: 4,
   },
   bodyFill: { flex: 1, minHeight: 0, backgroundColor: 'transparent' },
   viewAsFrame: { flex: 1, minHeight: 0, minWidth: 0 },
@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   deskSplitAfterHero: {
-    paddingTop: 4,
+    paddingTop: 0,
   },
   deskMain: {
     flex: 1,

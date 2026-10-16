@@ -36,16 +36,15 @@ export const ShellPageHeroContext = createContext(null);
  * compact (desktop): én linje — tittel + handlinger.
  * Privat/Bedrift er låst i midten av linjen, uavhengig av tittel og sideknapper.
  * Mobil/nettbrett: logo øverst, deretter familie / side.
- * På telefon stables lyspæren rett under titleRight (f.eks. «Ny hendelse» /
- * «Nytt ønske»), så den ikke overlapper sideverktøy (innstillinger, del, osv.).
+ * Lyspæren er et overlay rett under profilbildet på telefon, nettbrett og
+ * desktop. Den tar ikke plass i flyten, så sidetittel, hero og innhold
+ * kan ligge helt opp mot logo-raden.
  * På Hjem (chromeOnly) er det samme hvite logo-feltet som på modulene —
  * meny, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
- * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger i WidgetBoard ved siden
- * av blyanten (ikke floated under chrome).
+ * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger også her, under profilen.
  * Når `hero` er satt (modulheading på telefon), er pastellbåndet selve
  * toppheadingen — rett under logo/meny, uten familienavn og uten stor
- * sidetittel. titleRight (blå «+ …») overlapper nedre høyre kant av båndet;
- * lyspæren sitter under knappen.
+ * sidetittel. titleRight (blå «+ …») overlapper nedre høyre kant av båndet.
  */
 export default function ShellHeader({
   title = 'Hjem',
@@ -67,7 +66,6 @@ export default function ShellHeader({
   const { activeProfile, family } = useApp();
   const { unreadTotal } = useUnread();
   const [menuOpen, setMenuOpen] = useState(false);
-  const floatHelp = isPhone && !compact && !dense;
 
   const pageTitle = title;
   const logoTone = brandLogoToneForBackground(chromeOnly ? colors.card : colors.bg);
@@ -98,9 +96,6 @@ export default function ShellHeader({
             )}
           </View>
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
-            {!floatHelp ? (
-              <HelpButton compact color={colors.ink} borderColor={colors.line} />
-            ) : null}
             {viewAs}
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
@@ -123,6 +118,9 @@ export default function ShellHeader({
                 size={28}
               />
             </TouchableOpacity>
+          </View>
+          <View pointerEvents="box-none" style={[styles.helpOverlay, styles.helpOverlayDense]}>
+            <HelpButton floating compact color={colors.ink} borderColor={colors.line} />
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -161,7 +159,6 @@ export default function ShellHeader({
               {titleRight ? (
                 <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
               ) : null}
-              <HelpButton compact color={colors.ink} borderColor={colors.line} />
               {viewAs}
               <TouchableOpacity
                 style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
@@ -188,6 +185,9 @@ export default function ShellHeader({
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
             <PlatformSwitch compact />
+          </View>
+          <View pointerEvents="box-none" style={[styles.helpOverlay, styles.helpOverlayCompact]}>
+            <HelpButton floating compact color={colors.ink} borderColor={colors.line} />
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -243,9 +243,6 @@ export default function ShellHeader({
           </View>
 
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
-            {!floatHelp ? (
-              <HelpButton color={colors.ink} borderColor={colors.line} />
-            ) : null}
             {viewAs}
             <TouchableOpacity
               style={[styles.iconBtn, {
@@ -292,11 +289,6 @@ export default function ShellHeader({
                     </View>
                   ) : null}
                 </View>
-                {floatHelp ? (
-                  <View style={styles.heroBelowRow} pointerEvents="box-none">
-                    <HelpButton floating color={colors.ink} borderColor={colors.line} />
-                  </View>
-                ) : null}
               </>
             ) : (
               <>
@@ -310,14 +302,9 @@ export default function ShellHeader({
                   >
                     {pageTitle}
                   </Text>
-                  {(titleRight || floatHelp) ? (
+                  {titleRight ? (
                     <View style={styles.titleRightCol}>
-                      {titleRight ? (
-                        <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
-                      ) : null}
-                      {floatHelp ? (
-                        <HelpButton floating color={colors.ink} borderColor={colors.line} />
-                      ) : null}
+                      <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
                     </View>
                   ) : null}
                 </View>
@@ -325,6 +312,20 @@ export default function ShellHeader({
             )}
           </View>
         ) : null}
+        </View>
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.helpOverlay,
+            isPhone ? styles.helpOverlayPhone : styles.helpOverlayTablet,
+          ]}
+        >
+          <HelpButton
+            floating
+            compact={!isPhone}
+            color={colors.ink}
+            borderColor={colors.line}
+          />
         </View>
       </View>
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -345,20 +346,22 @@ const styles = StyleSheet.create({
   },
   bar: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 4,
+    paddingBottom: 2,
     borderBottomWidth: 1,
-    gap: 6,
+    gap: 2,
     flexGrow: 0,
     flexShrink: 0,
   },
   barChromeOnly: {
     /* Same chrome sizing as full header; only title rows are omitted */
     gap: 0,
+    paddingBottom: 2,
   },
   barHero: {
     gap: 0,
     paddingBottom: 0,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   heroChrome: {
     position: 'relative',
@@ -370,16 +373,29 @@ const styles = StyleSheet.create({
   heroTitleRight: {
     position: 'absolute',
     right: 12,
-    bottom: 10,
+    bottom: 8,
     zIndex: 2,
   },
-  heroBelowRow: {
-    marginTop: 4,
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
+  helpOverlay: {
+    position: 'absolute',
+    zIndex: 8,
+  },
+  /* Just under the phone avatar, over the switch / top of the hero. */
+  helpOverlayPhone: {
+    top: 42,
+    right: 8,
+  },
+  helpOverlayTablet: {
+    top: 44,
+    right: 12,
+  },
+  helpOverlayCompact: {
+    top: 34,
+    right: 14,
+  },
+  helpOverlayDense: {
+    top: 32,
+    right: 8,
   },
   barTablet: {
     paddingHorizontal: 16,
@@ -411,6 +427,7 @@ const styles = StyleSheet.create({
     paddingLeft: SWITCH_LOCK_GUTTER,
   },
   barDense: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -419,6 +436,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     backgroundColor: '#fff',
     minHeight: 44,
+    overflow: 'visible',
   },
   chromeRow: {
     flexDirection: 'row',
@@ -461,9 +479,10 @@ const styles = StyleSheet.create({
   switchRow: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 4,
-    paddingBottom: 2,
+    paddingTop: 2,
+    paddingBottom: 0,
     width: '100%',
+    zIndex: 3,
   },
   pageTitleRow: {
     flexDirection: 'row',

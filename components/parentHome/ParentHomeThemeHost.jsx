@@ -18,8 +18,8 @@ import WidgetBoard from '../home/WidgetBoard';
 /**
  * Fixed parent home — same tidy widget layout for every login.
  * Top logo bar (ShellHeader chromeOnly) matches modules — white with menu,
- * logo, notifications and profile. On phone, help sits beside the home pencil
- * in WidgetBoard. Bottom nav lives in AppShell.
+ * logo, notifications and profile. Help is an overlay just under the profile
+ * photo, on every page including Home. Bottom nav lives in AppShell.
  */
 export default function ParentHomeThemeHost({
   familyEventsToday,

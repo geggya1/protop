@@ -4,7 +4,8 @@ import { ShellTitleRightContext } from '../../components/ShellHeader';
 let ownerSeq = 0;
 
 /**
- * Register a control in ShellHeader titleRight (next to page title; help sits under it on phone).
+ * Register a control in ShellHeader titleRight (next to the page title).
+ * On phone the help bulb is an overlay under the profile, not under this control.
  *
  * Hubs that nest detail screens should pass `active={view === 'hub'}`.
  * Ownership is tracked so a parent's cleanup cannot wipe a child's button,

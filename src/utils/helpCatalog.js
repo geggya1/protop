@@ -172,8 +172,8 @@ const EXTRA_ARTICLES = [
     },
     deviceTips: {
       phone: T(
-        'På mobil ligger lyspæren øverst til høyre — på Hjem ved siden av blyanten, ellers under profil.',
-        'On phone the lightbulb is at the top right — on Home next to the pencil, otherwise under your profile.',
+        'På mobil ligger lyspæren som et merke rett under profilbildet. Den flyter over siden, så innholdet starter høyere.',
+        'On phone the lightbulb is a badge just under your profile. It floats over the page, so the content starts higher.',
       ),
       tablet: T(
         'På nettbrett finner du lyspæren i toppfeltet ved profil.',

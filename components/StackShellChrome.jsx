@@ -158,13 +158,13 @@ const styles = StyleSheet.create({
   heroBandDesk: {
     paddingLeft: 16,
     paddingRight: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 2,
+    paddingBottom: 2,
   },
   heroBandTablet: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 0,
+    paddingBottom: 4,
   },
   body: { flex: 1, minHeight: 0 },
 });

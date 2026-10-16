@@ -123,19 +123,18 @@ export function fallbackTargetRect(anchor, layout = {}) {
     case 'helpBtn': {
       if (isPhone) {
         const size = 40;
-        const chrome = headerH ?? 56;
         return {
-          x: width - 12 - size,
-          y: (insets.top || 0) + chrome + 8,
+          x: width - 8 - size,
+          y: (insets.top || 0) + 42,
           w: size,
           h: size,
         };
       }
-      const size = isDesktop ? 32 : 36;
-      const rightPad = isDesktop ? 84 : 92;
+      const size = 32;
+      const right = isDesktop ? 14 : 12;
       return {
-        x: width - rightPad - size,
-        y: (insets.top || 0) + (isDesktop ? 8 : 10),
+        x: width - right - size,
+        y: (insets.top || 0) + (isDesktop ? 34 : 44),
         w: size,
         h: size,
       };

@@ -131,7 +131,10 @@ assert.match(headerSrc, /nativeID="module-hero-slot"/, 'phone heading sits in th
 assert.match(headerSrc, /styles\.heroTitleRight/, 'titleRight overlays the pastel band');
 assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as header chrome');
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
-assert.match(headerSrc, /styles\.heroBelowRow/, 'help sits in a tight row under the band');
+assert.match(headerSrc, /styles\.helpOverlay/, 'help overlays under the profile');
+assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'phone help sits high under the avatar');
+assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*right:\s*\d+/, 'phone help aligns under the profile');
+assert.doesNotMatch(headerSrc, /heroBelowRow/, 'help no longer reserves a row under the band');
 assert.doesNotMatch(headerSrc, /heroBackLink/, 'no dedicated Hjem back-link slot under the band');
 assert.doesNotMatch(headerSrc, /CompactBackLink/, 'ShellHeader no longer renders a Hjem back link');
 assert.match(headerSrc, /\{hero \?/, 'phone heading replaces the large module title text');
@@ -150,7 +153,7 @@ assert.doesNotMatch(
   /heroTitleRight:\s*\{[^}]*top:\s*0/,
   'add is not a detached title row at the top of the band',
 );
-assert.match(headerSrc, /justifyContent: 'flex-end'/, 'help aligns to the right under the band');
+assert.match(headerSrc, /position:\s*'absolute'/, 'help overlay does not push page content down');
 assert.doesNotMatch(headerSrc, /familyNameHero/, 'family name is not painted on top of the band');
 assert.doesNotMatch(headerSrc, /styles\.pageTitleRow[\s\S]*nativeID="module-hero-slot"/, 'hero is not a detached card below the title row');
 
@@ -184,7 +187,7 @@ assert.match(helpBtn, /HelpTarget id="helpBtn"/, 'help tour still anchors on the
 
 const heroSrc = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 assert.doesNotMatch(heroSrc, /if \(!force && isPhone\) return null/, 'phone must render ModuleHero, not skip it');
-assert.match(heroSrc, /isPhone \? 144/, 'phone heading stays compact (shorter than tablet)');
+assert.match(heroSrc, /isPhone \? 112 : 136/, 'phone heading stays compact (shorter than tablet)');
 assert.match(heroSrc, /const ART_INSET = 8/, 'heading art sits 2mm from the top and bottom');
 assert.match(heroSrc, /heroH - ART_INSET \* 2/, 'art height follows the heading minus the 2mm inset');
 assert.match(heroSrc, /artWrapPhone/, 'phone heading caps the art so the band stays short');

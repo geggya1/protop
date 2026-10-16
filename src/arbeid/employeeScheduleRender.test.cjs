@@ -49,6 +49,11 @@ function load(full) {
     if (id.includes('employees/model')) {
       return {
         newId: (prefix) => `${prefix}_test`,
+        personnelKind(employee) {
+          const kind = employee?.company?.personnelKind;
+          if (kind === 'external' || kind === 'innleid' || kind === 'staff') return kind;
+          return 'staff';
+        },
         setEmployeePath(employee, key, value) {
           const next = JSON.parse(JSON.stringify(employee));
           const parts = key.split('.');
@@ -94,6 +99,36 @@ function withHooks(fn) {
   } finally {
     internals.H = previous;
   }
+}
+
+function walk(node, depth, visit) {
+  if (depth > 50 || node == null || typeof node === 'boolean') return;
+  if (Array.isArray(node)) {
+    node.forEach((child) => walk(child, depth, visit));
+    return;
+  }
+  if (typeof node === 'string' || typeof node === 'number') return;
+  if (!React.isValidElement(node)) return;
+  visit(node);
+  const next = typeof node.type === 'function'
+    ? withHooks(() => node.type(node.props || {}))
+    : node.props && node.props.children;
+  walk(next, depth + 1, visit);
+}
+
+function checkRows(tree) {
+  const rows = [];
+  walk(tree, 0, (node) => {
+    if (node.props?.accessibilityRole !== 'checkbox') return;
+    const label = collectText(node.props.children).join(' ').replace(/✓/g, '').replace(/\s+/g, ' ').trim();
+    rows.push({
+      label,
+      disabled: node.props.accessibilityState?.disabled === true,
+      checked: node.props.accessibilityState?.checked === true,
+      pressable: typeof node.props.onPress === 'function',
+    });
+  });
+  return rows;
 }
 
 function collectText(node, depth = 0, out = []) {
@@ -160,5 +195,47 @@ assert.match(text, /15:00/);
 assert.match(text, /Kommer:/);
 assert.match(text, /7:00/);
 assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'screens/employees/EmployeeWorkViews.jsx'), 'utf8'), /list\[list\.length - 1\]/);
+
+function settingsRows(person) {
+  const view = withHooks(() => React.createElement(EmployeeWorkViews, {
+    mode: 'settings',
+    employee: person,
+    colors,
+    canEdit: true,
+    initialSub: 'general',
+    onSave() {},
+  }));
+  return checkRows(view);
+}
+
+const externalRows = settingsRows({
+  id: 'ext',
+  person: { email: 'ext@example.com' },
+  company: { personnelKind: 'external', status: 'active', canLogin: true },
+  extras: { timeSettings: { externalConsultant: false, includeInCapacity: true, mustLockTimesheet: false, requireClockTimes: false } },
+});
+const externalByLabel = Object.fromEntries(externalRows.map((row) => [row.label, row]));
+assert.equal(externalByLabel['Er ekstern konsulent'].checked, true);
+assert.equal(externalByLabel['Er ekstern konsulent'].disabled, true);
+assert.equal(externalByLabel['Er ekstern konsulent'].pressable, false);
+assert.equal(externalByLabel['Inkluder i selskapets kapasitetsoversikt'].checked, false);
+assert.equal(externalByLabel['Inkluder i selskapets kapasitetsoversikt'].pressable, false);
+assert.equal(externalByLabel['Skal låse timelisten'].pressable, false);
+assert.equal(externalByLabel['Skal spesifisere kom- og gå-tid'].pressable, false);
+assert.equal(externalByLabel['Kan logge inn'].pressable, true);
+assert.equal(externalByLabel['Mertid teller i lønn'].pressable, true);
+
+const staffRows = settingsRows({
+  id: 'staff',
+  company: { personnelKind: 'staff', status: 'active', canLogin: true },
+  extras: { timeSettings: { externalConsultant: true, mustLockTimesheet: false } },
+});
+const staffByLabel = Object.fromEntries(staffRows.map((row) => [row.label, row]));
+assert.equal(staffByLabel['Er ekstern konsulent'].checked, false);
+assert.equal(staffByLabel['Er ekstern konsulent'].pressable, false);
+assert.equal(staffByLabel['Inkluder i selskapets kapasitetsoversikt'].checked, true);
+assert.equal(staffByLabel['Inkluder i selskapets kapasitetsoversikt'].pressable, false);
+assert.equal(staffByLabel['Skal låse timelisten'].pressable, true);
+assert.equal(staffByLabel['Skal spesifisere kom- og gå-tid'].pressable, true);
 
 console.log('employeeScheduleRender.test.cjs: ok');

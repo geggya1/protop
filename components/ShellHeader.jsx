@@ -34,6 +34,7 @@ export const ShellPageHeroContext = createContext(null);
 /**
  * Toppfelt for AppShell.
  * compact (desktop): én linje — tittel + handlinger.
+ * Privat/Bedrift er låst i midten av linjen, uavhengig av tittel og sideknapper.
  * Mobil/nettbrett: logo øverst, deretter familie / side.
  * På telefon stables lyspæren rett under titleRight (f.eks. «Ny hendelse» /
  * «Nytt ønske»), så den ikke overlapper sideverktøy (innstillinger, del, osv.).
@@ -133,56 +134,60 @@ export default function ShellHeader({
     return (
       <>
         <View style={[styles.barCompact, { backgroundColor: colors.card, borderBottomColor: colors.line }]}>
-          {!!onMenuPress && (
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
-              onPress={onMenuPress}
-              accessibilityLabel="Åpne meny"
-              accessibilityRole="button"
-            >
-              <IconBadge count={unreadTotal} size={16} offset={-4}>
-                <Ionicons name="menu" size={18} color={colors.ink} />
-              </IconBadge>
-            </TouchableOpacity>
-          )}
-          <View style={styles.textCol}>
-            <Text style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
-              {pageTitle}
-            </Text>
-            <Text style={[styles.metaCompact, { color: colors.muted }]} numberOfLines={1}>
-              {familyName}
-            </Text>
+          <View style={[styles.headerSide, styles.headerSideStart]}>
+            {!!onMenuPress && (
+              <TouchableOpacity
+                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+                onPress={onMenuPress}
+                accessibilityLabel="Åpne meny"
+                accessibilityRole="button"
+              >
+                <IconBadge count={unreadTotal} size={16} offset={-4}>
+                  <Ionicons name="menu" size={18} color={colors.ink} />
+                </IconBadge>
+              </TouchableOpacity>
+            )}
+            <View style={styles.textColCompact}>
+              <Text style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
+                {pageTitle}
+              </Text>
+              <Text style={[styles.metaCompact, { color: colors.muted }]} numberOfLines={1}>
+                {familyName}
+              </Text>
+            </View>
           </View>
-          <View style={styles.switchSlot}>
+          <View style={[styles.headerSide, styles.headerSideEnd]}>
+            <View style={styles.actions}>
+              {titleRight ? (
+                <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
+              ) : null}
+              <HelpButton compact color={colors.ink} borderColor={colors.line} />
+              {viewAs}
+              <TouchableOpacity
+                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+                onPress={() => openNotifications(nav)}
+                accessibilityLabel="Varslinger"
+              >
+                <IconBadge count={unreadTotal} size={16} offset={-4}>
+                  <Ionicons name="notifications-outline" size={18} color={colors.ink} />
+                </IconBadge>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.avatarBtn}
+                onPress={() => setMenuOpen(true)}
+                accessibilityLabel="Profilmeny"
+              >
+                <AvatarBubble
+                  avatarId={activeProfile?.avatarId}
+                  photoURL={activeProfile?.photoURL}
+                  name={activeProfile?.name || '?'}
+                  size={28}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
             <PlatformSwitch compact />
-          </View>
-          <View style={styles.actions}>
-            {titleRight ? (
-              <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
-            ) : null}
-            <HelpButton compact color={colors.ink} borderColor={colors.line} />
-            {viewAs}
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
-              onPress={() => openNotifications(nav)}
-              accessibilityLabel="Varslinger"
-            >
-              <IconBadge count={unreadTotal} size={16} offset={-4}>
-                <Ionicons name="notifications-outline" size={18} color={colors.ink} />
-              </IconBadge>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatarBtn}
-              onPress={() => setMenuOpen(true)}
-              accessibilityLabel="Profilmeny"
-            >
-              <AvatarBubble
-                avatarId={activeProfile?.avatarId}
-                photoURL={activeProfile?.photoURL}
-                name={activeProfile?.name || '?'}
-                size={28}
-              />
-            </TouchableOpacity>
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -327,6 +332,9 @@ export default function ShellHeader({
   );
 }
 
+/** Halv bredde av Privat/Bedrift, så tittel og sideknapper stopper før bryteren. */
+const SWITCH_LOCK_GUTTER = 118;
+
 const styles = StyleSheet.create({
   chromeRoot: {
     position: 'relative',
@@ -378,15 +386,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   barCompact: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderBottomWidth: 1,
     backgroundColor: '#fff',
     width: '100%',
+  },
+  headerSide: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    zIndex: 1,
+  },
+  headerSideStart: {
+    paddingRight: SWITCH_LOCK_GUTTER,
+  },
+  headerSideEnd: {
+    justifyContent: 'flex-end',
+    paddingLeft: SWITCH_LOCK_GUTTER,
   },
   barDense: {
     flexDirection: 'row',
@@ -425,13 +447,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textCol: { minWidth: 0, flexGrow: 0, flexShrink: 1 },
-  switchSlot: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
+  textColCompact: { minWidth: 0, flexGrow: 1, flexShrink: 1 },
+  switchLock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    zIndex: 2,
   },
   switchRow: {
     alignItems: 'center',

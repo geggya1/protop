@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import Svg, { Line, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { absenceTypeById } from '../../src/arbeid/absenceCatalog';
 import { displayName } from '../../src/employees/model';
 import {
   HORIZON_CHOICES,
@@ -12,9 +13,11 @@ import {
   addAllocation,
   addDays,
   allocationEnd,
+  employeeCapacityHours,
   firstSlackWeek,
   formatHours,
   formatPercent,
+  intensityOf,
   kindLabel,
   kindOf,
   loadTone,
@@ -22,6 +25,7 @@ import {
   matchesKind,
   mondayKey,
   occupancy,
+  parseAmount,
   patchAllocation,
   placement,
   percentFromPointerDelta,
@@ -29,13 +33,18 @@ import {
   planningRows,
   projectLabel,
   removeAllocation,
+  round1,
+  shareOfCapacity,
   shiftPreview,
+  sizeFromHours,
   sizeFromPercent,
   spanBetween,
   suggestSpan,
+  toDateKey,
   visibleWeekKeys,
   weekKeys,
   weekMeta,
+  weeklyAbsenceHours,
   weeklyActualHours,
   weekSeries,
 } from '../../src/capacity/plan';
@@ -43,7 +52,8 @@ import {
 const WEEK_W = 54;
 const MATRIX_W = 48;
 const LABEL_W = 228;
-const ROW_H = 42;
+const ROW_H = 52;
+const EDITOR_H = 78;
 const KINDS = [
   { id: 'alle', label: 'Alle' },
   { id: 'staff', label: 'Interne' },
@@ -134,6 +144,7 @@ export default function ProductivityBoard({
   projects = [],
   plan,
   timeEntries = [],
+  absences = [],
   canWrite = false,
   onPlan,
   initialOpenId = '',
@@ -157,6 +168,7 @@ export default function ProductivityBoard({
   const dragRef = useRef(null);
   const tracks = useRef({});
   const gridScroll = useRef({});
+  const laneLock = useRef(false);
   const suppressPress = useRef(false);
   const api = useRef({});
 
@@ -193,14 +205,27 @@ export default function ProductivityBoard({
     const next = { ...alloc };
     if (draft.start) next.start = draft.start;
     if (draft.weeks) next.weeks = draft.weeks;
-    if (draft.percent != null) Object.assign(next, sizeFromPercent(draft.percent, weekHours), { mode: 'percent' });
+    if (draft.hoursPerWeek != null) next.hoursPerWeek = draft.hoursPerWeek;
     return next;
   }
 
-  function selectAlloc(alloc) {
+  function capacityBase(person, monday) {
+    const hours = employeeCapacityHours(person, weekHours, monday || todayKey);
+    return hours > 0 ? hours : weekHours;
+  }
+
+  function rememberSize(hours, base) {
+    const size = sizeFromHours(hours, base);
+    setPercentDraft(String(size.percent).replace('.', ','));
+    setHoursDraft(formatHours(size.hoursPerWeek));
+  }
+
+  function selectAlloc(alloc, person) {
+    const owner = person || people.find((row) => row.id === alloc.employeeId);
+    const pct = shareOfCapacity(alloc.hoursPerWeek, capacityBase(owner, alloc.start));
     setSelectedId(alloc.id);
     setNameDraft(alloc.name);
-    setPercentDraft(String(alloc.percent).replace('.', ','));
+    setPercentDraft(String(pct).replace('.', ','));
     setHoursDraft(formatHours(alloc.hoursPerWeek));
   }
 
@@ -257,7 +282,9 @@ export default function ProductivityBoard({
       const index = weekIndexAt(drag.employeeId, x);
       const percent = percentFromPointerDelta(drag.percent, y - drag.y);
       if (drag.mode === 'load' && drag.alloc) {
-        setDraft({ id: drag.alloc.id, percent });
+        const person = drag.person || people.find((row) => row.id === drag.alloc.employeeId);
+        const base = capacityBase(person, drag.alloc.start);
+        setDraft({ id: drag.alloc.id, hoursPerWeek: sizeFromPercent(percent, base).hoursPerWeek });
         return;
       }
       const endIndex = index == null ? drag.originIndex : index;
@@ -269,15 +296,24 @@ export default function ProductivityBoard({
         endIndex,
         percent,
       });
-      if (drag.alloc) setDraft({ id: drag.alloc.id, percent });
+      if (drag.alloc) {
+        const person = drag.person || people.find((row) => row.id === drag.alloc.employeeId);
+        const base = capacityBase(person, drag.alloc.start);
+        setDraft({ id: drag.alloc.id, hoursPerWeek: sizeFromPercent(percent, base).hoursPerWeek });
+      }
       return;
     }
     const dx = x - drag.x;
     const dy = y - drag.y;
     if (drag.mode === 'move' && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) + 6) {
       drag.mode = 'load';
-      drag.percent = drag.alloc.percent;
-      setDraft({ id: drag.alloc.id, percent: percentFromPointerDelta(drag.percent, dy) });
+      drag.percent = drag.basePercent ?? drag.alloc.percent;
+      const person = drag.person || people.find((row) => row.id === drag.alloc.employeeId);
+      const base = capacityBase(person, drag.alloc.start);
+      setDraft({
+        id: drag.alloc.id,
+        hoursPerWeek: sizeFromPercent(percentFromPointerDelta(drag.percent, dy), base).hoursPerWeek,
+      });
       return;
     }
     const delta = Math.round(dx / MATRIX_W);
@@ -288,11 +324,12 @@ export default function ProductivityBoard({
   function commitSpan(person, row, start, count, percent) {
     const spanWeeks = Math.max(1, count);
     const end = addDays(start, spanWeeks * 7);
+    const base = capacityBase(person, start);
+    const hours = sizeFromPercent(percent, base).hoursPerWeek;
     if (row.allocId && !row.projectId) {
-      patch(row.allocId, { start, weeks: spanWeeks, percent });
+      patch(row.allocId, { start, weeks: spanWeeks, hoursPerWeek: hours });
       setSelectedId(row.allocId);
-      setPercentDraft(String(percent).replace('.', ','));
-      setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+      rememberSize(hours, base);
       return;
     }
     const mine = (plan?.allocations || []).filter((alloc) => (
@@ -300,10 +337,9 @@ export default function ProductivityBoard({
     ));
     const hit = mine.find((alloc) => alloc.start < end && allocationEnd(alloc) > start);
     if (hit) {
-      patch(hit.id, { start, weeks: spanWeeks, percent });
+      patch(hit.id, { start, weeks: spanWeeks, hoursPerWeek: hours });
       setSelectedId(hit.id);
-      setPercentDraft(String(percent).replace('.', ','));
-      setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+      rememberSize(hours, base);
       setNameDraft(hit.name);
       return;
     }
@@ -346,9 +382,11 @@ export default function ProductivityBoard({
       const percent = percentFromPointerDelta(drag.percent, y - drag.y);
       if (Math.abs(y - drag.y) > 8) {
         suppressPress.current = true;
-        patch(drag.alloc.id, { percent });
-        setPercentDraft(String(percent).replace('.', ','));
-        setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+        const person = drag.person || people.find((row) => row.id === drag.alloc.employeeId);
+        const base = capacityBase(person, drag.alloc.start);
+        const hours = sizeFromPercent(percent, base).hoursPerWeek;
+        patch(drag.alloc.id, { hoursPerWeek: hours });
+        rememberSize(hours, base);
       }
       return;
     }
@@ -386,6 +424,16 @@ export default function ProductivityBoard({
     };
   }, []);
 
+  function onLaneScroll(id, event) {
+    const x = event?.nativeEvent?.contentOffset?.x;
+    if (x == null || laneLock.current) return;
+    laneLock.current = true;
+    for (const [key, node] of Object.entries(gridScroll.current)) {
+      if (key !== id && node?.scrollTo) node.scrollTo({ x, animated: false });
+    }
+    setTimeout(() => { laneLock.current = false; }, 40);
+  }
+
   function beginPaint(event, person, row) {
     if (!canWrite) return;
     const index = weekIndexAt(person.id, pointOf(event).x);
@@ -410,7 +458,7 @@ export default function ProductivityBoard({
     event?.preventDefault?.();
     const point = pointOf(event);
     dragRef.current = { ...payload, x: point.x, y: point.y, at: now };
-    if (payload.alloc) selectAlloc(payload.alloc);
+    if (payload.alloc) selectAlloc(payload.alloc, payload.person);
   }
 
   const selected = allocations.find((row) => row.id === selectedId) || null;
@@ -556,6 +604,8 @@ export default function ProductivityBoard({
           activityFrom,
         });
         const actualByProject = weeklyActualHours(timeEntries, person.id, weeks);
+        const absenceByWeek = weeklyAbsenceHours(absences, person.id, weeks, toDateKey(new Date()));
+        const hasPlannedAbsence = absenceByWeek.size > 0;
         return (
           <View
             key={person.id}
@@ -584,22 +634,57 @@ export default function ProductivityBoard({
               </View>
               <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
             </Pressable>
-            <View style={styles.heat}>
-              {forwardWeeks.map((key) => {
-                const row = occupancy(person, allocations, key, weekHours);
-                return (
-                  <View
-                    key={key}
-                    style={[styles.heatCell, { backgroundColor: withAlpha(TONE_COLOR[loadTone(row.ofContract)], row.ofContract > 0 ? 'cc' : '33') }]}
-                  />
-                );
-              })}
-            </View>
+            {!open ? (
+              <View style={styles.freeLane} nativeID={`produktivitet-ledig-${person.id}`}>
+                <View style={styles.freeCaption}>
+                  <Text style={[styles.sumLabel, { color: colors.ink }]}>Ledig</Text>
+                  <Text style={[styles.rowMeta, { color: colors.muted }]}>pr. uke</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  ref={(node) => { gridScroll.current[`ledig-${person.id}`] = node; }}
+                  onScroll={(event) => onLaneScroll(`ledig-${person.id}`, event)}
+                  scrollEventThrottle={16}
+                >
+                  <View>
+                    <View style={styles.weekHead}>
+                      {weeks.map((key) => {
+                        const meta = weekMeta(key);
+                        const current = key === todayKey;
+                        return (
+                          <View key={key} style={[styles.weekHeadCell, current && { backgroundColor: withAlpha(colors.brand, '18') }]}>
+                            <Text style={[styles.weekNo, { color: current ? colors.brand : colors.ink }]}>{meta.short}</Text>
+                            <Text style={[styles.weekDate, { color: colors.muted }]}>{meta.date}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.freeRow}>
+                      {weeks.map((key) => {
+                        const occ = occupancy(person, allocations, key, weekHours);
+                        const away = absenceByWeek.get(key)?.hours || 0;
+                        const free = round1(occ.freeHours - away);
+                        const future = key >= todayKey;
+                        const bg = future ? freeTone(free, occ.capacity) : 'transparent';
+                        return (
+                          <View key={key} style={[styles.freeCell, { borderColor: colors.line, backgroundColor: bg }]}>
+                            <Text style={[styles.cellText, { color: future && free <= 0.05 ? '#9f1239' : colors.ink }]}>
+                              {future ? formatHours(free) : ''}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
 
             {open ? (
               <View style={styles.expand} nativeID={`produktivitet-plan-${person.id}`}>
                 <Text style={[styles.cardSub, { color: colors.muted }]}>
-                  {`Prosjekt med timer siste tre måneder. Til og med denne uken vises påløpte timer. Dra bortover for varighet og opp eller ned for belastning.`}
+                  {`Mørkere blå er høyere belastning, i tydelige sprang. Prosenten står over stolpen. Planlagt fravær er oransje og stiplet.`}
                 </Text>
                 <View style={styles.matrix}>
                   <View style={[styles.labelCol, { width: LABEL_W }]}>
@@ -609,19 +694,35 @@ export default function ProductivityBoard({
                     <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: colors.bg }]}>
                       <Text style={[styles.sumLabel, { color: colors.ink }]}>Sum</Text>
                     </View>
-                    {rows.map((row) => (
-                      <View key={row.key} style={[styles.labelCell, { borderColor: colors.line }]}>
-                        <Text numberOfLines={1} style={[styles.rowName, { color: colors.ink }]}>{row.name}</Text>
-                        <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.muted }]}>
-                          {row.source === 'dummy' ? 'Ikke et ekte prosjekt' : `${formatHours(row.recentHours)} t siste 3 md`}
-                        </Text>
+                    {hasPlannedAbsence ? (
+                      <View style={[styles.labelCell, { borderColor: colors.line, backgroundColor: '#fff7ed' }]}>
+                        <Text numberOfLines={1} style={[styles.rowName, { color: '#9a3412' }]}>Fravær</Text>
+                        <Text numberOfLines={1} style={[styles.rowMeta, { color: '#c2410c' }]}>Planlagt</Text>
                       </View>
-                    ))}
+                    ) : null}
+                    {rows.map((row) => {
+                      const selectedAlloc = personAllocs.find((alloc) => (
+                        selectedId === alloc.id && (row.allocId ? alloc.id === row.allocId : alloc.projectId === row.projectId)
+                      ));
+                      const labelHeight = selectedAlloc
+                        ? editorTop(shareOfCapacity(selectedAlloc.hoursPerWeek, capacityBase(person, selectedAlloc.start))) + EDITOR_H
+                        : ROW_H;
+                      return (
+                        <View key={row.key} style={[styles.labelCell, { borderColor: colors.line, height: labelHeight }]}>
+                          <Text numberOfLines={1} style={[styles.rowName, { color: colors.ink }]}>{row.name}</Text>
+                          <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.muted }]}>
+                            {row.source === 'dummy' ? 'Ikke et ekte prosjekt' : `${formatHours(row.recentHours)} t siste 3 md`}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </View>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator
                     ref={(node) => { gridScroll.current[person.id] = node; }}
+                    onScroll={(event) => onLaneScroll(person.id, event)}
+                    scrollEventThrottle={16}
                   >
                     <View
                       ref={(node) => { tracks.current[person.id] = node; }}
@@ -663,23 +764,47 @@ export default function ProductivityBoard({
                           );
                         })}
                       </View>
+                      {hasPlannedAbsence ? (
+                        <View style={styles.matrixRow} nativeID={`produktivitet-fravaer-${person.id}`}>
+                          {weeks.map((key) => {
+                            const away = absenceByWeek.get(key);
+                            return (
+                              <View key={key} style={[styles.matrixCell, { borderColor: colors.line, backgroundColor: away ? '#fff7ed' : 'transparent' }]}>
+                                {away ? (
+                                  <View style={styles.absenceMark}>
+                                    <Text numberOfLines={2} style={styles.absenceText}>
+                                      {absenceTypeById(away.type).label}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : null}
                       {rows.map((row) => {
                         const segments = segmentsFor(row, personAllocs, weeks, todayKey);
                         const painting = paint
                           && paint.employeeId === person.id
                           && paint.projectId === (row.projectId || '')
                           && paint.allocId === (row.allocId || '');
+                        const selectedSeg = segments.find((seg) => seg.alloc.id === selectedId) || null;
+                        const selectedTop = selectedSeg
+                          ? editorTop(shareOfCapacity(selectedSeg.alloc.hoursPerWeek, capacityBase(person, selectedSeg.alloc.start)))
+                          : 0;
                         return (
                           <View
                             key={row.key}
                             nativeID={`produktivitet-row-${person.id}-${row.projectId || row.allocId}`}
                             onPointerDown={(event) => beginPaint(event, person, row)}
-                            style={styles.matrixRow}
+                            style={[styles.matrixRow, { height: selectedSeg ? selectedTop + EDITOR_H : ROW_H }]}
                           >
                             {weeks.map((key) => {
                               const hours = row.projectId ? (actualByProject.get(row.projectId)?.get(key) || 0) : 0;
                               const past = key < todayKey;
                               const current = key === todayKey;
+                              const pct = shareOfCapacity(hours, capacityBase(person, key));
+                              const tone = intensityOf(pct);
                               return (
                                 <View
                                   key={key}
@@ -687,26 +812,25 @@ export default function ProductivityBoard({
                                     styles.matrixCell,
                                     {
                                       borderColor: colors.line,
-                                      backgroundColor: current
-                                        ? withAlpha(colors.brand, '10')
-                                        : (past && hours > 0 ? colors.bg : 'transparent'),
+                                      backgroundColor: current ? withAlpha(colors.brand, '10') : 'transparent',
                                     },
                                   ]}
                                 >
-                                  {past || current ? (
-                                    <Text style={[styles.cellText, { color: past ? colors.ink : colors.muted }]}>
-                                      {hours > 0 ? formatHours(hours) : ''}
-                                    </Text>
+                                  {hours > 0 && (past || current) ? (
+                                    <>
+                                      <Text style={[styles.pctAbove, { color: '#1e3a8a' }]}>{formatPercent(pct)}</Text>
+                                      <View style={[styles.actualBar, { height: barHeight(pct), backgroundColor: tone.color }]} />
+                                    </>
                                   ) : null}
                                 </View>
                               );
                             })}
                             {segments.map(({ alloc, startIndex, span }) => {
                               const on = selectedId === alloc.id;
-                              const height = barHeight(draft?.id === alloc.id && draft.percent != null ? draft.percent : alloc.percent);
-                              const label = alloc.mode === 'hours'
-                                ? `${formatHours(alloc.hoursPerWeek)} t`
-                                : formatPercent(alloc.percent);
+                              const base = capacityBase(person, alloc.start);
+                              const pct = shareOfCapacity(alloc.hoursPerWeek, base);
+                              const tone = intensityOf(pct);
+                              const height = barHeight(pct);
                               return (
                                 <View
                                   key={alloc.id}
@@ -716,8 +840,9 @@ export default function ProductivityBoard({
                                     beginDrag(event, {
                                       mode: 'move',
                                       alloc,
+                                      person,
                                       employeeId: person.id,
-                                      percent: alloc.percent,
+                                      percent: pct,
                                     });
                                   }}
                                   style={[
@@ -726,13 +851,13 @@ export default function ProductivityBoard({
                                       left: startIndex * MATRIX_W + 3,
                                       width: span * MATRIX_W - 6,
                                       height,
-                                      backgroundColor: withAlpha(alloc.color, 'cc'),
+                                      backgroundColor: tone.color,
                                       borderStyle: alloc.source === 'dummy' ? 'dashed' : 'solid',
-                                      borderColor: on ? colors.ink : alloc.color,
+                                      borderColor: on ? '#0f172a' : tone.color,
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={1} style={styles.barText}>{label}</Text>
+                                  <Text numberOfLines={1} style={styles.barPct}>{formatPercent(pct)}</Text>
                                   <View
                                     style={styles.resize}
                                     onPointerDown={(event) => {
@@ -740,14 +865,69 @@ export default function ProductivityBoard({
                                       beginDrag(event, {
                                         mode: 'resize',
                                         alloc,
+                                        person,
                                         employeeId: person.id,
-                                        percent: alloc.percent,
+                                        percent: pct,
                                       });
                                     }}
                                   />
                                 </View>
                               );
                             })}
+                            {selectedSeg ? (
+                              <View
+                                nativeID="produktivitet-editor"
+                                onPointerDown={(event) => event?.stopPropagation?.()}
+                                style={[
+                                  styles.editor,
+                                  {
+                                    left: Math.max(0, Math.min(selectedSeg.startIndex * MATRIX_W, weeks.length * MATRIX_W - 300)),
+                                    top: selectedTop,
+                                    borderColor: colors.line,
+                                    backgroundColor: colors.card,
+                                  },
+                                ]}
+                              >
+                                <Text style={[styles.fieldLabel, { color: colors.muted }]}>Prosent</Text>
+                                <TextInput
+                                  value={percentDraft}
+                                  editable={canWrite}
+                                  onChangeText={(value) => {
+                                    setPercentDraft(value);
+                                    if (parseAmount(value) == null) return;
+                                    const base = capacityBase(person, selectedSeg.alloc.start);
+                                    const hours = sizeFromPercent(value, base).hoursPerWeek;
+                                    setHoursDraft(formatHours(hours));
+                                    patch(selectedSeg.alloc.id, { hoursPerWeek: hours });
+                                  }}
+                                  keyboardType="decimal-pad"
+                                  nativeID="produktivitet-percent"
+                                  style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
+                                />
+                                <Text style={[styles.fieldLabel, { color: colors.muted }]}>Timer/uke</Text>
+                                <TextInput
+                                  value={hoursDraft}
+                                  editable={canWrite}
+                                  onChangeText={(value) => {
+                                    setHoursDraft(value);
+                                    if (parseAmount(value) == null) return;
+                                    const base = capacityBase(person, selectedSeg.alloc.start);
+                                    const size = sizeFromHours(value, base);
+                                    setPercentDraft(String(size.percent).replace('.', ','));
+                                    patch(selectedSeg.alloc.id, { hoursPerWeek: size.hoursPerWeek });
+                                  }}
+                                  keyboardType="decimal-pad"
+                                  nativeID="produktivitet-hours"
+                                  style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
+                                />
+                                <Text style={[styles.rowMeta, { color: colors.muted }]}>{`av ${formatHours(capacityBase(person, selectedSeg.alloc.start))} t`}</Text>
+                                {canWrite ? (
+                                  <Pressable onPress={() => { commit(removeAllocation(plan, selectedSeg.alloc.id)); setSelectedId(''); }} style={styles.deleteBtn}>
+                                    <Text style={{ color: '#e11d48', fontWeight: '700' }}>Fjern</Text>
+                                  </Pressable>
+                                ) : null}
+                              </View>
+                            ) : null}
                             {painting ? (
                               <View
                                 pointerEvents="none"
@@ -807,62 +987,6 @@ export default function ProductivityBoard({
                       ))}
                   </View>
                 ) : null}
-
-                {selected && selected.employeeId === person.id ? (
-                  <View style={[styles.inspector, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-                    <TextInput
-                      value={nameDraft}
-                      editable={canWrite}
-                      onChangeText={setNameDraft}
-                      onEndEditing={() => patch(selected.id, { name: nameDraft })}
-                      style={[styles.nameInput, { color: colors.ink, borderColor: colors.line }]}
-                    />
-                    <View style={styles.inspectorRow}>
-                      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Prosent</Text>
-                      <TextInput
-                        value={percentDraft}
-                        editable={canWrite}
-                        onChangeText={setPercentDraft}
-                        onEndEditing={() => patch(selected.id, { percent: percentDraft })}
-                        keyboardType="decimal-pad"
-                        style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
-                      />
-                      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Timer/uke</Text>
-                      <TextInput
-                        value={hoursDraft}
-                        editable={canWrite}
-                        onChangeText={setHoursDraft}
-                        onEndEditing={() => patch(selected.id, { hoursPerWeek: hoursDraft })}
-                        keyboardType="decimal-pad"
-                        style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
-                      />
-                    </View>
-                    <View style={styles.inspectorRow}>
-                      <Pressable disabled={!canWrite} onPress={() => patch(selected.id, shiftFields(selected, -1, 'move'))} style={[styles.iconBtn, { borderColor: colors.line }]}>
-                        <Ionicons name="arrow-back" size={16} color={colors.ink} />
-                      </Pressable>
-                      <Pressable disabled={!canWrite} onPress={() => patch(selected.id, shiftFields(selected, 1, 'move'))} style={[styles.iconBtn, { borderColor: colors.line }]}>
-                        <Ionicons name="arrow-forward" size={16} color={colors.ink} />
-                      </Pressable>
-                      <Pressable disabled={!canWrite} onPress={() => patch(selected.id, { weeks: Math.max(1, selected.weeks - 1) })} style={[styles.iconBtn, { borderColor: colors.line }]}>
-                        <Text style={{ color: colors.ink, fontWeight: '700' }}>−1u</Text>
-                      </Pressable>
-                      <Text style={{ color: colors.ink, fontWeight: '600' }}>{`${selected.weeks} uker`}</Text>
-                      <Pressable disabled={!canWrite} onPress={() => patch(selected.id, { weeks: selected.weeks + 1 })} style={[styles.iconBtn, { borderColor: colors.line }]}>
-                        <Text style={{ color: colors.ink, fontWeight: '700' }}>+1u</Text>
-                      </Pressable>
-                      {canWrite ? (
-                        <Pressable onPress={() => { commit(removeAllocation(plan, selected.id)); setSelectedId(''); }} style={styles.deleteBtn}>
-                          <Ionicons name="trash-outline" size={16} color="#e11d48" />
-                          <Text style={{ color: '#e11d48', fontWeight: '600' }}>Fjern</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    <Text style={[styles.cardSub, { color: colors.muted }]}>
-                      {`${formatHours(selected.hoursPerWeek)} t i uken · ${formatPercent(selected.percent)} av full uke. Dra feltet sidelengs for å flytte, opp eller ned for belastning, høyre kant for varighet.`}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
             ) : null}
           </View>
@@ -884,14 +1008,22 @@ function shiftWeek(key, delta) {
   return `${dt.getFullYear()}-${month}-${day}`;
 }
 
-function shiftFields(alloc, delta, mode) {
-  const next = shiftPreview(alloc, delta, mode);
-  return mode === 'resize' ? { weeks: next.weeks } : { start: next.start };
+function editorTop(percent) {
+  return 14 + barHeight(percent) + 2;
 }
 
 function barHeight(percent) {
   const n = Math.max(0, Math.min(150, Number(percent) || 0));
-  return Math.max(16, Math.min(ROW_H - 8, Math.round((n / 100) * (ROW_H - 8))));
+  const room = ROW_H - 18;
+  return Math.max(8, Math.min(room, Math.round((n / 100) * room)));
+}
+
+function freeTone(free, capacity) {
+  if (!(capacity > 0) || free <= 0.05) return '#fecdd3';
+  const ratio = free / capacity;
+  if (ratio < 0.25) return '#fed7aa';
+  if (ratio < 0.6) return '#fde68a';
+  return '#bbf7d0';
 }
 
 function segmentsFor(row, allocs, weeks, todayKey) {
@@ -984,9 +1116,19 @@ const styles = StyleSheet.create({
   matrixRow: { flexDirection: 'row', height: ROW_H, position: 'relative' },
   matrixCell: { width: MATRIX_W, height: ROW_H, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3 },
   cellText: { fontSize: 11, fontWeight: '600' },
-  bar: { position: 'absolute', bottom: 4, borderRadius: 6, borderWidth: 1, justifyContent: 'center', paddingLeft: 6, paddingRight: 10, cursor: 'grab' },
+  bar: { position: 'absolute', top: 16, borderRadius: 5, borderWidth: 1, cursor: 'grab' },
   resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 10, cursor: 'ew-resize' },
+  barPct: { position: 'absolute', top: -15, left: 2, fontSize: 10, fontWeight: '800', color: '#1e3a8a' },
   barText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  pctAbove: { fontSize: 10, fontWeight: '800' },
+  actualBar: { position: 'absolute', left: 6, right: 6, bottom: 4, borderRadius: 4 },
+  absenceMark: { marginHorizontal: 3, marginVertical: 8, flex: 1, alignSelf: 'stretch', borderWidth: 2, borderStyle: 'dashed', borderColor: '#c2410c', borderRadius: 4, backgroundColor: '#ffedd5', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 1 },
+  absenceText: { color: '#9a3412', fontSize: 8, fontWeight: '800', textAlign: 'center' },
+  freeLane: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  freeCaption: { width: 52, paddingBottom: 8 },
+  freeRow: { flexDirection: 'row', height: 28 },
+  freeCell: { width: MATRIX_W, height: 28, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  editor: { position: 'absolute', width: 292, minHeight: EDITOR_H - 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, zIndex: 4 },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },

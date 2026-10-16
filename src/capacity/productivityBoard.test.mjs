@@ -183,6 +183,8 @@ const allKinds = withHooks(() => React.createElement(Board, {
 assert.match(collectText(allKinds).join('\n'), /Bo Ekstern/);
 assert.match(text, /Sammenslått/);
 assert.match(text, /80 % stilling/);
+assert.match(text, /Ledig/);
+assert.match(text, /U42/);
 
 const openTree = withHooks(() => React.createElement(Board, {
   colors,
@@ -197,6 +199,10 @@ const openTree = withHooks(() => React.createElement(Board, {
     { employeeId: 'a', projectId: 'p1', date: '2026-09-02', hours: 6.5 },
     { employeeId: 'a', projectId: 'old', date: '2026-04-02', hours: 8, projectName: 'Gammelt' },
   ],
+  absences: [
+    { employeeId: 'a', date: '2026-10-20', hours: 8, type: 'ferie' },
+    { employeeId: 'a', date: '2026-08-03', hours: 8, type: 'ferie' },
+  ],
   canWrite: true,
   onPlan: () => {},
   initialOpenId: 'a',
@@ -204,7 +210,10 @@ const openTree = withHooks(() => React.createElement(Board, {
 const openText = collectText(openTree).join('\n');
 assert.match(openText, /100 Alpha/);
 assert.match(openText, /6,5/);
-assert.match(openText, /påløpte timer/);
+assert.match(openText, /20 %/);
+assert.match(openText, /Ferie/);
+assert.match(openText, /Mørkere blå/);
+assert.doesNotMatch(openText, /2026-08-03/);
 assert.doesNotMatch(openText, /Bare medlem/);
 assert.doesNotMatch(openText, /Gammelt/);
 assert.doesNotMatch(openText, /Dra eller trykk/);

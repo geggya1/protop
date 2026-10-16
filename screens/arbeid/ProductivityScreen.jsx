@@ -7,7 +7,7 @@ import { capacityLoadMeta, loadCapacityPlan, saveCapacityPlan } from '../../src/
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { watchEmployees } from '../../src/employees/storage';
-import { loadProjectState } from '../../src/project/storage';
+import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import ProductivityBoard from './ProductivityBoard';
 
@@ -31,6 +31,7 @@ export default function ProductivityScreen() {
   const [members, setMembers] = useState([]);
   const [plan, setPlan] = useState(() => emptyPlan());
   const [timeEntries, setTimeEntries] = useState([]);
+  const [absences, setAbsences] = useState([]);
   const [dayHours, setDayHours] = useState(8);
   const [ready, setReady] = useState(false);
   const echo = useRef(true);
@@ -50,15 +51,25 @@ export default function ProductivityScreen() {
     setPlan(emptyPlan());
     const companyId = familyId;
     const hourFrom = addDays(planActivityFrom(new Date()), -7 * 16);
+    const absenceTo = addDays(toDateKey(new Date()), 7 * 60);
     Promise.all([
       loadProjectState(companyId, {
         hours: { fromDate: hourFrom, toDate: toDateKey(new Date()) },
-      }).catch(() => ({ projects: [], members: [], timeEntries: [] })),
+      }).catch(() => ({ projects: [], members: [], timeEntries: [] }))
+        .then((projectState) => ensureProjectAbsences(companyId, {
+          fromDate: hourFrom,
+          toDate: absenceTo,
+        }).then((withAbs) => ({
+          ...projectState,
+          timeEntries: withAbs?.timeEntries?.length ? withAbs.timeEntries : projectState?.timeEntries,
+          absences: withAbs?.absences || [],
+        })).catch(() => projectState)),
       loadCapacityPlan(companyId).catch(() => emptyPlan()),
     ]).then(([projectState, loadedPlan]) => {
       if (!live || familyRef.current !== companyId) return;
       setProjects(projectState?.projects || []);
       setTimeEntries(projectState?.timeEntries || []);
+      setAbsences(projectState?.absences || []);
       setDayHours(Number(projectState?.fullDayHours) > 0 ? Number(projectState.fullDayHours) : 8);
       setMembers(projectState?.members || []);
       echo.current = true;
@@ -122,6 +133,7 @@ export default function ProductivityScreen() {
           members={members}
           plan={plan}
           timeEntries={timeEntries}
+          absences={absences}
           fullDayHours={dayHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}

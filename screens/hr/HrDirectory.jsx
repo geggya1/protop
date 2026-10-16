@@ -5,10 +5,11 @@ import {
 import { directoryFacetCounts, filterHrDirectory } from '../../src/hr/directory';
 import { EmptyHint, HrChip } from './HrShared';
 
-export function useHrDirectory(employees) {
+export function useHrDirectory(employees, { lockedKind = '' } = {}) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('active');
-  const [kind, setKind] = useState('all');
+  const [kindChoice, setKind] = useState('all');
+  const kind = lockedKind || kindChoice;
   const counts = useMemo(
     () => directoryFacetCounts(employees, { status, kind }),
     [employees, status, kind],
@@ -23,7 +24,7 @@ export function useHrDirectory(employees) {
 }
 
 export function HrFilterBar({
-  colors, query, onQuery, status, onStatus, kind, onKind, counts,
+  colors, query, onQuery, status, onStatus, kind, onKind, counts, showKind = true,
 }) {
   return (
     <View style={styles.filters} nativeID="hr-filters">
@@ -47,18 +48,22 @@ export function HrFilterBar({
           active={status === 'inactive'}
           onPress={() => onStatus('inactive')}
         />
-        <HrChip
-          colors={colors}
-          label={`Intern · ${counts.internal}`}
-          active={kind === 'internal'}
-          onPress={() => onKind(kind === 'internal' ? 'all' : 'internal')}
-        />
-        <HrChip
-          colors={colors}
-          label={`Ekstern · ${counts.external}`}
-          active={kind === 'external'}
-          onPress={() => onKind(kind === 'external' ? 'all' : 'external')}
-        />
+        {showKind ? (
+          <HrChip
+            colors={colors}
+            label={`Intern · ${counts.internal}`}
+            active={kind === 'internal'}
+            onPress={() => onKind(kind === 'internal' ? 'all' : 'internal')}
+          />
+        ) : null}
+        {showKind ? (
+          <HrChip
+            colors={colors}
+            label={`Ekstern · ${counts.external}`}
+            active={kind === 'external'}
+            onPress={() => onKind(kind === 'external' ? 'all' : 'external')}
+          />
+        ) : null}
       </View>
     </View>
   );

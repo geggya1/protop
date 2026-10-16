@@ -2,7 +2,8 @@
  * HR-katalog: søk, intern/ekstern og aktiv/deaktivert.
  * Samlesider leser disse radene. Registrering skjer på den enkelte ansatte.
  */
-import { displayName, personnelKind } from '../employees/model.js';
+import { levelById, placedLevelId } from '../access/companyAccess.js';
+import { displayName, employeeDirectoryBucket, personnelKind } from '../employees/model.js';
 import { companyComplianceOverview } from './compliance.js';
 import {
   CONTRACT_STATUSES,
@@ -17,16 +18,45 @@ import {
 } from './model.js';
 import { summarizeProductivity } from './productivity.js';
 
+function employmentText(employee) {
+  return String(employee?.company?.employmentType || '').toLowerCase();
+}
+
+/**
+ * Intern er egne ansatte. Eksternt-gruppen i personalet (tilgangsnivå),
+ * innleid og ansettelsestype Ekstern/Innleid skal ikke ligge blant interne
+ * selv om lagret personelltype fortsatt sier staff.
+ */
 export function hrKindBucket(employee) {
   const kind = personnelKind(employee);
-  return kind === 'external' || kind === 'innleid' ? 'external' : 'internal';
+  if (kind === 'external' || kind === 'innleid') return 'external';
+  if (/innleid|innleie|ekstern/.test(employmentText(employee))) return 'external';
+  return employeeDirectoryBucket(employee) === 'external' ? 'external' : 'internal';
 }
 
 export function hrKindLabel(employee) {
   const kind = personnelKind(employee);
-  if (kind === 'innleid') return 'Innleid';
-  if (kind === 'external') return 'Ekstern';
+  const level = levelById(placedLevelId(employee));
+  if (kind === 'innleid' || level?.kind === 'innleid' || /innleid|innleie/.test(employmentText(employee))) {
+    return 'Innleid';
+  }
+  if (hrKindBucket(employee) === 'external') return 'Ekstern';
   return 'Intern';
+}
+
+/** Beholder rekkefølgen. Ukjent person telles som egen ansatt. */
+export function splitPeopleEventsByKind(events, employees) {
+  const kind = new Map();
+  for (const row of employees || []) {
+    if (row?.id) kind.set(row.id, hrKindBucket(row));
+  }
+  const internal = [];
+  const external = [];
+  for (const event of events || []) {
+    if (kind.get(event.employeeId) === 'external') external.push(event);
+    else internal.push(event);
+  }
+  return { internal, external };
 }
 
 export function filterHrDirectory(employees, {
@@ -87,6 +117,9 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
     checklistPct: overview ? `${overview.pct} %` : '—',
     checklistOk: overview?.ok ?? 0,
     checklistMissing: overview?.missing ?? 0,
+    checklistGaps: overview?.gaps?.length
+      ? overview.gaps.join(' · ')
+      : 'Ingen påkrevde mangler',
     contract: contract
       ? (contract.aml?.pct != null ? `AML ${contract.aml.pct} %` : 'Registrert')
       : 'Mangler',

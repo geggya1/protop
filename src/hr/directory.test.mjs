@@ -7,6 +7,7 @@ import {
   hrControlCells,
   hrKindBucket,
   hrKindLabel,
+  splitPeopleEventsByKind,
 } from './directory.js';
 
 function person(id, {
@@ -39,6 +40,32 @@ function person(id, {
   assert.equal(hrKindLabel(rows[2]), 'Innleid');
   assert.equal(hrKindLabel(rows[0]), 'Intern');
 
+  const regnskap = person('r', { first: 'Ron', kind: 'staff' });
+  regnskap.company.accessLevel = 'regnskap_ekstern';
+  const andre = person('o', { first: 'Oda', kind: 'staff' });
+  andre.company.accessLevel = 'ansatt_andre_avdelinger';
+  const innleie = person('i', { first: 'Ivar', kind: 'staff' });
+  innleie.company.accessLevel = 'innleie_ekstern';
+  const typed = person('t', { first: 'Tina', kind: 'staff' });
+  typed.company.employmentType = 'Ekstern';
+  const mixed = person('mix', { first: 'Mia', kind: 'staff' });
+  mixed.company.accessLevel = 'tilbud';
+  mixed.company.accessLevels = ['ansatt', 'tilbud', 'regnskap_ekstern'];
+  assert.equal(hrKindBucket(regnskap), 'external');
+  assert.equal(hrKindLabel(regnskap), 'Ekstern');
+  assert.equal(hrKindBucket(andre), 'external');
+  assert.equal(hrKindLabel(andre), 'Ekstern');
+  assert.equal(hrKindBucket(innleie), 'external');
+  assert.equal(hrKindLabel(innleie), 'Innleid');
+  assert.equal(hrKindBucket(typed), 'external');
+  assert.equal(hrKindBucket(mixed), 'internal');
+  assert.equal(hrKindLabel(mixed), 'Intern');
+  const onlyInternal = filterHrDirectory(
+    [rows[0], regnskap, andre, innleie, typed, mixed],
+    { status: 'active', kind: 'internal' },
+  );
+  assert.deepEqual(onlyInternal.map((row) => row.id), ['mix', 'a']);
+
   const active = filterHrDirectory(rows, { status: 'active', kind: 'all' });
   assert.deepEqual(active.map((row) => row.id).sort(), ['a', 'b', 'e']);
   assert.deepEqual(active.map((row) => row.id), ['b', 'e', 'a']);
@@ -62,6 +89,22 @@ function person(id, {
   assert.equal(counts.inactive, 1);
   assert.equal(counts.external, 1);
   assert.equal(counts.internal, 2);
+}
+
+{
+  const events = [
+    { employeeId: 'ext', name: 'Bo', days: 1 },
+    { employeeId: 'staff', name: 'Ada', days: 4 },
+    { employeeId: 'inn', name: 'Celine', days: 2 },
+    { employeeId: 'missing', name: 'Ukjent', days: 3 },
+  ];
+  const split = splitPeopleEventsByKind(events, [
+    person('staff', { kind: 'staff' }),
+    person('ext', { kind: 'external' }),
+    person('inn', { kind: 'innleid' }),
+  ]);
+  assert.deepEqual(split.internal.map((row) => row.name), ['Ada', 'Ukjent']);
+  assert.deepEqual(split.external.map((row) => row.name), ['Bo', 'Celine']);
 }
 
 {
@@ -113,6 +156,9 @@ function person(id, {
   assert.equal(cells.openCases, '1');
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
+  assert.equal(cells.checklistOk, 3);
+  assert.match(cells.checklistGaps, /HMS-introduksjon/);
+  assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 }
 
 {
@@ -122,6 +168,7 @@ function person(id, {
   assert.equal(cells.salary, 'Mangler');
   assert.equal(cells.utilization, '—');
   assert.equal(cells.checklistMissing > 0, true);
+  assert.match(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 }
 
 {

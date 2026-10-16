@@ -12,9 +12,30 @@ export function isQuotaError(err) {
   const message = String(err?.message || '');
   return name === 'QuotaExceededError'
     || name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || name === 'SecurityError'
     || err?.code === 22
     || err?.code === 1014
-    || /quota/i.test(message);
+    || /quota/i.test(message)
+    || /operation is insecure/i.test(message);
+}
+
+/**
+ * Nettleseren er en cache. Når den er full eller stengt, er skyen nok
+ * så lenge bedriften er kjent. Feilen kastes bare når ingen av dem tar imot.
+ */
+export async function saveWhereItFits({ companyId, writeLocal, writeRemote }) {
+  try {
+    await writeLocal();
+    return 'local';
+  } catch (localError) {
+    if (!String(companyId || '').trim()) throw localError;
+    try {
+      await writeRemote();
+      return 'remote';
+    } catch {
+      throw localError;
+    }
+  }
 }
 
 async function putPayload(storage, companyId, key, payload) {

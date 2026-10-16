@@ -1,5 +1,6 @@
 /**
  * Godkjenninger: lås uten førte timer skal ikke stå under «Låst til kontroll».
+ * På smal skjerm bytter en bryter mellom «Låst til kontroll» og «Ikke låst».
  */
 const fs = require('fs');
 const path = require('path');
@@ -20,6 +21,8 @@ function host(name) {
   };
 }
 
+let viewport = { width: 1200, height: 800 };
+
 const rnMock = {
   View: host('View'),
   Text: host('Text'),
@@ -28,7 +31,7 @@ const rnMock = {
   Pressable: host('Pressable'),
   TextInput: host('TextInput'),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
-  useWindowDimensions: () => ({ width: 1200, height: 800 }),
+  useWindowDimensions: () => viewport,
 };
 
 function loadJsx(rel) {
@@ -55,10 +58,18 @@ function loadJsx(rel) {
   return m.exports;
 }
 
+const hookState = [];
+let hookCursor = 0;
+
 const dispatcher = {
   useState(initial) {
-    const value = typeof initial === 'function' ? initial() : initial;
-    return [value, () => {}];
+    const index = hookCursor++;
+    if (hookState[index] === undefined) {
+      hookState[index] = typeof initial === 'function' ? initial() : initial;
+    }
+    return [hookState[index], (next) => {
+      hookState[index] = typeof next === 'function' ? next(hookState[index]) : next;
+    }];
   },
   useMemo(fn) { return fn(); },
   useEffect() {},
@@ -67,6 +78,11 @@ const dispatcher = {
   useCallback(fn) { return fn; },
   useContext() { return undefined; },
 };
+
+function resetHooks() {
+  hookState.length = 0;
+  hookCursor = 0;
+}
 
 function withHooks(fn) {
   const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
@@ -80,6 +96,7 @@ function withHooks(fn) {
 }
 
 function collectText(node, depth = 0, out = []) {
+  if (depth === 0) hookCursor = 0;
   if (depth > 30 || node == null || typeof node === 'boolean') return out;
   if (Array.isArray(node)) {
     node.forEach((child) => collectText(child, depth, out));
@@ -124,18 +141,82 @@ function aina(hours) {
   };
 }
 
+function collectHosts(node, depth = 0, out = []) {
+  if (depth === 0) hookCursor = 0;
+  if (depth > 30 || node == null || typeof node === 'boolean') return out;
+  if (Array.isArray(node)) {
+    node.forEach((child) => collectHosts(child, depth, out));
+    return out;
+  }
+  if (!React.isValidElement(node)) return out;
+  if (typeof node.type === 'function') {
+    collectHosts(withHooks(() => node.type(node.props || {})), depth + 1, out);
+    return out;
+  }
+  out.push(node);
+  collectHosts(node.props && node.props.children, depth + 1, out);
+  return out;
+}
+
+function renderText(props) {
+  return collectText(React.createElement(ApprovalsBody, props)).join('\n');
+}
+
+function press(props, nativeID) {
+  const node = collectHosts(React.createElement(ApprovalsBody, props))
+    .find((el) => el.props && el.props.nativeID === nativeID);
+  assert.ok(node, nativeID);
+  node.props.onPress();
+}
+
 {
-  const empty = collectText(React.createElement(ApprovalsBody, { workspace: aina(0), colors })).join('\n');
+  viewport = { width: 1200, height: 800 };
+  resetHooks();
+  const empty = renderText({ workspace: aina(0), colors });
   assert.match(empty, /Ingen timer å kontrollere/);
+  assert.match(empty, /Hvor lenge siden listen ble låst sist/);
+  assert.match(empty, /Låst til kontroll/);
+  assert.match(empty, /Ikke låst/);
+  assert.equal(collectHosts(React.createElement(ApprovalsBody, { workspace: aina(0), colors }))
+    .some((el) => el.props && el.props.nativeID === 'godkjenning-visning'), false);
   assert.doesNotMatch(empty, /Aina Helen Jespersen/);
   assert.equal(empty.split('\n').includes('Kontroller'), false);
 }
 
 {
-  const filled = collectText(React.createElement(ApprovalsBody, { workspace: aina(6), colors })).join('\n');
+  viewport = { width: 1200, height: 800 };
+  resetHooks();
+  const filled = renderText({ workspace: aina(6), colors });
   assert.match(filled, /Aina Helen Jespersen/);
   assert.equal(filled.split('\n').includes('Kontroller'), true);
   assert.match(filled, /\n6\n|6/);
+}
+
+{
+  viewport = { width: 390, height: 844 };
+  resetHooks();
+  const props = { workspace: aina(6), colors };
+  const locked = renderText(props);
+  const lockedHosts = collectHosts(React.createElement(ApprovalsBody, props));
+  assert.equal(lockedHosts.some((el) => el.props && el.props.nativeID === 'godkjenning-visning'), true);
+  assert.equal(lockedHosts.some((el) => el.props && el.props.nativeID === 'godkjenning-laste'), true);
+  assert.equal(lockedHosts.some((el) => el.props && el.props.nativeID === 'godkjenning-ulaste'), false);
+  assert.match(locked, /Låste timer\. Kontroller før du godkjenner til fakturering/);
+  assert.match(locked, /Aina Helen Jespersen/);
+  assert.doesNotMatch(locked, /Hvor lenge siden listen ble låst sist/);
+
+  press(props, 'godkjenning-vis-ulast');
+  const unlocked = renderText(props);
+  const unlockedHosts = collectHosts(React.createElement(ApprovalsBody, props));
+  assert.match(unlocked, /Hvor lenge siden listen ble låst sist/);
+  assert.doesNotMatch(unlocked, /Låste timer\. Kontroller før du godkjenner til fakturering/);
+  assert.equal(unlockedHosts.some((el) => el.props && el.props.nativeID === 'godkjenning-ulaste'), true);
+  assert.equal(unlockedHosts.some((el) => el.props && el.props.nativeID === 'godkjenning-laste'), false);
+
+  press(props, 'godkjenning-vis-last');
+  const back = renderText(props);
+  assert.match(back, /Låste timer\. Kontroller før du godkjenner til fakturering/);
+  assert.doesNotMatch(back, /Hvor lenge siden listen ble låst sist/);
 }
 
 console.log('approvalsQueueRender.test.cjs: ok');

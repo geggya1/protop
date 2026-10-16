@@ -54,6 +54,7 @@ export function ApprovalsBody({
   const [drafts, setDrafts] = useState({});
   const [aiFindings, setAiFindings] = useState([]);
   const [aiNote, setAiNote] = useState('');
+  const [queue, setQueue] = useState('locked');
 
   const people = useMemo(() => {
     const active = filterEmployeesForPicker(workspace.employees, '')
@@ -256,9 +257,50 @@ export function ApprovalsBody({
         Låste lister kontrolleres før godkjenning. Timene er klare for fakturering først når de er godkjent.
       </Text>
       {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
+      {!wide ? (
+        <View
+          style={[styles.switchTrack, { borderColor: colors.line, backgroundColor: colors.sunken || '#f4f6f9' }]}
+          accessibilityRole="tablist"
+          accessibilityLabel="Velg timelister"
+          nativeID="godkjenning-visning"
+        >
+          {[
+            { id: 'locked', label: 'Låst til kontroll', nativeID: 'godkjenning-vis-last' },
+            { id: 'unlocked', label: 'Ikke låst', nativeID: 'godkjenning-vis-ulast' },
+          ].map((item) => {
+            const on = queue === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => setQueue(item.id)}
+                nativeID={item.nativeID}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                style={[
+                  styles.switchSeg,
+                  on && styles.switchSegOn,
+                  on && { backgroundColor: colors.card },
+                ]}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.switchLabel,
+                    { color: on ? colors.ink : colors.muted },
+                    on && styles.switchLabelOn,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
       <View style={[styles.split, wide ? styles.splitWide : null]}>
-        <View style={styles.pane} nativeID="godkjenning-laste">
-          <Text style={[styles.paneTitle, { color: colors.ink }]}>Låst til kontroll</Text>
+        {wide || queue === 'locked' ? (
+        <View style={[styles.pane, wide && styles.paneWide]} nativeID="godkjenning-laste">
+          {wide ? <Text style={[styles.paneTitle, { color: colors.ink }]}>Låst til kontroll</Text> : null}
           <Text style={{ color: colors.muted }}>Låste timer. Kontroller før du godkjenner til fakturering.</Text>
           <View style={[styles.tableHead, { borderColor: colors.line }]}>
             <Text style={[styles.colName, { color: colors.muted }]}>Ansatt</Text>
@@ -290,8 +332,10 @@ export function ApprovalsBody({
           })}
           {!lockedRows.length ? <Text style={{ color: colors.muted, padding: 8 }}>Ingen timer å kontrollere.</Text> : null}
         </View>
-        <View style={styles.pane} nativeID="godkjenning-ulaste">
-          <Text style={[styles.paneTitle, { color: colors.ink }]}>Ikke låst</Text>
+        ) : null}
+        {wide || queue === 'unlocked' ? (
+        <View style={[styles.pane, wide && styles.paneWide]} nativeID="godkjenning-ulaste">
+          {wide ? <Text style={[styles.paneTitle, { color: colors.ink }]}>Ikke låst</Text> : null}
           <Text style={{ color: colors.muted }}>Hvor lenge siden listen ble låst sist.</Text>
           <View style={[styles.tableHead, { borderColor: colors.line }]}>
             <Text style={[styles.colName, { color: colors.muted }]}>Ansatt</Text>
@@ -307,6 +351,7 @@ export function ApprovalsBody({
           ))}
           {!queues.unlocked.length ? <Text style={{ color: colors.muted, padding: 8 }}>Alle aktive har låst timelisten.</Text> : null}
         </View>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -318,7 +363,36 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700' },
   split: { gap: 16 },
   splitWide: { flexDirection: 'row', alignItems: 'flex-start' },
-  pane: { flex: 1, minWidth: 280, gap: 8 },
+  pane: { gap: 8, minWidth: 0, alignSelf: 'stretch' },
+  paneWide: { flex: 1, minWidth: 280 },
+  switchTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 3,
+    gap: 2,
+  },
+  switchSeg: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  switchSegOn: {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  switchLabel: { fontSize: 13, fontWeight: '500' },
+  switchLabelOn: { fontWeight: '600' },
   paneTitle: { fontSize: 16, fontWeight: '700' },
   tableHead: { flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 6 },
   tableRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 10 },

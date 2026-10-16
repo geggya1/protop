@@ -94,6 +94,33 @@ assert.equal(fitted.customers[0].name, 'Lyse Neo AS');
 assert.equal(fitted.customers[0].email, 'post@lyse.no');
 assert.ok(fitted.notices.length < fat.notices.length);
 
+const manyCustomers = Array.from({ length: 2500 }, (_, index) => ({
+  id: `kunde_${index}`,
+  name: `Kunde ${index} AS`,
+  kind: 'org',
+  orgnr: String(100000000 + index).slice(0, 9),
+  email: `post${index}@example.com`,
+  notes: 'N'.repeat(200),
+  customerNumber: String(index + 1),
+}));
+const overBudget = fitAnbudState({
+  watch: { companyName: 'CONSULT1 AS', savedAt: '2026-10-16T06:32:00.000Z', nationwide: true },
+  notices: Array.from({ length: 30 }, (_, index) => ({
+    id: `n-${index}`,
+    title: `Aktuell ${index}`,
+    decision: 'aktuell',
+    description: 'A'.repeat(4000),
+    dossier: { description: 'B'.repeat(8000) },
+  })),
+  customers: manyCustomers,
+}, 80_000);
+const overSize = new TextEncoder().encode(JSON.stringify(overBudget)).length;
+assert.ok(overSize <= 80_000, `forventet maks 80000, fikk ${overSize}`);
+assert.equal(overBudget.watch.companyName, 'CONSULT1 AS');
+assert.equal(overBudget.notices.length, 30);
+assert.ok(overBudget.customers.length > 0);
+assert.ok(overBudget.customers.length < manyCustomers.length);
+
 const fast = pickCustomerList({
   cached: [{ ...lyse, email: '' }],
   registryCustomers: [lyse],

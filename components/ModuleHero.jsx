@@ -107,7 +107,7 @@ export default function ModuleHero({
         >
           <Image
             source={imgSource}
-            style={styles.artFit}
+            style={[styles.artFit, isPhone && styles.artFitPhone]}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
             onLoad={(event) => {
@@ -165,8 +165,9 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 4,
   },
+  /* Phone chrome shares the flush right edge. The add button overlays the picture. */
   artWrapPhoneChrome: {
-    marginRight: 44,
+    marginRight: 0,
   },
   heroDesk: {
     marginBottom: 12,
@@ -267,9 +268,11 @@ const styles = StyleSheet.create({
   artWrapTablet: {
     maxWidth: '50%',
   },
-  /* Phone heading stays short. A wide picture shrinks so the title still fits. */
+  /* Phone heading stays short. The picture sits on the right margin of every page. */
   artWrapPhone: {
     maxWidth: '54%',
+    marginRight: 0,
+    alignItems: 'flex-end',
   },
   artFit: {
     width: '100%',
@@ -279,5 +282,9 @@ const styles = StyleSheet.create({
       objectFit: 'contain',
       objectPosition: 'center center',
     } : null),
+  },
+  artFitPhone: {
+    alignSelf: 'flex-end',
+    ...(Platform.OS === 'web' ? { objectPosition: 'right center' } : null),
   },
 });

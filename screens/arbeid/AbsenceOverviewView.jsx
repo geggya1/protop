@@ -313,8 +313,10 @@ export function AbsenceOverviewView({
 
   const body = (
     <View style={[styles.frame, wide && styles.frameWide]}>
+      {embedded ? null : (
+      <>
       <View style={styles.companyRow}>
-        {onBack && !embedded ? (
+        {onBack ? (
           <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel="Tilbake til ansatt" style={styles.backBtn}>
             <Ionicons name="chevron-back" size={18} color={ui.ink} />
           </TouchableOpacity>
@@ -336,6 +338,8 @@ export function AbsenceOverviewView({
           onPick={(id) => { setMenu(''); onSelectCompany?.(id); }}
         />
       ) : null}
+      </>
+      )}
 
       {hostedHero || embedded ? null : (
       <View style={[styles.heroBlock, wide && styles.heroBlockWide]}>

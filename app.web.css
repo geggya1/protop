@@ -87,6 +87,14 @@ button, input, select, textarea { font-family: var(--app-font); }
 }
 button, [role="button"] { cursor: pointer; }
 
+/* Aktivt skilleark på en person skal synes selv om bedriftssiden tvinger vanlig vekt. */
+#employee-detail-tabs [data-employee-tab="active"],
+#employee-detail-tabs [data-employee-tab="active"] * {
+  color: var(--wp-c-brand) !important;
+  font-weight: 600 !important;
+  font-variation-settings: 'wght' 600 !important;
+}
+
 /*
  * iOS Safari zoomer automatisk inn når <input>/<textarea> har font-size < 16px.
  * RN Web setter fontSize via inline style, så vi må bruke !important.

@@ -84,7 +84,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
+    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -92,10 +92,11 @@ function idsIn(sections) {
   const selskapKids = companyItems.find((i) => i.id === 'selskap').children;
   assert.deepEqual(
     selskapKids.map((i) => i.label),
-    ['Underenheter', 'Ansatte', 'HR', 'Fravær'],
+    ['Underenheter', 'Ansatte', 'Fravær'],
   );
-  assert.equal(selskapKids.find((i) => i.id === 'hr').action.tab, 'hr');
-  assert.equal(selskapKids.find((i) => i.id === 'hr').children.length, 8);
+  const hr = companyItems.find((i) => i.id === 'hr');
+  assert.equal(hr.action.tab, 'hr');
+  assert.equal(hr.children.length, 8);
   assert.equal(selskapKids[0].action.subView, 'underenheter');
   assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.deepEqual(

@@ -527,6 +527,8 @@ export default function EconomyInvoices({
   projects = [],
   onOpenCustomer,
   onOpenProject,
+  openInvoiceId = '',
+  onConsumeIntent,
   storage = null,
   supplier = {},
   isAdmin = false,
@@ -571,6 +573,15 @@ export default function EconomyInvoices({
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(80);
   const hiddenIds = useRef(new Set());
+
+  useEffect(() => {
+    const id = String(openInvoiceId || '').trim();
+    if (!id) return;
+    setSelectedId(id);
+    setView('detail');
+    setError('');
+    onConsumeIntent?.();
+  }, [openInvoiceId, onConsumeIntent]);
 
   useEffect(() => {
     const stop = watchInvoices(familyId, (rows) => {

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { newId, setEmployeePath } from '../../src/employees/model';
+import { newId, personnelKind, setEmployeePath } from '../../src/employees/model';
 import {
   SCHEDULE_DAYS,
   departureOf,
@@ -26,10 +26,12 @@ const CHECKS = [
   { key: 'canLogin', label: 'Kan logge inn', path: 'company' },
   { key: 'activeEmployment', label: 'Har et aktivt arbeidsforhold' },
   { key: 'showFlexInTimesheet', label: 'Vis mertid i timelisten' },
-  { key: 'includeInCapacity', label: 'Inkluder i selskapets kapasitetsoversikt' },
-  { key: 'externalConsultant', label: 'Er ekstern konsulent' },
-  { key: 'mustLockTimesheet', label: 'Skal låse timelisten' },
-  { key: 'requireClockTimes', label: 'Skal spesifisere kom- og gå-tid' },
+  // Kapasitet og ekstern følger personelltypen under rettigheter.
+  { key: 'includeInCapacity', label: 'Inkluder i selskapets kapasitetsoversikt', locked: 'kind' },
+  { key: 'externalConsultant', label: 'Er ekstern konsulent', locked: 'kind' },
+  // Lås og kom/gå-tid settes ikke her for eksternt personell.
+  { key: 'mustLockTimesheet', label: 'Skal låse timelisten', locked: 'external' },
+  { key: 'requireClockTimes', label: 'Skal spesifisere kom- og gå-tid', locked: 'external' },
   { key: 'flexCountsAsPay', label: 'Mertid teller i lønn' },
 ];
 
@@ -88,8 +90,15 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
     return next;
   }
 
+  function rowLocked(row, kind) {
+    if (!canEdit) return true;
+    if (row.locked === 'kind') return true;
+    return row.locked === 'external' && kind === 'external';
+  }
+
   async function toggle(key) {
-    if (!canEdit) return;
+    const row = CHECKS.find((item) => item.key === key);
+    if (row ? rowLocked(row, personnelKind(employee)) : !canEdit) return;
     if (key === 'canLogin') {
       await onSave?.(setEmployeePath(employee, 'company.canLogin', employee?.company?.canLogin === false));
       return;
@@ -134,9 +143,12 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
     setNote('Medarbeiderkontoen er avsluttet.');
   }
 
+  const kind = personnelKind(employee);
   const flags = {
     ...settings,
     canLogin: employee?.company?.canLogin !== false,
+    includeInCapacity: kind === 'staff',
+    externalConsultant: kind === 'external',
   };
 
   return (
@@ -156,15 +168,31 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
         <View style={styles.checks}>
           {CHECKS.map((row) => {
             const on = !!flags[row.key];
-            return (
-              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-                <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent' }]}>
-                  {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}
+            const locked = rowLocked(row, kind);
+            const box = (
+              <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: locked ? 0.45 : 1 }]}>
+                {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}
+              </View>
+            );
+            const label = <Text style={{ color: locked ? colors.muted : colors.ink, flex: 1 }}>{row.label}</Text>;
+            if (locked) {
+              return (
+                <View key={row.key} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: true }}>
+                  {box}
+                  {label}
                 </View>
-                <Text style={{ color: colors.ink }}>{row.label}</Text>
+              );
+            }
+            return (
+              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: false }}>
+                {box}
+                {label}
               </TouchableOpacity>
             );
           })}
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Eksternt personell og kapasitetsoversikten styres under rettigheter.
+          </Text>
           <Text style={{ color: colors.muted, marginTop: 8 }}>Mål for faktureringsgrad</Text>
           <View style={styles.row}>
             <TextInput value={target} onChangeText={setTarget} editable={canEdit} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} accessibilityLabel="Faktureringsgrad" />

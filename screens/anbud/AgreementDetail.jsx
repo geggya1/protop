@@ -37,7 +37,7 @@ import {
 } from '../../src/anbud/customers';
 import { indexLabel } from '../../src/anbud/fieldReview';
 import { formatNumberId } from '../../src/anbud/numbering';
-import { documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
+import { documentHasOriginalFile, documentIsOpenable } from '../../src/anbud/openDocument';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
@@ -46,7 +46,7 @@ import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
 import AgreementAssigneesField from './AgreementAssigneesField';
 import AgreementCustomerField from './AgreementCustomerField';
-import AgreementDocumentPreview from './AgreementDocumentPreview';
+import AgreementDocumentPreview, { AgreementOriginalLink } from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
 import AgreementProjectField from './AgreementProjectField';
 
@@ -1112,6 +1112,7 @@ export default function AgreementDetail({
           selectedId={previewId}
           onSelect={setPreviewId}
           minHeight={splitPreview ? 560 : 360}
+          onUploadOriginal={(doc) => attachOriginal(doc)}
         />
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
@@ -1136,9 +1137,7 @@ export default function AgreementDetail({
                     </Text>
                   </TouchableOpacity>
                   {documentIsOpenable(doc) ? (
-                    <TouchableOpacity onPress={() => openAgreementDocument(doc)} accessibilityRole="button">
-                      <Text style={{ color: colors.brand }}>Åpne</Text>
-                    </TouchableOpacity>
+                    <AgreementOriginalLink doc={doc} colors={colors} label="Åpne" />
                   ) : null}
                   {!documentHasOriginalFile(doc) ? (
                     <TouchableOpacity onPress={() => attachOriginal(doc)} accessibilityRole="button" disabled={!!docBusyId}>

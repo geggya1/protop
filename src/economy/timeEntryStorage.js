@@ -34,6 +34,27 @@ async function firestoreBits() {
   return { collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db };
 }
 
+/**
+ * Datovindu. Ved manglende sammensatt indeks: hent bare den ansatte og filtrer
+ * lokalt. Hele selskapets timehistorikk lastes ikke som reserve.
+ */
+function missingQueryIndex(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  return code.includes('failed-precondition') || /index/i.test(message);
+}
+
+async function loadWindowEntries(bits, companyId, range) {
+  try {
+    return await queryTimeEntries(bits, companyId, range);
+  } catch (error) {
+    const emp = text(range.employeeId);
+    if (!missingQueryIndex(error) || !emp || !(text(range.fromDate) || text(range.toDate))) throw error;
+    const byEmployee = await queryTimeEntries(bits, companyId, { employeeId: emp });
+    return filterTimeEntriesByRange(byEmployee, range);
+  }
+}
+
 function entryRef(bits, companyId, entryId) {
   return bits.doc(bits.db, 'families', companyId, 'timeEntries', entryId);
 }
@@ -113,6 +134,8 @@ async function writeLocalWindow(companyId, rows, opts = {}) {
     return;
   }
   const list = (Array.isArray(rows) ? rows : []).map(toCacheRow).filter(Boolean);
+  // Samme tak som full-cachen — en kjempestor JSON-skriving låser tråden.
+  if (list.length > 4000) return;
   try {
     await AsyncStorage.setItem(
       windowKey(companyId, fromDate, toDate, employeeId),
@@ -121,6 +144,21 @@ async function writeLocalWindow(companyId, rows, opts = {}) {
   } catch {
     // best-effort
   }
+}
+
+/** Lokal vinduscache, uten nett. Brukes til å tegne timelisten før Firestore svarer. */
+export async function readCachedTimeEntries(companyId, opts = {}) {
+  if (!companyId) return [];
+  await hydrateDeletedTimeEntries(companyId);
+  const range = {
+    fromDate: text(opts.fromDate),
+    toDate: text(opts.toDate),
+    employeeId: text(opts.employeeId),
+  };
+  const exact = await readLocalWindow(companyId, range);
+  if (exact.length || !range.employeeId) return withoutDeletedTimeEntries(companyId, exact);
+  const wider = await readLocalWindow(companyId, { fromDate: range.fromDate, toDate: range.toDate });
+  return withoutDeletedTimeEntries(companyId, filterTimeEntriesByRange(wider, range));
 }
 
 function mergeEntryLists(...lists) {
@@ -188,16 +226,12 @@ export async function loadTimeEntries(companyId, opts = {}) {
       return finishLoadedEntries(companyId, rows, (clean) => writeLocal(companyId, clean));
     }
     try {
-      const rows = await queryTimeEntries(bits, companyId, range);
+      const rows = await loadWindowEntries(bits, companyId, range);
       return finishLoadedEntries(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
     } catch {
-      // Mangler indeks / eldre data: last alt og filtrer (siste utvei).
-      const snap = await bits.getDocs(entriesCol(bits, companyId));
-      const rows = filterTimeEntriesByRange(
-        snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean),
-        range,
-      );
-      return finishLoadedEntries(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
+      // Ikke last hele samlingen når vindus-spørringen feiler — det låser appen.
+      const cached = await readLocalWindow(companyId, range);
+      return withoutDeletedTimeEntries(companyId, cached);
     }
   } catch {
     const cached = all ? await readLocal(companyId) : await readLocalWindow(companyId, range);
@@ -346,11 +380,8 @@ export async function attachTimeEntriesToState(companyId, state, opts = {}) {
   const missing = legacyRowsToMigrate(legacyInRange, remoteIds, deletedTimeEntryIds(companyId));
 
   if (missing.length) {
-    try {
-      await saveTimeEntries(companyId, missing);
-    } catch {
-      // Lesing kan fungere lokalt selv om migrering feiler midlertidig.
-    }
+    // Migrering skal ikke holde timelisten stengt.
+    saveTimeEntries(companyId, missing).catch(() => {});
   }
 
   const withAlias = await appendAliasTimeEntries(companyId, merged, opts);
@@ -365,17 +396,18 @@ export async function appendAliasTimeEntries(companyId, rows = [], opts = {}) {
   const tagged = (Array.isArray(rows) ? rows : []).map((row) => (
     row?.sourceCompanyId ? row : { ...row, sourceCompanyId: companyId }
   ));
-  let merged = tagged;
-  for (const aliasId of aliasSourceIds(companyId)) {
+  const aliasIds = aliasSourceIds(companyId);
+  if (!aliasIds.length) return tagged;
+  const extras = await Promise.all(aliasIds.map(async (aliasId) => {
     try {
       const extra = await loadTimeEntries(aliasId, opts);
-      const marked = (extra || []).map((row) => ({ ...row, sourceCompanyId: row.sourceCompanyId || aliasId }));
-      merged = mergeEntryLists(merged, marked);
+      return (extra || []).map((row) => ({ ...row, sourceCompanyId: row.sourceCompanyId || aliasId }));
     } catch {
       // Alias som ikke kan leses skal ikke tømme hovedlisten.
+      return [];
     }
-  }
-  return merged;
+  }));
+  return extras.reduce((merged, marked) => mergeEntryLists(merged, marked), tagged);
 }
 
 /** Diff mot forrige liste — nye/endrede og slettede id-er. */
@@ -532,7 +564,12 @@ async function finishLoadedEntries(companyId, rows, writeCache) {
   const revived = (Array.isArray(rows) ? rows : []).filter((row) => (
     row?.id && deletedTimeEntryIds(companyId).has(row.id)
   ));
-  await writeCache?.(clean);
+  try {
+    const write = writeCache?.(clean);
+    if (write && typeof write.catch === 'function') write.catch(() => {});
+  } catch {
+    // Cache er best-effort. Timene skal vises selv om disken er treg.
+  }
   for (const row of revived) {
     removeTimeEntry(companyId, row.id).catch(() => {});
   }

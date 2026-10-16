@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { useApp } from '../../src/context/AppContext';
@@ -477,6 +477,13 @@ function reportColumnStyle(column) {
   return { width: column.width, flexGrow: 0, flexShrink: 0 };
 }
 
+function columnsAreDefault(keys) {
+  const current = keys?.length ? keys : DEFAULT_ABSENCE_REPORT_COLUMNS;
+  if (current.length !== DEFAULT_ABSENCE_REPORT_COLUMNS.length) return false;
+  const visible = new Set(current);
+  return DEFAULT_ABSENCE_REPORT_COLUMNS.every((key) => visible.has(key));
+}
+
 function toggleReportColumn(keys, key) {
   const current = keys?.length ? keys : DEFAULT_ABSENCE_REPORT_COLUMNS;
   if (current.includes(key)) {
@@ -533,6 +540,8 @@ export function AbsenceReportDesktop({
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_ABSENCE_REPORT_COLUMNS);
   const [pageSize, setPageSize] = useState(PAGE_STEP);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const employeesById = useMemo(() => {
     const map = new Map();
@@ -698,8 +707,28 @@ export function AbsenceReportDesktop({
         : employeeOptions.filter((row) => row.id === (lockedEmployeeId || employeeId))}
       counts={totals}
       onReset={resetFilters}
+      onClose={() => setFilterOpen(false)}
     />
   );
+
+  const filtersActive = Boolean(
+    String(query || '').trim()
+    || period !== 'all'
+    || category
+    || status
+    || sort !== 'date-desc'
+    || (canChooseEmployee && employeeId)
+    || !columnsAreDefault(visibleColumns)
+  );
+  const activeFilterCount = [
+    String(query || '').trim(),
+    period !== 'all',
+    category,
+    status,
+    sort !== 'date-desc',
+    canChooseEmployee && employeeId,
+    !columnsAreDefault(visibleColumns),
+  ].filter(Boolean).length;
 
   const emptyHint = (
     <View style={{ padding: 16 }}>
@@ -707,7 +736,7 @@ export function AbsenceReportDesktop({
         {loading
           ? 'Laster fravær…'
           : absences.length
-            ? 'Ingen fravær i dette utvalget. Juster utvalget over tabellen.'
+            ? 'Ingen fravær i dette utvalget. Åpne Filtrer for periode, type eller sortering.'
             : 'Ingen fravær er registrert. Importer Excel eller registrer fravær for ansatte.'}
       </Text>
     </View>
@@ -846,9 +875,120 @@ export function AbsenceReportDesktop({
                   </Text>
                 </TouchableOpacity>
               ) : null}
-              {canImport && absenceCount > 0 && onClearImported ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setFilterOpen((open) => !open);
+                  setSettingsOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Filtrer og sorter"
+                accessibilityState={{ expanded: filterOpen }}
+                nativeID="absence-filter-toggle"
+                style={[
+                  reportStyles.ghostBtn,
+                  {
+                    borderColor: filterOpen || filtersActive ? colors.brand : colors.line,
+                    backgroundColor: filterOpen || filtersActive ? (colors.brandSoft || '#E8F1FF') : '#fff',
+                  },
+                ]}
+              >
+                <Ionicons name="options-outline" size={18} color={filterOpen || filtersActive ? colors.brand : colors.ink} />
+                <Text style={{ color: filterOpen || filtersActive ? colors.brand : colors.ink, fontWeight: '400' }}>Filtrer</Text>
+                {activeFilterCount > 0 ? (
+                  <View style={[reportStyles.filterBadge, { backgroundColor: colors.brand }]}>
+                    <Text style={reportStyles.filterBadgeText}>{activeFilterCount}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+              {canImport ? (
                 <TouchableOpacity
-                  onPress={onClearImported}
+                  onPress={() => {
+                    setSettingsOpen((open) => !open);
+                    setFilterOpen(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Innstillinger"
+                  accessibilityState={{ expanded: settingsOpen }}
+                  nativeID="fravaer-report-settings"
+                  style={[
+                    reportStyles.iconBtn,
+                    {
+                      borderColor: settingsOpen ? colors.brand : colors.line,
+                      backgroundColor: settingsOpen ? (colors.brandSoft || '#E8F1FF') : '#fff',
+                    },
+                  ]}
+                >
+                  <Ionicons name="settings-outline" size={18} color={settingsOpen ? colors.brand : colors.ink} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+          {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
+
+          {table}
+        </View>
+      </View>
+      <Modal transparent visible={filterOpen} animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+        <View style={[reportStyles.modalBg, reportStyles.modalBgSheet]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setFilterOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk filter"
+            nativeID="absence-filter-dismiss"
+          />
+          <View
+            style={[reportStyles.filterSheet, { backgroundColor: colors.bg, borderColor: colors.line }]}
+            accessibilityViewIsModal
+            nativeID="absence-filter-sheet"
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              style={{ width: '100%' }}
+              contentContainerStyle={reportStyles.sheetScroll}
+            >
+              {organizePanel}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      {canImport ? (
+        <Modal transparent visible={settingsOpen} animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
+          <View style={[reportStyles.modalBg, reportStyles.modalBgSheet]}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setSettingsOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Lukk innstillinger"
+              nativeID="fravaer-settings-dismiss"
+            />
+            <View
+              style={[reportStyles.settingsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+              accessibilityViewIsModal
+              nativeID="fravaer-settings-menu"
+            >
+              <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '400' }}>Innstillinger</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setSettingsOpen(false);
+                  onImport?.();
+                }}
+                style={[reportStyles.primaryBtn, { backgroundColor: colors.brand }]}
+                accessibilityRole="button"
+                accessibilityLabel="Importer fravær"
+                nativeID="fravaer-import"
+              >
+                <Ionicons name="cloud-upload-outline" size={15} color="#fff" />
+                <Text style={reportStyles.primaryBtnText}>Importer</Text>
+              </TouchableOpacity>
+              {absenceCount > 0 && onClearImported ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSettingsOpen(false);
+                    onClearImported();
+                  }}
                   style={[reportStyles.ghostBtn, { borderColor: colors.line }]}
                   accessibilityRole="button"
                   accessibilityLabel="Fjern importert fravær"
@@ -858,28 +998,10 @@ export function AbsenceReportDesktop({
                   <Text style={{ color: colors.muted, fontWeight: '400' }}>Tøm import</Text>
                 </TouchableOpacity>
               ) : null}
-              {canImport ? (
-                <TouchableOpacity
-                  onPress={onImport}
-                  style={[reportStyles.primaryBtn, { backgroundColor: colors.brand }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Importer fravær"
-                  nativeID="fravaer-import"
-                >
-                  <Ionicons name="cloud-upload-outline" size={15} color="#fff" />
-                  <Text style={reportStyles.primaryBtnText}>Importer</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
-
-          {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
-          {note ? <Text style={{ color: colors.muted }}>{note}</Text> : null}
-
-          {organizePanel}
-          {table}
-        </View>
-      </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -1295,6 +1417,52 @@ const reportStyles = StyleSheet.create({
     gap: 6,
   },
   primaryBtnText: { color: '#fff', fontWeight: '400' },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  filterBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: { color: '#fff', fontSize: 11, fontWeight: '400' },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+  },
+  modalBgSheet: { justifyContent: 'flex-end' },
+  filterSheet: {
+    maxHeight: '88%',
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    zIndex: 2,
+  },
+  sheetScroll: { padding: 12, paddingBottom: 28, width: '100%' },
+  settingsCard: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    paddingBottom: 28,
+    gap: 10,
+    zIndex: 2,
+  },
   tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 40 },
   head: { minHeight: 42 },

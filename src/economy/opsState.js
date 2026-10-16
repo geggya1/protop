@@ -62,6 +62,54 @@ export function upsertTrip(state, input) {
   return ok({ ...state, mileageTrips: replaceById(state.mileageTrips || [], row) }, { trip: row });
 }
 
+/**
+ * Lagrer kjøreturen og et tilhørende utlegg på samme prosjekt og person.
+ * Utlegget er ikke viderefakturerbart: fakturalinjen kommer fra kjøreboken,
+ * så kunden ikke belastes to ganger for samme tur.
+ */
+export function recordDutyTrip(state, input) {
+  const expenseId = input?.expenseId || (state.expenses || []).find((row) => row.tripId && row.tripId === input?.id)?.id || '';
+  const draft = {
+    ...input,
+    purpose: input?.purpose || 'duty',
+    status: input?.status || 'approved',
+    billable: input?.billable !== false,
+    expenseId: expenseId || input?.expenseId || '',
+  };
+  const check = validateTrip(draft);
+  if (!check.ok) return fail(state, check.error);
+  const nextExpenseId = expenseId || check.trip.expenseId || createId('utl');
+  const tripSaved = upsertTrip(state, { ...check.trip, expenseId: nextExpenseId });
+  if (!tripSaved.ok) return tripSaved;
+  const trip = tripSaved.trip;
+  const expenseSaved = upsertExpense(tripSaved.state, {
+    id: nextExpenseId,
+    date: trip.date,
+    employeeId: trip.employeeId,
+    employeeName: trip.employeeName,
+    category: 'mileage',
+    description: `Kjøring ${trip.from} – ${trip.to}`,
+    purpose: trip.notes || trip.visitPurpose,
+    vendor: trip.vehicleName || '',
+    paidBy: trip.vehicleKind === 'company' ? 'company' : 'personal',
+    amountExVat: trip.amount,
+    vatCode: 'EXEMPT',
+    billable: false,
+    customerId: trip.customerId,
+    customerNumber: trip.customerNumber,
+    customerName: trip.customerName,
+    projectId: trip.projectId,
+    projectNumber: trip.projectNumber,
+    projectName: trip.projectName,
+    tripId: trip.id,
+    vehicleId: trip.vehicleId,
+    status: 'approved',
+    notes: 'Koblet til kjørebok. Faktureres som kjøretur, ikke som eget utlegg.',
+  });
+  if (!expenseSaved.ok) return expenseSaved;
+  return ok(expenseSaved.state, { trip, expense: expenseSaved.expense });
+}
+
 export function setTripStatus(state, id, status) {
   const current = (state.mileageTrips || []).find((row) => row.id === id);
   if (!current) return fail(state, 'Turen finnes ikke.');

@@ -4,6 +4,8 @@ import {
   activeEmployees,
   addAllocation,
   allocationCovers,
+  allocationInclusiveEnd,
+  spanFromDates,
   companyWeekLoad,
   contractPercent,
   employeeCapacityHours,
@@ -171,6 +173,15 @@ import {
   const moved = patchAllocation(plan, plan.allocations[0].id, { start: '2026-10-19', weeks: 6 });
   assert.equal(moved.allocations[0].start, '2026-10-19');
   assert.equal(moved.allocations[0].weeks, 6);
+  assert.equal(allocationInclusiveEnd(plan.allocations[0]), '2026-11-08');
+  assert.deepEqual(spanFromDates('2026-10-16', '2026-11-01'), { start: '2026-10-12', weeks: 3 });
+  assert.deepEqual(spanFromDates('2026-10-20', '2026-10-21'), { start: '2026-10-19', weeks: 1 });
+  assert.deepEqual(spanFromDates('2026-11-02', '2026-10-12'), { start: '2026-11-02', weeks: 1 });
+  assert.equal(spanFromDates('ikke-en-dato', '2026-10-12'), null);
+  const dated = patchAllocation(plan, plan.allocations[0].id, spanFromDates('2026-10-14', '2026-11-01'));
+  assert.equal(dated.allocations[0].start, '2026-10-12');
+  assert.equal(dated.allocations[0].weeks, 3);
+  assert.equal(allocationInclusiveEnd(dated.allocations[0]), '2026-11-01');
   const hoursMode = patchAllocation(moved, moved.allocations[0].id, { hoursPerWeek: 7.5 });
   assert.equal(hoursMode.allocations[0].mode, 'hours');
   assert.equal(hoursMode.allocations[0].percent, 20);

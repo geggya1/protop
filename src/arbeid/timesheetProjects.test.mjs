@@ -3,6 +3,7 @@ import {
   filterTimesheetProjects,
   timesheetActivityRange,
   timesheetColumnMetrics,
+  timesheetHourWindows,
   timesheetHoursLoadRange,
 } from './timesheetProjects.js';
 
@@ -19,6 +20,22 @@ import {
   );
   assert.equal(load.fromDate, '2026-06-01');
   assert.equal(load.toDate, '2026-10-14');
+}
+
+{
+  const current = timesheetHourWindows(new Date(2026, 9, 14), 2026, 9);
+  assert.equal(current.length, 1);
+  assert.equal(current[0].fromDate, '2026-08-01');
+  assert.equal(current[0].toDate, '2026-10-31');
+  const older = timesheetHourWindows(new Date(2026, 9, 14), 2026, 5);
+  assert.equal(older.length, 2, 'eldre måned skal ikke dra med hele spennet til i dag');
+  assert.equal(older[0].fromDate, '2026-08-01');
+  assert.equal(older[0].toDate, '2026-10-14');
+  assert.equal(older[1].fromDate, '2026-06-01');
+  assert.equal(older[1].toDate, '2026-06-30');
+  const inside = timesheetHourWindows(new Date(2026, 9, 14), 2026, 7);
+  assert.equal(inside.length, 1);
+  assert.equal(inside[0].toDate, '2026-10-14');
 }
 
 {

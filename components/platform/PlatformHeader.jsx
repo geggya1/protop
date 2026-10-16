@@ -53,7 +53,6 @@ export default function PlatformHeader({
 
           <View style={styles.actions}>
             {viewAs}
-            <HelpButton color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
             {!!rightLabel && !!onRightPress && (
               <TouchableOpacity style={styles.iconBtn} onPress={onRightPress} accessibilityLabel={rightLabel}>
                 <Ionicons name={rightIcon} size={20} color={c.ink} />
@@ -84,6 +83,9 @@ export default function PlatformHeader({
             </TouchableOpacity>
           </View>
         </View>
+        <View pointerEvents="box-none" style={styles.helpOverlay}>
+          <HelpButton floating color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
+        </View>
       </View>
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
@@ -91,7 +93,8 @@ export default function PlatformHeader({
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderBottomWidth: 1 },
+  wrap: { borderBottomWidth: 1, position: 'relative', overflow: 'visible' },
+  helpOverlay: { position: 'absolute', zIndex: 8, top: 46, right: 10 },
   stripe: { height: 3 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },

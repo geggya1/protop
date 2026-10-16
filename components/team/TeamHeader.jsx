@@ -50,7 +50,6 @@ export default function TeamHeader({
           </View>
 
           <View style={styles.actions}>
-            <HelpButton color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
             {!!rightLabel && !!onRightPress && (
               <TouchableOpacity style={styles.iconBtn} onPress={onRightPress} accessibilityLabel={rightLabel}>
                 <Ionicons name={rightIcon} size={20} color={c.ink} />
@@ -77,6 +76,9 @@ export default function TeamHeader({
             </TouchableOpacity>
           </View>
         </View>
+        <View pointerEvents="box-none" style={styles.helpOverlay}>
+          <HelpButton floating color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
+        </View>
       </View>
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
@@ -88,7 +90,10 @@ const styles = StyleSheet.create({
     backgroundColor: c.bg,
     borderBottomWidth: 1,
     borderBottomColor: c.line,
+    position: 'relative',
+    overflow: 'visible',
   },
+  helpOverlay: { position: 'absolute', zIndex: 8, top: 46, right: 10 },
   stripe: {
     height: 3,
     backgroundColor: c.stripe,

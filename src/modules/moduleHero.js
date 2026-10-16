@@ -345,7 +345,8 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 
 /**
  * Phone chrome heading: the pastel band is the top heading under the logo bar.
- * Hides family name + large page title; add/help overlay the lower-right edge.
+ * Hides family name + large page title. Add overlays the lower-right edge.
+ * Help is a separate overlay under the profile photo, above this band.
  * Tablet/web keep the heading in the content band (`null` here).
  */
 export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {

@@ -25,6 +25,13 @@ assert.match(desktop, /Planlagt fremover/);
 assert.doesNotMatch(desktop, /Registrerte perioder/);
 assert.match(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /absence-organize-panel/);
 assert.match(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /Kolonner i tabellen/);
+assert.match(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /Filtrer og sorter/);
+assert.match(desktop, /nativeID="absence-filter-toggle"/);
+assert.match(desktop, /nativeID="fravaer-report-settings"/);
+assert.match(desktop, /nativeID="fravaer-import"/);
+assert.match(desktop, /nativeID="fravaer-clear-imported"/);
+assert.match(desktop, /accessibilityLabel="Innstillinger"/);
+assert.match(desktop, /accessibilityLabel="Filtrer og sorter"/);
 assert.doesNotMatch(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /width:\s*300/);
 
 // Compact overview should stay readable without heavy type.

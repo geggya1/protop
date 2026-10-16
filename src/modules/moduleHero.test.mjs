@@ -131,7 +131,10 @@ assert.match(headerSrc, /nativeID="module-hero-slot"/, 'phone heading sits in th
 assert.match(headerSrc, /styles\.heroTitleRight/, 'titleRight overlays the pastel band');
 assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as header chrome');
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
-assert.match(headerSrc, /styles\.heroBelowRow/, 'help sits in a tight row under the band');
+assert.match(headerSrc, /styles\.helpOverlay/, 'help overlays under the profile');
+assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'phone help sits high under the avatar');
+assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*right:\s*\d+/, 'phone help aligns under the profile');
+assert.doesNotMatch(headerSrc, /heroBelowRow/, 'help no longer reserves a row under the band');
 assert.doesNotMatch(headerSrc, /heroBackLink/, 'no dedicated Hjem back-link slot under the band');
 assert.doesNotMatch(headerSrc, /CompactBackLink/, 'ShellHeader no longer renders a Hjem back link');
 assert.match(headerSrc, /\{hero \?/, 'phone heading replaces the large module title text');
@@ -150,7 +153,7 @@ assert.doesNotMatch(
   /heroTitleRight:\s*\{[^}]*top:\s*0/,
   'add is not a detached title row at the top of the band',
 );
-assert.match(headerSrc, /justifyContent: 'flex-end'/, 'help aligns to the right under the band');
+assert.match(headerSrc, /position:\s*'absolute'/, 'help overlay does not push page content down');
 assert.doesNotMatch(headerSrc, /familyNameHero/, 'family name is not painted on top of the band');
 assert.doesNotMatch(headerSrc, /styles\.pageTitleRow[\s\S]*nativeID="module-hero-slot"/, 'hero is not a detached card below the title row');
 
@@ -184,7 +187,7 @@ assert.match(helpBtn, /HelpTarget id="helpBtn"/, 'help tour still anchors on the
 
 const heroSrc = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 assert.doesNotMatch(heroSrc, /if \(!force && isPhone\) return null/, 'phone must render ModuleHero, not skip it');
-assert.match(heroSrc, /isPhone \? 144/, 'phone heading stays compact (shorter than tablet)');
+assert.match(heroSrc, /isPhone \? 112 : 136/, 'phone heading stays compact (shorter than tablet)');
 assert.match(heroSrc, /const ART_INSET = 8/, 'heading art sits 2mm from the top and bottom');
 assert.match(heroSrc, /heroH - ART_INSET \* 2/, 'art height follows the heading minus the 2mm inset');
 assert.match(heroSrc, /artWrapPhone/, 'phone heading caps the art so the band stays short');
@@ -196,7 +199,8 @@ const welcomeSrc = readFileSync(join(ROOT, 'components/ModuleWelcomeModal.jsx'),
 assert.match(welcomeSrc, /PAGE_ART_SCALE/, 'welcome art uses the same 40% scale');
 assert.match(welcomeSrc, /artFrame:[\s\S]*overflow: 'hidden'/, 'welcome art can crop inside its frame');
 assert.match(frameSrc, /PAGE_ART_SCALE/, 'bottom page art uses the same 40% scale');
-assert.match(heroSrc, /marginRight: ART_INSET/, 'heading art keeps a small gap at the right edge');
+assert.match(heroSrc, /artWrap: \{[\s\S]*?marginRight: ART_INSET/, 'tablet and desktop heading art keeps a small gap at the right edge');
+assert.match(heroSrc, /artWrapPhone:\s*\{[^}]*marginRight:\s*0/, 'phone heading art sits on the right margin');
 assert.match(heroSrc, /resizeMode="contain"/, 'native hero art uses contain');
 assert.match(heroSrc, /force = false/, 'force prop remains for SchoolPageLayout and similar stack screens');
 assert.match(heroSrc, /flush = false/, 'flush prop remains for shell/school bands');
@@ -207,6 +211,8 @@ assert.match(heroSrc, /copyPhoneChrome/, 'phone chrome copy stays compact in the
 assert.match(heroSrc, /copyPhone:[\s\S]*minWidth:\s*168/, 'phone heading keeps room for the full pitch');
 assert.match(heroSrc, /isPhone \? 3/, 'phone pitch can use three lines so the tip is not cut off');
 assert.match(heroSrc, /artWrapPhoneChrome/, 'phone chrome art stays in the title\/add-button row');
+assert.match(heroSrc, /artWrapPhoneChrome:\s*\{[^}]*marginRight:\s*0/, 'phone chrome art is flush with the right margin');
+assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art anchors to the right edge');
 
 const shopSrc = readFileSync(join(ROOT, 'screens/v2/ShoppingListScreen.jsx'), 'utf8');
 assert.match(shopSrc, /useShowModuleHero/, 'shopping list reads the shared heading flag');
@@ -284,6 +290,7 @@ const COMPANY_PAGES = [
   ['okonomi', 'fakturagrunnlag', 'okonomi-fakturagrunnlag'],
   ['okonomi', 'utlegg', 'okonomi-utlegg'],
   ['okonomi', 'kjorebok', 'okonomi-kjorebok'],
+  ['utstyr', null, 'utstyr'],
   ['okonomi', 'produkter', 'okonomi-produkter'],
   ['okonomi', 'indeks', 'okonomi-indeks'],
 ];

@@ -14,8 +14,10 @@ const ART_INSET = 8;
  * `force` keeps SchoolPageLayout (and similar stack screens) able to draw the
  * heading even when the shared shell host is not wrapping the page.
  * `chrome` flattens the phone band into ShellHeader (no top radius) so it
- * joins the logo bar. Add/help overlay the lower-right edge; family name
- * and the large page title are hidden on phone.
+ * joins the logo bar. The add button overlays the lower-right edge.
+ * Help sits under the profile, above this band. Family name and the large
+ * page title are hidden on phone. The phone band stays short so the page
+ * body starts almost in the header.
  */
 export default function ModuleHero({
   moduleId,
@@ -45,7 +47,7 @@ export default function ModuleHero({
   const lead = subtitle || hero.pitch;
   const overline = kicker || hero.kicker;
   const chromePhone = chrome && isPhone;
-  const heroH = isDesktop ? 148 : isPhone ? 144 : 148;
+  const heroH = isDesktop ? 148 : isPhone ? 112 : 136;
   const artH = heroH - ART_INSET * 2;
   const titleColor = hero.ink || colors.ink;
   const pitchColor = hero.muted || colors.muted;
@@ -105,7 +107,7 @@ export default function ModuleHero({
         >
           <Image
             source={imgSource}
-            style={styles.artFit}
+            style={[styles.artFit, isPhone && styles.artFitPhone]}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
             onLoad={(event) => {
@@ -160,24 +162,25 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { boxShadow: 'none' } : { shadowOpacity: 0 }),
   },
   copyPhoneChrome: {
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 4,
   },
+  /* Phone chrome shares the flush right edge. The add button overlays the picture. */
   artWrapPhoneChrome: {
-    marginRight: 44,
+    marginRight: 0,
   },
   heroDesk: {
     marginBottom: 12,
   },
   heroTablet: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 0,
+    marginBottom: 8,
   },
   heroPhone: {
     marginHorizontal: 12,
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 0,
+    marginBottom: 4,
   },
   glow: {
     position: 'absolute',
@@ -203,7 +206,7 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   copyPhone: {
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingLeft: 14,
     paddingRight: 8,
     flexShrink: 0,
@@ -266,9 +269,11 @@ const styles = StyleSheet.create({
   artWrapTablet: {
     maxWidth: '50%',
   },
-  /* Phone heading stays short. A wide picture shrinks so the title still fits. */
+  /* Phone heading stays short. The picture sits on the right margin of every page. */
   artWrapPhone: {
     maxWidth: '54%',
+    marginRight: 0,
+    alignItems: 'flex-end',
   },
   artFit: {
     width: '100%',
@@ -278,5 +283,9 @@ const styles = StyleSheet.create({
       objectFit: 'contain',
       objectPosition: 'center center',
     } : null),
+  },
+  artFitPhone: {
+    alignSelf: 'flex-end',
+    ...(Platform.OS === 'web' ? { objectPosition: 'right center' } : null),
   },
 });

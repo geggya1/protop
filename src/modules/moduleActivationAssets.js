@@ -78,6 +78,7 @@ const BUNDLED = {
   'hr-rekruttering': require('../../assets/module-activation/hr-rekruttering--module-activation-illustration.png'),
   'okonomi-faktura': require('../../assets/module-activation/okonomi-faktura--module-activation-illustration.png'),
   'okonomi-kjorebok': require('../../assets/module-activation/okonomi-kjorebok--module-activation-illustration.png'),
+  utstyr: require('../../assets/module-activation/kjoretoy--module-activation-illustration.png'),
   'okonomi-indeks': require('../../assets/module-activation/okonomi-indeks--module-activation-illustration.png'),
   'okonomi-fakturagrunnlag': require('../../assets/module-activation/okonomi-fakturagrunnlag--module-activation-illustration.png'),
   'okonomi-oversikt': require('../../assets/module-activation/okonomi-oversikt--module-activation-illustration.png'),

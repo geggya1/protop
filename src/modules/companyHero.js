@@ -431,8 +431,19 @@ export const COMPANY_HERO = {
     kicker: t('Økonomi', 'Finance'),
     title: t('Kjørebok', 'Mileage'),
     pitch: t(
-      'Yrkeskjøring med fra/til, formål og km.',
-      'Business trips with from/to, purpose and km.',
+      'Velg prosjekt og bil. Rute, kilometer og kostnad fylles ut.',
+      'Pick the project and car. Route, kilometres and cost are filled in.',
+    ),
+  },
+  utstyr: {
+    ...BLUE,
+    wideArt: true,
+    name: 'Utstyr',
+    kicker: t('Utstyr', 'Equipment'),
+    title: t('Utstyr og lager', 'Equipment and stock'),
+    pitch: t(
+      'Registrer det bedriften eier, og reserver det i kalenderen.',
+      'Register what the company owns, and reserve it in the calendar.',
     ),
   },
   'okonomi-produkter': {
@@ -477,5 +488,6 @@ export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'anbud') return `anbud-${defaultAnbudSubView(moreSubView)}`;
   if (tab === 'arbeid') return `arbeid-${defaultArbeidSubView(moreSubView)}`;
   if (tab === 'okonomi') return `okonomi-${defaultOkonomiSubView(moreSubView)}`;
+  if (tab === 'utstyr') return 'utstyr';
   return null;
 }

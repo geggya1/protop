@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import {
@@ -8,6 +8,7 @@ import {
   compareReviews,
   formatNbDate,
   latestReviewsFor,
+  localIsoDate,
   normalizeCase,
   normalizeHrFile,
   normalizeMemo,
@@ -36,7 +37,7 @@ const TABS = [
 
 const EMPTY_CASE = { title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false };
 const EMPTY_REVIEW = {
-  date: new Date().toISOString().slice(0, 10),
+  date: '',
   interviewer: '',
   summary: '',
   goals: '',
@@ -51,11 +52,15 @@ const EMPTY_MEMO = { title: '', body: '', author: '', employeeVisible: false, fi
 const EMPTY_TASK = { title: '', description: '', dueDate: '', status: 'open' };
 const EMPTY_FILE = { name: '', url: '', employeeVisible: false };
 
+function freshReview() {
+  return { ...EMPTY_REVIEW, date: localIsoDate() };
+}
+
 export default function HrFollowUp({
-  colors, employees, hr, canWrite, onPatch, selectedEmployeeId, onSelectEmployee, familyId,
+  colors, employees, hr, canWrite, onPatch, lockedEmployeeId, familyId,
 }) {
   const [tab, setTab] = useState('cases');
-  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
+  const employeeId = String(lockedEmployeeId || '');
   const employeeIdRef = useRef(employeeId);
   employeeIdRef.current = employeeId;
   const [selectedReviewId, setSelectedReviewId] = useState('');
@@ -66,24 +71,19 @@ export default function HrFollowUp({
   );
 
   const [caseDraft, setCaseDraft] = useState(EMPTY_CASE);
-  const [reviewDraft, setReviewDraft] = useState(() => ({
-    ...EMPTY_REVIEW,
-    date: new Date().toISOString().slice(0, 10),
-  }));
+  const [reviewDraft, setReviewDraft] = useState(freshReview);
   const [memoDraft, setMemoDraft] = useState(EMPTY_MEMO);
   const [taskDraft, setTaskDraft] = useState(EMPTY_TASK);
   const [fileDraft, setFileDraft] = useState(EMPTY_FILE);
 
-  function selectEmployee(id) {
-    setEmployeeId(id);
-    onSelectEmployee?.(id);
+  useEffect(() => {
     setSelectedReviewId('');
     setCaseDraft(EMPTY_CASE);
-    setReviewDraft({ ...EMPTY_REVIEW, date: new Date().toISOString().slice(0, 10) });
+    setReviewDraft(freshReview());
     setMemoDraft(EMPTY_MEMO);
     setTaskDraft(EMPTY_TASK);
     setFileDraft(EMPTY_FILE);
-  }
+  }, [employeeId]);
 
   function nameOf(id) {
     const hit = people.find((row) => row.id === id);
@@ -174,7 +174,7 @@ export default function HrFollowUp({
       return { reviews: nextReviews, cases: nextCases, compliance };
     });
     setSelectedReviewId(row.id);
-    setReviewDraft({ ...EMPTY_REVIEW, date: new Date().toISOString().slice(0, 10) });
+    setReviewDraft(freshReview());
     showSaveToast?.(draftSnapshot.followUps?.trim()
       ? 'Samtale lagret · avvik opprettet som sak'
       : 'Samtale lagret');
@@ -260,26 +260,13 @@ export default function HrFollowUp({
         ))}
       </View>
 
-      <HrCard colors={colors}>
-        <HrSectionTitle
-          colors={colors}
-          title="Medarbeider"
-          subtitle="Knytt sak, samtale, memo eller oppgave til en person"
-        />
-        <View style={styles.chips}>
-          {people.map((emp) => (
-            <HrChip
-              key={emp.id}
-              colors={colors}
-              label={displayName(emp)}
-              active={emp.id === employeeId}
-              onPress={() => selectEmployee(emp.id)}
-            />
-          ))}
-        </View>
-      </HrCard>
+      {!employeeId ? (
+        <HrCard colors={colors}>
+          <EmptyHint colors={colors} text="Velg en ansatt i personellisten for å følge opp." />
+        </HrCard>
+      ) : null}
 
-      {tab === 'cases' ? (
+      {employeeId && tab === 'cases' ? (
         <HrCard colors={colors}>
           <HrSectionTitle colors={colors} title="Saker til oppfølging" />
           {(hr.cases || []).filter((row) => !employeeId || row.employeeId === employeeId).map((row) => (
@@ -328,7 +315,7 @@ export default function HrFollowUp({
         </HrCard>
       ) : null}
 
-      {tab === 'reviews' ? (
+      {employeeId && tab === 'reviews' ? (
         <>
           <HrCard colors={colors}>
             <HrSectionTitle
@@ -436,7 +423,7 @@ export default function HrFollowUp({
         </>
       ) : null}
 
-      {tab === 'memos' ? (
+      {employeeId && tab === 'memos' ? (
         <>
           <HrCard colors={colors}>
             <HrSectionTitle colors={colors} title="Memo og notater" subtitle="HR-notater kan holdes private eller deles med den ansatte" />
@@ -545,7 +532,7 @@ export default function HrFollowUp({
         </>
       ) : null}
 
-      {tab === 'tasks' ? (
+      {employeeId && tab === 'tasks' ? (
         <HrCard colors={colors}>
           <HrSectionTitle colors={colors} title="Oppgaver og gjøremål" subtitle="Tildeles den enkelte ansatte og synlig på Min side" />
           {(hr.tasks || []).filter((row) => !employeeId || row.employeeId === employeeId).map((row) => (

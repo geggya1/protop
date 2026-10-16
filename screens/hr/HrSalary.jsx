@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { displayName } from '../../src/employees/model';
 import {
   choiceLabel,
   currentSalaryFor,
   formatMoney,
   formatNbDate,
+  localIsoDate,
   normalizeSalary,
   plannedSalariesFor,
   salarySeriesWithPercents,
@@ -16,21 +16,25 @@ import {
 } from './HrShared';
 
 export default function HrSalary({
-  colors, employees, hr, canWrite, onSaveSalaries, selectedEmployeeId, onSelectEmployee,
+  colors, hr, canWrite, onSaveSalaries, lockedEmployeeId,
 }) {
   const emptySalaryDraft = () => ({
     kind: 'actual',
-    effectiveDate: new Date().toISOString().slice(0, 10),
+    effectiveDate: localIsoDate(),
     annualAmount: '',
     reason: '',
     notes: '',
     memo: '',
     employeeVisible: true,
   });
-  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || employees[0]?.id || '');
+  const activeId = String(lockedEmployeeId || '');
   const [draft, setDraft] = useState(emptySalaryDraft);
 
-  const activeId = employeeId || selectedEmployeeId || '';
+  useEffect(() => {
+    setDraft(emptySalaryDraft());
+    // Ny person skal starte med tomt lønnsskjema.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
   const series = useMemo(() => salarySeriesWithPercents(activeId, hr.salaries), [activeId, hr.salaries]);
   const planned = useMemo(() => plannedSalariesFor(activeId, hr.salaries), [activeId, hr.salaries]);
   const current = useMemo(() => currentSalaryFor(activeId, hr.salaries), [activeId, hr.salaries]);
@@ -42,12 +46,6 @@ export default function HrSalary({
     const pct = Math.round(((amount - current.annualAmount) / current.annualAmount) * 1000) / 10;
     return { amount, pct };
   }, [current, draft.annualAmount]);
-
-  function selectEmployee(id) {
-    setEmployeeId(id);
-    onSelectEmployee?.(id);
-    setDraft(emptySalaryDraft());
-  }
 
   function saveDraft() {
     if (!canWrite || !activeId) return;
@@ -76,19 +74,8 @@ export default function HrSalary({
         <HrSectionTitle
           colors={colors}
           title="Lønn"
-          subtitle="Historikk, prosentutvikling og plan for neste år — memo på hver bevegelse"
+          subtitle="Historikk, prosentutvikling og plan for neste år — på denne personen"
         />
-        <View style={styles.chips}>
-          {(employees || []).filter((e) => e?.company?.status !== 'deleted').map((emp) => (
-            <HrChip
-              key={emp.id}
-              colors={colors}
-              label={displayName(emp)}
-              active={emp.id === activeId}
-              onPress={() => selectEmployee(emp.id)}
-            />
-          ))}
-        </View>
         {!activeId ? (
           <EmptyHint colors={colors} text="Velg en medarbeider." />
         ) : (

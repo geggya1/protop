@@ -6,7 +6,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
-import { emptyHrState, normalizeHrState, patchHrState } from '../../src/hr/model';
+import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { defaultHrSubView, HR_MENU } from '../../src/navigation/shellModules';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -14,19 +14,16 @@ import { HrChip } from './HrShared';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrProductivity from './HrProductivity';
-import HrSalary from './HrSalary';
-import HrFollowUp from './HrFollowUp';
 import HrRecruitment from './HrRecruitment';
-import HrContracts from './HrContracts';
-import HrCompliance from './HrCompliance';
+import HrControl from './HrControl';
 
 function periodWindow(months = 3) {
   const to = new Date();
   const from = new Date();
   from.setMonth(from.getMonth() - months);
   return {
-    fromDate: from.toISOString().slice(0, 10),
-    toDate: to.toISOString().slice(0, 10),
+    fromDate: localIsoDate(from),
+    toDate: localIsoDate(to),
   };
 }
 
@@ -42,6 +39,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [hr, setHr] = useState(emptyHrState());
   const [entries, setEntries] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [employeeSheet, setEmployeeSheet] = useState('oversikt');
   const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
@@ -65,6 +63,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     setEmployees([]);
     setEntries([]);
     setSelectedEmployeeId('');
+    setEmployeeSheet('oversikt');
     setReady(false);
     const companyId = familyId;
     loadHrState(companyId).then((state) => {
@@ -142,6 +141,18 @@ export default function HrScreen({ subView = 'oversikt' }) {
     requestShellTab?.('hr', id);
   }, [requestShellTab]);
 
+  const openEmployee = useCallback((id, sheet) => {
+    setSelectedEmployeeId(id || '');
+    setEmployeeSheet(sheet || 'oversikt');
+    go('personell');
+  }, [go]);
+
+  const saveSalaries = useCallback((salariesOrFn) => onPatch((state) => ({
+    salaries: typeof salariesOrFn === 'function'
+      ? salariesOrFn(state.salaries || [])
+      : salariesOrFn,
+  })), [onPatch]);
+
   const body = useMemo(() => {
     if (page === 'personell') {
       return (
@@ -149,25 +160,27 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           employees={employees}
           hr={hr}
+          entries={entries}
           selectedId={selectedEmployeeId}
           onSelect={setSelectedEmployeeId}
           canWrite={canWrite}
           onPatch={onPatch}
-          onGo={go}
+          sheet={employeeSheet}
+          onSheet={setEmployeeSheet}
+          familyId={familyId}
+          onSaveSalaries={saveSalaries}
         />
       );
     }
-    if (page === 'avtaler') {
+    if (page === 'avtaler' || page === 'lonn' || page === 'oppfolging' || page === 'compliance') {
       return (
-        <HrContracts
+        <HrControl
           colors={colors}
+          page={page}
           employees={employees}
           hr={hr}
-          canWrite={canWrite}
-          onPatch={onPatch}
-          familyId={familyId}
-          selectedEmployeeId={selectedEmployeeId}
-          onSelectEmployee={setSelectedEmployeeId}
+          entries={entries}
+          onOpenEmployee={openEmployee}
         />
       );
     }
@@ -179,54 +192,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           entries={entries}
           months={months}
           onMonthsChange={setMonths}
-          onSelectEmployee={(id) => {
-            setSelectedEmployeeId(id);
-            go('personell');
-          }}
-        />
-      );
-    }
-    if (page === 'lonn') {
-      return (
-        <HrSalary
-          colors={colors}
-          employees={employees}
-          hr={hr}
-          canWrite={canWrite}
-          selectedEmployeeId={selectedEmployeeId}
-          onSelectEmployee={setSelectedEmployeeId}
-          onSaveSalaries={(salariesOrFn) => onPatch((state) => ({
-            salaries: typeof salariesOrFn === 'function'
-              ? salariesOrFn(state.salaries || [])
-              : salariesOrFn,
-          }))}
-        />
-      );
-    }
-    if (page === 'oppfolging') {
-      return (
-        <HrFollowUp
-          colors={colors}
-          employees={employees}
-          hr={hr}
-          canWrite={canWrite}
-          selectedEmployeeId={selectedEmployeeId}
-          onSelectEmployee={setSelectedEmployeeId}
-          onPatch={onPatch}
-          familyId={familyId}
-        />
-      );
-    }
-    if (page === 'compliance') {
-      return (
-        <HrCompliance
-          colors={colors}
-          employees={employees}
-          hr={hr}
-          canWrite={canWrite}
-          onPatch={onPatch}
-          selectedEmployeeId={selectedEmployeeId}
-          onSelectEmployee={setSelectedEmployeeId}
+          onSelectEmployee={(id) => openEmployee(id, 'oversikt')}
         />
       );
     }
@@ -258,7 +224,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
       />
     );
   }, [
-    page, colors, employees, hr, entries, selectedEmployeeId, canWrite, onPatch, go, months, familyId,
+    page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
+    canWrite, onPatch, go, months, familyId, openEmployee, saveSalaries,
   ]);
 
   if (access.active && access.ready && !canSee) {

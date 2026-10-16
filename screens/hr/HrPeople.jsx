@@ -1,186 +1,142 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import {
-  displayName, formatNbDate as empFormatNbDate, periodLabel, statusLabel,
+  displayName, formatNbDate as empFormatNbDate, periodLabel,
 } from '../../src/employees/model';
+import { hrControlCells } from '../../src/hr/directory';
 import {
-  activeContractFor,
-  choiceLabel,
-  CONTRACT_STATUSES,
-  currentSalaryFor,
-  formatMoney,
   formatNbDate,
-  countHrEmployees,
-  filterHrEmployees,
-  normalizeContract,
   upcomingPeopleEvents,
-  upsertActiveContract,
   yearsBetween,
 } from '../../src/hr/model';
-import {
-  companyComplianceOverview,
-  complianceSummary,
-  ensureEmployeeCompliance,
-  syncComplianceFromEvidence,
-} from '../../src/hr/compliance';
-import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink } from './HrShared';
+import { HrButton, HrCard, HrChip, HrSectionTitle, RowLink } from './HrShared';
+import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
+import HrContracts from './HrContracts';
+import HrSalary from './HrSalary';
+import HrFollowUp from './HrFollowUp';
+import HrCompliance from './HrCompliance';
+
+const SHEETS = [
+  { id: 'oversikt', label: 'Oversikt' },
+  { id: 'avtale', label: 'Avtale' },
+  { id: 'lonn', label: 'Lønn' },
+  { id: 'oppfolging', label: 'Oppfølging' },
+  { id: 'compliance', label: 'Lov & ISO' },
+];
+
+const COLUMNS = [
+  { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
+  { key: 'kind', label: 'Type', width: 90, value: (row) => row.cells.kindLabel },
+  { key: 'check', label: 'Sjekkliste', width: 110, value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
+  { key: 'contract', label: 'Ansettelsesavtale', width: 150, value: (row) => row.cells.contract, warn: (row) => row.cells.contract === 'Mangler' },
+  { key: 'review', label: 'Medarbeidersamtale', width: 160, value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
+  { key: 'util', label: 'Fakturerbarhet', width: 130, value: (row) => row.cells.utilization },
+  { key: 'salary', label: 'Lønn', width: 150, value: (row) => row.cells.salary, warn: (row) => row.cells.salary === 'Mangler' },
+  { key: 'cases', label: 'Åpne saker', width: 110, value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
+];
 
 export default function HrPeople({
-  colors, employees, hr, selectedId, onSelect, canWrite, onPatch, onGo,
+  colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
+  sheet = 'oversikt', familyId, onSaveSalaries,
 }) {
-  const emptyQuickContract = () => ({
-    title: 'Arbeidsavtale',
-    startDate: '',
-    endDate: '',
-    workPercent: '100',
-    employmentType: 'Fast',
-    notes: '',
-  });
-  const [staffFilter, setStaffFilter] = useState('active');
-  const [query, setQuery] = useState('');
-  const counts = useMemo(() => countHrEmployees(employees), [employees]);
-  const [contractDraft, setContractDraft] = useState(emptyQuickContract);
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return filterHrEmployees(employees, staffFilter)
-      .filter((row) => {
-        if (!q) return true;
-        const hay = [
-          displayName(row),
-          row?.company?.title,
-          row?.person?.email,
-          row?.company?.email,
-        ].join(' ').toLowerCase();
-        return hay.includes(q);
-      })
-      .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
-  }, [employees, query, staffFilter]);
-
-  const complianceByEmp = useMemo(
-    () => Object.fromEntries(
-      companyComplianceOverview(employees, hr.compliance, {
-        contracts: hr.contracts,
-        reviews: hr.reviews,
-        applyEvidence: true,
-      }).map((row) => [row.employeeId, row]),
-    ),
-    [employees, hr.compliance, hr.contracts, hr.reviews],
+  const dir = useHrDirectory(employees);
+  const rows = useMemo(
+    () => dir.rows.map((employee) => ({
+      employee,
+      cells: hrControlCells(employee, { hr, entries }),
+    })),
+    [dir.rows, hr, entries],
   );
+  const selected = (employees || []).find((row) => row.id === selectedId) || null;
+  const activeSheet = SHEETS.some((item) => item.id === sheet) ? sheet : 'oversikt';
 
-  const selected = rows.find((row) => row.id === selectedId) || employees.find((row) => row.id === selectedId) || null;
-  const contract = selected ? activeContractFor(selected.id, hr.contracts) : null;
-  const salary = selected ? currentSalaryFor(selected.id, hr.salaries) : null;
-  const tenure = selected ? yearsBetween(selected?.company?.periodFrom) : null;
-  const personReviews = selected ? (hr.reviews || []).filter((r) => r.employeeId === selected.id) : [];
-  const personCases = selected ? (hr.cases || []).filter((r) => r.employeeId === selected.id && r.status !== 'closed') : [];
-  const personTasks = selected ? (hr.tasks || []).filter((r) => r.employeeId === selected.id && r.status !== 'done') : [];
-  const personMemos = selected ? (hr.memos || []).filter((r) => r.employeeId === selected.id) : [];
-  const personFiles = selected ? (hr.files || []).filter((r) => r.employeeId === selected.id) : [];
-  const nextEvents = selected
-    ? upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2)
-    : [];
-  const compliance = selected
-    ? complianceSummary(ensureEmployeeCompliance(
-      syncComplianceFromEvidence(hr.compliance || [], {
-        employeeId: selected.id,
-        contracts: hr.contracts || [],
-        reviews: hr.reviews || [],
-      }),
-      selected.id,
-    ))
-    : null;
-
-  return (
-    <View style={styles.page} nativeID="hr-people">
-      <HrCard colors={colors}>
-        <HrSectionTitle
-          colors={colors}
-          title="Personell"
-          subtitle="Personalmappe: jubileum, kontrakt, compliance og snareveier"
-        />
-        <View style={styles.chips}>
-          <HrChip
-            colors={colors}
-            label={`Aktive · ${counts.active}`}
-            active={staffFilter === 'active'}
-            onPress={() => setStaffFilter('active')}
-          />
-          <HrChip
-            colors={colors}
-            label={`Deaktiverte · ${counts.inactive}`}
-            active={staffFilter === 'inactive'}
-            onPress={() => setStaffFilter('inactive')}
-          />
-        </View>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Søk etter navn, tittel eller e-post"
-          placeholderTextColor={colors.muted}
-          style={[styles.search, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-        />
-        {rows.length === 0 ? (
-          <EmptyHint colors={colors} text="Ingen treff i personaloversikten." />
-        ) : rows.map((row) => {
-          const hired = row?.company?.periodFrom;
-          const years = yearsBetween(hired);
-          const c = activeContractFor(row.id, hr.contracts);
-          const gap = complianceByEmp[row.id];
-          return (
-            <RowLink
-              key={row.id}
-              colors={colors}
-              title={displayName(row)}
-              subtitle={[
-                row?.company?.title || statusLabel(row?.company?.status),
-                hired ? `Ansatt ${empFormatNbDate(hired)}${years != null ? ` · ${years} år` : ''}` : '',
-                gap ? `Compliance ${gap.pct} %` : '',
-              ].filter(Boolean).join(' · ')}
-              meta={c ? (c.aml?.pct != null ? `AML ${c.aml.pct} %` : choiceLabel(CONTRACT_STATUSES, c.status)) : 'Uten kontrakt'}
-              onPress={() => {
-                onSelect?.(row.id);
-                setContractDraft(emptyQuickContract());
-              }}
-            />
-          );
-        })}
-      </HrCard>
-
-      {selected ? (
+  if (!selected) {
+    return (
+      <View style={styles.page} nativeID="hr-people">
         <HrCard colors={colors}>
           <HrSectionTitle
             colors={colors}
-            title={displayName(selected)}
-            subtitle={[selected?.company?.title, periodLabel(selected)].filter(Boolean).join(' · ')}
+            title="Personell"
+            subtitle="Velg en ansatt. Avtale, lønn og oppfølging ligger på personen."
           />
+          <HrFilterBar
+            colors={colors}
+            query={dir.query}
+            onQuery={dir.setQuery}
+            status={dir.status}
+            onStatus={dir.setStatus}
+            kind={dir.kind}
+            onKind={dir.setKind}
+            counts={dir.counts}
+          />
+          <HrTable
+            colors={colors}
+            columns={COLUMNS}
+            rows={rows}
+            rowKey={(row) => row.employee.id}
+            emptyText="Ingen treff i personaloversikten."
+            onPressRow={(row) => {
+              onSelect?.(row.employee.id);
+              onSheet?.('oversikt');
+            }}
+          />
+        </HrCard>
+      </View>
+    );
+  }
+
+  const cells = hrControlCells(selected, { hr, entries });
+  const tenure = yearsBetween(selected?.company?.periodFrom);
+  const personFiles = (hr.files || []).filter((row) => row.employeeId === selected.id);
+  const personMemos = (hr.memos || []).filter((row) => row.employeeId === selected.id);
+  const nextEvents = upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2);
+
+  return (
+    <View style={styles.page} nativeID="hr-employee-sheet">
+      <HrCard colors={colors}>
+        <HrButton
+          colors={colors}
+          label="Til personellisten"
+          icon="arrow-back-outline"
+          onPress={() => {
+            onSelect?.('');
+            onSheet?.('oversikt');
+          }}
+        />
+        <HrSectionTitle
+          colors={colors}
+          title={displayName(selected)}
+          subtitle={[selected?.company?.title, cells.kindLabel, periodLabel(selected)].filter(Boolean).join(' · ')}
+        />
+        <View style={styles.chips}>
+          {SHEETS.map((item) => (
+            <HrChip
+              key={item.id}
+              colors={colors}
+              label={item.label}
+              active={activeSheet === item.id}
+              onPress={() => onSheet?.(item.id)}
+            />
+          ))}
+        </View>
+      </HrCard>
+
+      {activeSheet === 'oversikt' ? (
+        <HrCard colors={colors}>
           <View style={styles.facts}>
             <Fact colors={colors} label="Ansatt dato" value={empFormatNbDate(selected?.company?.periodFrom) || '—'} />
             <Fact colors={colors} label="Ansiennitet" value={tenure != null ? `${tenure} år` : '—'} />
             <Fact colors={colors} label="Fødselsdato" value={empFormatNbDate(selected?.person?.birthDate) || '—'} />
-            <Fact
-              colors={colors}
-              label="Kontrakt / AML"
-              value={contract
-                ? `${choiceLabel(CONTRACT_STATUSES, contract.status)} · AML ${contract.aml?.pct ?? 0} %`
-                : 'Ikke registrert'}
-            />
-            <Fact
-              colors={colors}
-              label="Lønn"
-              value={salary ? formatMoney(salary.annualAmount, salary.currency) : 'Ikke registrert'}
-            />
-            <Fact
-              colors={colors}
-              label="Compliance"
-              value={compliance ? `${compliance.ok}/${compliance.total} (${compliance.pct} %)` : '—'}
-            />
-            <Fact colors={colors} label="Åpne saker" value={String(personCases.length)} />
-            <Fact colors={colors} label="Oppgaver" value={String(personTasks.length)} />
-            <Fact colors={colors} label="Samtaler" value={String(personReviews.length)} />
+            <Fact colors={colors} label="Sjekkliste" value={cells.checklist} />
+            <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract} />
+            <Fact colors={colors} label="Lønn" value={cells.salary === 'Mangler' ? 'Ikke registrert' : cells.salary} />
+            <Fact colors={colors} label="Medarbeidersamtale" value={cells.review} />
+            <Fact colors={colors} label="Fakturerbarhet" value={cells.utilization} />
+            <Fact colors={colors} label="Åpne saker" value={cells.openCases} />
+            <Fact colors={colors} label="Oppgaver" value={cells.openTasks} />
             <Fact colors={colors} label="Memo" value={String(personMemos.length)} />
             <Fact colors={colors} label="Filer" value={String(personFiles.length)} />
           </View>
-
           {nextEvents.length ? (
             <View style={styles.block}>
               <Text style={[styles.blockTitle, { color: colors.ink }]}>Neste milepæl</Text>
@@ -191,7 +147,6 @@ export default function HrPeople({
               ))}
             </View>
           ) : null}
-
           {personFiles.slice(0, 4).map((file) => (
             <RowLink
               key={file.id}
@@ -199,7 +154,7 @@ export default function HrPeople({
               title={file.name}
               subtitle={file.kind || 'Dokument'}
               icon="document-attach-outline"
-              onPress={() => onGo?.('oppfolging')}
+              onPress={() => onSheet?.('oppfolging')}
             />
           ))}
           {personMemos.slice(0, 3).map((memo) => (
@@ -210,64 +165,57 @@ export default function HrPeople({
               subtitle={memo.body}
               meta={memo.employeeVisible ? 'Synlig' : 'HR'}
               icon="document-text-outline"
-              onPress={() => onGo?.('oppfolging')}
+              onPress={() => onSheet?.('oppfolging')}
             />
           ))}
-          <View style={styles.chips}>
-            <HrChip colors={colors} label="Avtaler" active={false} onPress={() => onGo?.('avtaler')} />
-            <HrChip colors={colors} label="Lønn" active={false} onPress={() => onGo?.('lonn')} />
-            <HrChip colors={colors} label="Oppfølging" active={false} onPress={() => onGo?.('oppfolging')} />
-            <HrChip colors={colors} label="Lov & ISO" active={false} onPress={() => onGo?.('compliance')} />
-            <HrChip colors={colors} label="Produktivitet" active={false} onPress={() => onGo?.('produktivitet')} />
-          </View>
-          {canWrite ? (
-            <View style={styles.form}>
-              <Text style={[styles.formTitle, { color: colors.ink }]}>Hurtigregistrer kontrakt</Text>
-              <Text style={[styles.formHint, { color: colors.muted }]}>
-                For OCR/AI, AML-nøkkeldata og skjemamal — bruk Avtaler.
-              </Text>
-              <HrField colors={colors} label="Tittel" value={contractDraft.title} onChangeText={(title) => setContractDraft((p) => ({ ...p, title }))} />
-              <HrField colors={colors} label="Fra dato" value={contractDraft.startDate} onChangeText={(startDate) => setContractDraft((p) => ({ ...p, startDate }))} placeholder="ÅÅÅÅ-MM-DD" />
-              <HrField colors={colors} label="Til dato" value={contractDraft.endDate} onChangeText={(endDate) => setContractDraft((p) => ({ ...p, endDate }))} placeholder="Tom = løpende" />
-              <HrField colors={colors} label="Stillingsprosent" value={contractDraft.workPercent} onChangeText={(workPercent) => setContractDraft((p) => ({ ...p, workPercent }))} />
-              <HrField colors={colors} label="Type" value={contractDraft.employmentType} onChangeText={(employmentType) => setContractDraft((p) => ({ ...p, employmentType }))} />
-              <HrField colors={colors} label="Notat" value={contractDraft.notes} onChangeText={(notes) => setContractDraft((p) => ({ ...p, notes }))} multiline />
-              <HrButton
-                colors={colors}
-                label="Lagre kontrakt"
-                primary
-                icon="ribbon-outline"
-                onPress={() => {
-                  const startDate = contractDraft.startDate || selected?.company?.periodFrom || new Date().toISOString().slice(0, 10);
-                  const row = normalizeContract({
-                    ...contractDraft,
-                    startDate,
-                    employeeId: selected.id,
-                    status: 'active',
-                  });
-                  onPatch?.((state) => {
-                    const contracts = upsertActiveContract(state.contracts || [], row);
-                    const compliance = syncComplianceFromEvidence(state.compliance || [], {
-                      employeeId: selected.id,
-                      contracts,
-                      reviews: state.reviews || [],
-                    });
-                    return { contracts, compliance };
-                  });
-                  setContractDraft(emptyQuickContract());
-                }}
-              />
-              <HrButton
-                colors={colors}
-                label="Åpne full avtale + OCR"
-                icon="scan-outline"
-                onPress={() => onGo?.('avtaler')}
-              />
-            </View>
-          ) : (
-            <EmptyHint colors={colors} text="Du har lesetilgang. Endringer gjøres av leder/HR." />
-          )}
+          {!canWrite ? (
+            <Text style={[styles.line, { color: colors.muted }]}>Du har lesetilgang. Endringer gjøres av leder eller HR.</Text>
+          ) : null}
         </HrCard>
+      ) : null}
+
+      {activeSheet === 'avtale' ? (
+        <HrContracts
+          colors={colors}
+          employees={employees}
+          hr={hr}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          familyId={familyId}
+          lockedEmployeeId={selected.id}
+        />
+      ) : null}
+
+      {activeSheet === 'lonn' ? (
+        <HrSalary
+          colors={colors}
+          hr={hr}
+          canWrite={canWrite}
+          lockedEmployeeId={selected.id}
+          onSaveSalaries={onSaveSalaries}
+        />
+      ) : null}
+
+      {activeSheet === 'oppfolging' ? (
+        <HrFollowUp
+          colors={colors}
+          employees={employees}
+          hr={hr}
+          canWrite={canWrite}
+          lockedEmployeeId={selected.id}
+          onPatch={onPatch}
+          familyId={familyId}
+        />
+      ) : null}
+
+      {activeSheet === 'compliance' ? (
+        <HrCompliance
+          colors={colors}
+          hr={hr}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          lockedEmployeeId={selected.id}
+        />
       ) : null}
     </View>
   );
@@ -284,21 +232,11 @@ function Fact({ colors, label, value }) {
 
 const styles = StyleSheet.create({
   page: { gap: 14 },
-  search: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   fact: { minWidth: '45%', flexGrow: 1, gap: 2 },
   factLabel: { fontSize: 12 },
   factValue: { fontSize: 15, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  form: { gap: 10, marginTop: 8 },
-  formTitle: { fontSize: 14, fontWeight: '600' },
-  formHint: { fontSize: 12, lineHeight: 17 },
   block: { gap: 4, marginTop: 4 },
   blockTitle: { fontSize: 14, fontWeight: '600' },
   line: { fontSize: 13, lineHeight: 18 },

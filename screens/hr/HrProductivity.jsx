@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
-import { companyProductivity, productivityByEmployee } from '../../src/hr/productivity';
+import { hrControlCells } from '../../src/hr/directory';
+import { companyProductivity } from '../../src/hr/productivity';
 import {
-  EmptyHint, HrCard, HrChip, HrSectionTitle, HrStat, UtilizationBar,
+  HrCard, HrChip, HrSectionTitle, HrStat, UtilizationBar,
 } from './HrShared';
+import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 
 const PERIODS = [
   { months: 1, label: '1 mnd' },
@@ -13,13 +15,25 @@ const PERIODS = [
   { months: 12, label: '12 mnd' },
 ];
 
+const COLUMNS = [
+  { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
+  { key: 'kind', label: 'Type', width: 100, value: (row) => row.cells.kindLabel },
+  { key: 'billable', label: 'Fakturerbart', width: 120, value: (row) => row.cells.billableHours },
+  { key: 'hours', label: 'Timer', width: 90, value: (row) => row.cells.totalHours },
+  { key: 'util', label: 'Fakturerbarhet', width: 130, value: (row) => row.cells.utilization },
+];
+
 export default function HrProductivity({
   colors, employees, entries, months = 3, onMonthsChange, onSelectEmployee,
 }) {
   const company = useMemo(() => companyProductivity(entries), [entries]);
+  const dir = useHrDirectory(employees);
   const rows = useMemo(
-    () => productivityByEmployee(entries, employees),
-    [entries, employees],
+    () => dir.rows.map((employee) => ({
+      employee,
+      cells: hrControlCells(employee, { hr: {}, entries }),
+    })),
+    [dir.rows, entries],
   );
 
   return (
@@ -58,30 +72,29 @@ export default function HrProductivity({
       </HrCard>
 
       <HrCard colors={colors}>
-        <HrSectionTitle colors={colors} title="Per medarbeider" />
-        {rows.length === 0 ? (
-          <EmptyHint colors={colors} text="Ingen timer i perioden. Før timer i Arbeid for å se utnyttelse." />
-        ) : rows.map((row) => (
-          <View key={row.employeeId} style={[styles.person, { borderColor: colors.line }]}>
-            <View style={styles.personHead}>
-              <Text
-                style={[styles.personName, { color: colors.ink }]}
-                onPress={() => onSelectEmployee?.(row.employeeId)}
-              >
-                {row.employee ? displayName(row.employee) : row.employeeId}
-              </Text>
-              <Text style={[styles.personMeta, { color: colors.muted }]}>
-                {`${row.billable}/${row.total} t · mål ${row.targetPct} %`}
-              </Text>
-            </View>
-            <UtilizationBar
-              colors={colors}
-              billablePct={row.utilizationPct}
-              targetPct={row.targetPct}
-              band={row.band}
-            />
-          </View>
-        ))}
+        <HrSectionTitle
+          colors={colors}
+          title="Per ansatt"
+          subtitle="Klikk en rad for å åpne personen. Registrering av lønn og oppfølging ligger der."
+        />
+        <HrFilterBar
+          colors={colors}
+          query={dir.query}
+          onQuery={dir.setQuery}
+          status={dir.status}
+          onStatus={dir.setStatus}
+          kind={dir.kind}
+          onKind={dir.setKind}
+          counts={dir.counts}
+        />
+        <HrTable
+          colors={colors}
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={(row) => row.employee.id}
+          emptyText="Ingen ansatte i dette utvalget."
+          onPressRow={(row) => onSelectEmployee?.(row.employee.id)}
+        />
       </HrCard>
     </View>
   );
@@ -92,8 +105,4 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   hint: { fontSize: 13, lineHeight: 18 },
-  person: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
-  personHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-  personName: { fontSize: 15, fontWeight: '600' },
-  personMeta: { fontSize: 12 },
 });

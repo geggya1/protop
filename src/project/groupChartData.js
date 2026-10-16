@@ -51,22 +51,20 @@ async function postJson(url, body, fetchImpl, signal) {
 }
 
 async function fetchAccounts(orgnr, fetchImpl, signal) {
-  const direct = () => fetchJson(`${ACCOUNTS}/${orgnr}`, fetchImpl, signal);
-  if (typeof window === 'undefined') return direct();
-  try {
-    return await direct();
-  } catch (err) {
-    if (err?.name === 'AbortError') throw err;
+  // Regnskapsregisteret sender ikke CORS. Nettleseren må gå via proxy,
+  // ellers logger Chrome feilen selv om kallet fanges.
+  if (typeof window === 'undefined') {
+    return fetchJson(`${ACCOUNTS}/${orgnr}`, fetchImpl, signal);
   }
   const body = { action: 'register', orgnr };
   try {
     const data = await postJson('/api/tender-proxy', body, fetchImpl, signal);
-    if (data?.accounts) return data.accounts;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'accounts')) return data.accounts;
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
   }
   const data = await postJson(accountHistoryEndpoint(), body, fetchImpl, signal);
-  return data?.accounts || null;
+  return data?.accounts ?? null;
 }
 
 function sharesOf(payload) {

@@ -554,6 +554,20 @@ assert.equal(
   'iso bundled != public',
 );
 assert.match(assetsSrc, /iso: require\('\.\.\/\.\.\/assets\/module-activation\/iso--module-activation-illustration\.png'\)/);
+for (const hrId of ['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-produktivitet', 'hr-lonn', 'hr-oppfolging', 'hr-compliance', 'hr-rekruttering']) {
+  const hrFile = `${hrId}--module-activation-illustration.png`;
+  const hrBundled = join(ROOT, 'assets/module-activation', hrFile);
+  const hrPublic = join(ROOT, 'public/assets/module-activation', hrFile);
+  assert.equal(existsSync(hrBundled), true, `${hrId} bundled art`);
+  assert.equal(existsSync(hrPublic), true, `${hrId} public art`);
+  assert.equal(
+    createHash('sha256').update(readFileSync(hrBundled)).digest('hex'),
+    createHash('sha256').update(readFileSync(hrPublic)).digest('hex'),
+    `${hrId} bundled != public`,
+  );
+  assert.match(assetsSrc, new RegExp(`'${hrId}': require\\('\\.\\./\\.\\./assets/module-activation/${hrFile.replace(/\./g, '\\.')}'\\)`));
+  assert.equal(resolveModuleHero(hrId, 'nb').wideArt, true, `${hrId} uses the illustration`);
+}
 const fakturaFile = 'okonomi-faktura--module-activation-illustration.png';
 const fakturaBundled = join(ROOT, 'assets/module-activation', fakturaFile);
 const fakturaPublic = join(ROOT, 'public/assets/module-activation', fakturaFile);

@@ -23,7 +23,9 @@ import {
   deleteProjects,
   emptyProjectState,
   mergeProjectStates,
+  mergeMemberLists,
   monthsAgoIso,
+  normalizeProjectState,
   postEntry,
   progressSummary,
   projectEconomy,
@@ -35,6 +37,7 @@ import {
   signSja,
   updateSja,
   toggleCheckItem,
+  toggleMemberStar,
   upsertTimeEntry,
   wasteSummary,
 } from './engine.js';
@@ -227,6 +230,65 @@ assert.equal(deleteProjects(bulk.state, [projectId]).ok, false);
 
   const none = projectsWithEmployeeHours(hoursState, 'unknown', { since });
   assert.equal(none.length, 0);
+}
+
+{
+  // Duplikate medlemskap (prosjektnummer vs id) skal ikke slå stjernen på igjen
+  // når den er avhuket — nyeste updatedAt vinner, også når verdien er false.
+  const raw = emptyProjectState();
+  raw.projects = [{
+    id: 'p1',
+    number: '10640',
+    name: 'Myklebust barnehage',
+    status: 'aktiv',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  }];
+  raw.members = [
+    {
+      id: 'm-old',
+      projectId: 'p1',
+      employeeId: 'e1',
+      active: true,
+      starred: true,
+      addedAt: '2024-01-01T00:00:00.000Z',
+      role: 'Prosjektmedlem',
+    },
+    {
+      id: 'm-new',
+      projectId: '10640',
+      employeeId: 'e1',
+      active: true,
+      starred: false,
+      addedAt: '2024-06-01T00:00:00.000Z',
+      role: 'Prosjektmedlem',
+    },
+  ];
+  const normalized = normalizeProjectState(raw);
+  assert.equal(normalized.members.length, 1);
+  assert.equal(normalized.members[0].starred, true);
+
+  const toggled = toggleMemberStar(normalized, normalized.members[0].id);
+  assert.equal(toggled.ok, true);
+  assert.equal(toggled.state.members[0].starred, false);
+  assert.ok(toggled.state.members[0].updatedAt);
+
+  const reversed = {
+    ...raw,
+    members: [...raw.members].reverse(),
+  };
+  const saved = mergeProjectStates(reversed, {
+    ...toggled.state,
+    syncedAt: '2026-10-16T08:00:00.000Z',
+  });
+  assert.equal(saved.members.length, 1);
+  assert.equal(saved.members[0].starred, false);
+
+  const kept = mergeMemberLists(
+    toggled.state.members,
+    normalized.members,
+  );
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].starred, false);
 }
 
 console.log('project engine ok');

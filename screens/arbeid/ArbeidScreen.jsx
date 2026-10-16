@@ -25,6 +25,7 @@ import {
   addAbsence,
   addProjectMember,
   emptyProjectState,
+  mergeMemberLists,
   projectsForEmployee,
   toggleMemberStar,
   upsertTimeEntry,
@@ -104,6 +105,13 @@ function entryKey(projectId, date) {
   return `${projectId}|${date}`;
 }
 
+function memberSignature(list) {
+  return (list || [])
+    .map((row) => `${row?.id || ''}|${row?.projectId || ''}|${row?.employeeId || ''}|${row?.starred ? 1 : 0}|${row?.updatedAt || ''}`)
+    .sort()
+    .join(';');
+}
+
 export default function ArbeidScreen({
   lockedEmployeeId = '',
   personal = false,
@@ -128,6 +136,15 @@ export default function ArbeidScreen({
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const skipSave = useRef(true);
+
+  function applyLoadedState(loaded) {
+    setState((current) => {
+      const members = mergeMemberLists(current?.members, loaded?.members);
+      const keptLocalEdit = memberSignature(members) !== memberSignature(loaded?.members);
+      if (!keptLocalEdit) skipSave.current = true;
+      return { ...loaded, members };
+    });
+  }
 
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
@@ -159,9 +176,8 @@ export default function ArbeidScreen({
     }
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
-      setState(loaded);
+      applyLoadedState(loaded);
       setReady(true);
-      skipSave.current = true;
     }).catch(() => {
       if (!live) return;
       skipSave.current = true;
@@ -182,8 +198,7 @@ export default function ArbeidScreen({
     setHoursLoading(true);
     ensureProjectHours(workspaceId, range).then((loaded) => {
       if (!live) return;
-      setState(loaded);
-      skipSave.current = true;
+      applyLoadedState(loaded);
       setHoursLoading(false);
     }).catch(() => {
       if (!live) return;

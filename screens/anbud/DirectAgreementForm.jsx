@@ -18,7 +18,15 @@ import {
   parentOptions,
 } from '../../src/anbud/agreementTemplate';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
-import { formatOrgnr, matchCustomer, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople } from '../../src/anbud/customers';
+import { formatOrgnr, matchCustomer, namesLikelyMatch, normalizeOrgnr, companyFollowUpPeople, customerDraftFromBrreg } from '../../src/anbud/customers';
+import {
+  INVOICE_METHODS,
+  SUGGESTION_NOTE,
+  brregSuggestion,
+  lookupPostalCode,
+  planAgreementSuggestions,
+} from '../../src/anbud/agreementSuggestions';
+import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
 import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
@@ -95,6 +103,15 @@ function formFromInput(input, current = emptyForm()) {
     indexId: input.indexId || input.fields?.indexId || '',
     surchargePercent: input.surchargePercent || input.fields?.surchargePercent || '',
     contractDate: input.contractDate || input.fields?.contractDate || '',
+    postalCode: input.postalCode || input.fields?.postalCode || current.postalCode || '',
+    invoiceMethod: input.invoiceMethod || current.invoiceMethod || '',
+    leaderName: input.leaderName || input.fields?.leaderName || current.leaderName || '',
+    leaderUid: current.leaderUid || input.leaderUid || '',
+    leaderEmail: input.leaderEmail || current.leaderEmail || '',
+    leaderPhone: input.leaderPhone || current.leaderPhone || '',
+    gnrBnr: input.gnrBnr || input.fields?.gnrBnr || current.gnrBnr || '',
+    buyerAddress: input.buyerAddress || input.fields?.buyerAddress || current.buyerAddress || '',
+    invoiceAttn: input.invoiceAttn || current.invoiceAttn || '',
   };
   if (emailLooksLikeSupplier(next.email, next.supplier, next.buyer)) next.email = '';
   return next;
@@ -149,7 +166,11 @@ async function attachmentFromPick(file) {
   return { name, mimeType, size, dataUrl, uri: file?.uri || '' };
 }
 
-function Field({ colors, field, value, onChange, warning, hint }) {
+const SUGGEST_BG = '#fff4cc';
+const SUGGEST_BORDER = '#d4a017';
+
+function Field({ colors, field, value, onChange, warning, hint, suggested }) {
+  const [methodOpen, setMethodOpen] = useState(false);
   const warnColor = colors.warn || '#d97706';
   const readOnly = field.readOnly || READ_ONLY_KEYS.has(field.key);
   if (field.key === 'indexId') {
@@ -157,7 +178,9 @@ function Field({ colors, field, value, onChange, warning, hint }) {
     return (
       <View style={{ gap: 6, flexGrow: 1, flexBasis: '100%', minWidth: 220 }}>
         <View style={styles.labelRow}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
+            {field.label}{suggested ? ' · forslag' : ''}
+          </Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
         <Text style={{ color: colors.ink, fontWeight: '600' }}>
@@ -186,10 +209,12 @@ function Field({ colors, field, value, onChange, warning, hint }) {
     return (
       <View style={{ gap: 4, flexGrow: 1, flexBasis: 200, minWidth: 160 }}>
         <View style={styles.labelRow}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
+            {field.label}{suggested ? ' · forslag' : ''}
+          </Text>
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
-        <View style={[styles.dateBox, { borderColor: warning ? warnColor : colors.line, backgroundColor: colors.bg }]}>
+        <View style={[styles.dateBox, { borderColor: suggested ? SUGGEST_BORDER : (warning ? warnColor : colors.line), backgroundColor: suggested ? SUGGEST_BG : colors.bg }]}>
           <DateField
             value={value || null}
             onChange={(date) => onChange(isoFromDate(date))}
@@ -203,10 +228,59 @@ function Field({ colors, field, value, onChange, warning, hint }) {
       </View>
     );
   }
+  if (field.key === 'invoiceMethod') {
+    const current = INVOICE_METHODS.find((row) => row.id === value);
+    return (
+      <View style={{ gap: 4, flexGrow: 1, flexBasis: 200, minWidth: 160 }}>
+        <View style={styles.labelRow}>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
+            {`Faktura mottak${suggested ? ' · forslag' : ''}`}
+          </Text>
+          {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
+        </View>
+        <TouchableOpacity
+          onPress={() => setMethodOpen((open) => !open)}
+          accessibilityRole="button"
+          accessibilityLabel="Velg faktura mottak"
+          style={[
+            styles.input,
+            {
+              borderColor: suggested ? SUGGEST_BORDER : colors.line,
+              backgroundColor: suggested ? SUGGEST_BG : colors.bg,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.ink }}>{current ? current.label : 'Velg e-post, EHF eller post'}</Text>
+        </TouchableOpacity>
+        {methodOpen ? (
+          <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            {INVOICE_METHODS.map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => {
+                  setMethodOpen(false);
+                  onChange(row.id);
+                }}
+                accessibilityRole="button"
+                style={styles.menuItem}
+              >
+                <Text style={{ color: value === row.id ? colors.brand : colors.ink, fontWeight: value === row.id ? '700' : '400' }}>
+                  {row.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+        {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 4, flexGrow: 1, flexBasis: MULTILINE.has(field.key) ? '100%' : 200, minWidth: 160 }}>
       <View style={styles.labelRow}>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{field.label}</Text>
+        <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 12 }}>
+          {field.label}{suggested ? ' · forslag' : ''}
+        </Text>
         {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
       </View>
       <TextInput
@@ -222,8 +296,8 @@ function Field({ colors, field, value, onChange, warning, hint }) {
           MULTILINE.has(field.key) && styles.inputMulti,
           {
             color: colors.ink,
-            borderColor: warning ? warnColor : colors.line,
-            backgroundColor: readOnly ? colors.sunken : colors.bg,
+            borderColor: suggested ? SUGGEST_BORDER : (warning ? warnColor : colors.line),
+            backgroundColor: suggested ? SUGGEST_BG : (readOnly ? colors.sunken : colors.bg),
           },
         ]}
       />
@@ -284,6 +358,12 @@ export default function DirectAgreementForm({
   const [registerHit, setRegisterHit] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [indexHint, setIndexHint] = useState('');
+  const [suggested, setSuggested] = useState({});
+  const [customerChoices, setCustomerChoices] = useState([]);
+  const [projectChoices, setProjectChoices] = useState([]);
+  const [brregChoices, setBrregChoices] = useState([]);
+  const [unmatchedLeader, setUnmatchedLeader] = useState('');
+  const suggestGen = useRef(0);
   const [open, setOpen] = useState({
     dokumenter: true,
     avtalen: true,
@@ -375,6 +455,17 @@ export default function DirectAgreementForm({
 
   function patch(part) {
     setForm((current) => ({ ...current, ...part }));
+    setSuggested((current) => {
+      const next = { ...current };
+      Object.keys(part).forEach((key) => { delete next[key]; });
+      if ('customerId' in part) delete next.buyer;
+      if ('leaderUid' in part) {
+        delete next.leaderName;
+        delete next.leaderEmail;
+        delete next.leaderPhone;
+      }
+      return next;
+    });
   }
 
   async function applyDocs(docs, note) {
@@ -402,9 +493,93 @@ export default function DirectAgreementForm({
     setPreviewId((current) => (
       docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')
     ));
-    setForm((current) => formFromInput(next, current));
+    const planned = planAgreementSuggestions({
+      previous: form,
+      next: formFromInput(next, form),
+      projects,
+      people: followPeople,
+      customers,
+      explicit: next.explicitSuggestions,
+    });
+    setForm(planned.form);
+    setSuggested(planned.suggested);
+    setCustomerChoices(planned.customerChoices);
+    setProjectChoices(planned.projectChoices);
+    setBrregChoices([]);
+    setUnmatchedLeader(planned.unmatchedLeader);
     setStatus(note);
     setError('');
+    const generation = suggestGen.current + 1;
+    suggestGen.current = generation;
+    completeSuggestions(planned.form, generation);
+  }
+
+  async function completeSuggestions(snapshot, generation) {
+    const patchPart = {};
+    const marks = {};
+    if (!String(snapshot.postalCode || '').trim() && (snapshot.address || snapshot.place)) {
+      try {
+        const found = await lookupPostalCode(snapshot);
+        if (suggestGen.current !== generation) return;
+        if (found?.postalCode) {
+          patchPart.postalCode = found.postalCode;
+          if (!snapshot.place && found.place) patchPart.place = found.place;
+          marks.postalCode = true;
+        }
+      } catch {
+        // Postnummer kan fylles inn for hånd.
+      }
+    }
+    const buyerIsSupplier = snapshot.supplier
+      && namesLikelyMatch(snapshot.buyer, snapshot.supplier)
+      && (!normalizeOrgnr(snapshot.orgnr) || normalizeOrgnr(snapshot.orgnr) === normalizeOrgnr(snapshot.supplierOrgnr));
+    if (!snapshot.customerId && !buyerIsSupplier && (snapshot.buyer || snapshot.orgnr)) {
+      try {
+        const res = await searchBrregCompanies(snapshot.orgnr || snapshot.buyer, { size: 5 });
+        if (suggestGen.current !== generation) return;
+        const picked = brregSuggestion(res.results, { name: snapshot.buyer, orgnr: snapshot.orgnr });
+        if (picked.confident) {
+          const draft = customerDraftFromBrreg(picked.confident);
+          if (draft) {
+            const existing = customers.find((row) => formatOrgnr(row.orgnr) === formatOrgnr(draft.orgnr));
+            if (existing) {
+              patchPart.customerId = existing.id;
+              patchPart.createCustomer = false;
+              patchPart.buyer = patchPart.buyer || existing.name || snapshot.buyer;
+              marks.customerId = true;
+            } else {
+              patchPart.createCustomer = true;
+              if (!snapshot.orgnr && draft.orgnr) {
+                patchPart.orgnr = draft.orgnr;
+                marks.orgnr = true;
+              }
+              if (!snapshot.postalCode && !patchPart.postalCode && draft.postalCode) {
+                patchPart.postalCode = draft.postalCode;
+                marks.postalCode = true;
+              }
+              if (!snapshot.place && draft.place) {
+                patchPart.place = draft.place;
+                marks.place = true;
+              }
+              if (!snapshot.address && draft.address) {
+                patchPart.address = draft.address;
+                marks.address = true;
+              }
+              marks.buyer = true;
+            }
+          }
+        } else if (picked.alternatives.length) {
+          setBrregChoices(picked.alternatives);
+        }
+      } catch {
+        // Kunderegisteret og manuell utfylling gjelder videre.
+      }
+    }
+    if (suggestGen.current !== generation) return;
+    if (Object.keys(patchPart).length) {
+      setForm((current) => ({ ...current, ...patchPart }));
+      setSuggested((current) => ({ ...current, ...marks }));
+    }
   }
 
   async function storeOriginal(file, attached = {}, salt = '') {
@@ -519,8 +694,8 @@ export default function DirectAgreementForm({
       }
       const docs = [...files, ...added];
       const note = list.length > 1
-        ? `${list.length} dokumenter er vedlagt. Kontroller feltene merket med ! før du registrerer.`
-        : 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.';
+        ? `${list.length} dokumenter er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.`
+        : 'Dokumentet er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.';
       await applyDocs(docs, note);
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentene. Prøv en annen fil, eller fyll inn feltene manuelt.');
@@ -548,8 +723,8 @@ export default function DirectAgreementForm({
         added.push(await readOneFile(list[index], files, index, list.length));
       }
       await applyDocs([...files, ...added], list.length > 1
-        ? `${list.length} dokumenter er vedlagt. Kontroller feltene merket med ! før du registrerer.`
-        : 'Dokumentet er vedlagt. Kontroller feltene merket med ! før du registrerer.');
+        ? `${list.length} dokumenter er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.`
+        : 'Dokumentet er vedlagt. Gule felt er forslag og må kontrolleres før du registrerer.');
     } catch (cause) {
       setError(cause?.message || 'Kunne ikke lese dokumentene.');
     } finally {
@@ -721,6 +896,11 @@ export default function DirectAgreementForm({
       setPayload(null);
       setFiles([]);
       setPreviewId('');
+      setSuggested({});
+      setCustomerChoices([]);
+      setProjectChoices([]);
+      setBrregChoices([]);
+      setUnmatchedLeader('');
       setStatus('');
     }
   }
@@ -768,9 +948,14 @@ export default function DirectAgreementForm({
         </View>
       ) : (
         <Text style={{ color: colors.muted }}>
-          Last opp avtaledokumentene. OCR og KI leser kjente felt til venstre. Originalfilen lagres og forhåndsvises til høyre. Felt med ! må kontrolleres.
+          Last opp avtaledokumentene. OCR og KI leser kjente felt til venstre. Originalfilen lagres og forhåndsvises til høyre. Gule felt er forslag. Felt med ! må kontrolleres.
         </Text>
       )}
+      {Object.keys(suggested).length ? (
+        <View style={[styles.banner, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}>
+          <Text style={{ color: '#8a5a00', fontWeight: '700' }}>{SUGGESTION_NOTE}</Text>
+        </View>
+      ) : null}
       {reading ? (
         <View style={[styles.banner, { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}>
           <Text style={{ color: colors.brand, fontWeight: '600' }}>{status || 'Leser avtalen…'}</Text>
@@ -865,10 +1050,41 @@ export default function DirectAgreementForm({
         companyId={companyId}
         people={followPeople}
         label="Kunde / oppdragsgiver"
+        suggested={!!suggested.customerId || (!!suggested.buyer && !form.customerId)}
+        proposal={!form.customerId && form.createCustomer ? form.buyer : ''}
         onSelect={(customer) => applyCustomerRow(customer)}
         onBrregDraft={applyBrregDraft}
         onSavedState={(saved) => onCustomersChanged?.(saved)}
       />
+      {customerChoices.length ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: '#8a5a00', fontSize: 13 }}>Flere kunder treffer. Velg forslag:</Text>
+          <View style={styles.row}>
+            {customerChoices.map((row) => (
+              <TouchableOpacity key={row.id} onPress={() => applyCustomerRow(row)} accessibilityRole="button" style={[styles.chip, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}>
+                <Text style={{ color: '#8a5a00' }}>{row.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {brregChoices.length ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: '#8a5a00', fontSize: 13 }}>Forslag fra Brønnøysund:</Text>
+          <View style={styles.row}>
+            {brregChoices.map((hit) => (
+              <TouchableOpacity
+                key={hit.organisasjonsnummer}
+                onPress={() => applyBrregDraft(customerDraftFromBrreg(hit), customers.find((row) => formatOrgnr(row.orgnr) === formatOrgnr(hit.organisasjonsnummer)) || null)}
+                accessibilityRole="button"
+                style={[styles.chip, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}
+              >
+                <Text style={{ color: '#8a5a00' }}>{hit.navn}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
       {confirmText ? <Text style={{ color: colors.ink }}>{confirmText}</Text> : null}
       {registerHit?.name && !namesLikelyMatch(form.buyer, registerHit.name) ? (
         <TouchableOpacity onPress={() => patch({ buyer: registerHit.name })} accessibilityRole="button">
@@ -901,11 +1117,29 @@ export default function DirectAgreementForm({
         colors={colors}
         projects={projects}
         projectId={form.projectId}
+        suggested={!!suggested.projectId}
         onSelect={(project) => patch({
           projectId: project?.id || '',
           projectName: project?.name || form.projectName || '',
         })}
       />
+      {projectChoices.length ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: '#8a5a00', fontSize: 13 }}>Prosjektforslag fra dokumentet:</Text>
+          <View style={styles.row}>
+            {projectChoices.map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => patch({ projectId: row.id, projectName: row.name || form.projectName || '' })}
+                accessibilityRole="button"
+                style={[styles.chip, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }]}
+              >
+                <Text style={{ color: '#8a5a00' }}>{row.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {kindFields.filter((group) => group.id !== 'ramme').map((group) => (
         <Drawer
@@ -919,7 +1153,10 @@ export default function DirectAgreementForm({
           {group.id === 'sted' ? (
             <View style={{ gap: 10 }}>
               <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Adresse</Text>
+                <Text style={{ color: suggested.address ? '#8a5a00' : colors.muted, fontSize: 12 }}>
+                  {suggested.address ? 'Adresse · forslag' : 'Adresse'}
+                </Text>
+                <View style={suggested.address ? [styles.suggestWrap, { borderColor: SUGGEST_BORDER, backgroundColor: SUGGEST_BG }] : null}>
                 <LocationPicker
                   value={form.address ? { label: form.address, postnummer: form.postalCode, place: form.place } : null}
                   onChange={(loc) => {
@@ -936,6 +1173,7 @@ export default function DirectAgreementForm({
                     });
                   }}
                 />
+                </View>
               </View>
               <View style={styles.grid}>
                 {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
@@ -945,6 +1183,7 @@ export default function DirectAgreementForm({
                     field={field}
                     value={form[field.key] || ''}
                     warning={flags[field.key]}
+                    suggested={!!suggested[field.key]}
                     onChange={(value) => patch({ [field.key]: value })}
                   />
                 ))}
@@ -959,6 +1198,7 @@ export default function DirectAgreementForm({
                   ownerUid={form.leaderUid}
                   label="Oppdragsleder"
                   placeholder="Søk blant ansatte"
+                  suggested={!!suggested.leaderUid || !!suggested.leaderName}
                   onSelect={(person) => patch({
                     leaderUid: person?.uid || person?.id || '',
                     leaderName: person?.name || '',
@@ -966,6 +1206,11 @@ export default function DirectAgreementForm({
                     leaderPhone: person?.phone || form.leaderPhone || '',
                   })}
                 />
+                {unmatchedLeader && !form.leaderUid ? (
+                  <Text style={{ color: '#8a5a00', fontSize: 13 }}>
+                    {`Dokumentet nevner oppdragsleder ${unmatchedLeader}. Ingen ansatt med det navnet ble funnet.`}
+                  </Text>
+                ) : null}
               ) : null}
               {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
                 <Field
@@ -974,7 +1219,8 @@ export default function DirectAgreementForm({
                   field={field}
                   value={form[field.key] || ''}
                   warning={flags[field.key]}
-                  hint={field.key === 'indexId' || field.key === 'indexBase' ? indexHint : ''}
+                  suggested={!!suggested[field.key]}
+                  hint={field.key === 'indexId' || field.key === 'indexBase' ? indexHint : (field.key === 'invoiceMethod' && suggested.invoiceMethod ? 'Valgt fra dokumentet' : '')}
                   onChange={(value) => patch({ [field.key]: value })}
                 />
               ))}
@@ -1101,4 +1347,7 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderColor: 'transparent', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   dateBox: { borderWidth: 1, borderRadius: 10, justifyContent: 'center' },
   dateField: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 42 },
+  menu: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
+  menuItem: { paddingHorizontal: 10, paddingVertical: 8 },
+  suggestWrap: { borderWidth: 1, borderRadius: 10, padding: 4 },
 });

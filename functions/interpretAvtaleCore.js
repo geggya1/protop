@@ -46,6 +46,10 @@ Returner KUN JSON:
   "honorar": "",
   "place": "",
   "address": "",
+  "postalCode": "",
+  "invoiceMethod": "EPOST | EHF | POST | ",
+  "leaderName": "",
+  "gnrBnr": "",
   "description": "",
   "poNumber": "",
   "orgnr": "",
@@ -75,6 +79,8 @@ Husleie skal ha model husleie, indexId kpi og vatPercent 0.
 Datoer skrives YYYY-MM-DD. Tom streng når feltet ikke finnes. rate skal være et tall som står i teksten.
 kind fylles bare når dokumentet selv sier rammeavtale, avrop, endring eller oppdragsavtale.
 personnummer og orgnr fylles bare når sifrene står i teksten. Ikke gjette.
+postalCode er fire siffer. invoiceMethod er EHF når avtalen sier EHF, POST når faktura skal i posten, og EPOST når den skal på e-post. Tom streng når mottaket ikke står.
+leaderName er navnet på oppdragsleder når det står i teksten. gnrBnr skrives som 12/34 når gnr og bnr står i teksten.
 variables er andre størrelser avtalen navngir, for eksempel sosiale utgifter eller materialandel, skrevet slik de står.`;
 
 function reject(code, message) {

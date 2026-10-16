@@ -116,7 +116,12 @@ export function interpretContract(text) {
   draft.orgnr = partyOrgnr(source, 'oppdragsgiver') || partyOrgnr(source, 'byggherre');
   draft.supplierOrgnr = partyOrgnr(source, 'oppdragstaker') || partyOrgnr(source, 'entreprenør') || partyOrgnr(source, 'leverandør');
   draft.place = plausible(assignmentPlace(source));
-  draft.address = plausible(labeledParty(source, ['adresse']));
+  const street = tidyStreetAddress(plausible(labeledParty(source, ['adresse'])));
+  draft.address = street.address;
+  draft.postalCode = readPostalCode(source) || street.postalCode;
+  draft.invoiceMethod = invoiceMethodFromSource(source);
+  draft.leaderName = plausible(labeledParty(source, ['oppdragsleder', 'oppdrags leder']));
+  draft.gnrBnr = readGnrBnr(source);
   draft.description = plausible(labeledParty(source, ['beskrivelse av oppdraget']));
   draft.poNumber = plausible(labeledParty(source, ['eksternt po\\. nr', 'po\\. nr', 'po-nr', 'po nummer']));
   draft.honorar = honorarText(source) || honorarForm(source);
@@ -204,7 +209,7 @@ function applyLaterDocument(base, next, name) {
   if (next.extracted?.index) draft.indexId = next.indexId;
   if (next.standard && next.standard !== 'avtalt') draft.standard = next.standard;
   if (next.model) draft.model = next.model;
-  ['offerDate', 'tenderDeadline', 'contractDate', 'buyer', 'supplier', 'title', 'reference', 'startDate', 'endDate', 'contactName', 'orgnr', 'supplierOrgnr', 'place', 'address', 'description', 'honorar', 'poNumber', 'phone', 'email', 'personnummer', 'surchargePercent', 'kind'].forEach((key) => {
+  ['offerDate', 'tenderDeadline', 'contractDate', 'buyer', 'supplier', 'title', 'reference', 'startDate', 'endDate', 'contactName', 'orgnr', 'supplierOrgnr', 'place', 'address', 'description', 'honorar', 'poNumber', 'phone', 'email', 'personnummer', 'surchargePercent', 'kind', 'postalCode', 'invoiceMethod', 'leaderName', 'gnrBnr'].forEach((key) => {
     if (next[key]) draft[key] = next[key];
   });
   if (next.extracted?.terms) draft.terms = emptyTerms(next.terms);
@@ -236,10 +241,30 @@ export function mergeInterpretation(local, ai, sourceText = '') {
     ...base,
     findings: [...(base.findings || [])],
   };
-  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline', 'contractDate', 'startDate', 'endDate', 'honorar', 'place', 'address', 'description', 'poNumber', 'orgnr', 'supplierOrgnr', 'personnummer', 'contactName', 'phone', 'email', 'surchargePercent', 'kind'];
+  const textFields = ['title', 'reference', 'buyer', 'supplier', 'standard', 'model', 'indexId', 'offerDate', 'tenderDeadline', 'contractDate', 'startDate', 'endDate', 'honorar', 'place', 'address', 'description', 'poNumber', 'orgnr', 'supplierOrgnr', 'personnummer', 'contactName', 'phone', 'email', 'surchargePercent', 'kind', 'postalCode', 'invoiceMethod', 'leaderName', 'gnrBnr'];
   textFields.forEach((key) => {
     const value = clean(extra[key]);
     if (!value) return;
+    if (key === 'postalCode') {
+      const code = value.replace(/\D/g, '').slice(0, 4);
+      if (code.length === 4) next.postalCode = code;
+      return;
+    }
+    if (key === 'invoiceMethod') {
+      const method = normalizeInvoiceMethod(value);
+      if (method) next.invoiceMethod = method;
+      return;
+    }
+    if (key === 'gnrBnr') {
+      const gnr = value.replace(/\s/g, '');
+      if (/^\d{1,5}\/\d{1,5}$/.test(gnr)) next.gnrBnr = gnr;
+      return;
+    }
+    if (key === 'leaderName') {
+      const ok = plausible(value);
+      if (ok) next.leaderName = ok;
+      return;
+    }
     if (['buyer', 'supplier', 'title', 'contactName', 'place', 'address', 'description', 'honorar'].includes(key)) {
       const ok = plausible(value);
       if (!ok) return;
@@ -257,6 +282,11 @@ export function mergeInterpretation(local, ai, sourceText = '') {
     if (key === 'kind' && !['oppdrag', 'rammeavtale', 'avrop', 'endring', 'annet'].includes(value)) return;
     next[key] = value;
   });
+  if (next.address) {
+    const street = tidyStreetAddress(next.address);
+    next.address = street.address;
+    if (!next.postalCode && street.postalCode) next.postalCode = street.postalCode;
+  }
   if (extra.sharePercent != null && extra.sharePercent !== '') {
     const share = parseAmount(extra.sharePercent);
     if (share != null) next.sharePercent = String(Math.min(100, Math.max(0, share)));
@@ -461,13 +491,13 @@ function labeledParty(text, labels) {
 function cleanParty(raw) {
   return String(raw || '')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\s+(Om\s+oppdragsgiver|Oppdragsgiver|Oppdragstaker|Organisasjons\s*nr|Org\.?nr|Kontakt|E-?post|Telefon|Adresse|Att|Post nr|Gnr|NS\s*\d{4}|Avtalt|Tabell|Oppstart|Sluttdato|Honoreres|Generelle bestemmelser|Eksternt).*$/i, '')
+    .replace(/\s+(Om\s+oppdragsgiver|Oppdragsgiver|Oppdragstaker|Organisasjons\s*nr|Org\.?nr|Kontakt|E-?post|Telefon|Adresse|Att|Post\s*n(?:ummer|r)\.?|Sted|Gnr|NS\s*\d{4}|Avtalt|Tabell|Oppstart|Sluttdato|Honoreres|Generelle bestemmelser|Eksternt|Faktura).*$/i, '')
     .replace(/[,;].*$/, '')
     .trim();
 }
 
 function assignmentTitle(text) {
-  const oppdrag = text.match(/\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,70}?)(?:\s+Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/i);
+  const oppdrag = text.match(/\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,70}?)(?:\s+Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/im);
   const beskrivelse = text.match(/Beskrivelse av oppdraget\s+([A-ZÆØÅa-zæøå0-9][A-Za-zÆØÅæøå0-9-]*)/i);
   const name = oppdrag ? cleanParty(oppdrag[1]) : '';
   const role = beskrivelse ? cleanParty(beskrivelse[1]) : '';
@@ -486,6 +516,58 @@ function partyOrgnr(text, label) {
   const match = String(text || '').match(pattern);
   if (!match) return '';
   return match[1].replace(/\s/g, '').slice(0, 9);
+}
+
+export function normalizeInvoiceMethod(value) {
+  const raw = clean(value);
+  const text = raw.toUpperCase();
+  if (!text) return '';
+  if (/\bEHF\b|PEPPOL|ELEKTRONISK HANDELSFORMAT/.test(text)) return 'EHF';
+  const hasMail = /E-?POST|EPOST|\bMAIL\b|@/.test(text);
+  const hasPaper = /\bPOST\b(?!\s*@)|PAPIRFAKTURA|PER BREV/.test(text.replace(/E-?POST/g, 'MAIL'));
+  if (hasMail && !hasPaper) return 'EPOST';
+  if (hasPaper && !hasMail) return 'POST';
+  if (hasMail) return 'EPOST';
+  return '';
+}
+
+export function tidyStreetAddress(value) {
+  let address = clean(value);
+  if (!address) return { address: '', postalCode: '' };
+  const inline = address.match(/^(.*?)(?:,|\s)+(\d{4})$/);
+  if (inline && /[A-Za-zÆØÅæøå]/.test(inline[1])) {
+    return { address: inline[1].trim(), postalCode: inline[2] };
+  }
+  const junkId = address.match(/^(.*\D)\s+(\d{5,})$/);
+  if (junkId) return { address: junkId[1].trim(), postalCode: '' };
+  return { address, postalCode: '' };
+}
+
+function readPostalCode(text) {
+  const source = String(text || '');
+  const labeled = source.match(/\bpost\s*(?:nr|nummer)\.?\s*[:\-]?\s*(\d{4})\b/i);
+  if (labeled) return labeled[1];
+  const beside = source.match(/\badresse:\s*[^:\n]{0,90}?(\d{4})\b/i);
+  return beside ? beside[1] : '';
+}
+
+function invoiceMethodFromSource(text) {
+  const source = String(text || '');
+  const window = source.match(/faktura(?:\s*mottak|\s*adresse|\s*sendes)?[^.\n]{0,100}/i)?.[0] || '';
+  if (!window) return '';
+  const upper = window.toUpperCase();
+  const ehf = /\bEHF\b|PEPPOL/.test(upper);
+  const mail = /E-?POST|EPOST|@/.test(upper);
+  const paper = /\bPOST\b(?!\s*@)|PAPIRFAKTURA|PER BREV/.test(upper.replace(/E-?POST/g, ''));
+  const hits = [ehf && 'EHF', mail && 'EPOST', paper && 'POST'].filter(Boolean);
+  if (hits.length !== 1) return '';
+  return hits[0];
+}
+
+function readGnrBnr(text) {
+  const match = String(text || '').match(/\bgnr\.?\s*\/?\s*bnr\.?\s*[:\-]?\s*(\d{1,5})\s*\/\s*(\d{1,5})\b/i);
+  if (!match) return '';
+  return `${match[1]}/${match[2]}`;
 }
 
 function assignmentPlace(text) {

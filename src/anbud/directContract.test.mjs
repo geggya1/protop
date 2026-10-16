@@ -47,6 +47,8 @@ assert.equal(draft.contactName, 'Øyvind Lerbrekk');
 assert.equal(draft.orgnr, '922987106');
 assert.equal(draft.place, 'Stavanger');
 assert.equal(draft.address, 'Haakon VIIs gate 8');
+assert.equal(draft.postalCode, '4005');
+assert.equal(draft.invoiceMethod, '');
 assert.equal(draft.description, 'Anleggsleder');
 assert.equal(draft.email, 'oyvind@igang.no');
 assert.equal(draft.phone, '92082276');

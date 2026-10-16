@@ -73,6 +73,7 @@ export default function AbsenceOrganizePanel({
   employees = [],
   counts = null,
   onReset,
+  onClose,
 }) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const visible = new Set(visibleColumns?.length ? visibleColumns : DEFAULT_ABSENCE_REPORT_COLUMNS);
@@ -87,6 +88,20 @@ export default function AbsenceOrganizePanel({
       style={[styles.deck, { borderColor: colors.line, backgroundColor: colors.card }]}
       nativeID="absence-organize-panel"
     >
+      {onClose ? (
+        <View style={styles.headRow}>
+          <Text style={[styles.headTitle, { color: colors.ink }]}>Filtrer og sorter</Text>
+          <TouchableOpacity
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk filter"
+            nativeID="absence-organize-close"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={20} color={colors.ink} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <View style={styles.top}>
         <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Ionicons name="search" size={16} color={colors.muted} />
@@ -278,11 +293,15 @@ export default function AbsenceOrganizePanel({
 const styles = StyleSheet.create({
   deck: {
     width: '100%',
+    maxWidth: '100%',
     borderWidth: 1,
     borderRadius: 16,
     padding: 14,
     gap: 14,
+    alignSelf: 'stretch',
   },
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  headTitle: { fontSize: 16, fontWeight: '400', flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   search: {
     flex: 1,
@@ -304,10 +323,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  split: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  block: { gap: 8, flexGrow: 1, minWidth: 220 },
+  split: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, width: '100%' },
+  block: { gap: 8, flexGrow: 1, flexBasis: 220, minWidth: 0, maxWidth: '100%' },
   rowLabel: { fontSize: 11, fontWeight: '400', letterSpacing: 0.6, textTransform: 'uppercase' },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%' },
   people: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 2 },
   chip: {
     flexDirection: 'row',

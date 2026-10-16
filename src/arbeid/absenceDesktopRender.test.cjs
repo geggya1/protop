@@ -79,7 +79,15 @@ function loadJsx(rel) {
     }
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => true };
     if (id.includes('AbsenceOrganizePanel')) {
-      return { __esModule: true, default: function AbsenceOrganizePanel() { return null; } };
+      return {
+        __esModule: true,
+        default: function AbsenceOrganizePanel(props) {
+          return React.createElement('View', { nativeID: 'absence-organize-panel' }, React.createElement('View', {
+            nativeID: 'absence-organize-close',
+            onPress: props.onClose,
+          }));
+        },
+      };
     }
     return orig(id);
   };
@@ -225,7 +233,16 @@ const absences = [
   assert.ok(ids.includes('absence-report-select-all'));
   assert.ok(ids.includes('absence-report-select-a1'));
   assert.ok(ids.includes('absence-report-select-a2'));
+  assert.ok(ids.includes('absence-filter-toggle'));
+  assert.ok(ids.includes('fravaer-report-settings'));
   assert.equal(ids.includes('absence-report-delete-selected'), false);
+  assert.equal(ids.includes('fravaer-import'), false);
+  assert.equal(ids.includes('fravaer-clear-imported'), false);
+  assert.equal(ids.includes('absence-organize-panel'), false);
+  const text = collectText(element).join('\n');
+  assert.match(text, /Filtrer/);
+  assert.doesNotMatch(text, /Importer/);
+  assert.doesNotMatch(text, /Tøm import/);
 }
 
 {
@@ -234,6 +251,8 @@ const absences = [
   }));
   assert.equal(ids.includes('absence-report-select-all'), false);
   assert.equal(ids.includes('absence-report-select-a1'), false);
+  assert.ok(ids.includes('absence-filter-toggle'));
+  assert.equal(ids.includes('fravaer-report-settings'), false);
 }
 
 {
@@ -259,6 +278,145 @@ const absences = [
     canChooseEmployee: true,
     error: 'demo',
   }));
+}
+
+function expandTree(node, depth = 0) {
+  if (depth > 50 || node == null || typeof node === 'boolean') return node;
+  if (Array.isArray(node)) return node.map((child) => expandTree(child, depth));
+  if (typeof node === 'string' || typeof node === 'number') return node;
+  if (!React.isValidElement(node)) return node;
+  if (typeof node.type === 'function') return expandTree(node.type(node.props || {}), depth + 1);
+  const children = node.props && node.props.children;
+  if (children == null) return node;
+  return React.cloneElement(node, node.props, expandTree(children, depth));
+}
+
+function findByNativeId(node, nativeID, depth = 0) {
+  if (depth > 50 || node == null || typeof node === 'boolean') return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findByNativeId(child, nativeID, depth);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof node === 'string' || typeof node === 'number' || !React.isValidElement(node)) return null;
+  if (node.props && node.props.nativeID === nativeID) return node;
+  return findByNativeId(node.props && node.props.children, nativeID, depth + 1);
+}
+
+function idsOf(node) {
+  const ids = [];
+  const visit = (current, depth = 0) => {
+    if (depth > 50 || current == null || typeof current === 'boolean') return;
+    if (Array.isArray(current)) {
+      current.forEach((child) => visit(child, depth));
+      return;
+    }
+    if (typeof current === 'string' || typeof current === 'number' || !React.isValidElement(current)) return;
+    if (current.props && current.props.nativeID) ids.push(current.props.nativeID);
+    visit(current.props && current.props.children, depth + 1);
+  };
+  visit(node);
+  return ids;
+}
+
+function interactiveRender(element) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const states = [];
+  let cursor = 0;
+  let tree = null;
+
+  function rerender() {
+    cursor = 0;
+    const previous = internals.H;
+    internals.H = {
+      useState(initial) {
+        const index = cursor++;
+        if (!Object.prototype.hasOwnProperty.call(states, index)) {
+          states[index] = typeof initial === 'function' ? initial() : initial;
+        }
+        return [states[index], (update) => {
+          const next = typeof update === 'function' ? update(states[index]) : update;
+          if (Object.is(next, states[index])) return;
+          states[index] = next;
+          rerender();
+        }];
+      },
+      useMemo(fn) { return fn(); },
+      useEffect() {},
+      useLayoutEffect() {},
+      useRef(value) {
+        const index = cursor++;
+        if (!Object.prototype.hasOwnProperty.call(states, index)) states[index] = { current: value };
+        return states[index];
+      },
+      useCallback(fn) { return fn; },
+      useContext() { return undefined; },
+    };
+    try {
+      tree = expandTree(element.type(element.props || {}));
+    } finally {
+      internals.H = previous;
+    }
+  }
+
+  rerender();
+  return {
+    ids() { return idsOf(tree); },
+    press(nativeID) {
+      const node = findByNativeId(tree, nativeID);
+      assert.ok(node, `fant ikke ${nativeID}`);
+      assert.equal(typeof node.props.onPress, 'function', `${nativeID} mangler onPress`);
+      node.props.onPress();
+    },
+  };
+}
+
+{
+  let imported = 0;
+  let cleared = 0;
+  const ui = interactiveRender(React.createElement(AbsenceReportDesktop, {
+    employees,
+    names,
+    absences,
+    canChooseEmployee: true,
+    canImport: true,
+    absenceCount: absences.length,
+    onImport: () => { imported += 1; },
+    onClearImported: () => { cleared += 1; },
+  }));
+  assert.equal(ui.ids().includes('absence-filter-sheet'), false);
+  assert.equal(ui.ids().includes('fravaer-settings-menu'), false);
+
+  ui.press('absence-filter-toggle');
+  assert.ok(ui.ids().includes('absence-filter-sheet'));
+  assert.ok(ui.ids().includes('absence-organize-panel'));
+  assert.equal(ui.ids().includes('fravaer-settings-menu'), false);
+
+  ui.press('absence-organize-close');
+  assert.equal(ui.ids().includes('absence-filter-sheet'), false);
+
+  ui.press('fravaer-report-settings');
+  assert.ok(ui.ids().includes('fravaer-import'));
+  assert.ok(ui.ids().includes('fravaer-clear-imported'));
+  assert.equal(ui.ids().includes('absence-filter-sheet'), false);
+
+  ui.press('fravaer-import');
+  assert.equal(imported, 1);
+  assert.equal(ui.ids().includes('fravaer-settings-menu'), false);
+
+  ui.press('fravaer-report-settings');
+  ui.press('fravaer-clear-imported');
+  assert.equal(cleared, 1);
+  assert.equal(ui.ids().includes('fravaer-clear-imported'), false);
+
+  ui.press('absence-filter-toggle');
+  ui.press('fravaer-report-settings');
+  assert.equal(ui.ids().includes('absence-filter-sheet'), false);
+  assert.ok(ui.ids().includes('fravaer-settings-menu'));
+  ui.press('fravaer-settings-dismiss');
+  assert.equal(ui.ids().includes('fravaer-settings-menu'), false);
 }
 
 console.log('absenceDesktopRender.test.cjs: ok');

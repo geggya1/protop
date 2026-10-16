@@ -1289,21 +1289,30 @@ export default function EmployeesScreen() {
     || !busyKind
   );
 
-  return (
-    <>
-    <ScrollView
-      ref={scrollRef}
-      nativeID="employees-page"
-      id="employees-page"
-      style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={[
+  const hoursFill = view === 'hours';
+  const Page = hoursFill ? View : ScrollView;
+  const pageProps = hoursFill
+    ? {
+      nativeID: 'employees-page',
+      style: [styles.hoursPage, { backgroundColor: colors.bg }],
+    }
+    : {
+      ref: scrollRef,
+      nativeID: 'employees-page',
+      id: 'employees-page',
+      style: { backgroundColor: colors.bg },
+      contentContainerStyle: [
         styles.inner,
         PERSON_VIEWS.has(view) && styles.innerWide,
-        (view === 'hours' || view === 'report') && styles.innerHours,
+        view === 'report' && styles.innerHours,
         view === 'absence' && styles.innerAbsence,
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
+      ],
+      keyboardShouldPersistTaps: 'handled',
+    };
+
+  return (
+    <>
+    <Page {...pageProps}>
       {view !== 'list' && !PERSON_VIEWS.has(view) ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side'
@@ -1437,6 +1446,7 @@ export default function EmployeesScreen() {
           onBack={openList}
           onTab={openPersonTab}
           onSelect={openSibling}
+          fill={hoursFill}
         >
           {view === 'overview' ? (
             <View nativeID="employee-overview-view">
@@ -1445,7 +1455,7 @@ export default function EmployeesScreen() {
           ) : null}
 
           {view === 'hours' ? (
-            <View style={styles.hoursHost} nativeID="employee-hours-view">
+            <View style={styles.hoursHostFill} nativeID="employee-hours-view">
               <ArbeidScreen lockedEmployeeId={selected.id} embedded />
             </View>
           ) : null}
@@ -1825,7 +1835,7 @@ export default function EmployeesScreen() {
         }}
         onSubmit={registerEmployee}
       />
-    </ScrollView>
+    </Page>
     <BrandBusyOverlay
       visible={!directoryReady || !!showBusyOverlay}
       testID={busyKind === 'save' ? 'employee-cv-progress' : 'brand-busy-overlay'}
@@ -1876,7 +1886,9 @@ const styles = StyleSheet.create({
   innerWide: { maxWidth: 1220 },
   innerHours: { maxWidth: 1400, flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
+  hoursPage: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   hoursHost: { minHeight: 720, width: '100%', alignSelf: 'stretch' },
+  hoursHostFill: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   absenceHost: { width: '100%', alignSelf: 'stretch' },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },

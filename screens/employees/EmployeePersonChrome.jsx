@@ -31,6 +31,7 @@ export default function EmployeePersonChrome({
   onTab,
   onSelect,
   children,
+  fill = false,
 }) {
   const { isPhone } = useLayout();
   const index = siblings.findIndex((row) => row.id === employee?.id);
@@ -42,7 +43,8 @@ export default function EmployeePersonChrome({
   const subtitle = cardSubtitle(employee, companyName);
 
   return (
-    <View nativeID="employee-person-chrome" style={styles.root}>
+    <View nativeID="employee-person-chrome" style={[styles.root, fill && styles.rootFill]}>
+      <View style={[styles.head, fill && styles.fillHead]}>
       <View style={styles.crumbRow}>
         <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.crumbBtn}>
           <Text style={{ color: colors.brand, fontSize: 13 }}>Ansatte</Text>
@@ -135,6 +137,7 @@ export default function EmployeePersonChrome({
           );
         })}
       </View>
+      </View>
 
       {children}
     </View>
@@ -143,6 +146,9 @@ export default function EmployeePersonChrome({
 
 const styles = StyleSheet.create({
   root: { gap: 14, width: '100%' },
+  rootFill: { flex: 1, minHeight: 0, gap: 0 },
+  head: { gap: 14 },
+  fillHead: { paddingTop: 16, paddingHorizontal: 16 },
   crumbRow: { flexDirection: 'row', alignItems: 'center' },
   crumbBtn: { paddingVertical: 2 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },

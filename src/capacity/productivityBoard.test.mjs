@@ -167,9 +167,20 @@ const tree = withHooks(() => React.createElement(Board, {
 }));
 const text = collectText(tree).join('\n');
 assert.match(text, /Ada Nord/);
-assert.match(text, /Bo Ekstern/);
+assert.doesNotMatch(text, /Bo Ekstern/);
 assert.match(text, /Intern/);
-assert.match(text, /Ekstern/);
+assert.match(text, /Full uke 40 t/);
+const allKinds = withHooks(() => React.createElement(Board, {
+  colors,
+  people,
+  projects,
+  members,
+  plan,
+  canWrite: true,
+  onPlan: () => {},
+  initialKind: 'alle',
+}));
+assert.match(collectText(allKinds).join('\n'), /Bo Ekstern/);
 assert.match(text, /Sammenslått/);
 assert.match(text, /80 % stilling/);
 

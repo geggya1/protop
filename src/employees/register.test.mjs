@@ -66,6 +66,10 @@ test('førstegangsregistrering lagrer kontakt, avdeling, plan og velkomstkø', (
   assert.deepEqual(stored.employee.company.departmentIds, ['anlegg']);
   assert.equal(stored.employee.company.workPercent, '100');
   assert.equal(stored.employee.company.periodFrom, '2026-10-12');
+  assert.equal(stored.employee.extras.schedules[0].from, '2026-10-12');
+  assert.equal(stored.employee.extras.schedules[0].custom, false);
+  assert.equal(stored.employee.extras.schedules[0].days.mon.hours, 8);
+  assert.equal(stored.employee.extras.schedules[0].days.sat.hours, 0);
   assert.equal(stored.employee.company.canLogin, false);
   assert.equal(stored.employee.invite.status, 'queued');
   assert.equal(stored.employee.invite.email, 'frank@firma.no');

@@ -1,5 +1,8 @@
 /** Tidsplan ut fra stillingsprosent. 100 % fyller hverdager, helg står på 0. */
 
+/** Bedriftens standardarbeidsdag. Individuelle tidsplaner overstyrer denne. */
+export const STANDARD_DAY_HOURS = 8;
+
 import { parseHours, roundHours, formatHours } from './hours.js';
 import { isWeekend, pad2, parseDateKey, toDateKey } from './calendar.js';
 
@@ -28,8 +31,8 @@ function slot(hours) {
   };
 }
 
-/** Bygg en ukeplan. 50 % av 7,5 t blir 3,75 t mandag–fredag. */
-export function scheduleFromPercent(percent, fullDayHours = 7.5) {
+/** Bygg en ukeplan. 50 % av 8 t blir 4 t mandag–fredag. */
+export function scheduleFromPercent(percent, fullDayHours = STANDARD_DAY_HOURS) {
   const ratio = Math.max(0, Math.min(100, Number(percent) || 0)) / 100;
   const dayHours = roundHours((Number(fullDayHours) || 0) * ratio);
   const days = {};
@@ -57,6 +60,22 @@ export function dayBefore(dateKey) {
   if (!date) return '';
   date.setDate(date.getDate() - 1);
   return toDateKey(date);
+}
+
+export function dayAfter(dateKey) {
+  const date = parseDateKey(dateKey);
+  if (!date) return '';
+  date.setDate(date.getDate() + 1);
+  return toDateKey(date);
+}
+
+function rangeEnd(plan) {
+  return plan?.to || '9999-12-31';
+}
+
+export function rangesOverlap(a, b) {
+  if (!a?.from || !b?.from) return false;
+  return a.from <= rangeEnd(b) && b.from <= rangeEnd(a);
 }
 
 /** DD.MM.ÅÅÅÅ eller ÅÅÅÅ-MM-DD → ÅÅÅÅ-MM-DD. Tom streng når verdien ikke er en dato. */
@@ -129,6 +148,8 @@ export function normalizeScheduleRow(input) {
   if (!id) return { ok: false, error: 'Tidsplanen mangler id.' };
   const row = { id, from, days: normalizeScheduleDays(input?.days) };
   if (to) row.to = to;
+  if (input?.custom === true) row.custom = true;
+  if (input?.source === 'company') row.source = 'company';
   return { ok: true, row };
 }
 
@@ -145,7 +166,21 @@ export function replaceSchedule(schedules, row, previous = {}) {
   if (rest.some((plan) => plan.from === row.from)) {
     return { ok: false, error: 'Det finnes allerede en tidsplan fra denne datoen.' };
   }
-  const next = [...rest, row].sort((a, b) => String(a.from).localeCompare(String(b.from)));
+  let next = [...rest, row].sort((a, b) => String(a.from).localeCompare(String(b.from)));
+  next = next.map((plan, index, list) => {
+    const newer = list[index + 1];
+    if (!newer || plan.to) return plan;
+    const closed = dayBefore(newer.from);
+    if (!closed || closed < plan.from) return plan;
+    return { ...plan, to: closed };
+  });
+  for (let i = 0; i < next.length; i += 1) {
+    for (let j = i + 1; j < next.length; j += 1) {
+      if (rangesOverlap(next[i], next[j])) {
+        return { ok: false, error: 'Tidsplanene overlapper. Avslutt den ene perioden dagen før den neste starter.' };
+      }
+    }
+  }
   return { ok: true, schedules: next };
 }
 
@@ -165,7 +200,7 @@ export function activeSchedule(schedules, dateKey) {
  * Timer avtalen sier for datoen.
  * Tidsplan vinner over stillingsprosent. Uten plan brukes prosent av normaldag.
  */
-export function scheduledHours(employee, date, fullDayHours = 7.5) {
+export function scheduledHours(employee, date, fullDayHours = STANDARD_DAY_HOURS) {
   const when = date instanceof Date ? date : new Date(date);
   const key = toDateKey(when);
   const plan = activeSchedule(employee?.extras?.schedules, key);
@@ -176,7 +211,7 @@ export function scheduledHours(employee, date, fullDayHours = 7.5) {
   if (isWeekend(when)) return 0;
   const percent = Number(employee?.company?.workPercent);
   const ratio = Number.isFinite(percent) && percent > 0 ? Math.min(percent, 100) / 100 : 1;
-  return roundHours((Number(fullDayHours) || 7.5) * ratio);
+  return roundHours((Number(fullDayHours) || STANDARD_DAY_HOURS) * ratio);
 }
 
 export function timeSettingsOf(employee) {

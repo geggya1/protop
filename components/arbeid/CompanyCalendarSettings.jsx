@@ -32,7 +32,7 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
     loadProjectState(familyId, { hours: false }).then((loaded) => {
       if (!live) return;
       setState(loaded);
-      setHours(String(loaded.fullDayHours || 7.5));
+      setHours(String(loaded.fullDayHours || 8));
     });
     return () => { live = false; };
   }, [familyId]);
@@ -60,7 +60,10 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
       <Text style={{ color: colors.muted, marginBottom: 8 }}>
         Importer norske helligdager, eller legg inn egne røde dager og hele eller halve fridager.
       </Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>Normaldag (timer)</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>Standard arbeidsdag (timer)</Text>
+      <Text style={{ color: colors.muted, marginBottom: 8 }}>
+        Nye medarbeidere får denne dagen mandag til fredag. En tidsplan som er lagret på personen, endres ikke når standarden oppdateres.
+      </Text>
       <View style={styles.row}>
         <TextInput
           value={hours}

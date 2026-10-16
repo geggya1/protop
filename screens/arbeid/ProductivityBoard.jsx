@@ -126,9 +126,11 @@ export default function ProductivityBoard({
   onPlan,
   initialOpenId = '',
   initialView = 'people',
+  initialKind = 'staff',
+  fullDayHours = 8,
 }) {
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState('alle');
+  const [kind, setKind] = useState(initialKind);
   const [view, setView] = useState(initialView);
   const [horizon, setHorizon] = useState(26);
   const [origin, setOrigin] = useState(() => weekKeys(new Date(), 1)[0]);
@@ -147,7 +149,7 @@ export default function ProductivityBoard({
   const api = useRef({});
 
   const weeks = useMemo(() => weekKeys(origin, horizon), [origin, horizon]);
-  const weekHours = plan?.weekHours || 37.5;
+  const weekHours = (Number(fullDayHours) > 0 ? Number(fullDayHours) : 8) * 5;
   const allocations = plan?.allocations || [];
 
   const visiblePeople = useMemo(() => {
@@ -416,7 +418,7 @@ export default function ProductivityBoard({
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <Text style={[styles.cardTitle, { color: colors.ink }]}>Ingen aktive ansatte</Text>
           <Text style={[styles.cardSub, { color: colors.muted }]}>
-            Listen viser aktive interne, eksterne og innleide. Juster filteret eller registrer folk under Ansatte.
+            Filteret viser bare den valgte gruppen. Interne er fast ansatte i bedriften. Bytt filter eller registrer folk under Ansatte.
           </Text>
         </View>
       ) : visiblePeople.map((person) => {

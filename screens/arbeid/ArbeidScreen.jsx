@@ -95,7 +95,7 @@ import {
 } from '../../src/arbeid/timesheetState.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
 
-const DAILY = 7.5;
+const DAILY = 8;
 
 function dayLabel(day) {
   return `${day.weekday} ${day.day}`;

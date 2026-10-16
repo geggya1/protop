@@ -291,4 +291,15 @@ assert.equal(deleteProjects(bulk.state, [projectId]).ok, false);
   assert.equal(kept[0].starred, false);
 }
 
+{
+  const lifted = normalizeProjectState({ fullDayHours: 7.5 });
+  assert.equal(lifted.fullDayHours, 8);
+  assert.equal(lifted.fullDayHoursCustom, false);
+  const kept = normalizeProjectState({ fullDayHours: 7.5, fullDayHoursCustom: true });
+  assert.equal(kept.fullDayHours, 7.5);
+  assert.equal(kept.fullDayHoursCustom, true);
+  const other = normalizeProjectState({ fullDayHours: 6 });
+  assert.equal(other.fullDayHours, 6);
+}
+
 console.log('project engine ok');

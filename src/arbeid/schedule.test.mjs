@@ -85,4 +85,32 @@ const later = {
   assert.equal(scheduleRange(next.schedules[2], next.schedules).open, true);
 }
 
+{
+  const closed = {
+    id: 'spring',
+    from: '2026-01-01',
+    to: '2026-06-30',
+    custom: true,
+    days: scheduleFromPercent(100, 8),
+  };
+  const overlap = normalizeScheduleRow({
+    id: 'mid',
+    from: '01.03.2026',
+    days: scheduleFromPercent(100, 6),
+  });
+  assert.equal(replaceSchedule([closed], overlap.row).ok, false);
+  const next = normalizeScheduleRow({
+    id: 'autumn',
+    from: '01.07.2026',
+    to: '31.12.2026',
+    custom: true,
+    days: closed.days,
+  });
+  const saved = replaceSchedule([closed], next.row);
+  assert.equal(saved.ok, true);
+  assert.equal(saved.schedules[0].days.mon.hours, 8);
+  assert.equal(saved.schedules[0].custom, true);
+  assert.equal(saved.schedules[1].from, '2026-07-01');
+}
+
 console.log('schedule.test.mjs: ok');

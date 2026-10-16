@@ -91,7 +91,11 @@ export function deleteRedDay(state, id) {
 export function setFullDayHours(state, hours) {
   const value = Number(String(hours).replace(',', '.'));
   if (!(value > 0) || value > 24) return fail(state, 'Normaldag må være mellom 0 og 24 timer.');
-  return ok({ ...state, fullDayHours: Math.round(value * 100) / 100 });
+  return ok({
+    ...state,
+    fullDayHours: Math.round(value * 100) / 100,
+    fullDayHoursCustom: true,
+  });
 }
 
 function applyLockStatus(state, employeeId, throughDate) {

@@ -10,10 +10,12 @@ import {
   parseScheduleDate,
   removeSchedule,
   replaceSchedule,
+  dayAfter,
   scheduleFromPercent,
   scheduleIdentity,
   scheduleRange,
   sortedSchedules,
+  STANDARD_DAY_HOURS,
   timeSettingsOf,
 } from '../../src/arbeid/schedule.js';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
@@ -278,17 +280,22 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
       onError('Lagre eller avbryt tidsplanen du redigerer.');
       return;
     }
-    const from = toDateKey(new Date());
-    const source = plans.find((plan) => plan.from && plan.from <= from) || plans[0];
+    const today = toDateKey(new Date());
+    const ordered = [...plans].sort((a, b) => String(a.from).localeCompare(String(b.from)));
+    const latest = ordered[ordered.length - 1];
+    let from = today;
+    if (latest?.to && latest.to >= from) from = dayAfter(latest.to);
+    else if (latest?.from && latest.from >= from) from = dayAfter(latest.from);
+    const source = ordered.filter((plan) => plan.from && plan.from <= from).slice(-1)[0] || latest;
     openEditor({
       id: newId('plan'),
       from,
-      days: source?.days || scheduleFromPercent(employee?.company?.workPercent || 100, 7.5),
+      days: source?.days || scheduleFromPercent(employee?.company?.workPercent || 100, STANDARD_DAY_HOURS),
     }, true);
   }
 
   function fillFromPercent() {
-    const seeded = scheduleFromPercent(employee?.company?.workPercent || 100, 7.5);
+    const seeded = scheduleFromPercent(employee?.company?.workPercent || 100, STANDARD_DAY_HOURS);
     setEditor((current) => (current ? { ...current, days: editableDays(seeded) } : current));
   }
 
@@ -311,6 +318,7 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
       from: editor.fromText,
       to: newer?.from ? '' : editor.toText,
       days: editor.days,
+      custom: true,
     });
     if (!normalized.ok) {
       onError(normalized.error);
@@ -358,9 +366,15 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
   return (
     <View nativeID="employee-schedule" style={{ gap: 14 }}>
       <View style={styles.scheduleHead}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Tidsplaner</Text>
+          <Text style={{ color: colors.muted }}>
+            {`Bedriften anbefaler ${STANDARD_DAY_HOURS} timer mandag til fredag. Periodene kan ikke overlappe. En lagret plan på personen endres ikke når bedriftsstandarden oppdateres.`}
+          </Text>
+        </View>
         {canEdit ? (
           <TouchableOpacity onPress={startCreate} accessibilityRole="button" accessibilityLabel="Opprett tidsplan" nativeID="employee-schedule-create" style={[styles.btn, { backgroundColor: colors.brand }]}>
-            <Text style={styles.btnText}>+ Opprett tidsplan</Text>
+            <Text style={styles.btnText}>+ Ny periode</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -371,13 +385,13 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
             <Text style={{ color: colors.ink, fontWeight: '700' }}>{editor.isNew ? 'Ny tidsplan' : 'Rediger tidsplan'}</Text>
             {canEdit ? (
               <TouchableOpacity onPress={fillFromPercent} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Fra stillingsprosent ({employee?.company?.workPercent || 100} %)</Text>
+                <Text style={{ color: colors.brand }}>{`Fra bedriftsstandard (${STANDARD_DAY_HOURS} t, ${employee?.company?.workPercent || 100} %)`}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
           <View style={styles.planBody}>
             <View style={styles.period}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Fra</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Gjelder fra</Text>
               <TextInput
                 value={editor.fromText}
                 onChangeText={(value) => setEditor((current) => (current ? { ...current, fromText: value } : current))}
@@ -386,7 +400,7 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
                 style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
                 accessibilityLabel="Fra-dato"
               />
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Til</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Gjelder til</Text>
               {newer?.from ? (
                 <Text style={{ color: colors.ink }}>{formatScheduleDate(scheduleRange({ id: editor.id, from: editorFrom }, [...others, { id: editor.id, from: editorFrom }]).to)}</Text>
               ) : (
@@ -439,8 +453,8 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
             </View>
             <View style={styles.planBody}>
               <View style={styles.period}>
-                <Text style={{ color: colors.muted }}>Fra: <Text style={{ color: colors.ink }}>{formatScheduleDate(range.from) || '—'}</Text></Text>
-                <Text style={{ color: colors.muted }}>Til: <Text style={{ color: colors.ink }}>{range.open ? 'nåværende' : (formatScheduleDate(range.to) || '—')}</Text></Text>
+                <Text style={{ color: colors.muted }}>Gjelder fra: <Text style={{ color: colors.ink }}>{formatScheduleDate(range.from) || '—'}</Text></Text>
+                <Text style={{ color: colors.muted }}>Gjelder til: <Text style={{ color: colors.ink }}>{range.open ? 'nåværende' : (formatScheduleDate(range.to) || '—')}</Text></Text>
               </View>
               <DayGrid colors={colors} days={plan.days} onEditDay={canEdit ? () => openEditor(plan, false) : undefined} />
             </View>
@@ -529,7 +543,7 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   btnText: { color: '#fff', fontWeight: '700' },
   secondary: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  scheduleHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'flex-end' },
+  scheduleHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' },
   planCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 12 },
   planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   planBody: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' },

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { scheduleFromPercent } from '../arbeid/schedule.js';
 import {
   activeEmployees,
   addAllocation,
@@ -57,7 +58,18 @@ import {
   assert.equal(kindOf(people[1]), 'external');
   assert.equal(contractPercent(people[0]), 80);
   assert.equal(contractPercent(people[1]), 100);
+  assert.equal(contractPercent({ company: { workPercent: '0' } }), 0);
   assert.equal(employeeCapacityHours(people[0], 37.5), 30);
+  assert.equal(employeeCapacityHours({ company: { workPercent: '0' } }, 40), 0);
+  assert.equal(kindOf({ company: { personnelKind: 'external', accessLevel: 'ansatt' } }), 'staff');
+  assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevel: 'regnskap_ekstern' } }), 'external');
+  assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevel: 'ansatt_andre_avdelinger' } }), 'external');
+  assert.equal(kindOf({ company: { personnelKind: 'innleid', accessLevel: 'innleie_ekstern' } }), 'innleid');
+  const scheduled = {
+    company: { workPercent: '50' },
+    extras: { schedules: [{ from: '2020-01-01', custom: true, days: scheduleFromPercent(100, 8) }] },
+  };
+  assert.equal(employeeCapacityHours(scheduled, 40, '2026-10-12'), 40);
 }
 
 {
@@ -118,10 +130,10 @@ import {
   ];
   const rows = [
     makeAllocation({
-      employeeId: 'a', project: { id: 'p', name: 'A' }, start: '2026-10-12', weeks: 2, percent: 100,
+      employeeId: 'a', project: { id: 'p', name: 'A' }, start: '2026-10-12', weeks: 2, percent: 100, weekHours: 37.5,
     }),
     makeAllocation({
-      employeeId: 'b', project: { id: 'p', name: 'A' }, start: '2026-10-12', weeks: 1, percent: 50,
+      employeeId: 'b', project: { id: 'p', name: 'A' }, start: '2026-10-12', weeks: 1, percent: 50, weekHours: 37.5,
     }),
   ];
   const week = companyWeekLoad(people, rows, '2026-10-12', 37.5);

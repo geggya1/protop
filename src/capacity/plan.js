@@ -4,8 +4,12 @@
  * over et antall uker. Belegg måles mot den ansattes stillingsprosent.
  */
 import { projectPhaseOf } from '../project/statusFilter.js';
+import { levelById } from '../access/companyAccess.js';
+import { personnelKind } from '../employees/model.js';
+import { scheduledHours } from '../arbeid/schedule.js';
 
-export const FULL_WEEK_HOURS = 37.5;
+export const FULL_WEEK_HOURS = 40;
+export const STANDARD_DAY_HOURS = 8;
 export const HORIZON_CHOICES = [16, 26, 52];
 
 export const BAR_COLORS = [
@@ -132,12 +136,18 @@ export function contractPercent(employee) {
   const raw = employee?.company?.workPercent;
   if (raw === '' || raw == null) return 100;
   const n = Number(String(raw).replace(',', '.'));
-  if (!Number.isFinite(n) || n <= 0) return 100;
+  if (!Number.isFinite(n) || n < 0) return 100;
   return Math.min(100, n);
 }
 
-export function employeeCapacityHours(employee, weekHours = FULL_WEEK_HOURS) {
+export function employeeCapacityHours(employee, weekHours = FULL_WEEK_HOURS, monday = '') {
   const base = Number(weekHours) > 0 ? Number(weekHours) : FULL_WEEK_HOURS;
+  const dayHours = base / 5;
+  if (monday && (employee?.extras?.schedules || []).length) {
+    let total = 0;
+    for (let i = 0; i < 7; i += 1) total += scheduledHours(employee, addDays(monday, i), dayHours);
+    return round1(total);
+  }
   return round1((base * contractPercent(employee)) / 100);
 }
 
@@ -296,7 +306,7 @@ export function weekLoad(allocations, employeeId, monday) {
 }
 
 export function occupancy(employee, allocations, monday, weekHours) {
-  const capacity = employeeCapacityHours(employee, weekHours);
+  const capacity = employeeCapacityHours(employee, weekHours, monday);
   const load = weekLoad(allocations, employee?.id, monday);
   const ofContract = capacity > 0 ? round1((load.hours / capacity) * 100) : 0;
   const freeHours = round1(capacity - load.hours);
@@ -363,9 +373,12 @@ export function activeEmployees(employees) {
 }
 
 export function kindOf(employee) {
-  const kind = text(employee?.company?.personnelKind);
-  if (kind === 'external' || kind === 'innleid' || kind === 'staff') return kind;
-  if (employee?.company?.external) return 'external';
+  const level = levelById(employee?.company?.accessLevel);
+  if (level?.kind === 'innleid') return 'innleid';
+  if (level?.section === 'company' && level?.kind === 'staff') return 'staff';
+  if (level?.kind === 'external' || level?.section === 'external') return 'external';
+  const kind = personnelKind(employee);
+  if (kind === 'innleid' || kind === 'external') return kind;
   return 'staff';
 }
 

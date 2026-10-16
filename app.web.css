@@ -87,6 +87,16 @@ button, input, select, textarea { font-family: var(--app-font); }
 }
 button, [role="button"] { cursor: pointer; }
 
+/* Timelisten under Ansatte skal fylle samme bredde som timelisten ellers. */
+#employees-page,
+#employee-hours-view,
+#employee-hours-view #arbeid-screen,
+#employee-hours-view #timesheet-grid {
+  width: 100% !important;
+  max-width: none !important;
+  align-self: stretch !important;
+}
+
 /* Aktivt skilleark på en person skal synes selv om bedriftssiden tvinger vanlig vekt. */
 #employee-detail-tabs [data-employee-tab="active"],
 #employee-detail-tabs [data-employee-tab="active"] * {

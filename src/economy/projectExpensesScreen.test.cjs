@@ -1,5 +1,5 @@
 /**
- * Prosjektutlegg skal rendre filter og import, uten den åpne medarbeider-rekka.
+ * Prosjektutlegg: filter og import ligger bak knapper, uten åpen medarbeider-rekke.
  */
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +26,15 @@ const rnMock = {
   ScrollView: host('ScrollView'),
   TouchableOpacity: host('TouchableOpacity'),
   TextInput: host('TextInput'),
-  StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
+  Pressable: host('Pressable'),
+  Modal: function Modal(props) {
+    return props && props.visible ? React.createElement('Modal', props, props.children) : null;
+  },
+  StyleSheet: {
+    create: (styles) => styles,
+    hairlineWidth: 1,
+    absoluteFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  },
   Platform: { OS: 'web', select: (options) => options && (options.web || options.default) },
 };
 
@@ -48,6 +56,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('useTimesheetWorkspace')) {
@@ -135,11 +144,10 @@ const screen = loadJsx('screens/economy/ProjectExpensesScreen.jsx');
 const tree = withHooks(() => React.createElement(screen.ProjectExpensesScreen, {}));
 const body = texts(tree);
 assert.match(body, /Prosjektutlegg/);
-assert.match(body, /Importer fra fil/);
-assert.match(body, /Filtrer medarbeider/);
-assert.match(body, /Filtrer kunde/);
-assert.match(body, /Filtrer prosjekt/);
-assert.match(body, /Nyeste dato/);
+assert.match(body, /Filtrer/);
+assert.equal(body.includes('Importer fra fil'), false);
+assert.equal(body.includes('Filtrer medarbeider'), false);
+assert.equal(body.includes('Nyeste dato'), false);
 assert.equal(body.includes('Aina'), false);
 assert.equal(body.includes('Anas'), false);
 const ids = [];
@@ -147,6 +155,108 @@ walk(tree, (element) => {
   if (element.props && element.props.nativeID) ids.push(element.props.nativeID);
 });
 assert.ok(ids.includes('prosjektutlegg'));
-assert.ok(ids.includes('expense-import-open'));
-assert.ok(ids.includes('expense-filters'));
+assert.ok(ids.includes('expense-filter-toggle'));
+assert.ok(ids.includes('expense-settings'));
+assert.equal(ids.includes('expense-import-open'), false);
+assert.equal(ids.includes('expense-filters'), false);
+
+const source = fs.readFileSync(path.join(ROOT, 'screens/economy/ProjectExpensesScreen.jsx'), 'utf8');
+assert.match(source, /expense-import-open/);
+assert.match(source, /expense-filters/);
+assert.match(source, /Filtrer medarbeider/);
+assert.match(source, /Filtrer kunde/);
+assert.match(source, /Filtrer prosjekt/);
+assert.match(source, /Importer fra fil/);
+
+function expandTree(node, depth = 0) {
+  if (depth > 40 || node == null || typeof node === 'boolean') return node;
+  if (Array.isArray(node)) return node.map((child) => expandTree(child, depth));
+  if (typeof node === 'string' || typeof node === 'number') return node;
+  if (!React.isValidElement(node)) return node;
+  if (typeof node.type === 'function') return expandTree(node.type(node.props || {}), depth + 1);
+  const children = node.props && node.props.children;
+  if (children == null) return node;
+  return React.cloneElement(node, node.props, expandTree(children, depth));
+}
+
+function findByNativeId(node, nativeID, depth = 0) {
+  if (depth > 40 || node == null || typeof node === 'boolean') return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findByNativeId(child, nativeID, depth);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!React.isValidElement(node)) return null;
+  if (node.props && node.props.nativeID === nativeID) return node;
+  return findByNativeId(node.props && node.props.children, nativeID, depth + 1);
+}
+
+function interactiveRender(element) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const states = [];
+  let cursor = 0;
+  let tree = null;
+  function rerender() {
+    cursor = 0;
+    const previous = internals.H;
+    internals.H = {
+      useState(initial) {
+        const index = cursor++;
+        if (!Object.prototype.hasOwnProperty.call(states, index)) {
+          states[index] = typeof initial === 'function' ? initial() : initial;
+        }
+        return [states[index], (update) => {
+          const next = typeof update === 'function' ? update(states[index]) : update;
+          if (Object.is(next, states[index])) return;
+          states[index] = next;
+          rerender();
+        }];
+      },
+      useMemo(fn) { return fn(); },
+      useEffect() {},
+      useLayoutEffect() {},
+      useRef(value) {
+        const index = cursor++;
+        if (!Object.prototype.hasOwnProperty.call(states, index)) states[index] = { current: value };
+        return states[index];
+      },
+      useCallback(fn) { return fn; },
+      useContext() { return undefined; },
+    };
+    try {
+      tree = expandTree(element.type(element.props || {}));
+    } finally {
+      internals.H = previous;
+    }
+  }
+  rerender();
+  return {
+    text() { return texts(tree); },
+    press(nativeID) {
+      const node = findByNativeId(tree, nativeID);
+      assert.ok(node, `fant ikke ${nativeID}`);
+      node.props.onPress();
+    },
+  };
+}
+
+{
+  const ui = interactiveRender(React.createElement(screen.ProjectExpensesScreen, {}));
+  assert.equal(ui.text().includes('Filtrer og sorter'), false);
+  assert.equal(ui.text().includes('Importer fra fil'), false);
+  ui.press('expense-filter-toggle');
+  assert.match(ui.text(), /Filtrer og sorter/);
+  assert.match(ui.text(), /Nyeste dato/);
+  assert.match(ui.text(), /Filtrer medarbeider/);
+  ui.press('expense-filter-close');
+  assert.equal(ui.text().includes('Nyeste dato'), false);
+  ui.press('expense-settings');
+  assert.match(ui.text(), /Importer fra fil/);
+  assert.equal(ui.text().includes('Filtrer og sorter'), false);
+  ui.press('expense-settings-dismiss');
+  assert.equal(ui.text().includes('Importer fra fil'), false);
+}
+
 console.log('projectExpensesScreen.test.cjs ok');

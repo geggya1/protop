@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -7,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
@@ -50,12 +53,13 @@ async function bytesFromFile(file) {
   throw new Error('Kunne ikke lese filen.');
 }
 
-function Choice({ label, on, onPress, colors }) {
+function Choice({ label, on, onPress, colors, nativeID }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}
+      nativeID={nativeID}
       style={[styles.choice, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : colors.card }]}
     >
       <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{label}</Text>
@@ -80,7 +84,8 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
   const [toDate, setToDate] = useState('');
   const [sort, setSort] = useState('date-desc');
   const [pageSize, setPageSize] = useState(60);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -194,6 +199,29 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
     }
   }
 
+  function resetFilters() {
+    setQuery('');
+    setEmployeeQuery('');
+    setCustomerQuery('');
+    setProjectQuery('');
+    setStatus('');
+    setPeriod('all');
+    setFromDate('');
+    setToDate('');
+    setSort('date-desc');
+  }
+
+  const activeFilterCount = [
+    String(query || '').trim(),
+    !workspace.lockedId && String(employeeQuery || '').trim(),
+    String(customerQuery || '').trim(),
+    String(projectQuery || '').trim(),
+    status,
+    period !== 'all',
+    sort !== 'date-desc',
+  ].filter(Boolean).length;
+  const filtersActive = activeFilterCount > 0;
+
   function toggleSort(key) {
     const map = {
       date: sort === 'date-desc' ? 'date-asc' : 'date-desc',
@@ -258,99 +286,56 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
         </>
       )}
       <View style={styles.toolbar}>
-        <TouchableOpacity onPress={() => setFiltersOpen((open) => !open)} accessibilityRole="button" style={[styles.choice, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink }}>{filtersOpen ? 'Skjul filter' : 'Filter og sortering'}</Text>
+        <Text style={[styles.count, { color: colors.muted }]}>
+          {remoteReady ? `${visible.length} av ${allRows.length} utlegg` : 'Laster utlegg…'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setFiltersOpen((open) => !open);
+            setSettingsOpen(false);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Filtrer og sorter"
+          accessibilityState={{ expanded: filtersOpen }}
+          nativeID="expense-filter-toggle"
+          style={[
+            styles.ghostBtn,
+            {
+              borderColor: filtersOpen || filtersActive ? colors.brand : colors.line,
+              backgroundColor: filtersOpen || filtersActive ? (colors.brandSoft || '#E8F1FF') : colors.card,
+            },
+          ]}
+        >
+          <Ionicons name="options-outline" size={18} color={filtersOpen || filtersActive ? colors.brand : colors.ink} />
+          <Text style={{ color: filtersOpen || filtersActive ? colors.brand : colors.ink, fontWeight: '600' }}>Filtrer</Text>
+          {activeFilterCount > 0 ? (
+            <View style={[styles.badge, { backgroundColor: colors.brand }]}>
+              <Text style={styles.badgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={importFile}
-          disabled={busy}
+          onPress={() => {
+            setSettingsOpen((open) => !open);
+            setFiltersOpen(false);
+          }}
           accessibilityRole="button"
-          accessibilityLabel="Importer prosjektutlegg"
-          nativeID="expense-import-open"
-          style={[styles.importBtn, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+          accessibilityLabel="Innstillinger"
+          accessibilityState={{ expanded: settingsOpen }}
+          nativeID="expense-settings"
+          style={[
+            styles.iconBtn,
+            {
+              borderColor: settingsOpen ? colors.brand : colors.line,
+              backgroundColor: settingsOpen ? (colors.brandSoft || '#E8F1FF') : colors.card,
+            },
+          ]}
         >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>{busy ? 'Leser…' : 'Importer fra fil'}</Text>
+          <Ionicons name="settings-outline" size={18} color={settingsOpen ? colors.brand : colors.ink} />
         </TouchableOpacity>
       </View>
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.muted }}>{note}</Text>}
-      <Text style={{ color: colors.muted }}>
-        {remoteReady ? `${visible.length} av ${allRows.length} utlegg` : 'Laster utlegg…'}
-      </Text>
-
-      {filtersOpen ? (
-        <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-filters">
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Søk i beskrivelse, kunde, prosjekt…"
-            placeholderTextColor={colors.placeholder || colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <Text style={[styles.label, { color: colors.muted }]}>Periode</Text>
-          <View style={styles.rowWrap}>
-            {EXPENSE_PERIODS.map((item) => (
-              <Choice key={item.id} label={item.label} on={period === item.id} onPress={() => setPeriod(item.id)} colors={colors} />
-            ))}
-          </View>
-          {period === 'custom' ? (
-            <View style={styles.rowWrap}>
-              <TextInput
-                value={fromDate}
-                onChangeText={setFromDate}
-                onBlur={() => setFromDate((value) => parseDate(value) || value)}
-                placeholder="Fra dato"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-              />
-              <TextInput
-                value={toDate}
-                onChangeText={setToDate}
-                onBlur={() => setToDate((value) => parseDate(value) || value)}
-                placeholder="Til dato"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-              />
-            </View>
-          ) : null}
-          <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
-          <View style={styles.rowWrap}>
-            {EXPENSE_SORT_OPTIONS.map((item) => (
-              <Choice key={item.id} label={item.label} on={sort === item.id} onPress={() => setSort(item.id)} colors={colors} />
-            ))}
-          </View>
-          <Text style={[styles.label, { color: colors.muted }]}>Status</Text>
-          <View style={styles.rowWrap}>
-            <Choice label="Alle" on={!status} onPress={() => setStatus('')} colors={colors} />
-            {EXPENSE_STATUSES.map((item) => (
-              <Choice key={item.id} label={item.label} on={status === item.id} onPress={() => setStatus(item.id)} colors={colors} />
-            ))}
-          </View>
-          {workspace.lockedId ? null : (
-            <TextInput
-              value={employeeQuery}
-              onChangeText={setEmployeeQuery}
-              placeholder="Filtrer medarbeider"
-              placeholderTextColor={colors.muted}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-            />
-          )}
-          <TextInput
-            value={customerQuery}
-            onChangeText={setCustomerQuery}
-            placeholder="Filtrer kunde"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <TextInput
-            value={projectQuery}
-            onChangeText={setProjectQuery}
-            placeholder="Filtrer prosjekt"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-        </View>
-      ) : null}
 
       <ScrollView horizontal>
         <View style={{ minWidth: 980 }}>
@@ -378,7 +363,9 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
       </ScrollView>
       {!visible.length ? (
         <Text style={{ color: colors.muted, padding: 12 }}>
-          {allRows.length ? 'Ingen utlegg i dette utvalget.' : 'Ingen prosjektutlegg er registrert.'}
+          {allRows.length
+            ? 'Ingen utlegg i dette utvalget. Åpne Filtrer for periode, status eller sortering.'
+            : 'Ingen prosjektutlegg er registrert.'}
         </Text>
       ) : null}
       {visible.length > pageSize ? (
@@ -386,6 +373,172 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
           <Text style={{ color: colors.brand, fontWeight: '600' }}>Vis flere ({pageSize} av {visible.length})</Text>
         </TouchableOpacity>
       ) : null}
+      <Modal transparent visible={filtersOpen} animationType="slide" onRequestClose={() => setFiltersOpen(false)}>
+        <View style={[styles.modalBg, styles.modalSheet]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setFiltersOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk filter"
+            nativeID="expense-filter-dismiss"
+          />
+          <View
+            style={[styles.filterSheet, { backgroundColor: colors.bg, borderColor: colors.line }]}
+            accessibilityViewIsModal
+            nativeID="expense-filter-sheet"
+          >
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ width: '100%' }} contentContainerStyle={styles.sheetScroll}>
+              <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-filters">
+                <View style={styles.sheetHead}>
+                  <Text style={[styles.sheetTitle, { color: colors.ink }]}>Filtrer og sorter</Text>
+                  <TouchableOpacity
+                    onPress={() => setFiltersOpen(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk filter"
+                    nativeID="expense-filter-close"
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={20} color={colors.ink} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Søk i beskrivelse, kunde, prosjekt…"
+                    placeholderTextColor={colors.placeholder || colors.muted}
+                    nativeID="expense-filter-search"
+                    style={[styles.input, styles.searchInput, { color: colors.ink, borderColor: colors.line }]}
+                  />
+                  <TouchableOpacity
+                    onPress={resetFilters}
+                    accessibilityRole="button"
+                    nativeID="expense-filter-reset"
+                    style={[styles.ghostBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+                  >
+                    <Text style={{ color: colors.ink }}>Nullstill</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.label, { color: colors.muted }]}>Periode</Text>
+                <View style={styles.rowWrap}>
+                  {EXPENSE_PERIODS.map((item) => (
+                    <Choice
+                      key={item.id}
+                      label={item.label}
+                      on={period === item.id}
+                      onPress={() => setPeriod(item.id)}
+                      colors={colors}
+                      nativeID={`expense-period-${item.id}`}
+                    />
+                  ))}
+                </View>
+                {period === 'custom' ? (
+                  <View style={styles.rowWrap}>
+                    <TextInput
+                      value={fromDate}
+                      onChangeText={setFromDate}
+                      onBlur={() => setFromDate((value) => parseDate(value) || value)}
+                      placeholder="Fra dato"
+                      placeholderTextColor={colors.muted}
+                      style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
+                    />
+                    <TextInput
+                      value={toDate}
+                      onChangeText={setToDate}
+                      onBlur={() => setToDate((value) => parseDate(value) || value)}
+                      placeholder="Til dato"
+                      placeholderTextColor={colors.muted}
+                      style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
+                    />
+                  </View>
+                ) : null}
+                <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
+                <View style={styles.rowWrap}>
+                  {EXPENSE_SORT_OPTIONS.map((item) => (
+                    <Choice
+                      key={item.id}
+                      label={item.label}
+                      on={sort === item.id}
+                      onPress={() => setSort(item.id)}
+                      colors={colors}
+                      nativeID={`expense-sort-${item.id}`}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.label, { color: colors.muted }]}>Status</Text>
+                <View style={styles.rowWrap}>
+                  <Choice label="Alle" on={!status} onPress={() => setStatus('')} colors={colors} nativeID="expense-status-all" />
+                  {EXPENSE_STATUSES.map((item) => (
+                    <Choice
+                      key={item.id}
+                      label={item.label}
+                      on={status === item.id}
+                      onPress={() => setStatus(item.id)}
+                      colors={colors}
+                      nativeID={`expense-status-${item.id}`}
+                    />
+                  ))}
+                </View>
+                {workspace.lockedId ? null : (
+                  <TextInput
+                    value={employeeQuery}
+                    onChangeText={setEmployeeQuery}
+                    placeholder="Filtrer medarbeider"
+                    placeholderTextColor={colors.muted}
+                    style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                  />
+                )}
+                <TextInput
+                  value={customerQuery}
+                  onChangeText={setCustomerQuery}
+                  placeholder="Filtrer kunde"
+                  placeholderTextColor={colors.muted}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                />
+                <TextInput
+                  value={projectQuery}
+                  onChangeText={setProjectQuery}
+                  placeholder="Filtrer prosjekt"
+                  placeholderTextColor={colors.muted}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent visible={settingsOpen} animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
+        <View style={[styles.modalBg, styles.modalSheet]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSettingsOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk innstillinger"
+            nativeID="expense-settings-dismiss"
+          />
+          <View
+            style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+            accessibilityViewIsModal
+            nativeID="expense-settings-menu"
+          >
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Innstillinger</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setSettingsOpen(false);
+                importFile();
+              }}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Importer prosjektutlegg"
+              nativeID="expense-import-open"
+              style={[styles.importBtn, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+            >
+              <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{busy ? 'Leser…' : 'Importer fra fil'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -395,10 +548,75 @@ const styles = StyleSheet.create({
   crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  importBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  count: { flex: 1, minWidth: 120, fontSize: 13 },
+  ghostBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fff',
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  importBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  panel: { width: '100%', maxWidth: '100%', borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, alignSelf: 'stretch' },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchInput: { flex: 1, minWidth: 0 },
   label: { fontSize: 11, fontWeight: '700', marginTop: 4 },
-  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)' },
+  modalSheet: { justifyContent: 'flex-end' },
+  filterSheet: {
+    maxHeight: '88%',
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    zIndex: 2,
+  },
+  sheetScroll: { padding: 12, paddingBottom: 28, width: '100%' },
+  settingsCard: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    paddingBottom: 28,
+    gap: 10,
+    zIndex: 2,
+  },
   choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   dateInput: { minWidth: 140, flexGrow: 1 },

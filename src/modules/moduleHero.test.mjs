@@ -287,6 +287,7 @@ const COMPANY_PAGES = [
   ['okonomi', 'fakturagrunnlag', 'okonomi-fakturagrunnlag'],
   ['okonomi', 'utlegg', 'okonomi-utlegg'],
   ['okonomi', 'kjorebok', 'okonomi-kjorebok'],
+  ['utstyr', null, 'utstyr'],
   ['okonomi', 'produkter', 'okonomi-produkter'],
   ['okonomi', 'indeks', 'okonomi-indeks'],
 ];

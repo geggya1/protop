@@ -26,8 +26,6 @@ import {
 } from '../../src/economy/expenses.js';
 import {
   MILEAGE_RATE_TAX_FREE,
-  TRIP_PURPOSES,
-  emptyTrip,
   tripsToCsv,
   yearlyDutyKm,
 } from '../../src/economy/mileage.js';
@@ -44,8 +42,8 @@ import {
   upsertExpense,
   upsertProduct,
   upsertSale,
-  upsertTrip,
 } from '../../src/economy/opsState.js';
+import MileageWizard from './MileageWizard';
 
 function downloadCsv(name, csv) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -88,7 +86,7 @@ function Chip({ label, active, onPress, colors }) {
   );
 }
 
-export default function EconomyOps({ kind = 'expenses' }) {
+export default function EconomyOps({ kind = 'expenses', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
@@ -127,21 +125,13 @@ export default function EconomyOps({ kind = 'expenses' }) {
       setState(result.state);
       showSaveToast('Lagret.');
     }
-    return result.ok;
+    return result;
   }
 
   function saveExpense() {
     apply(upsertExpense(state, {
       ...emptyExpense(draft),
       date: draft.date || new Date().toISOString().slice(0, 10),
-    }));
-  }
-
-  function saveTrip() {
-    apply(upsertTrip(state, {
-      ...emptyTrip(draft),
-      date: draft.date || new Date().toISOString().slice(0, 10),
-      notes: draft.notes || draft.purposeText || '',
     }));
   }
 
@@ -227,29 +217,13 @@ export default function EconomyOps({ kind = 'expenses' }) {
       ) : null}
 
       {kind === 'mileage' ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700', marginBottom: 8 }}>Ny kjøretur</Text>
-          <View style={styles.row}>
-            <Field label="Dato" value={draft.date || ''} onChange={(v) => setDraft((d) => ({ ...d, date: v }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-            <Field label="Fra" value={draft.from || ''} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} colors={colors} />
-            <Field label="Til" value={draft.to || ''} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} colors={colors} />
-            <Field label="Formål / besøk" value={draft.notes || ''} onChange={(v) => setDraft((d) => ({ ...d, notes: v }))} colors={colors} placeholder="Byggeplass / firma" />
-            <Field label="Km" value={String(draft.km ?? '')} onChange={(v) => setDraft((d) => ({ ...d, km: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Teller start" value={String(draft.odometerStart ?? '')} onChange={(v) => setDraft((d) => ({ ...d, odometerStart: v }))} colors={colors} keyboardType="number-pad" />
-            <Field label="Teller slutt" value={String(draft.odometerEnd ?? '')} onChange={(v) => setDraft((d) => ({ ...d, odometerEnd: v }))} colors={colors} keyboardType="number-pad" />
-            <Field label="Bom" value={String(draft.tolls ?? '')} onChange={(v) => setDraft((d) => ({ ...d, tolls: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Kunde" value={draft.customerName || ''} onChange={(v) => setDraft((d) => ({ ...d, customerName: v }))} colors={colors} />
-            <Field label="Prosjekt" value={draft.projectName || ''} onChange={(v) => setDraft((d) => ({ ...d, projectName: v }))} colors={colors} />
-          </View>
-          <View style={[styles.row, { marginTop: 8 }]}>
-            {TRIP_PURPOSES.map((row) => (
-              <Chip key={row.id} label={row.label} active={(draft.purpose || 'duty') === row.id} onPress={() => setDraft((d) => ({ ...d, purpose: row.id }))} colors={colors} />
-            ))}
-          </View>
-          <TouchableOpacity onPress={saveTrip} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre tur</Text>
-          </TouchableOpacity>
-        </View>
+        <MileageWizard
+          colors={colors}
+          state={state}
+          company={company}
+          onApply={apply}
+          onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
+        />
       ) : null}
 
       {kind === 'products' && tab === 'catalog' ? (

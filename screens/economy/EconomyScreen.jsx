@@ -193,7 +193,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   }
 
   if (page === 'kjorebok') {
-    return <EconomyOps kind="mileage" />;
+    return <EconomyOps kind="mileage" company={company} />;
   }
 
   if (page === 'produkter') {

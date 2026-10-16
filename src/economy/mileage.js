@@ -50,6 +50,7 @@ export function emptyTrip(overrides = {}) {
     passengers: 0,
     tolls: 0,
     parking: 0,
+    ferries: 0,
     rate: MILEAGE_RATE_TAX_FREE,
     billable: true,
     billableRate: 0,
@@ -61,10 +62,40 @@ export function emptyTrip(overrides = {}) {
     projectName: '',
     status: 'draft',
     invoiceId: '',
+    vehicleId: '',
+    vehicleName: '',
+    plate: '',
+    visitPurpose: 'befaring',
+    oneWayKm: 0,
+    roundTrip: true,
+    routeSource: '',
+    routeCharges: [],
+    expenseId: '',
+    fromLat: null,
+    fromLng: null,
+    toLat: null,
+    toLng: null,
     createdAt: '',
     updatedAt: '',
     ...overrides,
   });
+}
+
+function chargeRows(input) {
+  return (Array.isArray(input) ? input : []).map((row) => ({
+    id: text(row?.id),
+    name: text(row?.name),
+    kind: row?.kind === 'ferry' ? 'ferry' : 'toll',
+    passes: Math.max(1, Number(row?.passes) || 1),
+    unitPrice: roundMoney(Math.max(0, Number(row?.unitPrice) || 0)),
+    amount: roundMoney(Math.max(0, Number(row?.amount) || 0)),
+    source: text(row?.source),
+  })).filter((row) => row.name);
+}
+
+function coord(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function normalizeTrip(input = {}) {
@@ -78,10 +109,22 @@ export function normalizeTrip(input = {}) {
   const vehicleKind = row.vehicleKind === 'company' ? 'company' : 'private';
   const rate = Number(row.rate) > 0 ? Number(row.rate) : MILEAGE_RATE_TAX_FREE;
   const passengers = Math.max(0, Number(row.passengers) || 0);
-  const tolls = Math.max(0, Number(row.tolls) || 0);
+  const routeCharges = chargeRows(row.routeCharges);
+  const tollFromCharges = routeCharges
+    .filter((item) => item.kind === 'toll')
+    .reduce((sum, item) => sum + item.amount, 0);
+  const ferryFromCharges = routeCharges
+    .filter((item) => item.kind === 'ferry')
+    .reduce((sum, item) => sum + item.amount, 0);
+  const tolls = row.tolls == null || row.tolls === ''
+    ? tollFromCharges
+    : Math.max(0, Number(row.tolls) || 0);
   const parking = Math.max(0, Number(row.parking) || 0);
+  const ferries = row.ferries == null || row.ferries === ''
+    ? ferryFromCharges
+    : Math.max(0, Number(row.ferries) || 0);
   const allowance = roundMoney(distance * rate + passengers * PASSENGER_RATE * distance);
-  const extras = roundMoney(tolls + parking);
+  const extras = roundMoney(tolls + parking + ferries);
   const status = TRIP_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
   return {
     id: text(row.id),
@@ -101,6 +144,7 @@ export function normalizeTrip(input = {}) {
     passengers,
     tolls: roundMoney(tolls),
     parking: roundMoney(parking),
+    ferries: roundMoney(ferries),
     rate,
     allowance,
     extras,
@@ -119,6 +163,19 @@ export function normalizeTrip(input = {}) {
     projectName: text(row.projectName),
     status,
     invoiceId: text(row.invoiceId),
+    vehicleId: text(row.vehicleId),
+    vehicleName: text(row.vehicleName),
+    plate: text(row.plate),
+    visitPurpose: text(row.visitPurpose) || 'befaring',
+    oneWayKm: roundMoney(Math.max(0, Number(row.oneWayKm) || 0)),
+    roundTrip: row.roundTrip !== false,
+    routeSource: text(row.routeSource),
+    routeCharges,
+    expenseId: text(row.expenseId),
+    fromLat: coord(row.fromLat),
+    fromLng: coord(row.fromLng),
+    toLat: coord(row.toLat),
+    toLng: coord(row.toLng),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
@@ -181,6 +238,7 @@ export function tripsToCsv(rows = []) {
   const header = [
     'Dato', 'Fra', 'Via', 'Til', 'Formål', 'Km', 'Teller start', 'Teller slutt',
     'Sats', 'Godtgjørelse', 'Bom/parkering', 'Totalt', 'Kunde', 'Prosjekt',
+    'Kjøretøy', 'Skilt', 'Ansatt',
   ];
   const lines = rows.map((raw) => {
     const row = normalizeTrip(raw);
@@ -190,6 +248,7 @@ export function tripsToCsv(rows = []) {
       row.km, row.odometerStart, row.odometerEnd,
       row.rate, row.allowance, row.extras, row.amount,
       row.customerName, row.projectName,
+      row.vehicleName, row.plate, row.employeeName,
     ].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';');
   });
   return `\uFEFF${header.join(';')}\n${lines.join('\n')}`;

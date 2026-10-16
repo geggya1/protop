@@ -645,11 +645,12 @@ const COMPANY_TAB_RESOURCE = {
   projects: 'projects',
   iso: 'iso',
   okonomi: 'economy',
+  utstyr: 'projects',
 };
 
 export const COMPANY_TAB_IDS = [
   'selskap', 'underenheter', 'ansatte', 'hr', 'kunder', 'anbud', 'kontrakt',
-  'skjema', 'projects', 'arbeid', 'iso', 'okonomi',
+  'skjema', 'projects', 'arbeid', 'utstyr', 'iso', 'okonomi',
 ];
 
 export function companyTabAllowed(tab, subView, grants) {
@@ -658,6 +659,11 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
   if (tab === 'selskap' && subView === 'innstillinger') return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
+  if (tab === 'utstyr') {
+    return allows(grants, 'projects', 'see')
+      || allows(grants, 'assignedProjects', 'see')
+      || hoursAllowed(grants);
+  }
   if (tab === 'arbeid') {
     return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
   }
@@ -688,6 +694,11 @@ function navItemAllowed(id, grants) {
   if (id === 'okonomi-prosjektutlegg') return hoursAllowed(grants);
   if (id === 'okonomi') {
     return allows(grants, 'economy', 'see') || hoursAllowed(grants);
+  }
+  if (id === 'utstyr') {
+    return allows(grants, 'projects', 'see')
+      || allows(grants, 'assignedProjects', 'see')
+      || hoursAllowed(grants);
   }
   if (id === 'underenheter') return allows(grants, 'units', 'see');
   if (id === 'hr' || String(id).startsWith('hr-')) return allows(grants, 'hr', 'see');

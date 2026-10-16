@@ -58,6 +58,10 @@ export function emptyProjectState() {
     timeEntries: [],
     expenses: [],
     mileageTrips: [],
+    equipment: [],
+    equipmentBookings: [],
+    personalVehicles: [],
+    mileagePolicies: [],
     products: [],
     sales: [],
     absences: [],
@@ -254,6 +258,10 @@ export function normalizeProjectState(raw) {
   next.absences = next.absences.map((row) => normalizeAbsenceRow(row)).filter(Boolean);
   next.expenses = (next.expenses || []).filter((row) => row && typeof row === 'object');
   next.mileageTrips = (next.mileageTrips || []).filter((row) => row && typeof row === 'object');
+  next.equipment = (next.equipment || []).filter((row) => row && typeof row === 'object');
+  next.equipmentBookings = (next.equipmentBookings || []).filter((row) => row && typeof row === 'object');
+  next.personalVehicles = (next.personalVehicles || []).filter((row) => row && typeof row === 'object');
+  next.mileagePolicies = (next.mileagePolicies || []).filter((row) => row && typeof row === 'object');
   next.products = (next.products || []).filter((row) => row && typeof row === 'object');
   next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
   const healed = healOrphanProjectRefs(next, idRemap);

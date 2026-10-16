@@ -4,10 +4,11 @@
  * over et antall uker. Belegg måles mot den ansattes stillingsprosent.
  */
 import { projectPhaseOf } from '../project/statusFilter.js';
-import { levelById } from '../access/companyAccess.js';
-import { personnelKind } from '../employees/model.js';
+import { kindOf } from '../employees/employmentFlags.js';
 import { parseHours } from '../arbeid/hours.js';
 import { scheduledHours } from '../arbeid/schedule.js';
+
+export { kindOf };
 
 export const FULL_WEEK_HOURS = 40;
 export const STANDARD_DAY_HOURS = 8;
@@ -373,16 +374,6 @@ export function activeEmployees(employees) {
     const status = text(row?.company?.status || 'active');
     return status === 'active' || status === 'current';
   });
-}
-
-export function kindOf(employee) {
-  const level = levelById(employee?.company?.accessLevel);
-  if (level?.kind === 'innleid') return 'innleid';
-  if (level?.section === 'company' && level?.kind === 'staff') return 'staff';
-  if (level?.kind === 'external' || level?.section === 'external') return 'external';
-  const kind = personnelKind(employee);
-  if (kind === 'innleid' || kind === 'external') return kind;
-  return 'staff';
 }
 
 export function kindLabel(kind) {

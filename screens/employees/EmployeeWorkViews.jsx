@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { newId, personnelKind, setEmployeePath } from '../../src/employees/model';
+import { newId, setEmployeePath } from '../../src/employees/model';
+import { employmentFlags } from '../../src/employees/employmentFlags';
 import {
   SCHEDULE_DAYS,
   departureOf,
@@ -73,6 +74,7 @@ export default function EmployeeWorkViews({
 
 function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'general' }) {
   const settings = timeSettingsOf(employee);
+  const membership = employmentFlags(employee);
   const [sub, setSub] = useState(initialSub);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -90,15 +92,15 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
     return next;
   }
 
-  function rowLocked(row, kind) {
+  function rowLocked(row, membership) {
     if (!canEdit) return true;
     if (row.locked === 'kind') return true;
-    return row.locked === 'external' && kind === 'external';
+    return row.locked === 'external' && membership.externalRules;
   }
 
   async function toggle(key) {
     const row = CHECKS.find((item) => item.key === key);
-    if (row ? rowLocked(row, personnelKind(employee)) : !canEdit) return;
+    if (row ? rowLocked(row, membership) : !canEdit) return;
     if (key === 'canLogin') {
       await onSave?.(setEmployeePath(employee, 'company.canLogin', employee?.company?.canLogin === false));
       return;
@@ -143,12 +145,11 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
     setNote('Medarbeiderkontoen er avsluttet.');
   }
 
-  const kind = personnelKind(employee);
   const flags = {
     ...settings,
     canLogin: employee?.company?.canLogin !== false,
-    includeInCapacity: kind === 'staff',
-    externalConsultant: kind === 'external',
+    includeInCapacity: membership.includeInCapacity,
+    externalConsultant: membership.externalConsultant,
   };
 
   return (
@@ -168,7 +169,7 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
         <View style={styles.checks}>
           {CHECKS.map((row) => {
             const on = !!flags[row.key];
-            const locked = rowLocked(row, kind);
+            const locked = rowLocked(row, membership);
             const box = (
               <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: locked ? 0.45 : 1 }]}>
                 {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}

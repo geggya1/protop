@@ -5,7 +5,7 @@ export const STANDARD_DAY_HOURS = 8;
 
 import { parseHours, roundHours, formatHours } from './hours.js';
 import { isWeekend, pad2, parseDateKey, toDateKey } from './calendar.js';
-import { personnelKind } from '../employees/model.js';
+import { employmentFlags } from '../employees/employmentFlags.js';
 
 export const SCHEDULE_DAYS = [
   { id: 'mon', label: 'Mandag', weekend: false },
@@ -225,8 +225,8 @@ export function timeSettingsOf(employee) {
   return {
     activeEmployment: raw.activeEmployment !== false && employee?.company?.status !== 'former' && employee?.company?.status !== 'inactive',
     showFlexInTimesheet: raw.showFlexInTimesheet !== false,
-    includeInCapacity: personnelKind(employee) === 'staff',
-    externalConsultant: personnelKind(employee) === 'external',
+    includeInCapacity: employmentFlags(employee).includeInCapacity,
+    externalConsultant: employmentFlags(employee).externalConsultant,
     mustLockTimesheet: raw.mustLockTimesheet === true,
     requireClockTimes: raw.requireClockTimes === true,
     flexCountsAsPay: raw.flexCountsAsPay !== false,

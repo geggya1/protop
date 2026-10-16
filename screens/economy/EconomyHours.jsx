@@ -18,6 +18,7 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import HourPhoneRow from '../../components/arbeid/HourPhoneRow';
+import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
@@ -50,6 +51,11 @@ import {
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
+import {
+  applyReportEntryChange,
+  applyReportEntryDelete,
+  reportEntryEditor,
+} from '../../src/economy/hourReportEdit.js';
 import {
   ensureProjectHours,
   loadProjectState,
@@ -140,6 +146,7 @@ export default function EconomyHours({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(60);
+  const [editing, setEditing] = useState(null);
   const saveChain = useRef(Promise.resolve());
   const loadKeyRef = useRef('');
 
@@ -477,9 +484,61 @@ export default function EconomyHours({
     return row[key] || '—';
   }
 
+  function openEntry(row) {
+    const next = reportEntryEditor(state, row);
+    if (!next) return;
+    setEditing(next);
+    setError('');
+  }
+
+  async function commitEntryChange(result, success) {
+    if (!result?.ok) {
+      setError(result?.error || 'Kunne ikke lagre føringen.');
+      return;
+    }
+    try {
+      await persist(result.state);
+      setEditing(null);
+      setError('');
+      setNote(success);
+      showSaveToast(success);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke lagre føringen.');
+    }
+  }
+
+  function saveEditing(blocks) {
+    commitEntryChange(applyReportEntryChange(state, editing, blocks), 'Føring lagret.');
+  }
+
+  function deleteEditing(ids) {
+    commitEntryChange(applyReportEntryDelete(state, ids), 'Føring slettet.');
+  }
+
+  function moveEditing({ ids, date, projectId }) {
+    const id = (ids || []).find(Boolean) || editing?.row?.id;
+    if (!id) return;
+    commitEntryChange(applyReportEntryChange(state, editing, [{
+      ...editing.row,
+      id,
+      hours: editing.row.hours,
+      description: editing.row.description,
+      date: date || editing.row.date,
+      projectId: projectId || editing.row.projectId,
+      activityId: editing.row.activityId,
+      activityName: editing.row.activityName,
+    }]), 'Føringen er flyttet.');
+  }
+
   function renderListRow({ item: row }) {
     return (
-      <View style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
+      <Pressable
+        onPress={() => openEntry(row)}
+        accessibilityRole="button"
+        accessibilityLabel={`Åpne føring ${formatDate(row?.date)} ${row?.projectName || ''}`.trim()}
+        nativeID={row?.id ? `hour-row-${row.id}` : undefined}
+        style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: colors.card }]}
+      >
         {columns.map((column) => (
           <Text
             key={column.key}
@@ -489,7 +548,7 @@ export default function EconomyHours({
             {cellValue(row, column.key)}
           </Text>
         ))}
-      </View>
+      </Pressable>
     );
   }
 
@@ -675,10 +734,29 @@ export default function EconomyHours({
             </View>
           );
         }
-        return <HourPhoneRow key={item.id} row={item.row} colors={colors} />;
+        return <HourPhoneRow key={item.id} row={item.row} colors={colors} onPress={openEntry} />;
       })}
       {moreButton}
     </View>
+  );
+
+  const entryModal = (
+    <TimeEntryModal
+      visible={!!editing}
+      colors={colors}
+      project={editing?.project}
+      dateKey={editing?.row?.date || ''}
+      dateLabel={editing ? `${formatDate(editing.row.date)} · ${editing.project?.name || editing.row.projectName || ''}` : ''}
+      activities={editing?.activities || []}
+      entries={editing ? [editing.row] : []}
+      projects={(state.projects || []).filter((row) => row.status !== 'arkivert')}
+      requireDescription={editing?.project?.workSettings?.requireDescription !== false}
+      locked={!!editing?.locked}
+      onSave={saveEditing}
+      onDelete={deleteEditing}
+      onClose={() => setEditing(null)}
+      onMove={moveEditing}
+    />
   );
 
   const filterModal = (
@@ -854,6 +932,7 @@ export default function EconomyHours({
           {displayMode === 'table' ? table : phoneList}
         </ScrollView>
         {filterModal}
+        {entryModal}
         {busyOverlay}
       </>
     );
@@ -916,6 +995,7 @@ export default function EconomyHours({
         {!stackRows ? organizePanel : null}
       </View>
       {stackRows ? filterModal : null}
+      {entryModal}
       {busyOverlay}
     </View>
   );

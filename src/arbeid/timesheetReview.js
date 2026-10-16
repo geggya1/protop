@@ -295,3 +295,8 @@ export function splitApprovalQueues({ employees = [], locks = [], archive = [] }
   ));
   return { locked, unlocked };
 }
+
+/** Lås uten førte timer i perioden har ingenting å kontrollere. */
+export function lockNeedsControl(state, lock) {
+  return sumHours(controlEntries(state, reportedLock(lock)).hours) > 0;
+}

@@ -1,11 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatDate, formatHours } from '../../src/economy/hoursList.js';
 
 /**
  * Kompakt liste-rad for Timerapport på mobil.
  */
-export default function HourPhoneRow({ row, colors }) {
+export default function HourPhoneRow({ row, colors, onPress }) {
   const project = row?.projectNumber
     ? `#${row.projectNumber} ${row.projectName || ''}`.trim()
     : (row?.projectName || 'Uten prosjekt');
@@ -15,12 +15,9 @@ export default function HourPhoneRow({ row, colors }) {
     row?.activityName,
   ].filter(Boolean).join(' · ');
 
-  return (
-    <View
-      style={[styles.row, { borderColor: colors.line }]}
-      nativeID={row?.id ? `hour-phone-row-${row.id}` : undefined}
-      accessibilityLabel={`${formatDate(row?.date)}, ${formatHours(row?.hours)}, ${project}`}
-    >
+  const label = `${formatDate(row?.date)}, ${formatHours(row?.hours)}, ${project}`;
+  const body = (
+    <>
       <View style={styles.top}>
         <Text style={[styles.date, { color: colors.ink }]}>{formatDate(row?.date)}</Text>
         <Text style={[styles.hours, { color: colors.ink }]}>{formatHours(row?.hours)}</Text>
@@ -30,7 +27,31 @@ export default function HourPhoneRow({ row, colors }) {
       {row?.description ? (
         <Text style={[styles.desc, { color: colors.ink }]} numberOfLines={2}>{row.description}</Text>
       ) : null}
-    </View>
+    </>
+  );
+
+  if (!onPress) {
+    return (
+      <View
+        style={[styles.row, { borderColor: colors.line }]}
+        nativeID={row?.id ? `hour-phone-row-${row.id}` : undefined}
+        accessibilityLabel={label}
+      >
+        {body}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => onPress(row)}
+      style={[styles.row, { borderColor: colors.line }]}
+      nativeID={row?.id ? `hour-row-${row.id}` : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`Åpne føring ${label}`}
+    >
+      {body}
+    </Pressable>
   );
 }
 

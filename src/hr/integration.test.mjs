@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 assert.equal(defaultHrSubView('lonn'), 'lonn');
 assert.equal(defaultHrSubView('nope'), 'oversikt');
 assert.equal(hrMenuTitle('rekruttering'), 'Rekruttering');
-assert.equal(HR_MENU.length, 8);
+assert.equal(HR_MENU.length, 7);
 assert.ok(HR_MENU.some((item) => item.id === 'avtaler'));
 assert.ok(HR_MENU.some((item) => item.id === 'compliance'));
 assert.equal(defaultHrSubView('avtaler'), 'avtaler');
@@ -43,7 +43,7 @@ for (const item of HR_MENU) {
   const hr = adminNav.find((item) => item.id === 'hr');
   const selskap = adminNav.find((item) => item.id === 'selskap');
   assert.ok(hr);
-  assert.equal(hr.children.length, 8);
+  assert.equal(hr.children.length, 7);
   assert.equal(hr.action.tab, 'hr');
   assert.equal(selskap.children.some((child) => child.id === 'hr'), false);
 }

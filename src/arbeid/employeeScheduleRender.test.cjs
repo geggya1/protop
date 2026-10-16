@@ -238,4 +238,22 @@ assert.equal(staffByLabel['Inkluder i selskapets kapasitetsoversikt'].pressable,
 assert.equal(staffByLabel['Skal låse timelisten'].pressable, true);
 assert.equal(staffByLabel['Skal spesifisere kom- og gå-tid'].pressable, true);
 
+const rightsRows = settingsRows({
+  id: 'rights',
+  company: { personnelKind: 'staff', accessLevel: 'regnskap_ekstern', status: 'active', canLogin: true },
+});
+const rightsByLabel = Object.fromEntries(rightsRows.map((row) => [row.label, row]));
+assert.equal(rightsByLabel['Er ekstern konsulent'].checked, true);
+assert.equal(rightsByLabel['Inkluder i selskapets kapasitetsoversikt'].checked, false);
+assert.equal(rightsByLabel['Skal låse timelisten'].pressable, false);
+
+const promotedRows = settingsRows({
+  id: 'promoted',
+  company: { personnelKind: 'external', accessLevel: 'ansatt', status: 'active', canLogin: true },
+});
+const promotedByLabel = Object.fromEntries(promotedRows.map((row) => [row.label, row]));
+assert.equal(promotedByLabel['Er ekstern konsulent'].checked, false);
+assert.equal(promotedByLabel['Inkluder i selskapets kapasitetsoversikt'].checked, true);
+assert.equal(promotedByLabel['Skal låse timelisten'].pressable, true);
+
 console.log('employeeScheduleRender.test.cjs: ok');

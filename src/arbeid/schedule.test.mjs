@@ -127,6 +127,23 @@ const later = {
   });
   assert.equal(staff.externalConsultant, false);
   assert.equal(staff.includeInCapacity, true);
+  const staleExternal = timeSettingsOf({
+    company: { personnelKind: 'staff', accessLevel: 'regnskap_ekstern', status: 'active' },
+    extras: { timeSettings: { externalConsultant: false, includeInCapacity: true } },
+  });
+  assert.equal(staleExternal.externalConsultant, true);
+  assert.equal(staleExternal.includeInCapacity, false);
+  const staleStaff = timeSettingsOf({
+    company: { personnelKind: 'external', accessLevel: 'ansatt', status: 'active' },
+    extras: { timeSettings: { externalConsultant: true, includeInCapacity: false } },
+  });
+  assert.equal(staleStaff.externalConsultant, false);
+  assert.equal(staleStaff.includeInCapacity, true);
+  const otherDept = timeSettingsOf({
+    company: { personnelKind: 'staff', accessLevel: 'ansatt_andre_avdelinger', status: 'active' },
+  });
+  assert.equal(otherDept.externalConsultant, false);
+  assert.equal(otherDept.includeInCapacity, false);
 }
 
 console.log('schedule.test.mjs: ok');

@@ -61,22 +61,24 @@ export default function ClassroomHeader({
                 </TouchableOpacity>
               </HelpTarget>
             )}
-            <TouchableOpacity
-              style={styles.avatarWrap}
-              onPress={() => setMenuOpen(true)}
-              accessibilityLabel="Profilmeny"
-            >
-              <AvatarBubble
-                avatarId={activeProfile?.avatarId}
-                photoURL={activeProfile?.photoURL}
-                name={activeProfile?.name || '?'}
-                size={34}
-              />
-            </TouchableOpacity>
+            <View style={styles.avatarSlot}>
+              <TouchableOpacity
+                style={styles.avatarWrap}
+                onPress={() => setMenuOpen(true)}
+                accessibilityLabel="Profilmeny"
+              >
+                <AvatarBubble
+                  avatarId={activeProfile?.avatarId}
+                  photoURL={activeProfile?.photoURL}
+                  name={activeProfile?.name || '?'}
+                  size={34}
+                />
+              </TouchableOpacity>
+              <View pointerEvents="box-none" style={styles.helpOverlay}>
+                <HelpButton floating color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
+              </View>
+            </View>
           </View>
-        </View>
-        <View pointerEvents="box-none" style={styles.helpOverlay}>
-          <HelpButton floating color={c.ink} borderColor={c.line} backgroundColor={c.surface} />
         </View>
       </View>
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -92,7 +94,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'visible',
   },
-  helpOverlay: { position: 'absolute', zIndex: 8, top: 46, right: 10 },
+  avatarSlot: { position: 'relative', overflow: 'visible' },
+  helpOverlay: { position: 'absolute', zIndex: 8, top: 36, left: -3 },
   stripe: {
     height: 3,
     backgroundColor: c.stripe,

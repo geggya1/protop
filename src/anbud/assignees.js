@@ -1,7 +1,8 @@
 /** Personer som følger opp oppdraget fysisk: interne, eksterne eller nye. */
 
 import { isActiveEmployee } from './customers.js';
-import { displayName, employeeEmails, personnelKind } from '../employees/model.js';
+import { displayName, employeeEmails } from '../employees/model.js';
+import { kindOf } from '../employees/employmentFlags.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -27,8 +28,8 @@ export function normalizeAssignees(input) {
 }
 
 export function assigneeKind(employee) {
-  const kind = personnelKind(employee);
-  return kind === 'external' || kind === 'innleid' ? 'ekstern' : 'intern';
+  const bucket = kindOf(employee);
+  return bucket === 'external' || bucket === 'innleid' ? 'ekstern' : 'intern';
 }
 
 /** Aktive ansatte med kontaktdata, klare til å velges som oppfølging. */

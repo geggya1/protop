@@ -104,16 +104,36 @@ export function hiddenCalendarStorageKey(uid) {
   return `${HIDDEN_CALENDAR_LAYERS_KEY}.${uid || 'anon'}`;
 }
 
+function externalFeedSource(ev) {
+  const source = String(ev?.source || '').toLowerCase();
+  return source === 'microsoft' || source === 'google' || source === 'ics' || source === 'outlook';
+}
+
+/**
+ * Sidebar row for an event that is not already covered by a connection.
+ * ProTop-hendelser (hjem, selskap, adresse) skal aldri bli et eget lag.
+ */
+export function shouldListEventAsCalendarLayer(ev) {
+  if (!ev || ev.crossPlatform || ev.connectionId) return false;
+  const source = String(ev.source || '').toLowerCase();
+  return source === 'google' || source === 'ics';
+}
+
 export function calendarIdOf(ev, familyId) {
   if (ev?.connectionId) {
     const cal = ev.graphCalendarId || 'primary';
     return `ext:${ev.connectionId}:${cal}`;
   }
-  if (ev?.private || ev?.readOnly) {
-    return `ext:${ev.sourceLabel || ev.source || 'ekstern'}`;
-  }
+  // Andre plattformer før private: lytteren merker dem private med selskapsnavn.
   if (ev?.crossPlatform) {
     return `plat:${ev.familyId || ev.sourceLabel || 'other'}`;
+  }
+  if (externalFeedSource(ev)) {
+    return `ext:${ev.sourceLabel || ev.source || 'ekstern'}`;
+  }
+  // Eldre ekstern feed uten familyId (sourceLabel «Google»).
+  if ((ev?.private || ev?.readOnly) && !ev?.familyId) {
+    return `ext:${ev.sourceLabel || ev.source || 'ekstern'}`;
   }
   return `fam:${ev?.familyId || familyId || 'family'}`;
 }
@@ -139,7 +159,7 @@ export function calendarSubLayerId(connectionId, graphCalendarId) {
 /**
  * True when the event's layer (or its parent connection) is hidden.
  * Parent `ext:connId` hides all `ext:connId:*` children.
- * For family events with memberIds: hide when every assigned member layer is off.
+ * Personlag (`mem:`) er ikke lenger i menyen — gamle valg skal ikke skjule «Min kalender».
  */
 export function isCalendarLayerHidden(ev, hiddenCals, familyId) {
   if (!hiddenCals || !hiddenCals.size) return false;
@@ -151,15 +171,6 @@ export function isCalendarLayerHidden(ev, hiddenCals, familyId) {
   }
   // Legacy flat id without sub-calendar
   if (ev?.connectionId && hiddenCals.has(`ext:${ev.connectionId}`)) return true;
-
-  // Personfilter: kun familie-/plattform-hendelser med eksplisitte deltakere
-  if (layerId.startsWith('fam:') || layerId.startsWith('plat:')) {
-    const ids = Array.isArray(ev?.memberIds) ? ev.memberIds.filter(Boolean) : [];
-    if (ids.length > 0) {
-      const allMembersHidden = ids.every((id) => hiddenCals.has(memberLayerId(id)));
-      if (allMembersHidden) return true;
-    }
-  }
   return false;
 }
 

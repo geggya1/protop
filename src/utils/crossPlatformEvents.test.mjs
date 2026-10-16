@@ -89,5 +89,17 @@ assert.equal(eventOnOwnCalendar({
   audience: 'selected',
   memberIds: ['member-doc'],
 }, new Set([uid]), members), true);
+assert.equal(eventOnOwnCalendar({
+  authorUid: uid,
+  audience: 'family',
+  memberIds: [],
+  familyId: 'co',
+}, new Set([uid]), members), true);
+assert.equal(eventOnOwnCalendar({
+  createdBy: uid,
+  audience: 'family',
+  memberIds: [],
+  familyId: 'co',
+}, new Set([uid]), members), true);
 
 console.log('crossPlatformEvents.test.mjs: ok');

@@ -366,6 +366,7 @@ export function eventOnOwnCalendar(ev, viewerIds, members = []) {
   if (!set.size) return false;
   if (ev.createdBy && set.has(ev.createdBy)) return true;
   if (ev.ownerUid && set.has(ev.ownerUid)) return true;
+  if (ev.authorUid && set.has(ev.authorUid)) return true;
   const memberIds = Array.isArray(ev.memberIds) ? ev.memberIds.filter(Boolean) : [];
   return memberIds.some((id) => {
     if (set.has(id)) return true;

@@ -11,7 +11,7 @@ import { colors, useLayout } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
-import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
+import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
 import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
@@ -636,14 +636,15 @@ export default function PlanScreen({ active = true }) {
         color: FAMILY_CALENDAR_COLOR,
       });
     }
-    [...events, ...externalEvents].forEach((e) => {
-      if (e?.crossPlatform) return;
-      if (e?.source === 'microsoft' || e?.connectionId) return;
-      if (!(e?.private || e?.readOnly)) return;
+    // Kun ekte eksterne feeder uten tilkoblingsrad. ProTop-hendelser
+    // (private/readOnly med selskaps- eller hjemmenavn) er ikke egne lag.
+    externalEvents.forEach((e) => {
+      if (!shouldListEventAsCalendarLayer(e)) return;
       addFlat(
         calendarIdOf(e, familyId),
-        e.sourceLabel || 'Ekstern kalender',
+        e.sourceLabel || (e.source === 'ics' ? 'ICS' : 'Google'),
         e.color,
+        { type: e.source },
       );
     });
 
@@ -759,7 +760,7 @@ export default function PlanScreen({ active = true }) {
 
     return list;
   }, [
-    familyId, events, externalEvents,
+    familyId, externalEvents,
     calendarConnections, externalLayers, externalSyncErrors,
   ]);
 

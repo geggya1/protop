@@ -71,6 +71,15 @@ function loadJsx(rel) {
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id === 'react-native-svg') return svgMock;
     if (id.includes('ThemeContext')) return { useColors: () => colors };
+    if (id.includes('AppContext')) {
+      return {
+        useApp: () => ({
+          requestShellTab() {},
+          shellIntent: null,
+          clearShellIntent() {},
+        }),
+      };
+    }
     if (id.includes('/theme')) {
       return {
         useLayout: () => ({ width: 1280, isPhone: false, hasRail: true, railWidth: 240, isDesktop: true }),

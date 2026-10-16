@@ -300,7 +300,7 @@ export const COMPANY_HERO = {
     wideArt: true,
     name: 'Fraværsoversikt',
     kicker: t('Arbeid', 'Work'),
-    title: t('Fraværsoversikt', 'Absence overview'),
+    title: t('Fraværs\u00adoversikt', 'Absence overview'),
     pitch: t(
       'Full oversikt over ferie, fravær og permisjoner for de ansatte.',
       'A full view of holiday, absence and leave for the team.',

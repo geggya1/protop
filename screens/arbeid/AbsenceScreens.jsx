@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
@@ -493,7 +494,18 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { isDesktop } = useLayout();
+  const { shellIntent, clearShellIntent } = useApp();
   const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
+  const [focusEmployeeId, setFocusEmployeeId] = useState('');
+  useEffect(() => {
+    if (!shellIntent || shellIntent.type !== 'plannedAbsenceFocus') return;
+    const id = String(shellIntent.employeeId || '');
+    if (id) {
+      setEmployeeId(id);
+      setFocusEmployeeId(id);
+    }
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent, setEmployeeId]);
   const today = toDateKey(new Date());
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const people = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
@@ -511,6 +523,7 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
         today={today}
         canChooseEmployee={canChooseEmployee}
         lockedEmployeeId={activeId}
+        focusEmployeeId={focusEmployeeId}
       />
     );
   }

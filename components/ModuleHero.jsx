@@ -86,7 +86,7 @@ export default function ModuleHero({
         {lead ? (
           <Text
             style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, { color: pitchColor }]}
-            numberOfLines={isDesktop ? 3 : 2}
+            numberOfLines={isPhone ? 3 : (isDesktop ? 3 : 2)}
           >
             {lead}
           </Text>
@@ -205,7 +205,9 @@ const styles = StyleSheet.create({
   copyPhone: {
     paddingVertical: 10,
     paddingLeft: 14,
-    paddingRight: 4,
+    paddingRight: 8,
+    flexShrink: 0,
+    minWidth: 168,
   },
   kicker: {
     fontSize: 11,
@@ -247,7 +249,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     lineHeight: 16,
-    maxWidth: 220,
   },
   /* Height is the heading minus 2mm top and bottom. Width follows the picture. */
   artWrap: {

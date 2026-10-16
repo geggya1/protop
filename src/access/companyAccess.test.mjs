@@ -299,7 +299,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
 {
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
-  assert.deepEqual(visible, ['selskap', 'arbeid', 'produkt', 'okonomi']);
+  assert.deepEqual(visible, ['selskap', 'arbeid', 'produkt', 'utstyr', 'okonomi']);
   const innleieSelskap = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'selskap');
   assert.deepEqual(innleieSelskap.children.map((child) => child.id), ['fravaer']);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');

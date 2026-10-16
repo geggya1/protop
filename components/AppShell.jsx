@@ -33,6 +33,7 @@ import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
+import EquipmentScreen from '../screens/equipment/EquipmentScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
@@ -627,6 +628,7 @@ function AppShellInner() {
     if (tab === 'arbeid') return <ArbeidHub subView={moreSubView} />;
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
+    if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;

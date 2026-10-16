@@ -94,6 +94,7 @@ export const ILLUSTRATION_FILES = {
   'hr-rekruttering': 'hr-rekruttering--module-activation-illustration.png',
   'okonomi-faktura': 'okonomi-faktura--module-activation-illustration.png',
   'okonomi-kjorebok': 'okonomi-kjorebok--module-activation-illustration.png',
+  utstyr: 'kjoretoy--module-activation-illustration.png',
   'okonomi-indeks': 'okonomi-indeks--module-activation-illustration.png',
   'okonomi-fakturagrunnlag': 'okonomi-fakturagrunnlag--module-activation-illustration.png',
   'okonomi-oversikt': 'okonomi-oversikt--module-activation-illustration.png',

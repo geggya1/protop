@@ -39,12 +39,13 @@ for (const item of HR_MENU) {
 }
 
 {
-  const adminNav = filterCompanyNav(companyNavItems(), standardGrants('administrator'))
-    .find((item) => item.id === 'selskap');
-  const hr = adminNav.children.find((child) => child.id === 'hr');
+  const adminNav = filterCompanyNav(companyNavItems(), standardGrants('administrator'));
+  const hr = adminNav.find((item) => item.id === 'hr');
+  const selskap = adminNav.find((item) => item.id === 'selskap');
   assert.ok(hr);
   assert.equal(hr.children.length, 8);
   assert.equal(hr.action.tab, 'hr');
+  assert.equal(selskap.children.some((child) => child.id === 'hr'), false);
 }
 
 {

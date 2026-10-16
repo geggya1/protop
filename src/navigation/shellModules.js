@@ -241,10 +241,10 @@ export function companyNavItems() {
           action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
         },
         { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
-        hrNavItem(),
         fravaerNavItem(),
       ],
     },
+    hrNavItem(),
     arbeidNavItem(),
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {

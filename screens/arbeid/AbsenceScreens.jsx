@@ -519,12 +519,8 @@ export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {
   const yearAbsences = (workspace.state.absences || [])
     .filter((row) => row.employeeId === activeId && String(row.date || '').startsWith(year))
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={styles.body}
-      nativeID="employee-overview"
-    >
+  const overviewBody = (
+    <>
       {embedded ? null : (
         <>
           <Text style={[styles.crumb, { color: colors.muted }]}>Ansatte / Oversikt</Text>
@@ -549,6 +545,22 @@ export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {
           </Text>
         </View>
       ))}
+    </>
+  );
+  if (embedded) {
+    return (
+      <View nativeID="employee-overview" style={styles.body}>
+        {overviewBody}
+      </View>
+    );
+  }
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={styles.body}
+      nativeID="employee-overview"
+    >
+      {overviewBody}
     </ScrollView>
   );
 }

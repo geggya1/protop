@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  StyleSheet, Text, TouchableOpacity, View,
+  Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -110,7 +110,13 @@ export default function EmployeePersonChrome({
         </View>
       ) : null}
 
-      <View style={[styles.tabs, { borderBottomColor: colors.line }]} nativeID="employee-detail-tabs">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.tabs, { borderBottomColor: colors.line }]}
+        contentContainerStyle={styles.tabsInner}
+        nativeID="employee-detail-tabs"
+      >
         {EMPLOYEE_DETAIL_TABS.map((tab) => {
           const active = tab.id === activeTab;
           return (
@@ -119,9 +125,17 @@ export default function EmployeePersonChrome({
               onPress={() => onTab?.(tab.id)}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={tab.label}
               nativeID={`employee-tab-${tab.id}`}
-              style={[styles.tab, active && { borderBottomColor: colors.brand }]}
+              {...(Platform.OS === 'web' ? { dataSet: { employeeTab: active ? 'active' : 'idle' } } : null)}
+              style={[
+                styles.tab,
+                active && {
+                  borderBottomColor: colors.brand,
+                  backgroundColor: colors.brandSoft || '#E5F6FE',
+                },
+              ]}
             >
               <Text style={{
                 color: active ? colors.brand : colors.muted,
@@ -134,7 +148,7 @@ export default function EmployeePersonChrome({
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {children}
     </View>
@@ -142,7 +156,7 @@ export default function EmployeePersonChrome({
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 14, width: '100%' },
+  root: { gap: 10, width: '100%', flexShrink: 0 },
   crumbRow: { flexDirection: 'row', alignItems: 'center' },
   crumbBtn: { paddingVertical: 2 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
@@ -161,15 +175,20 @@ const styles = StyleSheet.create({
   },
   deactivatedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
   tabs: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+    flexGrow: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tabsInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
   },
   tab: {
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: 'transparent',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
   },
 });

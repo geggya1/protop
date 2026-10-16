@@ -184,7 +184,7 @@ export default function EmployeeDetailPreview() {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.inner}>
+    <View style={styles.frame}>
       <Text style={[styles.banner, { color: colors.muted, borderColor: colors.line, backgroundColor: colors.card }]}>
         Forhåndsvisning · /employee-detail-preview
       </Text>
@@ -199,7 +199,8 @@ export default function EmployeeDetailPreview() {
         onSelect={(row) => {
           setSelectedId(row.id);
         }}
-      >
+      />
+      <ScrollView style={styles.body} contentContainerStyle={styles.inner} nativeID="employee-preview-body">
         {activeTab === 'home' ? (
           <EmployeeDetailView
             employee={selected}
@@ -258,15 +259,17 @@ export default function EmployeeDetailPreview() {
             <Text style={{ color: colors.muted, fontSize: 14 }}>
               Forhåndsvisning: skilleark og navn står fast mens innholdet byttes.
             </Text>
+            <View nativeID="employee-preview-spacer" style={{ height: 1400 }} />
           </View>
         )}
-      </EmployeePersonChrome>
-      <View style={{ height: 40 }} />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: { flex: 1, minHeight: 0, backgroundColor: colors.bg },
+  body: { flex: 1 },
   inner: { padding: 20, paddingBottom: 48, maxWidth: 1220, width: '100%', alignSelf: 'center', gap: 12 },
   banner: {
     borderWidth: 1,

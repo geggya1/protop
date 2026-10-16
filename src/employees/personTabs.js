@@ -21,3 +21,8 @@ export function employeeViewToTab(view) {
 export const PERSON_VIEWS = new Set([
   'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'settings', 'cv',
 ]);
+
+/** Undersider med eget rullefelt. De fyller området under chrome. */
+export const PERSON_FILL_VIEWS = new Set([
+  'hours', 'report', 'absence', 'saldo', 'expenses',
+]);

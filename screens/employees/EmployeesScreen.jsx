@@ -90,7 +90,7 @@ import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
-import { PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
+import { PERSON_FILL_VIEWS, PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -1289,16 +1289,73 @@ export default function EmployeesScreen() {
     || !busyKind
   );
 
+  const personMode = PERSON_VIEWS.has(view) && !!selected;
+  const personFills = personMode && PERSON_FILL_VIEWS.has(view);
+  const personEmployee = (view === 'detail' || view === 'settings' || view === 'cv') && draft && draft.id === selectedId
+    ? draft
+    : selected;
+
+  useEffect(() => {
+    if (!personMode || personFills) return;
+    scrollRef.current?.scrollTo?.({ y: 0, animated: false });
+  }, [view, selectedId, personMode, personFills]);
+
   return (
     <>
+    <View nativeID="employees-page" id="employees-page" style={[styles.screen, { backgroundColor: colors.bg }]}>
+    {personMode ? (
+      <View style={[styles.personChrome, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
+        <EmployeePersonChrome
+          employee={personEmployee}
+          colors={colors}
+          companyName={companyName}
+          siblings={visible}
+          activeTab={employeeViewToTab(view)}
+          onBack={openList}
+          onTab={openPersonTab}
+          onSelect={openSibling}
+        />
+      </View>
+    ) : null}
+    {personFills ? (
+      <View style={styles.personFill}>
+        {view === 'hours' ? (
+          <View style={styles.hoursHost} nativeID="employee-hours-view">
+            <ArbeidScreen lockedEmployeeId={selected.id} embedded />
+          </View>
+        ) : null}
+        {view === 'report' ? (
+          <View style={styles.hoursHost} nativeID="employee-report-view">
+            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded />
+          </View>
+        ) : null}
+        {view === 'absence' ? (
+          <View nativeID="employee-absence-view" style={styles.absenceHost}>
+            <AbsenceOverviewScreen
+              lockedEmployeeId={selected.id}
+              embedded
+              onBack={() => openDetail(selected)}
+            />
+          </View>
+        ) : null}
+        {view === 'saldo' ? (
+          <View nativeID="employee-saldo-view" style={styles.personFill}>
+            <TimesaldoScreen lockedEmployeeId={selected.id} embedded />
+          </View>
+        ) : null}
+        {view === 'expenses' ? (
+          <View nativeID="employee-expenses-view" style={styles.personFill}>
+            <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded />
+          </View>
+        ) : null}
+      </View>
+    ) : (
     <ScrollView
       ref={scrollRef}
-      nativeID="employees-page"
-      id="employees-page"
-      style={{ backgroundColor: colors.bg }}
+      style={styles.screenScroll}
       contentContainerStyle={[
         styles.inner,
-        PERSON_VIEWS.has(view) && styles.innerWide,
+        personMode && styles.innerWide,
         (view === 'hours' || view === 'report') && styles.innerHours,
         view === 'absence' && styles.innerAbsence,
       ]}
@@ -1425,61 +1482,16 @@ export default function EmployeesScreen() {
         </View>
       ) : null}
 
-      {PERSON_VIEWS.has(view) && selected ? (
-        <EmployeePersonChrome
-          employee={(view === 'detail' || view === 'settings' || view === 'cv') && draft && draft.id === selectedId
-            ? draft
-            : selected}
-          colors={colors}
-          companyName={companyName}
-          siblings={visible}
-          activeTab={employeeViewToTab(view)}
-          onBack={openList}
-          onTab={openPersonTab}
-          onSelect={openSibling}
-        >
+      {personMode && !personFills ? (
+        <>
           {view === 'overview' ? (
             <View nativeID="employee-overview-view">
               <MyOverviewScreen lockedEmployeeId={selected.id} embedded />
             </View>
           ) : null}
 
-          {view === 'hours' ? (
-            <View style={styles.hoursHost} nativeID="employee-hours-view">
-              <ArbeidScreen lockedEmployeeId={selected.id} embedded />
-            </View>
-          ) : null}
-
-          {view === 'report' ? (
-            <View style={styles.hoursHost} nativeID="employee-report-view">
-              <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded />
-            </View>
-          ) : null}
-
           {view === 'files' ? (
             <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
-          ) : null}
-
-          {view === 'absence' ? (
-            <View nativeID="employee-absence-view" style={styles.absenceHost}>
-              <AbsenceOverviewScreen
-                lockedEmployeeId={selected.id}
-                embedded
-                onBack={() => openDetail(selected)}
-              />
-            </View>
-          ) : null}
-
-          {view === 'saldo' ? (
-            <View nativeID="employee-saldo-view">
-              <TimesaldoScreen lockedEmployeeId={selected.id} embedded />
-            </View>
-          ) : null}
-
-          {view === 'expenses' ? (
-            <View nativeID="employee-expenses-view">
-              <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded />
-            </View>
           ) : null}
 
           {view === 'settings' ? (
@@ -1685,7 +1697,7 @@ export default function EmployeesScreen() {
               </Modal>
             </View>
           ) : null}
-        </EmployeePersonChrome>
+        </>
       ) : null}
 
       {view === 'import' && importPlan ? (
@@ -1826,6 +1838,8 @@ export default function EmployeesScreen() {
         onSubmit={registerEmployee}
       />
     </ScrollView>
+    )}
+    </View>
     <BrandBusyOverlay
       visible={!directoryReady || !!showBusyOverlay}
       testID={busyKind === 'save' ? 'employee-cv-progress' : 'brand-busy-overlay'}
@@ -1872,12 +1886,23 @@ function summaryNote(labels) {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, minHeight: 0, width: '100%' },
+  screenScroll: { flex: 1 },
+  personChrome: {
+    flexShrink: 0,
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 2,
+  },
+  personFill: { flex: 1, minHeight: 0, width: '100%' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
   innerHours: { maxWidth: 1400, flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
-  hoursHost: { minHeight: 720, width: '100%', alignSelf: 'stretch' },
-  absenceHost: { width: '100%', alignSelf: 'stretch' },
+  hoursHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
+  absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },

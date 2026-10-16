@@ -103,6 +103,9 @@ export default function HoursImportReview({
   confirmLabel,
   title = 'Kontroller timeimport',
   lead = '',
+  footnote = 'Hoppes over bare hvis føringen allerede finnes i systemet (samme dato, person, prosjekt, timer og beskrivelse). Like rader i eksportfilen beholdes. Medarbeidere legges inn på prosjektene ved lagring.',
+  existingLabel = 'føringer finnes allerede og hoppes over.',
+  renderOkTable,
 }) {
   const danger = colors.danger || '#b42318';
   const brand = colors.brand || '#175cd3';
@@ -134,13 +137,10 @@ export default function HoursImportReview({
       <Text style={{ color: colors.ink, fontWeight: '600' }}>{reviewHeadline(headlineCards)}</Text>
       {review?.existingCount ? (
         <Text style={{ color: brand, fontWeight: '600' }}>
-          {review.existingCount} føringer finnes allerede og hoppes over.
+          {review.existingCount} {existingLabel}
         </Text>
       ) : null}
-      <Text style={{ color: colors.muted }}>
-        Hoppes over bare hvis føringen allerede finnes i systemet (samme dato, person, prosjekt, timer og beskrivelse).
-        Like rader i eksportfilen beholdes. Medarbeidere legges inn på prosjektene ved lagring.
-      </Text>
+      {!!footnote && <Text style={{ color: colors.muted }}>{footnote}</Text>}
 
       {cards.filter((card) => card.severity === 'existing' || card.severity === 'block').map((card) => (
         <View
@@ -183,13 +183,21 @@ export default function HoursImportReview({
           </View>
           <View style={styles.tableScroll}>
             <View style={{ minWidth: 980 }}>
-              <OkTable
-                colors={colors}
-                rows={okRows}
-                pageSize={okPage}
-                onMore={() => setOkPage((n) => n + 50)}
-                onToggleRow={onToggleOkRow}
-              />
+              {renderOkTable ? renderOkTable({
+                colors,
+                rows: okRows,
+                pageSize: okPage,
+                onMore: () => setOkPage((n) => n + 50),
+                onToggleRow: onToggleOkRow,
+              }) : (
+                <OkTable
+                  colors={colors}
+                  rows={okRows}
+                  pageSize={okPage}
+                  onMore={() => setOkPage((n) => n + 50)}
+                  onToggleRow={onToggleOkRow}
+                />
+              )}
             </View>
           </View>
         </View>

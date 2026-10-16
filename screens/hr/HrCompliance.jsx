@@ -1,17 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { displayName } from '../../src/employees/model';
 import {
   COMPLIANCE_CATALOG,
   COMPLIANCE_SOURCES,
-  companyComplianceOverview,
   complianceSummary,
   ensureEmployeeCompliance,
   syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
+import { localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
-  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
+  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle,
 } from './HrShared';
 
 const STATUS = [
@@ -22,26 +21,15 @@ const STATUS = [
 ];
 
 export default function HrCompliance({
-  colors, employees, hr, canWrite, onPatch, selectedEmployeeId, onSelectEmployee,
+  colors, hr, canWrite, onPatch, lockedEmployeeId,
 }) {
-  const people = useMemo(
-    () => (employees || []).filter((e) => e?.company?.status !== 'deleted'),
-    [employees],
-  );
-  const [employeeId, setEmployeeId] = useState(selectedEmployeeId || people[0]?.id || '');
+  const activeId = String(lockedEmployeeId || '');
   const [sourceFilter, setSourceFilter] = useState('all');
-  const activeId = employeeId || selectedEmployeeId || '';
-
-  const overview = useMemo(
-    () => companyComplianceOverview(people, hr.compliance, {
-      contracts: hr.contracts,
-      reviews: hr.reviews,
-      applyEvidence: true,
-    }),
-    [people, hr.compliance, hr.contracts, hr.reviews],
-  );
-  const totalMissing = overview.reduce((sum, row) => sum + row.missing, 0);
   const [noteDrafts, setNoteDrafts] = useState({});
+
+  useEffect(() => {
+    setNoteDrafts({});
+  }, [activeId]);
 
   const rows = useMemo(() => {
     if (!activeId) return [];
@@ -61,12 +49,6 @@ export default function HrCompliance({
     return `${empId || ''}:${catalogId}`;
   }
 
-  function selectEmployee(id) {
-    setEmployeeId(id);
-    onSelectEmployee?.(id);
-    setNoteDrafts({});
-  }
-
   function setStatus(catalogId, status) {
     if (!canWrite || !activeId) return;
     onPatch?.((state) => {
@@ -75,7 +57,7 @@ export default function HrCompliance({
           ? {
             ...row,
             status,
-            completedAt: status === 'ok' ? new Date().toISOString().slice(0, 10) : '',
+            completedAt: status === 'ok' ? localIsoDate() : '',
             updatedAt: new Date().toISOString(),
           }
           : row
@@ -111,80 +93,24 @@ export default function HrCompliance({
     showSaveToast?.('Compliance synket fra avtaler og samtaler');
   }
 
-  function syncAll() {
-    if (!canWrite) return;
-    onPatch?.((state) => {
-      let compliance = state.compliance || [];
-      for (const emp of people) {
-        compliance = syncComplianceFromEvidence(compliance, {
-          employeeId: emp.id,
-          contracts: state.contracts || [],
-          reviews: state.reviews || [],
-        });
-      }
-      return { compliance };
-    });
-    showSaveToast?.('Compliance synket for alle');
-  }
-
   return (
     <View style={styles.page} nativeID="hr-compliance">
-      <HrCard colors={colors}>
-        <HrSectionTitle
-          colors={colors}
-          title="Lovpålagt og ISO-oppfølging"
-          subtitle="AML, internkontroll, ISO 9001 / 14001 / 45001 og GDPR — selskapsoversikt og per ansatt"
-        />
-        <Text style={[styles.summary, { color: colors.ink }]}>
-          {`${totalMissing} påkrevde mangler på tvers · ${people.length} ansatte`}
-        </Text>
-        {canWrite ? (
-          <HrButton
+      {!activeId ? (
+        <HrCard colors={colors}>
+          <EmptyHint colors={colors} text="Velg en ansatt i personellisten for å se sjekklisten." />
+        </HrCard>
+      ) : (
+        <HrCard colors={colors}>
+          <HrSectionTitle
             colors={colors}
-            label="Synk alle fra avtaler/samtaler"
-            icon="sync-outline"
-            onPress={syncAll}
+            title="Lovpålagt og ISO"
+            subtitle="Sjekkliste for denne personen"
           />
-        ) : null}
-        {overview.filter((row) => row.missing > 0).slice(0, 12).map((row) => {
-          const person = people.find((e) => e.id === row.employeeId);
-          return (
-            <RowLink
-              key={row.employeeId}
-              colors={colors}
-              title={person ? displayName(person) : row.employeeId}
-              subtitle={row.gaps.slice(0, 4).join(' · ') || 'Mangler'}
-              meta={`${row.ok}/${row.total} · ${row.pct} %`}
-              onPress={() => selectEmployee(row.employeeId)}
-            />
-          );
-        })}
-        {overview.every((row) => row.missing === 0) ? (
-          <EmptyHint colors={colors} text="Ingen gap i påkrevde punkter — eller ingen ansatte valgt ennå." />
-        ) : null}
-      </HrCard>
-
-      <HrCard colors={colors}>
-        <HrSectionTitle colors={colors} title="Per ansatt" />
-        <View style={styles.chips}>
-          {people.map((emp) => (
-            <HrChip
-              key={emp.id}
-              colors={colors}
-              label={displayName(emp)}
-              active={emp.id === activeId}
-              onPress={() => selectEmployee(emp.id)}
-            />
-          ))}
-        </View>
-        {!activeId ? (
-          <EmptyHint colors={colors} text="Velg en medarbeider." />
-        ) : (
           <Text style={[styles.summary, { color: colors.ink }]}>
-            {`Required OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
+            {`OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
           </Text>
-        )}
-      </HrCard>
+        </HrCard>
+      )}
 
       {activeId ? (
         <HrCard colors={colors}>
@@ -267,7 +193,7 @@ export default function HrCompliance({
                 return {
                   ...row,
                   status: 'ok',
-                  completedAt: new Date().toISOString().slice(0, 10),
+                  completedAt: localIsoDate(),
                   updatedAt: new Date().toISOString(),
                 };
               });

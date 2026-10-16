@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import DateField from '../../components/DateField';
 import {
@@ -41,6 +41,8 @@ import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
+import { useLayout } from '../../src/theme';
+import AgreementDocumentPreview from './AgreementDocumentPreview';
 import OwnerPicker from './OwnerPicker';
 
 const DOC_ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -64,13 +66,38 @@ function Section({ colors, title, open, onToggle, children, actions = null }) {
   );
 }
 
-function Fact({ colors, label, value, wide = false }) {
+function shownValue(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+function invoiceLabel(value) {
+  const id = String(value || '').trim().toUpperCase();
+  if (id === 'EPOST') return 'E-post';
+  if (id === 'EHF') return 'EHF';
+  if (id === 'POST') return 'Post';
+  return String(value || '').trim();
+}
+
+function Fact({ colors, label, value }) {
+  const shown = shownValue(value);
+  if (!shown) return null;
   return (
-    <View style={[styles.fact, wide && styles.factWide]}>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: value ? colors.ink : colors.placeholder, fontSize: 15 }}>
-        {value || '—'}
-      </Text>
+    <View style={[styles.factRow, { borderBottomColor: colors.line }]}>
+      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.factValue, { color: colors.ink }]}>{shown}</Text>
+    </View>
+  );
+}
+
+function FieldGroup({ colors, title, rows }) {
+  const visible = rows.filter((row) => shownValue(row?.value));
+  if (!visible.length) return null;
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.groupTitle}>{title}</Text>
+      {visible.map((row) => (
+        <Fact key={row.label} colors={colors} label={row.label} value={row.value} />
+      ))}
     </View>
   );
 }
@@ -162,7 +189,10 @@ export default function AgreementDetail({
     milepeler: false,
     underavtaler: false,
   });
+  const [previewId, setPreviewId] = useState('');
   const lookupRef = useRef('');
+  const { isPhone } = useLayout();
+  const splitPreview = !isPhone;
 
   const children = childAgreements(contracts, contract.id);
   const parent = contracts.find((row) => row.id === contract.parentId) || null;
@@ -172,6 +202,11 @@ export default function AgreementDetail({
   useEffect(() => {
     if (!editing) setForm(coverFromRecord(contract));
   }, [contract, editing]);
+
+  useEffect(() => {
+    const docs = contract?.documents || [];
+    setPreviewId((current) => (docs.some((doc) => doc.id === current) ? current : (docs[0]?.id || '')));
+  }, [contract]);
 
   useEffect(() => {
     if (!editing) {
@@ -448,7 +483,14 @@ export default function AgreementDetail({
         </View>
       </View>
 
-      <View style={[styles.hero, { borderColor: colors.brand, backgroundColor: colors.card }]}>
+      {!!saveNote && <Text style={{ color: colors.brand }}>{saveNote}</Text>}
+
+      <View
+        nativeID={splitPreview ? 'agreement-detail-split' : 'agreement-detail-stack'}
+        style={splitPreview ? styles.split : styles.stack}
+      >
+      <View style={splitPreview ? styles.splitLeft : styles.stackPane}>
+      <View style={[styles.hero, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <View style={styles.heroTop}>
           <Text style={styles.kicker}>{kindLabel(contract.kind) || 'Avtale'}</Text>
           <View style={[styles.badge, { backgroundColor: statusMuted ? (colors.sunken || colors.bg) : (colors.brandSoft || colors.bg) }]}>
@@ -458,33 +500,10 @@ export default function AgreementDetail({
           </View>
         </View>
         <Text style={[styles.h, { color: colors.ink }]}>{contract.title}</Text>
-        <View style={styles.heroFacts}>
-          <View style={styles.heroFact}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Kunde</Text>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{contract.buyer || '—'}</Text>
-          </View>
-          <View style={styles.heroFact}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Periode</Text>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{period || '—'}</Text>
-          </View>
-          <View style={styles.heroFact}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Avtalt honorar</Text>
-            <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>
-              {honorar || '—'}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>eks. mva</Text>
-          </View>
-          <View style={styles.heroFact}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Oppdrags-ID</Text>
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatNumberId(contract.oppdragId) || '—'}</Text>
-          </View>
-        </View>
-        {contract.fields?.standard ? (
-          <Text style={{ color: colors.muted }}>{contract.fields.standard}</Text>
-        ) : null}
+        <Text style={{ color: colors.muted }}>
+          {[contract.buyer, period, honorar ? `${honorar} eks. mva` : '', formatNumberId(contract.oppdragId)].filter(Boolean).join(' · ') || 'Opplysningene står under.'}
+        </Text>
       </View>
-
-      {!!saveNote && <Text style={{ color: colors.brand }}>{saveNote}</Text>}
 
       <Section colors={colors} title="Avtaleopplysninger" open={open.cover} onToggle={() => toggle('cover')}>
         {editing ? (
@@ -652,66 +671,74 @@ export default function AgreementDetail({
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ gap: 14 }}>
-            <View style={styles.grid}>
-              <Fact colors={colors} label="Avtaletype" value={kindLabel(contract.kind)} />
-              <Fact colors={colors} label="Oppdrags-ID" value={formatNumberId(contract.oppdragId)} />
-              <Fact colors={colors} label="System-ID" value={formatNumberId(contract.systemId)} />
-              <Fact colors={colors} label="Oppdrag" value={contract.title} wide />
-              <Fact colors={colors} label="Beskrivelse" value={contract.description || contract.fields?.description} wide />
-              <Fact colors={colors} label="Eksternt PO-nummer" value={contract.fields?.poNumber} />
-              <Fact colors={colors} label="Generelle bestemmelser" value={contract.fields?.standard} />
-              {parent ? <Fact colors={colors} label="Tilknyttet avtale" value={parent.title} wide /> : null}
-            </View>
-
-            <Text style={styles.groupTitle}>Oppdragssted og periode</Text>
-            <View style={styles.grid}>
-              <Fact colors={colors} label="Adresse" value={contract.address || contract.fields?.address} />
-              <Fact colors={colors} label="Sted" value={contract.fields?.place} />
-              <Fact colors={colors} label="Oppstart" value={contract.start} />
-              <Fact colors={colors} label="Sluttdato" value={contract.end} />
-              <Fact colors={colors} label="Avtaledato" value={contract.fields?.contractDate} />
-            </View>
-
-            <Text style={styles.groupTitle}>Oppdragsgiver</Text>
-            <View style={styles.grid}>
-              <Fact colors={colors} label="Oppdragsgiver" value={contract.buyer} />
-              <Fact colors={colors} label="Organisasjonsnummer" value={formatOrgnr(contract.fields?.orgnr)} />
-              {contract.fields?.personnummer ? (
-                <Fact colors={colors} label="Personnummer" value={maskPersonnummer(contract.fields.personnummer)} />
-              ) : null}
-              <Fact colors={colors} label="Kontaktperson" value={contract.fields?.contactName} />
-              <Fact colors={colors} label="E-post" value={contract.fields?.email} />
-              <Fact colors={colors} label="Telefon" value={contract.fields?.phone} />
-            </View>
-
-            <Text style={styles.groupTitle}>Oppdragstaker</Text>
-            <View style={styles.grid}>
-              <Fact colors={colors} label="Oppdragstaker" value={contract.supplier} />
-              <Fact colors={colors} label="Organisasjonsnummer" value={formatOrgnr(contract.fields?.supplierOrgnr)} />
-            </View>
-
-            <Text style={styles.groupTitle}>Honorar og regulering</Text>
-            <View style={styles.grid}>
-              <Fact colors={colors} label="Avtalt honorar (eks. mva)" value={honorar} />
-              <Fact colors={colors} label="Påslagsprosent" value={contract.fields?.surchargePercent} />
-              <Fact colors={colors} label="Prisregulering / indeks" value={indexLabel(contract.fields?.indexId)} wide />
-            </View>
-
-            <Text style={styles.groupTitle}>Varighet og fornyelse</Text>
-            <View style={styles.grid}>
-              <Fact
-                colors={colors}
-                label="Fornyelse"
-                value={RENEWAL_TYPES.find((row) => row.id === (contract.renewal?.type || 'ingen'))?.label}
-              />
-              <Fact colors={colors} label="Fornyes til" value={contract.renewal?.until} />
-              <Fact
-                colors={colors}
-                label="Varsel før utløp"
-                value={contract.renewal?.noticeDays != null ? `${contract.renewal.noticeDays} dager` : ''}
-              />
-            </View>
+          <View style={{ gap: 16 }}>
+            <FieldGroup
+              colors={colors}
+              title="Avtalen"
+              rows={[
+                { label: 'Avtaletype', value: kindLabel(contract.kind) },
+                { label: 'Oppdrags-ID', value: formatNumberId(contract.oppdragId) },
+                { label: 'System-ID', value: formatNumberId(contract.systemId) },
+                { label: 'Oppdrag', value: contract.title },
+                { label: 'Beskrivelse', value: contract.description || contract.fields?.description },
+                { label: 'Eksternt PO-nummer', value: contract.fields?.poNumber },
+                { label: 'Generelle bestemmelser', value: contract.fields?.standard },
+                { label: 'Tilknyttet avtale', value: parent?.title },
+              ]}
+            />
+            <FieldGroup
+              colors={colors}
+              title="Oppdragssted og periode"
+              rows={[
+                { label: 'Adresse', value: contract.address || contract.fields?.address },
+                { label: 'Postnummer', value: contract.fields?.postalCode },
+                { label: 'Sted', value: contract.fields?.place },
+                { label: 'Gnr / Bnr', value: contract.fields?.gnrBnr },
+                { label: 'Oppstart', value: contract.start },
+                { label: 'Sluttdato', value: contract.end },
+                { label: 'Avtaledato', value: contract.fields?.contractDate },
+              ]}
+            />
+            <FieldGroup
+              colors={colors}
+              title="Oppdragsgiver"
+              rows={[
+                { label: 'Oppdragsgiver', value: contract.buyer },
+                { label: 'Organisasjonsnummer', value: formatOrgnr(contract.fields?.orgnr) },
+                { label: 'Personnummer', value: contract.fields?.personnummer ? maskPersonnummer(contract.fields.personnummer) : '' },
+                { label: 'Kontaktperson', value: contract.fields?.contactName },
+                { label: 'E-post', value: contract.fields?.email },
+                { label: 'Telefon', value: contract.fields?.phone },
+                { label: 'Faktura mottak', value: invoiceLabel(contract.fields?.invoiceMethod) },
+              ]}
+            />
+            <FieldGroup
+              colors={colors}
+              title="Oppdragstaker"
+              rows={[
+                { label: 'Oppdragstaker', value: contract.supplier },
+                { label: 'Organisasjonsnummer', value: formatOrgnr(contract.fields?.supplierOrgnr) },
+                { label: 'Oppdragsleder', value: contract.fields?.leaderName },
+              ]}
+            />
+            <FieldGroup
+              colors={colors}
+              title="Honorar og regulering"
+              rows={[
+                { label: 'Avtalt honorar (eks. mva)', value: honorar },
+                { label: 'Påslagsprosent', value: contract.fields?.surchargePercent },
+                { label: 'Prisregulering / indeks', value: indexLabel(contract.fields?.indexId) },
+              ]}
+            />
+            <FieldGroup
+              colors={colors}
+              title="Varighet og fornyelse"
+              rows={[
+                { label: 'Fornyelse', value: contract.renewal?.type && contract.renewal.type !== 'ingen' ? RENEWAL_TYPES.find((row) => row.id === contract.renewal.type)?.label : '' },
+                { label: 'Fornyes til', value: contract.renewal?.until },
+                { label: 'Varsel før utløp', value: Number(contract.renewal?.noticeDays) > 0 ? `${contract.renewal.noticeDays} dager` : '' },
+              ]}
+            />
           </View>
         )}
       </Section>
@@ -739,37 +766,6 @@ export default function AgreementDetail({
         ) : (
           <Text style={{ color: colors.muted }}>Ingen kunde er koblet. Rediger avtalen for å fylle oppdragsgiver, eller koble kunden fra kunderegisteret.</Text>
         )}
-      </Section>
-
-      <Section colors={colors} title={`Dokumenter (${(contract.documents || []).length})`} open={open.dokumenter} onToggle={() => toggle('dokumenter')}>
-        <View style={{ gap: 10 }}>
-          {(contract.documents || []).length ? contract.documents.map((doc) => (
-            <View key={doc.id} style={{ gap: 4 }}>
-              <TouchableOpacity
-                onPress={() => openAgreementDocument(doc)}
-                accessibilityRole="link"
-                disabled={!documentIsOpenable(doc)}
-              >
-                <Text style={{ color: documentIsOpenable(doc) ? colors.brand : colors.muted, textDecorationLine: documentIsOpenable(doc) ? 'underline' : 'none' }}>
-                  {doc.name}{documentHasOriginalFile(doc) ? '' : ' · mangler originalfil'}
-                </Text>
-              </TouchableOpacity>
-              {!documentHasOriginalFile(doc) ? (
-                <TouchableOpacity onPress={() => attachOriginal(doc)} accessibilityRole="button" disabled={!!docBusyId}>
-                  <Text style={{ color: colors.brand }}>
-                    {docBusyId === doc.id ? 'Laster opp…' : 'Last opp original PDF'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          )) : <Text style={{ color: colors.muted }}>Ingen dokumenter er lagt ved.</Text>}
-          <TouchableOpacity onPress={addDocuments} accessibilityRole="button" disabled={!!docBusyId}>
-            <Text style={{ color: colors.brand }}>
-              {docBusyId === 'new' ? 'Laster opp…' : 'Legg til dokumenter'}
-            </Text>
-          </TouchableOpacity>
-          {docNote ? <Text style={{ color: colors.muted }}>{docNote}</Text> : null}
-        </View>
       </Section>
 
       {(contract.options || []).length ? (
@@ -901,6 +897,63 @@ export default function AgreementDetail({
           </TouchableOpacity>
         ) : null}
       </View>
+      </View>
+
+      <View style={splitPreview ? styles.splitRight : styles.stackPane}>
+        <AgreementDocumentPreview
+          colors={colors}
+          documents={contract.documents || []}
+          selectedId={previewId}
+          onSelect={setPreviewId}
+          minHeight={splitPreview ? 560 : 360}
+        />
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
+            {`Dokumenter (${(contract.documents || []).length})`}
+          </Text>
+          <View style={{ gap: 8 }}>
+            {(contract.documents || []).length ? (contract.documents || []).map((doc) => {
+              const selected = (previewId || contract.documents?.[0]?.id) === doc.id;
+              return (
+                <View key={doc.id} style={[styles.docRow, { borderColor: selected ? colors.brand : colors.line, backgroundColor: selected ? (colors.brandSoft || colors.bg) : colors.bg }]}>
+                  <TouchableOpacity
+                    onPress={() => setPreviewId(doc.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={{ flex: 1 }}
+                  >
+                    <Text style={{ color: colors.ink, fontWeight: selected ? '700' : '400' }}>
+                      {doc.name || 'Dokument'}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {documentHasOriginalFile(doc) ? 'Originalfil' : 'Mangler originalfil'}
+                    </Text>
+                  </TouchableOpacity>
+                  {documentIsOpenable(doc) ? (
+                    <TouchableOpacity onPress={() => openAgreementDocument(doc)} accessibilityRole="button">
+                      <Text style={{ color: colors.brand }}>Åpne</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {!documentHasOriginalFile(doc) ? (
+                    <TouchableOpacity onPress={() => attachOriginal(doc)} accessibilityRole="button" disabled={!!docBusyId}>
+                      <Text style={{ color: colors.brand }}>
+                        {docBusyId === doc.id ? 'Laster opp…' : 'Last opp'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
+            }) : <Text style={{ color: colors.muted }}>Ingen dokumenter er lagt ved.</Text>}
+            <TouchableOpacity onPress={addDocuments} accessibilityRole="button" disabled={!!docBusyId}>
+              <Text style={{ color: colors.brand }}>
+                {docBusyId === 'new' ? 'Laster opp…' : 'Legg til dokumenter'}
+              </Text>
+            </TouchableOpacity>
+            {docNote ? <Text style={{ color: colors.muted }}>{docNote}</Text> : null}
+          </View>
+        </View>
+      </View>
+      </View>
 
       <ConfirmDialog
         visible={askDelete}
@@ -933,12 +986,24 @@ export default function AgreementDetail({
 }
 
 const styles = StyleSheet.create({
-  h: { fontSize: 26, fontWeight: '700', lineHeight: 32 },
+  h: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   kicker: { color: '#64748b', fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: '700' },
-  hero: { borderWidth: 1, borderRadius: 16, padding: 18, gap: 10 },
+  hero: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6 },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  heroFacts: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 4 },
-  heroFact: { minWidth: 140, flexGrow: 1, gap: 2 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, width: '100%' },
+  splitLeft: { flexGrow: 1, flexShrink: 1, flexBasis: '52%', minWidth: 300, gap: 12 },
+  splitRight: {
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: '42%',
+    minWidth: 340,
+    maxWidth: 680,
+    gap: 12,
+    alignSelf: 'flex-start',
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 12 } : null),
+  },
+  stack: { gap: 14, width: '100%' },
+  stackPane: { gap: 12, width: '100%' },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionBody: { gap: 10, paddingTop: 4 },
@@ -947,9 +1012,28 @@ const styles = StyleSheet.create({
   inputMulti: { minHeight: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   topBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  fact: { flexGrow: 1, flexBasis: 200, minWidth: 170, gap: 4 },
-  factWide: { flexBasis: '100%', minWidth: '100%' },
+  grid: { gap: 10 },
+  fact: { width: '100%', gap: 4 },
+  factWide: { width: '100%' },
+  fieldGroup: { gap: 0 },
+  factRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  factLabel: { width: 168, fontSize: 13, lineHeight: 18 },
+  factValue: { flex: 1, fontSize: 15, lineHeight: 20 },
+  docRow: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   groupTitle: { color: '#64748b', fontSize: 12, fontWeight: '700', letterSpacing: 0.35, textTransform: 'uppercase', marginTop: 4 },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   btn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },

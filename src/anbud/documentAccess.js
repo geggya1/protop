@@ -50,7 +50,7 @@ export function documentLooksBinary(doc) {
 }
 
 export function documentHasOriginalFile(doc) {
-  return !!(doc?.dataUrl || doc?.url || doc?.uri);
+  return !!(doc?.dataUrl || doc?.url || doc?.uri || String(doc?.storagePath || '').trim());
 }
 
 export function documentIsOpenable(doc) {

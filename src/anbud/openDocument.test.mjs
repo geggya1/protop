@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   AGREEMENT_IMPORT_ACCEPT,
   documentFileHref,
@@ -28,6 +29,14 @@ assert.equal(documentFileHref(textOnlyPdf), '');
 const withUrl = { ...textOnlyPdf, url: 'https://example.com/avtale.pdf' };
 assert.equal(documentHasOriginalFile(withUrl), true);
 assert.equal(documentIsOpenable(withUrl), true);
+assert.equal(documentHasOriginalFile({
+  name: 'avtale.pdf',
+  storagePath: 'families/bedrift/anbud/contracts/avtale.pdf',
+}), true);
+assert.equal(documentIsOpenable({
+  name: 'avtale.pdf',
+  storagePath: 'families/bedrift/anbud/contracts/avtale.pdf',
+}), true);
 assert.equal(documentFileHref(withUrl), 'https://example.com/avtale.pdf');
 assert.equal(documentPreviewKind(withUrl), 'pdf');
 assert.equal(documentPreviewLabel('pdf'), 'PDF');
@@ -58,5 +67,21 @@ assert.match(AGREEMENT_IMPORT_ACCEPT, /\.pdf/);
 assert.match(AGREEMENT_IMPORT_ACCEPT, /\.docx/);
 assert.match(AGREEMENT_IMPORT_ACCEPT, /\.xlsx/);
 assert.match(AGREEMENT_IMPORT_ACCEPT, /\.eml/);
+
+const opener = readFileSync(new URL('./openDocument.js', import.meta.url), 'utf8');
+assert.equal(opener.includes('noopener,noreferrer'), false);
+assert.match(opener, /about:blank/);
+assert.match(opener, /loadAgreementBytes/);
+assert.match(opener, /location\.replace/);
+
+const preview = readFileSync(new URL('../../screens/anbud/AgreementDocumentPreview.jsx', import.meta.url), 'utf8');
+assert.match(preview, /loadAgreementBytes/);
+assert.match(preview, /AgreementOriginalLink/);
+assert.equal(preview.includes("position: 'absolute'"), false);
+assert.match(preview, /Henter dokumentet/);
+
+const detail = readFileSync(new URL('../../screens/anbud/AgreementDetail.jsx', import.meta.url), 'utf8');
+assert.match(detail, /AgreementOriginalLink/);
+assert.match(detail, /onUploadOriginal/);
 
 console.log('openDocument ok');

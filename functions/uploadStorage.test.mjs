@@ -52,6 +52,13 @@ assert.match(aiSharedSrc, /Komprimer den/);
 assert.equal(aiSharedSrc.includes('AI klarte ikke lese sidene i filen'), false);
 assert.match(aiSharedSrc, /await mediaBucket\(\)/);
 assert.equal(mediaSrc.includes('protop-c189c.appspot.com'), false);
+const uploadFileBlock = mediaSrc.slice(
+  mediaSrc.indexOf('async function uploadObjectViaCallable'),
+  mediaSrc.indexOf('async function uploadImageViaCallable'),
+);
+assert.match(uploadFileBlock, /uploadObjectViaCallable/);
+assert.match(uploadFileBlock, /uploadStorageFile/);
+assert.match(uploadFileBlock, /export async function uploadFile/);
 const uploadImageBlock = mediaSrc.slice(mediaSrc.indexOf('export async function uploadImage'));
 assert.match(uploadImageBlock, /uploadImageViaCallable/);
 assert.equal(uploadImageBlock.includes('trying client Storage'), false);

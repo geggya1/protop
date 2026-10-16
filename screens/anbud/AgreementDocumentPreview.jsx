@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   documentFileHref,
@@ -9,6 +9,12 @@ import {
   documentPreviewLabel,
   documentSupportsOfficeEmbed,
 } from '../../src/anbud/documentAccess';
+import {
+  loadAgreementBytes,
+  peekAgreementBlobUrl,
+  publicHttpHref,
+  rememberAgreementBlobUrl,
+} from '../../src/anbud/documentFile';
 import { openAgreementDocument } from '../../src/anbud/openDocument';
 
 function PreviewFrame({ title, children, colors, minHeight = 420 }) {
@@ -35,8 +41,8 @@ function TextPreview({ text, colors }) {
   );
 }
 
-function WebIframe({ src, srcDoc, title }) {
-  if (Platform.OS !== 'web') {
+function WebIframe({ src, srcDoc, title, minHeight = 420 }) {
+  if (Platform.OS !== 'web' || (!src && !srcDoc)) {
     return null;
   }
   return React.createElement('iframe', {
@@ -44,36 +50,146 @@ function WebIframe({ src, srcDoc, title }) {
     src: src || undefined,
     srcDoc: srcDoc || undefined,
     style: {
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
+      display: 'block',
       width: '100%',
-      height: '100%',
+      height: `${minHeight}px`,
       border: 0,
-      backgroundColor: '#e6ebf1',
-      borderRadius: 8,
+      backgroundColor: '#fff',
     },
   });
 }
 
-function DocumentBody({ doc, colors }) {
-  const kind = documentPreviewKind(doc);
-  const href = documentFileHref(doc);
-  const label = documentPreviewLabel(kind);
+function previewKey(doc) {
+  if (!doc) return '';
+  return [
+    doc.id || '',
+    doc.url || '',
+    doc.storagePath || '',
+    doc.uri || '',
+    doc.size || 0,
+    doc.mimeType || '',
+    String(doc.dataUrl || '').length,
+    doc.name || '',
+  ].join('|');
+}
 
-  if (kind === 'pdf' && href && Platform.OS === 'web') {
+function useAgreementPreview(doc) {
+  const kind = documentPreviewKind(doc);
+  const embedLocally = kind === 'pdf' || kind === 'image' || kind === 'html';
+  const key = previewKey(doc);
+  const [state, setState] = useState({ status: 'idle', src: '', message: '' });
+
+  useEffect(() => {
+    if (!doc || !embedLocally) {
+      setState({ status: 'idle', src: '', message: '' });
+      return undefined;
+    }
+    let cancelled = false;
+    const cached = peekAgreementBlobUrl(doc);
+    const http = publicHttpHref(doc);
+    setState(cached
+      ? { status: 'ready', src: cached, message: '' }
+      : { status: 'loading', src: '', message: '' });
+    const timer = setTimeout(() => {
+      if (cancelled || cached) return;
+      setState((current) => (
+        current.status === 'loading'
+          ? {
+            status: http ? 'remote' : 'error',
+            src: http,
+            message: http
+              ? 'Forhåndsvisningen lot seg ikke hente inn. Bruk Åpne original.'
+              : 'Originalfilen er ikke tilgjengelig. Last den opp på nytt.',
+          }
+          : current
+      ));
+    }, 20000);
+    loadAgreementBytes(doc).then((file) => {
+      if (cancelled) return;
+      if (file?.bytes) {
+        const src = rememberAgreementBlobUrl(doc, file) || http;
+        if (src) {
+          setState({ status: 'ready', src, message: '' });
+          return;
+        }
+      }
+      setState({
+        status: http ? 'remote' : 'error',
+        src: http,
+        message: http
+          ? 'Forhåndsvisningen lot seg ikke hente inn. Bruk Åpne original.'
+          : 'Originalfilen er ikke tilgjengelig. Last den opp på nytt.',
+      });
+    }).catch(() => {
+      if (cancelled) return;
+      setState({
+        status: http ? 'remote' : 'error',
+        src: http,
+        message: http
+          ? 'Forhåndsvisningen lot seg ikke hente inn. Bruk Åpne original.'
+          : 'Originalfilen er ikke tilgjengelig. Last den opp på nytt.',
+      });
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [key, embedLocally]);
+
+  return state;
+}
+
+export function AgreementOriginalLink({ doc, colors, label = 'Åpne original', previewSrc = '', style }) {
+  const href = previewSrc || peekAgreementBlobUrl(doc) || publicHttpHref(doc);
+  if (Platform.OS === 'web' && href) {
+    return React.createElement('a', {
+      href,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      style: { color: colors.brand, textDecoration: 'none', ...(style || {}) },
+      onClick: (event) => {
+        const fresh = peekAgreementBlobUrl(doc);
+        if (fresh && href === fresh) return;
+        event.preventDefault();
+        openAgreementDocument(doc);
+      },
+    }, label);
+  }
+  return (
+    <TouchableOpacity onPress={() => openAgreementDocument(doc)} accessibilityRole="button">
+      <Text style={{ color: colors.brand }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function DocumentBody({ doc, colors, preview, minHeight = 420, onUploadOriginal }) {
+  const kind = documentPreviewKind(doc);
+  const href = preview?.src || documentFileHref(doc);
+  const label = documentPreviewLabel(kind);
+  const localKind = kind === 'pdf' || kind === 'image' || kind === 'html';
+
+  if (localKind && preview?.status === 'loading') {
     return (
-      <PreviewFrame colors={colors} title={label}>
-        <WebIframe src={href} title={doc.name || 'PDF'} />
+      <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
+        <Text style={{ color: colors.muted, padding: 16 }}>Henter dokumentet…</Text>
+      </PreviewFrame>
+    );
+  }
+
+  if (kind === 'pdf' && Platform.OS === 'web' && href) {
+    return (
+      <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
+        {preview?.message ? (
+          <Text style={{ color: colors.muted, padding: 16 }}>{preview.message}</Text>
+        ) : null}
+        <WebIframe src={href} title={doc.name || 'PDF'} minHeight={minHeight} />
       </PreviewFrame>
     );
   }
 
   if (kind === 'image' && href) {
     return (
-      <PreviewFrame colors={colors} title={label}>
+      <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
         <Image source={{ uri: href }} style={styles.image} resizeMode="contain" accessibilityLabel={doc.name || 'Bilde'} />
       </PreviewFrame>
     );
@@ -81,8 +197,8 @@ function DocumentBody({ doc, colors }) {
 
   if (documentSupportsOfficeEmbed(doc) && Platform.OS === 'web') {
     return (
-      <PreviewFrame colors={colors} title={label} minHeight={480}>
-        <WebIframe src={documentOfficeEmbedUrl(doc)} title={doc.name || label} />
+      <PreviewFrame colors={colors} title={label} minHeight={Math.max(minHeight, 480)}>
+        <WebIframe src={documentOfficeEmbedUrl(doc)} title={doc.name || label} minHeight={Math.max(minHeight, 480)} />
       </PreviewFrame>
     );
   }
@@ -90,15 +206,15 @@ function DocumentBody({ doc, colors }) {
   if (kind === 'html' && Platform.OS === 'web') {
     if (href && !href.startsWith('data:')) {
       return (
-        <PreviewFrame colors={colors} title={label}>
-          <WebIframe src={href} title={doc.name || 'HTML'} />
+        <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
+          <WebIframe src={href} title={doc.name || 'HTML'} minHeight={minHeight} />
         </PreviewFrame>
       );
     }
     if (doc.text) {
       return (
-        <PreviewFrame colors={colors} title={label}>
-          <WebIframe srcDoc={String(doc.text)} title={doc.name || 'HTML'} />
+        <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
+          <WebIframe srcDoc={String(doc.text)} title={doc.name || 'HTML'} minHeight={minHeight} />
         </PreviewFrame>
       );
     }
@@ -123,11 +239,16 @@ function DocumentBody({ doc, colors }) {
   }
 
   return (
-    <PreviewFrame colors={colors}>
+    <PreviewFrame colors={colors} minHeight={minHeight}>
       <Text style={{ color: colors.muted, padding: 16 }}>
-        Forhåndsvisning for {label.toLowerCase()} er ikke tilgjengelig her.
-        {documentIsOpenable(doc) ? ' Åpne originalfilen i stedet.' : ''}
+        {preview?.message || `Forhåndsvisning for ${label.toLowerCase()} er ikke tilgjengelig her.`}
+        {!preview?.message && documentIsOpenable(doc) ? ' Åpne originalfilen i stedet.' : ''}
       </Text>
+      {preview?.status === 'error' && onUploadOriginal ? (
+        <TouchableOpacity onPress={() => onUploadOriginal(doc)} accessibilityRole="button" style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <Text style={{ color: colors.brand }}>Last opp originalfil</Text>
+        </TouchableOpacity>
+      ) : null}
     </PreviewFrame>
   );
 }
@@ -142,11 +263,13 @@ export default function AgreementDocumentPreview({
   selectedId = '',
   onSelect,
   minHeight = 420,
+  onUploadOriginal,
 }) {
   const selected = useMemo(() => {
     if (!documents.length) return null;
     return documents.find((doc) => doc.id === selectedId) || documents[0];
   }, [documents, selectedId]);
+  const preview = useAgreementPreview(selected);
 
   if (!documents.length) {
     return (
@@ -167,12 +290,7 @@ export default function AgreementDocumentPreview({
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.ink }]}>Dokument</Text>
         {selected && documentIsOpenable(selected) ? (
-          <TouchableOpacity
-            onPress={() => openAgreementDocument(selected)}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: colors.brand }}>Åpne original</Text>
-          </TouchableOpacity>
+          <AgreementOriginalLink doc={selected} colors={colors} previewSrc={preview.src} />
         ) : null}
       </View>
 
@@ -205,6 +323,14 @@ export default function AgreementDocumentPreview({
             );
           })}
         </ScrollView>
+      ) : selected && documentIsOpenable(selected) ? (
+        <AgreementOriginalLink
+          doc={selected}
+          colors={colors}
+          previewSrc={preview.src}
+          style={{ fontSize: 13 }}
+          label={`${documentPreviewLabel(documentPreviewKind(selected))} · ${selected.name || 'Dokument'}${documentHasOriginalFile(selected) ? '' : ' · mangler originalfil'}`}
+        />
       ) : (
         <Text style={{ color: colors.muted, fontSize: 13 }} numberOfLines={2}>
           {documentPreviewLabel(documentPreviewKind(selected))}
@@ -213,7 +339,15 @@ export default function AgreementDocumentPreview({
         </Text>
       )}
 
-      {selected ? <DocumentBody doc={selected} colors={colors} /> : null}
+      {selected ? (
+        <DocumentBody
+          doc={selected}
+          colors={colors}
+          preview={preview}
+          minHeight={minHeight}
+          onUploadOriginal={onUploadOriginal}
+        />
+      ) : null}
     </View>
   );
 }
@@ -247,8 +381,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     overflow: 'hidden',
-    position: 'relative',
-    flex: 1,
+    width: '100%',
   },
   image: { width: '100%', height: '100%', minHeight: 360 },
   textScroll: { flex: 1, maxHeight: 520 },

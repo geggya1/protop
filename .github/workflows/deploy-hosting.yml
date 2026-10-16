@@ -6,17 +6,21 @@ on:
       - main
   workflow_dispatch:
 
-concurrency:
-  group: hosting-protop-c189c
-  cancel-in-progress: false
-
 permissions:
   contents: read
   id-token: write
 
+# Hosting og funksjoner har hvert sitt concurrency-gruppe. En lang
+# funksjonsdeploy skal ikke holde protop.no på en eldre SHA, og en ny
+# push skal avbryte web-bygget som ennå ikke er live. Funksjonsdeployen
+# fullfører den som allerede kjører; eldre ventende funksjonsjobber
+# avbrytes av GitHub når en nyere kommer i samme gruppe.
 jobs:
-  deploy:
+  hosting:
     runs-on: ubuntu-latest
+    concurrency:
+      group: hosting-protop-c189c
+      cancel-in-progress: true
     steps:
       - name: Deploy to protop.no
         run: echo "Sender ${GITHUB_SHA} live til protop.no (ref ${GITHUB_REF})"
@@ -67,6 +71,31 @@ jobs:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
 
+      - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive
+
+  functions:
+    needs: hosting
+    runs-on: ubuntu-latest
+    concurrency:
+      group: functions-protop-c189c
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm ci --prefix functions
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
+
       - name: Ensure Firebase Storage bucket
         # Oppretter default-bucket hvis den mangler, setter CORS, og skriver en probe.
         # github-hosting-deploy mangler ofte storage.buckets.create — da skal Hosting
@@ -86,5 +115,3 @@ jobs:
         env:
           PROTOP_GEMINI_KEY: ${{ secrets.PROTOP_GEMINI_KEY || secrets.WEEKPLAN_GEMINI_KEY }}
         run: bash scripts/deploy-slim-functions.sh
-
-      - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive

@@ -60,6 +60,15 @@ assert.match(workflow, /PROTOP_GEMINI_KEY/);
 assert.doesNotMatch(workflow, /hosting:channel:deploy/);
 assert.doesNotMatch(workflow, /offentlig/);
 
+const hostingJob = workflow.split(/\n {2}functions:/)[0];
+assert.match(hostingJob, /group: hosting-protop-c189c/);
+assert.match(hostingJob, /cancel-in-progress: true/);
+assert.match(hostingJob, /npx firebase deploy --only hosting/);
+assert.doesNotMatch(hostingJob, /deploy-slim-functions/);
+assert.match(workflow, /needs: hosting/);
+assert.match(workflow, /group: functions-protop-c189c/);
+assert.match(workflow, /cancel-in-progress: false/);
+
 assert.match(slimFn, /functions:interpretAvtaleHttp/);
 assert.match(slimFn, /functions:friendListHttp/);
 assert.match(slimFn, /functions:fetchOpenFeedHttp/);

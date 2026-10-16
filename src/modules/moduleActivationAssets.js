@@ -71,6 +71,7 @@ const BUNDLED = {
   'hr-personell': require('../../assets/module-activation/hr-personell--module-activation-illustration.png'),
   'hr-avtaler': require('../../assets/module-activation/hr-avtaler--module-activation-illustration.png'),
   'hr-produktivitet': require('../../assets/module-activation/hr-produktivitet--module-activation-illustration.png'),
+  'arbeid-produktivitet': require('../../assets/module-activation/hr-produktivitet--module-activation-illustration.png'),
   'hr-lonn': require('../../assets/module-activation/hr-lonn--module-activation-illustration.png'),
   'hr-oppfolging': require('../../assets/module-activation/hr-oppfolging--module-activation-illustration.png'),
   'hr-compliance': require('../../assets/module-activation/hr-compliance--module-activation-illustration.png'),

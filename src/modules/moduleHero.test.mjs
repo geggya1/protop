@@ -252,7 +252,8 @@ const COMPANY_PAGES = [
   ['hr', 'oversikt', 'hr-oversikt'],
   ['hr', 'personell', 'hr-personell'],
   ['hr', 'avtaler', 'hr-avtaler'],
-  ['hr', 'produktivitet', 'hr-produktivitet'],
+  ['hr', 'produktivitet', 'hr-oversikt'],
+  ['arbeid', 'produktivitet', 'arbeid-produktivitet'],
   ['hr', 'lonn', 'hr-lonn'],
   ['hr', 'oppfolging', 'hr-oppfolging'],
   ['hr', 'compliance', 'hr-compliance'],
@@ -316,6 +317,8 @@ assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project ex
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');
+assert.equal(resolveModuleHero('arbeid-produktivitet', 'nb').wideArt, true, 'capacity plan uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-produktivitet', 'nb').title, 'Belegg og kapasitet');
 assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
@@ -345,7 +348,7 @@ const TEXT_ONLY_PASTEL = {
   'hr-oversikt': ['#e7f7ee', '#f5fcf8', '#15803d'],
   'hr-personell': ['#e7f7ee', '#f5fcf8', '#15803d'],
   'hr-avtaler': ['#f4efe6', '#fbf8f2', '#b45309'],
-  'hr-produktivitet': ['#e6f5fb', '#f4fbfe', '#0284c7'],
+  'arbeid-produktivitet': ['#e6f5fb', '#f4fbfe', '#0284c7'],
   'hr-lonn': ['#f4efe6', '#fbf8f2', '#b45309'],
   'hr-oppfolging': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   'hr-compliance': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
@@ -566,8 +569,11 @@ for (const hrId of ['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-produktivit
     `${hrId} bundled != public`,
   );
   assert.match(assetsSrc, new RegExp(`'${hrId}': require\\('\\.\\./\\.\\./assets/module-activation/${hrFile.replace(/\./g, '\\.')}'\\)`));
-  assert.equal(resolveModuleHero(hrId, 'nb').wideArt, true, `${hrId} uses the illustration`);
+  if (hrId !== 'hr-produktivitet') {
+    assert.equal(resolveModuleHero(hrId, 'nb').wideArt, true, `${hrId} uses the illustration`);
+  }
 }
+assert.match(assetsSrc, /'arbeid-produktivitet': require\('\.\.\/\.\.\/assets\/module-activation\/hr-produktivitet--module-activation-illustration\.png'\)/);
 const fakturaFile = 'okonomi-faktura--module-activation-illustration.png';
 const fakturaBundled = join(ROOT, 'assets/module-activation', fakturaFile);
 const fakturaPublic = join(ROOT, 'public/assets/module-activation', fakturaFile);

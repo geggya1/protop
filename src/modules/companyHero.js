@@ -75,15 +75,15 @@ export const COMPANY_HERO = {
       'Upload, OCR-scan and store key fields on the person.',
     ),
   },
-  'hr-produktivitet': {
+  'arbeid-produktivitet': {
     ...CYAN,
     wideArt: true,
     name: 'Produktivitet',
-    kicker: t('HR', 'HR'),
-    title: t('Utnyttelse av kapasitet', 'Capacity utilization'),
+    kicker: t('Arbeid', 'Work'),
+    title: t('Belegg og kapasitet', 'Utilisation and capacity'),
     pitch: t(
-      'Utfakturerbare timer mot ikke-fakturerbare.',
-      'Billable hours versus non-billable.',
+      'Planlegg prosjekt, stillingsstørrelse og ledig kapasitet uke for uke.',
+      'Plan projects, position size and free capacity week by week.',
     ),
   },
   'hr-lonn': {

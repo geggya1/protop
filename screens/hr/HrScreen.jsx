@@ -13,7 +13,6 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { HrChip } from './HrShared';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
-import HrProductivity from './HrProductivity';
 import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
 
@@ -40,7 +39,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [entries, setEntries] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [employeeSheet, setEmployeeSheet] = useState('oversikt');
-  const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
@@ -87,14 +85,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useEffect(() => {
     let live = true;
     if (!familyId) return undefined;
-    const window = periodWindow(months);
+    const window = periodWindow(3);
     loadTimeEntries(familyId, window).then((rows) => {
       if (live) setEntries(Array.isArray(rows) ? rows : []);
     }).catch(() => {
       if (live) setEntries([]);
     });
     return () => { live = false; };
-  }, [familyId, months]);
+  }, [familyId]);
 
   const persist = useCallback((next) => {
     const normalized = normalizeHrState(next);
@@ -138,6 +136,10 @@ export default function HrScreen({ subView = 'oversikt' }) {
     persist(next);
   }, [persist, canWrite]);
   const go = useCallback((id) => {
+    if (id === 'produktivitet') {
+      requestShellTab?.('arbeid', 'produktivitet');
+      return;
+    }
     requestShellTab?.('hr', id);
   }, [requestShellTab]);
 
@@ -184,18 +186,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
         />
       );
     }
-    if (page === 'produktivitet') {
-      return (
-        <HrProductivity
-          colors={colors}
-          employees={employees}
-          entries={entries}
-          months={months}
-          onMonthsChange={setMonths}
-          onSelectEmployee={(id) => openEmployee(id, 'oversikt')}
-        />
-      );
-    }
     if (page === 'rekruttering') {
       return (
         <HrRecruitment
@@ -212,7 +202,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
         colors={colors}
         employees={employees}
         hr={hr}
-        entries={entries}
         canWrite={canWrite}
         onPatch={onPatch}
         onOpenPeople={() => go('personell')}
@@ -225,7 +214,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     );
   }, [
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
-    canWrite, onPatch, go, months, familyId, openEmployee, saveSalaries,
+    canWrite, onPatch, go, familyId, openEmployee, saveSalaries,
   ]);
 
   if (access.active && access.ready && !canSee) {

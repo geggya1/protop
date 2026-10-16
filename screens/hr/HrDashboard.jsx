@@ -19,14 +19,13 @@ import {
   COMPLIANCE_CATALOG,
   companyComplianceOverview,
 } from '../../src/hr/compliance';
-import { companyProductivity } from '../../src/hr/productivity';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
-  EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle, HrStat, RowLink, UtilizationBar,
+  EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle, HrStat, RowLink,
 } from './HrShared';
 
 export default function HrDashboard({
-  colors, employees, hr, entries, canWrite, onPatch,
+  colors, employees, hr, canWrite, onPatch,
   onOpenPeople, onOpenFollowUp, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
 }) {
   const [staffFilter, setStaffFilter] = useState('active');
@@ -42,7 +41,6 @@ export default function HrDashboard({
   const ending = useMemo(() => expiringContracts(hr.contracts, { withinDays: 90 }), [hr.contracts]);
   const follow = useMemo(() => openFollowUps(hr), [hr]);
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
-  const productivity = useMemo(() => companyProductivity(entries), [entries]);
   const complianceRows = useMemo(
     () => companyComplianceOverview(people, hr.compliance, {
       contracts: hr.contracts,
@@ -185,17 +183,8 @@ export default function HrDashboard({
       </HrCard>
 
       <HrCard colors={colors}>
-        <HrSectionTitle colors={colors} title="Produktivitet" subtitle="Utfakturerbart mot total tid" />
-        <UtilizationBar
-          colors={colors}
-          billablePct={productivity.utilizationPct}
-          targetPct={productivity.targetPct}
-          band={productivity.band}
-        />
-        <Text style={[styles.meta, { color: colors.muted }]}>
-          {`${productivity.billable} t fakturerbart · ${productivity.nonBillable} t ikke-fakturerbart`}
-        </Text>
-        <RowLink colors={colors} title="Se produktivitet per person" onPress={onOpenProductivity} />
+        <HrSectionTitle colors={colors} title="Produktivitet" subtitle="Belegg og kapasitet ligger under Arbeid" />
+        <RowLink colors={colors} title="Åpne produktivitet" onPress={onOpenProductivity} />
       </HrCard>
 
       <HrCard colors={colors}>

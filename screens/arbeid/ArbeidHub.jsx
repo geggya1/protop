@@ -13,6 +13,7 @@ import {
   ProductSalesScreen,
   ProjectExpensesScreen,
 } from './OpsScreens';
+import ProductivityScreen from './ProductivityScreen';
 
 export default function ArbeidHub({ subView } = {}) {
   const page = defaultArbeidSubView(subView);
@@ -24,5 +25,6 @@ export default function ArbeidHub({ subView } = {}) {
   if (page === 'utlegg') return <ProjectExpensesScreen />;
   if (page === 'salg') return <ProductSalesScreen />;
   if (page === 'godkjenning') return <ApprovalsScreen />;
+  if (page === 'produktivitet') return <ProductivityScreen />;
   return <ArbeidScreen />;
 }

@@ -51,12 +51,14 @@ export function selskapMenuTitle(subView) {
  * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
  * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
  * Fravær, produktsalg og prosjektutlegg ligger i egne menykategorier.
+ * Produktivitet er kapasitetsplanen: belegg per ansatt og uke.
  */
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
   { id: 'timerapport', icon: 'list', label: 'Timerapport' },
   { id: 'timesaldo', icon: 'hourglass', label: 'Timesaldo' },
   { id: 'godkjenning', icon: 'checkmark-done', label: 'Godkjenninger' },
+  { id: 'produktivitet', icon: 'bar-chart', label: 'Produktivitet' },
 ];
 
 /** Undersider som fortsatt åpnes via Arbeid-fanen, også når menyen ligger annet sted. */
@@ -151,7 +153,6 @@ export const HR_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'personell', icon: 'people', label: 'Personell' },
   { id: 'avtaler', icon: 'document-text', label: 'Avtaler' },
-  { id: 'produktivitet', icon: 'speedometer', label: 'Produktivitet' },
   { id: 'lonn', icon: 'cash', label: 'Lønn' },
   { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
   { id: 'compliance', icon: 'shield-checkmark', label: 'Lov & ISO' },

@@ -5,7 +5,6 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { watchEmployees } from '../../src/employees/storage';
-import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { emptyHrState, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { defaultHrSubView, HR_MENU } from '../../src/navigation/shellModules';
@@ -13,22 +12,11 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { HrChip } from './HrShared';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
-import HrProductivity from './HrProductivity';
 import HrSalary from './HrSalary';
 import HrFollowUp from './HrFollowUp';
 import HrRecruitment from './HrRecruitment';
 import HrContracts from './HrContracts';
 import HrCompliance from './HrCompliance';
-
-function periodWindow(months = 3) {
-  const to = new Date();
-  const from = new Date();
-  from.setMonth(from.getMonth() - months);
-  return {
-    fromDate: from.toISOString().slice(0, 10),
-    toDate: to.toISOString().slice(0, 10),
-  };
-}
 
 export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
@@ -40,9 +28,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   const [employees, setEmployees] = useState([]);
   const [hr, setHr] = useState(emptyHrState());
-  const [entries, setEntries] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-  const [months, setMonths] = useState(3);
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
@@ -63,7 +49,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
     hrRef.current = empty;
     setHr(empty);
     setEmployees([]);
-    setEntries([]);
     setSelectedEmployeeId('');
     setReady(false);
     const companyId = familyId;
@@ -84,18 +69,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
     });
     return () => { live = false; };
   }, [familyId]);
-
-  useEffect(() => {
-    let live = true;
-    if (!familyId) return undefined;
-    const window = periodWindow(months);
-    loadTimeEntries(familyId, window).then((rows) => {
-      if (live) setEntries(Array.isArray(rows) ? rows : []);
-    }).catch(() => {
-      if (live) setEntries([]);
-    });
-    return () => { live = false; };
-  }, [familyId, months]);
 
   const persist = useCallback((next) => {
     const normalized = normalizeHrState(next);
@@ -139,6 +112,10 @@ export default function HrScreen({ subView = 'oversikt' }) {
     persist(next);
   }, [persist, canWrite]);
   const go = useCallback((id) => {
+    if (id === 'produktivitet') {
+      requestShellTab?.('arbeid', 'produktivitet');
+      return;
+    }
     requestShellTab?.('hr', id);
   }, [requestShellTab]);
 
@@ -168,21 +145,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
           familyId={familyId}
           selectedEmployeeId={selectedEmployeeId}
           onSelectEmployee={setSelectedEmployeeId}
-        />
-      );
-    }
-    if (page === 'produktivitet') {
-      return (
-        <HrProductivity
-          colors={colors}
-          employees={employees}
-          entries={entries}
-          months={months}
-          onMonthsChange={setMonths}
-          onSelectEmployee={(id) => {
-            setSelectedEmployeeId(id);
-            go('personell');
-          }}
         />
       );
     }
@@ -246,7 +208,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
         colors={colors}
         employees={employees}
         hr={hr}
-        entries={entries}
         canWrite={canWrite}
         onPatch={onPatch}
         onOpenPeople={() => go('personell')}
@@ -258,7 +219,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       />
     );
   }, [
-    page, colors, employees, hr, entries, selectedEmployeeId, canWrite, onPatch, go, months, familyId,
+    page, colors, employees, hr, selectedEmployeeId, canWrite, onPatch, go, familyId,
   ]);
 
   if (access.active && access.ready && !canSee) {

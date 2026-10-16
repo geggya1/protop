@@ -87,6 +87,7 @@ export const ILLUSTRATION_FILES = {
   'hr-personell': 'hr-personell--module-activation-illustration.png',
   'hr-avtaler': 'hr-avtaler--module-activation-illustration.png',
   'hr-produktivitet': 'hr-produktivitet--module-activation-illustration.png',
+  'arbeid-produktivitet': 'hr-produktivitet--module-activation-illustration.png',
   'hr-lonn': 'hr-lonn--module-activation-illustration.png',
   'hr-oppfolging': 'hr-oppfolging--module-activation-illustration.png',
   'hr-compliance': 'hr-compliance--module-activation-illustration.png',

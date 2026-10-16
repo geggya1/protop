@@ -15,6 +15,7 @@ export default function AgreementPersonField({
   onSelect,
   label = 'Ansvarlig',
   placeholder = 'Søk blant ansatte',
+  suggested = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
@@ -34,10 +35,15 @@ export default function AgreementPersonField({
         onPress={() => setSheet(true)}
         accessibilityRole="button"
         accessibilityLabel={selected ? `${label} ${selected.name}` : placeholder}
-        style={[styles.trigger, { borderColor: colors.line, backgroundColor: colors.bg }]}
+        style={[styles.trigger, {
+          borderColor: suggested ? '#d4a017' : colors.line,
+          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+        }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
+            {suggested ? `${label} · forslag` : label}
+          </Text>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected ? selected.name : placeholder}</Text>
         </View>
         <Text style={{ color: colors.brand }}>{selected ? 'Endre' : 'Søk'}</Text>

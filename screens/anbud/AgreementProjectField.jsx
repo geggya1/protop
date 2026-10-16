@@ -17,6 +17,7 @@ export default function AgreementProjectField({
   projects = [],
   projectId = '',
   onSelect,
+  suggested = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
@@ -36,10 +37,15 @@ export default function AgreementProjectField({
         onPress={() => setSheet(true)}
         accessibilityRole="button"
         accessibilityLabel={selected ? `Prosjekt ${selected.name}` : 'Koble til prosjekt'}
-        style={[styles.trigger, { borderColor: colors.line, backgroundColor: colors.bg }]}
+        style={[styles.trigger, {
+          borderColor: suggested ? '#d4a017' : colors.line,
+          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+        }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>Koble til prosjekt</Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
+            {suggested ? 'Koble til prosjekt · forslag' : 'Koble til prosjekt'}
+          </Text>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>
             {selected ? selected.name : 'Søk eller bla blant prosjekter'}
           </Text>

@@ -23,6 +23,8 @@ export default function AgreementCustomerField({
   onSavedState,
   onBrregDraft,
   label = 'Kunde',
+  suggested = false,
+  proposal = '',
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
@@ -106,11 +108,16 @@ export default function AgreementCustomerField({
         onPress={() => setSheet(true)}
         accessibilityRole="button"
         accessibilityLabel={selected ? `Kunde ${selected.name}` : 'Søk opp kunde'}
-        style={[styles.trigger, { borderColor: colors.line, backgroundColor: colors.bg }]}
+        style={[styles.trigger, {
+          borderColor: suggested ? '#d4a017' : colors.line,
+          backgroundColor: suggested ? '#fff4cc' : colors.bg,
+        }]}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
-          <Text style={{ color: colors.ink }}>{selected ? selected.name : 'Søk i kunder eller Brønnøysund'}</Text>
+          <Text style={{ color: suggested ? '#8a5a00' : colors.muted, fontSize: 13 }}>
+            {suggested ? `${label} · forslag` : label}
+          </Text>
+          <Text style={{ color: colors.ink }}>{selected ? selected.name : (proposal || 'Søk i kunder eller Brønnøysund')}</Text>
           {selected ? (
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               {[meta(selected), selected.email].filter(Boolean).join(' · ')}

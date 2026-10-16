@@ -1192,25 +1192,27 @@ export default function DirectAgreementForm({
           ) : (
             <View style={styles.grid}>
               {group.id === 'leverandor' ? (
-                <AgreementPersonField
-                  colors={colors}
-                  people={followPeople}
-                  ownerUid={form.leaderUid}
-                  label="Oppdragsleder"
-                  placeholder="Søk blant ansatte"
-                  suggested={!!suggested.leaderUid || !!suggested.leaderName}
-                  onSelect={(person) => patch({
-                    leaderUid: person?.uid || person?.id || '',
-                    leaderName: person?.name || '',
-                    leaderEmail: person?.email || form.leaderEmail || '',
-                    leaderPhone: person?.phone || form.leaderPhone || '',
-                  })}
-                />
-                {unmatchedLeader && !form.leaderUid ? (
-                  <Text style={{ color: '#8a5a00', fontSize: 13 }}>
-                    {`Dokumentet nevner oppdragsleder ${unmatchedLeader}. Ingen ansatt med det navnet ble funnet.`}
-                  </Text>
-                ) : null}
+                <>
+                  <AgreementPersonField
+                    colors={colors}
+                    people={followPeople}
+                    ownerUid={form.leaderUid}
+                    label="Oppdragsleder"
+                    placeholder="Søk blant ansatte"
+                    suggested={!!suggested.leaderUid || !!suggested.leaderName}
+                    onSelect={(person) => patch({
+                      leaderUid: person?.uid || person?.id || '',
+                      leaderName: person?.name || '',
+                      leaderEmail: person?.email || form.leaderEmail || '',
+                      leaderPhone: person?.phone || form.leaderPhone || '',
+                    })}
+                  />
+                  {unmatchedLeader && !form.leaderUid ? (
+                    <Text style={{ color: '#8a5a00', fontSize: 13 }}>
+                      {`Dokumentet nevner oppdragsleder ${unmatchedLeader}. Ingen ansatt med det navnet ble funnet.`}
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
               {group.fields.filter((field) => !SKIP_GENERIC.has(field.key)).map((field) => (
                 <Field

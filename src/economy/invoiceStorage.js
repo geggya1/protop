@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import {
+  invoiceListSource,
   isInvoiceCacheQuotaError,
   normalizeInvoice,
   sortInvoices,
@@ -94,7 +95,7 @@ export async function loadInvoices(companyId) {
   if (!companyId) return [];
   try {
     const snap = await getDocs(invoicesCol(companyId));
-    const rows = sortInvoices(snap.docs.map((item) => normalizeInvoice({ ...item.data(), id: item.id })));
+    const rows = sortInvoices(snap.docs.map((item) => toInvoiceCacheRow(invoiceListSource(item.data(), item.id))));
     await writeLocal(companyId, rows).catch(() => {});
     return rows;
   } catch {
@@ -112,7 +113,7 @@ export function watchInvoices(companyId, onData, onError) {
     if (!stop) onData(rows);
   }).catch(() => {});
   const unsub = onSnapshot(invoicesCol(companyId), (snap) => {
-    const rows = sortInvoices(snap.docs.map((item) => normalizeInvoice({ ...item.data(), id: item.id })));
+    const rows = sortInvoices(snap.docs.map((item) => toInvoiceCacheRow(invoiceListSource(item.data(), item.id))));
     writeLocal(companyId, rows).catch(() => {});
     onData(rows);
   }, (error) => {
@@ -205,10 +206,13 @@ export async function removeInvoice(companyId, invoiceId) {
   const id = text(invoiceId);
   if (!companyId || !id) return;
   await deleteDoc(invoiceRef(companyId, id));
-  try {
-    const current = await readLocal(companyId);
-    await writeLocal(companyId, current.filter((row) => row.id !== id));
-  } catch {
-    // ignore cache errors
-  }
+  // Cache er valgfri. Ikke vent på omskriving av hele listen — det blokkerte «Sletter…».
+  void (async () => {
+    try {
+      const current = await readLocal(companyId);
+      await writeLocal(companyId, current.filter((row) => row.id !== id));
+    } catch {
+      // ignore cache errors
+    }
+  })();
 }

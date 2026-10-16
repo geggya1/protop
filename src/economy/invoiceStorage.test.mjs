@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   emptyInvoice,
+  invoiceListSource,
   isInvoiceCacheQuotaError,
   normalizeInvoice,
   toInvoiceCacheRow,
@@ -80,6 +81,18 @@ assert.equal(cached.accounts, undefined);
 assert.equal(cached.feesExMarkup, undefined);
 assert.equal(cached.source, undefined);
 assert.equal(cached.timeEntryIds, undefined);
+
+const slim = toInvoiceCacheRow(invoiceListSource({
+  ...full,
+  ehfXml: '<Invoice>' + 'x'.repeat(5000) + '</Invoice>',
+  lines: full.lines,
+  voucherLines: full.voucherLines,
+}, full.id));
+assert.equal(slim.id, 'inv_10001');
+assert.equal(slim.invoiceNumber, '10001');
+assert.equal(slim.ehfXml, undefined);
+assert.equal(slim.lines, undefined);
+assert.equal(slim.status, full.status);
 
 // Round-trip via normalize: listefelt overlever; detaljfelt er tomme til Firestore lastes
 const restored = normalizeInvoice(cached);

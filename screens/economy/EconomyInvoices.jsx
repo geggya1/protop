@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -49,10 +49,9 @@ import {
   statusLabel,
 } from '../../src/economy/invoices.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
-import { clearProposalInvoice } from '../../src/economy/billingFromOperations.js';
+import { releaseInvoicedWork } from '../../src/economy/invoiceRelease.js';
 import { buildEhfXml } from '../../src/economy/ehf.js';
 import { validateKid } from '../../src/economy/kid.js';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -571,10 +570,12 @@ export default function EconomyInvoices({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(80);
+  const hiddenIds = useRef(new Set());
 
   useEffect(() => {
     const stop = watchInvoices(familyId, (rows) => {
-      setInvoices(rows);
+      const hidden = hiddenIds.current;
+      setInvoices(hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows);
       setReady(true);
     }, () => setReady(true));
     return stop;
@@ -778,16 +779,32 @@ export default function EconomyInvoices({
     setImportReport(null);
   }
 
-  async function releaseLinkedWork(invoiceId) {
-    if (!familyId || familyId === '__demo__' || !invoiceId) return;
+  async function confirmDeleteInvoice() {
+    const target = confirmDelete;
+    setConfirmDelete(null);
+    if (!target?.id || !canManage || typeof removeInvoice !== 'function') return;
+    hiddenIds.current.add(target.id);
+    setInvoices((rows) => rows.filter((row) => row.id !== target.id));
+    if (selectedId === target.id) {
+      setView('list');
+      setSelectedId('');
+      setSelected(null);
+    }
+    setDeleting(false);
+    setError('');
     try {
-      const projectState = await loadProjectState(familyId);
-      const nextState = clearProposalInvoice(projectState, invoiceId);
-      if (nextState !== projectState) {
-        await saveProjectState(nextState, familyId);
+      let source = target;
+      if (!Array.isArray(target.timeEntryIds) && typeof loadInvoice === 'function') {
+        source = await loadInvoice(familyId, target.id) || target;
       }
-    } catch {
-      // Fakturasletting skal ikke feile hvis prosjektstate ikke kan oppdateres.
+      await removeInvoice(familyId, target.id);
+      setNote(`Faktura ${target.invoiceNumber || target.id} er slettet.`);
+      showSaveToast(`Faktura ${target.invoiceNumber || ''} er slettet.`);
+      void releaseInvoicedWork(familyId, source).catch(() => {});
+    } catch (cause) {
+      hiddenIds.current.delete(target.id);
+      setInvoices((rows) => (rows.some((row) => row.id === target.id) ? rows : [target, ...rows]));
+      setError(cause?.message || 'Kunne ikke slette fakturaen.');
     }
   }
 
@@ -808,29 +825,6 @@ export default function EconomyInvoices({
       setError(cause?.message || 'Kunne ikke sende fakturaen.');
     } finally {
       setSending(false);
-    }
-  }
-
-  async function confirmDeleteInvoice() {
-    const target = confirmDelete;
-    setConfirmDelete(null);
-    if (!target?.id || !canManage || typeof removeInvoice !== 'function') return;
-    setDeleting(true);
-    setError('');
-    try {
-      await removeInvoice(familyId, target.id);
-      await releaseLinkedWork(target.id);
-      if (selectedId === target.id) {
-        setView('list');
-        setSelectedId('');
-        setSelected(null);
-      }
-      setNote(`Faktura ${target.invoiceNumber || target.id} er slettet.`);
-      showSaveToast(`Faktura ${target.invoiceNumber || ''} er slettet.`);
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke slette fakturaen.');
-    } finally {
-      setDeleting(false);
     }
   }
 

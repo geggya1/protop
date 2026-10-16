@@ -112,18 +112,35 @@ function withHooks(fn) {
   }
 }
 
-function deepRender(node, depth = 0) {
-  if (depth > 40) return 0;
-  if (node == null || typeof node === 'boolean') return 0;
-  if (Array.isArray(node)) return node.reduce((sum, child) => sum + deepRender(child, depth), 0);
-  if (typeof node === 'string' || typeof node === 'number') return 1;
-  if (!React.isValidElement(node)) return 0;
-  if (typeof node.type === 'function') {
-    const rendered = withHooks(() => node.type(node.props || {}));
-    return 1 + deepRender(rendered, depth + 1);
+function walk(node, visit, depth = 0) {
+  if (depth > 40 || node == null || typeof node === 'boolean') return;
+  if (Array.isArray(node)) {
+    node.forEach((child) => walk(child, visit, depth));
+    return;
   }
-  const children = node.props && node.props.children;
-  return 1 + (children !== undefined ? deepRender(children, depth + 1) : 0);
+  if (typeof node === 'string' || typeof node === 'number') return;
+  if (!React.isValidElement(node)) return;
+  visit(node);
+  if (typeof node.type === 'function') {
+    walk(withHooks(() => node.type(node.props || {})), visit, depth + 1);
+    return;
+  }
+  walk(node.props && node.props.children, visit, depth + 1);
+}
+
+function deepRender(node) {
+  let count = 0;
+  walk(node, () => { count += 1; });
+  return count;
+}
+
+function nativeIds(node) {
+  const ids = [];
+  walk(node, (element) => {
+    const id = element.props && element.props.nativeID;
+    if (id) ids.push(id);
+  });
+  return ids;
 }
 
 function assertRenders(label, element) {
@@ -171,10 +188,25 @@ const absences = [
 }
 
 {
-  const nodes = assertRenders('AbsenceReportDesktop', React.createElement(AbsenceReportDesktop, {
+  const element = React.createElement(AbsenceReportDesktop, {
     employees, names, absences, canChooseEmployee: true, canImport: true, absenceCount: absences.length,
-  }));
+  });
+  const nodes = assertRenders('AbsenceReportDesktop', element);
   assert.ok(nodes > 40, `report too small: ${nodes}`);
+  const ids = nativeIds(element);
+  assert.ok(ids.includes('absence-report-table'));
+  assert.ok(ids.includes('absence-report-select-all'));
+  assert.ok(ids.includes('absence-report-select-a1'));
+  assert.ok(ids.includes('absence-report-select-a2'));
+  assert.equal(ids.includes('absence-report-delete-selected'), false);
+}
+
+{
+  const ids = nativeIds(React.createElement(AbsenceReportDesktop, {
+    employees, names, absences, canChooseEmployee: false, canImport: false,
+  }));
+  assert.equal(ids.includes('absence-report-select-all'), false);
+  assert.equal(ids.includes('absence-report-select-a1'), false);
 }
 
 {

@@ -471,6 +471,7 @@ export function AbsenceReportDesktop({
   canImport = false,
   onImport,
   onClearImported,
+  onDeleteSelected,
   absenceCount = 0,
   onOpenPeriod,
   note = '',
@@ -494,6 +495,7 @@ export function AbsenceReportDesktop({
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_ABSENCE_REPORT_COLUMNS);
   const [panelOpen, setPanelOpen] = useState(false);
   const [pageSize, setPageSize] = useState(PAGE_STEP);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   const employeesById = useMemo(() => {
     const map = new Map();
@@ -558,6 +560,45 @@ export function AbsenceReportDesktop({
   useEffect(() => {
     setPageSize(PAGE_STEP);
   }, [query, employeeId, category, status, period, fromDate, toDate, sort, absences.length]);
+
+  useEffect(() => {
+    const live = new Set((absences || []).map((row) => row.id).filter(Boolean));
+    setSelectedIds((current) => {
+      let changed = false;
+      const next = new Set();
+      for (const id of current) {
+        if (live.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [absences]);
+
+  const pageIds = pageRows.map((row) => row.id).filter(Boolean);
+  const selectedOnPage = pageIds.filter((id) => selectedIds.has(id)).length;
+  const allPageSelected = pageIds.length > 0 && selectedOnPage === pageIds.length;
+
+  function toggleRow(id) {
+    if (!id) return;
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allPageSelected) {
+        for (const id of pageIds) next.delete(id);
+      } else {
+        for (const id of pageIds) next.add(id);
+      }
+      return next;
+    });
+  }
 
   function resetFilters() {
     setQuery('');
@@ -636,6 +677,23 @@ export function AbsenceReportDesktop({
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View style={{ minWidth: Math.max(tableMin, stackRows ? contentWidth : tableMin) }}>
           <View style={[reportStyles.tr, reportStyles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+            {canImport ? (
+              <TouchableOpacity
+                onPress={togglePage}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: allPageSelected }}
+                accessibilityLabel="Velg linjene på siden"
+                nativeID="absence-report-select-all"
+                style={reportStyles.checkCell}
+                disabled={!pageIds.length}
+              >
+                <Ionicons
+                  name={allPageSelected ? 'checkbox' : 'square-outline'}
+                  size={18}
+                  color={allPageSelected ? colors.brand : colors.muted}
+                />
+              </TouchableOpacity>
+            ) : null}
             {columns.map((column) => (
               <Text key={column.key} style={[reportStyles.th, reportColumnStyle(column), { color: colors.muted }]}>
                 {column.label}
@@ -645,30 +703,50 @@ export function AbsenceReportDesktop({
           <View style={{ maxHeight: stackRows ? undefined : 720 }} nativeID="absence-report-table-body">
             <ScrollView nestedScrollEnabled={!stackRows}>
               {!pageRows.length ? emptyHint : pageRows.map((row) => (
-                <TouchableOpacity
+                <View
                   key={row.id}
-                  style={[reportStyles.tr, { borderBottomColor: colors.line }]}
-                  onPress={() => onOpenPeriod?.(dayRowAsPeriod(row))}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Åpne fravær ${row.employeeName} ${row.dateLabel || row.date}`}
-                  disabled={!onOpenPeriod}
+                  style={[reportStyles.tr, { borderBottomColor: colors.line, backgroundColor: selectedIds.has(row.id) ? (colors.sunken || colors.bg) : 'transparent' }]}
                 >
-                  {columns.map((column) => (
-                    <Text
-                      key={column.key}
-                      style={[
-                        reportStyles.td,
-                        reportColumnStyle(column),
-                        { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
-                        (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '400' },
-                        column.key === 'employeeName' && { fontWeight: '400', color: colors.ink },
-                      ]}
-                      numberOfLines={2}
+                  {canImport ? (
+                    <TouchableOpacity
+                      onPress={() => toggleRow(row.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selectedIds.has(row.id) }}
+                      accessibilityLabel={`Velg fravær ${row.employeeName} ${row.dateLabel || row.date}`}
+                      nativeID={`absence-report-select-${row.id}`}
+                      style={reportStyles.checkCell}
                     >
-                      {reportCellValue(row, column.key)}
-                    </Text>
-                  ))}
-                </TouchableOpacity>
+                      <Ionicons
+                        name={selectedIds.has(row.id) ? 'checkbox' : 'square-outline'}
+                        size={18}
+                        color={selectedIds.has(row.id) ? colors.brand : colors.muted}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity
+                    style={reportStyles.rowHit}
+                    onPress={() => onOpenPeriod?.(dayRowAsPeriod(row))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Åpne fravær ${row.employeeName} ${row.dateLabel || row.date}`}
+                    disabled={!onOpenPeriod}
+                  >
+                    {columns.map((column) => (
+                      <Text
+                        key={column.key}
+                        style={[
+                          reportStyles.td,
+                          reportColumnStyle(column),
+                          { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
+                          (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '400' },
+                          column.key === 'employeeName' && { fontWeight: '400', color: colors.ink },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {reportCellValue(row, column.key)}
+                      </Text>
+                    ))}
+                  </TouchableOpacity>
+                </View>
               ))}
               {moreButton}
             </ScrollView>
@@ -729,6 +807,20 @@ export function AbsenceReportDesktop({
                 >
                   <Ionicons name="options-outline" size={18} color={colors.ink} />
                   <Text style={{ color: colors.ink, fontWeight: '400' }}>Filter</Text>
+                </TouchableOpacity>
+              ) : null}
+              {canImport && selectedIds.size > 0 && onDeleteSelected ? (
+                <TouchableOpacity
+                  onPress={() => onDeleteSelected([...selectedIds])}
+                  style={[reportStyles.ghostBtn, { borderColor: colors.danger || '#b42318' }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Slett ${selectedIds.size} valgte fravær`}
+                  nativeID="absence-report-delete-selected"
+                >
+                  <Ionicons name="trash-outline" size={15} color={colors.danger || '#b42318'} />
+                  <Text style={{ color: colors.danger || '#b42318', fontWeight: '400' }}>
+                    Slett ({selectedIds.size})
+                  </Text>
                 </TouchableOpacity>
               ) : null}
               {canImport && absenceCount > 0 && onClearImported ? (
@@ -1209,6 +1301,8 @@ const reportStyles = StyleSheet.create({
   head: { minHeight: 42 },
   th: { fontSize: 11, fontWeight: '400', paddingVertical: 10, paddingHorizontal: 4 },
   td: { fontSize: 13, paddingVertical: 8, paddingHorizontal: 4 },
+  checkCell: { width: 36, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  rowHit: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 },
   modalBg: { flex: 1, backgroundColor: 'rgba(15,23,42,0.35)', justifyContent: 'flex-end' },
   filterSheet: {
     borderTopLeftRadius: 16,

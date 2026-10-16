@@ -249,6 +249,23 @@ export async function saveAbsenceImport(companyId, entries, { onProgress } = {})
   return saveAbsences(companyId, list, { onProgress, cache: false });
 }
 
+/** Slett valgte fraværslinjer i subcollection (admin i fraværsrapporten). */
+export async function removeAbsences(companyId, absenceIds, { onProgress } = {}) {
+  if (!companyId) throw new Error('Mangler selskap for sletting av fravær.');
+  const ids = [...new Set((Array.isArray(absenceIds) ? absenceIds : []).map(text).filter(Boolean))];
+  if (!ids.length) return { removed: 0, ids: [] };
+  rememberDeletedAbsences(companyId, ids);
+  try {
+    await writeBatchDelete(companyId, ids, onProgress);
+  } catch (error) {
+    forgetDeletedAbsences(companyId, ids);
+    throw error;
+  }
+  const current = await readLocal(companyId);
+  await writeLocal(companyId, withoutDeletedAbsences(companyId, current));
+  return { removed: ids.length, ids };
+}
+
 export async function removeAbsence(companyId, absenceId) {
   const id = text(absenceId);
   if (!companyId || !id) return;

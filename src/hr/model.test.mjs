@@ -9,10 +9,13 @@ import {
   employeeDraftFromApplication,
   employeeVisibleSlice,
   emptyHrState,
+  countHrEmployees,
   expiringContracts,
+  filterHrEmployees,
   formatMoney,
   formatNbDate,
   hasOpenCaseLike,
+  nextOccurrence,
   hrStateHasData,
   moveApplicationBoard,
   normalizeApplication,
@@ -101,10 +104,33 @@ import {
       company: { periodFrom: '2018-10-18', status: 'active' },
     },
   ], { withinDays: 20, today: from });
-  assert.ok(events.some((e) => e.type === 'birthday' && e.days != null && e.days >= 0));
+  const birthday = events.find((e) => e.type === 'birthday');
+  assert.equal(birthday.date, '2026-10-20');
+  assert.equal(birthday.days, 5);
   assert.ok(events.some((e) => e.type === 'anniversary' && e.years === 8));
   assert.equal(daysUntil('2026-10-20', from), 5);
-  assert.equal(yearsBetween('2020-03-15', new Date('2026-03-15')), 6);
+  assert.equal(yearsBetween('2020-03-15', '2026-03-15'), 6);
+  // Kalenderdato skal ikke flyttes én dag (lokal midnatt → UTC).
+  const osloNoon = new Date(2026, 9, 16, 12, 0, 0);
+  assert.equal(nextOccurrence('1987-12-29', osloNoon), '2026-12-29');
+  assert.equal(daysUntil('2026-12-29', osloNoon), 74);
+  assert.equal(formatNbDate('2026-12-29'), '29.12.2026');
+}
+
+{
+  const counts = countHrEmployees([
+    { company: { status: 'active' } },
+    { company: { status: 'leave' } },
+    { company: { status: 'inactive' } },
+    { company: { status: 'former' } },
+    { company: { status: 'deleted' } },
+  ]);
+  assert.equal(counts.active, 2);
+  assert.equal(counts.inactive, 2);
+  assert.equal(filterHrEmployees([
+    { id: 'a', company: { status: 'active' } },
+    { id: 'b', company: { status: 'inactive' } },
+  ], 'inactive').length, 1);
 }
 
 {

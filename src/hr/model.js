@@ -350,7 +350,7 @@ export function normalizeApplication(row = {}) {
     rejectReason: text(row.rejectReason),
     notes: text(row.notes),
     source: text(row.source),
-    appliedAt: normalizeIsoDate(row.appliedAt) || new Date().toISOString().slice(0, 10),
+    appliedAt: normalizeIsoDate(row.appliedAt) || localIsoDate(),
     attachments: normalizeList(row.attachments, normalizeAttachment),
     createdAt: text(row.createdAt) || new Date().toISOString(),
     updatedAt: text(row.updatedAt) || new Date().toISOString(),
@@ -404,7 +404,7 @@ export function upsertRow(list, row, normalizeOne) {
 export function upsertActiveContract(list, contract) {
   const row = normalizeContract({ ...contract, status: 'active' });
   const emp = text(row.employeeId);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate();
   const rest = (Array.isArray(list) ? list : [])
     .filter((item) => item.id !== row.id)
     .map((item) => {
@@ -469,28 +469,45 @@ function parseDateParts(iso) {
   return { y, m, d, iso: raw };
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+/** Kalenderdato i lokal tid, uten UTC-forskyvning (toISOString flytter dagen i Norge). */
+export function localIsoDate(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function calendarIso(year, month, day) {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
 export function nextOccurrence(monthDayIso, fromDate = new Date()) {
   const parts = parseDateParts(monthDayIso);
   if (!parts) return null;
   const from = fromDate instanceof Date ? fromDate : new Date(fromDate);
   if (Number.isNaN(from.getTime())) return null;
-  const year = from.getFullYear();
-  let candidate = new Date(year, parts.m - 1, parts.d);
-  candidate.setHours(0, 0, 0, 0);
-  const today = new Date(from);
-  today.setHours(0, 0, 0, 0);
-  if (candidate < today) candidate = new Date(year + 1, parts.m - 1, parts.d);
-  return candidate.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(from);
+  let year = from.getFullYear();
+  let candidate = calendarIso(year, parts.m, parts.d);
+  if (candidate < todayIso) {
+    year += 1;
+    candidate = calendarIso(year, parts.m, parts.d);
+  }
+  return candidate;
 }
 
 export function yearsBetween(fromIso, toDate = new Date()) {
   const parts = parseDateParts(fromIso);
   if (!parts) return null;
-  const to = toDate instanceof Date ? toDate : new Date(toDate);
-  if (Number.isNaN(to.getTime())) return null;
-  let years = to.getFullYear() - parts.y;
-  const hadBirthday = to.getMonth() + 1 > parts.m
-    || (to.getMonth() + 1 === parts.m && to.getDate() >= parts.d);
+  const toParts = toDate instanceof Date
+    ? parseDateParts(localIsoDate(toDate))
+    : parseDateParts(toDate);
+  if (!toParts) return null;
+  let years = toParts.y - parts.y;
+  const hadBirthday = toParts.m > parts.m || (toParts.m === parts.m && toParts.d >= parts.d);
   if (!hadBirthday) years -= 1;
   return Math.max(0, years);
 }
@@ -499,8 +516,13 @@ export function daysUntil(iso, fromDate = new Date()) {
   const target = normalizeIsoDate(iso);
   if (!target) return null;
   const from = fromDate instanceof Date ? fromDate : new Date(fromDate);
-  const a = new Date(from.toISOString().slice(0, 10));
-  const b = new Date(target);
+  if (Number.isNaN(from.getTime())) return null;
+  const fromIso = localIsoDate(from);
+  const fromParts = parseDateParts(fromIso);
+  const toParts = parseDateParts(target);
+  if (!fromParts || !toParts) return null;
+  const a = Date.UTC(fromParts.y, fromParts.m - 1, fromParts.d);
+  const b = Date.UTC(toParts.y, toParts.m - 1, toParts.d);
   return Math.round((b - a) / 86400000);
 }
 
@@ -523,12 +545,37 @@ export function formatMoney(amount, currency = 'NOK') {
   }
 }
 
+/** Aktiv, deaktivert (inkl. sluttet) eller slettet. Permisjon telles som aktiv. */
+export function employeeHrBucket(employee) {
+  const status = text(employee?.company?.status);
+  if (status === 'deleted') return 'deleted';
+  if (status === 'inactive' || status === 'former') return 'inactive';
+  return 'active';
+}
+
+export function filterHrEmployees(employees, bucket = 'active') {
+  return (employees || []).filter((row) => {
+    const group = employeeHrBucket(row);
+    if (group === 'deleted') return false;
+    if (bucket === 'all') return true;
+    return group === bucket;
+  });
+}
+
+export function countHrEmployees(employees) {
+  const rows = employees || [];
+  return {
+    active: rows.filter((row) => employeeHrBucket(row) === 'active').length,
+    inactive: rows.filter((row) => employeeHrBucket(row) === 'inactive').length,
+  };
+}
+
 export function upcomingPeopleEvents(employees, { withinDays = 90, today = new Date() } = {}) {
   const events = [];
   const now = today instanceof Date ? today : new Date(today);
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + withinDays);
-  const horizonIso = horizon.toISOString().slice(0, 10);
+  const horizonIso = localIsoDate(horizon);
 
   for (const employee of employees || []) {
     const id = text(employee?.id);
@@ -542,7 +589,7 @@ export function upcomingPeopleEvents(employees, { withinDays = 90, today = new D
     if (birth) {
       const next = nextOccurrence(birth, now);
       if (next && next <= horizonIso) {
-        const age = yearsBetween(birth, new Date(next));
+        const age = yearsBetween(birth, next);
         events.push({
           type: 'birthday',
           employeeId: id,
@@ -557,7 +604,7 @@ export function upcomingPeopleEvents(employees, { withinDays = 90, today = new D
     if (hired) {
       const next = nextOccurrence(hired, now);
       if (next && next <= horizonIso) {
-        const years = yearsBetween(hired, new Date(next));
+        const years = yearsBetween(hired, next);
         if (years > 0) {
           events.push({
             type: 'anniversary',
@@ -585,7 +632,7 @@ export function activeContractFor(employeeId, contracts) {
 
 export function currentSalaryFor(employeeId, salaries, { onDate = new Date() } = {}) {
   const iso = onDate instanceof Date
-    ? onDate.toISOString().slice(0, 10)
+    ? localIsoDate(onDate)
     : normalizeIsoDate(onDate);
   const rows = forEmployee(salaries, employeeId)
     .filter((row) => row.kind === 'actual' && row.effectiveDate && row.effectiveDate <= iso)
@@ -686,10 +733,10 @@ export function openFollowUps(state) {
 
 export function expiringContracts(contracts, { withinDays = 60, today = new Date() } = {}) {
   const now = today instanceof Date ? today : new Date(today);
-  const start = now.toISOString().slice(0, 10);
+  const start = localIsoDate(now);
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + withinDays);
-  const end = horizon.toISOString().slice(0, 10);
+  const end = localIsoDate(horizon);
   return (contracts || [])
     .filter((row) => row.status === 'active' && row.endDate && row.endDate >= start && row.endDate <= end)
     .map((row) => ({ ...row, days: daysUntil(row.endDate, now) }))
@@ -751,7 +798,7 @@ export function employeeDraftFromApplication(application, job = null) {
       status: 'active',
       personnelKind: 'staff',
       title: text(job?.title),
-      periodFrom: new Date().toISOString().slice(0, 10),
+      periodFrom: localIsoDate(),
       comment: [
         `Ansatt via rekruttering${job?.title ? ` · ${job.title}` : ''}`,
         text(app.notes),
@@ -764,7 +811,7 @@ export function employeeDraftFromApplication(application, job = null) {
 
 /** Onboarding-oppgaver ved ansettelse (BambooHR-mønster). */
 export function onboardingTasksFor(employeeId, { assignedBy = '' } = {}) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate();
   return [
     'Signert arbeidsavtale på plass',
     'HMS-intro gjennomført',

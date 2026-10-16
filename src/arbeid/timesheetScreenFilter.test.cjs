@@ -150,7 +150,11 @@ function loadJsx(rel) {
     }
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('usageClient')) return { recordUsage: () => {} };
-    if (id.includes('timeEntryStorage')) return { removeTimeEntry: async () => {} };
+    if (id.includes('timeEntryStorage')) {
+      // Timelisten henter tidligere måneder. Uten disse blir deployen rød fra februar av.
+      return { removeTimeEntry: async () => {}, loadTimeEntries: async () => [] };
+    }
+    if (id.includes('absenceStorage')) return { loadAbsences: async () => [] };
     if (id.includes('TimesheetGrid')) {
       return {
         __esModule: true,

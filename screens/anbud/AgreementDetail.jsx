@@ -32,6 +32,7 @@ import {
   formatOrgnr,
   maskPersonnummer,
   normalizeOrgnr,
+  personOwnsId,
   setCustomerOwner,
 } from '../../src/anbud/customers';
 import { indexLabel } from '../../src/anbud/fieldReview';
@@ -457,7 +458,7 @@ export default function AgreementDetail({
     setSaveNote('');
     try {
       const person = form.ownerUid
-        ? (people.find((row) => (row.uid || row.id) === form.ownerUid) || { uid: form.ownerUid, name: form.ownerName })
+        ? (people.find((row) => personOwnsId(row, form.ownerUid)) || { uid: form.ownerUid, name: form.ownerName })
         : null;
       const result = await persistDetails(detailInput(form), { syncOwner: true, person });
       if (!result?.ok) return;

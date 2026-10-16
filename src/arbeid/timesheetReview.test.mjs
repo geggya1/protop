@@ -3,6 +3,7 @@ import {
   blockingFindings,
   controlEntries,
   formatLockAge,
+  lockNeedsControl,
   reportedLock,
   reviewTimesheetEntries,
   splitApprovalQueues,
@@ -60,6 +61,20 @@ import {
     ],
   };
   assert.equal(sumHours(controlEntries(state, reportedLock(lock)).hours), 7.5);
+}
+
+{
+  const lock = { employeeId: 'aina', throughDate: '2026-10-05', approvedAt: '' };
+  assert.equal(lockNeedsControl({ timeEntries: [] }, lock), false);
+  assert.equal(lockNeedsControl({
+    timeEntries: [{ employeeId: 'aina', date: '2026-10-03', hours: 0 }],
+  }, lock), false);
+  assert.equal(lockNeedsControl({
+    timeEntries: [{ employeeId: 'aina', date: '2026-10-16', hours: 6 }],
+  }, lock), false);
+  assert.equal(lockNeedsControl({
+    timeEntries: [{ employeeId: 'aina', date: '2026-10-03', hours: 6 }],
+  }, lock), true);
 }
 
 console.log('timesheetReview.test.mjs: ok');

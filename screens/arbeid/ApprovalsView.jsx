@@ -20,6 +20,7 @@ import {
   controlEntries,
   openFindings,
   reportedLock,
+  lockNeedsControl,
   reviewTimesheetEntries,
   splitApprovalQueues,
   sumHours,
@@ -69,7 +70,11 @@ export function ApprovalsBody({
     archive: workspace.state?.timesheetLockArchive || [],
   }), [people, workspace.state?.timesheetLocks, workspace.state?.timesheetLockArchive]);
 
-  const control = queues.locked.find((row) => row.employee.id === controlId) || null;
+  const lockedRows = useMemo(
+    () => queues.locked.filter((row) => lockNeedsControl(workspace.state, row.lock)),
+    [queues.locked, workspace.state],
+  );
+  const control = lockedRows.find((row) => row.employee.id === controlId) || null;
   const bundle = useMemo(
     () => (control ? controlEntries(workspace.state, control.lock) : { hours: [], absences: [] }),
     [workspace.state, control],
@@ -261,7 +266,7 @@ export function ApprovalsBody({
             <Text style={[styles.col, { color: colors.muted }]}>Timer</Text>
             <Text style={[styles.col, { color: colors.muted }]} />
           </View>
-          {queues.locked.map((row) => {
+          {lockedRows.map((row) => {
             const period = controlEntries(workspace.state, reportedLock(row.lock));
             const waiting = !row.lock.approvedAt;
             return (
@@ -283,7 +288,7 @@ export function ApprovalsBody({
               </View>
             );
           })}
-          {!queues.locked.length ? <Text style={{ color: colors.muted, padding: 8 }}>Ingen aktive har låst timelisten.</Text> : null}
+          {!lockedRows.length ? <Text style={{ color: colors.muted, padding: 8 }}>Ingen timer å kontrollere.</Text> : null}
         </View>
         <View style={styles.pane} nativeID="godkjenning-ulaste">
           <Text style={[styles.paneTitle, { color: colors.ink }]}>Ikke låst</Text>

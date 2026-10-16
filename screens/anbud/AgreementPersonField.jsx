@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ScrollSheet from '../../components/ScrollSheet';
+import { personOwnsId } from '../../src/anbud/customers';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 
 const BROWSE_LIMIT = 40;
@@ -26,7 +27,7 @@ export default function AgreementPersonField({
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
-  const selected = people.find((person) => (person.uid || person.id) === ownerUid)
+  const selected = people.find((person) => personOwnsId(person, ownerUid))
     || (ownerUid && ownerName ? { uid: ownerUid, id: ownerUid, name: ownerName } : null);
   const listed = useMemo(() => listedPeople(people, query), [people, query]);
   const shown = listed.filter((_, index) => index < BROWSE_LIMIT);

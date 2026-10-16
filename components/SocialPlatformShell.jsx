@@ -15,6 +15,7 @@ import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
+import EquipmentScreen from '../screens/equipment/EquipmentScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
@@ -229,6 +230,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
     if (tab === 'selskap') return <CompanyLanding />;
     if (tab === 'okonomi') return <EconomyScreen subView={route.params?.subView} />;
+    if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'polls') return <PlatformPollsScreen {...props} />;
     if (tab === 'expenses') return <PlatformExpensesScreen {...props} />;
     if (tab === 'ministry') return <PlatformMinistryScreen {...props} />;

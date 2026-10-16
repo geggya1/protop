@@ -84,7 +84,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'iso', 'okonomi'],
+    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'iso', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');

@@ -257,6 +257,30 @@ export function allocationEnd(alloc) {
   return addDays(alloc.start, alloc.weeks * 7);
 }
 
+/** Siste dag som inngår i tildelingen, søndag i siste uke. */
+export function allocationInclusiveEnd(alloc) {
+  if (!alloc?.start) return '';
+  const weeks = Math.max(1, Math.round(Number(alloc.weeks) || 1));
+  return addDays(alloc.start, weeks * 7 - 1);
+}
+
+/**
+ * Hele uker fra mandagen i fra-datoen til og med uken som inneholder til-datoen.
+ * Til-datoen er inkluderende. Ugyldig fra-dato gir null.
+ */
+export function spanFromDates(from, to) {
+  const start = mondayKey(from);
+  if (!start) return null;
+  const endMonday = mondayKey(to || from);
+  if (!endMonday || endMonday <= start) return { start, weeks: 1 };
+  const a = dateParts(start);
+  const b = dateParts(endMonday);
+  const msA = new Date(a[0], a[1] - 1, a[2], 12);
+  const msB = new Date(b[0], b[1] - 1, b[2], 12);
+  const weeks = Math.round((msB - msA) / (7 * 86400000)) + 1;
+  return { start, weeks: Math.max(1, Math.min(104, weeks)) };
+}
+
 export function allocationCovers(alloc, monday) {
   const key = mondayKey(monday);
   if (!alloc || !key) return false;

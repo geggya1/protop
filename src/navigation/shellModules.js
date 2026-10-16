@@ -274,6 +274,12 @@ export function companyNavItems() {
         action: { type: 'tab', tab: item.tab, subView: item.id },
       })),
     },
+    {
+      id: 'utstyr',
+      icon: 'file-tray-full',
+      label: 'Utstyr',
+      action: { type: 'tab', tab: 'utstyr' },
+    },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'okonomi',

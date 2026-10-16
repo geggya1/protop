@@ -590,18 +590,65 @@ export async function uploadDocument({ familyId, folderId, path, picked, content
   return getDownloadURL(r);
 }
 
+function fileUploadError(err) {
+  const raw = String(err?.message || err || '');
+  if (/for stor|too large|payload|resource-exhausted/i.test(raw)) {
+    return 'Filen er for stor til å lastes opp her (maks 15 MB).';
+  }
+  if (/permission|unauthorized|Ugyldig lagringssti|Ingen tilgang/i.test(raw)) {
+    return 'Ingen tilgang til å lagre filen.';
+  }
+  if (/Ikke innlogget|unauthenticated|not-authenticated/i.test(raw)) {
+    return 'Du må være innlogget for å lagre filen.';
+  }
+  if (/callable-timeout|deadline|timeout/i.test(raw)) {
+    return 'Opplasting tok for lang tid. Prøv igjen.';
+  }
+  return 'Kunne ikke lagre originalfilen. Prøv igjen.';
+}
+
+/** Admin SDK — omgår ødelagt Storage-CORS fra protop.no. */
+async function uploadObjectViaCallable(path, blob, contentType) {
+  if (blob.size > MAX_CALLABLE_DOCUMENT_BYTES) {
+    throw new Error('Filen er for stor til å lastes opp her (maks 15 MB).');
+  }
+  const fileBase64 = await blobToBase64(blob);
+  const fn = httpsCallable(functions, 'uploadStorageFile', { timeout: 120000 });
+  const res = await fn({
+    objectPath: path,
+    contentType: contentType || blob.type || 'application/octet-stream',
+    fileBase64,
+  });
+  const url = res?.data?.downloadUrl || '';
+  if (!url) throw new Error('Ingen nedlastings-URL fra server');
+  return url;
+}
+
 export async function uploadFile(path, picked, contentType) {
   const blob = await readUploadBlob(picked);
   const type = contentType || picked?.mimeType || blob.type || 'application/octet-stream';
 
   if (Platform.OS === 'web') {
+    let callableError = null;
+    if (blob.size <= MAX_CALLABLE_DOCUMENT_BYTES) {
+      try {
+        return await withTimeout(
+          uploadObjectViaCallable(path, blob, type),
+          CALLABLE_UPLOAD_TIMEOUT_MS,
+          'callable-timeout',
+        );
+      } catch (err) {
+        callableError = err;
+      }
+    }
     try {
       return await withTimeout(
         uploadFileViaRest(path, blob, type),
-        REST_UPLOAD_TIMEOUT_MS,
+        restUploadTimeoutMs(blob.size),
         'storage-rest-timeout',
       );
     } catch {
+      if (callableError) throw new Error(fileUploadError(callableError));
       throw new Error('storage-upload-failed');
     }
   }

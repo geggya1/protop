@@ -96,7 +96,7 @@ function idsIn(sections) {
   );
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 8);
+  assert.equal(hr.children.length, 7);
   assert.equal(selskapKids[0].action.subView, 'underenheter');
   assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.deepEqual(
@@ -113,7 +113,7 @@ function idsIn(sections) {
   const fravaer = selskapKids.find((i) => i.id === 'fravaer');
   assert.deepEqual(
     arbeid.children.map((i) => i.label),
-    ['Timeliste', 'Timerapport', 'Timesaldo', 'Godkjenninger'],
+    ['Timeliste', 'Timerapport', 'Timesaldo', 'Godkjenninger', 'Produktivitet'],
   );
   assert.deepEqual(
     fravaer.children.map((i) => i.label),

@@ -123,6 +123,7 @@ export default function AgreementTreatment({
   const [editBody, setEditBody] = useState('');
   const [signerName, setSignerName] = useState('');
   const [fieldDrafts, setFieldDrafts] = useState({});
+  const [showDocument, setShowDocument] = useState(false);
   const fieldDraftRef = useRef({});
   const returnIntentHandled = useRef('');
   const actorName = party === 'motpart'
@@ -532,6 +533,42 @@ export default function AgreementTreatment({
           <Text style={{ color: colors.muted }}>
             {kindCaseLabel(view.kind)} · {view.sender?.name || 'Avsender'} og {view.counterparty?.name || 'Motpart'}
           </Text>
+          {party === 'avsender' && view.status === 'utkast' ? (
+            <View style={[styles.nextBox, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
+              <Text style={{ color: colors.ink, lineHeight: 20 }}>
+                Utkastet er låst. Neste steg er å sende det til motparten
+                {view.counterparty?.email ? ` (${view.counterparty.email})` : ''}.
+              </Text>
+              <TouchableOpacity
+                disabled={busy}
+                onPress={() => run({ movement: 'sendt', local: () => sendAgreement(state, view.id, { party, actorName, actorUid, email: view.counterparty?.email }) })}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
+              >
+                <Text style={{ color: '#fff' }}>Send til motpart</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {party === 'avsender' && view.status === 'merknader' ? (
+            <View style={[styles.nextBox, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Text style={{ color: colors.ink, lineHeight: 20 }}>
+                Merknader er kommet i retur. Godta dem, eller lås en ny versjon før du sender på nytt.
+              </Text>
+              <View style={styles.row}>
+                <TouchableOpacity onPress={() => run({ local: () => acceptRemarks(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink }}>Godta uten ny versjon</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => run({ local: () => publishAgreementVersion(state, view.id, { party, actorName, actorUid }) })} accessibilityRole="button" style={[styles.quiet, { borderColor: colors.brand }]}>
+                  <Text style={{ color: colors.brand }}>Lås ny versjon</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+          {party === 'avsender' && view.status === 'hos-motpart' ? (
+            <Text style={{ color: colors.muted, lineHeight: 20 }}>
+              Avtalen ligger hos motparten. Du kan fortsette når merknader kommer i retur, eller når den signeres.
+            </Text>
+          ) : null}
           {party === 'avsender' && (view.status === 'utkast' || view.status === 'merknader') ? (
             <>
               <AgreementCustomerField
@@ -557,6 +594,13 @@ export default function AgreementTreatment({
               ) : null}
             </>
           ) : null}
+          {party === 'avsender' && view.status === 'utkast' ? (
+            <TouchableOpacity onPress={() => setShowDocument((open) => !open)} accessibilityRole="button">
+              <Text style={{ color: colors.brand }}>{showDocument ? 'Skjul avtaleteksten' : 'Vis avtaleteksten'}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {(showDocument || party !== 'avsender' || view.status !== 'utkast') ? (
+          <>
           <View style={styles.row}>
             {(view.versions || []).map((item) => (
               <Chip key={item.number} colors={colors} label={`Versjon ${item.number}`} on={item.number === version.number} onPress={() => setVersionNo(item.number)} />
@@ -747,6 +791,8 @@ export default function AgreementTreatment({
               {sign.party === 'motpart' ? 'Motpart' : 'Avsender'} {sign.name} signerte versjon {sign.version} {sign.at?.replace('T', ' ').slice(0, 16)} · {sign.method === 'bankid' ? 'BankID-valg' : 'forpliktende segl'}
             </Text>
           ))}
+          </>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -765,6 +811,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   primary: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   quiet: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  nextBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   note: { borderWidth: 1, borderRadius: 8, padding: 10, gap: 4 },
   timeline: { borderLeftWidth: 2, paddingLeft: 10, gap: 6, marginLeft: 2 },
 });

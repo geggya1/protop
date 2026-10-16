@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -18,16 +18,11 @@ import {
   formatHours,
 } from '../../src/arbeid/absenceReport.js';
 
-function Section({ title, colors, children }) {
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.muted }]}>{title}</Text>
-      {children}
-    </View>
-  );
+function RowLabel({ children, color }) {
+  return <Text style={[styles.rowLabel, { color }]}>{children}</Text>;
 }
 
-function Choice({ label, on, onPress, colors, testID }) {
+function Chip({ label, on, onPress, colors, testID, count }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -35,11 +30,19 @@ function Choice({ label, on, onPress, colors, testID }) {
       accessibilityState={{ selected: on }}
       nativeID={testID}
       style={[
-        styles.choice,
-        { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : colors.card },
+        styles.chip,
+        {
+          borderColor: on ? colors.brand : colors.line,
+          backgroundColor: on ? '#E8F1FF' : '#fff',
+        },
       ]}
     >
-      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }} numberOfLines={1}>{label}</Text>
+      <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13, fontWeight: '400' }} numberOfLines={1}>
+        {label}
+      </Text>
+      {count != null ? (
+        <Text style={[styles.count, { color: on ? colors.brand : colors.muted }]}>{count}</Text>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -68,85 +71,94 @@ export default function AbsenceOrganizePanel({
   employeeId,
   onEmployee,
   employees = [],
+  counts = null,
   onReset,
-  onClose,
 }) {
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const visible = new Set(visibleColumns?.length ? visibleColumns : DEFAULT_ABSENCE_REPORT_COLUMNS);
+  const countFor = (id) => {
+    if (!counts || !id) return null;
+    if (id === 'ferie' || id === 'sykdom' || id === 'annet') return counts[id];
+    return null;
+  };
 
   return (
     <View
-      style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}
+      style={[styles.deck, { borderColor: colors.line, backgroundColor: colors.card }]}
       nativeID="absence-organize-panel"
     >
-      <View style={styles.panelHead}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.panelTitle, { color: colors.ink }]}>Filter</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Periode, type, status, sortering og kolonner for fraværsrapporten.
-          </Text>
+      <View style={styles.top}>
+        <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+          <Ionicons name="search" size={16} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={onQuery}
+            placeholder="Søk ansatt, type eller beskrivelse"
+            placeholderTextColor={colors.placeholder}
+            nativeID="absence-organize-search"
+            style={[styles.searchInput, { color: colors.ink }]}
+          />
         </View>
-        {onClose ? (
-          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk filter">
-            <Ionicons name="close" size={20} color={colors.ink} />
+        {onReset ? (
+          <TouchableOpacity
+            onPress={onReset}
+            accessibilityRole="button"
+            nativeID="absence-organize-reset"
+            style={[styles.reset, { borderColor: colors.line }]}
+          >
+            <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '400' }}>Nullstill</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
-        <Section title="Finn fravær / ferie" colors={colors}>
-          <TextInput
-            value={query}
-            onChangeText={onQuery}
-            placeholder="Ansatt, type, beskrivelse…"
-            placeholderTextColor={colors.placeholder}
-            nativeID="absence-organize-search"
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-        </Section>
-
-        <Section title="Vis for periode" colors={colors}>
-          <View style={styles.wrap}>
-            {ABSENCE_REPORT_PERIODS.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.label}
-                on={period === item.id}
-                onPress={() => onPeriod(item.id)}
-                colors={colors}
-                testID={`absence-period-${item.id}`}
-              />
-            ))}
+      <View style={styles.block}>
+        <RowLabel color={colors.muted}>Periode</RowLabel>
+        <View style={styles.wrap}>
+          {ABSENCE_REPORT_PERIODS.map((item) => (
+            <Chip
+              key={item.id}
+              label={item.label}
+              on={period === item.id}
+              onPress={() => onPeriod(item.id)}
+              colors={colors}
+              testID={`absence-period-${item.id}`}
+            />
+          ))}
+        </View>
+        {period === 'custom' ? (
+          <View style={styles.dates}>
+            <TextInput
+              value={fromDate}
+              onChangeText={onFromDate}
+              onBlur={onFromDateBlur}
+              placeholder="Fra dato"
+              placeholderTextColor={colors.placeholder}
+              nativeID="absence-from-date"
+              style={[styles.dateInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <Text style={{ color: colors.muted }}>–</Text>
+            <TextInput
+              value={toDate}
+              onChangeText={onToDate}
+              onBlur={onToDateBlur}
+              placeholder="Til dato"
+              placeholderTextColor={colors.placeholder}
+              nativeID="absence-to-date"
+              style={[styles.dateInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
           </View>
-          {period === 'custom' ? (
-            <View style={{ gap: 8, marginTop: 8 }}>
-              <TextInput
-                value={fromDate}
-                onChangeText={onFromDate}
-                onBlur={onFromDateBlur}
-                placeholder="Fra dato"
-                placeholderTextColor={colors.placeholder}
-                nativeID="absence-from-date"
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-              />
-              <TextInput
-                value={toDate}
-                onChangeText={onToDate}
-                onBlur={onToDateBlur}
-                placeholder="Til dato"
-                placeholderTextColor={colors.placeholder}
-                nativeID="absence-to-date"
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-              />
-            </View>
-          ) : null}
-        </Section>
+        ) : null}
+      </View>
 
-        <Section title="Fraværstyper" colors={colors}>
+      <View style={styles.split}>
+        <View style={styles.block}>
+          <RowLabel color={colors.muted}>Type</RowLabel>
           <View style={styles.wrap}>
             {ABSENCE_REPORT_TYPE_FILTERS.map((item) => (
-              <Choice
+              <Chip
                 key={item.id || 'all'}
                 label={item.label}
+                count={countFor(item.id)}
                 on={category === item.id}
                 onPress={() => onCategory(item.id)}
                 colors={colors}
@@ -154,12 +166,12 @@ export default function AbsenceOrganizePanel({
               />
             ))}
           </View>
-        </Section>
-
-        <Section title="Status" colors={colors}>
+        </View>
+        <View style={styles.block}>
+          <RowLabel color={colors.muted}>Status</RowLabel>
           <View style={styles.wrap}>
             {ABSENCE_REPORT_STATUS_FILTERS.map((item) => (
-              <Choice
+              <Chip
                 key={item.id || 'all'}
                 label={item.label}
                 on={status === item.id}
@@ -169,50 +181,65 @@ export default function AbsenceOrganizePanel({
               />
             ))}
           </View>
-        </Section>
+        </View>
+      </View>
 
-        <Section title="Sortering" colors={colors}>
-          <View style={styles.wrap}>
-            {ABSENCE_REPORT_SORT_OPTIONS.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.label}
-                on={sort === item.id}
-                onPress={() => onSort(item.id)}
-                colors={colors}
-                testID={`absence-sort-${item.id}`}
-              />
-            ))}
-          </View>
-        </Section>
-
-        <Section title="Medarbeidere" colors={colors}>
-          <View style={styles.wrap}>
-            <Choice
-              label="Alle"
-              on={!employeeId}
-              onPress={() => onEmployee('')}
+      <View style={styles.block}>
+        <RowLabel color={colors.muted}>Sortering</RowLabel>
+        <View style={styles.wrap}>
+          {ABSENCE_REPORT_SORT_OPTIONS.map((item) => (
+            <Chip
+              key={item.id}
+              label={item.label}
+              on={sort === item.id}
+              onPress={() => onSort(item.id)}
               colors={colors}
-              testID="absence-employee-all"
+              testID={`absence-sort-${item.id}`}
             />
-            {employees.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.hours != null ? `${item.name} · ${formatHours(item.hours)}` : item.name}
-                on={employeeId === item.id}
-                onPress={() => onEmployee(item.id)}
-                colors={colors}
-                testID={`absence-employee-${item.id}`}
-              />
-            ))}
-          </View>
-          {!employees.length ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen medarbeidere i dette utvalget.</Text>
-          ) : null}
-        </Section>
+          ))}
+        </View>
+      </View>
 
-        <Section title="Vis kolonner" colors={colors}>
-          <View style={{ gap: 6 }}>
+      <View style={styles.block}>
+        <RowLabel color={colors.muted}>Medarbeider</RowLabel>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.people}>
+          <Chip
+            label="Alle"
+            on={!employeeId}
+            onPress={() => onEmployee('')}
+            colors={colors}
+            testID="absence-employee-all"
+          />
+          {employees.map((item) => (
+            <Chip
+              key={item.id}
+              label={item.hours != null ? `${item.name} · ${formatHours(item.hours)}` : item.name}
+              on={employeeId === item.id}
+              onPress={() => onEmployee(item.id)}
+              colors={colors}
+              testID={`absence-employee-${item.id}`}
+            />
+          ))}
+        </ScrollView>
+        {!employees.length ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen medarbeidere i dette utvalget.</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.block}>
+        <TouchableOpacity
+          onPress={() => setColumnsOpen((open) => !open)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: columnsOpen }}
+          nativeID="absence-columns-toggle"
+          style={styles.columnsToggle}
+        >
+          <Ionicons name={columnsOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.ink} />
+          <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '400' }}>Kolonner i tabellen</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{visible.size} synlige</Text>
+        </TouchableOpacity>
+        {columnsOpen ? (
+          <View style={styles.wrap}>
             {ABSENCE_REPORT_COLUMNS.map((column) => {
               const on = visible.has(column.key);
               return (
@@ -222,65 +249,85 @@ export default function AbsenceOrganizePanel({
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
                   nativeID={`absence-column-${column.key}`}
-                  style={styles.checkRow}
+                  style={[
+                    styles.chip,
+                    { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? '#E8F1FF' : '#fff' },
+                  ]}
                 >
                   <Ionicons
-                    name={on ? 'checkbox' : 'square-outline'}
-                    size={18}
+                    name={on ? 'checkmark' : 'add'}
+                    size={14}
                     color={on ? colors.brand : colors.muted}
                   />
-                  <Text style={{ color: colors.ink, fontSize: 13 }}>{column.label}</Text>
+                  <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{column.label}</Text>
                 </TouchableOpacity>
               );
             })}
+            {onResetColumns ? (
+              <TouchableOpacity onPress={onResetColumns} accessibilityRole="button" style={styles.columnReset}>
+                <Text style={{ color: colors.brand, fontSize: 13 }}>Tilbakestill</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-          {onResetColumns ? (
-            <TouchableOpacity onPress={onResetColumns} accessibilityRole="button" style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>Tilbakestill kolonner</Text>
-            </TouchableOpacity>
-          ) : null}
-        </Section>
-      </ScrollView>
-
-      {onReset ? (
-        <TouchableOpacity
-          onPress={onReset}
-          accessibilityRole="button"
-          nativeID="absence-organize-reset"
-          style={[styles.reset, { borderTopColor: colors.line }]}
-        >
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Nullstill filter</Text>
-        </TouchableOpacity>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    width: 300,
-    maxWidth: '100%',
+  deck: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    gap: 14,
+  },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  search: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderWidth: 1,
     borderRadius: 12,
-    overflow: 'hidden',
-    flexShrink: 0,
+    paddingHorizontal: 12,
+    minHeight: 42,
   },
-  panelHead: {
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 8 },
+  reset: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  split: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  block: { gap: 8, flexGrow: 1, minWidth: 220 },
+  rowLabel: { fontSize: 11, fontWeight: '400', letterSpacing: 0.6, textTransform: 'uppercase' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  people: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 2 },
+  chip: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 8,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
-  panelTitle: { fontSize: 16, fontWeight: '700' },
-  scroll: { maxHeight: 720 },
-  scrollInner: { paddingHorizontal: 14, paddingBottom: 16, gap: 16 },
-  section: { gap: 8 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: '100%' },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minHeight: 40 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  reset: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center' },
+  count: { fontSize: 12, fontWeight: '400' },
+  dates: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  dateInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 40,
+    minWidth: 140,
+  },
+  columnsToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  columnReset: { justifyContent: 'center', paddingHorizontal: 4 },
 });

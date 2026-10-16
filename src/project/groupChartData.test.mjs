@@ -69,4 +69,54 @@ assert.equal(child.accountPayload[0].regnskapstype, 'SELSKAP');
 const pooled = await mapPool([1, 2, 3, 4], 2, async (value) => value * 2);
 assert.deepEqual(pooled, [2, 4, 6, 8]);
 
+clearGroupChartCache();
+const browserCalls = [];
+const previousWindow = globalThis.window;
+globalThis.window = {};
+try {
+  const browserFetch = async (url, init = {}) => {
+    browserCalls.push(String(url));
+    if (String(url).includes('regnskapsregisteret')) {
+      throw new Error('Nettleseren skal ikke kalle Regnskapsregisteret direkte');
+    }
+    if (String(url).includes('/api/tender-proxy')) {
+      assert.equal(init.method, 'POST');
+      const body = JSON.parse(init.body);
+      assert.equal(body.action, 'register');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, accounts: [{ regnskapstype: 'SELSKAP', id: body.orgnr }] }),
+      };
+    }
+    return fetchImpl(url, init);
+  };
+  const browserSources = await loadGroupSources('922336601', { fetchImpl: browserFetch });
+  assert.equal(browserSources.accountPayload[0].id, '922336601');
+  assert.equal(browserCalls.some((url) => url.includes('regnskapsregisteret')), false);
+  assert.equal(browserCalls.some((url) => url.includes('/api/tender-proxy')), true);
+
+  const childCalls = [];
+  const childFetch = async (url, init = {}) => {
+    childCalls.push(String(url));
+    if (String(url).includes('regnskapsregisteret')) {
+      throw new Error('Nettleseren skal ikke kalle Regnskapsregisteret direkte');
+    }
+    if (String(url).includes('/api/tender-proxy')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, accounts: [{ regnskapstype: 'SELSKAP' }] }),
+      };
+    }
+    return fetchImpl(url, init);
+  };
+  const browserChild = await loadEntityFigures('826514302', { fetchImpl: childFetch });
+  assert.equal(browserChild.accountPayload[0].regnskapstype, 'SELSKAP');
+  assert.equal(childCalls.some((url) => url.includes('regnskapsregisteret')), false);
+} finally {
+  if (previousWindow === undefined) delete globalThis.window;
+  else globalThis.window = previousWindow;
+}
+
 console.log('groupChartData ok');

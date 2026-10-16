@@ -47,6 +47,7 @@ const rnMock = {
     absoluteFill: { position: 'absolute' },
   },
   Platform: { OS: 'web', select: (options) => options?.web || options?.default },
+  useWindowDimensions: () => ({ width: 390, height: 844, scale: 2, fontScale: 1 }),
 };
 
 const svgMock = {
@@ -110,6 +111,23 @@ function withHooks(fn) {
   }
 }
 
+function findById(node, id, depth = 0) {
+  if (depth > 50 || node == null || typeof node === 'boolean') return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const hit = findById(child, id, depth + 1);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (!React.isValidElement(node)) return null;
+  if (node.props?.nativeID === id) return node;
+  if (typeof node.type === 'function') {
+    return findById(withHooks(() => node.type(node.props || {})), id, depth + 1);
+  }
+  return findById(node.props && node.props.children, id, depth + 1);
+}
+
 function collectText(node, depth = 0, out = []) {
   if (depth > 50 || node == null || typeof node === 'boolean') return out;
   if (Array.isArray(node)) {
@@ -131,7 +149,12 @@ function collectText(node, depth = 0, out = []) {
 
 const boardModule = loadJsx('screens/arbeid/ProductivityBoard.jsx');
 const Board = boardModule.default;
-const { WeekSumChart } = boardModule;
+const { WeekSumChart, labelColumnWidth } = boardModule;
+
+assert.equal(labelColumnWidth(390), 132);
+assert.equal(labelColumnWidth(700), 180);
+assert.equal(labelColumnWidth(1280), 228);
+assert.equal(labelColumnWidth(0), 228);
 
 const people = [
   { id: 'a', label: 'Ada Nord', company: { personnelKind: 'staff', workPercent: '80', status: 'active' } },
@@ -217,6 +240,48 @@ assert.doesNotMatch(openText, /2026-08-03/);
 assert.doesNotMatch(openText, /Bare medlem/);
 assert.doesNotMatch(openText, /Gammelt/);
 assert.doesNotMatch(openText, /Dra eller trykk/);
+
+const selectedId = plan.allocations[0].id;
+let removed = null;
+const selectedTree = withHooks(() => React.createElement(Board, {
+  colors,
+  people,
+  projects,
+  members,
+  plan,
+  timeEntries: [
+    { employeeId: 'a', projectId: 'p1', date: '2026-09-02', hours: 6.5 },
+  ],
+  canWrite: true,
+  onPlan: (next) => { removed = next; },
+  initialOpenId: 'a',
+  initialSelectedId: selectedId,
+}));
+const selectedText = collectText(selectedTree).join('\n');
+assert.match(selectedText, /Fra/);
+assert.match(selectedText, /Til/);
+assert.match(selectedText, /Fjern/);
+assert.match(selectedText, /Gjelder hele uker/);
+assert.match(selectedText, /100 Alpha/);
+const editor = findById(selectedTree, 'produktivitet-editor');
+assert.ok(editor, 'innstillingsfeltet mangler');
+const editorStyle = Object.assign({}, ...[].concat(editor.props.style));
+assert.equal(editorStyle.position, 'sticky');
+assert.equal(editorStyle.backgroundColor, '#fff');
+assert.ok(editorStyle.zIndex >= 20);
+const labels = findById(selectedTree, 'produktivitet-labels-a');
+const labelStyle = Object.assign({}, ...[].concat(labels.props.style));
+assert.equal(labelStyle.width, 132);
+const planNode = findById(selectedTree, 'produktivitet-plan-a');
+const planKids = React.Children.toArray(planNode.props.children).filter((child) => child && typeof child !== 'string');
+const editorAt = planKids.findIndex((child) => child.type && child.type.name === 'AllocationSettings');
+const matrixAt = planKids.findIndex((child) => child.props && child.props.nativeID === 'produktivitet-matrix-a');
+assert.ok(editorAt >= 0 && matrixAt > editorAt, 'innstillingene skal ligge over tabellen');
+const remove = findById(selectedTree, 'produktivitet-remove');
+assert.equal(typeof remove.props.onPress, 'function');
+remove.props.onPress();
+assert.ok(removed);
+assert.equal(removed.allocations.some((row) => row.id === selectedId), false);
 
 const series = weekSeries(people, plan.allocations, weeks, 37.5);
 const chart = withHooks(() => React.createElement(WeekSumChart, { series, colors }));

@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import {
   caseFromExpiringContract,
   caseFromPeopleEvent,
   choiceLabel,
+  countHrEmployees,
   expiringContracts,
+  filterHrEmployees,
   formatNbDate,
   hasOpenCaseLike,
   JOB_STATUSES,
@@ -20,30 +22,34 @@ import {
 import { companyProductivity } from '../../src/hr/productivity';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
-  EmptyHint, HrButton, HrCard, HrSectionTitle, HrStat, RowLink, UtilizationBar,
+  EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle, HrStat, RowLink, UtilizationBar,
 } from './HrShared';
 
 export default function HrDashboard({
   colors, employees, hr, entries, canWrite, onPatch,
   onOpenPeople, onOpenFollowUp, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
 }) {
+  const [staffFilter, setStaffFilter] = useState('active');
+  const counts = useMemo(() => countHrEmployees(employees), [employees]);
+  const people = useMemo(
+    () => filterHrEmployees(employees, staffFilter),
+    [employees, staffFilter],
+  );
   const events = useMemo(
-    () => upcomingPeopleEvents(employees, { withinDays: 90 }),
-    [employees],
+    () => upcomingPeopleEvents(people, { withinDays: 90 }),
+    [people],
   );
   const ending = useMemo(() => expiringContracts(hr.contracts, { withinDays: 90 }), [hr.contracts]);
   const follow = useMemo(() => openFollowUps(hr), [hr]);
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const productivity = useMemo(() => companyProductivity(entries), [entries]);
-  const activePeople = (employees || []).filter((row) => row?.company?.status !== 'deleted').length;
-
   const complianceRows = useMemo(
-    () => companyComplianceOverview(employees, hr.compliance, {
+    () => companyComplianceOverview(people, hr.compliance, {
       contracts: hr.contracts,
       reviews: hr.reviews,
       applyEvidence: true,
     }),
-    [employees, hr.compliance, hr.contracts, hr.reviews],
+    [people, hr.compliance, hr.contracts, hr.reviews],
   );
   const complianceGap = complianceRows.reduce((sum, row) => sum + row.missing, 0);
   const worstGaps = complianceRows.filter((row) => row.missing > 0).slice(0, 5);
@@ -90,8 +96,27 @@ export default function HrDashboard({
 
   return (
     <View style={styles.page} nativeID="hr-dashboard">
+      <View style={styles.chips}>
+        <HrChip
+          colors={colors}
+          label={`Aktive · ${counts.active}`}
+          active={staffFilter === 'active'}
+          onPress={() => setStaffFilter('active')}
+        />
+        <HrChip
+          colors={colors}
+          label={`Deaktiverte · ${counts.inactive}`}
+          active={staffFilter === 'inactive'}
+          onPress={() => setStaffFilter('inactive')}
+        />
+      </View>
       <View style={styles.statRow}>
-        <HrStat colors={colors} label="Aktive" value={String(activePeople)} hint="personell" />
+        <HrStat
+          colors={colors}
+          label={staffFilter === 'inactive' ? 'Deaktiverte' : 'Aktive'}
+          value={String(staffFilter === 'inactive' ? counts.inactive : counts.active)}
+          hint="personell"
+        />
         <HrStat colors={colors} label="Åpne saker" value={String(follow.cases.length)} hint="oppfølging" />
         <HrStat colors={colors} label="Søknadskø" value={String(received + processing)} hint={`${received} nye · ${processing} i behandling`} />
         <HrStat colors={colors} label="Compliance" value={String(complianceGap)} hint="mangler lov/ISO" />
@@ -256,6 +281,7 @@ export default function HrDashboard({
 
 const styles = StyleSheet.create({
   page: { gap: 14 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   meta: { fontSize: 13, lineHeight: 18 },
   funnel: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

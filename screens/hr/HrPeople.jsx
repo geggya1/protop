@@ -10,6 +10,8 @@ import {
   currentSalaryFor,
   formatMoney,
   formatNbDate,
+  countHrEmployees,
+  filterHrEmployees,
   normalizeContract,
   upcomingPeopleEvents,
   upsertActiveContract,
@@ -34,12 +36,13 @@ export default function HrPeople({
     employmentType: 'Fast',
     notes: '',
   });
+  const [staffFilter, setStaffFilter] = useState('active');
   const [query, setQuery] = useState('');
+  const counts = useMemo(() => countHrEmployees(employees), [employees]);
   const [contractDraft, setContractDraft] = useState(emptyQuickContract);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (employees || [])
-      .filter((row) => row?.company?.status !== 'deleted')
+    return filterHrEmployees(employees, staffFilter)
       .filter((row) => {
         if (!q) return true;
         const hay = [
@@ -51,7 +54,7 @@ export default function HrPeople({
         return hay.includes(q);
       })
       .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nb'));
-  }, [employees, query]);
+  }, [employees, query, staffFilter]);
 
   const complianceByEmp = useMemo(
     () => Object.fromEntries(
@@ -95,6 +98,20 @@ export default function HrPeople({
           title="Personell"
           subtitle="Personalmappe: jubileum, kontrakt, compliance og snareveier"
         />
+        <View style={styles.chips}>
+          <HrChip
+            colors={colors}
+            label={`Aktive · ${counts.active}`}
+            active={staffFilter === 'active'}
+            onPress={() => setStaffFilter('active')}
+          />
+          <HrChip
+            colors={colors}
+            label={`Deaktiverte · ${counts.inactive}`}
+            active={staffFilter === 'inactive'}
+            onPress={() => setStaffFilter('inactive')}
+          />
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}

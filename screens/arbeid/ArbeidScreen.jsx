@@ -33,6 +33,7 @@ import {
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
+  applyHoursOntoState,
   ensureProjectHours,
   loadProjectState,
   peekProjectState,
@@ -139,10 +140,11 @@ export default function ArbeidScreen({
 
   function applyLoadedState(loaded) {
     setState((current) => {
-      const members = mergeMemberLists(current?.members, loaded?.members);
+      const next = applyHoursOntoState(current, loaded);
+      const members = mergeMemberLists(current?.members, next.members);
       const keptLocalEdit = memberSignature(members) !== memberSignature(loaded?.members);
       if (!keptLocalEdit) skipSave.current = true;
-      return { ...loaded, members };
+      return { ...next, members };
     });
   }
 

@@ -143,6 +143,13 @@ function loadJsx(rel) {
         ensureProjectHours: async () => projectState,
         putProjectState: () => projectState,
         saveProjectState: async () => {},
+        applyHoursOntoState: (current, loaded) => ({
+          ...(loaded || {}),
+          absences: (current?.absences || []).length ? current.absences : (loaded?.absences || []),
+          absenceAdjustments: (current?.absenceAdjustments || []).length
+            ? current.absenceAdjustments
+            : (loaded?.absenceAdjustments || []),
+        }),
       };
     }
     if (id.includes('employees/storage')) {

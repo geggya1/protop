@@ -430,6 +430,21 @@ export function diffAbsences(previous = [], next = []) {
   return { changed, removed };
 }
 
+/**
+ * Slettinger som er trygge å skrive tilbake.
+ * En tom liste mot en fylt baseline er en lesefeil, ikke at importen skal vekk.
+ */
+export function planAbsenceRemovals(previous = [], next = [], { allowRemovals = true } = {}) {
+  if (!allowRemovals) return [];
+  const { removed } = diffAbsences(previous, next);
+  if (!removed.length) return [];
+  const nextCount = (Array.isArray(next) ? next : [])
+    .map((row) => normalizeAbsenceRow(row))
+    .filter(Boolean).length;
+  if (!nextCount) return [];
+  return removed;
+}
+
 const TOMB_KEY = 'protop.absences.deleted.v1';
 const TOMBSTONES = new Map();
 const TOMB_CAP = 5000;

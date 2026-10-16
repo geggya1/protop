@@ -11,5 +11,11 @@ assert.match(src, /Dokumenter \(\$/);
 assert.match(src, /function FieldGroup/);
 assert.equal(src.includes('flexBasis: 200'), false);
 assert.match(src, /factRow/);
+assert.match(src, /AgreementCustomerField/);
+assert.match(src, /AgreementPersonField/);
+assert.match(src, /AgreementProjectField/);
+assert.equal(src.includes('OwnerPicker'), false);
+assert.match(src, /postalCode: source\.postalCode/);
+assert.match(src, /customerId: source\.customerId \|\| ''/);
 
 console.log('agreementDetailLayout.test.mjs: ok');

@@ -32,6 +32,7 @@ import {
   formatOrgnr,
   maskPersonnummer,
   normalizeOrgnr,
+  setCustomerOwner,
 } from '../../src/anbud/customers';
 import { indexLabel } from '../../src/anbud/fieldReview';
 import { formatNumberId } from '../../src/anbud/numbering';
@@ -42,10 +43,17 @@ import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
+import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
-import OwnerPicker from './OwnerPicker';
+import AgreementPersonField from './AgreementPersonField';
+import AgreementProjectField from './AgreementProjectField';
 
 const DOC_ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const INVOICE_METHODS = [
+  { id: 'EPOST', label: 'E-post' },
+  { id: 'EHF', label: 'EHF' },
+  { id: 'POST', label: 'Post' },
+];
 
 function isoFromDate(value) {
   if (!value) return '';
@@ -155,6 +163,8 @@ export default function AgreementDetail({
   contract,
   contracts = [],
   customer = null,
+  customers = [],
+  projects = [],
   people = [],
   colors,
   companyId,
@@ -163,7 +173,7 @@ export default function AgreementDetail({
   onOpenProject,
   onOpenIndex,
   onOpenCustomer,
-  onAssignOwner,
+  onCustomersChanged,
   onOpenAgreement,
   onNewChild,
   onDeleted,
@@ -286,62 +296,169 @@ export default function AgreementDetail({
     setBrregHits([]);
   }
 
+  function coverFields(source) {
+    return {
+      ...(contract.fields || {}),
+      honorar: '',
+      place: source.place,
+      postalCode: source.postalCode,
+      address: source.address,
+      gnrBnr: source.gnrBnr,
+      engagementPercent: source.engagementPercent,
+      description: source.description,
+      poNumber: source.poNumber,
+      orgnr: source.orgnr,
+      supplierOrgnr: source.supplierOrgnr,
+      personnummer: source.personnummer,
+      contactName: source.contactName,
+      phone: source.phone,
+      email: source.email,
+      buyerAddress: source.buyerAddress,
+      invoiceMethod: source.invoiceMethod,
+      invoiceAttn: source.invoiceAttn,
+      leaderUid: source.leaderUid,
+      leaderName: source.leaderName,
+      leaderEmail: source.leaderEmail,
+      leaderPhone: source.leaderPhone,
+      resourceName: source.resourceName,
+      resourceEmail: source.resourceEmail,
+      resourcePhone: source.resourcePhone,
+      honorarForm: source.honorarForm,
+      biomkostninger: source.biomkostninger,
+      paymentTerms: source.paymentTerms,
+      specialTerms: source.specialTerms,
+      indexBase: source.indexBase,
+      reference: source.oppdragId || source.reference,
+      standard: source.standard,
+      indexId: source.indexId,
+      surchargePercent: source.surchargePercent,
+      contractDate: source.contractDate,
+      projectName: source.projectName || source.title,
+    };
+  }
+
+  function detailInput(source, extra = {}) {
+    return {
+      title: source.title,
+      buyer: source.buyer,
+      supplier: source.supplier,
+      projectName: source.projectName || source.title,
+      description: source.description,
+      address: source.address,
+      kind: source.kind,
+      parentId: source.parentId,
+      customerId: source.customerId || '',
+      projectId: source.projectId || '',
+      value: source.value,
+      start: source.start,
+      end: source.end,
+      systemId: source.systemId,
+      oppdragId: source.oppdragId,
+      ownerUid: source.ownerUid || '',
+      ownerName: source.ownerName || '',
+      fields: coverFields(source),
+      renewal: {
+        type: source.renewalType || 'ingen',
+        until: source.renewalUntil,
+        noticeDays: source.renewalNoticeDays,
+      },
+      ...extra,
+    };
+  }
+
+  async function persistDetails(input, { syncOwner = false, person = null } = {}) {
+    const result = await apply((loaded) => {
+      const updated = updateContractDetails(loaded, contract.id, input);
+      if (!updated.ok || !syncOwner) return updated;
+      const row = (updated.state.contracts || []).find((item) => item.id === contract.id);
+      if (!row?.customerId) return updated;
+      const owned = setCustomerOwner(updated.state, row.customerId, person);
+      return owned.ok ? owned : updated;
+    });
+    if (!result?.ok) setSaveNote(result?.error || 'Kunne ikke lagre.');
+    else setSaveNote('Endringene er lagret.');
+    return result;
+  }
+
+  function customerPatch(row) {
+    if (!row) return { customerId: '' };
+    return {
+      customerId: row.id,
+      buyer: row.name || form.buyer,
+      orgnr: row.orgnr || form.orgnr,
+      personnummer: row.kind === 'person' ? (row.personnummer || '') : '',
+      contactName: form.contactName || row.contactName || '',
+      email: form.email || row.email || '',
+      phone: form.phone || row.phone || '',
+      address: form.address || row.address || '',
+      place: form.place || row.place || '',
+      postalCode: form.postalCode || row.postalCode || '',
+      buyerAddress: form.buyerAddress || row.address || '',
+    };
+  }
+
+  function selectCustomer(row) {
+    const part = customerPatch(row);
+    if (editing) {
+      patch(part);
+      return;
+    }
+    if (!row) {
+      persistDetails({ customerId: '' });
+      return;
+    }
+    persistDetails({
+      customerId: row.id,
+      buyer: row.name || contract.buyer,
+      address: contract.address || row.address || '',
+      fields: {
+        ...(contract.fields || {}),
+        orgnr: row.orgnr || contract.fields?.orgnr || '',
+        personnummer: row.kind === 'person' ? (row.personnummer || '') : (contract.fields?.personnummer || ''),
+        contactName: contract.fields?.contactName || row.contactName || '',
+        email: contract.fields?.email || row.email || '',
+        phone: contract.fields?.phone || row.phone || '',
+        place: contract.fields?.place || row.place || '',
+        postalCode: contract.fields?.postalCode || row.postalCode || '',
+        buyerAddress: contract.fields?.buyerAddress || row.address || '',
+      },
+    });
+  }
+
+  function selectProject(project) {
+    const part = project
+      ? { projectId: project.id, projectName: project.name || form.projectName || contract.projectName || '' }
+      : { projectId: '' };
+    if (editing) {
+      patch(part);
+      return;
+    }
+    persistDetails(part);
+  }
+
+  function selectOwner(person) {
+    const part = {
+      ownerUid: person ? (person.uid || person.id || '') : '',
+      ownerName: person?.name || '',
+    };
+    if (editing) {
+      patch(part);
+      return;
+    }
+    persistDetails(part, { syncOwner: true, person: part.ownerUid ? person : null });
+  }
+
   async function saveEdits() {
     if (saving) return;
     setSaving(true);
     setSaveNote('');
     try {
-      const result = await apply((loaded) => updateContractDetails(loaded, contract.id, {
-        title: form.title,
-        buyer: form.buyer,
-        supplier: form.supplier,
-        projectName: form.projectName || form.title,
-        description: form.description,
-        address: form.address,
-        kind: form.kind,
-        parentId: form.parentId,
-        customerId: form.customerId || contract.customerId,
-        value: form.value,
-        start: form.start,
-        end: form.end,
-        systemId: form.systemId,
-        oppdragId: form.oppdragId,
-        fields: {
-          ...(contract.fields || {}),
-          honorar: '',
-          place: form.place,
-          address: form.address,
-          description: form.description,
-          poNumber: form.poNumber,
-          orgnr: form.orgnr,
-          supplierOrgnr: form.supplierOrgnr,
-          personnummer: form.personnummer,
-          contactName: form.contactName,
-          phone: form.phone,
-          email: form.email,
-          reference: form.oppdragId || form.reference,
-          standard: form.standard,
-          indexId: form.indexId,
-          surchargePercent: form.surchargePercent,
-          contractDate: form.contractDate,
-          projectName: form.projectName || form.title,
-        },
-        renewal: {
-          type: form.renewalType || 'ingen',
-          until: form.renewalUntil,
-          noticeDays: form.renewalNoticeDays,
-        },
-      }));
-      if (!result?.ok) {
-        setSaveNote(result?.error || 'Kunne ikke lagre.');
-        return;
-      }
-      if (customer && form.ownerUid !== undefined && onAssignOwner) {
-        const person = people.find((row) => (row.uid || row.id) === form.ownerUid) || null;
-        if (form.ownerUid) await onAssignOwner(person || { uid: form.ownerUid, name: form.ownerName });
-      }
+      const person = form.ownerUid
+        ? (people.find((row) => (row.uid || row.id) === form.ownerUid) || { uid: form.ownerUid, name: form.ownerName })
+        : null;
+      const result = await persistDetails(detailInput(form), { syncOwner: true, person });
+      if (!result?.ok) return;
       setEditing(false);
-      setSaveNote('Endringene er lagret.');
     } finally {
       setSaving(false);
     }
@@ -460,8 +577,8 @@ export default function AgreementDetail({
                   setEditing(true);
                   setForm({
                     ...coverFromRecord(contract),
-                    ownerUid: customer?.ownerUid || '',
-                    ownerName: customer?.ownerName || '',
+                    ownerUid: contract.ownerUid || customer?.ownerUid || '',
+                    ownerName: contract.ownerName || customer?.ownerName || '',
                   });
                 }
               }}
@@ -535,13 +652,26 @@ export default function AgreementDetail({
             <Text style={styles.groupTitle}>Oppdragssted og periode</Text>
             <View style={styles.grid}>
               <EditField colors={colors} label="Adresse" value={form.address} onChange={(address) => patch({ address })} />
+              <EditField colors={colors} label="Postnummer" value={form.postalCode} onChange={(postalCode) => patch({ postalCode })} keyboardType="number-pad" />
               <EditField colors={colors} label="Sted" value={form.place} onChange={(place) => patch({ place })} />
+              <EditField colors={colors} label="Gnr / Bnr" value={form.gnrBnr} onChange={(gnrBnr) => patch({ gnrBnr })} />
+              <EditField colors={colors} label="Engasjement behov (%)" value={form.engagementPercent} onChange={(engagementPercent) => patch({ engagementPercent })} keyboardType="decimal-pad" />
               <DateEdit colors={colors} label="Oppstart" value={form.start} onChange={(start) => patch({ start })} />
               <DateEdit colors={colors} label="Sluttdato" value={form.end} onChange={(end) => patch({ end })} />
               <DateEdit colors={colors} label="Avtaledato" value={form.contractDate} onChange={(contractDate) => patch({ contractDate })} />
             </View>
 
             <Text style={styles.groupTitle}>Oppdragsgiver</Text>
+            <AgreementCustomerField
+              colors={colors}
+              customers={customers}
+              customerId={form.customerId}
+              companyId={companyId}
+              people={people}
+              label="Kundeforhold"
+              onSelect={selectCustomer}
+              onSavedState={onCustomersChanged}
+            />
             <View style={styles.grid}>
               <EditField colors={colors} label="Oppdragsgiver" value={form.buyer} onChange={(buyer) => patch({ buyer })} hint="Søk i Enhetsregisteret med navn eller org.nr." />
               <EditField
@@ -555,6 +685,18 @@ export default function AgreementDetail({
               <EditField colors={colors} label="Kontaktperson" value={form.contactName} onChange={(contactName) => patch({ contactName })} />
               <EditField colors={colors} label="E-post" value={form.email} onChange={(email) => patch({ email })} keyboardType="email-address" />
               <EditField colors={colors} label="Telefon" value={form.phone} onChange={(phone) => patch({ phone })} keyboardType="phone-pad" />
+              <EditField colors={colors} label="Adresse (oppdragsgiver)" value={form.buyerAddress} onChange={(buyerAddress) => patch({ buyerAddress })} />
+              <View style={[styles.fact, styles.factWide]}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Faktura mottak</Text>
+                <View style={styles.row}>
+                  {INVOICE_METHODS.map((row) => (
+                    <TouchableOpacity key={row.id} onPress={() => patch({ invoiceMethod: row.id })} accessibilityRole="button">
+                      <Text style={{ color: form.invoiceMethod === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <EditField colors={colors} label="Faktura stiles til" value={form.invoiceAttn} onChange={(invoiceAttn) => patch({ invoiceAttn })} />
             </View>
             {brregSearching ? <Text style={{ color: colors.muted }}>Søker i Enhetsregisteret…</Text> : null}
             {brregHits.length ? (
@@ -580,6 +722,21 @@ export default function AgreementDetail({
                 onChange={(supplierOrgnr) => patch({ supplierOrgnr })}
                 keyboardType="number-pad"
               />
+              <AgreementPersonField
+                colors={colors}
+                people={people}
+                ownerUid={form.leaderUid}
+                label="Oppdragsleder"
+                onSelect={(person) => patch({
+                  leaderUid: person ? (person.uid || person.id || '') : '',
+                  leaderName: person?.name || '',
+                })}
+              />
+              <EditField colors={colors} label="Oppdragsleder e-post" value={form.leaderEmail} onChange={(leaderEmail) => patch({ leaderEmail })} keyboardType="email-address" />
+              <EditField colors={colors} label="Oppdragsleder telefon" value={form.leaderPhone} onChange={(leaderPhone) => patch({ leaderPhone })} keyboardType="phone-pad" />
+              <EditField colors={colors} label="Tildelt ressurs" value={form.resourceName} onChange={(resourceName) => patch({ resourceName })} />
+              <EditField colors={colors} label="Ressurs e-post" value={form.resourceEmail} onChange={(resourceEmail) => patch({ resourceEmail })} keyboardType="email-address" />
+              <EditField colors={colors} label="Ressurs telefon" value={form.resourcePhone} onChange={(resourcePhone) => patch({ resourcePhone })} keyboardType="phone-pad" />
             </View>
 
             <Text style={styles.groupTitle}>Honorar og regulering</Text>
@@ -593,6 +750,7 @@ export default function AgreementDetail({
                 keyboardType="decimal-pad"
                 placeholder="0"
               />
+              <EditField colors={colors} label="Honoreringsform" value={form.honorarForm} onChange={(honorarForm) => patch({ honorarForm })} />
               <EditField
                 colors={colors}
                 label="Påslagsprosent"
@@ -600,6 +758,9 @@ export default function AgreementDetail({
                 onChange={(surchargePercent) => patch({ surchargePercent })}
                 keyboardType="decimal-pad"
               />
+              <EditField colors={colors} label="Biomkostninger" value={form.biomkostninger} onChange={(biomkostninger) => patch({ biomkostninger })} multiline />
+              <EditField colors={colors} label="Betalingsbetingelser" value={form.paymentTerms} onChange={(paymentTerms) => patch({ paymentTerms })} />
+              <EditField colors={colors} label="Særlige bestemmelser" value={form.specialTerms} onChange={(specialTerms) => patch({ specialTerms })} multiline />
               <View style={[styles.fact, styles.factWide]}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Prisregulering / indeks</Text>
                 <View style={styles.row}>
@@ -650,15 +811,18 @@ export default function AgreementDetail({
               </View>
             ) : null}
 
-            <OwnerPicker
+            <AgreementProjectField
+              colors={colors}
+              projects={projects}
+              projectId={form.projectId}
+              onSelect={selectProject}
+            />
+            <AgreementPersonField
               colors={colors}
               people={people}
-              value={form.ownerUid}
+              ownerUid={form.ownerUid}
               label="Ansvarlig for avtalen"
-              onChange={(person) => patch({
-                ownerUid: person ? (person.uid || person.id) : '',
-                ownerName: person ? person.name : '',
-              })}
+              onSelect={selectOwner}
             />
 
             <TouchableOpacity
@@ -684,6 +848,8 @@ export default function AgreementDetail({
                 { label: 'Eksternt PO-nummer', value: contract.fields?.poNumber },
                 { label: 'Generelle bestemmelser', value: contract.fields?.standard },
                 { label: 'Tilknyttet avtale', value: parent?.title },
+                { label: 'Ansvarlig', value: contract.ownerName || customer?.ownerName },
+                { label: 'Prosjekt', value: contract.projectId ? (contract.projectName || 'Koblet') : '' },
               ]}
             />
             <FieldGroup
@@ -694,6 +860,7 @@ export default function AgreementDetail({
                 { label: 'Postnummer', value: contract.fields?.postalCode },
                 { label: 'Sted', value: contract.fields?.place },
                 { label: 'Gnr / Bnr', value: contract.fields?.gnrBnr },
+                { label: 'Engasjement behov (%)', value: contract.fields?.engagementPercent },
                 { label: 'Oppstart', value: contract.start },
                 { label: 'Sluttdato', value: contract.end },
                 { label: 'Avtaledato', value: contract.fields?.contractDate },
@@ -709,7 +876,9 @@ export default function AgreementDetail({
                 { label: 'Kontaktperson', value: contract.fields?.contactName },
                 { label: 'E-post', value: contract.fields?.email },
                 { label: 'Telefon', value: contract.fields?.phone },
+                { label: 'Adresse (oppdragsgiver)', value: contract.fields?.buyerAddress },
                 { label: 'Faktura mottak', value: invoiceLabel(contract.fields?.invoiceMethod) },
+                { label: 'Faktura stiles til', value: contract.fields?.invoiceAttn },
               ]}
             />
             <FieldGroup
@@ -719,15 +888,22 @@ export default function AgreementDetail({
                 { label: 'Oppdragstaker', value: contract.supplier },
                 { label: 'Organisasjonsnummer', value: formatOrgnr(contract.fields?.supplierOrgnr) },
                 { label: 'Oppdragsleder', value: contract.fields?.leaderName },
+                { label: 'Oppdragsleder e-post', value: contract.fields?.leaderEmail },
+                { label: 'Oppdragsleder telefon', value: contract.fields?.leaderPhone },
+                { label: 'Tildelt ressurs', value: contract.fields?.resourceName },
               ]}
             />
             <FieldGroup
               colors={colors}
               title="Honorar og regulering"
               rows={[
+                { label: 'Honoreringsform', value: contract.fields?.honorarForm },
                 { label: 'Avtalt honorar (eks. mva)', value: honorar },
                 { label: 'Påslagsprosent', value: contract.fields?.surchargePercent },
+                { label: 'Biomkostninger', value: contract.fields?.biomkostninger },
                 { label: 'Prisregulering / indeks', value: indexLabel(contract.fields?.indexId) },
+                { label: 'Betalingsbetingelser', value: contract.fields?.paymentTerms },
+                { label: 'Særlige bestemmelser', value: contract.fields?.specialTerms },
               ]}
             />
             <FieldGroup
@@ -743,28 +919,44 @@ export default function AgreementDetail({
         )}
       </Section>
 
-      <Section colors={colors} title="Kundeforhold og ansvarlig" open={open.kunde} onToggle={() => toggle('kunde')}>
-        {customer ? (
-          <View style={{ gap: 10 }}>
-            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{customer.name}</Text>
-            <Text style={{ color: colors.muted }}>
-              {[customer.kind === 'person' ? 'Privatkunde' : 'Virksomhet', formatOrgnr(customer.orgnr), customer.contactName].filter(Boolean).join(' · ')}
-            </Text>
-            {!editing ? (
-              <OwnerPicker
-                colors={colors}
-                people={people}
-                value={customer.ownerUid}
-                label="Ansvarlig for avtalen"
-                onChange={(person) => onAssignOwner?.(person)}
-              />
-            ) : null}
-            <TouchableOpacity onPress={() => onOpenCustomer?.(customer.id)} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Åpne kundeforholdet</Text>
-            </TouchableOpacity>
-          </View>
+      <Section colors={colors} title="Kunde, prosjekt og ansvarlig" open={open.kunde} onToggle={() => toggle('kunde')}>
+        {editing ? (
+          <Text style={{ color: colors.muted }}>
+            Kundeforhold, prosjekt og ansvarlig endres i avtaleopplysningene over, og lagres med «Lagre endringer».
+          </Text>
         ) : (
-          <Text style={{ color: colors.muted }}>Ingen kunde er koblet. Rediger avtalen for å fylle oppdragsgiver, eller koble kunden fra kunderegisteret.</Text>
+          <View style={{ gap: 12 }}>
+            <AgreementCustomerField
+              colors={colors}
+              customers={customers}
+              customerId={contract.customerId}
+              companyId={companyId}
+              people={people}
+              label="Kundeforhold"
+              onSelect={selectCustomer}
+              onSavedState={onCustomersChanged}
+            />
+            {customer ? (
+              <TouchableOpacity onPress={() => onOpenCustomer?.(customer.id)} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Åpne kundeforholdet</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: colors.muted }}>Ingen kunde er koblet ennå. Søk i kunderegisteret eller Brønnøysund.</Text>
+            )}
+            <AgreementProjectField
+              colors={colors}
+              projects={projects}
+              projectId={contract.projectId}
+              onSelect={selectProject}
+            />
+            <AgreementPersonField
+              colors={colors}
+              people={people}
+              ownerUid={contract.ownerUid || customer?.ownerUid || ''}
+              label="Ansvarlig for avtalen"
+              onSelect={selectOwner}
+            />
+          </View>
         )}
       </Section>
 

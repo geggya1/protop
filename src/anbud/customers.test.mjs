@@ -26,6 +26,8 @@ import {
   projectLinkSummary,
   relatedContractsForCustomer,
   relatedProjectsForCustomer,
+  agreementResponsiblePeople,
+  isActiveEmployee,
   setCustomerOwner,
   upsertCustomer,
 } from './customers.js';
@@ -489,5 +491,24 @@ assert.match(createModal, /Brønnøysund/);
 assert.match(createModal, /Virksomhet/);
 assert.match(createModal, /Privatkunde/);
 assert.match(createModal, /Lagre kunde/);
+
+const activeRoster = agreementResponsiblePeople(
+  [
+    { id: 'm1', name: 'Medlem Aktiv', role: 'adult' },
+    { id: 'gone', name: 'Medlem Sluttet', role: 'parent' },
+  ],
+  [
+    { id: 'e1', company: { status: 'active' }, person: { firstName: 'Geir', lastName: 'Andersen' } },
+    { id: 'e2', company: { status: 'inactive' }, person: { firstName: 'Sluttet', lastName: 'Ansatt' } },
+    { id: 'gone', company: { status: 'deleted' }, person: { firstName: 'Medlem', lastName: 'Sluttet' } },
+    { id: 'e3', company: { status: 'leave' }, person: { firstName: 'Permisjon', lastName: 'Nå' } },
+  ],
+);
+assert.deepEqual(activeRoster.map((row) => row.uid).sort(), ['e1', 'e3', 'm1']);
+assert.equal(isActiveEmployee({ company: { status: 'inactive' } }), false);
+assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
+assert.equal(personPicker.includes('people.slice'), false);
+assert.match(personPicker, /agreement-person-results/);
+assert.equal(personPicker.includes('Ansatte vises ikke før det er et søk'), false);
 
 console.log('customers.test.mjs: ok');

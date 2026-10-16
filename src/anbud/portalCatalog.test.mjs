@@ -38,6 +38,12 @@ assert.equal(allowedDownloadUrl('https://127.0.0.1/file.pdf'), false);
 assert.equal(allowedDownloadUrl('https://evil.example/file.pdf'), false);
 const linked = parseMercellCatalog('<td id="ctl00_main_rpFiles_ctl01_tdWantToDownload"><a href="https://permalink.mercell.com/files/krav.pdf">Krav.pdf</a></td><td class="right">12 KB</td>', 'https://permalink.mercell.com/1.aspx');
 assert.equal(linked.files[0].url, 'https://permalink.mercell.com/files/krav.pdf');
+const relative = parseMercellCatalog(
+  `<td id="ctl00_main_rpFiles_ctl01_tdDownload"><a href='/m/file/GetFile.ashx?id=1&version=0'>Tegninger - UNN Narvik Sykehus.zip</a></td><td class="right">24,72 MB</td>`,
+  'https://www.mercell.com/nb-no/anbud/289669037/scanning.aspx',
+);
+assert.equal(relative.files[0].url, 'https://www.mercell.com/m/file/GetFile.ashx?id=1&version=0');
+assert.equal(relative.files[0].size, '24,72 MB');
 
 const deployedCatalog = readFileSync(new URL('../../functions/anbud/portalCatalog.js', import.meta.url), 'utf8');
 const sourceCatalog = readFileSync(new URL('./portalCatalog.js', import.meta.url), 'utf8');

@@ -27,11 +27,11 @@ function windowKey(companyId, fromDate, toDate, employeeId) {
 }
 
 async function firestoreBits() {
-  const [{ collection, deleteDoc, doc, getDocs, query, where, writeBatch }, { db }] = await Promise.all([
+  const [{ collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch }, { db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { collection, deleteDoc, doc, getDocs, query, where, writeBatch, db };
+  return { collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db };
 }
 
 function entryRef(bits, companyId, entryId) {
@@ -257,6 +257,37 @@ export async function saveTimeEntryImport(companyId, entries, { onProgress } = {
   const list = (Array.isArray(entries) ? entries : []).map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
   if (!list.length) throw new Error('Ingen timer å lagre.');
   return saveTimeEntries(companyId, list, { onProgress });
+}
+
+/**
+ * Frigjør konkrete timeposter knyttet til en slettet faktura.
+ * Henter bare disse id-ene — ikke hele timehistorikken.
+ */
+export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryIds = []) {
+  const id = text(companyId);
+  const invoice = text(invoiceId);
+  const ids = [...new Set((entryIds || []).map((row) => text(row)).filter(Boolean))];
+  if (!id || !invoice || !ids.length) return { released: 0 };
+  const bits = await firestoreBits();
+  const stamp = new Date().toISOString();
+  const updates = [];
+  for (const entryId of ids) {
+    const snap = await bits.getDoc(entryRef(bits, id, entryId));
+    if (!snap.exists()) continue;
+    const row = snap.data() || {};
+    const linked = text(row.invoiceId);
+    if (linked && linked !== invoice) continue;
+    updates.push({
+      ...row,
+      id: snap.id,
+      invoiceId: '',
+      status: row.status === 'låst' ? 'godkjent' : row.status,
+      updatedAt: stamp,
+    });
+  }
+  if (!updates.length) return { released: 0 };
+  await saveTimeEntries(id, updates);
+  return { released: updates.length };
 }
 
 export async function removeTimeEntry(companyId, entryId) {

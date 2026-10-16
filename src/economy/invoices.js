@@ -356,6 +356,35 @@ export function isInvoiceCacheQuotaError(err) {
     || /exceeded the quota/i.test(message);
 }
 
+/** Felt som fakturalisten trenger. Ikke les EHF, linjer eller bilag — det fryser nettleseren ved ~6700 fakturaer. */
+const INVOICE_LIST_KEYS = [
+  'invoiceNumber', 'invoiceDate', 'dueDate', 'customerNumber', 'customerName', 'orgnr',
+  'projectNumber', 'projectName', 'customerId', 'projectId',
+  'amountExVat', 'vat', 'amountInclVat', 'outstanding', 'outstandingAmount', 'loss',
+  'currency', 'status', 'sent', 'sentAt', 'paidAt', 'exportStatus',
+  'kid', 'vatCode', 'deliveryMethod', 'voucherId',
+  'creditNoteForId', 'creditNoteForNumber', 'department', 'previewReady',
+];
+
+export function invoiceListSource(data, id = '') {
+  const src = data && typeof data === 'object' ? data : {};
+  const row = { id: text(id || src.id) };
+  for (const key of INVOICE_LIST_KEYS) {
+    if (src[key] != null && src[key] !== '') row[key] = src[key];
+  }
+  const attachment = src.attachment;
+  if (attachment && typeof attachment === 'object' && (attachment.url || attachment.storagePath)) {
+    row.attachment = {
+      url: attachment.url || '',
+      name: attachment.name || '',
+      mime: attachment.mime || '',
+      storagePath: attachment.storagePath || '',
+    };
+    row.previewReady = true;
+  }
+  return row;
+}
+
 /**
  * Kompakt listesammendrag for AsyncStorage (invoiceStorage).
  * Kun felt som fakturalisten trenger. Linjer, EHF, bilag, kontoer og source.values
@@ -387,6 +416,7 @@ export function toInvoiceCacheRow(invoice) {
     sent: row.sent,
     sentAt: row.sentAt,
     paidAt: row.paidAt,
+    exportStatus: row.exportStatus,
     kid: row.kid,
     vatCode: row.vatCode,
     deliveryMethod: row.deliveryMethod,

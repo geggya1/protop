@@ -25,12 +25,19 @@ export function canSwitchTimesheetPerson({ personal = false, locked = false, man
   return !personal && !locked && !!manager;
 }
 
-/** Steg 1 før timeliste/timesaldo: leder må velge person først. */
+/**
+ * Steg 1 før timeliste/timesaldo: leder må velge person først.
+ * `chosen === false` holder steget oppe selv om en id allerede er satt,
+ * så timesaldo ikke kan hoppe rett til tabellen.
+ */
 export function needsTimesheetPersonStep({
   personal = false,
   locked = false,
   manager = false,
   employeeId = '',
+  chosen = null,
 } = {}) {
-  return canSwitchTimesheetPerson({ personal, locked, manager }) && !String(employeeId || '').trim();
+  if (!canSwitchTimesheetPerson({ personal, locked, manager })) return false;
+  if (chosen != null) return !chosen;
+  return !String(employeeId || '').trim();
 }

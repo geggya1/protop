@@ -26,6 +26,9 @@ import {
   assert.equal(needsTimesheetPersonStep({ manager: true, employeeId: 'e1' }), false);
   assert.equal(needsTimesheetPersonStep({ manager: true, locked: true }), false);
   assert.equal(needsTimesheetPersonStep({ manager: false }), false);
+  assert.equal(needsTimesheetPersonStep({ manager: true, employeeId: 'e1', chosen: false }), true);
+  assert.equal(needsTimesheetPersonStep({ manager: true, chosen: true }), false);
+  assert.equal(needsTimesheetPersonStep({ manager: true, locked: true, chosen: false }), false);
   assert.equal(timesheetCrumb({ personal: true, companyLabel: 'CONSULT1 AS' }), 'Timeliste · CONSULT1 AS');
   assert.equal(timesheetCrumb({ locked: true }), 'Ansatte / Timeføring');
   assert.equal(timesheetCrumb({}), 'Arbeid / Timeføring');

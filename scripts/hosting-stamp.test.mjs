@@ -12,7 +12,7 @@ assert.match(busted, /src="\/other\.js"/);
 assert.equal(bustExpoAssetUrls(busted, 'next'), busted.replaceAll('sha%2F1', 'next'));
 
 const script = buildRefreshScript('abc');
-assert.match(script, /protop_build_reload_once/);
+assert.match(script, /protop_build_reload_target/);
 assert.match(script, /"abc"/);
 assert.doesNotMatch(script, /location\.reload\(\)\}catch/);
 

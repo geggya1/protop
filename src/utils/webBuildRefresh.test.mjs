@@ -26,8 +26,10 @@ const memory = () => {
   };
 };
 const first = memory();
-assert.strictEqual(claimBuildReload(first), true);
-assert.strictEqual(claimBuildReload(first), false);
-assert.strictEqual(claimBuildReload(null), false);
+assert.strictEqual(claimBuildReload(first, 'build-a'), true);
+assert.strictEqual(claimBuildReload(first, 'build-a'), false);
+assert.strictEqual(claimBuildReload(first, 'build-b'), true);
+assert.strictEqual(claimBuildReload(first, 'build-b'), false);
+assert.strictEqual(claimBuildReload(null, 'build-a'), false);
 
 console.log('webBuildRefresh: ok');

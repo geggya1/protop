@@ -360,7 +360,7 @@ export default function App() {
       window.localStorage.setItem(key, APP_BUILD_ID);
       // Never store the remote id here. That ping-pongs with the check below
       // when a cached bundle cannot change its own APP_BUILD_ID.
-      if (claimBuildReload(window.sessionStorage)) {
+      if (claimBuildReload(window.sessionStorage, APP_BUILD_ID)) {
         window.location.reload();
         return undefined;
       }
@@ -379,7 +379,7 @@ export default function App() {
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && shouldReloadForRemoteBuild(APP_BUILD_ID, data?.id)) {
-          if (claimBuildReload(window.sessionStorage)) window.location.reload();
+          if (claimBuildReload(window.sessionStorage, data.id)) window.location.reload();
         }
       } catch { /* metro / offline */ }
     };

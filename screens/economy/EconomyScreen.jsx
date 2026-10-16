@@ -26,7 +26,7 @@ import { supplierFromCompany } from '../../src/economy/ehf.js';
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, members, requestShellTab, shellIntent, isAdmin,
+    family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin,
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
@@ -178,6 +178,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         supplier={supplierFromCompany(company, family?.name)}
         onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
         onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
+        openInvoiceId={shellIntent?.type === 'openInvoice' ? shellIntent.invoiceId : ''}
+        onConsumeIntent={clearShellIntent}
       />
     );
   }

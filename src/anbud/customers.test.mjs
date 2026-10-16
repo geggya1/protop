@@ -507,6 +507,7 @@ const activeRoster = agreementResponsiblePeople(
 );
 assert.deepEqual(activeRoster.map((row) => row.uid).sort(), ['e1', 'e3', 'm1']);
 assert.equal(isActiveEmployee({ company: { status: 'inactive' } }), false);
+assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
 
 const doubledRoster = agreementResponsiblePeople(
   [
@@ -546,6 +547,11 @@ assert.equal(doubledRoster.some((row) => row.name.includes('Ove Ove')), false);
 assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
 assert.equal(personPicker.includes('people.slice'), false);
 assert.match(personPicker, /agreement-person-results/);
+assert.match(personPicker, /pencil/);
 assert.equal(personPicker.includes('Ansatte vises ikke før det er et søk'), false);
+const ownerPicker = readFileSync(new URL('../../screens/anbud/OwnerPicker.jsx', import.meta.url), 'utf8');
+assert.match(ownerPicker, /AgreementPersonField/);
+assert.equal(ownerPicker.includes('Velg blant ansatte og medlemmer'), false);
+assert.equal(ownerPicker.includes('people.map'), false);
 
 console.log('customers.test.mjs: ok');

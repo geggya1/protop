@@ -16,8 +16,10 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
+import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import { linkProject } from '../../src/anbud/lifecycle';
+import { linkProject, updateContractDetails } from '../../src/anbud/lifecycle';
+import { watchInvoices } from '../../src/economy/invoiceStorage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
@@ -50,6 +52,14 @@ import {
   normalizePricingModel,
   pricingModelLabel,
 } from '../../src/project/projectFields';
+import {
+  applyAgreementToProjects,
+  mergeAgreementPatch,
+  parseHonorarAmount,
+  projectAgreementGap,
+  projectFillFromAgreement,
+  resolveProjectAgreement,
+} from '../../src/project/projectCrossView';
 import {
   matchesStatusFilter,
   PROJECT_STATUS_FILTERS,
@@ -265,6 +275,7 @@ export default function ProjectWorkScreen() {
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
   const [employees, setEmployees] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(() => (cachedProjects?.projects?.length || 0) > 0);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -344,6 +355,14 @@ export default function ProjectWorkScreen() {
     return watchEmployees(familyId, setEmployees, () => setEmployees([]));
   }, [familyId]);
 
+  useEffect(() => {
+    if (!familyId) {
+      setInvoices([]);
+      return undefined;
+    }
+    return watchInvoices(familyId, setInvoices, () => setInvoices([]));
+  }, [familyId]);
+
   const unlinkedProjectKey = useMemo(() => (
     (state.projects || [])
       .filter((row) => (
@@ -366,6 +385,32 @@ export default function ProjectWorkScreen() {
     setState(result.state);
     setNote(`${result.linked} prosjekt koblet til kunde automatisk.`);
   }, [ready, familyId, anbud?.customers, unlinkedProjectKey]);
+
+  useEffect(() => {
+    if (!ready || !allowSave.current || !familyId) return;
+    const contracts = anbud?.contracts || [];
+    if (!contracts.length) return;
+    const customers = anbud?.customers || [];
+    const result = applyAgreementToProjects(state, contracts, customers);
+    if (!result.changed) return;
+    setState(result.state);
+    if (selectedId && view === 'edit') {
+      const project = result.state.projects.find((row) => row.id === selectedId);
+      const { contract } = resolveProjectAgreement(project, contracts);
+      const customer = customers.find((row) => row.id === (project?.customerId || contract?.customerId)) || null;
+      if (project && contract) {
+        setForm((current) => {
+          const patch = projectFillFromAgreement(current, contract, customer);
+          const next = mergeAgreementPatch(current, patch);
+          if (next.feeEstimate != null && next.feeEstimate !== '') next.feeEstimate = String(next.feeEstimate);
+          return next;
+        });
+      }
+    }
+    setNote(result.changed === 1
+      ? 'Prosjektet er oppdatert med opplysninger fra avtalen.'
+      : `${result.changed} prosjekter er oppdatert med opplysninger fra avtalen.`);
+  }, [ready, familyId, anbud, state, selectedId, view]);
 
   useEffect(() => {
     if (shellIntent?.type === 'openProject' && shellIntent.projectId) {
@@ -436,11 +481,21 @@ export default function ProjectWorkScreen() {
     customerOf: (project) => customers.find((row) => row.id === project.customerId) || null,
     pricingLabel: (project) => pricingModelLabel(project.pricingModel) || '',
     agreementText: (project) => {
-      const contract = contracts.find((row) => row.id === project.contractId);
-      const framework = contracts.find((row) => row.id === project.frameworkAgreementId);
+      const { contract, framework } = resolveProjectAgreement(project, contracts);
+      if (contract && framework && contract.id !== framework.id) {
+        return `${contract.title} · ${framework.title}`;
+      }
       if (contract) return contract.title || kindLabel(contract.kind) || 'Avtale';
       if (framework) return framework.title || 'Rammeavtale';
       return projectMissingAgreement(project) ? 'Mangler' : '';
+    },
+    feeText: (project) => {
+      if (project?.feeEstimate === 0 || project?.feeEstimate) return String(project.feeEstimate);
+      const { contract } = resolveProjectAgreement(project, contracts);
+      const amount = parseHonorarAmount(contract?.fields?.honorar);
+      if (amount != null) return String(amount);
+      if (Number(contract?.value) > 0) return String(contract.value);
+      return contract?.fields?.honorar || '';
     },
   }), [customers, contracts]);
 
@@ -720,25 +775,58 @@ export default function ProjectWorkScreen() {
       patchForm('contractId', '');
       return;
     }
-    setForm((current) => ({
-      ...current,
-      contractId: contract.id,
-      agreementKind: contract.kind === 'avrop' ? 'avrop' : (contract.kind === 'rammeavtale' ? 'rammeavtale' : (current.agreementKind || 'oppdrag')),
-      frameworkAgreementId: contract.kind === 'avrop'
-        ? (contract.parentId || current.frameworkAgreementId)
-        : (contract.kind === 'rammeavtale' ? contract.id : current.frameworkAgreementId),
-      customerId: contract.customerId || current.customerId,
-      client: current.client || contract.buyer || '',
-    }));
+    const customer = customers.find((row) => row.id === (contract.customerId || form.customerId)) || null;
+    setForm((current) => {
+      const patch = projectFillFromAgreement({ ...current, contractId: '' }, contract, customer);
+      const next = mergeAgreementPatch(current, patch);
+      return {
+        ...next,
+        contractId: contract.id,
+        agreementKind: contract.kind === 'avrop'
+          ? 'avrop'
+          : (contract.kind === 'rammeavtale' ? 'rammeavtale' : (current.agreementKind || 'oppdrag')),
+        frameworkAgreementId: contract.kind === 'avrop'
+          ? (contract.parentId || next.frameworkAgreementId)
+          : (contract.kind === 'rammeavtale' ? contract.id : next.frameworkAgreementId),
+        feeEstimate: next.feeEstimate == null || next.feeEstimate === '' ? '' : String(next.feeEstimate),
+      };
+    });
+  }
+
+  function openAgreement(contractId) {
+    if (!contractId) return;
+    requestShellTab?.('kontrakt', null, { type: 'openContract', contractId });
+  }
+
+  function openInvoice(invoiceId) {
+    if (!invoiceId) return;
+    requestShellTab?.('okonomi', 'faktura', { type: 'openInvoice', invoiceId });
   }
 
   async function syncContractLink(projectId, contractId, previousContractId) {
-    if (!familyId || !contractId || contractId === previousContractId) return;
+    if (!familyId || !projectId || contractId === previousContractId) return;
     try {
-      const loaded = await loadAnbudState(familyId);
-      const linked = linkProject(loaded, contractId, projectId);
-      if (linked.ok) {
-        const saved = await saveAnbudState(linked.state, familyId);
+      let loaded = await loadAnbudState(familyId);
+      let changed = false;
+      if (previousContractId && previousContractId !== contractId) {
+        const previous = (loaded.contracts || []).find((row) => row.id === previousContractId);
+        if (previous?.projectId === projectId) {
+          const cleared = updateContractDetails(loaded, previousContractId, { projectId: '' });
+          if (cleared.ok) {
+            loaded = cleared.state;
+            changed = true;
+          }
+        }
+      }
+      if (contractId) {
+        const linked = linkProject(loaded, contractId, projectId);
+        if (linked.ok) {
+          loaded = linked.state;
+          changed = true;
+        }
+      }
+      if (changed) {
+        const saved = await saveAnbudState(loaded, familyId);
         setAnbud(saved);
       }
     } catch {
@@ -822,8 +910,8 @@ export default function ProjectWorkScreen() {
       setError(result.error);
       return;
     }
-    setState(result.state);
     await syncContractLink(selected.id, payload.contractId, previous);
+    setState(result.state);
     setNote('Prosjektet er lagret.');
     showSaveToast('Prosjektet er lagret.');
     setView('list');
@@ -1313,6 +1401,17 @@ export default function ProjectWorkScreen() {
         noneLabel="Ingen avtale"
         onChange={(id) => chooseAgreement(contracts.find((row) => row.id === id) || null)}
       />
+      {form.contractId ? (
+        <TouchableOpacity
+          nativeID="project-form-agreement-open"
+          onPress={() => openAgreement(form.contractId)}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>
+            Åpne {contracts.find((row) => row.id === form.contractId)?.title || 'avtalen'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
       {!form.contractId ? (
         <View style={styles.warnRow}>
           <Ionicons name="warning" size={18} color={colors.danger || '#b42318'} />
@@ -1690,9 +1789,11 @@ export default function ProjectWorkScreen() {
             {visibleProjects.map((item, index) => {
               if (isPhone) {
                 const customer = columnHelpers.customerOf(item);
+                const resolved = resolveProjectAgreement(item, contracts);
                 const lines = projectPhoneLines(item, {
                   customerName: customer?.name || item.client || '',
-                  missingAgreement: projectMissingAgreement(item),
+                  missingAgreement: projectAgreementGap(item, contracts),
+                  agreementTitle: resolved.contract?.title || '',
                 });
                 return (
                   <ProjectPhoneRow
@@ -1704,10 +1805,12 @@ export default function ProjectWorkScreen() {
                     checked={checkedIds.has(item.id)}
                     onToggle={() => toggleChecked(item.id)}
                     onPress={() => openDetail(item)}
+                    onOpenAgreement={() => openAgreement(resolved.contract?.id)}
                   />
                 );
               }
-              const missing = projectMissingAgreement(item);
+              const missing = projectAgreementGap(item, contracts);
+              const linked = resolveProjectAgreement(item, contracts);
               const danger = colors.danger || '#b42318';
               const checked = checkedIds.has(item.id);
               return (
@@ -1730,10 +1833,7 @@ export default function ProjectWorkScreen() {
                       />
                     </TouchableOpacity>
                   ) : null}
-                  <TouchableOpacity
-                    onPress={() => openDetail(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${item.number} ${item.name}`}
+                  <View
                     style={[styles.rowBody, isPhone && styles.rowBodyPhone]}
                   >
                     {listColumns.map((col) => {
@@ -1741,46 +1841,63 @@ export default function ProjectWorkScreen() {
                       const value = textOrDash(raw);
                       if (col.key === 'agreement') {
                         return (
-                          <View key={col.key} style={[styles.cell, colWidth(col, isPhone), styles.agreeCell]}>
+                          <TouchableOpacity
+                            key={col.key}
+                            onPress={() => {
+                              if (linked.contract) openAgreement(linked.contract.id);
+                              else openDetail(item);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={linked.contract ? `Åpne avtalen ${value}` : 'Avtale mangler'}
+                            style={[styles.cell, colWidth(col, isPhone), styles.agreeCell]}
+                          >
                             {missing ? (
                               <Ionicons name="warning" size={16} color={danger} accessibilityLabel="Avtale mangler" />
                             ) : (
                               <Ionicons name="checkmark-circle" size={16} color={colors.brand} accessibilityLabel="Avtale koblet" />
                             )}
-                            <Text style={{ color: missing ? danger : colors.ink, flex: 1 }} numberOfLines={2}>
+                            <Text style={{ color: linked.contract ? colors.brand : (missing ? danger : colors.ink), flex: 1 }} numberOfLines={2}>
                               {isPhone ? `Avtale ${value}` : value}
                             </Text>
-                          </View>
+                          </TouchableOpacity>
                         );
                       }
                       if (col.key === 'name') {
                         return (
-                          <View key={col.key} style={[styles.cell, colWidth(col, isPhone)]}>
+                          <TouchableOpacity
+                            key={col.key}
+                            onPress={() => openDetail(item)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${item.number} ${item.name}`}
+                            style={[styles.cell, colWidth(col, isPhone)]}
+                          >
                             <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
                             {isPhone ? (
                               <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
                                 {agreementLabel(item)}
                               </Text>
                             ) : null}
-                          </View>
+                          </TouchableOpacity>
                         );
                       }
                       const phoneLabel = `${col.label} ${value}`;
                       return (
-                        <Text
+                        <TouchableOpacity
                           key={col.key}
-                          style={[
-                            styles.cell,
-                            colWidth(col, isPhone),
-                            { color: colors.ink, fontWeight: col.key === 'number' ? '700' : '400' },
-                          ]}
-                          numberOfLines={2}
+                          onPress={() => openDetail(item)}
+                          accessibilityRole="button"
+                          style={[styles.cell, colWidth(col, isPhone)]}
                         >
-                          {isPhone ? phoneLabel : value}
-                        </Text>
+                          <Text
+                            style={{ color: colors.ink, fontWeight: col.key === 'number' ? '700' : '400' }}
+                            numberOfLines={2}
+                          >
+                            {isPhone ? phoneLabel : value}
+                          </Text>
+                        </TouchableOpacity>
                       );
                     })}
-                  </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
@@ -1797,6 +1914,9 @@ export default function ProjectWorkScreen() {
           state={state}
           project={selected}
           employees={employees}
+          contracts={contracts}
+          customers={customers}
+          invoices={invoices}
           colors={colors}
           isAdmin={isAdmin}
           uid={uid}
@@ -1809,6 +1929,10 @@ export default function ProjectWorkScreen() {
             setView('list');
             setSelectedId('');
           }}
+          onOpenAgreement={openAgreement}
+          onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+          onOpenInvoice={openInvoice}
+          onOpenIndex={(contract) => requestShellTab?.('okonomi', 'indeks', openIndexIntentFromContract(contract))}
         />
       </View>
     );

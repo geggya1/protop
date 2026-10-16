@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -20,14 +21,16 @@ import {
   updateProject,
   updateProjectMember,
   projectTimeSummary,
+  projectEconomy,
   activityTimeSummary,
   setTimeEntryStatus,
   ensureMainActivity,
 } from '../../src/project/engine';
+import { projectCrossView } from '../../src/project/projectCrossView.js';
 import { defaultWorkSettings, PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel, PRICING_MODELS } from '../../src/project/projectFields.js';
-import { formatDate } from '../../src/economy/invoices.js';
+import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
@@ -68,6 +71,148 @@ function CheckRow({ label, value, onChange, colors }) {
   );
 }
 
+function openExternal(url) {
+  const href = String(url || '').trim();
+  if (!href) return;
+  if (typeof window !== 'undefined' && typeof window.open === 'function') {
+    window.open(href, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  Linking.openURL(href).catch(() => {});
+}
+
+function AgreementPanel({
+  cross,
+  colors,
+  onOpenAgreement,
+  onOpenCustomer,
+  onOpenInvoice,
+  onOpenIndex,
+  customerId,
+}) {
+  const contract = cross.contract;
+  const feeLabel = cross.honorarText
+    || (cross.honorarAmount != null ? formatMoney(cross.honorarAmount) : '—');
+  return (
+    <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginBottom: 12 }]}>
+      <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Avtale, honorar og faktura</Text>
+      <TouchableOpacity
+        nativeID="project-agreement-open"
+        onPress={() => contract && onOpenAgreement?.(contract.id)}
+        disabled={!contract}
+        accessibilityRole="button"
+        accessibilityLabel={contract ? `Åpne avtalen ${contract.title}` : 'Ingen avtale koblet'}
+        style={[styles.agreementBtn, { borderColor: contract ? colors.brand : (colors.danger || '#b42318') }]}
+      >
+        <Ionicons name={contract ? 'document-text' : 'warning'} size={18} color={contract ? colors.brand : (colors.danger || '#b42318')} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Avtale</Text>
+          <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
+            {contract ? contract.title : 'Ingen avtale er koblet til prosjektet'}
+          </Text>
+        </View>
+        {contract ? <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne</Text> : null}
+      </TouchableOpacity>
+
+      <View style={styles.kpiGrid}>
+        <View nativeID="project-agreement-fee" style={styles.kpiCell}>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Honorar avtale</Text>
+          <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{feeLabel}</Text>
+        </View>
+        <Kpi label="Kontraktssum" value={contract ? formatMoney(cross.contractValue) : '—'} colors={colors} />
+        <View nativeID="project-invoiced-amount" style={styles.kpiCell}>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Fakturert eks. mva</Text>
+          <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{formatMoney(cross.totals.amountExVat)}</Text>
+        </View>
+        <Kpi label="Utestående" value={formatMoney(cross.totals.outstanding)} colors={colors} />
+      </View>
+
+      {cross.facts.length ? (
+        <View style={[styles.infoGrid, { marginTop: 8 }]}>
+          {cross.facts.map((row) => (
+            <Info key={row.label} label={row.label} value={row.value} colors={colors} />
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.rowWrap}>
+        {customerId ? (
+          <TouchableOpacity onPress={() => onOpenCustomer?.(customerId)} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne kunde</Text>
+          </TouchableOpacity>
+        ) : null}
+        {contract ? (
+          <TouchableOpacity onPress={() => onOpenIndex?.(contract)} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne indeksregulering</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <Text nativeID="project-invoice-list" style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>
+        Fakturaer ({cross.invoices.length})
+      </Text>
+      {cross.invoices.map((row) => (
+        <TouchableOpacity
+          key={row.id}
+          onPress={() => onOpenInvoice?.(row.id)}
+          accessibilityRole="button"
+          style={[styles.invoiceRow, { borderColor: colors.line }]}
+        >
+          <Text style={{ color: colors.ink, fontWeight: '600', width: 88 }}>{row.invoiceNumber}</Text>
+          <Text style={{ color: colors.muted, width: 88 }}>{formatDate(row.invoiceDate)}</Text>
+          <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{row.customerName || row.status}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatMoney(row.amountExVat)}</Text>
+        </TouchableOpacity>
+      ))}
+      {!cross.invoices.length ? (
+        <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen fakturaer er koblet til prosjektet.</Text>
+      ) : null}
+
+      {cross.documents.length ? (
+        <>
+          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Dokumenter</Text>
+          {cross.documents.map((doc) => (
+            <TouchableOpacity
+              key={doc.id}
+              onPress={() => openExternal(doc.url)}
+              disabled={!doc.url}
+              accessibilityRole="button"
+              style={styles.docLine}
+            >
+              <Ionicons name="document-outline" size={16} color={colors.muted} />
+              <Text style={{ color: doc.url ? colors.brand : colors.ink, flex: 1 }} numberOfLines={2}>
+                {doc.name}{doc.source === 'avtale' ? ' · avtale' : doc.source === 'tilbud' ? ' · tilbud' : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </>
+      ) : null}
+
+      {cross.milestones.length ? (
+        <>
+          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Milepæler og leveranser</Text>
+          {cross.milestones.map((row) => (
+            <Text key={row.id || row.title} style={{ color: colors.ink, fontSize: 13, marginBottom: 4 }}>
+              {row.kind}: {row.title}{row.due ? ` · ${formatDate(row.due)}` : ''}
+            </Text>
+          ))}
+        </>
+      ) : null}
+
+      {cross.options.length ? (
+        <>
+          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Opsjoner</Text>
+          {cross.options.map((row) => (
+            <Text key={row.id || row.title} style={{ color: colors.ink, fontSize: 13, marginBottom: 4 }}>
+              {row.title}{row.exercised ? ' · utløst' : ''}
+            </Text>
+          ))}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * Oppgradert prosjektvisning med faner (Moment-inspirert).
  * onChangeState(nextState) / onEditForm() for å hoppe til klassisk redigering.
@@ -76,12 +221,19 @@ export default function ProjectDetail({
   state,
   project,
   employees = [],
+  contracts = [],
+  customers = [],
+  invoices = [],
   colors,
   isAdmin,
   uid,
   onChangeState,
   onEditForm,
   onBack,
+  onOpenAgreement,
+  onOpenCustomer,
+  onOpenInvoice,
+  onOpenIndex,
 }) {
   const [tab, setTab] = useState('hovedside');
   const [memberOpen, setMemberOpen] = useState(false);
@@ -107,6 +259,18 @@ export default function ProjectDetail({
     [state.timeEntries, project.id],
   );
   const summary = useMemo(() => projectTimeSummary(state, project.id), [state, project.id]);
+  const customer = useMemo(
+    () => customers.find((row) => row.id === project.customerId) || null,
+    [customers, project.customerId],
+  );
+  const cross = useMemo(() => projectCrossView({
+    project,
+    contracts,
+    customer,
+    invoices,
+    economy: projectEconomy(state, project.id),
+    time: summary,
+  }), [project, contracts, customer, invoices, state, summary]);
   const settings = defaultWorkSettings(project.workSettings);
 
   const availableEmployees = employees.filter((row) => (
@@ -255,6 +419,15 @@ export default function ProjectDetail({
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
       <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
+        <AgreementPanel
+          cross={cross}
+          colors={colors}
+          customerId={customer?.id || project.customerId}
+          onOpenAgreement={onOpenAgreement}
+          onOpenCustomer={onOpenCustomer}
+          onOpenInvoice={onOpenInvoice}
+          onOpenIndex={onOpenIndex}
+        />
         {tab === 'hovedside' ? (
           <View style={styles.columns}>
             <View style={[styles.mainCol, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -698,6 +871,25 @@ const styles = StyleSheet.create({
     marginRight: 6,
     marginTop: 6,
   },
+  agreementBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  invoiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+  },
+  docLine: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   primaryBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   ghostBtn: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   modalBg: {

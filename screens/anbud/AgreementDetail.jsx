@@ -44,6 +44,7 @@ import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
+import AgreementAssigneesField from './AgreementAssigneesField';
 import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
@@ -167,6 +168,7 @@ export default function AgreementDetail({
   customers = [],
   projects = [],
   people = [],
+  employees = [],
   colors,
   companyId,
   onCommit,
@@ -321,9 +323,10 @@ export default function AgreementDetail({
       leaderName: source.leaderName,
       leaderEmail: source.leaderEmail,
       leaderPhone: source.leaderPhone,
-      resourceName: source.resourceName,
-      resourceEmail: source.resourceEmail,
-      resourcePhone: source.resourcePhone,
+      resourceName: source.assignees?.[0]?.name || source.resourceName,
+      resourceEmail: source.assignees?.[0]?.email || source.resourceEmail,
+      resourcePhone: source.assignees?.[0]?.phone || source.resourcePhone,
+      assignees: source.assignees || [],
       honorarForm: source.honorarForm,
       biomkostninger: source.biomkostninger,
       paymentTerms: source.paymentTerms,
@@ -735,9 +738,17 @@ export default function AgreementDetail({
               />
               <EditField colors={colors} label="Oppdragsleder e-post" value={form.leaderEmail} onChange={(leaderEmail) => patch({ leaderEmail })} keyboardType="email-address" />
               <EditField colors={colors} label="Oppdragsleder telefon" value={form.leaderPhone} onChange={(leaderPhone) => patch({ leaderPhone })} keyboardType="phone-pad" />
-              <EditField colors={colors} label="Tildelt ressurs" value={form.resourceName} onChange={(resourceName) => patch({ resourceName })} />
-              <EditField colors={colors} label="Ressurs e-post" value={form.resourceEmail} onChange={(resourceEmail) => patch({ resourceEmail })} keyboardType="email-address" />
-              <EditField colors={colors} label="Ressurs telefon" value={form.resourcePhone} onChange={(resourcePhone) => patch({ resourcePhone })} keyboardType="phone-pad" />
+              <AgreementAssigneesField
+                colors={colors}
+                employees={employees}
+                assignees={form.assignees || []}
+                onChange={(assignees) => patch({
+                  assignees,
+                  resourceName: assignees[0]?.name || '',
+                  resourceEmail: assignees[0]?.email || '',
+                  resourcePhone: assignees[0]?.phone || '',
+                })}
+              />
             </View>
 
             <Text style={styles.groupTitle}>Honorar og regulering</Text>
@@ -822,6 +833,7 @@ export default function AgreementDetail({
               colors={colors}
               people={people}
               ownerUid={form.ownerUid}
+              ownerName={form.ownerName}
               label="Ansvarlig for avtalen"
               onSelect={selectOwner}
             />
@@ -891,7 +903,7 @@ export default function AgreementDetail({
                 { label: 'Oppdragsleder', value: contract.fields?.leaderName },
                 { label: 'Oppdragsleder e-post', value: contract.fields?.leaderEmail },
                 { label: 'Oppdragsleder telefon', value: contract.fields?.leaderPhone },
-                { label: 'Tildelt ressurs', value: contract.fields?.resourceName },
+                { label: 'Oppfølging', value: (contract.fields?.assignees || []).map((row) => row.name).filter(Boolean).join(', ') || contract.fields?.resourceName },
               ]}
             />
             <FieldGroup
@@ -954,6 +966,7 @@ export default function AgreementDetail({
               colors={colors}
               people={people}
               ownerUid={contract.ownerUid || customer?.ownerUid || ''}
+              ownerName={contract.ownerName || customer?.ownerName || ''}
               label="Ansvarlig for avtalen"
               onSelect={selectOwner}
             />

@@ -199,7 +199,8 @@ const welcomeSrc = readFileSync(join(ROOT, 'components/ModuleWelcomeModal.jsx'),
 assert.match(welcomeSrc, /PAGE_ART_SCALE/, 'welcome art uses the same 40% scale');
 assert.match(welcomeSrc, /artFrame:[\s\S]*overflow: 'hidden'/, 'welcome art can crop inside its frame');
 assert.match(frameSrc, /PAGE_ART_SCALE/, 'bottom page art uses the same 40% scale');
-assert.match(heroSrc, /marginRight: ART_INSET/, 'heading art keeps a small gap at the right edge');
+assert.match(heroSrc, /artWrap: \{[\s\S]*?marginRight: ART_INSET/, 'tablet and desktop heading art keeps a small gap at the right edge');
+assert.match(heroSrc, /artWrapPhone:\s*\{[^}]*marginRight:\s*0/, 'phone heading art sits on the right margin');
 assert.match(heroSrc, /resizeMode="contain"/, 'native hero art uses contain');
 assert.match(heroSrc, /force = false/, 'force prop remains for SchoolPageLayout and similar stack screens');
 assert.match(heroSrc, /flush = false/, 'flush prop remains for shell/school bands');
@@ -207,7 +208,8 @@ assert.match(heroSrc, /chrome = false/, 'chrome prop flattens the phone band int
 assert.match(heroSrc, /heroChromePhone/, 'phone chrome band flattens top radius and sits in the header');
 assert.match(heroSrc, /borderTopLeftRadius: 0/, 'phone chrome band has no top radius');
 assert.match(heroSrc, /copyPhoneChrome/, 'phone chrome copy stays compact in the title slot');
-assert.match(heroSrc, /artWrapPhoneChrome/, 'phone chrome art stays in the title\/add-button row');
+assert.match(heroSrc, /artWrapPhoneChrome:\s*\{[^}]*marginRight:\s*0/, 'phone chrome art is flush with the right margin');
+assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art anchors to the right edge');
 
 const shopSrc = readFileSync(join(ROOT, 'screens/v2/ShoppingListScreen.jsx'), 'utf8');
 assert.match(shopSrc, /useShowModuleHero/, 'shopping list reads the shared heading flag');

@@ -202,13 +202,7 @@ export function healOrphanProjectRefs(state, idRemap = null) {
           seen.set(k, row);
           continue;
         }
-        seen.set(k, {
-          ...prev,
-          ...row,
-          starred: !!(prev.starred || row.starred),
-          active: !(prev.active === false && row.active === false),
-          role: text(row.role) || text(prev.role) || 'Prosjektmedlem',
-        });
+        seen.set(k, collapseMemberRows(prev, row));
       }
       next.members = [...seen.values()];
       continue;
@@ -273,6 +267,62 @@ function normalizeActivityRow(row) {
   };
 }
 
+function memberUpdatedMs(row) {
+  const t = Date.parse(row?.updatedAt || '');
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * Slå sammen to medlemsrader for samme ansatt og prosjekt.
+ * Uten updatedAt beholdes stjerne (OR) slik at import ikke mister merkingen.
+ * Med updatedAt vinner nyeste rad, også når stjernen er skrudd av.
+ */
+function collapseMemberRows(prev, row) {
+  const prevMs = memberUpdatedMs(prev);
+  const rowMs = memberUpdatedMs(row);
+  const hasStamp = prevMs > 0 || rowMs > 0;
+  const newer = rowMs >= prevMs ? row : prev;
+  const older = newer === row ? prev : row;
+  const updatedAt = text(newer.updatedAt) || text(older.updatedAt);
+  return {
+    ...older,
+    ...newer,
+    starred: hasStamp ? !!newer.starred : !!(prev.starred || row.starred),
+    active: !(prev.active === false && row.active === false),
+    role: text(newer.role) || text(older.role) || 'Prosjektmedlem',
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+}
+
+function memberKey(row) {
+  return `${text(row?.projectId)}|${text(row?.employeeId)}`;
+}
+
+/**
+ * Foretrekk medlemsraden med nyest updatedAt.
+ * Brukes når timeinnlasting har et eldre øyeblikksbilde enn en lokal avhuking.
+ */
+export function mergeMemberLists(preferred, incoming) {
+  const map = new Map();
+  const consider = (row, { preferOnTie = false } = {}) => {
+    if (!row?.projectId || !row?.employeeId) return;
+    const key = memberKey(row);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, row);
+      return;
+    }
+    const tPrev = memberUpdatedMs(prev);
+    const tRow = memberUpdatedMs(row);
+    if (tRow > tPrev || (preferOnTie && tRow === tPrev && tRow > 0)) {
+      map.set(key, collapseMemberRows(prev, row));
+    }
+  };
+  for (const row of incoming || []) consider(row);
+  for (const row of preferred || []) consider(row, { preferOnTie: true });
+  return [...map.values()];
+}
+
 function normalizeMemberRow(row) {
   if (!row || typeof row !== 'object') return null;
   const employeeId = text(row.employeeId);
@@ -289,6 +339,7 @@ function normalizeMemberRow(row) {
     starred: !!row.starred,
     addedAt: text(row.addedAt) || '',
     addedByUid: text(row.addedByUid),
+    ...(text(row.updatedAt) ? { updatedAt: text(row.updatedAt) } : {}),
   };
 }
 
@@ -1344,6 +1395,7 @@ export function updateProjectMember(state, memberId, patch = {}) {
           starred: patch.starred !== undefined ? !!patch.starred : row.starred,
           employeeName: patch.employeeName !== undefined ? text(patch.employeeName) : row.employeeName,
           photoUrl: patch.photoUrl !== undefined ? text(patch.photoUrl) : row.photoUrl,
+          updatedAt: stamp(),
         }
         : row
     )),

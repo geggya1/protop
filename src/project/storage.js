@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   emptyProjectState,
+  mergeMemberLists,
   mergeProjectStates,
   normalizeProjectState,
 } from './engine.js';
@@ -423,11 +424,15 @@ async function loadStateWithHealedHours(companyId, baseState, hoursOpts) {
   }
   const withHours = await attachTimeEntriesToState(companyId, baseState, hoursOpts);
   const attached = withoutDeletedTimeEntries(companyId, withHours.timeEntries || []);
-  const existing = withoutDeletedTimeEntries(companyId, MEMORY.get(memoryKey(companyId))?.timeEntries || []);
+  const live = MEMORY.get(memoryKey(companyId));
+  const existing = withoutDeletedTimeEntries(companyId, live?.timeEntries || []);
   const mergedAttach = hoursOpts?.all
     ? { ...withHours, timeEntries: attached }
     : { ...withHours, timeEntries: mergeEntryLists(existing, attached) };
-  const stored = putProjectState(mergedAttach, companyId);
+  // Timekall startet med et øyeblikksbilde. Stjerne avhuket mens kallene pågikk
+  // ligger i MEMORY og skal ikke skrives tilbake til gammel medlemsrad.
+  const members = mergeMemberLists(live?.members, mergedAttach.members);
+  const stored = putProjectState({ ...mergedAttach, members }, companyId);
   const healed = stored.timeEntries || [];
   const attachedIds = new Set(attached.map((row) => row.id));
   const healedSlice = hoursOpts?.all

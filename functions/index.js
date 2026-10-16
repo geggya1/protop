@@ -10,6 +10,9 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
 import { sendMail, friendlyMailError } from './mail.js';
+import { buildInviteMessage, escapeHtml } from './inviteMessage.js';
+
+export { buildInviteMessage };
 import { sendSms, friendlySmsError, buildInviteSms, toE164 } from './sms.js';
 import {
   issueEmailVerifyToken,
@@ -92,17 +95,6 @@ const adminAuth = getAuth();
 
 const isValidEmail = isValidEmailSecure;
 
-const isTeamGroupType = (type) => ['team', 'club'].includes(String(type || '').toLowerCase());
-const isClassroomGroupType = (type) => ['class', 'classroom'].includes(String(type || '').toLowerCase());
-
-function escapeHtml(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 async function resolveGroupContext({ familyId, familyName, groupType }) {
   let name = String(familyName || '').trim();
   let type = String(groupType || '').trim();
@@ -123,90 +115,6 @@ async function resolveGroupContext({ familyId, familyName, groupType }) {
     groupType: type || 'family',
   };
 }
-
-export const buildInviteMessage = ({
-  to, name, familyId, familyName, groupType, registerUrl, existingUser = false,
-}) => {
-  const label = familyName || familyId || 'gruppen';
-  const team = isTeamGroupType(groupType);
-  const classroom = isClassroomGroupType(groupType);
-  const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
-  const product = organization ? 'ProTop' : 'Weekplan';
-  const greet = name || (team || classroom || organization ? '' : 'foresatt');
-  const hello = greet ? `Hei ${greet}` : 'Hei';
-  const roleText = team
-    ? `Du er invitert til idrettslaget «${label}» på Weekplan.`
-    : (classroom
-      ? `Du er invitert til klassen «${label}» på Weekplan.`
-      : (organization
-        ? `Du er invitert inn i bedriften «${label}» på ProTop.`
-        : `Du er invitert som foresatt i familien «${label}» på Weekplan.`));
-  const roleHtml = team
-    ? `Du er invitert til idrettslaget <strong>${escapeHtml(label)}</strong> på Weekplan.`
-    : (classroom
-      ? `Du er invitert til klassen <strong>${escapeHtml(label)}</strong> på Weekplan.`
-      : (organization
-        ? `Du er invitert inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
-        : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på Weekplan.`));
-  const accountLine = organization
-    ? 'Du har allerede en ProTop-konto. Godta invitasjonen her'
-    : 'Du har allerede en Weekplan-konto. Godta invitasjonen her';
-  const accountHtml = organization
-    ? 'Du har allerede en ProTop-konto. Åpne lenken under for å godta eller avslå invitasjonen.'
-    : 'Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
-  const signoff = organization ? 'Hilsen ProTop' : 'Hilsen Weekplan-teamet';
-
-  if (existingUser) {
-    return {
-      to,
-      name,
-      subject: `Du er invitert til ${label} på ${product}`,
-      text:
-        `${hello},\n\n` +
-        `${roleText}\n\n` +
-        `${accountLine}: ${registerUrl}\n\n` +
-        signoff,
-      html: `
-    <p>${escapeHtml(hello)},</p>
-    <p>${roleHtml}</p>
-    <p>${accountHtml}</p>
-    <p>
-      <a href="${registerUrl}"
-         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
-                text-decoration:none;display:inline-block">
-        Godta invitasjon
-      </a>
-    </p>
-    <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>
-    <p>Med vennlig hilsen,<br/>${signoff.replace(/^Hilsen /, '')}</p>
-  `,
-    };
-  }
-
-  return {
-    to,
-    name,
-    subject: `Invitasjon til ${label} på ${product}`,
-    text:
-      `${hello},\n\n` +
-      `${roleText}\n\n` +
-      `Registrer deg her: ${registerUrl}\n\n` +
-      signoff,
-    html: `
-    <p>${escapeHtml(hello)},</p>
-    <p>${roleHtml}</p>
-    <p>
-      <a href="${registerUrl}"
-         style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
-                text-decoration:none;display:inline-block">
-        Registrer deg nå
-      </a>
-    </p>
-    <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>
-    <p>Med vennlig hilsen,<br/>${signoff.replace(/^Hilsen /, '')}</p>
-  `,
-  };
-};
 
 export const sendInviteV2 = onCall(
   {

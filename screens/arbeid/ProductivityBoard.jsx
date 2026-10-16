@@ -56,12 +56,31 @@ const MATRIX_W = 48;
 const LABEL_W = 228;
 const NARROW_LABEL_W = 132;
 const ROW_H = 52;
+const POPUP_W = 168;
 
 export function labelColumnWidth(screenWidth) {
   const width = Number(screenWidth) || 0;
   if (width > 0 && width < 520) return NARROW_LABEL_W;
   if (width > 0 && width < 900) return 180;
   return LABEL_W;
+}
+
+/** Liten brikke rett under stolpen, innenfor det som er synlig i ukeløpet. */
+export function editorLeft({ startIndex, trackWeeks, scrollX = 0, paneWidth, popupWidth = POPUP_W }) {
+  const track = Math.max(popupWidth, (Number(trackWeeks) || 1) * MATRIX_W);
+  const pane = Math.max(popupWidth, Number(paneWidth) || popupWidth);
+  const maxLeft = Math.max(0, track - popupWidth);
+  const preferred = Math.max(0, (Number(startIndex) || 0) * MATRIX_W);
+  const visibleLeft = Math.max(0, Number(scrollX) || 0);
+  const visibleRight = visibleLeft + pane;
+  let left = preferred;
+  if (left + popupWidth > visibleRight - 4) left = visibleRight - popupWidth - 4;
+  if (left < visibleLeft) left = visibleLeft;
+  return Math.round(Math.max(0, Math.min(maxLeft, left)));
+}
+
+export function editorTop(barPx) {
+  return 16 + Math.max(0, Number(barPx) || 0) + 2;
 }
 const KINDS = [
   { id: 'alle', label: 'Alle' },
@@ -181,6 +200,8 @@ export default function ProductivityBoard({
   const tracks = useRef({});
   const gridScroll = useRef({});
   const laneLock = useRef(false);
+  const laneScrollRef = useRef(0);
+  const [laneScroll, setLaneScroll] = useState(0);
   const suppressPress = useRef(false);
   const api = useRef({});
 
@@ -462,6 +483,10 @@ export default function ProductivityBoard({
     for (const [key, node] of Object.entries(gridScroll.current)) {
       if (key !== id && node?.scrollTo) node.scrollTo({ x, animated: false });
     }
+    if (Math.abs(x - laneScrollRef.current) > 12) {
+      laneScrollRef.current = x;
+      setLaneScroll(x);
+    }
     setTimeout(() => { laneLock.current = false; }, 40);
   }
 
@@ -627,7 +652,7 @@ export default function ProductivityBoard({
         const now = occupancy(person, allocations, forwardWeeks[0], weekHours);
         const slack = firstSlackWeek(person, allocations, forwardWeeks, weekHours);
         const personAllocs = allocations.filter((row) => row.employeeId === person.id).map(shown);
-        const selectedAlloc = personAllocs.find((alloc) => alloc.id === selectedId) || null;
+        const weekPane = Math.max(POPUP_W, screenWidth - labelW - 48);
         const rows = planningRows({
           projects,
           allocations: personAllocs,
@@ -718,43 +743,6 @@ export default function ProductivityBoard({
                 <Text style={[styles.cardSub, { color: colors.muted }]}>
                   {`Mørkere blå er høyere belastning, i tydelige sprang. Prosenten står over stolpen. Planlagt fravær er oransje og stiplet.`}
                 </Text>
-                {selectedAlloc ? (
-                  <AllocationSettings
-                    colors={colors}
-                    alloc={selectedAlloc}
-                    canWrite={canWrite}
-                    percentDraft={percentDraft}
-                    hoursDraft={hoursDraft}
-                    capacityText={`av ${formatHours(capacityBase(person, selectedAlloc.start))} t`}
-                    onPercent={(value) => {
-                      setPercentDraft(value);
-                      if (parseAmount(value) == null) return;
-                      const base = capacityBase(person, selectedAlloc.start);
-                      const hours = sizeFromPercent(value, base).hoursPerWeek;
-                      setHoursDraft(formatHours(hours));
-                      patch(selectedAlloc.id, { hoursPerWeek: hours });
-                    }}
-                    onHours={(value) => {
-                      setHoursDraft(value);
-                      if (parseAmount(value) == null) return;
-                      const base = capacityBase(person, selectedAlloc.start);
-                      const size = sizeFromHours(value, base);
-                      setPercentDraft(String(size.percent).replace('.', ','));
-                      patch(selectedAlloc.id, { hoursPerWeek: size.hoursPerWeek });
-                    }}
-                    onFrom={(value) => {
-                      const span = spanFromDates(value, allocationInclusiveEnd(selectedAlloc));
-                      if (!span) return;
-                      patch(selectedAlloc.id, { start: span.start, weeks: span.weeks });
-                    }}
-                    onTo={(value) => {
-                      const span = spanFromDates(selectedAlloc.start, value);
-                      if (!span) return;
-                      patch(selectedAlloc.id, { start: span.start, weeks: span.weeks });
-                    }}
-                    onRemove={() => removeSelected(selectedAlloc.id)}
-                  />
-                ) : null}
                 <View style={styles.matrix} nativeID={`produktivitet-matrix-${person.id}`}>
                   <View style={[styles.labelCol, { width: labelW }]} nativeID={`produktivitet-labels-${person.id}`}>
                     <View style={[styles.labelHead, { borderColor: colors.line }]}>
@@ -849,12 +837,13 @@ export default function ProductivityBoard({
                           && paint.employeeId === person.id
                           && paint.projectId === (row.projectId || '')
                           && paint.allocId === (row.allocId || '');
+                        const selectedSeg = segments.find((seg) => seg.alloc.id === selectedId) || null;
                         return (
                           <View
                             key={row.key}
                             nativeID={`produktivitet-row-${person.id}-${row.projectId || row.allocId}`}
                             onPointerDown={(event) => beginPaint(event, person, row)}
-                            style={styles.matrixRow}
+                            style={[styles.matrixRow, selectedSeg && styles.matrixRowActive]}
                           >
                             {weeks.map((key) => {
                               const hours = row.projectId ? (actualByProject.get(row.projectId)?.get(key) || 0) : 0;
@@ -931,6 +920,58 @@ export default function ProductivityBoard({
                                 </View>
                               );
                             })}
+                            {selectedSeg ? (
+                              <AllocationSettings
+                                colors={colors}
+                                alloc={selectedSeg.alloc}
+                                canWrite={canWrite}
+                                percentDraft={percentDraft}
+                                hoursDraft={hoursDraft}
+                                top={editorTop(barHeight(shareOfCapacity(selectedSeg.alloc.hoursPerWeek, capacityBase(person, selectedSeg.alloc.start))))}
+                                left={editorLeft({
+                                  startIndex: selectedSeg.startIndex,
+                                  trackWeeks: weeks.length,
+                                  scrollX: laneScroll,
+                                  paneWidth: weekPane,
+                                })}
+                                caret={Math.max(8, Math.min(
+                                  POPUP_W - 16,
+                                  selectedSeg.startIndex * MATRIX_W - editorLeft({
+                                    startIndex: selectedSeg.startIndex,
+                                    trackWeeks: weeks.length,
+                                    scrollX: laneScroll,
+                                    paneWidth: weekPane,
+                                  }) + 12,
+                                ))}
+                                onPercent={(value) => {
+                                  setPercentDraft(value);
+                                  if (parseAmount(value) == null) return;
+                                  const base = capacityBase(person, selectedSeg.alloc.start);
+                                  const hours = sizeFromPercent(value, base).hoursPerWeek;
+                                  setHoursDraft(formatHours(hours));
+                                  patch(selectedSeg.alloc.id, { hoursPerWeek: hours });
+                                }}
+                                onHours={(value) => {
+                                  setHoursDraft(value);
+                                  if (parseAmount(value) == null) return;
+                                  const base = capacityBase(person, selectedSeg.alloc.start);
+                                  const size = sizeFromHours(value, base);
+                                  setPercentDraft(String(size.percent).replace('.', ','));
+                                  patch(selectedSeg.alloc.id, { hoursPerWeek: size.hoursPerWeek });
+                                }}
+                                onFrom={(value) => {
+                                  const span = spanFromDates(value, allocationInclusiveEnd(selectedSeg.alloc));
+                                  if (!span) return;
+                                  patch(selectedSeg.alloc.id, { start: span.start, weeks: span.weeks });
+                                }}
+                                onTo={(value) => {
+                                  const span = spanFromDates(selectedSeg.alloc.start, value);
+                                  if (!span) return;
+                                  patch(selectedSeg.alloc.id, { start: span.start, weeks: span.weeks });
+                                }}
+                                onRemove={() => removeSelected(selectedSeg.alloc.id)}
+                              />
+                            ) : null}
                             {painting ? (
                               <View
                                 pointerEvents="none"
@@ -951,6 +992,9 @@ export default function ProductivityBoard({
                           </View>
                         );
                       })}
+                      {personAllocs.some((alloc) => alloc.id === selectedId) ? (
+                        <View pointerEvents="none" style={{ height: 36 }} />
+                      ) : null}
                     </View>
                   </ScrollView>
                 </View>
@@ -1019,7 +1063,7 @@ function revealEditor() {
     const rect = node.getBoundingClientRect();
     const visible = rect.height > 0 && rect.top >= 8 && rect.bottom <= window.innerHeight - 8;
     if (visible) return;
-    node.scrollIntoView?.({ block: 'start', inline: 'nearest' });
+    node.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, 30);
 }
 
@@ -1063,7 +1107,9 @@ function AllocationSettings({
   canWrite,
   percentDraft,
   hoursDraft,
-  capacityText,
+  top,
+  left,
+  caret,
   onPercent,
   onHours,
   onFrom,
@@ -1073,11 +1119,43 @@ function AllocationSettings({
   return (
     <View
       nativeID="produktivitet-editor"
+      pointerEvents="auto"
       onPointerDown={(event) => event?.stopPropagation?.()}
-      style={[styles.editor, { borderColor: colors.line, backgroundColor: colors.card || '#ffffff' }]}
+      style={[
+        styles.editor,
+        {
+          top,
+          left,
+          borderColor: colors.line,
+          backgroundColor: colors.card || '#ffffff',
+        },
+      ]}
     >
-      <View style={styles.editorHead}>
-        <Text numberOfLines={2} style={[styles.editorTitle, { color: colors.ink }]}>{alloc.name}</Text>
+      <View
+        pointerEvents="none"
+        style={[styles.caret, { left: caret, borderColor: colors.line, backgroundColor: colors.card || '#ffffff' }]}
+      />
+      <View style={styles.editorLine}>
+        <TextInput
+          value={percentDraft}
+          editable={canWrite}
+          onChangeText={onPercent}
+          keyboardType="decimal-pad"
+          nativeID="produktivitet-percent"
+          accessibilityLabel="Prosent"
+          style={[styles.miniInput, { color: colors.ink, borderColor: colors.line }]}
+        />
+        <Text style={[styles.miniSuffix, { color: colors.muted }]}>%</Text>
+        <TextInput
+          value={hoursDraft}
+          editable={canWrite}
+          onChangeText={onHours}
+          keyboardType="decimal-pad"
+          nativeID="produktivitet-hours"
+          accessibilityLabel="Timer/uke"
+          style={[styles.miniInput, { color: colors.ink, borderColor: colors.line }]}
+        />
+        <Text style={[styles.miniSuffix, { color: colors.muted }]}>t</Text>
         {canWrite ? (
           <Pressable
             onPress={onRemove}
@@ -1088,33 +1166,12 @@ function AllocationSettings({
             hitSlop={8}
             style={styles.deleteBtn}
           >
-            <Text style={styles.deleteTxt}>Fjern</Text>
+            <Text style={styles.deleteTxt}>×</Text>
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.editorRow}>
-        <Text style={[styles.fieldLabel, { color: colors.muted }]}>Prosent</Text>
-        <TextInput
-          value={percentDraft}
-          editable={canWrite}
-          onChangeText={onPercent}
-          keyboardType="decimal-pad"
-          nativeID="produktivitet-percent"
-          style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
-        />
-        <Text style={[styles.fieldLabel, { color: colors.muted }]}>Timer/uke</Text>
-        <TextInput
-          value={hoursDraft}
-          editable={canWrite}
-          onChangeText={onHours}
-          keyboardType="decimal-pad"
-          nativeID="produktivitet-hours"
-          style={[styles.fieldInput, { color: colors.ink, borderColor: colors.line }]}
-        />
-        <Text style={[styles.rowMeta, { color: colors.muted }]}>{capacityText}</Text>
-      </View>
-      <View style={styles.editorRow}>
-        <DateField
+      <View style={styles.editorLine}>
+        <DateChip
           colors={colors}
           label="Fra"
           value={alloc.start || ''}
@@ -1122,7 +1179,8 @@ function AllocationSettings({
           onChange={onFrom}
           nativeID="produktivitet-from"
         />
-        <DateField
+        <Text style={[styles.miniSuffix, { color: colors.muted }]}>–</Text>
+        <DateChip
           colors={colors}
           label="Til"
           value={allocationInclusiveEnd(alloc)}
@@ -1131,14 +1189,14 @@ function AllocationSettings({
           nativeID="produktivitet-to"
         />
       </View>
-      <Text style={[styles.rowMeta, { color: colors.muted }]}>Gjelder hele uker</Text>
     </View>
   );
 }
 
-function DateField({ colors, label, value, editable, onChange, nativeID }) {
+function DateChip({ colors, label, value, editable, onChange, nativeID }) {
   const [text, setText] = useState(value || '');
   useEffect(() => { setText(value || ''); }, [value]);
+  const shown = weekMeta(value).date || '–';
   const commit = (next) => {
     const raw = String(next || '');
     setText(raw);
@@ -1146,29 +1204,27 @@ function DateField({ colors, label, value, editable, onChange, nativeID }) {
     onChange(raw);
   };
   return (
-    <View style={styles.dateField} nativeID={nativeID}>
-      <Text style={[styles.fieldLabel, { color: colors.muted }]}>{label}</Text>
+    <View nativeID={nativeID} style={[styles.dateChip, { borderColor: colors.line }]}>
+      <Text style={[styles.dateChipLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.dateChipValue, { color: colors.ink }]}>{shown}</Text>
       {Platform.OS === 'web' ? (
-        <View style={[styles.fieldInput, styles.dateSlot, { borderColor: colors.line }]}>
-          <input
-            type="date"
-            value={value || ''}
-            disabled={!editable}
-            aria-label={label}
-            onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => commit(event.target.value)}
-            style={{
-              border: 'none',
-              outline: 'none',
-              backgroundColor: 'transparent',
-              color: colors.ink,
-              fontSize: 16,
-              width: '100%',
-              minHeight: 32,
-              fontFamily: 'inherit',
-            }}
-          />
-        </View>
+        <input
+          type="date"
+          value={value || ''}
+          disabled={!editable}
+          aria-label={label}
+          onPointerDown={(event) => event.stopPropagation()}
+          onChange={(event) => commit(event.target.value)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: 0,
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        />
       ) : (
         <TextInput
           value={text}
@@ -1176,7 +1232,8 @@ function DateField({ colors, label, value, editable, onChange, nativeID }) {
           onChangeText={commit}
           placeholder="ÅÅÅÅ-MM-DD"
           autoCapitalize="none"
-          style={[styles.fieldInput, styles.dateSlot, { color: colors.ink, borderColor: colors.line }]}
+          accessibilityLabel={label}
+          style={styles.nativeDate}
         />
       )}
     </View>
@@ -1251,6 +1308,7 @@ const styles = StyleSheet.create({
   rowMeta: { fontSize: 11 },
   sumRow: { flexDirection: 'row', height: ROW_H },
   matrixRow: { flexDirection: 'row', height: ROW_H, position: 'relative' },
+  matrixRowActive: { zIndex: 8 },
   matrixCell: { width: MATRIX_W, height: ROW_H, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3 },
   cellText: { fontSize: 11, fontWeight: '600' },
   bar: { position: 'absolute', top: 16, borderRadius: 5, borderWidth: 1, cursor: 'grab' },
@@ -1266,26 +1324,56 @@ const styles = StyleSheet.create({
   freeRow: { flexDirection: 'row', height: 28 },
   freeCell: { width: MATRIX_W, height: 28, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   editor: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 40,
-    alignSelf: 'stretch',
+    position: 'absolute',
+    width: POPUP_W,
+    zIndex: 6,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingTop: 5,
+    paddingBottom: 4,
+    gap: 3,
     shadowColor: '#0f172a',
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
     elevation: 8,
   },
-  editorHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  editorTitle: { flex: 1, fontSize: 14, fontWeight: '700' },
-  editorRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  dateField: { flexGrow: 1, flexBasis: 148, minWidth: 140, gap: 4 },
-  dateSlot: { minHeight: 40, justifyContent: 'center' },
+  caret: {
+    position: 'absolute',
+    top: -4,
+    width: 8,
+    height: 8,
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  editorLine: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  miniInput: {
+    borderWidth: 1,
+    borderRadius: 7,
+    width: 38,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  miniSuffix: { fontSize: 11, fontWeight: '700' },
+  dateChip: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: 7,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  dateChipLabel: { fontSize: 9, fontWeight: '700' },
+  dateChipValue: { fontSize: 12, fontWeight: '700' },
+  nativeDate: { width: 78, fontSize: 11, paddingVertical: 0 },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
@@ -1297,16 +1385,14 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 12, fontWeight: '600' },
   fieldInput: { borderWidth: 1, borderRadius: 10, minWidth: 72, paddingHorizontal: 8, paddingVertical: 6, fontSize: 15 },
   deleteBtn: {
-    backgroundColor: '#fff1f2',
-    borderWidth: 1,
-    borderColor: '#fecdd3',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    minHeight: 44,
-    minWidth: 72,
+    marginLeft: 'auto',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#fff1f2',
     cursor: 'pointer',
   },
-  deleteTxt: { color: '#e11d48', fontWeight: '800', fontSize: 15 },
+  deleteTxt: { color: '#e11d48', fontWeight: '800', fontSize: 16, lineHeight: 18 },
 });

@@ -149,12 +149,16 @@ function collectText(node, depth = 0, out = []) {
 
 const boardModule = loadJsx('screens/arbeid/ProductivityBoard.jsx');
 const Board = boardModule.default;
-const { WeekSumChart, labelColumnWidth } = boardModule;
+const { WeekSumChart, labelColumnWidth, editorLeft, editorTop } = boardModule;
 
 assert.equal(labelColumnWidth(390), 132);
 assert.equal(labelColumnWidth(700), 180);
 assert.equal(labelColumnWidth(1280), 228);
 assert.equal(labelColumnWidth(0), 228);
+assert.equal(editorTop(20), 38);
+assert.equal(editorLeft({ startIndex: 0, trackWeeks: 26, scrollX: 0, paneWidth: 200, popupWidth: 168 }), 0);
+assert.equal(editorLeft({ startIndex: 10, trackWeeks: 26, scrollX: 0, paneWidth: 200, popupWidth: 168 }), 28);
+assert.equal(editorLeft({ startIndex: 10, trackWeeks: 26, scrollX: 480, paneWidth: 200, popupWidth: 168 }), 480);
 
 const people = [
   { id: 'a', label: 'Ada Nord', company: { personnelKind: 'staff', workPercent: '80', status: 'active' } },
@@ -260,24 +264,24 @@ const selectedTree = withHooks(() => React.createElement(Board, {
 const selectedText = collectText(selectedTree).join('\n');
 assert.match(selectedText, /Fra/);
 assert.match(selectedText, /Til/);
-assert.match(selectedText, /Fjern/);
-assert.match(selectedText, /Gjelder hele uker/);
 assert.match(selectedText, /100 Alpha/);
+assert.doesNotMatch(selectedText, /Gjelder hele uker/);
 const editor = findById(selectedTree, 'produktivitet-editor');
 assert.ok(editor, 'innstillingsfeltet mangler');
 const editorStyle = Object.assign({}, ...[].concat(editor.props.style));
-assert.equal(editorStyle.position, 'sticky');
+assert.equal(editorStyle.position, 'absolute');
+assert.equal(editorStyle.width, 168);
+assert.ok(editorStyle.top > 16, 'brikken skal ligge under stolpen');
 assert.equal(editorStyle.backgroundColor, '#fff');
-assert.ok(editorStyle.zIndex >= 20);
+assert.ok(editorStyle.zIndex >= 2);
+const row = findById(selectedTree, 'produktivitet-row-a-p1');
+const rowStyle = Object.assign({}, ...[].concat(row.props.style));
+assert.equal(rowStyle.zIndex, 8);
 const labels = findById(selectedTree, 'produktivitet-labels-a');
 const labelStyle = Object.assign({}, ...[].concat(labels.props.style));
 assert.equal(labelStyle.width, 132);
-const planNode = findById(selectedTree, 'produktivitet-plan-a');
-const planKids = React.Children.toArray(planNode.props.children).filter((child) => child && typeof child !== 'string');
-const editorAt = planKids.findIndex((child) => child.type && child.type.name === 'AllocationSettings');
-const matrixAt = planKids.findIndex((child) => child.props && child.props.nativeID === 'produktivitet-matrix-a');
-assert.ok(editorAt >= 0 && matrixAt > editorAt, 'innstillingene skal ligge over tabellen');
 const remove = findById(selectedTree, 'produktivitet-remove');
+assert.equal(remove.props.accessibilityLabel, 'Fjern belegg');
 assert.equal(typeof remove.props.onPress, 'function');
 remove.props.onPress();
 assert.ok(removed);

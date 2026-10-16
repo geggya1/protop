@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ScrollSheet from '../../components/ScrollSheet';
+import { personOwnsId } from '../../src/anbud/customers';
 
 const BROWSE_LIMIT = 40;
 
@@ -22,7 +23,7 @@ export default function AgreementPersonField({
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
-  const selected = people.find((person) => (person.uid || person.id) === ownerUid) || null;
+  const selected = people.find((person) => personOwnsId(person, ownerUid)) || null;
   const listed = useMemo(() => listedPeople(people, query), [people, query]);
   const shown = listed.filter((_, index) => index < BROWSE_LIMIT);
   const total = listed.length;

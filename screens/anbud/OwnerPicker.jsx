@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { personOwnsId } from '../../src/anbud/customers';
 
 export default function OwnerPicker({
   colors,
@@ -28,7 +29,7 @@ export default function OwnerPicker({
         </TouchableOpacity>
         {people.map((person) => {
           const id = person.uid || person.id;
-          const selected = value === id;
+          const selected = personOwnsId(person, value);
           return (
             <TouchableOpacity
               key={id}

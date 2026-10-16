@@ -61,6 +61,7 @@ function usePeople(lockedEmployeeId) {
     fromDate: `${year - 1}-01-01`,
     toDate: `${year + 1}-12-31`,
     absences: { all: true },
+    liveAbsences: true,
   });
   const [employeeId, setEmployeeId] = useState(lockedEmployeeId || '');
   const activeId = workspace.lockedId || employeeId || workspace.linked?.id || '';

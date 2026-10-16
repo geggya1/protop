@@ -4,15 +4,18 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { ownEmployee } from '../../src/employees/model';
 import { watchEmployees } from '../../src/employees/storage';
 import { canManageTimesheets, findLinkedEmployee } from '../../src/arbeid/roles.js';
-import { emptyProjectState } from '../../src/project/engine';
+import { emptyProjectState, normalizeAbsenceRow } from '../../src/project/engine';
+import { withoutDeletedAbsences } from '../../src/arbeid/absenceStorage.js';
 import {
   ensureProjectAbsences,
   ensureProjectHours,
   loadProjectState,
+  noteAbsencesImported,
   peekProjectState,
   putProjectState,
   saveProjectState,
 } from '../../src/project/storage';
+import { subscribeFamilyCollection } from '../../src/utils/sharedCollectionListeners';
 
 /** Delt lasting av prosjektstate og medarbeidere for tid-sidene. */
 export function useTimesheetWorkspace({
@@ -23,6 +26,8 @@ export function useTimesheetWorkspace({
   toDate = '',
   /** true = last all absences; object = date window; false = skip */
   absences = true,
+  /** Hold fraværslisten i sanntid (fraværsoversikt og rapport). */
+  liveAbsences = false,
 } = {}) {
   const { familyId, user, isAdmin } = useApp();
   const access = useCompanyAccess();
@@ -34,6 +39,12 @@ export function useTimesheetWorkspace({
   const [ready, setReady] = useState(!!cached);
   const [error, setError] = useState('');
   const skipSave = useRef(true);
+  const absenceLive = useRef(false);
+  const absenceAll = absences === true || absences === 'all' || absences?.all === true;
+  const absenceOff = absences === false || absences === 'none';
+  const absenceFrom = !absenceAll && !absenceOff ? String(absences?.fromDate || fromDate || '') : '';
+  const absenceTo = !absenceAll && !absenceOff ? String(absences?.toDate || toDate || fromDate || '') : '';
+  const absenceEmployee = !absenceAll && !absenceOff ? String(absences?.employeeId || '') : '';
 
   useEffect(() => {
     let live = true;
@@ -64,20 +75,42 @@ export function useTimesheetWorkspace({
   }, [ready, workspaceId, fromDate, toDate]);
 
   useEffect(() => {
-    if (!ready || !workspaceId || absences === false) return undefined;
+    if (!ready || !workspaceId || absenceOff) return undefined;
     let live = true;
-    const range = absences === true || absences === 'all'
+    absenceLive.current = false;
+    const range = absenceAll
       ? { all: true }
-      : (absences && typeof absences === 'object'
-        ? absences
-        : { fromDate, toDate: toDate || fromDate });
+      : { fromDate: absenceFrom, toDate: absenceTo || absenceFrom, employeeId: absenceEmployee };
     ensureProjectAbsences(workspaceId, range).then((loaded) => {
-      if (!live) return;
+      if (!live || absenceLive.current) return;
       setState(loaded);
       skipSave.current = true;
     }).catch(() => {});
     return () => { live = false; };
-  }, [ready, workspaceId, absences, fromDate, toDate]);
+  }, [ready, workspaceId, absenceOff, absenceAll, absenceFrom, absenceTo, absenceEmployee]);
+
+  useEffect(() => {
+    if (!ready || !workspaceId || !liveAbsences || !absenceAll) return undefined;
+    return subscribeFamilyCollection(
+      workspaceId,
+      'absences',
+      (snap) => withoutDeletedAbsences(
+        workspaceId,
+        snap.docs.map((item) => normalizeAbsenceRow({ ...item.data(), id: item.id })).filter(Boolean),
+      ),
+      (rows) => {
+        const next = Array.isArray(rows) ? rows : [];
+        absenceLive.current = true;
+        setState((current) => {
+          const prev = current?.absences || [];
+          if (!next.length && prev.length) return current;
+          skipSave.current = true;
+          noteAbsencesImported(workspaceId, next);
+          return putProjectState({ ...current, absences: next }, workspaceId);
+        });
+      },
+    );
+  }, [ready, workspaceId, liveAbsences, absenceAll]);
 
   useEffect(() => {
     if (!workspaceId) return undefined;

@@ -17,7 +17,7 @@ import {
 import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard } from '../../src/arbeid/absenceDashboard.js';
+import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan } from '../../src/arbeid/absenceDashboard.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
 
@@ -121,11 +121,11 @@ function useAudience(employees) {
 function useBoard(props) {
   const {
     employees = [], names = {}, employeeId = '', absences = [], adjustments = [],
-    fullDayHours = 7.5, today = '',
+    fullDayHours = 7.5, today = '', year = '',
   } = props;
   return useMemo(() => buildAbsenceWebBoard({
-    employees, employeeId, absences, adjustments, fullDayHours, today, names,
-  }), [employees, employeeId, absences, adjustments, fullDayHours, today, names]);
+    employees, employeeId, absences, adjustments, fullDayHours, today, names, year,
+  }), [employees, employeeId, absences, adjustments, fullDayHours, today, names, year]);
 }
 
 export function CompanyAbsenceDesktop({
@@ -143,14 +143,7 @@ export function CompanyAbsenceDesktop({
   onOpeningChange,
   onSaveOpening,
 }) {
-  const colors = useColors();
   const audience = useAudience(employees);
-  const roster = employeeId
-    ? employees.filter((row) => row.id === employeeId)
-    : audience.roster;
-  const board = useBoard({
-    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today,
-  });
   const [kind, setKind] = useState('alle');
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [chartWidth, setChartWidth] = useState(420);
@@ -158,6 +151,14 @@ export function CompanyAbsenceDesktop({
   const [span, setSpan] = useState('uke');
   const [cursor, setCursor] = useState(today || '');
   const period = useMemo(() => periodOf(span, cursor || today), [span, cursor, today]);
+  const focusYear = String(period.start || today).slice(0, 4);
+  const roster = useMemo(
+    () => (employeeId ? employees.filter((row) => row.id === employeeId) : audience.roster),
+    [employeeId, employees, audience.roster],
+  );
+  const board = useBoard({
+    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today, year: focusYear,
+  });
   const grid = useMemo(() => buildAbsencePeriodGrid({
     employees: roster,
     absences,
@@ -166,12 +167,21 @@ export function CompanyAbsenceDesktop({
     end: period.end,
     fullDayHours,
   }), [roster, absences, names, period.start, period.end, fullDayHours]);
+  const spanSummary = useMemo(() => summarizeAbsenceSpan({
+    absences,
+    employeeIds: roster.map((row) => row.id),
+    names,
+    start: period.start,
+    end: period.end,
+    today,
+    fullDayHours,
+  }), [absences, roster, names, period.start, period.end, today, fullDayHours]);
   const earned = board.staff.reduce((sum, person) => sum + (Number(person.earned) || 0), 0);
   const yearUsed = Number(board.yearTotals?.ferie) || 0;
   const remaining = board.staff.reduce((sum, person) => sum + (person.earned ? Number(person.remaining) || 0 : 0), 0);
   const hasQuota = earned > 0;
-  const lines = board.lines.filter((row) => kind === 'alle' || row.category === kind);
-  const away = board.lines.filter((row) => row.status === 'pagar');
+  const lines = spanSummary.registered.filter((row) => kind === 'alle' || row.category === kind);
+  const away = spanSummary.away;
   const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : 'Alle i utvalget';
   const openPerson = (id) => {
     if (!canChooseEmployee || !id) return;
@@ -181,10 +191,17 @@ export function CompanyAbsenceDesktop({
   const person = board.staff[0];
   const summary = board.dash.summary || {};
 
-  const ferieNow = away.filter((row) => row.bucket === 'ferie').length;
-  const sykNow = away.filter((row) => row.bucket === 'sykdom').length;
-  const annetNow = away.filter((row) => row.bucket === 'annet').length;
-  const planned = board.planned || [];
+  const ferieNow = spanSummary.ferie;
+  const sykNow = spanSummary.sykdom;
+  const annetNow = spanSummary.annet;
+  const planned = spanSummary.planned;
+  const onToday = span === 'dag' && period.start === today;
+  const awayTitle = span === 'dag'
+    ? (onToday ? 'Borte i dag' : `Borte ${period.label}`)
+    : 'Borte i perioden';
+  const awayEmpty = span === 'dag'
+    ? (onToday ? 'Ingen registrert borte i dag' : 'Ingen registrert borte denne dagen')
+    : 'Ingen registrert borte i perioden';
 
   return (
     <ScrollView
@@ -236,7 +253,7 @@ export function CompanyAbsenceDesktop({
           yearUsed={yearUsed}
           remaining={remaining}
           hasQuota={hasQuota}
-          planned={planned}
+          planned={board.planned || []}
           lines={board.lines}
           opening={opening}
           openingPlaceholder={formatCount(summary.opening || 0)}
@@ -248,50 +265,69 @@ export function CompanyAbsenceDesktop({
       ) : (
         <>
           <View style={styles.controlStrip}>
-            {canChooseEmployee ? (
-              <AudienceBar
-                kinds={audience.kinds}
-                onToggleKind={audience.toggleKind}
-                includeInactive={audience.includeInactive}
-                onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
+            <View style={styles.controlEdge}>
+              {canChooseEmployee ? (
+                <AudienceBar
+                  kinds={audience.kinds}
+                  onToggleKind={audience.toggleKind}
+                  includeInactive={audience.includeInactive}
+                  onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
+                />
+              ) : null}
+            </View>
+            <View style={styles.periodCenter} nativeID="periode-midten">
+              <Segmented
+                items={SPANS}
+                value={span}
+                onChange={setSpan}
+                idPrefix="periode"
               />
-            ) : null}
-            <PeriodBar
-              span={span}
-              label={period.label}
-              onSpan={setSpan}
-              onStep={(delta) => setCursor(stepCursor(span, cursor || today, delta))}
-              view={view}
-              onView={setView}
-            />
-            {canChooseEmployee ? (
-              <TouchableOpacity
-                onPress={() => setPeopleOpen((value) => !value)}
-                style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
-                accessibilityRole="button"
-                accessibilityLabel="Velg ansatt"
-              >
-                <Ionicons name="people" size={14} color={blue} />
-                <Text style={styles.personTxt}>{selectedName}</Text>
-                <Ionicons name="chevron-down" size={13} color={muted} />
-              </TouchableOpacity>
-            ) : null}
+              <View style={styles.stepper}>
+                <TouchableOpacity onPress={() => setCursor(stepCursor(span, cursor || today, -1))} accessibilityRole="button" accessibilityLabel="Forrige periode" nativeID="periode-forrige" style={styles.navHit}>
+                  <Ionicons name="chevron-back" size={18} color={ink} />
+                </TouchableOpacity>
+                <Text style={styles.stepLabel}>{period.label}</Text>
+                <TouchableOpacity onPress={() => setCursor(stepCursor(span, cursor || today, 1))} accessibilityRole="button" accessibilityLabel="Neste periode" nativeID="periode-neste" style={styles.navHit}>
+                  <Ionicons name="chevron-forward" size={18} color={ink} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.controlEdgeRight}>
+              <Segmented
+                items={[{ id: 'diagram', label: 'Diagram' }, { id: 'tabell', label: 'Tabell' }]}
+                value={view}
+                onChange={setView}
+                idPrefix="visning"
+              />
+              {canChooseEmployee ? (
+                <TouchableOpacity
+                  onPress={() => setPeopleOpen((value) => !value)}
+                  style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Velg ansatt"
+                >
+                  <Ionicons name="people" size={14} color={blue} />
+                  <Text style={styles.personTxt}>{selectedName}</Text>
+                  <Ionicons name="chevron-down" size={13} color={muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.kpis}>
             <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" />
-            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label="På ferie" />
-            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label="Sykemeldte" />
-            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label="Annet fravær" />
+            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} />
+            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} />
+            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} />
           </View>
 
           {view === 'diagram' ? (
             <>
               <View style={styles.statusSplit}>
                 <StatusCard
-                  title="Borte i dag"
+                  title={awayTitle}
                   count={away.length}
-                  empty="Ingen registrert borte i dag"
+                  empty={awayEmpty}
                   nativeID="borte-i-dag"
                 >
                   {away.map((row) => (
@@ -305,7 +341,7 @@ export function CompanyAbsenceDesktop({
                 <StatusCard
                   title="Planlagt fremover"
                   count={planned.length}
-                  empty="Ingen planlagt fravær"
+                  empty="Ingen planlagt fravær i perioden"
                   nativeID="planlagt-fravaer"
                 >
                   {planned.slice(0, 6).map((row) => (
@@ -396,19 +432,12 @@ export function CompanyAbsenceDesktop({
                   <Text style={styles.cardTitle}>
                     {`Registrerte perioder${lines.length ? ` · ${lines.length}` : ''}`}
                   </Text>
-                  <View style={styles.filters}>
-                    {FILTERS.map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        onPress={() => setKind(item.id)}
-                        style={[styles.filter, kind === item.id && styles.filterOn]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: kind === item.id }}
-                      >
-                        <Text style={[styles.filterTxt, kind === item.id && styles.filterTxtOn]}>{item.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  <Segmented
+                    items={FILTERS}
+                    value={kind}
+                    onChange={setKind}
+                    idPrefix="fravaer-type"
+                  />
                 </View>
                 {lines.length ? lines.map((row) => (
                   <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
@@ -935,66 +964,58 @@ export function PlannedAbsenceDesktop({
   );
 }
 
-function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive }) {
+function Segmented({ items, value, onChange, idPrefix }) {
   return (
-    <View style={styles.filters} nativeID="fravaer-utvalg">
-      {AUDIENCE.map((item) => (
-        <TouchableOpacity
-          key={item.id}
-          onPress={() => onToggleKind(item.id)}
-          style={[styles.filter, kinds[item.id] && styles.filterOn]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: !!kinds[item.id] }}
-        >
-          <Text style={[styles.filterTxt, kinds[item.id] && styles.filterTxtOn]}>{item.label}</Text>
-        </TouchableOpacity>
-      ))}
-      <TouchableOpacity
-        onPress={onToggleInactive}
-        style={[styles.filter, includeInactive && styles.filterOn]}
-        accessibilityRole="button"
-        accessibilityState={{ selected: includeInactive }}
-        nativeID="fravaer-deaktivert"
-      >
-        <Text style={[styles.filterTxt, includeInactive && styles.filterTxtOn]}>Deaktiverte</Text>
-      </TouchableOpacity>
+    <View style={styles.segmentTrack} accessibilityRole="tablist">
+      {items.map((item) => {
+        const on = value === item.id;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => onChange(item.id)}
+            style={[styles.segment, on && styles.segmentOn]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            nativeID={idPrefix ? `${idPrefix}-${item.id}` : undefined}
+          >
+            <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-function PeriodBar({ span, label, onSpan, onStep, view, onView }) {
+function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive }) {
+  const items = [
+    ...AUDIENCE.map((item) => ({
+      id: item.id,
+      label: item.label,
+      on: !!kinds[item.id],
+      press: () => onToggleKind(item.id),
+    })),
+    {
+      id: 'deaktivert',
+      label: 'Deaktiverte',
+      on: includeInactive,
+      press: onToggleInactive,
+      nativeID: 'fravaer-deaktivert',
+    },
+  ];
   return (
-    <View style={styles.periodBar}>
-      <View style={styles.filters}>
-        {SPANS.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => onSpan(item.id)}
-            style={[styles.filter, span === item.id && styles.filterOn]}
-            accessibilityRole="button"
-            nativeID={`periode-${item.id}`}
-          >
-            <Text style={[styles.filterTxt, span === item.id && styles.filterTxtOn]}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <View style={styles.stepper}>
-        <TouchableOpacity onPress={() => onStep(-1)} accessibilityRole="button" accessibilityLabel="Forrige periode" nativeID="periode-forrige">
-          <Ionicons name="chevron-back" size={15} color={ink} />
+    <View style={styles.segmentTrack} nativeID="fravaer-utvalg" accessibilityRole="tablist">
+      {items.map((item) => (
+        <TouchableOpacity
+          key={item.id}
+          onPress={item.press}
+          style={[styles.segment, item.on && styles.segmentOn]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: item.on }}
+          nativeID={item.nativeID}
+        >
+          <Text style={[styles.segmentLabel, item.on && styles.segmentLabelOn]}>{item.label}</Text>
         </TouchableOpacity>
-        <Text style={styles.stepLabel}>{label}</Text>
-        <TouchableOpacity onPress={() => onStep(1)} accessibilityRole="button" accessibilityLabel="Neste periode" nativeID="periode-neste">
-          <Ionicons name="chevron-forward" size={15} color={ink} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.filters}>
-        <TouchableOpacity onPress={() => onView('diagram')} style={[styles.filter, view === 'diagram' && styles.filterOn]} nativeID="visning-diagram">
-          <Text style={[styles.filterTxt, view === 'diagram' && styles.filterTxtOn]}>Diagram</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onView('tabell')} style={[styles.filter, view === 'tabell' && styles.filterOn]} nativeID="visning-tabell">
-          <Text style={[styles.filterTxt, view === 'tabell' && styles.filterTxtOn]}>Tabell</Text>
-        </TouchableOpacity>
-      </View>
+      ))}
     </View>
   );
 }
@@ -1319,8 +1340,8 @@ const styles = StyleSheet.create({
   controlStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 10,
+    justifyContent: 'space-between',
+    gap: 12,
     flexWrap: 'wrap',
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -1328,6 +1349,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  controlEdge: { flexGrow: 1, flexBasis: 160, minWidth: 0, alignItems: 'flex-start' },
+  controlEdgeRight: {
+    flexGrow: 1,
+    flexBasis: 160,
+    minWidth: 0,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  periodCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   errorTxt: { color: '#b42318', fontSize: 13, fontWeight: '400' },
   personBtn: {
@@ -1358,15 +1397,15 @@ const styles = StyleSheet.create({
   },
   kpiIcon: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   kpiCopy: { flex: 1, minWidth: 0, gap: 1 },
-  kpiValue: { color: ink, fontSize: 18, fontWeight: '400', fontVariant: ['tabular-nums'] },
-  kpiLabel: { color: muted, fontSize: 12, fontWeight: '400' },
+  kpiValue: { color: ink, fontSize: 13, fontWeight: '400', fontVariant: ['tabular-nums'] },
+  kpiLabel: { color: muted, fontSize: 13, fontWeight: '400' },
   card: { backgroundColor: '#fff', borderWidth: 1, borderColor: line, borderRadius: 12, padding: 12, gap: 6 },
   statusCard: { flex: 1, minWidth: 240, gap: 4 },
   statusSplit: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
   statusHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   countBadge: {
     color: muted,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '400',
     fontVariant: ['tabular-nums'],
     backgroundColor: '#F3F6FA',
@@ -1375,27 +1414,27 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  cardTitle: { color: ink, fontSize: 14, fontWeight: '400' },
+  cardTitle: { color: ink, fontSize: 13, fontWeight: '400' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-  hint: { color: muted, fontSize: 12, fontWeight: '400', marginTop: -2 },
+  hint: { color: muted, fontSize: 13, fontWeight: '400', marginTop: -2 },
   empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
-  moreHint: { color: muted, fontSize: 12, fontWeight: '400', paddingTop: 2 },
+  moreHint: { color: muted, fontSize: 13, fontWeight: '400', paddingTop: 2 },
   awayPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#F4F7FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
     marginTop: 2,
   },
   awayName: { color: ink, fontWeight: '400', fontSize: 13, flexShrink: 1 },
-  awayType: { color: muted, fontSize: 12, fontWeight: '400', marginLeft: 'auto' },
+  awayType: { color: muted, fontSize: 13, fontWeight: '400', marginLeft: 'auto' },
   split: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
   splitCard: { flex: 1, minWidth: 260 },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 2 },
   donutCenter: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  donutValue: { color: ink, fontSize: 16, fontWeight: '400' },
-  donutCaption: { color: muted, fontSize: 10, fontWeight: '400' },
+  donutValue: { color: ink, fontSize: 13, fontWeight: '400' },
+  donutCaption: { color: muted, fontSize: 13, fontWeight: '400' },
   legend: { flex: 1, gap: 5 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  legendLabel: { color: muted, flex: 1, fontSize: 12, fontWeight: '400' },
+  legendLabel: { color: muted, flex: 1, fontSize: 13, fontWeight: '400' },
   legendValue: { color: ink, fontWeight: '400', fontSize: 13, fontVariant: ['tabular-nums'] },
   dot: { width: 7, height: 7, borderRadius: 4 },
   swatch: { width: 7, height: 7, borderRadius: 2 },
@@ -1403,45 +1442,63 @@ const styles = StyleSheet.create({
   key: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   chartPlot: { paddingTop: 2 },
   monthLabels: { flexDirection: 'row' },
-  monthLabel: { color: muted, fontSize: 10, textAlign: 'center', fontWeight: '400' },
+  monthLabel: { color: muted, fontSize: 13, textAlign: 'center', fontWeight: '400' },
   opening: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  openingLabel: { color: muted, fontSize: 12, fontWeight: '400' },
-  input: { borderWidth: 1, borderColor: line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, minWidth: 72, color: ink },
+  openingLabel: { color: muted, fontSize: 13, fontWeight: '400' },
+  input: { borderWidth: 1, borderColor: line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, minWidth: 72, color: ink, fontSize: 13, fontWeight: '400' },
   save: { backgroundColor: blue, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
-  saveTxt: { color: '#fff', fontWeight: '400' },
+  saveTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   matrix: { minWidth: 920, gap: 0 },
   matrixHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 4 },
   matrixRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 5 },
   nameCol: { width: 150 },
   monthCol: { width: 48, textAlign: 'center' },
   numCol: { width: 72, textAlign: 'right' },
-  headTxt: { color: muted, fontSize: 11, fontWeight: '400' },
+  headTxt: { color: muted, fontSize: 13, fontWeight: '400' },
   nameTxt: { color: ink, fontWeight: '400', fontSize: 13 },
-  monthNum: { fontSize: 12, fontWeight: '400' },
+  monthNum: { fontSize: 13, fontWeight: '400' },
   numTxt: { color: ink, fontWeight: '400', fontSize: 13, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  filters: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
-  filter: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#F3F6FA' },
-  filterOn: { backgroundColor: '#102848' },
-  filterTxt: { color: muted, fontSize: 12, fontWeight: '400' },
-  filterTxtOn: { color: '#fff', fontWeight: '400' },
-  periodBar: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexGrow: 1 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  segmentTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 10,
+    backgroundColor: '#F4F7FB',
+    padding: 3,
+    gap: 2,
+    flexWrap: 'wrap',
+  },
+  segment: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+  },
+  segmentOn: { backgroundColor: '#fff' },
+  segmentLabel: { color: muted, fontSize: 13, fontWeight: '400' },
+  segmentLabelOn: { color: ink, fontWeight: '400' },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  navHit: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   stepLabel: { color: ink, fontWeight: '400', fontSize: 13, minWidth: 148, textAlign: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backTxt: { color: blue, fontWeight: '400', fontSize: 13 },
-  personHeading: { color: ink, fontSize: 18, fontWeight: '400' },
+  personHeading: { color: ink, fontSize: 13, fontWeight: '400' },
   gridHead: { flexDirection: 'row', alignItems: 'flex-end' },
   gridRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 3 },
   gridName: { width: 160 },
-  gridDay: { width: 36, textAlign: 'center', fontSize: 10 },
+  gridDay: { width: 36, textAlign: 'center', fontSize: 13 },
   gridToday: { color: blue },
   gridCell: { width: 28, height: 20, marginHorizontal: 4, borderRadius: 4, backgroundColor: '#F4F7FB' },
   gridCellEnd: { backgroundColor: '#EEF2F6' },
   period: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line },
   periodName: { color: ink, fontWeight: '400', fontSize: 13 },
-  periodMeta: { color: muted, fontSize: 12, fontWeight: '400' },
+  periodMeta: { color: muted, fontSize: 13, fontWeight: '400' },
   periodDays: { color: ink, fontWeight: '400', width: 44, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  periodStatus: { color: muted, width: 80, textAlign: 'right', fontSize: 12, fontWeight: '400' },
+  periodStatus: { color: muted, width: 80, textAlign: 'right', fontSize: 13, fontWeight: '400' },
   tableHead: { flexDirection: 'row', paddingBottom: 6 },
   tableRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 8 },
   colGrow: { flex: 1, minWidth: 0 },

@@ -6,6 +6,7 @@ import {
   buildAbsenceDashboard,
   buildAbsencePeriodGrid,
   buildAbsenceWebBoard,
+  summarizeAbsenceSpan,
   buildCompanyAbsenceLedger,
   eachWeekday,
   groupAbsencePeriods,
@@ -350,6 +351,53 @@ const employees = [
       { id: 'a4', employeeId: 'off', type: 'ferie', date: '2026-06-04', hours: 8 },
     ],
   });
+  const span = summarizeAbsenceSpan({
+    employeeIds: ['e1', 'e2'],
+    names: { e1: 'Ada', e2: 'Bo' },
+    today: '2026-10-16',
+    fullDayHours: 7.5,
+    start: '2026-10-16',
+    end: '2026-10-16',
+    absences: [
+      { id: 'today', employeeId: 'e1', type: 'ferie', date: '2026-10-16', hours: 7.5 },
+      { id: 'later', employeeId: 'e2', type: 'syk_melding', date: '2026-10-20', hours: 7.5 },
+      { id: 'week', employeeId: 'e1', type: 'egenmelding', date: '2026-10-14', hours: 7.5 },
+    ],
+  });
+  assert.equal(span.ferie, 1);
+  assert.equal(span.sykdom, 0);
+  assert.equal(span.away.length, 1);
+  assert.equal(span.planned.length, 0);
+  const week = summarizeAbsenceSpan({
+    employeeIds: ['e1', 'e2'],
+    names: { e1: 'Ada', e2: 'Bo' },
+    today: '2026-10-16',
+    fullDayHours: 7.5,
+    start: '2026-10-12',
+    end: '2026-10-18',
+    absences: [
+      { id: 'today', employeeId: 'e1', type: 'ferie', date: '2026-10-16', hours: 7.5 },
+      { id: 'later', employeeId: 'e2', type: 'syk_melding', date: '2026-10-20', hours: 7.5 },
+      { id: 'week', employeeId: 'e1', type: 'egenmelding', date: '2026-10-14', hours: 7.5 },
+    ],
+  });
+  assert.equal(week.ferie, 1);
+  assert.equal(week.sykdom, 1);
+  assert.equal(week.away.length, 2);
+  assert.equal(week.planned.map((row) => row.start).includes('2026-10-20'), false);
+  const future = summarizeAbsenceSpan({
+    employeeIds: ['e2'],
+    names: { e2: 'Bo' },
+    today: '2026-10-16',
+    start: '2026-10-19',
+    end: '2026-10-25',
+    absences: [
+      { id: 'later', employeeId: 'e2', type: 'syk_melding', date: '2026-10-20', hours: 7.5 },
+    ],
+  });
+  assert.equal(future.planned.length, 1);
+  assert.equal(future.sykdom, 1);
+
   assert.equal(ABSENCE_DAY_HOURS, 8);
   assert.equal(dash.headcount, 1);
   assert.equal(dash.summary.used, 1.5);

@@ -292,7 +292,7 @@ export default function ContractFollowUp({
     if (key === 'place') return row.fields?.place || row.address || '—';
     if (key === 'period') return [row.start, row.end].filter(Boolean).join(' – ') || '—';
     if (key === 'value') return row.value != null && row.value !== '' ? formatNok(row.value) : '—';
-    if (key === 'owner') return ownerLabel(customer, followPeople) || '—';
+    if (key === 'owner') return row.ownerName || ownerLabel(customer, followPeople) || '—';
     if (key === 'status') return contractStatusLabel(row);
     return '—';
   }
@@ -303,15 +303,6 @@ export default function ContractFollowUp({
     if (bucket === 'utlopt') return { bg: colors.sunken || colors.bg, ink: colors.muted };
     if (bucket === 'pagaaende') return { bg: colors.brandSoft || colors.bg, ink: colors.brand };
     return { bg: colors.brandSoft || colors.bg, ink: colors.brand };
-  }
-
-  async function assignOwner(person) {
-    if (!selectedCustomer) {
-      setNote('Koble avtalen til en kunde før ansvarlig tildeles.');
-      return;
-    }
-    const loaded = await loadAnbudState(companyId);
-    await commit(setCustomerOwner(loaded, selectedCustomer.id, person));
   }
 
   async function confirmDelete() {
@@ -439,6 +430,8 @@ export default function ContractFollowUp({
           contract={selected}
           contracts={contracts}
           customer={selectedCustomer}
+          customers={customers}
+          projects={projects}
           people={followPeople}
           colors={colors}
           companyId={companyId}
@@ -447,7 +440,9 @@ export default function ContractFollowUp({
           onOpenProject={() => openProject(selected)}
           onOpenIndex={() => openIndex(selected)}
           onOpenCustomer={onOpenCustomer}
-          onAssignOwner={assignOwner}
+          onCustomersChanged={(saved) => {
+            if (saved) setState(saved);
+          }}
           onOpenAgreement={(id) => { setSelectedId(id); setView('detail'); }}
           onNewChild={(kind) => { setComposeKind(kind); setComposeParent(selected.id); setView('compose'); }}
           canPurge={canPurge}

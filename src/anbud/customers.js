@@ -534,20 +534,36 @@ export function companyFollowUpPeople(members) {
   ));
 }
 
-/** Medlemmer og ansatte som kan velges som ansvarlig for avtale/kunde. */
+function employmentStatus(employee) {
+  return text(employee?.company?.status || 'active').toLowerCase();
+}
+
+/** Deaktivert, sluttet eller slettet personell skal ikke kunne velges som ansvarlig. */
+export function isActiveEmployee(employee) {
+  const status = employmentStatus(employee);
+  return status !== 'inactive' && status !== 'former' && status !== 'deleted';
+}
+
+/** Medlemmer og aktive ansatte som kan velges som ansvarlig for avtale/kunde. */
 export function agreementResponsiblePeople(members = [], employees = []) {
+  const roster = Array.isArray(employees) ? employees : [];
+  const inactiveIds = new Set();
+  for (const row of roster) {
+    const id = text(row?.id);
+    if (id && !isActiveEmployee(row)) inactiveIds.add(id);
+  }
   const fromMembers = companyFollowUpPeople(members).map((row) => ({
     uid: row.uid || row.id,
     id: row.uid || row.id,
     name: text(row.name),
     source: 'member',
-  }));
+  })).filter((row) => row.uid && row.name && !inactiveIds.has(row.uid));
   const seen = new Set(fromMembers.map((row) => row.uid));
-  const fromEmployees = (Array.isArray(employees) ? employees : []).map((row) => {
+  const fromEmployees = roster.map((row) => {
     const person = row?.person || {};
     const name = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean).join(' ');
     const id = text(row?.id);
-    if (!id || !name || seen.has(id)) return null;
+    if (!id || !name || seen.has(id) || !isActiveEmployee(row)) return null;
     seen.add(id);
     return { uid: id, id, name, source: 'employee' };
   }).filter(Boolean);

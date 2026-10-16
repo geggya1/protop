@@ -2,10 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ScrollSheet from '../../components/ScrollSheet';
 
-function matches(people, query) {
+const BROWSE_LIMIT = 40;
+
+function listedPeople(people, query) {
+  const rows = Array.isArray(people) ? people : [];
   const needle = String(query || '').trim().toLocaleLowerCase('nb-NO');
-  if (!needle) return [];
-  return people.filter((person) => String(person.name || '').toLocaleLowerCase('nb-NO').includes(needle));
+  if (!needle) return rows;
+  return rows.filter((person) => String(person.name || '').toLocaleLowerCase('nb-NO').includes(needle));
 }
 
 export default function AgreementPersonField({
@@ -14,14 +17,15 @@ export default function AgreementPersonField({
   ownerUid = '',
   onSelect,
   label = 'Ansvarlig',
-  placeholder = 'Søk blant ansatte',
+  placeholder = 'Søk eller bla blant aktive ansatte',
   suggested = false,
 }) {
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
   const selected = people.find((person) => (person.uid || person.id) === ownerUid) || null;
-  const shown = useMemo(() => matches(people, query).slice(0, 8), [people, query]);
-  const total = useMemo(() => matches(people, query).length, [people, query]);
+  const listed = useMemo(() => listedPeople(people, query), [people, query]);
+  const shown = listed.filter((_, index) => index < BROWSE_LIMIT);
+  const total = listed.length;
 
   function closeSheet() {
     setSheet(false);
@@ -69,34 +73,30 @@ export default function AgreementPersonField({
             autoCorrect={false}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
           />
-          {query.trim() ? (
-            shown.length ? (
-              <View nativeID="agreement-person-results" style={[styles.results, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                {shown.map((person) => (
-                  <TouchableOpacity
-                    key={person.uid}
-                    onPress={() => {
-                      onSelect?.(person);
-                      closeSheet();
-                    }}
-                    accessibilityRole="button"
-                    style={[styles.result, { borderBottomColor: colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink }}>{person.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {total > shown.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: 10, paddingBottom: 8 }}>
-                    {`Viser ${shown.length} av ${total}. Skriv mer for å snevre inn.`}
-                  </Text>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={{ color: colors.muted }}>Ingen ansatte treffer søket.</Text>
-            )
+          {shown.length ? (
+            <View nativeID="agreement-person-results" style={[styles.results, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              {shown.map((person) => (
+                <TouchableOpacity
+                  key={person.uid || person.id}
+                  onPress={() => {
+                    onSelect?.(person);
+                    closeSheet();
+                  }}
+                  accessibilityRole="button"
+                  style={[styles.result, { borderBottomColor: colors.line }]}
+                >
+                  <Text style={{ color: colors.ink }}>{person.name}</Text>
+                </TouchableOpacity>
+              ))}
+              {total > shown.length ? (
+                <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: 10, paddingBottom: 8 }}>
+                  {`Viser ${shown.length} av ${total} aktive. Skriv for å snevre inn.`}
+                </Text>
+              ) : null}
+            </View>
           ) : (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              Skriv for å søke. Ansatte vises ikke før det er et søk.
+            <Text style={{ color: colors.muted }}>
+              {query.trim() ? 'Ingen aktive ansatte treffer søket.' : 'Ingen aktive ansatte å velge blant.'}
             </Text>
           )}
         </View>

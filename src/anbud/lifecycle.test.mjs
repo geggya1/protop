@@ -294,6 +294,71 @@ assert.equal(coverEdit.state.contracts[0].title, 'Madlalia · Oppdatert');
 assert.equal(coverEdit.state.contracts[0].value, 2500);
 assert.equal(coverEdit.state.contracts[0].fields.place, 'Sandnes');
 
+const rich = registerDirectContract(emptyAnbudState(), {
+  title: 'Løkkeveien',
+  buyer: 'Consult1 AS',
+  value: '1350',
+  customerId: 'kunde-1',
+  projectId: 'prosjekt-1',
+  projectName: 'Løkkeveien',
+  ownerUid: 'ansatt-1',
+  ownerName: 'Geir Ove Andersen',
+  fields: {
+    postalCode: '4006',
+    invoiceMethod: 'EHF',
+    leaderName: 'Kari Nordmann',
+    leaderUid: 'leder-1',
+    gnrBnr: '12/345',
+    paymentTerms: '14 dager',
+    lines: [{ text: 'Kontraktssum', rate: '1350' }],
+  },
+});
+assert.equal(rich.ok, true, rich.error);
+assert.equal(rich.state.contracts[0].customerId, 'kunde-1');
+assert.equal(rich.state.contracts[0].projectId, 'prosjekt-1');
+assert.equal(rich.state.contracts[0].ownerUid, 'ansatt-1');
+assert.equal(rich.state.contracts[0].ownerName, 'Geir Ove Andersen');
+assert.equal(rich.state.contracts[0].fields.postalCode, '4006');
+assert.equal(rich.state.contracts[0].fields.invoiceMethod, 'EHF');
+assert.equal(rich.state.contracts[0].fields.leaderUid, 'leder-1');
+assert.equal(rich.state.contracts[0].fields.gnrBnr, '12/345');
+assert.equal(rich.state.contracts[0].fields.paymentTerms, '14 dager');
+assert.equal(rich.state.contracts[0].fields.lines[0].text, 'Kontraktssum');
+const reloadedRich = normalizeAnbudState(rich.state);
+assert.equal(reloadedRich.contracts[0].fields.postalCode, '4006');
+assert.equal(reloadedRich.contracts[0].fields.leaderName, 'Kari Nordmann');
+assert.equal(reloadedRich.contracts[0].ownerName, 'Geir Ove Andersen');
+const linked = updateContractDetails(rich.state, rich.state.contracts[0].id, {
+  customerId: 'kunde-2',
+  projectId: 'prosjekt-2',
+  projectName: 'Nytt prosjekt',
+  ownerUid: 'ansatt-2',
+  ownerName: 'Kari Nordmann',
+  fields: {
+    ...rich.state.contracts[0].fields,
+    postalCode: '4008',
+  },
+});
+assert.equal(linked.ok, true, linked.error);
+assert.equal(linked.state.contracts[0].customerId, 'kunde-2');
+assert.equal(linked.state.contracts[0].projectId, 'prosjekt-2');
+assert.equal(linked.state.contracts[0].projectName, 'Nytt prosjekt');
+assert.equal(linked.state.contracts[0].ownerUid, 'ansatt-2');
+assert.equal(linked.state.contracts[0].fields.postalCode, '4008');
+assert.equal(linked.state.contracts[0].fields.invoiceMethod, 'EHF');
+const cleared = updateContractDetails(linked.state, linked.state.contracts[0].id, {
+  customerId: '',
+  projectId: '',
+  ownerUid: '',
+  ownerName: '',
+});
+assert.equal(cleared.ok, true, cleared.error);
+assert.equal(cleared.state.contracts[0].customerId, '');
+assert.equal(cleared.state.contracts[0].projectId, '');
+assert.equal(cleared.state.contracts[0].ownerUid, '');
+assert.equal(cleared.state.contracts[0].fields.invoiceMethod, 'EHF');
+assert.equal(cleared.state.contracts[0].fields.leaderName, 'Kari Nordmann');
+
 const withChild = registerDirectContract(frame.state, {
   title: 'Avrop som skal slettes',
   kind: 'avrop',

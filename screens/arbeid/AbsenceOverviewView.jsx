@@ -698,13 +698,13 @@ function FilterField({ icon, label, value, onPress, disabled = false }) {
       accessibilityLabel={`${label}: ${value}`}
     >
       <View style={styles.filterIcon}>
-        <Ionicons name={icon} size={16} color="#8B95A6" />
+        <Ionicons name={icon} size={15} color="#8B95A6" />
       </View>
-      <View style={{ flex: 1 }}>
+      <View style={styles.filterCopy}>
         <Text style={styles.filterLabel}>{label}</Text>
         <View style={styles.filterValueRow}>
           <Text style={styles.filterValue} numberOfLines={1}>{value}</Text>
-          {disabled ? null : <Ionicons name="chevron-down" size={14} color={ui.ink} />}
+          {disabled ? null : <Ionicons name="chevron-down" size={13} color={ui.muted} />}
         </View>
       </View>
     </TouchableOpacity>
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: ui.page },
   pageInner: { paddingBottom: 28 },
   frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'center' },
-  frameWide: { paddingHorizontal: 8, paddingTop: 4 },
+  frameWide: { paddingTop: 10 },
   companyRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   companyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '86%' },
@@ -852,16 +852,25 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  filterField: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, minWidth: 0 },
+  filterField: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 0,
+  },
   filterIcon: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: ui.sunken, alignItems: 'center', justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 16, backgroundColor: ui.sunken, alignItems: 'center', justifyContent: 'center',
   },
-  filterLabel: { color: ui.muted, fontSize: 11 },
-  filterValueRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  filterValue: { color: ui.ink, fontSize: 12.5, fontWeight: '700', flexShrink: 1 },
+  filterCopy: { flex: 1, minWidth: 0, gap: 3, justifyContent: 'center' },
+  filterLabel: { color: ui.muted, fontSize: 12, fontWeight: '400', lineHeight: 16 },
+  filterValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  filterValue: { color: ui.ink, fontSize: 13, fontWeight: '400', lineHeight: 18, flexShrink: 1 },
   filterSplit: { width: 1, alignSelf: 'stretch', backgroundColor: ui.line, marginVertical: 4 },
   choices: {
     ...cardShadow,

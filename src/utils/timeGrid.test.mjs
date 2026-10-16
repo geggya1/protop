@@ -10,6 +10,7 @@ import {
   memberLayerId,
   formatWeekRangeNo,
   isCalendarLayerHidden,
+  shouldListEventAsCalendarLayer,
   icsHostFromUrl,
   icsDisplayLabel,
   icsSidebarLabel,
@@ -57,11 +58,32 @@ assert.equal(isCalendarLayerHidden({ connectionId: 'c9', graphCalendarId: 'calA'
 assert.equal(isCalendarLayerHidden({ connectionId: 'c9', graphCalendarId: 'calA' }, new Set(['ext:c9:calA']), 'f1'), true);
 assert.equal(isCalendarLayerHidden({ connectionId: 'c9', graphCalendarId: 'calA' }, new Set(['ext:other']), 'f1'), false);
 assert.equal(calendarIdOf({ crossPlatform: true, familyId: 'p2', sourceLabel: 'Klubb' }, 'f1'), 'plat:p2');
+assert.equal(
+  calendarIdOf({ private: true, crossPlatform: true, familyId: 'home', sourceLabel: 'Geirs hjem' }, 'co'),
+  'plat:home',
+);
+assert.equal(
+  calendarIdOf({ private: true, familyId: 'co', sourceLabel: 'CONSULT1 AS' }, 'co'),
+  'fam:co',
+);
+assert.equal(
+  calendarIdOf({ readOnly: true, familyId: 'co', sourceLabel: 'CONSULT1 SØR AS' }, 'co'),
+  'fam:co',
+);
+
+assert.equal(shouldListEventAsCalendarLayer({ private: true, familyId: 'h', sourceLabel: 'Geirs hjem' }), false);
+assert.equal(shouldListEventAsCalendarLayer({ readOnly: true, familyId: 'c', sourceLabel: 'CONSULT1 AS' }), false);
+assert.equal(shouldListEventAsCalendarLayer({
+  crossPlatform: true, private: true, sourceLabel: 'Geirs hjem', familyId: 'h',
+}), false);
+assert.equal(shouldListEventAsCalendarLayer({ source: 'microsoft', connectionId: 'c1', sourceLabel: 'Outlook' }), false);
+assert.equal(shouldListEventAsCalendarLayer({ source: 'google', connectionId: 'g1' }), false);
+assert.equal(shouldListEventAsCalendarLayer({ source: 'ics', sourceLabel: 'ICS · job.no' }), true);
 
 assert.equal(memberLayerId('u1'), 'mem:u1');
 assert.equal(
   isCalendarLayerHidden({ familyId: 'f1', memberIds: ['a'] }, new Set(['mem:a']), 'f1'),
-  true,
+  false,
 );
 assert.equal(
   isCalendarLayerHidden({ familyId: 'f1', memberIds: ['a', 'b'] }, new Set(['mem:a']), 'f1'),
@@ -69,6 +91,10 @@ assert.equal(
 );
 assert.equal(
   isCalendarLayerHidden({ familyId: 'f1', memberIds: ['a', 'b'] }, new Set(['mem:a', 'mem:b']), 'f1'),
+  false,
+);
+assert.equal(
+  isCalendarLayerHidden({ familyId: 'f1', createdBy: 'u1' }, new Set(['fam:f1']), 'f1'),
   true,
 );
 assert.equal(

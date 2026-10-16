@@ -14,7 +14,7 @@ assert.equal(memberLayerId('a'), 'mem:a');
 assert.equal(calendarIdOf({ familyId: 'f1' }, 'f1'), 'fam:f1');
 assert.equal(
   isCalendarLayerHidden({ familyId: 'f1', memberIds: ['a'] }, new Set(['mem:a']), 'f1'),
-  true,
+  false,
 );
 assert.equal(
   isCalendarLayerHidden({ familyId: 'f1', memberIds: ['a', 'b'] }, new Set(['mem:a']), 'f1'),

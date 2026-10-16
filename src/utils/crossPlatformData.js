@@ -13,6 +13,7 @@ import { isFamilyAudience } from './events';
 import { mapTodo } from './todos';
 import { parentTaskVisibleToUser } from './parentTaskVisibility';
 import { subscribeFamilyCollection } from './sharedCollectionListeners';
+import { selectListenerPlatformIds } from './listenerPlatformIds';
 
 export { resolveEventWriteTarget } from './eventWriteTarget';
 
@@ -93,7 +94,7 @@ export function listenEventsAcrossPlatforms({
   platforms = [],
   onChange,
 }) {
-  const ids = [...new Set((platformIds || []).filter(Boolean))].slice(0, MAX_CROSS_PLATFORM_LISTENERS);
+  const ids = selectListenerPlatformIds(platformIds, activePlatformId, MAX_CROSS_PLATFORM_LISTENERS);
   if (!ids.length) {
     onChange([]);
     return () => {};
@@ -160,7 +161,7 @@ export function listenParentTodosAcrossPlatforms({
   includeDeleted = false,
   onChange,
 }) {
-  const ids = [...new Set((platformIds || []).filter(Boolean))].slice(0, MAX_CROSS_PLATFORM_LISTENERS);
+  const ids = selectListenerPlatformIds(platformIds, activePlatformId, MAX_CROSS_PLATFORM_LISTENERS);
   if (!ids.length) {
     onChange([]);
     return () => {};

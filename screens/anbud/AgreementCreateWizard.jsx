@@ -11,6 +11,7 @@ import { AGREEMENT_IMPORT_ACCEPT } from '../../src/anbud/openDocument';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { pickDocument } from '../../src/utils/media';
 import AgreementCustomerField from './AgreementCustomerField';
+import FileDropZone from './FileDropZone';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -104,7 +105,6 @@ export default function AgreementCreateWizard({
   const [draft, setDraft] = useState(emptyDraft);
   const [state, setState] = useState(null);
   const [files, setFiles] = useState([]);
-  const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
@@ -484,30 +484,17 @@ export default function AgreementCreateWizard({
 
         {step === 'upload' ? (
           <View style={styles.stack}>
-            <View
-              {...(Platform.OS === 'web' ? {
-                onDragEnter: (event) => { event.preventDefault?.(); setDragOver(true); },
-                onDragOver: (event) => { event.preventDefault?.(); setDragOver(true); },
-                onDragLeave: () => setDragOver(false),
-                onDrop: (event) => {
-                  event.preventDefault?.();
-                  setDragOver(false);
-                  const list = Array.from(event?.dataTransfer?.files || []).map((file) => ({
-                    name: file.name,
-                    mimeType: file.type || 'application/octet-stream',
-                    size: file.size || 0,
-                    blob: file,
-                  }));
-                  if (list.length) addPicks(list);
-                },
-              } : {})}
-              style={[
-                styles.drop,
-                {
-                  borderColor: dragOver ? colors.brand : colors.line,
-                  backgroundColor: dragOver ? colors.sunken : colors.bg,
-                },
-              ]}
+            <FileDropZone
+              colors={colors}
+              disabled={busy}
+              nativeID="agreement-upload-drop"
+              onFiles={(list) => addPicks(list.map((file) => ({
+                name: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                size: file.size || 0,
+                blob: file,
+              })))}
+              style={[styles.drop, { borderColor: colors.line, backgroundColor: colors.bg }]}
             >
               <Ionicons name="cloud-upload-outline" size={26} color={colors.brand} />
               <Text style={{ color: colors.ink }}>Slipp dokumenter her</Text>
@@ -520,7 +507,7 @@ export default function AgreementCreateWizard({
               >
                 <Text style={{ color: colors.brand }}>Velg filer</Text>
               </TouchableOpacity>
-            </View>
+            </FileDropZone>
             {files.length ? files.map((file) => (
               <View key={file.name} style={[styles.fileRow, { borderColor: colors.line, backgroundColor: colors.bg }]}>
                 <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{file.name}</Text>

@@ -1,5 +1,7 @@
 /** Standardfelt fra C1-H-03-001 Oppdragsavtale NS 8403-fremsiden, pluss ramme/avrop. */
 
+import { normalizeAssignees } from './assignees.js';
+
 export const AGREEMENT_KINDS = [
   { id: 'oppdrag', label: 'Oppdragsavtale' },
   { id: 'rammeavtale', label: 'Rammeavtale' },
@@ -124,6 +126,7 @@ export function emptyCoverForm() {
   form.ownerUid = '';
   form.ownerName = '';
   form.leaderUid = '';
+  form.assignees = [];
   form.standard = DEFAULT_STANDARD;
   form.indexId = DEFAULT_INDEX_ID;
   form.honorarForm = DEFAULT_HONORAR_FORM;
@@ -171,6 +174,15 @@ export function coverFromRecord(record = {}) {
   form.ownerUid = record.ownerUid || '';
   form.ownerName = record.ownerName || '';
   form.leaderUid = fields.leaderUid || record.leaderUid || '';
+  form.assignees = normalizeAssignees(fields.assignees);
+  if (!form.assignees.length && (fields.resourceName || fields.resourceEmail || fields.resourcePhone)) {
+    form.assignees = normalizeAssignees([{
+      source: 'ny',
+      name: fields.resourceName,
+      email: fields.resourceEmail,
+      phone: fields.resourcePhone,
+    }]);
+  }
   return form;
 }
 

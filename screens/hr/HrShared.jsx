@@ -52,11 +52,12 @@ export function HrChip({ colors, label, active, onPress }) {
   );
 }
 
-export function HrButton({ colors, label, onPress, icon, primary, danger, disabled }) {
+export function HrButton({ colors, label, onPress, icon, primary, danger, disabled, nativeID }) {
   const bg = danger ? (colors.danger || '#b91c1c') : primary ? colors.brand : colors.bg;
   const fg = primary || danger ? '#fff' : colors.ink;
   return (
     <Pressable
+      nativeID={nativeID}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       style={[
@@ -152,9 +153,9 @@ export function EmptyHint({ colors, text }) {
   return <Text style={[styles.empty, { color: colors.muted }]}>{text}</Text>;
 }
 
-export function RowLink({ colors, title, subtitle, meta, onPress, icon = 'chevron-forward' }) {
+export function RowLink({ colors, title, subtitle, meta, onPress, icon = 'chevron-forward', nativeID }) {
   return (
-    <Pressable onPress={onPress} style={[styles.row, { borderColor: colors.line }]}>
+    <Pressable nativeID={nativeID} onPress={onPress} style={[styles.row, { borderColor: colors.line }]}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[styles.rowTitle, { color: colors.ink }]} numberOfLines={1}>{title}</Text>
         {subtitle ? (

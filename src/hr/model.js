@@ -230,6 +230,9 @@ export function normalizeCase(row = {}) {
     description: text(row.description),
     owner: text(row.owner),
     sourceReviewId: text(row.sourceReviewId),
+    taskId: text(row.taskId),
+    assigneeUid: text(row.assigneeUid),
+    assigneeName: text(row.assigneeName),
     employeeVisible: !!row.employeeVisible,
     createdAt: text(row.createdAt) || new Date().toISOString(),
     updatedAt: text(row.updatedAt) || new Date().toISOString(),
@@ -861,6 +864,102 @@ export function caseFromExpiringContract(contract, { employeeName = '' } = {}) {
     priority: contract.days != null && contract.days <= 30 ? 'high' : 'normal',
     status: 'open',
   });
+}
+
+/**
+ * Oppgaveutkast til oppgavemodulen. Tittel, frist og tekst kommer fra saken.
+ * Ansvaret settes på den som planlegger.
+ */
+export function followUpTaskFromCase(caseRow, { assigneeUid = '', assigneeName = '' } = {}) {
+  const row = normalizeCase(caseRow || {});
+  if (!row.id || !row.title || row.title === 'Sak') return null;
+  const owner = text(assigneeName);
+  const responsible = text(assigneeUid);
+  return {
+    title: row.title,
+    description: [
+      row.description,
+      owner ? `Ansvar: ${owner}` : '',
+      'Opprettet fra HR-oppfølging.',
+    ].filter(Boolean).join('\n'),
+    deadline: row.dueDate || null,
+    assignedTo: responsible || null,
+    assigneeName: owner,
+    hrCaseId: row.id,
+    source: `hr-case:${row.id}`,
+  };
+}
+
+/** Samme felt som lagres i oppgavemodulen, uten tidsstempler. */
+export function followUpParentTodo(draft, { uid = '', startKey = '', id = '' } = {}) {
+  const actor = text(uid);
+  const assignedTo = text(draft?.assignedTo) || actor || null;
+  return {
+    id: text(id),
+    title: text(draft?.title) || 'Oppgave',
+    description: text(draft?.description),
+    deadline: draft?.deadline || null,
+    deadlineTime: null,
+    participants: [],
+    assignedTo,
+    attachments: [],
+    done: false,
+    active: true,
+    deleted: false,
+    type: 'task',
+    completedDates: [],
+    createdBy: actor || null,
+    startKey: text(startKey) || null,
+    order: 0,
+    source: text(draft?.source) || 'hr-followup',
+    hrCaseId: text(draft?.hrCaseId) || null,
+  };
+}
+
+/**
+ * Legg inn planleggingssaken, eller knytt oppgave-id til åpen sak med samme tittel.
+ * Returnerer uendret liste når saken allerede har oppgaven.
+ */
+export function planFollowUpCases(cases, caseRow, link = {}) {
+  const row = normalizeCase({
+    ...caseRow,
+    taskId: link.taskId || caseRow?.taskId,
+    assigneeUid: link.assigneeUid || caseRow?.assigneeUid,
+    assigneeName: link.assigneeName || caseRow?.assigneeName,
+  });
+  const list = Array.isArray(cases) ? [...cases] : [];
+  const existing = list.find((item) => (
+    item.status !== 'closed'
+    && text(item.employeeId) === text(row.employeeId)
+    && text(item.title).toLowerCase() === text(row.title).toLowerCase()
+  ));
+  if (!existing) {
+    return {
+      created: true,
+      linked: !!row.taskId,
+      case: row,
+      cases: [row, ...list],
+    };
+  }
+  const next = normalizeCase({
+    ...existing,
+    taskId: existing.taskId || row.taskId,
+    assigneeUid: existing.assigneeUid || row.assigneeUid,
+    assigneeName: existing.assigneeName || row.assigneeName,
+    description: existing.description || row.description,
+    dueDate: existing.dueDate || row.dueDate,
+  });
+  const linked = !text(existing.taskId) && !!text(next.taskId);
+  const same = !linked
+    && text(existing.taskId) === text(next.taskId)
+    && text(existing.assigneeUid) === text(next.assigneeUid)
+    && text(existing.assigneeName) === text(next.assigneeName);
+  return {
+    created: false,
+    linked,
+    case: text(existing.taskId) ? existing : next,
+    cases: same ? list : list.map((item) => (item.id === existing.id ? next : item)),
+  };
 }
 
 /** Finnes allerede åpen sak med samme tittel for personen? */

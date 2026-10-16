@@ -397,6 +397,8 @@ const dashboardEmployees = [
 ];
 
 let dashboardHtml = '';
+let linkedHtml = '';
+let caseHtml = '';
 {
   dashboardHtml = renderToStaticMarkup(React.createElement(HrDashboard, {
     colors,
@@ -422,6 +424,62 @@ let dashboardHtml = '';
   assert.equal(html.includes('Eksternt deaktivert'), false);
 }
 
+{
+  linkedHtml = renderToStaticMarkup(React.createElement(HrDashboard, {
+    colors,
+    employees: dashboardEmployees,
+    hr: {
+      ...hr,
+      cases: [{
+        id: 'case-jubilee',
+        employeeId: 'staff-b',
+        title: 'Planlegg jubileum: 3-årsjubileum',
+        status: 'open',
+        dueDate: '2026-11-01',
+        description: 'Daniel Edvard Wold · 3-årsjubileum',
+        assigneeName: 'Geir',
+        taskId: 'task-1',
+      }],
+    },
+    canWrite: true,
+    onPatch: () => {},
+    onOpenCase: () => {},
+    onOpenFollowUp: () => {},
+  }));
+  assert.match(linkedHtml, /id="hr-case-case-jubilee"/);
+  assert.match(linkedHtml, /Planlegg jubileum: 3-årsjubileum/);
+  assert.match(linkedHtml, /oppgave til Geir/);
+  assert.match(linkedHtml, /Daniel Edvard Wold/);
+}
+
+{
+  caseHtml = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'oppfolging',
+    focusCaseId: 'case-1',
+    assigneeName: 'Geir',
+    hr: {
+      ...hr,
+      cases: [{
+        id: 'case-1',
+        employeeId: 'e1',
+        title: 'Planlegg jubileum: 3-årsjubileum',
+        status: 'open',
+        dueDate: '2026-11-01',
+        description: 'Ada Nordmann · 3-årsjubileum',
+        assigneeName: 'Geir',
+        taskId: 'task-9',
+      }],
+    },
+  }));
+  assert.match(caseHtml, /id="hr-case-detail"/);
+  assert.match(caseHtml, /Åpne oppgave/);
+  assert.match(caseHtml, /id="hr-open-task"/);
+  assert.match(caseHtml, /Ansvar Geir/);
+  assert.match(caseHtml, /Ada Nordmann/);
+}
+
 const previewDir = '/opt/cursor/artifacts';
 if (fs.existsSync(previewDir)) {
   const page = (title, body) => `<!doctype html><html lang="nb"><head><meta charset="utf-8"><title>${title}</title>
@@ -435,6 +493,8 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-avtale.html'), page('Avtale', sheetHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-lonn-kontroll.html'), page('Lønn', controlHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oversikt.html'), page('HR-oversikt', dashboardHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-oppfolging-sak.html'), page('Oppfølgingssak', linkedHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-sak-detalj.html'), page('Sak', caseHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-lov-iso.html'), page('Lov og ISO', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));

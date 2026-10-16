@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { displayName } from '../../src/employees/model';
@@ -10,10 +10,11 @@ import {
   countHrEmployees,
   expiringContracts,
   filterHrEmployees,
+  followUpTaskFromCase,
   formatNbDate,
-  hasOpenCaseLike,
   JOB_STATUSES,
   openFollowUps,
+  planFollowUpCases,
   recruitmentFunnel,
   upcomingPeopleEvents,
 } from '../../src/hr/model';
@@ -28,7 +29,8 @@ import {
 
 export default function HrDashboard({
   colors, employees, hr, canWrite, onPatch,
-  onOpenPeople, onOpenFollowUp, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
+  onOpenPeople, onOpenFollowUp, onOpenCase, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
+  familyId, assigneeUid, assigneeName, onCreateFollowUpTask,
 }) {
   const [staffFilter, setStaffFilter] = useState('active');
   const counts = useMemo(() => countHrEmployees(employees), [employees]);
@@ -73,41 +75,70 @@ export default function HrDashboard({
   const received = funnel.board?.find((b) => b.id === 'received')?.count || 0;
   const processing = funnel.board?.find((b) => b.id === 'processing')?.count || 0;
 
-  function planEvent(event) {
-    if (!canWrite || !onPatch) return;
-    const row = caseFromPeopleEvent(event);
-    if (!row) return;
-    let created = false;
-    onPatch((state) => {
-      if (hasOpenCaseLike(state.cases, row)) return {};
-      created = true;
-      return { cases: [row, ...(state.cases || [])] };
-    });
-    if (created) showSaveToast?.('Planleggingssak opprettet');
-    else {
-      showSaveToast?.('Sak finnes allerede');
-      onOpenFollowUp?.();
+  const planningRef = useRef(false);
+
+  async function planRow(row, plainToast) {
+    if (!canWrite || !onPatch || !row || planningRef.current) return;
+    planningRef.current = true;
+    try {
+      let snapshot = null;
+      onPatch((state) => {
+        snapshot = planFollowUpCases(state.cases, row, {});
+        if (!snapshot.created) return {};
+        return { cases: snapshot.cases };
+      });
+      const target = snapshot?.case;
+      if (!target) return;
+      if (target.taskId) {
+        showSaveToast?.('Sak finnes allerede');
+        onOpenCase?.(target);
+        return;
+      }
+      let taskId = '';
+      if (familyId && assigneeUid && onCreateFollowUpTask) {
+        const draft = followUpTaskFromCase(target, { assigneeUid, assigneeName });
+        if (draft) {
+          try {
+            taskId = await onCreateFollowUpTask(draft) || '';
+          } catch {
+            showSaveToast?.(snapshot.created
+              ? `${plainToast}. Oppgaven ble ikke lagret`
+              : 'Kunne ikke opprette oppgave');
+            return;
+          }
+        }
+      }
+      if (!taskId) {
+        showSaveToast?.(snapshot.created ? plainToast : 'Sak finnes allerede');
+        if (!snapshot.created) onOpenCase?.(target);
+        return;
+      }
+      onPatch((state) => ({
+        cases: planFollowUpCases(state.cases, target, {
+          taskId,
+          assigneeUid,
+          assigneeName,
+        }).cases,
+      }));
+      showSaveToast?.(snapshot.created
+        ? 'Sak og oppgave opprettet'
+        : 'Oppgave opprettet og koblet til saken');
+    } finally {
+      planningRef.current = false;
     }
   }
 
+  function planEvent(event) {
+    const row = caseFromPeopleEvent(event);
+    planRow(row, 'Planleggingssak opprettet');
+  }
+
   function planContract(contract) {
-    if (!canWrite || !onPatch) return;
     const person = employees.find((e) => e.id === contract.employeeId);
     const row = caseFromExpiringContract(contract, {
       employeeName: person ? displayName(person) : '',
     });
-    if (!row) return;
-    let created = false;
-    onPatch((state) => {
-      if (hasOpenCaseLike(state.cases, row)) return {};
-      created = true;
-      return { cases: [row, ...(state.cases || [])] };
-    });
-    if (created) showSaveToast?.('Oppfølgingssak for avtale opprettet');
-    else {
-      showSaveToast?.('Sak finnes allerede');
-      onOpenFollowUp?.();
-    }
+    planRow(row, 'Oppfølgingssak for avtale opprettet');
   }
 
   return (
@@ -204,14 +235,19 @@ export default function HrDashboard({
         </View>
         {follow.cases.slice(0, 4).map((row) => {
           const person = employees.find((e) => e.id === row.employeeId);
+          const who = person ? displayName(person) : 'Uten person';
+          const taskBit = row.assigneeName
+            ? `oppgave til ${row.assigneeName}`
+            : (row.taskId ? 'oppgave opprettet' : '');
           return (
             <RowLink
               key={row.id}
+              nativeID={`hr-case-${row.id}`}
               colors={colors}
               title={row.title}
-              subtitle={person ? displayName(person) : 'Uten person'}
+              subtitle={taskBit ? `${who} · ${taskBit}` : who}
               meta={row.dueDate ? formatNbDate(row.dueDate) : row.priority}
-              onPress={onOpenFollowUp}
+              onPress={() => (onOpenCase ? onOpenCase(row) : onOpenFollowUp?.())}
             />
           );
         })}

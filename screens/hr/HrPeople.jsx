@@ -38,6 +38,7 @@ const COLUMNS = [
 export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
+  focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
 }) {
   const dir = useHrDirectory(employees);
   const rows = useMemo(
@@ -205,6 +206,11 @@ export default function HrPeople({
           lockedEmployeeId={selected.id}
           onPatch={onPatch}
           familyId={familyId}
+          focusCaseId={focusCaseId}
+          assigneeUid={assigneeUid}
+          assigneeName={assigneeName}
+          onOpenTask={onOpenTask}
+          onCreateFollowUpTask={onCreateFollowUpTask}
         />
       ) : null}
 

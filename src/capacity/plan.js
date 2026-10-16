@@ -658,3 +658,61 @@ export function percentFromPointerDelta(basePercent, deltaY) {
   const steps = Math.round(-(Number(deltaY) || 0) / 14);
   return clampPercent(base + steps * 5);
 }
+
+/** Andel av den ansattes uke, i prosent. */
+export function shareOfCapacity(hours, capacity) {
+  const base = Number(capacity);
+  if (!base || base <= 0) return 0;
+  return round1(((Number(hours) || 0) / base) * 100);
+}
+
+/**
+ * Tydelige fargesprang for belastning. Lys blå er lav, mørk blå er høy.
+ * Over 100 % er nesten svart.
+ */
+export const INTENSITY_SCALE = [
+  { id: 'none', max: 0, color: '#e8eef7', ink: '#8B95A6' },
+  { id: 's1', max: 20, color: '#dbeafe', ink: '#1e3a8a' },
+  { id: 's2', max: 40, color: '#93c5fd', ink: '#1e3a8a' },
+  { id: 's3', max: 60, color: '#3b82f6', ink: '#ffffff' },
+  { id: 's4', max: 80, color: '#1d4ed8', ink: '#ffffff' },
+  { id: 's5', max: 100, color: '#1e3a8a', ink: '#ffffff' },
+  { id: 's6', max: Infinity, color: '#172554', ink: '#ffffff' },
+];
+
+export function intensityOf(percent) {
+  const n = Number(percent) || 0;
+  if (n <= 0) return INTENSITY_SCALE[0];
+  for (const step of INTENSITY_SCALE) {
+    if (n <= step.max) return step;
+  }
+  return INTENSITY_SCALE[INTENSITY_SCALE.length - 1];
+}
+
+/**
+ * Fravær per uke. fromDate begrenser til planlagt fravær fra og med den datoen.
+ * Returnerer Map<weekKey, { hours, type }>.
+ */
+export function weeklyAbsenceHours(absences, employeeId, weeks, fromDate = '') {
+  const wanted = new Set((weeks || []).map((key) => mondayKey(key)).filter(Boolean));
+  const id = text(employeeId);
+  const from = text(fromDate);
+  const byWeek = new Map();
+  for (const row of absences || []) {
+    if (text(row?.employeeId) !== id) continue;
+    const date = text(row?.date);
+    if (!date || (from && date < from)) continue;
+    const week = mondayKey(date);
+    if (!week || (wanted.size && !wanted.has(week))) continue;
+    let hours = parseHours(row?.hours);
+    if (hours <= 0 && Number(row?.percent) > 0) {
+      hours = round1((Number(row.percent) / 100) * (FULL_WEEK_HOURS / 5));
+    }
+    if (hours <= 0) continue;
+    const current = byWeek.get(week) || { hours: 0, type: text(row?.type) || 'ferie' };
+    current.hours = round1(current.hours + hours);
+    if (!current.type) current.type = text(row?.type) || 'ferie';
+    byWeek.set(week, current);
+  }
+  return byWeek;
+}

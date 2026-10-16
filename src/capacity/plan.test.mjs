@@ -12,7 +12,10 @@ import {
   kindOf,
   loadTone,
   makeAllocation,
+  intensityOf,
   percentFromPointerDelta,
+  shareOfCapacity,
+  weeklyAbsenceHours,
   planActivityFrom,
   planningRows,
   spanBetween,
@@ -244,4 +247,19 @@ import {
   assert.equal(percentFromPointerDelta(50, -28), 60);
   assert.equal(percentFromPointerDelta(50, 28), 40);
   assert.equal(percentFromPointerDelta(50, 0), 50);
+  assert.equal(shareOfCapacity(20, 40), 50);
+  assert.equal(shareOfCapacity(16, 32), 50);
+  assert.equal(intensityOf(20).id, 's1');
+  assert.equal(intensityOf(21).id, 's2');
+  assert.equal(intensityOf(100).id, 's5');
+  assert.equal(intensityOf(130).id, 's6');
+  assert.notEqual(intensityOf(15).color, intensityOf(90).color);
+  const away = weeklyAbsenceHours([
+    { employeeId: 'a', date: '2026-10-20', hours: 8, type: 'ferie' },
+    { employeeId: 'a', date: '2026-10-21', hours: 8, type: 'ferie' },
+    { employeeId: 'a', date: '2026-09-02', hours: 8, type: 'ferie' },
+  ], 'a', weekKeys('2026-10-12', 3), '2026-10-16');
+  assert.equal(away.get('2026-10-19').hours, 16);
+  assert.equal(away.get('2026-10-19').type, 'ferie');
+  assert.equal(away.has('2026-08-31'), false);
 }

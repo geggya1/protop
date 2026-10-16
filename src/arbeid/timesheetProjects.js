@@ -1,4 +1,4 @@
-/** Synlige prosjekter i timelisten: aktive, stjernemerkede eller nylig lagt til. */
+/** Synlige prosjekter i timelisten: timer siste to måneder, eller stjernemerket. */
 
 import { parseHours } from './hours.js';
 import { pad2, toDateKey } from './calendar.js';
@@ -45,17 +45,12 @@ function hasHoursInWindow(entries, employeeId, projectId, fromDate, toDate) {
   return false;
 }
 
-function isNewlyAdded(member, fromDate) {
-  const added = String(member?.addedAt || '').slice(0, 10);
-  if (!added) return false;
-  const from = String(fromDate || '');
-  if (!from) return true;
-  return added >= from;
-}
-
 /**
- * Behold prosjekt som har timer i aktivitetsvindu eller synlig måned,
- * er stjernemerket, eller nylig lagt til. Ved søk (keepAll) hoppes filteret over.
+ * Behold prosjekt med timer i aktivitetsvinduet, eller som er stjernemerket.
+ * Medlemskap eller «nylig lagt til» er ikke nok — uten timer siste to måneder
+ * skjules raden til den stjernes.
+ * Synlig måned utenfor vinduet (eldre historikk) viser likevel prosjekt med timer der.
+ * Ved søk (keepAll) hoppes filteret over.
  */
 export function isTimesheetProjectVisible(row, {
   timeEntries = [],
@@ -68,10 +63,12 @@ export function isTimesheetProjectVisible(row, {
 } = {}) {
   if (keepAll) return true;
   if (row?.starred) return true;
-  if (isNewlyAdded(row?.member, activityFrom)) return true;
   const projectId = row?.project?.id || row?.id;
   if (hasHoursInWindow(timeEntries, employeeId, projectId, activityFrom, activityTo)) return true;
-  if (viewFrom && viewTo && hasHoursInWindow(timeEntries, employeeId, projectId, viewFrom, viewTo)) {
+  const outsideActivity = Boolean(
+    viewFrom && viewTo && activityFrom && (viewFrom < activityFrom || viewTo > activityTo),
+  );
+  if (outsideActivity && hasHoursInWindow(timeEntries, employeeId, projectId, viewFrom, viewTo)) {
     return true;
   }
   return false;

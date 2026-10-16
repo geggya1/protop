@@ -690,6 +690,8 @@ export default function ArbeidScreen({
       photoUrl: selectedEmployee?.person?.photoUrl,
       role: selectedEmployee?.company?.projectRole || 'Prosjektmedlem',
       addedByUid: uid,
+      // Uten timer siste to måneder skjules prosjektet. Stjerne holder det synlig.
+      starred: true,
     });
     if (!result.ok) {
       setError(result.error);
@@ -834,7 +836,7 @@ export default function ArbeidScreen({
       {assignedOnly ? null : (
       <TouchableOpacity
         onPress={() => setAddProjectOpen(true)}
-        style={[styles.cta, { backgroundColor: '#0d9488' }, isPhone && styles.ctaPhone]}
+        style={[styles.cta, { backgroundColor: colors.brand }, isPhone && styles.ctaPhone]}
         accessibilityRole="button"
       >
         <Ionicons name="add" size={18} color="#fff" />
@@ -843,7 +845,7 @@ export default function ArbeidScreen({
       )}
       <TouchableOpacity
         onPress={() => setTypePicker(true)}
-        style={[styles.cta, { backgroundColor: '#0f766e' }, isPhone && styles.ctaPhone]}
+        style={[styles.cta, { backgroundColor: colors.brand }, isPhone && styles.ctaPhone]}
         accessibilityRole="button"
       >
         <Ionicons name="add" size={18} color="#fff" />

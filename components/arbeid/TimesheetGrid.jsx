@@ -248,7 +248,7 @@ export default function TimesheetGrid({
       {!projects.length && !absenceRows.length ? (
         <View style={{ padding: 24, width: Math.max(labelW + 200, gridWidth) }}>
           <Text style={{ color: colors.muted }}>
-            Ingen prosjekt i listen. Legg til prosjekt, stjernemerk, eller før timer på et prosjekt fra de siste to månedene.
+            Ingen prosjekt i listen. Prosjekt uten timer de siste to månedene skjules, med mindre de er stjernemerket.
           </Text>
         </View>
       ) : null}

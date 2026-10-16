@@ -42,7 +42,23 @@ import {
     viewFrom: '2026-06-01',
     viewTo: '2026-06-30',
   }).map((row) => row.project.id);
-  assert.deepEqual(visible.sort(), ['hours', 'new', 'star', 'viewOnly']);
+  assert.deepEqual(visible.sort(), ['hours', 'star', 'viewOnly']);
+}
+
+{
+  const rows = [
+    { project: { id: 'fresh' }, member: { addedAt: '2026-10-01' }, starred: false },
+    { project: { id: 'objectDate' }, member: { addedAt: '[object Object]' }, starred: false },
+  ];
+  const visible = filterTimesheetProjects(rows, {
+    timeEntries: [],
+    employeeId: 'e1',
+    activityFrom: '2026-08-01',
+    activityTo: '2026-10-14',
+    viewFrom: '2026-10-01',
+    viewTo: '2026-10-31',
+  }).map((row) => row.project.id);
+  assert.deepEqual(visible, []);
 }
 
 {

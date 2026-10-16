@@ -6,11 +6,14 @@
 import { projectPhaseOf } from '../project/statusFilter.js';
 import { levelById } from '../access/companyAccess.js';
 import { personnelKind } from '../employees/model.js';
+import { parseHours } from '../arbeid/hours.js';
 import { scheduledHours } from '../arbeid/schedule.js';
 
 export const FULL_WEEK_HOURS = 40;
 export const STANDARD_DAY_HOURS = 8;
 export const HORIZON_CHOICES = [16, 26, 52];
+/** Uker bakover i ressursplanen, omtrent tre måneder. */
+export const PLAN_HISTORY_WEEKS = 13;
 
 export const BAR_COLORS = [
   '#2563eb', '#0ea5e9', '#7c3aed', '#db2777', '#ea580c', '#059669', '#b45309', '#0891b2',
@@ -502,4 +505,156 @@ export function shiftPreview(alloc, deltaWeeks, mode = 'move') {
   const delta = Math.round(Number(deltaWeeks) || 0);
   if (mode === 'resize') return { ...alloc, weeks: clampWeeks(alloc.weeks + delta) };
   return { ...alloc, start: addDays(alloc.start, delta * 7) };
+}
+
+/** Første dato som teller som «aktiv siste tre måneder». */
+export function planActivityFrom(today = new Date()) {
+  const base = today instanceof Date && !Number.isNaN(today.getTime()) ? today : new Date();
+  const from = new Date(base.getFullYear(), base.getMonth() - 3, base.getDate(), 12, 0, 0, 0);
+  return toDateKey(from);
+}
+
+/** Synlig tidsskala: historikk før ankeruken, deretter planleggingshorisonten. */
+export function visibleWeekKeys(origin, horizon, historyWeeks = PLAN_HISTORY_WEEKS) {
+  const anchor = mondayKey(origin);
+  const back = Math.max(0, Math.round(Number(historyWeeks) || 0));
+  const start = back ? addDays(anchor, -back * 7) : anchor;
+  return weekKeys(start, back + Math.max(1, Math.round(Number(horizon) || 1)));
+}
+
+/**
+ * Påløpte timer per prosjekt og uke (mandag-nøkkel).
+ * Returnerer Map<projectId, Map<weekKey, hours>>.
+ */
+export function weeklyActualHours(entries, employeeId, weeks) {
+  const wanted = new Set((weeks || []).map((key) => mondayKey(key)).filter(Boolean));
+  const id = text(employeeId);
+  const byProject = new Map();
+  for (const row of entries || []) {
+    if (text(row?.employeeId) !== id) continue;
+    const hours = parseHours(row?.hours);
+    if (hours <= 0) continue;
+    const week = mondayKey(row?.date);
+    if (!week || (wanted.size && !wanted.has(week))) continue;
+    const projectId = text(row?.projectId);
+    if (!projectId) continue;
+    if (!byProject.has(projectId)) byProject.set(projectId, new Map());
+    const bucket = byProject.get(projectId);
+    bucket.set(week, round1((bucket.get(week) || 0) + hours));
+  }
+  return byProject;
+}
+
+export function actualHoursForWeek(entries, employeeId, monday) {
+  const key = mondayKey(monday);
+  const id = text(employeeId);
+  if (!key || !id) return 0;
+  let total = 0;
+  for (const row of entries || []) {
+    if (text(row?.employeeId) !== id) continue;
+    if (mondayKey(row?.date) !== key) continue;
+    const hours = parseHours(row?.hours);
+    if (hours > 0) total += hours;
+  }
+  return round1(total);
+}
+
+function entryLabel(row) {
+  return projectLabel({
+    number: row?.projectNumber,
+    name: text(row?.projectName) || 'Prosjekt',
+  });
+}
+
+/**
+ * Rader i ressursplanen: prosjekt med timer i aktivitetsvinduet,
+ * pluss det som allerede ligger som plan eller dummy.
+ * Medlemskap alene gir ingen rad.
+ */
+export function planningRows({
+  projects = [],
+  allocations = [],
+  timeEntries = [],
+  employeeId,
+  activityFrom = '',
+} = {}) {
+  const id = text(employeeId);
+  const projectById = new Map((projects || []).filter((row) => row?.id).map((row) => [row.id, row]));
+  const recent = new Map();
+  const fallbackName = new Map();
+  for (const row of timeEntries || []) {
+    if (text(row?.employeeId) !== id) continue;
+    const date = text(row?.date);
+    if (activityFrom && date && date < activityFrom) continue;
+    const hours = parseHours(row?.hours);
+    if (hours <= 0) continue;
+    const projectId = text(row?.projectId);
+    if (!projectId) continue;
+    recent.set(projectId, round1((recent.get(projectId) || 0) + hours));
+    if (!fallbackName.has(projectId)) fallbackName.set(projectId, entryLabel(row));
+  }
+
+  const rows = [];
+  const seen = new Set();
+  for (const alloc of allocations || []) {
+    if (alloc?.employeeId !== id) continue;
+    if (alloc.source === 'dummy' || !alloc.projectId) {
+      rows.push({
+        key: `alloc:${alloc.id}`,
+        allocId: alloc.id,
+        projectId: '',
+        project: null,
+        name: alloc.name || 'Dummy',
+        source: 'dummy',
+        recentHours: 0,
+      });
+      continue;
+    }
+    if (seen.has(alloc.projectId)) continue;
+    seen.add(alloc.projectId);
+    const project = projectById.get(alloc.projectId) || null;
+    rows.push({
+      key: `project:${alloc.projectId}`,
+      allocId: '',
+      projectId: alloc.projectId,
+      project,
+      name: project ? projectLabel(project) : (alloc.name || fallbackName.get(alloc.projectId) || 'Prosjekt'),
+      source: 'project',
+      recentHours: recent.get(alloc.projectId) || 0,
+    });
+  }
+  for (const [projectId, hours] of recent) {
+    if (seen.has(projectId)) continue;
+    seen.add(projectId);
+    const project = projectById.get(projectId) || null;
+    rows.push({
+      key: `project:${projectId}`,
+      allocId: '',
+      projectId,
+      project,
+      name: project ? projectLabel(project) : (fallbackName.get(projectId) || 'Prosjekt'),
+      source: 'project',
+      recentHours: hours,
+    });
+  }
+  rows.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  return rows;
+}
+
+export function spanBetween(weeks, indexA, indexB) {
+  const list = weeks || [];
+  if (!list.length) return null;
+  const last = list.length - 1;
+  const a = Math.max(0, Math.min(last, Math.round(Number(indexA) || 0)));
+  const b = Math.max(0, Math.min(last, Math.round(Number(indexB) || 0)));
+  const from = Math.min(a, b);
+  const to = Math.max(a, b);
+  return { start: list[from], weeks: to - from + 1, from, to };
+}
+
+/** Vertikal dra: opp øker belastning i steg på 5 prosent. */
+export function percentFromPointerDelta(basePercent, deltaY) {
+  const base = clampPercent(basePercent);
+  const steps = Math.round(-(Number(deltaY) || 0) / 14);
+  return clampPercent(base + steps * 5);
 }

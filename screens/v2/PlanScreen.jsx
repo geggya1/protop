@@ -7,13 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, MEMBER_COLORS, useLayout } from '../../src/theme';
+import { colors, useLayout } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
 import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
 import OutlookCalendar from '../../components/OutlookCalendar';
-import { eventOccursOnDate, eventVisibleToUser } from '../../src/utils/events';
+import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
   listenEventsAcrossPlatforms,
   platformIdsFromFamilies,
@@ -151,7 +151,7 @@ export default function PlanScreen({ active = true }) {
   const splitCalendar = isDesktop;
   const [mode, setMode] = useState('week');
   const [anchor, setAnchor] = useState(new Date());
-  const [events, setEvents] = useState(() => peekFamilyEventsCache(platformIdsFromFamilies(families)) || []);
+  const [events, setEvents] = useState(() => peekFamilyEventsCache(familyId ? [familyId] : []) || []);
   const [friendSharedEvents, setFriendSharedEvents] = useState([]);
   const [meals, setMeals] = useState([]);
   const familyCounts = useMemo(() => familyMealHeadcount(members), [members]);
@@ -289,19 +289,20 @@ export default function PlanScreen({ active = true }) {
 
   useEffect(() => {
     if (!familyId) return undefined;
-    const cached = peekFamilyEventsCache(platformIds);
+    const ids = [familyId];
+    const cached = peekFamilyEventsCache(ids);
     if (cached?.length) setEvents(cached);
     return listenEventsAcrossPlatforms({
-      platformIds,
+      platformIds: ids,
       activePlatformId: familyId,
       viewerIds,
       platforms: families,
       onChange: (next) => {
-        putFamilyEventsCache(platformIds, next);
+        putFamilyEventsCache(ids, next);
         setEvents(next);
       },
     });
-  }, [familyId, platformIds, viewerIds, families]);
+  }, [familyId, viewerIds, families]);
 
   useEffect(() => {
     if (!uid || asChildViewer) {
@@ -514,15 +515,12 @@ export default function PlanScreen({ active = true }) {
     const familyEv = events
       .filter((e) => eventOccursOnDate(e, d))
       .filter((e) => !(isParent && !isActingAsChild && e.sharedFromExternal))
-      // Barn (og «som barn») ser bare hendelser de er med på / hele familien.
-      // Foreldre ser alle hendelser på aktiv plattform; andre plattformer er allerede profilfiltrert.
+      // Barn ser hendelser de er med på, eller hele familien.
+      // Voksenkalenderen er din egen ProTop-kalender, ikke hjemmet eller hele selskapet.
       .filter((e) => {
-        if (e.crossPlatform) return true;
+        if (e.crossPlatform) return false;
         if (isParent && !isActingAsChild && !isGrandparent) {
-          if (e.createdBy && viewerIds.has(e.createdBy)) return true;
-          if (e.ownerUid && viewerIds.has(e.ownerUid)) return true;
-          const mids = Array.isArray(e.memberIds) ? e.memberIds.filter(Boolean) : [];
-          return mids.some((id) => viewerIds.has(id));
+          return eventOnOwnCalendar(e, viewerIds, members);
         }
         return eventVisibleToUser(e, viewerIds, {
           asChild: asChildViewer,
@@ -638,16 +636,8 @@ export default function PlanScreen({ active = true }) {
         color: FAMILY_CALENDAR_COLOR,
       });
     }
-    (families || []).forEach((f, i) => {
-      if (!f?.id || f.id === familyId) return;
-      addFlat(
-        `plat:${f.id}`,
-        f.name || 'Annen plattform',
-        MEMBER_COLORS[(i + 1) % MEMBER_COLORS.length],
-      );
-    });
-
     [...events, ...externalEvents].forEach((e) => {
+      if (e?.crossPlatform) return;
       if (e?.source === 'microsoft' || e?.connectionId) return;
       if (!(e?.private || e?.readOnly)) return;
       addFlat(
@@ -769,7 +759,7 @@ export default function PlanScreen({ active = true }) {
 
     return list;
   }, [
-    familyId, family, families, members, events, externalEvents,
+    familyId, events, externalEvents,
     calendarConnections, externalLayers, externalSyncErrors,
   ]);
 

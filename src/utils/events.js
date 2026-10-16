@@ -354,6 +354,26 @@ export function eventVisibleToUser(ev, viewerIds, opts = {}) {
   return false;
 }
 
+/**
+ * Egen ProTop-kalender: noe du opprettet eller er med på.
+ * Hele familien/selskapet og andre plattformer hører ikke hjemme her.
+ */
+export function eventOnOwnCalendar(ev, viewerIds, members = []) {
+  if (!ev || ev.crossPlatform) return false;
+  const set = viewerIds instanceof Set
+    ? viewerIds
+    : new Set((Array.isArray(viewerIds) ? viewerIds : [viewerIds]).filter(Boolean));
+  if (!set.size) return false;
+  if (ev.createdBy && set.has(ev.createdBy)) return true;
+  if (ev.ownerUid && set.has(ev.ownerUid)) return true;
+  const memberIds = Array.isArray(ev.memberIds) ? ev.memberIds.filter(Boolean) : [];
+  return memberIds.some((id) => {
+    if (set.has(id)) return true;
+    const member = findMemberByAnyId(members, id);
+    return !!(member && memberAliases(member).some((alias) => set.has(alias)));
+  });
+}
+
 /** @deprecated Prefer eventVisibleToUser — kept for activity badges. */
 export function eventInvolvesMember(ev, ids, opts = {}) {
   return eventVisibleToUser(ev, ids, opts);

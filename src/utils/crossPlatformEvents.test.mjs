@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { eventOnOwnCalendar } from './events.js';
 import { resolveEventWriteTarget } from './eventWriteTarget.js';
+import { selectListenerPlatformIds } from './listenerPlatformIds.js';
 
 /**
  * Mirrors the mapping rule in listenEventsAcrossPlatforms:
@@ -62,5 +64,30 @@ assert.deepEqual(
   resolveEventWriteTarget(local, 'active'),
   { familyId: 'active', eventId: 'e1' },
 );
+
+const platforms = ['hjem', 'sor', 'ost', 'vest', 'nord', 'midt', 'consult1'];
+assert.deepEqual(
+  selectListenerPlatformIds(platforms, 'consult1', 6),
+  ['consult1', 'hjem', 'sor', 'ost', 'vest', 'nord'],
+);
+assert.equal(selectListenerPlatformIds(platforms, 'consult1', 6).includes('consult1'), true);
+
+const uid = 'user-1';
+const members = [{ uid, id: 'member-doc', role: 'parent', name: 'Geir' }];
+assert.equal(eventOnOwnCalendar({
+  createdBy: 'someone',
+  audience: 'family',
+  memberIds: [],
+}, new Set([uid]), members), false);
+assert.equal(eventOnOwnCalendar({
+  crossPlatform: true,
+  createdBy: uid,
+  sourceLabel: 'Geirs hjem',
+}, new Set([uid]), members), false);
+assert.equal(eventOnOwnCalendar({
+  createdBy: 'someone',
+  audience: 'selected',
+  memberIds: ['member-doc'],
+}, new Set([uid]), members), true);
 
 console.log('crossPlatformEvents.test.mjs: ok');

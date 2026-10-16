@@ -7,6 +7,7 @@ import {
   markInvoiceAsSent,
   normalizeInvoice,
 } from './invoices.js';
+import { invoiceTimeEntryIds } from './invoiceRelease.js';
 import {
   clearEntriesInvoice,
   markEntriesInvoiced,
@@ -34,6 +35,12 @@ assert.equal(sent.exportStatus, 'sendt');
 assert.equal(canDeleteInvoice(sent), false);
 assert.equal(canDeleteInvoice({ ...sent, status: 'paid' }), false);
 assert.equal(canDeleteInvoice({ ...sent, status: 'credited' }), false);
+
+assert.deepEqual(invoiceTimeEntryIds({
+  id: 'inv_16714',
+  timeEntryIds: ['t1', 't1'],
+  lines: [{ timeEntryIds: ['t2', ''] }],
+}), ['t1', 't2']);
 
 let state = {
   timeEntries: [

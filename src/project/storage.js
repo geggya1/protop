@@ -699,6 +699,28 @@ export async function persistProjectState(state, companyId) {
   }, companyId);
 }
 
+/**
+ * Oppdater utlegg/kjøring/varer på prosjektstate uten å synke hele timehistorikken.
+ * mutate(state) returnerer felt som skal skrives, eller null når ingenting endres.
+ */
+export async function patchProjectOperations(companyId, mutate) {
+  const id = String(companyId || '').trim();
+  if (!id || typeof mutate !== 'function') return { ok: false };
+  const remote = await readRemote(id);
+  if (!remote?.ok) return { ok: false };
+  const current = remote.state || emptyProjectState();
+  const patch = mutate(current);
+  if (!patch || typeof patch !== 'object') return { ok: true, changed: false };
+  const next = { ...current, ...patch };
+  const written = await writeRemote(id, next);
+  if (!written?.ok) return { ok: false, error: written.error };
+  const key = memoryKey(id);
+  if (MEMORY.has(key)) {
+    putProjectState({ ...MEMORY.get(key), ...patch }, id);
+  }
+  return { ok: true, changed: true };
+}
+
 /** Test/hjelper: tøm minne mellom tester. */
 export function clearProjectStateMemory(companyId) {
   if (companyId !== undefined) {

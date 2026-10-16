@@ -93,7 +93,7 @@ function usePeople(lockedEmployeeId) {
 export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, embedded = false } = {}) {
   const { isDesktop } = useLayout();
   const { workspace, pickedId, setPickedId } = usePeople(lockedEmployeeId);
-  const { family, families, liveFamilies, selectFamily, familyId } = useApp();
+  const { family, families, liveFamilies, selectFamily, familyId, requestShellTab } = useApp();
   const [typeId, setTypeId] = useState('');
   const [category, setCategory] = useState('ferie');
   const [opening, setOpening] = useState('');
@@ -245,6 +245,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         onSelectCategory={setCategory}
         dashboard={dashboard}
         error={workspace.error}
+        onOpenSource={(dest) => requestShellTab?.(dest.tab, dest.subView, dest.intent)}
       />
     );
   }

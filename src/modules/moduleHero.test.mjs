@@ -208,6 +208,9 @@ assert.match(heroSrc, /chrome = false/, 'chrome prop flattens the phone band int
 assert.match(heroSrc, /heroChromePhone/, 'phone chrome band flattens top radius and sits in the header');
 assert.match(heroSrc, /borderTopLeftRadius: 0/, 'phone chrome band has no top radius');
 assert.match(heroSrc, /copyPhoneChrome/, 'phone chrome copy stays compact in the title slot');
+assert.match(heroSrc, /copyPhone:[\s\S]*minWidth:\s*168/, 'phone heading keeps room for the full pitch');
+assert.match(heroSrc, /isPhone \? 3/, 'phone pitch can use three lines so the tip is not cut off');
+assert.match(heroSrc, /artWrapPhoneChrome/, 'phone chrome art stays in the title\/add-button row');
 assert.match(heroSrc, /artWrapPhoneChrome:\s*\{[^}]*marginRight:\s*0/, 'phone chrome art is flush with the right margin');
 assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art anchors to the right edge');
 

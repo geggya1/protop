@@ -675,11 +675,13 @@ export default function EmployeesScreen() {
   }
 
   const pendingEmployeeId = useRef('');
+  const pendingEmployeeView = useRef('detail');
   const pendingMyAbsence = useRef(false);
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type === 'openEmployee') {
       pendingEmployeeId.current = String(shellIntent.employeeId || '');
+      pendingEmployeeView.current = shellIntent.view === 'absence' ? 'absence' : 'detail';
       clearShellIntent?.();
       return;
     }
@@ -694,7 +696,10 @@ export default function EmployeesScreen() {
     const row = rows.find((item) => item.id === id);
     if (!row) return;
     pendingEmployeeId.current = '';
-    openDetail(row);
+    const nextView = pendingEmployeeView.current;
+    pendingEmployeeView.current = 'detail';
+    if (nextView === 'absence') openWork(row, 'absence');
+    else openDetail(row);
   }, [rows]);
 
   function openCv(row) {

@@ -42,6 +42,10 @@ function toCss(style) {
     paddingHorizontal: 'paddingLeft',
     paddingVertical: 'paddingTop',
     minWidth: 'minWidth',
+    maxWidth: 'maxWidth',
+    flexBasis: 'flexBasis',
+    display: 'display',
+    gridTemplateColumns: 'gridTemplateColumns',
     width: 'width',
     paddingRight: 'paddingRight',
     maxHeight: 'maxHeight',
@@ -57,9 +61,10 @@ function toCss(style) {
   if (flat.borderBottomWidth) css.borderBottomStyle = 'solid';
   if (flat.borderWidth) css.borderStyle = 'solid';
   if (flat.flexDirection || flat.gap != null || flat.flex != null) {
-    css.display = 'flex';
-    css.flexDirection = flat.flexDirection || 'column';
+    css.display = flat.display || 'flex';
+    if (css.display !== 'grid') css.flexDirection = flat.flexDirection || 'column';
   }
+  if (typeof flat.flexGrow === 'number') css.flexGrow = String(flat.flexGrow);
   return css;
 }
 
@@ -180,6 +185,7 @@ const hr = {
 const HrPeople = component('screens/hr/HrPeople.jsx');
 const HrControl = component('screens/hr/HrControl.jsx');
 const HrContracts = component('screens/hr/HrContracts.jsx');
+const HrDashboard = component('screens/hr/HrDashboard.jsx');
 
 const peopleProps = {
   colors,
@@ -263,6 +269,60 @@ let controlHtml = '';
   assert.equal(html.includes('Skann og fyll ut'), false);
 }
 
+function isoIn(days, yearsBack = 0) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  const y = date.getFullYear() - yearsBack;
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const dashboardEmployees = [
+  {
+    id: 'staff-a',
+    person: { firstName: 'Geir Ove', lastName: 'Andersen', birthDate: isoIn(18, 40) },
+    company: { status: 'active', personnelKind: 'staff', periodFrom: isoIn(22, 3), title: 'Rådgiver' },
+  },
+  {
+    id: 'staff-b',
+    person: { firstName: 'Daniel Edvard', lastName: 'Wold', birthDate: isoIn(40, 35) },
+    company: { status: 'active', personnelKind: 'staff', periodFrom: isoIn(12, 5), title: 'Konsulent' },
+  },
+  {
+    id: 'ext-a',
+    person: { firstName: 'Øyvind', lastName: 'Granberg', birthDate: isoIn(4, 32) },
+    company: { status: 'active', personnelKind: 'external', periodFrom: isoIn(6, 2), title: 'Innleid' },
+  },
+];
+
+let dashboardHtml = '';
+{
+  dashboardHtml = renderToStaticMarkup(React.createElement(HrDashboard, {
+    colors,
+    employees: dashboardEmployees,
+    hr,
+    canWrite: true,
+    onPatch: () => {},
+    onOpenPeople: () => {},
+  }));
+  const html = dashboardHtml;
+  const internalAt = html.indexOf('Aktive ansatte');
+  const externalAt = html.indexOf('Eksternt aktiv');
+  assert.ok(internalAt >= 0, 'mangler Aktive ansatte');
+  assert.ok(externalAt > internalAt, 'eksterne skal etter egne ansatte');
+  assert.ok(html.indexOf('Geir Ove Andersen') > internalAt);
+  assert.ok(html.indexOf('Geir Ove Andersen') < externalAt);
+  assert.ok(html.indexOf('Daniel Edvard Wold') < externalAt);
+  assert.ok(html.indexOf('Øyvind Granberg') > externalAt);
+  assert.match(html, /id="hr-event-grid-internal"/);
+  assert.match(html, /id="hr-event-grid-external"/);
+  assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, 420px\), 1fr\)\)/);
+  assert.match(html, /Planlegg/);
+  assert.equal(html.includes('Eksternt deaktivert'), false);
+}
+
 const previewDir = '/opt/cursor/artifacts';
 if (fs.existsSync(previewDir)) {
   const page = (title, body) => `<!doctype html><html lang="nb"><head><meta charset="utf-8"><title>${title}</title>
@@ -270,11 +330,12 @@ if (fs.existsSync(previewDir)) {
   body { margin: 0; font-family: "Segoe UI", sans-serif; background: #f4f7fb; color: #152033; }
   main { max-width: 1100px; margin: 24px auto; }
   div { box-sizing: border-box; }
-  button { font: inherit; }
+  button { font: inherit; background: transparent; cursor: pointer; text-align: left; }
 </style></head><body><main>${body}</main></body></html>`;
   fs.writeFileSync(path.join(previewDir, 'hr-personell.html'), page('Personell', peopleHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtale.html'), page('Avtale', sheetHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-lonn-kontroll.html'), page('Lønn', controlHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-oversikt.html'), page('HR-oversikt', dashboardHtml));
 }
 
 console.log('hr directory render ok');

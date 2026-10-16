@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { displayName } from '../../src/employees/model';
+import { splitPeopleEventsByKind } from '../../src/hr/directory';
 import {
   caseFromExpiringContract,
   caseFromPeopleEvent,
@@ -38,6 +40,22 @@ export default function HrDashboard({
     () => upcomingPeopleEvents(people, { withinDays: 90 }),
     [people],
   );
+  const eventGroups = useMemo(() => {
+    const split = splitPeopleEventsByKind(events, people);
+    const inactive = staffFilter === 'inactive';
+    return [
+      {
+        id: 'internal',
+        title: inactive ? 'Deaktiverte ansatte' : 'Aktive ansatte',
+        events: split.internal,
+      },
+      {
+        id: 'external',
+        title: inactive ? 'Eksternt deaktivert' : 'Eksternt aktiv',
+        events: split.external,
+      },
+    ];
+  }, [events, people, staffFilter]);
   const ending = useMemo(() => expiringContracts(hr.contracts, { withinDays: 90 }), [hr.contracts]);
   const follow = useMemo(() => openFollowUps(hr), [hr]);
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
@@ -128,27 +146,17 @@ export default function HrDashboard({
         />
         {events.length === 0 ? (
           <EmptyHint colors={colors} text="Ingen bursdager eller jubileum de neste 90 dagene." />
-        ) : events.slice(0, 10).map((event) => (
-          <View key={`${event.type}-${event.employeeId}-${event.date}`} style={styles.actionRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <RowLink
-                colors={colors}
-                title={event.name}
-                subtitle={`${event.label} · ${formatNbDate(event.date)}`}
-                meta={event.days === 0 ? 'I dag' : `${event.days} dager`}
-                icon={event.type === 'birthday' ? 'gift-outline' : 'ribbon-outline'}
-                onPress={onOpenPeople}
-              />
-            </View>
-            {canWrite ? (
-              <HrButton
-                colors={colors}
-                label="Planlegg"
-                icon="flag-outline"
-                onPress={() => planEvent(event)}
-              />
-            ) : null}
-          </View>
+        ) : eventGroups.map((group) => (
+          <EventGroup
+            key={group.id}
+            id={group.id}
+            colors={colors}
+            title={group.title}
+            events={group.events}
+            canWrite={canWrite}
+            onOpen={onOpenPeople}
+            onPlan={planEvent}
+          />
         ))}
         {ending.length ? (
           <>
@@ -268,6 +276,68 @@ export default function HrDashboard({
   );
 }
 
+const EVENT_LIMIT = 10;
+
+function EventGroup({
+  id, colors, title, events, canWrite, onOpen, onPlan,
+}) {
+  if (!events.length) return null;
+  const shown = events.slice(0, EVENT_LIMIT);
+  const more = events.length > shown.length ? `${shown.length} av ${events.length}` : '';
+  return (
+    <View style={styles.group}>
+      <View style={styles.groupHead}>
+        <Text style={[styles.groupTitle, { color: colors.ink }]}>{title}</Text>
+        {more ? <Text style={[styles.groupCount, { color: colors.muted }]}>{more}</Text> : null}
+      </View>
+      <View style={styles.grid} nativeID={`hr-event-grid-${id}`}>
+        {shown.map((event) => (
+          <EventTile
+            key={`${event.type}-${event.employeeId}-${event.date}`}
+            colors={colors}
+            event={event}
+            canWrite={canWrite}
+            onOpen={onOpen}
+            onPlan={onPlan}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function EventTile({
+  colors, event, canWrite, onOpen, onPlan,
+}) {
+  const days = event.days === 0 ? 'I dag' : `${event.days} dager`;
+  const icon = event.type === 'birthday' ? 'gift-outline' : 'ribbon-outline';
+  return (
+    <View style={[styles.tile, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+      <Pressable onPress={onOpen} style={styles.tileMain}>
+        <Ionicons name={icon} size={16} color={colors.muted} />
+        <View style={styles.tileText}>
+          <Text numberOfLines={1} style={[styles.tileName, { color: colors.ink }]}>{event.name}</Text>
+          <Text numberOfLines={1} style={[styles.tileSub, { color: colors.muted }]}>
+            {`${event.label} · ${formatNbDate(event.date)}`}
+          </Text>
+        </View>
+      </Pressable>
+      <View style={styles.tileSide}>
+        <Text style={[styles.tileDays, { color: colors.ink }]}>{days}</Text>
+        {canWrite ? (
+          <Pressable
+            onPress={() => onPlan(event)}
+            style={[styles.planBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+          >
+            <Ionicons name="flag-outline" size={14} color={colors.ink} />
+            <Text style={[styles.planBtnText, { color: colors.ink }]}>Planlegg</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -288,4 +358,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  group: { gap: 6 },
+  groupHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  groupTitle: { fontSize: 13, fontWeight: '600' },
+  groupCount: { fontSize: 12 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    ...(Platform.OS === 'web' ? {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))',
+    } : null),
+  },
+  tile: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '48%',
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  tileSide: { alignItems: 'flex-end', gap: 4 },
+  tileMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tileText: { flex: 1, minWidth: 0 },
+  tileName: { fontSize: 14, fontWeight: '600' },
+  tileSub: { fontSize: 13, lineHeight: 18 },
+  tileDays: { fontSize: 12, fontWeight: '600' },
+  planBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  planBtnText: { fontSize: 13, fontWeight: '600' },
 });

@@ -29,6 +29,21 @@ export function hrKindLabel(employee) {
   return 'Intern';
 }
 
+/** Beholder rekkefølgen. Ukjent person telles som egen ansatt. */
+export function splitPeopleEventsByKind(events, employees) {
+  const kind = new Map();
+  for (const row of employees || []) {
+    if (row?.id) kind.set(row.id, hrKindBucket(row));
+  }
+  const internal = [];
+  const external = [];
+  for (const event of events || []) {
+    if (kind.get(event.employeeId) === 'external') external.push(event);
+    else internal.push(event);
+  }
+  return { internal, external };
+}
+
 export function filterHrDirectory(employees, {
   query = '',
   status = 'active',

@@ -7,6 +7,7 @@ import {
   hrControlCells,
   hrKindBucket,
   hrKindLabel,
+  splitPeopleEventsByKind,
 } from './directory.js';
 
 function person(id, {
@@ -62,6 +63,22 @@ function person(id, {
   assert.equal(counts.inactive, 1);
   assert.equal(counts.external, 1);
   assert.equal(counts.internal, 2);
+}
+
+{
+  const events = [
+    { employeeId: 'ext', name: 'Bo', days: 1 },
+    { employeeId: 'staff', name: 'Ada', days: 4 },
+    { employeeId: 'inn', name: 'Celine', days: 2 },
+    { employeeId: 'missing', name: 'Ukjent', days: 3 },
+  ];
+  const split = splitPeopleEventsByKind(events, [
+    person('staff', { kind: 'staff' }),
+    person('ext', { kind: 'external' }),
+    person('inn', { kind: 'innleid' }),
+  ]);
+  assert.deepEqual(split.internal.map((row) => row.name), ['Ada', 'Ukjent']);
+  assert.deepEqual(split.external.map((row) => row.name), ['Bo', 'Celine']);
 }
 
 {

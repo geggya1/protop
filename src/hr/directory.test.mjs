@@ -156,6 +156,9 @@ function person(id, {
   assert.equal(cells.openCases, '1');
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
+  assert.equal(cells.checklistOk, 3);
+  assert.match(cells.checklistGaps, /HMS-introduksjon/);
+  assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 }
 
 {
@@ -165,6 +168,7 @@ function person(id, {
   assert.equal(cells.salary, 'Mangler');
   assert.equal(cells.utilization, '—');
   assert.equal(cells.checklistMissing > 0, true);
+  assert.match(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 }
 
 {

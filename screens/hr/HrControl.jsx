@@ -45,14 +45,20 @@ const PAGES = {
   },
   compliance: {
     title: 'Lov og ISO',
-    subtitle: 'Kontroll på tvers. Sjekklisten fylles ut inne på den enkelte ansatte.',
+    subtitle: 'Sjekkliste for egne ansatte: skriftlig avtale, HMS, kompetanse og personvern. Avtale og gjennomført medarbeidersamtale fyller inn det som kan bevises. Åpne raden for å krysse av resten.',
     sheet: 'compliance',
+    staffOnly: true,
     columns: [
-      { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
-      { key: 'kind', label: 'Type', width: 100, value: (row) => row.cells.kindLabel },
-      { key: 'ok', label: 'OK', width: 80, value: (row) => String(row.cells.checklistOk) },
-      { key: 'missing', label: 'Mangler', width: 100, value: (row) => String(row.cells.checklistMissing), warn: (row) => row.cells.checklistMissing > 0 },
-      { key: 'pct', label: 'Dekning', width: 100, value: (row) => row.cells.checklistPct },
+      { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
+      { key: 'pct', label: 'Dekning', width: 90, value: (row) => row.cells.checklistPct },
+      {
+        key: 'gaps',
+        label: 'Mangler',
+        width: 420,
+        value: (row) => row.cells.checklistGaps,
+        warn: (row) => row.cells.checklistMissing > 0,
+      },
+      { key: 'open', label: '', width: 130, value: () => 'Åpne sjekkliste' },
     ],
   },
 };
@@ -62,13 +68,17 @@ export default function HrControl({
 }) {
   const spec = PAGES[page] || PAGES.avtaler;
   const dir = useHrDirectory(employees, spec.staffOnly ? { lockedKind: 'internal' } : undefined);
-  const rows = useMemo(
-    () => dir.rows.map((employee) => ({
+  const rows = useMemo(() => {
+    const mapped = dir.rows.map((employee) => ({
       employee,
       cells: hrControlCells(employee, { hr, entries }),
-    })),
-    [dir.rows, hr, entries],
-  );
+    }));
+    if (page !== 'compliance') return mapped;
+    return mapped.sort((a, b) => (
+      b.cells.checklistMissing - a.cells.checklistMissing
+      || displayName(a.employee).localeCompare(displayName(b.employee), 'nb')
+    ));
+  }, [dir.rows, hr, entries, page]);
 
   return (
     <View nativeID={`hr-control-${page}`}>

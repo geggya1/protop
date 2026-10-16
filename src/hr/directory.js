@@ -117,6 +117,9 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
     checklistPct: overview ? `${overview.pct} %` : '—',
     checklistOk: overview?.ok ?? 0,
     checklistMissing: overview?.missing ?? 0,
+    checklistGaps: overview?.gaps?.length
+      ? overview.gaps.join(' · ')
+      : 'Ingen påkrevde mangler',
     contract: contract
       ? (contract.aml?.pct != null ? `AML ${contract.aml.pct} %` : 'Registrert')
       : 'Mangler',

@@ -8,6 +8,7 @@ import {
   scheduleFromPercent,
   scheduleRange,
   scheduledHours,
+  timeSettingsOf,
 } from './schedule.js';
 
 const early = {
@@ -111,6 +112,21 @@ const later = {
   assert.equal(saved.schedules[0].days.mon.hours, 8);
   assert.equal(saved.schedules[0].custom, true);
   assert.equal(saved.schedules[1].from, '2026-07-01');
+}
+
+{
+  const external = timeSettingsOf({
+    company: { personnelKind: 'external', status: 'active' },
+    extras: { timeSettings: { externalConsultant: false, includeInCapacity: true } },
+  });
+  assert.equal(external.externalConsultant, true);
+  assert.equal(external.includeInCapacity, false);
+  const staff = timeSettingsOf({
+    company: { personnelKind: 'staff', status: 'active' },
+    extras: { timeSettings: { externalConsultant: true, includeInCapacity: false } },
+  });
+  assert.equal(staff.externalConsultant, false);
+  assert.equal(staff.includeInCapacity, true);
 }
 
 console.log('schedule.test.mjs: ok');

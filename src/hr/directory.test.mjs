@@ -40,6 +40,32 @@ function person(id, {
   assert.equal(hrKindLabel(rows[2]), 'Innleid');
   assert.equal(hrKindLabel(rows[0]), 'Intern');
 
+  const regnskap = person('r', { first: 'Ron', kind: 'staff' });
+  regnskap.company.accessLevel = 'regnskap_ekstern';
+  const andre = person('o', { first: 'Oda', kind: 'staff' });
+  andre.company.accessLevel = 'ansatt_andre_avdelinger';
+  const innleie = person('i', { first: 'Ivar', kind: 'staff' });
+  innleie.company.accessLevel = 'innleie_ekstern';
+  const typed = person('t', { first: 'Tina', kind: 'staff' });
+  typed.company.employmentType = 'Ekstern';
+  const mixed = person('mix', { first: 'Mia', kind: 'staff' });
+  mixed.company.accessLevel = 'tilbud';
+  mixed.company.accessLevels = ['ansatt', 'tilbud', 'regnskap_ekstern'];
+  assert.equal(hrKindBucket(regnskap), 'external');
+  assert.equal(hrKindLabel(regnskap), 'Ekstern');
+  assert.equal(hrKindBucket(andre), 'external');
+  assert.equal(hrKindLabel(andre), 'Ekstern');
+  assert.equal(hrKindBucket(innleie), 'external');
+  assert.equal(hrKindLabel(innleie), 'Innleid');
+  assert.equal(hrKindBucket(typed), 'external');
+  assert.equal(hrKindBucket(mixed), 'internal');
+  assert.equal(hrKindLabel(mixed), 'Intern');
+  const onlyInternal = filterHrDirectory(
+    [rows[0], regnskap, andre, innleie, typed, mixed],
+    { status: 'active', kind: 'internal' },
+  );
+  assert.deepEqual(onlyInternal.map((row) => row.id), ['mix', 'a']);
+
   const active = filterHrDirectory(rows, { status: 'active', kind: 'all' });
   assert.deepEqual(active.map((row) => row.id).sort(), ['a', 'b', 'e']);
   assert.deepEqual(active.map((row) => row.id), ['b', 'e', 'a']);

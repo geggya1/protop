@@ -149,6 +149,25 @@ function assertRenders(label, element) {
   return nodes;
 }
 
+function collectText(node, depth = 0, out = []) {
+  if (depth > 40 || node == null || typeof node === 'boolean') return out;
+  if (Array.isArray(node)) {
+    node.forEach((child) => collectText(child, depth, out));
+    return out;
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    out.push(String(node));
+    return out;
+  }
+  if (!React.isValidElement(node)) return out;
+  if (typeof node.type === 'function') {
+    collectText(withHooks(() => node.type(node.props || {})), depth + 1, out);
+    return out;
+  }
+  collectText(node.props && node.props.children, depth + 1, out);
+  return out;
+}
+
 const {
   CompanyAbsenceDesktop,
   AbsenceReportDesktop,
@@ -168,10 +187,18 @@ const absences = [
 ];
 
 {
-  const nodes = assertRenders('CompanyAbsenceDesktop', React.createElement(CompanyAbsenceDesktop, {
+  const element = React.createElement(CompanyAbsenceDesktop, {
     employees, names, absences, adjustments: [], fullDayHours: 7.5, today, canChooseEmployee: true,
-  }));
+  });
+  const nodes = assertRenders('CompanyAbsenceDesktop', element);
   assert.ok(nodes > 100, `overview too small: ${nodes}`);
+  const text = collectText(element).join('\n');
+  assert.match(text, /Borte i perioden/);
+  assert.match(text, /På ferie/);
+  assert.doesNotMatch(text, /På ferie nå/);
+  assert.match(text, /periode-midten|Dag/);
+  assert.match(text, /Ada/);
+  assert.match(text, /Bjørn/);
 }
 
 {

@@ -414,6 +414,7 @@ export function buildAbsenceWebBoard({
   fullDayHours = 7.5,
   today = '',
   names = {},
+  year: yearOverride = '',
 } = {}) {
   const dash = buildAbsenceDashboard({
     employees,
@@ -430,7 +431,7 @@ export function buildAbsenceWebBoard({
   ));
   const selectedIds = new Set(people.map((row) => row.id));
   const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
-  const year = dash.year;
+  const year = String(yearOverride || dash.year || '').slice(0, 4) || dash.year;
   const byPerson = new Map();
   for (const person of people) {
     byPerson.set(person.id, {
@@ -575,7 +576,7 @@ export function buildAbsencePeriodGrid({
   }
   const totals = days.map((day) => ({
     key: day.key,
-    label: String(day.day),
+    label: days.length <= 16 ? `${day.weekday} ${day.day}` : String(day.day),
     ferie: 0,
     sykdom: 0,
     annet: 0,
@@ -597,4 +598,61 @@ export function buildAbsencePeriodGrid({
   });
   people.sort((a, b) => b.awayDays - a.awayDays || a.name.localeCompare(b.name, 'nb'));
   return { days, people, totals };
+}
+
+function presentAbsencePeriods(periods, names, dayHours) {
+  return periods.map((period) => ({
+    ...period,
+    days: hoursToDays(period.hours, dayHours),
+    employeeName: names[period.employeeId] || 'Ansatt',
+    typeLabel: absenceTypeById(period.type).label,
+    bucket: absenceBucket(period.type),
+    category: absenceCategory(period.type),
+  }));
+}
+
+/**
+ * Tall og lister for valgt dag, uke eller måned.
+ * Ferie, sykdom og annet teller unike ansatte med fravær i vinduet.
+ */
+export function summarizeAbsenceSpan({
+  absences = [],
+  employeeIds = [],
+  names = {},
+  start = '',
+  end = '',
+  today = '',
+  fullDayHours = 7.5,
+} = {}) {
+  const chosen = new Set((employeeIds || []).filter(Boolean));
+  const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
+  const from = String(start || '');
+  const to = String(end || from);
+  const inRange = (absences || []).filter((row) => (
+    row
+    && chosen.has(row.employeeId)
+    && row.date
+    && row.date >= from
+    && row.date <= to
+  ));
+  const buckets = { ferie: new Set(), sykdom: new Set(), annet: new Set() };
+  for (const row of inRange) {
+    const bucket = absenceBucket(row.type || 'ferie');
+    buckets[bucket].add(row.employeeId);
+  }
+  const overlaps = (period) => period.end >= from && period.start <= to;
+  const planned = presentAbsencePeriods(groupAbsencePeriods(
+    (absences || []).filter((row) => chosen.has(row.employeeId)),
+    today,
+  ), names, dayHours)
+    .filter((row) => row.status === 'planlagt' && overlaps(row))
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)) || String(a.employeeName).localeCompare(String(b.employeeName), 'nb'));
+  return {
+    ferie: buckets.ferie.size,
+    sykdom: buckets.sykdom.size,
+    annet: buckets.annet.size,
+    away: presentAbsencePeriods(groupAbsencePeriods(inRange, today), names, dayHours),
+    planned,
+    registered: presentAbsencePeriods(groupAbsencePeriods(inRange, today), names, dayHours),
+  };
 }

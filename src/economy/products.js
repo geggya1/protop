@@ -3,7 +3,7 @@
  * Ref: Fiken produkter, PowerOffice produkt + salgskonto, bokføringsforskriften 5-1.
  */
 
-import { calcLineVat, defaultVatCode, roundMoney } from './vat.js';
+import { calcLineVat, defaultVatCode, resolveVatPercent, roundMoney } from './vat.js';
 import { text } from './invoices.js';
 
 export const PRODUCT_KINDS = [
@@ -109,6 +109,10 @@ export function normalizeSale(input = {}) {
   const unitPrice = Math.max(0, Number(row.unitPrice) || 0);
   const calc = calcLineVat({ quantity: qty, unitPrice, vatCode });
   const status = SALE_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
+  const lockAmounts = row.lockAmounts === true;
+  const explicitEx = lockAmounts ? optionalMoney(row.amountExVat) : null;
+  const explicitVat = lockAmounts ? optionalMoney(row.vatAmount) : null;
+  const explicitIncl = lockAmounts ? optionalMoney(row.amountInclVat) : null;
   return {
     id: text(row.id),
     date: text(row.date),
@@ -133,11 +137,42 @@ export function normalizeSale(input = {}) {
     invoiceId: text(row.invoiceId),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
-    amountExVat: calc.amountExVat,
-    vatAmount: calc.vatAmount,
-    amountInclVat: calc.amountInclVat,
-    vatPercent: calc.vatPercent,
+    title: text(row.title),
+    period: text(row.period),
+    productGroup: text(row.productGroup),
+    department: text(row.department),
+    activityName: text(row.activityName),
+    includedInTotal: row.includedInTotal === true,
+    postponedUntil: text(row.postponedUntil),
+    postponeReason: text(row.postponeReason),
+    comment: text(row.comment),
+    purchaseCurrency: text(row.purchaseCurrency),
+    salesCurrency: text(row.salesCurrency) || 'NOK',
+    purchaseUnitPrice: optionalMoney(row.purchaseUnitPrice) ?? 0,
+    discountPercent: optionalMoney(row.discountPercent) ?? 0,
+    surchargePercent: optionalMoney(row.surchargePercent) ?? 0,
+    accountLabel: text(row.accountLabel),
+    purchaseAmountExVat: optionalMoney(row.purchaseAmountExVat),
+    purchaseVatAmount: optionalMoney(row.purchaseVatAmount),
+    purchaseAmountInclVat: optionalMoney(row.purchaseAmountInclVat),
+    importFingerprint: text(row.importFingerprint),
+    lockAmounts,
+    source: row.source && typeof row.source === 'object' ? row.source : null,
+    amountExVat: explicitEx != null ? explicitEx : calc.amountExVat,
+    vatAmount: explicitVat != null ? explicitVat : calc.vatAmount,
+    amountInclVat: explicitIncl != null
+      ? explicitIncl
+      : (explicitEx != null ? roundMoney(explicitEx + (explicitVat || 0)) : calc.amountInclVat),
+    vatPercent: row.vatPercent != null && row.vatPercent !== ''
+      ? resolveVatPercent(row.vatPercent)
+      : calc.vatPercent,
   };
+}
+
+function optionalMoney(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? roundMoney(n) : null;
 }
 
 export function saleFromProduct(product, extras = {}) {

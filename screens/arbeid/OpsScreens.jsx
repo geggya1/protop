@@ -61,35 +61,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
   );
 }
 
-export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
-  const colors = useColors();
-  const hostedHero = useModuleHeroHosted();
-  const year = new Date().getFullYear();
-  const workspace = useTimesheetWorkspace({
-    lockedEmployeeId,
-    fromDate: `${year}-01-01`,
-    toDate: `${year}-12-31`,
-  });
-  const activeId = workspace.lockedId || workspace.linked?.id || '';
-  const rows = (workspace.state?.sales || []).filter((row) => !activeId || !row.employeeId || row.employeeId === activeId);
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="mine-produktsalg">
-      {hostedHero ? null : (
-        <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Mine produktsalg</Text>
-          <Text style={[styles.title, { color: colors.ink }]}>Mine produktsalg</Text>
-        </>
-      )}
-      {rows.map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.date} · {row.name}</Text>
-          <Text style={{ color: colors.muted }}>{row.quantity} × {money(row.unitPrice)} · {row.projectName || 'Uten prosjekt'}</Text>
-        </View>
-      ))}
-      {!rows.length ? <Text style={{ color: colors.muted }}>Ingen produktsalg er registrert fra timelisten.</Text> : null}
-    </ScrollView>
-  );
-}
+export { ProductSalesScreen } from './ProductSalesScreen';
 
 export { ApprovalsScreen };
 

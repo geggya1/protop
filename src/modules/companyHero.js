@@ -341,12 +341,12 @@ export const COMPANY_HERO = {
   'arbeid-salg': {
     ...BLUE,
     wideArt: true,
-    name: 'Mine produktsalg',
+    name: 'Produktsalg',
     kicker: t('Arbeid', 'Work'),
-    title: t('Mine produktsalg', 'My product sales'),
+    title: t('Produktsalg', 'Product sales'),
     pitch: t(
-      'Salg du har registrert på prosjektene.',
-      'Sales you have recorded on the projects.',
+      'Salg mot kunde, fra produktkatalogen og timelisten.',
+      'Sales to customers, from the product catalog and the timesheet.',
     ),
   },
   'arbeid-godkjenning': {

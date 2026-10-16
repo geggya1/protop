@@ -1,8 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { setEmployeePath } from '../../src/employees/model';
-import { SCHEDULE_DAYS, scheduleFromPercent, timeSettingsOf } from '../../src/arbeid/schedule.js';
+import { Ionicons } from '@expo/vector-icons';
+import { newId, setEmployeePath } from '../../src/employees/model';
+import {
+  SCHEDULE_DAYS,
+  departureOf,
+  formatScheduleDate,
+  normalizeScheduleRow,
+  parseScheduleDate,
+  removeSchedule,
+  replaceSchedule,
+  scheduleFromPercent,
+  scheduleIdentity,
+  scheduleRange,
+  sortedSchedules,
+  timeSettingsOf,
+} from '../../src/arbeid/schedule.js';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
+import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 
 const CHECKS = [
@@ -31,6 +46,7 @@ export default function EmployeeWorkViews({
   canEdit = false,
   expenses = [],
   onSave,
+  initialSub = 'general',
 }) {
   if (mode === 'files') {
     const files = (expenses || []).filter((row) => row.employeeId === employee?.id && (row.receiptName || row.description));
@@ -47,23 +63,17 @@ export default function EmployeeWorkViews({
     );
   }
   return (
-    <EmployeeSettings employee={employee} colors={colors} canEdit={canEdit} onSave={onSave} />
+    <EmployeeSettings employee={employee} colors={colors} canEdit={canEdit} onSave={onSave} initialSub={initialSub} />
   );
 }
 
-function EmployeeSettings({ employee, colors, canEdit, onSave }) {
+function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'general' }) {
   const settings = timeSettingsOf(employee);
-  const [sub, setSub] = useState('general');
+  const [sub, setSub] = useState(initialSub);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [target, setTarget] = useState(String(settings.utilizationTarget ?? 100));
   const [rate, setRate] = useState(settings.hourlyRate || '');
-  const plan = useMemo(() => {
-    const list = employee?.extras?.schedules || [];
-    return list[list.length - 1] || null;
-  }, [employee]);
-  const [from, setFrom] = useState(plan?.from || '');
-  const [days, setDays] = useState(plan?.days || scheduleFromPercent(employee?.company?.workPercent || 100, 7.5));
 
   function patchSettings(nextSettings, companyPatch = {}) {
     let next = setEmployeePath(employee, 'extras.timeSettings', {
@@ -98,30 +108,6 @@ function EmployeeSettings({ employee, colors, canEdit, onSave }) {
       hourlyRate: rate,
     }));
     setNote('Mål og timepris er lagret.');
-  }
-
-  async function savePlan() {
-    const storedDays = {};
-    for (const day of SCHEDULE_DAYS) {
-      const slot = days[day.id] || {};
-      storedDays[day.id] = {
-        hours: parseHours(slot.hours),
-        arrival: slot.arrival || '0:00',
-        adjustment: slot.adjustment || '0:00',
-      };
-    }
-    const row = {
-      id: plan?.id || `plan_${Date.now().toString(36)}`,
-      from: from || new Date().toISOString().slice(0, 10),
-      days: storedDays,
-    };
-    const rest = (employee?.extras?.schedules || []).filter((item) => item.id !== row.id);
-    await onSave?.(setEmployeePath(employee, 'extras.schedules', [...rest, row]));
-    setNote('Tidsplanen er lagret.');
-  }
-
-  function fillFromPercent() {
-    setDays(scheduleFromPercent(employee?.company?.workPercent || 100, 7.5));
   }
 
   async function resetPassword() {
@@ -208,42 +194,14 @@ function EmployeeSettings({ employee, colors, canEdit, onSave }) {
       ) : null}
 
       {sub === 'work' ? (
-        <View nativeID="employee-schedule" style={{ gap: 10 }}>
-          <View style={styles.row}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Tidsplan</Text>
-            {canEdit ? (
-              <TouchableOpacity onPress={fillFromPercent} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>Fra stillingsprosent ({employee?.company?.workPercent || 100} %)</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Gjelder fra</Text>
-          <TextInput value={from} onChangeText={setFrom} editable={canEdit} placeholder="ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, maxWidth: 160 }]} />
-          <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-            {SCHEDULE_DAYS.map((day) => {
-              const slot = days[day.id] || { hours: 0, arrival: '0:00', adjustment: '0:00' };
-              return (
-                <View key={day.id} style={[styles.day, { borderColor: day.weekend ? '#fecaca' : colors.line, backgroundColor: day.weekend ? '#fff7f7' : colors.card }]}>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }}>{day.label}</Text>
-                  <TextInput
-                    value={typeof slot.hours === 'number' ? formatHours(slot.hours) : String(slot.hours ?? '')}
-                    editable={canEdit}
-                    onChangeText={(value) => setDays((current) => ({ ...current, [day.id]: { ...slot, hours: value } }))}
-                    style={[styles.input, { color: colors.ink, borderColor: colors.line, textAlign: 'center' }]}
-                    accessibilityLabel={`${day.label} timer`}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Kommer: {slot.arrival || '0:00'}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Fratrekk/tillegg: {slot.adjustment || '0:00'}</Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-          {canEdit ? (
-            <TouchableOpacity onPress={savePlan} style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]} nativeID="employee-schedule-save">
-              <Text style={styles.btnText}>Lagre tidsplan</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        <ScheduleSection
+          employee={employee}
+          colors={colors}
+          canEdit={canEdit}
+          onSave={onSave}
+          onNote={setNote}
+          onError={setError}
+        />
       ) : null}
 
       {sub === 'password' ? (
@@ -277,6 +235,288 @@ function EmployeeSettings({ employee, colors, canEdit, onSave }) {
   );
 }
 
+function editableDays(days) {
+  const next = {};
+  for (const day of SCHEDULE_DAYS) {
+    const slot = days?.[day.id] || {};
+    const arrival = formatHours(slot.arrival || 0);
+    const hours = formatHours(slot.hours || 0);
+    const leave = slot.leave ? formatHours(slot.leave) : departureOf({ arrival, hours });
+    next[day.id] = {
+      hours,
+      arrival,
+      leave,
+      adjustment: formatHours(slot.adjustment || 0),
+      leaveTouched: Boolean(slot.leave),
+    };
+  }
+  return next;
+}
+
+function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError }) {
+  const plans = useMemo(() => sortedSchedules(employee?.extras?.schedules), [employee]);
+  const [editor, setEditor] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function openEditor(plan, isNew) {
+    onError('');
+    onNote('');
+    setConfirmDelete(false);
+    setEditor({
+      id: plan.id || newId('plan'),
+      isNew,
+      previousId: plan.id || '',
+      previousFrom: isNew ? '' : (plan.from || ''),
+      fromText: formatScheduleDate(plan.from) || plan.from || '',
+      toText: plan.to ? formatScheduleDate(plan.to) : '',
+      days: editableDays(plan.days),
+    });
+  }
+
+  function startCreate() {
+    if (editor) {
+      onError('Lagre eller avbryt tidsplanen du redigerer.');
+      return;
+    }
+    const from = toDateKey(new Date());
+    const source = plans.find((plan) => plan.from && plan.from <= from) || plans[0];
+    openEditor({
+      id: newId('plan'),
+      from,
+      days: source?.days || scheduleFromPercent(employee?.company?.workPercent || 100, 7.5),
+    }, true);
+  }
+
+  function fillFromPercent() {
+    const seeded = scheduleFromPercent(employee?.company?.workPercent || 100, 7.5);
+    setEditor((current) => (current ? { ...current, days: editableDays(seeded) } : current));
+  }
+
+  function patchDay(dayId, field, value) {
+    setEditor((current) => {
+      if (!current) return current;
+      const slot = { ...(current.days[dayId] || {}), [field]: value };
+      if (field === 'leave') slot.leaveTouched = true;
+      if ((field === 'hours' || field === 'arrival') && !slot.leaveTouched) {
+        slot.leave = formatHours(parseHours(slot.arrival) + parseHours(slot.hours));
+      }
+      return { ...current, days: { ...current.days, [dayId]: slot } };
+    });
+  }
+
+  async function saveEditor() {
+    if (!editor) return;
+    const normalized = normalizeScheduleRow({
+      id: editor.id,
+      from: editor.fromText,
+      to: newer?.from ? '' : editor.toText,
+      days: editor.days,
+    });
+    if (!normalized.ok) {
+      onError(normalized.error);
+      return;
+    }
+    const replaced = replaceSchedule(employee?.extras?.schedules, normalized.row, {
+      id: editor.previousId,
+      from: editor.previousFrom,
+    });
+    if (!replaced.ok) {
+      onError(replaced.error);
+      return;
+    }
+    await onSave?.(setEmployeePath(employee, 'extras.schedules', replaced.schedules));
+    setEditor(null);
+    onError('');
+    onNote('Tidsplanen er lagret.');
+  }
+
+  async function deleteEditor() {
+    if (!editor || editor.isNew) {
+      setEditor(null);
+      return;
+    }
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    const identity = editor.previousId || `from:${editor.previousFrom}`;
+    await onSave?.(setEmployeePath(employee, 'extras.schedules', removeSchedule(employee?.extras?.schedules, identity)));
+    setEditor(null);
+    setConfirmDelete(false);
+    onError('');
+    onNote('Tidsplanen er slettet.');
+  }
+
+  const editorFrom = editor ? parseScheduleDate(editor.fromText) : '';
+  const others = editor
+    ? plans.filter((plan) => scheduleIdentity(plan) !== (editor.previousId || `from:${editor.previousFrom}`) && plan.id !== editor.id)
+    : [];
+  const newer = editorFrom
+    ? others.filter((plan) => plan.from > editorFrom).sort((a, b) => String(a.from).localeCompare(String(b.from)))[0]
+    : null;
+
+  return (
+    <View nativeID="employee-schedule" style={{ gap: 14 }}>
+      <View style={styles.scheduleHead}>
+        {canEdit ? (
+          <TouchableOpacity onPress={startCreate} accessibilityRole="button" accessibilityLabel="Opprett tidsplan" nativeID="employee-schedule-create" style={[styles.btn, { backgroundColor: colors.brand }]}>
+            <Text style={styles.btnText}>+ Opprett tidsplan</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {editor ? (
+        <View style={[styles.planCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <View style={styles.planTop}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>{editor.isNew ? 'Ny tidsplan' : 'Rediger tidsplan'}</Text>
+            {canEdit ? (
+              <TouchableOpacity onPress={fillFromPercent} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Fra stillingsprosent ({employee?.company?.workPercent || 100} %)</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={styles.planBody}>
+            <View style={styles.period}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Fra</Text>
+              <TextInput
+                value={editor.fromText}
+                onChangeText={(value) => setEditor((current) => (current ? { ...current, fromText: value } : current))}
+                placeholder="DD.MM.ÅÅÅÅ"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                accessibilityLabel="Fra-dato"
+              />
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Til</Text>
+              {newer?.from ? (
+                <Text style={{ color: colors.ink }}>{formatScheduleDate(scheduleRange({ id: editor.id, from: editorFrom }, [...others, { id: editor.id, from: editorFrom }]).to)}</Text>
+              ) : (
+                <TextInput
+                  value={editor.toText}
+                  onChangeText={(value) => setEditor((current) => (current ? { ...current, toText: value } : current))}
+                  placeholder="nåværende"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                  accessibilityLabel="Til-dato"
+                />
+              )}
+            </View>
+            <DayGrid
+              colors={colors}
+              editing
+              days={editor.days}
+              onPatch={patchDay}
+            />
+          </View>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={saveEditor} style={[styles.btn, { backgroundColor: colors.brand }]} nativeID="employee-schedule-save">
+              <Text style={styles.btnText}>Lagre tidsplan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setEditor(null); setConfirmDelete(false); onError(''); }} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Avbryt</Text>
+            </TouchableOpacity>
+            {!editor.isNew ? (
+              <TouchableOpacity onPress={deleteEditor} accessibilityRole="button">
+                <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>{confirmDelete ? 'Bekreft sletting' : 'Slett tidsplan'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      {plans.map((plan) => {
+        const range = scheduleRange(plan, plans);
+        const hidden = editor && !editor.isNew && (plan.id === editor.previousId || (!plan.id && plan.from === editor.previousFrom));
+        if (hidden) return null;
+        return (
+          <View key={scheduleIdentity(plan)} style={[styles.planCard, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID={`employee-schedule-${plan.from}`}>
+            <View style={styles.planTop}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Tidsplan</Text>
+              {canEdit ? (
+                <TouchableOpacity onPress={() => openEditor(plan, false)} accessibilityRole="button" accessibilityLabel={`Rediger tidsplan fra ${formatScheduleDate(plan.from)}`}>
+                  <Text style={{ color: colors.brand, fontWeight: '600' }}>Rediger</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <View style={styles.planBody}>
+              <View style={styles.period}>
+                <Text style={{ color: colors.muted }}>Fra: <Text style={{ color: colors.ink }}>{formatScheduleDate(range.from) || '—'}</Text></Text>
+                <Text style={{ color: colors.muted }}>Til: <Text style={{ color: colors.ink }}>{range.open ? 'nåværende' : (formatScheduleDate(range.to) || '—')}</Text></Text>
+              </View>
+              <DayGrid colors={colors} days={plan.days} onEditDay={canEdit ? () => openEditor(plan, false) : undefined} />
+            </View>
+          </View>
+        );
+      })}
+
+      {!plans.length && !editor ? (
+        <Text style={{ color: colors.muted }}>Ingen tidsplan er lagret. Forventede timer følger stillingsprosenten til du oppretter en.</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
+  return (
+    <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
+      {SCHEDULE_DAYS.map((day) => {
+        const slot = days?.[day.id] || {};
+        const hoursLabel = formatHours(slot.hours || 0);
+        const off = parseHours(slot.hours) === 0;
+        return (
+          <View key={day.id} style={[styles.day, { borderColor: off ? '#fecaca' : colors.line, backgroundColor: colors.card }]}>
+            <View style={[styles.dayHead, { backgroundColor: off ? '#fee2e2' : (colors.sunken || '#f8fafc') }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>{day.label}</Text>
+              {onEditDay ? (
+                <TouchableOpacity onPress={onEditDay} accessibilityRole="button" accessibilityLabel={`Rediger ${day.label}`}>
+                  <Ionicons name="create-outline" size={16} color={colors.brand} />
+                </TouchableOpacity>
+              ) : <View style={{ width: 16 }} />}
+            </View>
+            {editing ? (
+              <View style={{ gap: 6, padding: 8 }}>
+                <TextInput
+                  value={String(slot.hours ?? '')}
+                  onChangeText={(value) => onPatch?.(day.id, 'hours', value)}
+                  style={[styles.input, styles.dayInput, { color: colors.ink, borderColor: colors.line }]}
+                  accessibilityLabel={`${day.label} timer`}
+                />
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Kommer</Text>
+                <TextInput
+                  value={String(slot.arrival ?? '')}
+                  onChangeText={(value) => onPatch?.(day.id, 'arrival', value)}
+                  style={[styles.input, styles.dayInput, { color: colors.ink, borderColor: colors.line }]}
+                  accessibilityLabel={`${day.label} kommer`}
+                />
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Går</Text>
+                <TextInput
+                  value={String(slot.leave ?? '')}
+                  onChangeText={(value) => onPatch?.(day.id, 'leave', value)}
+                  style={[styles.input, styles.dayInput, { color: colors.ink, borderColor: colors.line }]}
+                  accessibilityLabel={`${day.label} går`}
+                />
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Fratrekk/tillegg</Text>
+                <TextInput
+                  value={String(slot.adjustment ?? '')}
+                  onChangeText={(value) => onPatch?.(day.id, 'adjustment', value)}
+                  style={[styles.input, styles.dayInput, { color: colors.ink, borderColor: colors.line }]}
+                  accessibilityLabel={`${day.label} fratrekk`}
+                />
+              </View>
+            ) : (
+              <View style={{ gap: 4, padding: 8 }}>
+                <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>{hoursLabel}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Kommer: {formatHours(slot.arrival || 0)}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Går: {departureOf(slot)}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Fratrekk/tillegg: {formatHours(slot.adjustment || 0)}</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 10, paddingBottom: 40 },
   title: { fontSize: 20, fontWeight: '700' },
@@ -288,5 +528,13 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, minWidth: 88 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   btnText: { color: '#fff', fontWeight: '700' },
-  day: { width: 140, borderWidth: 1, borderRadius: 12, padding: 10, gap: 6 },
+  secondary: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  scheduleHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'flex-end' },
+  planCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 12 },
+  planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  planBody: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' },
+  period: { width: 160, gap: 6, paddingTop: 4 },
+  day: { width: 148, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8 },
+  dayInput: { minWidth: 0, width: '100%', textAlign: 'center', paddingVertical: 6 },
 });

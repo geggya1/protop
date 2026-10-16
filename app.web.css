@@ -85,6 +85,18 @@ button, input, select, textarea { font-family: var(--app-font); }
   font-weight: 600 !important;
   font-variation-settings: 'wght' 600 !important;
 }
+/* Timelisten holder egen vekt, så prosjektnavn og saldo ikke flates ut. */
+#company-page #timesheet-grid [data-ts="title"],
+#company-page #timesheet-grid [data-ts="title"] *,
+#company-page #timesheet-grid [data-ts="strong"],
+#company-page #timesheet-grid [data-ts="strong"] *,
+[data-company-page="1"] #timesheet-grid [data-ts="title"],
+[data-company-page="1"] #timesheet-grid [data-ts="title"] *,
+[data-company-page="1"] #timesheet-grid [data-ts="strong"],
+[data-company-page="1"] #timesheet-grid [data-ts="strong"] * {
+  font-weight: 600 !important;
+  font-variation-settings: 'wght' 600 !important;
+}
 button, [role="button"] { cursor: pointer; }
 
 /* Timelisten under Ansatte skal fylle samme bredde som timelisten ellers. */

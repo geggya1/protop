@@ -81,7 +81,9 @@ import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
 import { agreedHoursForDate, redDayMap } from '../../src/arbeid/holidays.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
-import { payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import { loadTimeEntries } from '../../src/economy/timeEntryStorage.js';
+import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { isDateLocked } from '../../src/arbeid/locks.js';
 import {
@@ -144,6 +146,7 @@ export default function ArbeidScreen({
   const [monthJump, setMonthJump] = useState(false);
   const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
+  const [carriedHours, setCarriedHours] = useState({ key: '', entries: [], absences: [], failed: false });
 
   // Prosjekt/medlemskap først — ikke vent på hele timehistorikken.
   useEffect(() => {
@@ -422,17 +425,70 @@ export default function ArbeidScreen({
     return map;
   }, [markedDays, state.timeEntries, state.absences, employeeId, timeSettings.flexCountsAsPay]);
 
-  const balanceCells = useMemo(() => {
-    // Månedsbalanse ut fra lastet vindu (ikke hele historikken — den lastes ikke lenger).
-    let running = 0;
-    const cells = [];
-    for (const day of days) {
-      const delta = (workedByDay.get(day.key) || 0) - (agreedByDay.get(day.key) || 0);
-      running = roundHours(running + delta);
-      cells.push(running);
-    }
-    return cells;
-  }, [days, workedByDay, agreedByDay]);
+  const carriedKey = employeeId ? `${employeeId}:${year}:${monthIndex}` : '';
+  const historyReady = !!carriedKey && carriedHours.key === carriedKey && !carriedHours.failed;
+
+  useEffect(() => {
+    if (!ready || !workspaceId || !employeeId) return undefined;
+    const fromDate = `${year}-01-01`;
+    const monthEnd = monthDateRange(year, monthIndex).toDate;
+    const priorEnd = monthIndex === 0 ? '' : monthDateRange(year, monthIndex - 1).toDate;
+    let live = true;
+    Promise.all([
+      priorEnd
+        ? loadTimeEntries(workspaceId, { employeeId, fromDate, toDate: priorEnd })
+        : Promise.resolve([]),
+      loadAbsences(workspaceId, { employeeId, fromDate, toDate: monthEnd }),
+    ]).then(([entries, absences]) => {
+      if (!live) return;
+      setCarriedHours({
+        key: carriedKey,
+        failed: false,
+        entries: Array.isArray(entries) ? entries : [],
+        absences: Array.isArray(absences) ? absences : [],
+      });
+    }).catch(() => {
+      if (!live) return;
+      setCarriedHours({ key: carriedKey, failed: true, entries: [], absences: [] });
+    });
+    return () => { live = false; };
+  }, [ready, workspaceId, employeeId, year, monthIndex, carriedKey]);
+
+  const agreedForDate = useMemo(() => (dateKey) => {
+    const date = parseDateKey(dateKey);
+    if (!date) return 0;
+    const schedule = scheduledHours(selectedEmployee, date, fullDayHours);
+    return agreedHoursForDate(date, {
+      fullDayHours,
+      redDays: state.redDays,
+      scheduleHours: schedule,
+    }).hours;
+  }, [selectedEmployee, fullDayHours, state.redDays]);
+
+  const timebank = useMemo(() => monthTimebank({
+    year,
+    monthIndex,
+    employeeId,
+    entries: [...(state.timeEntries || []), ...(historyReady ? carriedHours.entries : [])],
+    absences: [...(state.absences || []), ...(historyReady ? carriedHours.absences : [])],
+    adjustments: state.balanceAdjustments,
+    agreedForDate,
+  }), [
+    year,
+    monthIndex,
+    employeeId,
+    historyReady,
+    carriedHours,
+    state.timeEntries,
+    state.absences,
+    state.balanceAdjustments,
+    agreedForDate,
+  ]);
+
+  const balanceCells = useMemo(
+    () => days.map((day) => timebank.byDate.get(day.key) || 0),
+    [days, timebank],
+  );
 
   const monthEntries = useMemo(() => {
     const fromDate = days[0]?.key || '';
@@ -817,7 +873,6 @@ export default function ArbeidScreen({
     || days.find((day) => day.key === todayKey)
     || days[0];
   const activeKey = activeDay?.key || selectedDay;
-  const activeBalance = balanceCells[Math.max(0, days.findIndex((day) => day.key === activeKey))] || 0;
   const phoneWeek = weekAround(parseDateKey(activeKey) || today);
 
   function selectDate(date) {
@@ -1098,7 +1153,6 @@ export default function ArbeidScreen({
                   number: project.number,
                   name: project.name,
                   customer: project.client || '',
-                  role: member?.role || 'Deltaker',
                   hours,
                   onPress: () => openCell(project, day),
                   testID: `timesheet-row-${project.number || project.id}`,
@@ -1137,6 +1191,9 @@ export default function ArbeidScreen({
             }))}
             agreedByDay={agreedByDay}
             balanceCells={balanceCells}
+            incomingBalance={timebank.incoming}
+            outgoingBalance={timebank.outgoing}
+            balanceReady={historyReady}
             payrollByDay={payrollByDay}
             selectedDay={selectedDay}
             todayKey={todayKey}

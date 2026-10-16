@@ -8,7 +8,9 @@ import {
   accessLevelSections,
   canonicalLevelId,
 } from '../access/companyAccess.js';
-import { parseNbDate } from './model.js';
+import { newId, parseNbDate } from './model.js';
+import { scheduleFromPercent, STANDARD_DAY_HOURS } from '../arbeid/schedule.js';
+import { toDateKey } from '../arbeid/calendar.js';
 import { LANGUAGE_OPTIONS } from './schema.js';
 import { draftInviteEmployee, emptyInvite, matchEmployeeByEmail } from './invite.js';
 import { hasValidPhone, normalizePhone } from '../utils/phone.js';
@@ -128,6 +130,17 @@ export function buildFirstRegistration({
   employee.company.departmentIds = departments;
   employee.company.workPercent = workPlanById(workPlan).workPercent;
   employee.company.periodFrom = started;
+  const scheduleFrom = started || toDateKey(new Date());
+  employee.extras = {
+    ...(employee.extras || {}),
+    schedules: [{
+      id: newId('plan'),
+      from: scheduleFrom,
+      source: 'company',
+      custom: false,
+      days: scheduleFromPercent(Number(employee.company.workPercent) || 100, STANDARD_DAY_HOURS),
+    }],
+  };
   if (!welcome) employee.invite = emptyInvite();
   return { ok: true, errors: [], sendWelcome: welcome, employee };
 }

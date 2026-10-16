@@ -30,6 +30,7 @@ export default function ProductivityScreen() {
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [plan, setPlan] = useState(() => emptyPlan());
+  const [dayHours, setDayHours] = useState(8);
   const [ready, setReady] = useState(false);
   const echo = useRef(true);
   const familyRef = useRef(familyId);
@@ -53,6 +54,7 @@ export default function ProductivityScreen() {
     ]).then(([projectState, loadedPlan]) => {
       if (!live || familyRef.current !== companyId) return;
       setProjects(projectState?.projects || []);
+      setDayHours(Number(projectState?.fullDayHours) > 0 ? Number(projectState.fullDayHours) : 8);
       setMembers(projectState?.members || []);
       echo.current = true;
       setPlan(loadedPlan || emptyPlan());
@@ -114,6 +116,7 @@ export default function ProductivityScreen() {
           projects={liveProjects}
           members={members}
           plan={plan}
+          fullDayHours={dayHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}
         />

@@ -147,7 +147,10 @@ const tree = withHooks(() => React.createElement(EmployeeWorkViews, {
   onSave() {},
 }));
 const text = collectText(tree).join('\n');
-assert.match(text, /Opprett tidsplan/);
+assert.match(text, /Ny periode/);
+assert.match(text, /Gjelder fra/);
+assert.match(text, /Gjelder til/);
+assert.match(text, /8 timer mandag til fredag/);
 assert.match(text, /01\.09\.2026/);
 assert.match(text, /nåværende/);
 assert.match(text, /01\.04\.2026/);

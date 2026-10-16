@@ -68,7 +68,8 @@ export function emptyProjectState() {
     redDays: [],
     timesheetPins: [],
     hiddenTimesheetProjects: [],
-    fullDayHours: 7.5,
+    fullDayHours: 8,
+    fullDayHoursCustom: false,
     board: [],
     sja: [],
     incidents: [],
@@ -223,13 +224,18 @@ export function normalizeProjectState(raw) {
     syncedAt: text(src.syncedAt),
   };
   for (const key of Object.keys(base)) {
-    if (key === 'activeProjectId' || key === 'syncedAt' || key === 'fullDayHours') continue;
+    if (key === 'activeProjectId' || key === 'syncedAt' || key === 'fullDayHours' || key === 'fullDayHoursCustom') continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
   const fullDay = Number(String(next.fullDayHours ?? '').replace(',', '.'));
-  next.fullDayHours = Number.isFinite(fullDay) && fullDay > 0 && fullDay <= 24
+  const customDay = next.fullDayHoursCustom === true;
+  let dayHours = Number.isFinite(fullDay) && fullDay > 0 && fullDay <= 24
     ? Math.round(fullDay * 100) / 100
-    : 7.5;
+    : 8;
+  // Gammel implisitt normaldag. En verdi brukeren har lagret selv blir stående.
+  if (!customDay && dayHours === 7.5) dayHours = 8;
+  next.fullDayHours = dayHours;
+  next.fullDayHoursCustom = customDay;
   next.deletedProjects = next.deletedProjects.map(normalizeDeletedProject).filter(Boolean);
   const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
   next.projects = next.projects.filter((row) => row?.id && !deletedIds.has(row.id));
@@ -2053,6 +2059,7 @@ export function mergeProjectStates(left, right) {
     && key !== 'procedures'
     && key !== 'deletedProjects'
     && key !== 'fullDayHours'
+    && key !== 'fullDayHoursCustom'
   ));
   const next = emptyProjectState();
   for (const key of keys) {
@@ -2067,7 +2074,9 @@ export function mergeProjectStates(left, right) {
   const mergeRemap = new Map();
   next.projects = dedupeProjectsByNumber(next.projects, mergeRemap);
   Object.assign(next, healOrphanProjectRefs(next, mergeRemap));
-  next.fullDayHours = (bSync >= aSync ? b.fullDayHours : a.fullDayHours) || a.fullDayHours || b.fullDayHours || 7.5;
+  const daySource = bSync >= aSync ? b : a;
+  next.fullDayHours = daySource.fullDayHours || a.fullDayHours || b.fullDayHours || 8;
+  next.fullDayHoursCustom = daySource.fullDayHoursCustom === true;
   next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
   next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
   next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)

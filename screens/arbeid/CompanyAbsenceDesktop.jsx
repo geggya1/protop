@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import {
@@ -18,6 +19,7 @@ import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan } from '../../src/arbeid/absenceDashboard.js';
+import { absenceWidgetDestination } from '../../src/arbeid/absenceWidgetNav.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
 
@@ -130,6 +132,7 @@ export function CompanyAbsenceDesktop({
   onOpeningChange,
   onSaveOpening,
 }) {
+  const { requestShellTab } = useApp();
   const audience = useAudience(employees);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [chartWidth, setChartWidth] = useState(420);
@@ -177,6 +180,16 @@ export function CompanyAbsenceDesktop({
   const openPerson = (id) => {
     if (!canChooseEmployee || !id) return;
     onSelectEmployee?.(id);
+  };
+  const openSource = (widget) => {
+    const dest = absenceWidgetDestination(widget, {
+      employeeId,
+      category: 'ferie',
+      today,
+      fromDate: period.start,
+      toDate: period.end,
+    });
+    if (dest) requestShellTab?.(dest.tab, dest.subView, dest.intent);
   };
 
   const person = board.staff[0];
@@ -305,10 +318,10 @@ export function CompanyAbsenceDesktop({
           </View>
 
           <View style={styles.kpis}>
-            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" />
-            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} />
-            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} />
-            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} />
+            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" onPress={() => openSource('headcount')} />
+            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} onPress={() => openSource('away-ferie')} />
+            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} onPress={() => openSource('away-sykdom')} />
+            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} onPress={() => openSource('away-annet')} />
           </View>
 
           {view === 'diagram' ? (
@@ -353,7 +366,13 @@ export function CompanyAbsenceDesktop({
               </View>
 
               <View style={styles.split}>
-                <View style={[styles.card, styles.splitCard]}>
+                <TouchableOpacity
+                  style={[styles.card, styles.splitCard]}
+                  onPress={() => openSource('usage')}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Åpne kilden for feriebruk ${board.year}`}
+                  nativeID="widget-feriebruk"
+                >
                   <Text style={styles.cardTitle}>{`Feriebruk ${board.year}`}</Text>
                   <Text style={styles.hint}>Brukte feriedager mot startsaldo for utvalget.</Text>
                   <View style={styles.donutRow}>
@@ -365,10 +384,14 @@ export function CompanyAbsenceDesktop({
                       {!hasQuota ? <Legend label="Ingen startsaldo satt" value="" /> : null}
                     </View>
                   </View>
-                </View>
-                <View
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.card, styles.splitCard]}
+                  onPress={() => openSource('chart')}
                   onLayout={(event) => setChartWidth(Math.max(180, event.nativeEvent.layout.width - 28))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Åpne fraværsrapporten for perioden"
+                  nativeID="widget-periode"
                 >
                   <Text style={styles.cardTitle}>Fravær i perioden</Text>
                   <Text style={styles.hint}>{period.label}</Text>
@@ -378,7 +401,7 @@ export function CompanyAbsenceDesktop({
                     <Key color={BARS.sykdom} label="Sykdom" />
                     <Key color={BARS.annet} label="Annet" />
                   </View>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.card}>
@@ -504,12 +527,14 @@ export function AbsenceReportDesktop({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 960;
 
+  const { shellIntent, clearShellIntent } = useApp();
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [category, setCategory] = useState('');
+  const [typeId, setTypeId] = useState('');
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState('date-desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_ABSENCE_REPORT_COLUMNS);
@@ -536,13 +561,14 @@ export function AbsenceReportDesktop({
     query,
     employeeId: canChooseEmployee ? employeeId : (lockedEmployeeId || employeeId),
     category,
+    typeId,
     status,
     period,
     fromDate,
     toDate,
   }), [
     hydrated, query, employeeId, canChooseEmployee, lockedEmployeeId,
-    category, status, period, fromDate, toDate,
+    category, typeId, status, period, fromDate, toDate,
   ]);
 
   const visible = useMemo(() => sortAbsenceReport(filtered, sort), [filtered, sort]);
@@ -579,8 +605,23 @@ export function AbsenceReportDesktop({
   }, [canChooseEmployee, lockedEmployeeId]);
 
   useEffect(() => {
+    if (!shellIntent || shellIntent.type !== 'absenceReportFocus') return;
+    const nextCategory = String(shellIntent.category || '');
+    const nextType = String(shellIntent.typeId || '');
+    const nextEmployee = String(shellIntent.employeeId || '');
+    const nextPeriod = String(shellIntent.period || 'all');
+    setCategory(nextCategory);
+    setTypeId(nextType);
+    setPeriod(nextPeriod || 'all');
+    setFromDate(String(shellIntent.fromDate || ''));
+    setToDate(String(shellIntent.toDate || ''));
+    if (canChooseEmployee && nextEmployee) setEmployeeId(nextEmployee);
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent, canChooseEmployee]);
+
+  useEffect(() => {
     setPageSize(PAGE_STEP);
-  }, [query, employeeId, category, status, period, fromDate, toDate, sort, absences.length]);
+  }, [query, employeeId, category, typeId, status, period, fromDate, toDate, sort, absences.length]);
 
   useEffect(() => {
     const live = new Set((absences || []).map((row) => row.id).filter(Boolean));
@@ -628,6 +669,7 @@ export function AbsenceReportDesktop({
     setFromDate('');
     setToDate('');
     setCategory('');
+    setTypeId('');
     setStatus('');
     setSort('date-desc');
     setVisibleColumns(DEFAULT_ABSENCE_REPORT_COLUMNS);
@@ -649,7 +691,10 @@ export function AbsenceReportDesktop({
       sort={sort}
       onSort={setSort}
       category={category}
-      onCategory={setCategory}
+      onCategory={(value) => {
+        setCategory(value);
+        setTypeId('');
+      }}
       status={status}
       onStatus={setStatus}
       visibleColumns={visibleColumns}
@@ -970,9 +1015,13 @@ export function PlannedAbsenceDesktop({
   today = '',
   canChooseEmployee = false,
   lockedEmployeeId = '',
+  focusEmployeeId = '',
 }) {
   const audience = useAudience(employees);
-  const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
+  const [employeeId, setEmployeeId] = useState(canChooseEmployee ? (focusEmployeeId || '') : lockedEmployeeId);
+  useEffect(() => {
+    if (canChooseEmployee && focusEmployeeId) setEmployeeId(focusEmployeeId);
+  }, [canChooseEmployee, focusEmployeeId]);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const roster = employeeId ? employees.filter((row) => row.id === employeeId) : audience.roster;
   const board = useBoard({
@@ -1228,9 +1277,15 @@ function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
   );
 }
 
-function Kpi({ icon, tint, bg, value, label }) {
+function Kpi({ icon, tint, bg, value, label, onPress }) {
   return (
-    <View style={styles.kpi}>
+    <TouchableOpacity
+      style={styles.kpi}
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Åpne kilden`}
+    >
       <View style={[styles.kpiIcon, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={14} color={tint} />
       </View>
@@ -1238,7 +1293,7 @@ function Kpi({ icon, tint, bg, value, label }) {
         <Text style={styles.kpiValue}>{value}</Text>
         <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

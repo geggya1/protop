@@ -6,6 +6,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
 import { absenceCategory } from '../../src/arbeid/absenceDashboard.js';
+import { absenceWidgetDestination, monthKeyEnd } from '../../src/arbeid/absenceWidgetNav.js';
+import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero.js';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useLayout } from '../../src/theme';
@@ -24,7 +26,6 @@ const ui = {
   peach: '#FFF4E4',
   danger: '#B42318',
   navy: '#0C3F78',
-  pill: '#102848',
 };
 
 const BARS = {
@@ -93,6 +94,7 @@ export function CompanyAbsenceView({
   onSelectCategory,
   dashboard,
   error = '',
+  onOpenSource,
 }) {
   const { width, isDesktop } = useLayout();
   const hosted = useModuleHeroHosted();
@@ -155,9 +157,19 @@ export function CompanyAbsenceView({
     { key: 'unplanned', label: 'Dager som ikke er planlagt', icon: 'document-text-outline' },
   ];
 
-  function pickCategory(id) {
-    setMenu('');
-    onSelectCategory?.(id);
+  function openSource(widget) {
+    const months = dashboard?.recentMonths || [];
+    const chart = widget === 'chart';
+    const first = months[0]?.key || '';
+    const last = months[months.length - 1]?.key || '';
+    const dest = absenceWidgetDestination(widget, {
+      employeeId,
+      category,
+      today: toDateKey(new Date()),
+      fromDate: chart && first ? `${first}-01` : '',
+      toDate: chart && last ? monthKeyEnd(last) : '',
+    });
+    if (dest) onOpenSource?.(dest);
   }
 
   return (
@@ -170,16 +182,33 @@ export function CompanyAbsenceView({
       {inChrome ? null : heading}
       <View style={[styles.frame, wide && styles.frameWide]}>
         <View style={styles.kpis}>
-          <Kpi icon="person" tint={ui.blue} bg="#E8F0FE" value={dashboard?.headcount || 0} label="Ansatte" wide={wide} />
-          <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={dashboard?.onVacation || 0} label="På ferie nå" wide={wide} />
+          <Kpi
+            icon="person"
+            tint={ui.blue}
+            bg="#E8F0FE"
+            value={dashboard?.headcount || 0}
+            label="Ansatte"
+            onPress={() => openSource('headcount')}
+            actionId="kpi-ansatte"
+            wide={wide}
+          />
+          <Kpi
+            icon="calendar"
+            tint="#1F9D55"
+            bg="#E7F8EF"
+            value={dashboard?.onVacation || 0}
+            label="På ferie nå"
+            onPress={() => openSource('away-ferie')}
+            actionId="kpi-ferie"
+            wide={wide}
+          />
           <Kpi
             icon="heart"
             tint="#E15B73"
             bg="#FDECEF"
             value={dashboard?.sickNow || 0}
             label="Sykemeldte nå"
-            actionLabel="Se detaljer"
-            onAction={() => pickCategory('sykdom')}
+            onPress={() => openSource('away-sykdom')}
             actionId="kpi-sykemeldte"
             wide={wide}
           />
@@ -189,15 +218,20 @@ export function CompanyAbsenceView({
             bg="#FFF4E5"
             value={dashboard?.otherNow || 0}
             label="Annet fravær nå"
-            actionLabel="Se detaljer"
-            onAction={() => pickCategory('annet')}
+            onPress={() => openSource('away-annet')}
             actionId="kpi-annet"
             wide={wide}
           />
         </View>
 
         <View style={styles.split}>
-          <View style={[styles.card, styles.splitCard]}>
+          <TouchableOpacity
+            style={[styles.card, styles.splitCard]}
+            onPress={() => openSource('usage')}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne kilden for ${usageTitle}`}
+            nativeID="widget-feriebruk"
+          >
             <CardHead icon={categoryIcon(category)} title={usageTitle} />
             <View style={styles.donutRow}>
               <QuotaDonut used={used} total={quota} hasQuota={hasQuota} size={wide ? 112 : 74} />
@@ -207,11 +241,15 @@ export function CompanyAbsenceView({
                 {hasQuota ? <LegendRow label="Totalt" value={formatCount(quota)} /> : null}
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View
+          <TouchableOpacity
             style={[styles.card, styles.splitCard]}
+            onPress={() => openSource('chart')}
             onLayout={(event) => setChartWidth(Math.max(80, event.nativeEvent.layout.width - 20))}
+            accessibilityRole="button"
+            accessibilityLabel="Åpne fraværsrapporten for de siste månedene"
+            nativeID="widget-maneder"
           >
             <CardHead ion="bar-chart" title="Fravær siste 6 måneder" />
             <MonthChart months={dashboard?.recentMonths || []} width={chartWidth} plotH={wide ? 96 : 68} />
@@ -220,11 +258,18 @@ export function CompanyAbsenceView({
               <ChartKey color={BARS.sykdom} label="Sykdom" />
               <ChartKey color={BARS.annet} label="Annet" />
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles.card, styles.detailCard]} nativeID="fravaer-detalj">
-          <CardHead icon={categoryIcon(category)} title={focus} large />
+          <TouchableOpacity
+            onPress={() => openSource('detail')}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne kilden for ${focus}`}
+            nativeID="widget-detalj"
+          >
+            <CardHead icon={categoryIcon(category)} title={focus} large />
+          </TouchableOpacity>
           {detailRows.map((row) => {
             const raw = Number(summary[row.key]) || 0;
             const value = !hasQuota && (row.key === 'remaining' || row.key === 'unplanned')
@@ -236,7 +281,13 @@ export function CompanyAbsenceView({
               : Math.min(1, Math.abs(value) / peak);
             const percentLabel = hasQuota ? formatPercent(value, quota) : (value ? '–' : '0%');
             return (
-              <View key={row.key} style={styles.detailRow}>
+              <TouchableOpacity
+                key={row.key}
+                style={styles.detailRow}
+                onPress={() => openSource(row.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`${row.label}. Åpne kilden`}
+              >
                 <Ionicons name={row.icon} size={15} color="#7E8BA0" />
                 <Text style={styles.detailLabel} numberOfLines={2}>{row.label}</Text>
                 <Text style={styles.detailValue}>{formatCount(value)}</Text>
@@ -244,7 +295,7 @@ export function CompanyAbsenceView({
                   <View style={[styles.miniFill, { width: `${ratio * 100}%` }]} />
                 </View>
                 <Text style={styles.detailPct}>{percentLabel}</Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -278,10 +329,16 @@ function AbsenceHeading({
           <BlueprintArt width={wide ? 460 : 148} height={wide ? 120 : 100} />
         </View>
         <View style={[styles.bannerCopy, wide && styles.bannerCopyWide]}>
-          <Text accessibilityRole="header" style={[styles.title, wide && styles.titleWide]} numberOfLines={1}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, wide && styles.titleWide]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+          >
             Fraværsoversikt
           </Text>
-          <Text style={styles.lead} numberOfLines={2}>
+          <Text style={styles.lead}>
             Full oversikt over ferie, fravær og permisjoner for dine ansatte.
           </Text>
         </View>
@@ -294,14 +351,21 @@ function AbsenceHeading({
           onPress={canChooseEmployee ? () => onToggle('employee') : undefined}
           disabled={!canChooseEmployee}
           accessibilityRole="button"
-          accessibilityLabel={`Ansatte: ${employeeId ? employeeName : 'Alle ansatte'}`}
+          accessibilityLabel={`Ansatt: ${employeeId ? employeeName : 'Alle ansatte'}`}
           nativeID="ansatt-filter"
         >
-          <Ionicons name="people" size={13} color="#fff" />
-          <Text style={styles.employeeText} numberOfLines={1}>
-            {employeeId ? employeeName : 'Alle ansatte'}
-          </Text>
-          {canChooseEmployee ? <Ionicons name="chevron-down" size={12} color="#fff" /> : null}
+          <View style={styles.employeeIcon}>
+            <Ionicons name="person-outline" size={15} color={ui.muted} />
+          </View>
+          <View style={styles.employeeCopy}>
+            <Text style={styles.employeeLabel}>Ansatt</Text>
+            <View style={styles.employeeValueRow}>
+              <Text style={styles.employeeText} numberOfLines={1}>
+                {employeeId ? employeeName : 'Alle ansatte'}
+              </Text>
+              {canChooseEmployee ? <Ionicons name="chevron-down" size={13} color={ui.muted} /> : null}
+            </View>
+          </View>
         </TouchableOpacity>
         <View style={styles.chipRow}>
           {CHIPS.map((chip) => {
@@ -398,7 +462,7 @@ function CardHead({ title, icon, ion, large = false }) {
           <Ionicons name={icon?.name || ion || 'bar-chart'} size={large ? 15 : 13} color={ui.blue} />
         </View>
       )}
-      <Text style={[styles.cardTitle, large && styles.cardTitleLarge]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{title}</Text>
+      <Text style={[styles.cardTitle, large && styles.cardTitleLarge]} numberOfLines={2}>{title}</Text>
       <Ionicons name="chevron-forward" size={14} color="#C5CEDA" />
     </View>
   );
@@ -515,21 +579,25 @@ function ChartKey({ color, label }) {
   );
 }
 
-function Kpi({ icon, tint, bg, value, label, actionLabel, onAction, actionId, wide = false }) {
+function Kpi({ icon, tint, bg, value, label, onPress, actionId, wide = false }) {
   return (
-    <View style={styles.kpi}>
+    <TouchableOpacity
+      style={styles.kpi}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Åpne kilden`}
+      nativeID={actionId}
+    >
       <View style={[styles.kpiIcon, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={wide ? 15 : 13} color={tint} />
       </View>
       <Text style={[styles.kpiValue, wide && styles.kpiValueWide]}>{formatCount(value)}</Text>
       <Text style={styles.kpiLabel} numberOfLines={2}>{label}</Text>
-      {actionLabel ? (
-        <TouchableOpacity onPress={onAction} accessibilityRole="button" nativeID={actionId} style={styles.kpiAction}>
-          <Text style={styles.kpiActionText} numberOfLines={1}>{actionLabel}</Text>
-          <Ionicons name="arrow-forward" size={11} color={ui.blue} />
-        </TouchableOpacity>
-      ) : <View style={styles.kpiActionSpacer} />}
-    </View>
+      <View style={styles.kpiAction}>
+        <Text style={styles.kpiActionText} numberOfLines={1}>Se detaljer</Text>
+        <Ionicons name="arrow-forward" size={11} color={ui.blue} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -590,7 +658,7 @@ const styles = StyleSheet.create({
   bannerCopyWide: { maxWidth: 640, paddingRight: 280 },
   title: { color: '#fff', fontSize: 22, lineHeight: 26, fontWeight: '400', letterSpacing: -0.3 },
   titleWide: { fontSize: 26, lineHeight: 30 },
-  lead: { color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 16, maxWidth: 230, fontWeight: '400' },
+  lead: { color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 16, fontWeight: '400' },
   filterBar: {
     ...cardShadow,
     marginTop: -12,
@@ -608,15 +676,26 @@ const styles = StyleSheet.create({
   employeeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: ui.pill,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    flexGrow: 0,
-    flexShrink: 0,
+    gap: 8,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '48%',
+    paddingVertical: 4,
+    paddingRight: 2,
   },
-  employeeText: { color: '#fff', fontSize: 12, fontWeight: '400', flexShrink: 1 },
+  employeeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: ui.sunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  employeeCopy: { flex: 1, minWidth: 0, gap: 1 },
+  employeeLabel: { color: ui.muted, fontSize: 11, lineHeight: 14, fontWeight: '400' },
+  employeeValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
+  employeeText: { color: ui.ink, fontSize: 13, lineHeight: 16, fontWeight: '400', flexShrink: 1 },
   chipRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -679,7 +758,6 @@ const styles = StyleSheet.create({
   kpiLabel: { color: ui.muted, fontSize: 10, lineHeight: 13, minHeight: 26, fontWeight: '400' },
   kpiAction: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 1 },
   kpiActionText: { color: ui.blue, fontSize: 10, fontWeight: '400', flexShrink: 1 },
-  kpiActionSpacer: { height: 14 },
   split: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, alignItems: 'stretch' },
   splitCard: { flex: 1, minWidth: 0, gap: 4 },
   card: { ...cardShadow, backgroundColor: ui.card, borderRadius: 12, padding: 8 },

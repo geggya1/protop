@@ -1506,7 +1506,7 @@ export function upsertTimeEntry(state, input) {
     return fail(working, 'Føringen er låst/fakturert og kan ikke endres.');
   }
   if (isDateLocked(lockThroughDate(working.timesheetLocks, employeeId), date)) {
-    return fail(working, 'Dagen er låst. Timene er klare for fakturering.');
+    return fail(working, 'Dagen er låst og venter på kontroll.');
   }
 
   // Slett når timer settes til 0 uten beskrivelse
@@ -1589,7 +1589,7 @@ export function addAbsence(state, input) {
   const hours = roundHours(input.hours);
   if (!(hours > 0)) return fail(state, 'Fravær må ha timer.');
   if (isDateLocked(lockThroughDate(state.timesheetLocks, employeeId), date)) {
-    return fail(state, 'Dagen er låst. Timene er klare for fakturering.');
+    return fail(state, 'Dagen er låst og venter på kontroll.');
   }
   const existing = text(input.id) ? state.absences.find((row) => row.id === input.id) : null;
   if (existing?.status === 'låst') return fail(state, 'Fraværet er låst og kan ikke endres.');

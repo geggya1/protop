@@ -1,4 +1,4 @@
-/** Lås av timeliste frem til en dato. Timer til og med dagen er klare for fakturering. */
+/** Lås av timeliste frem til en dato. Timer venter på kontroll til de er godkjent. */
 
 export function lockThroughDate(locks, employeeId) {
   const id = String(employeeId || '').trim();

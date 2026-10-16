@@ -1886,22 +1886,23 @@ function summaryNote(labels) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, minHeight: 0, width: '100%' },
-  screenScroll: { flex: 1 },
+  screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
+  screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
   personChrome: {
     flexShrink: 0,
     width: '100%',
+    alignSelf: 'stretch',
     paddingHorizontal: 16,
     paddingTop: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 2,
   },
-  personFill: { flex: 1, minHeight: 0, width: '100%' },
+  personFill: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
-  innerHours: { maxWidth: 1400, flexGrow: 1 },
+  innerHours: { maxWidth: '100%', width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
-  hoursHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
+  hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },

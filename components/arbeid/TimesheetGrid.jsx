@@ -365,8 +365,8 @@ function Total({ value, colors, signed = false, strong = false, totalW }) {
 }
 
 const styles = StyleSheet.create({
-  gridRoot: { flex: 1, alignSelf: 'stretch', borderWidth: 1, borderRadius: 10, minHeight: 280, overflow: 'hidden' },
-  gridScroll: { flex: 1 },
+  gridRoot: { flex: 1, alignSelf: 'stretch', width: '100%', maxWidth: '100%', borderWidth: 1, borderRadius: 10, minHeight: 280, overflow: 'hidden' },
+  gridScroll: { flex: 1, width: '100%', alignSelf: 'stretch' },
   gridColumn: { flex: 1, minHeight: 0 },
   frozenHeader: {
     borderBottomWidth: StyleSheet.hairlineWidth,

@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
+import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { defaultHrSubView, HR_MENU } from '../../src/navigation/shellModules';
@@ -28,7 +30,9 @@ function periodWindow(months = 3) {
 
 export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
-  const { familyId, requestShellTab } = useApp();
+  const nav = useNavigation();
+  const { familyId, uid, activeProfile, requestShellTab } = useApp();
+  const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   const access = useCompanyAccess();
   const page = defaultHrSubView(subView);
   const canSee = access.can('hr', 'see');
@@ -39,6 +43,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [entries, setEntries] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [employeeSheet, setEmployeeSheet] = useState('oversikt');
+  const [focusCaseId, setFocusCaseId] = useState('');
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
@@ -62,6 +67,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     setEntries([]);
     setSelectedEmployeeId('');
     setEmployeeSheet('oversikt');
+    setFocusCaseId('');
     setReady(false);
     const companyId = familyId;
     loadHrState(companyId).then((state) => {
@@ -146,8 +152,32 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const openEmployee = useCallback((id, sheet) => {
     setSelectedEmployeeId(id || '');
     setEmployeeSheet(sheet || 'oversikt');
+    setFocusCaseId('');
     go('personell');
   }, [go]);
+
+  const openCase = useCallback((row) => {
+    if (!row?.id || !row.employeeId) {
+      go('oppfolging');
+      return;
+    }
+    setSelectedEmployeeId(row.employeeId);
+    setEmployeeSheet('oppfolging');
+    setFocusCaseId(row.id);
+    go('personell');
+  }, [go]);
+
+  const openLinkedTask = useCallback((taskId) => {
+    if (!taskId) return;
+    nav.navigate('ParentTask', { task: { id: taskId }, familyId });
+  }, [nav, familyId]);
+
+  const createTask = useCallback((draft) => createFollowUpTask({
+    familyId,
+    uid,
+    name: assigneeName,
+    draft,
+  }), [familyId, uid, assigneeName]);
 
   const saveSalaries = useCallback((salariesOrFn) => onPatch((state) => ({
     salaries: typeof salariesOrFn === 'function'
@@ -164,13 +194,21 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hr}
           entries={entries}
           selectedId={selectedEmployeeId}
-          onSelect={setSelectedEmployeeId}
+          onSelect={(id) => {
+            setSelectedEmployeeId(id || '');
+            setFocusCaseId('');
+          }}
           canWrite={canWrite}
           onPatch={onPatch}
           sheet={employeeSheet}
           onSheet={setEmployeeSheet}
           familyId={familyId}
           onSaveSalaries={saveSalaries}
+          focusCaseId={focusCaseId}
+          assigneeUid={uid || ''}
+          assigneeName={assigneeName}
+          onOpenTask={openLinkedTask}
+          onCreateFollowUpTask={createTask}
         />
       );
     }
@@ -206,6 +244,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
         onPatch={onPatch}
         onOpenPeople={() => go('personell')}
         onOpenFollowUp={() => go('oppfolging')}
+        onOpenCase={openCase}
+        familyId={familyId}
+        assigneeUid={uid || ''}
+        assigneeName={assigneeName}
+        onCreateFollowUpTask={createTask}
         onOpenRecruitment={() => go('rekruttering')}
         onOpenProductivity={() => go('produktivitet')}
         onOpenCompliance={() => go('compliance')}
@@ -214,7 +257,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
     );
   }, [
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
-    canWrite, onPatch, go, familyId, openEmployee, saveSalaries,
+    focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
+    openEmployee, openCase, openLinkedTask, createTask, saveSalaries,
   ]);
 
   if (access.active && access.ready && !canSee) {

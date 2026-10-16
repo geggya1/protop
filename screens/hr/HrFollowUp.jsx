@@ -6,6 +6,7 @@ import {
   CASE_STATUSES,
   choiceLabel,
   compareReviews,
+  followUpTaskFromCase,
   formatNbDate,
   latestReviewsFor,
   localIsoDate,
@@ -14,6 +15,7 @@ import {
   normalizeMemo,
   normalizeReview,
   normalizeTask,
+  planFollowUpCases,
   REVIEW_STATUSES,
   TASK_STATUSES,
 } from '../../src/hr/model';
@@ -58,8 +60,11 @@ function freshReview() {
 
 export default function HrFollowUp({
   colors, employees, hr, canWrite, onPatch, lockedEmployeeId, familyId,
+  focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
 }) {
   const [tab, setTab] = useState('cases');
+  const [selectedCaseId, setSelectedCaseId] = useState(focusCaseId || '');
+  const [linkingTask, setLinkingTask] = useState(false);
   const employeeId = String(lockedEmployeeId || '');
   const employeeIdRef = useRef(employeeId);
   employeeIdRef.current = employeeId;
@@ -78,6 +83,7 @@ export default function HrFollowUp({
 
   useEffect(() => {
     setSelectedReviewId('');
+    setSelectedCaseId('');
     setCaseDraft(EMPTY_CASE);
     setReviewDraft(freshReview());
     setMemoDraft(EMPTY_MEMO);
@@ -85,9 +91,47 @@ export default function HrFollowUp({
     setFileDraft(EMPTY_FILE);
   }, [employeeId]);
 
+  useEffect(() => {
+    if (!focusCaseId || !employeeId) return;
+    setSelectedCaseId(focusCaseId);
+    setTab('cases');
+  }, [focusCaseId, employeeId]);
+
   function nameOf(id) {
     const hit = people.find((row) => row.id === id);
     return hit ? displayName(hit) : 'Uten person';
+  }
+
+  const personCases = useMemo(
+    () => (hr.cases || []).filter((row) => !employeeId || row.employeeId === employeeId),
+    [hr.cases, employeeId],
+  );
+  const selectedCase = personCases.find((row) => row.id === selectedCaseId) || null;
+
+  async function linkTask(caseRow) {
+    if (!canWrite || !caseRow || caseRow.taskId || linkingTask || !onCreateFollowUpTask) return;
+    const draft = followUpTaskFromCase(caseRow, { assigneeUid, assigneeName });
+    if (!draft) return;
+    setLinkingTask(true);
+    try {
+      const taskId = await onCreateFollowUpTask(draft);
+      if (!taskId) {
+        showSaveToast?.('Kunne ikke opprette oppgave');
+        return;
+      }
+      onPatch?.((state) => ({
+        cases: planFollowUpCases(state.cases, caseRow, {
+          taskId,
+          assigneeUid,
+          assigneeName,
+        }).cases,
+      }));
+      showSaveToast?.('Oppgave opprettet');
+    } catch {
+      showSaveToast?.('Kunne ikke opprette oppgave');
+    } finally {
+      setLinkingTask(false);
+    }
   }
 
   const personReviews = useMemo(
@@ -269,23 +313,75 @@ export default function HrFollowUp({
       {employeeId && tab === 'cases' ? (
         <HrCard colors={colors}>
           <HrSectionTitle colors={colors} title="Saker til oppfølging" />
-          {(hr.cases || []).filter((row) => !employeeId || row.employeeId === employeeId).map((row) => (
+          {personCases.map((row) => (
             <RowLink
               key={row.id}
+              nativeID={`hr-follow-case-${row.id}`}
               colors={colors}
               title={row.title}
-              subtitle={`${nameOf(row.employeeId)} · ${choiceLabel(CASE_PRIORITIES, row.priority)}${row.sourceReviewId ? ' · fra samtale' : ''}`}
+              subtitle={[
+                nameOf(row.employeeId),
+                choiceLabel(CASE_PRIORITIES, row.priority),
+                row.assigneeName ? `oppgave til ${row.assigneeName}` : (row.taskId ? 'oppgave opprettet' : ''),
+                row.sourceReviewId ? 'fra samtale' : '',
+              ].filter(Boolean).join(' · ')}
               meta={choiceLabel(CASE_STATUSES, row.status)}
-              onPress={() => {
-                if (!canWrite) return;
-                const status = row.status === 'closed' ? 'open' : 'closed';
-                onPatch?.((state) => ({
-                  cases: (state.cases || []).map((item) => (item.id === row.id ? { ...item, status } : item)),
-                }));
-              }}
+              onPress={() => setSelectedCaseId(row.id)}
             />
           ))}
-          {(hr.cases || []).filter((row) => !employeeId || row.employeeId === employeeId).length === 0
+          {selectedCase ? (
+            <View nativeID="hr-case-detail" style={[styles.detail, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Text style={[styles.compareTitle, { color: colors.ink }]}>{selectedCase.title}</Text>
+              {selectedCase.description ? (
+                <Text style={[styles.body, { color: colors.ink }]}>{selectedCase.description}</Text>
+              ) : null}
+              <Text style={[styles.hint, { color: colors.muted }]}>
+                {[
+                  selectedCase.dueDate ? `Frist ${formatNbDate(selectedCase.dueDate)}` : '',
+                  selectedCase.assigneeName ? `Ansvar ${selectedCase.assigneeName}` : '',
+                  choiceLabel(CASE_STATUSES, selectedCase.status),
+                ].filter(Boolean).join(' · ')}
+              </Text>
+              <View style={styles.chips}>
+                {selectedCase.taskId ? (
+                  <HrButton
+                    colors={colors}
+                    nativeID="hr-open-task"
+                    label="Åpne oppgave"
+                    primary
+                    icon="checkbox-outline"
+                    onPress={() => onOpenTask?.(selectedCase.taskId)}
+                  />
+                ) : null}
+                {canWrite && !selectedCase.taskId ? (
+                  <HrButton
+                    colors={colors}
+                    nativeID="hr-create-task"
+                    label={linkingTask ? 'Oppretter oppgave…' : 'Opprett oppgave'}
+                    primary
+                    icon="checkbox-outline"
+                    disabled={linkingTask || !onCreateFollowUpTask}
+                    onPress={() => linkTask(selectedCase)}
+                  />
+                ) : null}
+                {canWrite ? (
+                  <HrButton
+                    colors={colors}
+                    label={selectedCase.status === 'closed' ? 'Gjenåpne sak' : 'Lukk sak'}
+                    onPress={() => {
+                      const status = selectedCase.status === 'closed' ? 'open' : 'closed';
+                      onPatch?.((state) => ({
+                        cases: (state.cases || []).map((item) => (
+                          item.id === selectedCase.id ? { ...item, status } : item
+                        )),
+                      }));
+                    }}
+                  />
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+          {personCases.length === 0
             ? <EmptyHint colors={colors} text="Ingen saker ennå." />
             : null}
           {canWrite && employeeId ? (
@@ -585,6 +681,7 @@ const styles = StyleSheet.create({
   form: { gap: 10, marginTop: 8 },
   body: { fontSize: 14, lineHeight: 21 },
   hint: { fontSize: 12, lineHeight: 17 },
+  detail: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   compare: { gap: 8, marginTop: 4 },
   compareTitle: { fontSize: 14, fontWeight: '600' },
   delta: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 4 },

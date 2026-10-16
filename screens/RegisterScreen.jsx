@@ -21,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { suggestUsername } from '../src/utils/usernames';
+import { passwordStrength, isValidEmail, isSyntheticEmail } from '../src/utils/accountContact';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import BrandLogo from '../components/BrandLogo';
@@ -114,19 +115,11 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const emailTrimmed = email.trim().toLowerCase();
   const nameTrimmed = name.trim();
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-  const emailValid = emailRegex.test(emailTrimmed);
+  const emailValid = isValidEmail(emailTrimmed) && !isSyntheticEmail(emailTrimmed);
 
-  const pwRules = useMemo(() => {
-    const lenOK = password.length >= 8;
-    const hasUpper = /[A-ZÆØÅ]/.test(password);
-    const hasLower = /[a-zæøå]/.test(password);
-    const hasDigit = /\d/.test(password);
-    const hasSymbol = /[^A-Za-z0-9ÆØÅæøå]/.test(password);
-    return { lenOK, hasUpper, hasLower, hasDigit, hasSymbol };
-  }, [password]);
+  const pwRules = useMemo(() => passwordStrength(password), [password]);
 
-  const passwordStrong = pwRules.lenOK && pwRules.hasUpper && pwRules.hasLower && pwRules.hasDigit;
+  const passwordStrong = pwRules.strong;
 
   const canSubmit = !loading && nameTrimmed.length > 0 && emailValid && passwordStrong;
   const emailLocked = !!invite.email;

@@ -7,3 +7,14 @@ export function billingMethodIdsForPlatform(platform) {
   if (platform === 'android') return ['googleplay'];
   return ['card', 'vipps'];
 }
+
+export const TRIAL_DAYS = 14;
+
+/** Days left in the implicit trial. Missing or invalid createdAt counts as a full trial. */
+export function trialDaysLeft(createdAt, now = Date.now()) {
+  if (!createdAt) return TRIAL_DAYS;
+  const start = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+  if (Number.isNaN(start.getTime())) return TRIAL_DAYS;
+  const end = start.getTime() + TRIAL_DAYS * 86400000;
+  return Math.max(0, Math.ceil((end - now) / 86400000));
+}

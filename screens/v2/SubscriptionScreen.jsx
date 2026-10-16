@@ -10,7 +10,7 @@ import { colors, deskType, radius, useLayout } from '../../src/theme';
 import { Screen, Title, Mute, ScrollBody } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import { updateGroup } from '../../src/utils/groups';
-import { billingMethodIdsForPlatform } from '../../src/utils/billingMethods';
+import { billingMethodIdsForPlatform, trialDaysLeft } from '../../src/utils/billingMethods';
 
 const METHOD_DEFS = [
   { id: 'appstore', icon: 'logo-apple-appstore', label: 'App Store', hintKey: 'group.billingAppStoreHint' },
@@ -18,14 +18,6 @@ const METHOD_DEFS = [
   { id: 'card', icon: 'card-outline', labelKey: 'group.billingCard', hintKey: 'group.billingCardHint', brands: ['Visa', 'Mastercard'] },
   { id: 'vipps', icon: 'phone-portrait-outline', label: 'Vipps', hintKey: 'group.billingVippsHint', accent: '#ff5b24' },
 ];
-
-function trialDaysLeft(createdAt) {
-  if (!createdAt) return 14;
-  const start = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-  if (Number.isNaN(start.getTime())) return 14;
-  const end = start.getTime() + 14 * 86400000;
-  return Math.max(0, Math.ceil((end - Date.now()) / 86400000));
-}
 
 function MethodCard({ method, selected, onPress, compact, chosenLabel }) {
   const tint = method.accent || colors.brand;

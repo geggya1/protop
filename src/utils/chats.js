@@ -15,6 +15,7 @@ import {
   canManageChatMessage,
   chatMessagePreview,
 } from './chatsLogic';
+import { buildChatStampPatch } from './chatStampLogic';
 import {
   isFirestorePermissionError,
   waitForFirestoreAccess,
@@ -197,59 +198,28 @@ export async function stampChatMessage(familyId, chatId, {
   messageId,
 } = {}) {
   if (!familyId || !chatId) return;
-  const ids = uniqueMemberIds(memberIds);
-  let bump = uniqueMemberIds(
-    unreadFor !== undefined ? unreadFor : ids.filter((id) => id && id !== senderId),
-  ).filter((id) => id && id !== senderId);
-  if (!bump.length) {
-    const dmOthers = otherDmMemberIds(chatId, senderId);
-    if (dmOthers.length) {
-      bump = dmOthers;
-    } else if (ids.length && !String(chatId).startsWith('dm_') && !String(chatId).startsWith('g_')) {
-      bump = ids.filter((id) => id && id !== senderId);
-    }
-  }
   const ref = doc(db, 'families', familyId, 'chats', chatId);
 
   // Unngå transaction+increment (kan feile stille i web SDK).
   // Les → skriv absolutt tall; idempotent via unreadStampId.
   const snap = await getDoc(ref);
   const existing = snap.exists() ? (snap.data() || {}) : {};
-  if (messageId && existing.unreadStampId === messageId) {
-    const patch = {
-      lastSenderId: senderId || null,
-      lastAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastText: String(text || '').slice(0, 140),
-    };
-    if (ids.length) patch.memberIds = ids;
+  const { patch, idempotent } = buildChatStampPatch({
+    chatId,
+    senderId,
+    text,
+    memberIds,
+    unreadFor,
+    messageId,
+    prev: existing,
+    now: () => serverTimestamp(),
+  });
+  if (idempotent) {
     await setDoc(ref, patch, { merge: true });
     return;
   }
-
-  const prevCounts = (
-    existing.unreadCounts
-    && typeof existing.unreadCounts === 'object'
-    && !Array.isArray(existing.unreadCounts)
-  ) ? existing.unreadCounts : {};
-
-  const payload = {
-    lastSenderId: senderId || null,
-    lastAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    lastText: String(text || '').slice(0, 140),
-  };
-  if (messageId) payload.unreadStampId = messageId;
-  if (ids.length) payload.memberIds = ids;
-  if (senderId) {
-    payload[`reads.${senderId}`] = serverTimestamp();
-    payload[`unreadCounts.${senderId}`] = 0;
-  }
-  bump.forEach((id) => {
-    payload[`unreadCounts.${id}`] = (Number(prevCounts[id]) || 0) + 1;
-  });
   try {
-    await setDoc(ref, payload, { merge: true });
+    await setDoc(ref, patch, { merge: true });
   } catch (err) {
     // Siste utvei: minst lastSenderId/lastAt slik at mottaker ser ulest via chatIsUnread.
     console.warn('[chat] stampChatMessage setDoc failed', err?.code || err?.message);

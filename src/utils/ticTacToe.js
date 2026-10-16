@@ -15,15 +15,9 @@ import {
   setGameInviteResponse,
   GAME_TYPES,
 } from './familyGamesShared';
-import { emptyTttBoard, checkWinner } from './ticTacToeLogic';
+import { emptyTttBoard, TTT_STATUS, resolveTttAccept, resolveTttMove } from './ticTacToeLogic';
 
-export { emptyTttBoard, checkWinner } from './ticTacToeLogic';
-
-export const TTT_STATUS = {
-  waiting: 'waiting',
-  playing: 'playing',
-  finished: 'finished',
-};
+export { emptyTttBoard, checkWinner, TTT_STATUS } from './ticTacToeLogic';
 
 const ACTIVE = [TTT_STATUS.waiting, TTT_STATUS.playing];
 
@@ -75,18 +69,13 @@ export async function createTttGame(familyId, { uid, name, invitedUids = [] }) {
 export async function acceptTttInvite(familyId, { gameId, uid, name }) {
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const data = snap.data() || {};
-  if (data.playerX?.uid === uid || data.playerO?.uid === uid) {
+  const resolved = resolveTttAccept(snap.data() || {}, { uid, name });
+  if (resolved.alreadyIn) {
     await setGameInviteResponse(familyId, 'tttGames', gameId, uid, 'accepted');
     return gameId;
   }
-  if (data.playerO) throw new Error('Spillet er fullt (2 spillere).');
-  if (data.status !== TTT_STATUS.waiting) throw new Error('Spillet er ikke lenger åpent.');
-
   await updateDoc(gameDoc(familyId, gameId), {
-    playerO: { uid, name: String(name || 'Spiller').trim() || 'Spiller' },
-    status: TTT_STATUS.playing,
-    [`inviteStatus.${uid}`]: 'accepted',
+    ...resolved.patch,
     updatedAt: serverTimestamp(),
   });
   return gameId;
@@ -112,31 +101,11 @@ export async function playTttMove(familyId, gameId, { uid, cellIndex }) {
   if (idx < 0 || idx > 8) throw new Error('Ugyldig rute.');
   const snap = await getDoc(gameDoc(familyId, gameId));
   if (!snap.exists()) throw new Error('Spill finnes ikke.');
-  const g = snap.data() || {};
-  if (g.status !== TTT_STATUS.playing) throw new Error('Spillet er ikke aktivt.');
-
-  const board = [...(g.board || emptyBoard())];
-  if (board[idx]) throw new Error('Ruten er opptatt.');
-
-  const isX = g.playerX?.uid === uid;
-  const isO = g.playerO?.uid === uid;
-  if (!isX && !isO) throw new Error('Du er ikke med i dette spillet.');
-  const mark = isX ? 'X' : 'O';
-  if (g.currentTurn !== mark) throw new Error('Ikke din tur.');
-
-  board[idx] = mark;
-  const result = checkWinner(board);
-  const nextTurn = mark === 'X' ? 'O' : 'X';
-  const payload = {
-    board,
-    currentTurn: result ? g.currentTurn : nextTurn,
+  const { patch } = resolveTttMove(snap.data() || {}, { uid, cellIndex });
+  await updateDoc(gameDoc(familyId, gameId), {
+    ...patch,
     updatedAt: serverTimestamp(),
-  };
-  if (result) {
-    payload.status = TTT_STATUS.finished;
-    payload.winner = result;
-  }
-  await updateDoc(gameDoc(familyId, gameId), payload);
+  });
 }
 
 export async function resetTttGame(familyId, gameId) {

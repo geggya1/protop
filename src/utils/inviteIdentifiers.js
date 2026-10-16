@@ -3,7 +3,7 @@
  * Prefer e-post / telefon (GDPR); username is supported as a rare fallback.
  */
 
-import { hasValidPhone, normalizePhone } from './phone';
+import { hasValidPhone, normalizePhone } from './phone.js';
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || '').trim());

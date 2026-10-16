@@ -184,6 +184,31 @@ assert.match(collectText(allKinds).join('\n'), /Bo Ekstern/);
 assert.match(text, /Sammenslått/);
 assert.match(text, /80 % stilling/);
 
+const openTree = withHooks(() => React.createElement(Board, {
+  colors,
+  people,
+  projects: [
+    ...projects,
+    { id: 'p2', name: 'Bare medlem', number: '200', phase: 'produksjon', status: 'aktiv' },
+  ],
+  members: [...members, { employeeId: 'a', projectId: 'p2', active: true }],
+  plan,
+  timeEntries: [
+    { employeeId: 'a', projectId: 'p1', date: '2026-09-02', hours: 6.5 },
+    { employeeId: 'a', projectId: 'old', date: '2026-04-02', hours: 8, projectName: 'Gammelt' },
+  ],
+  canWrite: true,
+  onPlan: () => {},
+  initialOpenId: 'a',
+}));
+const openText = collectText(openTree).join('\n');
+assert.match(openText, /100 Alpha/);
+assert.match(openText, /6,5/);
+assert.match(openText, /påløpte timer/);
+assert.doesNotMatch(openText, /Bare medlem/);
+assert.doesNotMatch(openText, /Gammelt/);
+assert.doesNotMatch(openText, /Dra eller trykk/);
+
 const series = weekSeries(people, plan.allocations, weeks, 37.5);
 const chart = withHooks(() => React.createElement(WeekSumChart, { series, colors }));
 const chartText = collectText(chart).join('\n');

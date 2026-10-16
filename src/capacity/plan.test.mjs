@@ -7,10 +7,17 @@ import {
   companyWeekLoad,
   contractPercent,
   employeeCapacityHours,
+  actualHoursForWeek,
   firstSlackWeek,
   kindOf,
   loadTone,
   makeAllocation,
+  percentFromPointerDelta,
+  planActivityFrom,
+  planningRows,
+  spanBetween,
+  visibleWeekKeys,
+  weeklyActualHours,
   mondayKey,
   occupancy,
   packLanes,
@@ -187,4 +194,54 @@ import {
   ];
   const mine = projectsForEmployee(projects, members, 'a');
   assert.deepEqual(mine.map((row) => row.id), ['p1']);
+}
+
+{
+  assert.equal(planActivityFrom(new Date(2026, 9, 16)), '2026-07-16');
+  assert.deepEqual(visibleWeekKeys('2026-10-12', 2, 2), [
+    '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19',
+  ]);
+  const entries = [
+    { employeeId: 'a', projectId: 'p1', date: '2026-10-14', hours: 7.5 },
+    { employeeId: 'a', projectId: 'p1', date: '2026-10-15', hours: '1:30' },
+    { employeeId: 'a', projectId: 'old', date: '2026-05-02', hours: 8 },
+    { employeeId: 'b', projectId: 'p1', date: '2026-10-14', hours: 4 },
+  ];
+  const weeks = visibleWeekKeys('2026-10-12', 1, 1);
+  const actual = weeklyActualHours(entries, 'a', weeks);
+  assert.equal(actual.get('p1').get('2026-10-12'), 9);
+  assert.equal(actual.has('old'), false);
+  assert.equal(actualHoursForWeek(entries, 'a', '2026-10-14'), 9);
+  const rows = planningRows({
+    projects: [
+      { id: 'p1', name: 'Alpha', number: '100' },
+      { id: 'member', name: 'Bare medlem', number: '200' },
+    ],
+    allocations: [
+      makeAllocation({
+        employeeId: 'a',
+        project: { id: 'plan', name: 'Planlagt', number: '300' },
+        start: '2026-10-12',
+        weeks: 2,
+        percent: 40,
+        weekHours: 40,
+      }),
+    ],
+    timeEntries: [
+      ...entries,
+      { employeeId: 'a', projectId: 'p1', date: '2026-09-02', hours: 6.5, projectNumber: '100', projectName: 'Alpha' },
+      { employeeId: 'a', projectId: 'ghost', date: '2026-09-10', hours: 3, projectNumber: '400', projectName: 'Uten kort' },
+    ],
+    employeeId: 'a',
+    activityFrom: '2026-07-16',
+  });
+  assert.deepEqual(rows.map((row) => row.projectId), ['p1', 'plan', 'ghost']);
+  assert.equal(rows.find((row) => row.projectId === 'p1').recentHours, 15.5);
+  assert.equal(rows.find((row) => row.projectId === 'ghost').name, '400 Uten kort');
+  const span = spanBetween(['2026-10-12', '2026-10-19', '2026-10-26'], 2, 0);
+  assert.equal(span.start, '2026-10-12');
+  assert.equal(span.weeks, 3);
+  assert.equal(percentFromPointerDelta(50, -28), 60);
+  assert.equal(percentFromPointerDelta(50, 28), 40);
+  assert.equal(percentFromPointerDelta(50, 0), 50);
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { activeEmployees, activeProjects, emptyPlan } from '../../src/capacity/plan';
+import { activeEmployees, activeProjects, addDays, emptyPlan, planActivityFrom, toDateKey } from '../../src/capacity/plan';
 import { capacityLoadMeta, loadCapacityPlan, saveCapacityPlan } from '../../src/capacity/storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -30,6 +30,7 @@ export default function ProductivityScreen() {
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [plan, setPlan] = useState(() => emptyPlan());
+  const [timeEntries, setTimeEntries] = useState([]);
   const [dayHours, setDayHours] = useState(8);
   const [ready, setReady] = useState(false);
   const echo = useRef(true);
@@ -48,12 +49,16 @@ export default function ProductivityScreen() {
     setReady(false);
     setPlan(emptyPlan());
     const companyId = familyId;
+    const hourFrom = addDays(planActivityFrom(new Date()), -7 * 16);
     Promise.all([
-      loadProjectState(companyId, { hours: false }).catch(() => ({ projects: [], members: [] })),
+      loadProjectState(companyId, {
+        hours: { fromDate: hourFrom, toDate: toDateKey(new Date()) },
+      }).catch(() => ({ projects: [], members: [], timeEntries: [] })),
       loadCapacityPlan(companyId).catch(() => emptyPlan()),
     ]).then(([projectState, loadedPlan]) => {
       if (!live || familyRef.current !== companyId) return;
       setProjects(projectState?.projects || []);
+      setTimeEntries(projectState?.timeEntries || []);
       setDayHours(Number(projectState?.fullDayHours) > 0 ? Number(projectState.fullDayHours) : 8);
       setMembers(projectState?.members || []);
       echo.current = true;
@@ -116,6 +121,7 @@ export default function ProductivityScreen() {
           projects={liveProjects}
           members={members}
           plan={plan}
+          timeEntries={timeEntries}
           fullDayHours={dayHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}

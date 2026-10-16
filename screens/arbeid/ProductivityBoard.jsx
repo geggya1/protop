@@ -8,7 +8,10 @@ import { displayName } from '../../src/employees/model';
 import {
   HORIZON_CHOICES,
   TONE_COLOR,
+  actualHoursForWeek,
   addAllocation,
+  addDays,
+  allocationEnd,
   firstSlackWeek,
   formatHours,
   formatPercent,
@@ -17,21 +20,30 @@ import {
   loadTone,
   makeAllocation,
   matchesKind,
+  mondayKey,
   occupancy,
-  packLanes,
   patchAllocation,
+  placement,
+  percentFromPointerDelta,
+  planActivityFrom,
+  planningRows,
   projectLabel,
-  projectsForEmployee,
   removeAllocation,
   shiftPreview,
+  sizeFromPercent,
+  spanBetween,
   suggestSpan,
+  visibleWeekKeys,
   weekKeys,
   weekMeta,
+  weeklyActualHours,
   weekSeries,
 } from '../../src/capacity/plan';
 
 const WEEK_W = 54;
-const LANE_H = 40;
+const MATRIX_W = 48;
+const LABEL_W = 228;
+const ROW_H = 42;
 const KINDS = [
   { id: 'alle', label: 'Alle' },
   { id: 'staff', label: 'Interne' },
@@ -120,8 +132,8 @@ export default function ProductivityBoard({
   colors,
   people = [],
   projects = [],
-  members = [],
   plan,
+  timeEntries = [],
   canWrite = false,
   onPlan,
   initialOpenId = '',
@@ -137,18 +149,21 @@ export default function ProductivityBoard({
   const [openId, setOpenId] = useState(initialOpenId);
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
-  const [hover, setHover] = useState(null);
+  const [paint, setPaint] = useState(null);
   const [otherQuery, setOtherQuery] = useState('');
   const [percentDraft, setPercentDraft] = useState('');
   const [hoursDraft, setHoursDraft] = useState('');
   const [nameDraft, setNameDraft] = useState('');
   const dragRef = useRef(null);
   const tracks = useRef({});
-  const hoverRef = useRef(null);
+  const gridScroll = useRef({});
   const suppressPress = useRef(false);
   const api = useRef({});
 
-  const weeks = useMemo(() => weekKeys(origin, horizon), [origin, horizon]);
+  const forwardWeeks = useMemo(() => weekKeys(origin, horizon), [origin, horizon]);
+  const weeks = useMemo(() => visibleWeekKeys(origin, horizon), [origin, horizon]);
+  const todayKey = mondayKey(new Date());
+  const activityFrom = planActivityFrom(new Date());
   const weekHours = (Number(fullDayHours) > 0 ? Number(fullDayHours) : 8) * 5;
   const allocations = plan?.allocations || [];
 
@@ -162,8 +177,8 @@ export default function ProductivityBoard({
   }, [people, kind, query]);
 
   const series = useMemo(
-    () => weekSeries(visiblePeople, allocations, weeks, weekHours),
-    [visiblePeople, allocations, weeks, weekHours],
+    () => weekSeries(visiblePeople, allocations, forwardWeeks, weekHours),
+    [visiblePeople, allocations, forwardWeeks, weekHours],
   );
   const thisWeek = series[0];
   const peak = series.reduce((best, row) => (row.ofContract > (best?.ofContract || 0) ? row : best), null);
@@ -174,8 +189,12 @@ export default function ProductivityBoard({
   }
 
   function shown(alloc) {
-    if (draft && draft.id === alloc.id) return { ...alloc, start: draft.start, weeks: draft.weeks };
-    return alloc;
+    if (!draft || draft.id !== alloc.id) return alloc;
+    const next = { ...alloc };
+    if (draft.start) next.start = draft.start;
+    if (draft.weeks) next.weeks = draft.weeks;
+    if (draft.percent != null) Object.assign(next, sizeFromPercent(draft.percent, weekHours), { mode: 'percent' });
+    return next;
   }
 
   function selectAlloc(alloc) {
@@ -224,44 +243,116 @@ export default function ProductivityBoard({
       ? node
       : (typeof document !== 'undefined' ? document.getElementById(`produktivitet-track-${employeeId}`) : null);
     const rect = el?.getBoundingClientRect?.();
-    if (!rect) return hoverRef.current?.employeeId === employeeId ? hoverRef.current.index : null;
+    if (!rect) return null;
     const local = pageX - rect.left;
     if (local < 0 || local > rect.width) return null;
-    return Math.max(0, Math.min(weeks.length - 1, Math.floor(local / WEEK_W)));
+    return Math.max(0, Math.min(weeks.length - 1, Math.floor(local / MATRIX_W)));
   }
 
   function onTrackPointerMove(event) {
     const drag = dragRef.current;
     if (!drag) return;
-    const { x } = pointOf(event);
-    const delta = Math.round((x - drag.x) / WEEK_W);
-    if (drag.mode === 'new') {
+    const { x, y } = pointOf(event);
+    if (drag.mode === 'paint' || drag.mode === 'load') {
       const index = weekIndexAt(drag.employeeId, x);
-      const next = index == null ? null : { employeeId: drag.employeeId, index };
-      hoverRef.current = next;
-      setHover(next);
+      const percent = percentFromPointerDelta(drag.percent, y - drag.y);
+      if (drag.mode === 'load' && drag.alloc) {
+        setDraft({ id: drag.alloc.id, percent });
+        return;
+      }
+      const endIndex = index == null ? drag.originIndex : index;
+      setPaint({
+        employeeId: drag.employeeId,
+        projectId: drag.projectId || '',
+        allocId: drag.allocId || '',
+        startIndex: drag.originIndex,
+        endIndex,
+        percent,
+      });
+      if (drag.alloc) setDraft({ id: drag.alloc.id, percent });
       return;
     }
+    const dx = x - drag.x;
+    const dy = y - drag.y;
+    if (drag.mode === 'move' && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) + 6) {
+      drag.mode = 'load';
+      drag.percent = drag.alloc.percent;
+      setDraft({ id: drag.alloc.id, percent: percentFromPointerDelta(drag.percent, dy) });
+      return;
+    }
+    const delta = Math.round(dx / MATRIX_W);
     const next = shiftPreview(drag.alloc, delta, drag.mode);
     setDraft({ id: drag.alloc.id, start: next.start, weeks: next.weeks });
+  }
+
+  function commitSpan(person, row, start, count, percent) {
+    const spanWeeks = Math.max(1, count);
+    const end = addDays(start, spanWeeks * 7);
+    if (row.allocId && !row.projectId) {
+      patch(row.allocId, { start, weeks: spanWeeks, percent });
+      setSelectedId(row.allocId);
+      setPercentDraft(String(percent).replace('.', ','));
+      setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+      return;
+    }
+    const mine = (plan?.allocations || []).filter((alloc) => (
+      alloc.employeeId === person.id && alloc.projectId === row.projectId
+    ));
+    const hit = mine.find((alloc) => alloc.start < end && allocationEnd(alloc) > start);
+    if (hit) {
+      patch(hit.id, { start, weeks: spanWeeks, percent });
+      setSelectedId(hit.id);
+      setPercentDraft(String(percent).replace('.', ','));
+      setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+      setNameDraft(hit.name);
+      return;
+    }
+    const project = row.project || (row.projectId ? { id: row.projectId, name: row.name } : null);
+    const created = makeAllocation({
+      employeeId: person.id,
+      project,
+      source: project ? 'project' : 'dummy',
+      name: row.name,
+      start,
+      weeks: spanWeeks,
+      percent,
+      weekHours,
+    });
+    commit(addAllocation(plan, created));
+    selectAlloc(created);
   }
 
   function onTrackPointerUp(event) {
     const drag = dragRef.current;
     dragRef.current = null;
     if (!drag) return;
-    const { x } = pointOf(event);
-    if (drag.mode === 'new') {
+    const { x, y } = pointOf(event);
+    if (drag.mode === 'paint') {
+      setPaint(null);
       const index = weekIndexAt(drag.employeeId, x);
-      hoverRef.current = null;
-      setHover(null);
-      const moved = Math.abs(x - drag.x) > 6;
-      if (!moved || index == null) return;
+      const endIndex = index == null ? drag.originIndex : index;
+      const span = spanBetween(weeks, drag.originIndex, endIndex);
+      if (!span) return;
+      let from = span.from;
+      while (from <= span.to && weeks[from] < todayKey) from += 1;
+      if (from > span.to) return;
       suppressPress.current = true;
-      addProjectBar(drag.person, drag.project, weeks[index]);
+      const percent = percentFromPointerDelta(drag.percent, y - drag.y);
+      commitSpan(drag.person, drag.row, weeks[from], span.to - from + 1, percent);
       return;
     }
-    const delta = Math.round((x - drag.x) / WEEK_W);
+    if (drag.mode === 'load') {
+      setDraft(null);
+      const percent = percentFromPointerDelta(drag.percent, y - drag.y);
+      if (Math.abs(y - drag.y) > 8) {
+        suppressPress.current = true;
+        patch(drag.alloc.id, { percent });
+        setPercentDraft(String(percent).replace('.', ','));
+        setHoursDraft(formatHours(sizeFromPercent(percent, weekHours).hoursPerWeek));
+      }
+      return;
+    }
+    const delta = Math.round((x - drag.x) / MATRIX_W);
     setDraft(null);
     if (delta !== 0) {
       suppressPress.current = true;
@@ -271,6 +362,17 @@ export default function ProductivityBoard({
   }
 
   api.current = { onTrackPointerMove, onTrackPointerUp };
+
+  useEffect(() => {
+    if (!openId) return undefined;
+    const index = weeks.indexOf(todayKey);
+    const node = gridScroll.current[openId];
+    if (!node?.scrollTo || index < 1) return undefined;
+    const timer = setTimeout(() => {
+      node.scrollTo({ x: Math.max(0, index * MATRIX_W - MATRIX_W * 2), animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [openId, todayKey, weeks]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -284,13 +386,30 @@ export default function ProductivityBoard({
     };
   }, []);
 
+  function beginPaint(event, person, row) {
+    if (!canWrite) return;
+    const index = weekIndexAt(person.id, pointOf(event).x);
+    if (index == null || weeks[index] < todayKey) return;
+    beginDrag(event, {
+      mode: 'paint',
+      person,
+      row,
+      employeeId: person.id,
+      projectId: row.projectId || '',
+      allocId: row.allocId || '',
+      originIndex: index,
+      percent: 50,
+    });
+  }
+
   function beginDrag(event, payload) {
     if (!canWrite) return;
     const now = Date.now();
     const current = dragRef.current;
     if (payload.mode === 'move' && current?.mode === 'resize' && now - (current.at || 0) < 40) return;
     event?.preventDefault?.();
-    dragRef.current = { ...payload, x: pointOf(event).x, at: now };
+    const point = pointOf(event);
+    dragRef.current = { ...payload, x: point.x, y: point.y, at: now };
     if (payload.alloc) selectAlloc(payload.alloc);
   }
 
@@ -426,12 +545,17 @@ export default function ProductivityBoard({
         const open = openId === person.id;
         const kindName = kindLabel(kindOf(person));
         const contract = person.company?.workPercent ? `${person.company.workPercent} % stilling` : '100 % stilling';
-        const now = occupancy(person, allocations, weeks[0], weekHours);
-        const slack = firstSlackWeek(person, allocations, weeks, weekHours);
-        const mine = projectsForEmployee(projects, members, person.id);
+        const now = occupancy(person, allocations, forwardWeeks[0], weekHours);
+        const slack = firstSlackWeek(person, allocations, forwardWeeks, weekHours);
         const personAllocs = allocations.filter((row) => row.employeeId === person.id).map(shown);
-        const packed = packLanes(personAllocs, weeks);
-        const plannedIds = new Set(personAllocs.filter((row) => row.projectId).map((row) => row.projectId));
+        const rows = planningRows({
+          projects,
+          allocations: personAllocs,
+          timeEntries,
+          employeeId: person.id,
+          activityFrom,
+        });
+        const actualByProject = weeklyActualHours(timeEntries, person.id, weeks);
         return (
           <View
             key={person.id}
@@ -461,7 +585,7 @@ export default function ProductivityBoard({
               <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
             </Pressable>
             <View style={styles.heat}>
-              {weeks.map((key) => {
+              {forwardWeeks.map((key) => {
                 const row = occupancy(person, allocations, key, weekHours);
                 return (
                   <View
@@ -473,104 +597,188 @@ export default function ProductivityBoard({
             </View>
 
             {open ? (
-              <View style={styles.expand}>
-                <ScrollView horizontal showsHorizontalScrollIndicator>
-                  <View>
-                    <View style={styles.monthRow}>
-                      {monthBands(weeks).map((band) => (
-                        <View key={band.key} style={[styles.monthBand, { width: band.span * WEEK_W }]}>
-                          <Text style={[styles.monthLabel, { color: colors.muted }]}>{band.label}</Text>
-                        </View>
-                      ))}
+              <View style={styles.expand} nativeID={`produktivitet-plan-${person.id}`}>
+                <Text style={[styles.cardSub, { color: colors.muted }]}>
+                  {`Prosjekt med timer siste tre måneder. Til og med denne uken vises påløpte timer. Dra bortover for varighet og opp eller ned for belastning.`}
+                </Text>
+                <View style={styles.matrix}>
+                  <View style={[styles.labelCol, { width: LABEL_W }]}>
+                    <View style={[styles.labelHead, { borderColor: colors.line }]}>
+                      <Text style={[styles.sectionLabel, { color: colors.muted }]}>Prosjekt</Text>
                     </View>
-                    <View style={styles.weekHead}>
-                      {weeks.map((key) => {
-                        const meta = weekMeta(key);
-                        return (
-                          <View key={key} style={styles.weekHeadCell}>
-                            <Text style={[styles.weekNo, { color: colors.ink }]}>{meta.short}</Text>
-                            <Text style={[styles.weekDate, { color: colors.muted }]}>{meta.date}</Text>
-                          </View>
-                        );
-                      })}
+                    <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                      <Text style={[styles.sumLabel, { color: colors.ink }]}>Sum</Text>
                     </View>
+                    {rows.map((row) => (
+                      <View key={row.key} style={[styles.labelCell, { borderColor: colors.line }]}>
+                        <Text numberOfLines={1} style={[styles.rowName, { color: colors.ink }]}>{row.name}</Text>
+                        <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.muted }]}>
+                          {row.source === 'dummy' ? 'Ikke et ekte prosjekt' : `${formatHours(row.recentHours)} t siste 3 md`}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator
+                    ref={(node) => { gridScroll.current[person.id] = node; }}
+                  >
                     <View
                       ref={(node) => { tracks.current[person.id] = node; }}
                       nativeID={`produktivitet-track-${person.id}`}
-                      style={[styles.track, { height: Math.max(LANE_H, packed.laneCount * LANE_H + 8), width: weeks.length * WEEK_W }]}
+                      style={{ width: weeks.length * MATRIX_W }}
                     >
-                      {weeks.map((key, index) => {
-                        const hot = hover?.employeeId === person.id && hover.index === index;
+                      <View style={styles.monthRow}>
+                        {monthBands(weeks).map((band) => (
+                          <View key={band.key} style={[styles.monthBand, { width: band.span * MATRIX_W }]}>
+                            <Text numberOfLines={1} style={[styles.monthLabel, { color: colors.muted }]}>{band.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <View style={styles.weekHead}>
+                        {weeks.map((key) => {
+                          const meta = weekMeta(key);
+                          const current = key === todayKey;
+                          return (
+                            <View key={key} style={[styles.weekHeadCell, current && { backgroundColor: withAlpha(colors.brand, '18') }]}>
+                              <Text style={[styles.weekNo, { color: current ? colors.brand : colors.ink }]}>{meta.short}</Text>
+                              <Text style={[styles.weekDate, { color: colors.muted }]}>{meta.date}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                      <View style={[styles.sumRow, { backgroundColor: colors.bg }]}>
+                        {weeks.map((key) => {
+                          const past = key < todayKey;
+                          const value = past
+                            ? actualHoursForWeek(timeEntries, person.id, key)
+                            : occupancy(person, personAllocs, key, weekHours).hours;
+                          const tone = past ? colors.muted : TONE_COLOR[loadTone(occupancy(person, personAllocs, key, weekHours).ofContract)];
+                          return (
+                            <View key={key} style={[styles.matrixCell, { borderColor: colors.line, backgroundColor: key === todayKey ? withAlpha(colors.brand, '10') : 'transparent' }]}>
+                              <Text style={[styles.cellText, { color: value > 0 ? tone : colors.muted }]}>
+                                {value > 0 ? formatHours(value) : ''}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                      {rows.map((row) => {
+                        const segments = segmentsFor(row, personAllocs, weeks, todayKey);
+                        const painting = paint
+                          && paint.employeeId === person.id
+                          && paint.projectId === (row.projectId || '')
+                          && paint.allocId === (row.allocId || '');
                         return (
                           <View
-                            key={key}
-                            style={[
-                              styles.col,
-                              { left: index * WEEK_W, backgroundColor: hot ? withAlpha(colors.brand, '18') : 'transparent', borderColor: colors.line },
-                            ]}
-                          />
-                        );
-                      })}
-                      {packed.items.map(({ alloc, place, lane }) => {
-                        const on = selectedId === alloc.id;
-                        return (
-                          <View
-                            key={alloc.id}
-                            nativeID={`produktivitet-bar-${alloc.id}`}
-                            onPointerDown={(event) => beginDrag(event, { mode: 'move', alloc, employeeId: person.id })}
-                            style={[
-                              styles.bar,
-                              {
-                                left: place.startIndex * WEEK_W + 4,
-                                width: place.span * WEEK_W - 8,
-                                top: 6 + lane * LANE_H,
-                                backgroundColor: alloc.color,
-                                borderStyle: alloc.source === 'dummy' ? 'dashed' : 'solid',
-                                borderColor: on ? '#fff' : 'transparent',
-                              },
-                            ]}
+                            key={row.key}
+                            nativeID={`produktivitet-row-${person.id}-${row.projectId || row.allocId}`}
+                            onPointerDown={(event) => beginPaint(event, person, row)}
+                            style={styles.matrixRow}
                           >
-                            <Text numberOfLines={1} style={styles.barText}>
-                              {`${alloc.name} · ${formatPercent(alloc.percent)}`}
-                            </Text>
-                            <View
-                              style={styles.resize}
-                              onPointerDown={(event) => {
-                                event?.stopPropagation?.();
-                                beginDrag(event, { mode: 'resize', alloc, employeeId: person.id });
-                              }}
-                            />
+                            {weeks.map((key) => {
+                              const hours = row.projectId ? (actualByProject.get(row.projectId)?.get(key) || 0) : 0;
+                              const past = key < todayKey;
+                              const current = key === todayKey;
+                              return (
+                                <View
+                                  key={key}
+                                  style={[
+                                    styles.matrixCell,
+                                    {
+                                      borderColor: colors.line,
+                                      backgroundColor: current
+                                        ? withAlpha(colors.brand, '10')
+                                        : (past && hours > 0 ? colors.bg : 'transparent'),
+                                    },
+                                  ]}
+                                >
+                                  {past || current ? (
+                                    <Text style={[styles.cellText, { color: past ? colors.ink : colors.muted }]}>
+                                      {hours > 0 ? formatHours(hours) : ''}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              );
+                            })}
+                            {segments.map(({ alloc, startIndex, span }) => {
+                              const on = selectedId === alloc.id;
+                              const height = barHeight(draft?.id === alloc.id && draft.percent != null ? draft.percent : alloc.percent);
+                              const label = alloc.mode === 'hours'
+                                ? `${formatHours(alloc.hoursPerWeek)} t`
+                                : formatPercent(alloc.percent);
+                              return (
+                                <View
+                                  key={alloc.id}
+                                  nativeID={`produktivitet-bar-${alloc.id}`}
+                                  onPointerDown={(event) => {
+                                    event?.stopPropagation?.();
+                                    beginDrag(event, {
+                                      mode: 'move',
+                                      alloc,
+                                      employeeId: person.id,
+                                      percent: alloc.percent,
+                                    });
+                                  }}
+                                  style={[
+                                    styles.bar,
+                                    {
+                                      left: startIndex * MATRIX_W + 3,
+                                      width: span * MATRIX_W - 6,
+                                      height,
+                                      backgroundColor: withAlpha(alloc.color, 'cc'),
+                                      borderStyle: alloc.source === 'dummy' ? 'dashed' : 'solid',
+                                      borderColor: on ? colors.ink : alloc.color,
+                                    },
+                                  ]}
+                                >
+                                  <Text numberOfLines={1} style={styles.barText}>{label}</Text>
+                                  <View
+                                    style={styles.resize}
+                                    onPointerDown={(event) => {
+                                      event?.stopPropagation?.();
+                                      beginDrag(event, {
+                                        mode: 'resize',
+                                        alloc,
+                                        employeeId: person.id,
+                                        percent: alloc.percent,
+                                      });
+                                    }}
+                                  />
+                                </View>
+                              );
+                            })}
+                            {painting ? (
+                              <View
+                                pointerEvents="none"
+                                style={[
+                                  styles.bar,
+                                  {
+                                    left: Math.min(paint.startIndex, paint.endIndex) * MATRIX_W + 3,
+                                    width: (Math.abs(paint.endIndex - paint.startIndex) + 1) * MATRIX_W - 6,
+                                    height: barHeight(paint.percent),
+                                    backgroundColor: withAlpha(colors.brand, '88'),
+                                    borderColor: colors.brand,
+                                  },
+                                ]}
+                              >
+                                <Text numberOfLines={1} style={styles.barText}>{formatPercent(paint.percent)}</Text>
+                              </View>
+                            ) : null}
                           </View>
                         );
                       })}
                     </View>
-                  </View>
-                </ScrollView>
+                  </ScrollView>
+                </View>
 
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>Aktive prosjekt</Text>
+                {rows.length === 0 ? (
+                  <Text style={[styles.cardSub, { color: colors.muted }]}>
+                    Ingen prosjekt med timer de siste tre månedene. Legg til et prosjekt under, eller et dummy-prosjekt for å prøve belegg.
+                  </Text>
+                ) : null}
+
                 <View style={styles.chips}>
-                  {mine.length === 0 ? (
-                    <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen medlemskap på aktive prosjekt.</Text>
-                  ) : mine.map((project) => {
-                    const planned = plannedIds.has(project.id);
-                    return (
-                      <Pressable
-                        key={project.id}
-                        onPress={() => {
-                          if (suppressPress.current) {
-                            suppressPress.current = false;
-                            return;
-                          }
-                          if (canWrite) addProjectBar(person, project, origin);
-                        }}
-                        onPointerDown={(event) => beginDrag(event, { mode: 'new', project, person, employeeId: person.id })}
-                        style={[styles.chip, { borderColor: colors.line, backgroundColor: planned ? withAlpha(colors.brand, '14') : colors.bg }]}
-                      >
-                        <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{projectLabel(project)}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{planned ? 'På planen' : 'Dra eller trykk'}</Text>
-                      </Pressable>
-                    );
-                  })}
                   {canWrite ? (
                     <Pressable onPress={() => addDummy(person)} style={[styles.chip, styles.dummyChip, { borderColor: colors.brand }]} nativeID="produktivitet-dummy">
                       <Ionicons name="add" size={16} color={colors.brand} />
@@ -590,7 +798,7 @@ export default function ProductivityBoard({
                   <View style={styles.chips}>
                     {projects
                       .filter((project) => projectLabel(project).toLowerCase().includes(otherQuery.trim().toLowerCase()))
-                      .filter((project) => !mine.some((row) => row.id === project.id))
+                      .filter((project) => !rows.some((row) => row.projectId === project.id))
                       .slice(0, 8)
                       .map((project) => (
                         <Pressable key={project.id} onPress={() => { addProjectBar(person, project, origin); setOtherQuery(''); }} style={[styles.chip, { borderColor: colors.line }]}>
@@ -651,14 +859,10 @@ export default function ProductivityBoard({
                       ) : null}
                     </View>
                     <Text style={[styles.cardSub, { color: colors.muted }]}>
-                      {`${formatHours(selected.hoursPerWeek)} t i uken · ${formatPercent(selected.percent)} av full uke. Dra stolpen for å flytte, høyre kant for å endre varighet.`}
+                      {`${formatHours(selected.hoursPerWeek)} t i uken · ${formatPercent(selected.percent)} av full uke. Dra feltet sidelengs for å flytte, opp eller ned for belastning, høyre kant for varighet.`}
                     </Text>
                   </View>
-                ) : (
-                  <Text style={[styles.cardSub, { color: colors.muted }]}>
-                    Dra et prosjekt ut på ukene, eller trykk for å legge det på starten av vinduet. Dummy viser belegg som ikke er et ekte prosjekt ennå.
-                  </Text>
-                )}
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -683,6 +887,31 @@ function shiftWeek(key, delta) {
 function shiftFields(alloc, delta, mode) {
   const next = shiftPreview(alloc, delta, mode);
   return mode === 'resize' ? { weeks: next.weeks } : { start: next.start };
+}
+
+function barHeight(percent) {
+  const n = Math.max(0, Math.min(150, Number(percent) || 0));
+  return Math.max(16, Math.min(ROW_H - 8, Math.round((n / 100) * (ROW_H - 8))));
+}
+
+function segmentsFor(row, allocs, weeks, todayKey) {
+  const mine = (allocs || []).filter((alloc) => (
+    row.allocId
+      ? alloc.id === row.allocId
+      : alloc.projectId === row.projectId && alloc.source !== 'dummy'
+  ));
+  const todayIndex = (weeks || []).findIndex((key) => key >= todayKey);
+  return mine.map((alloc) => {
+    const place = placement(alloc, weeks);
+    if (!place) return null;
+    let { startIndex, span } = place;
+    if (todayIndex >= 0 && startIndex < todayIndex) {
+      span -= todayIndex - startIndex;
+      startIndex = todayIndex;
+    }
+    if (span <= 0) return null;
+    return { alloc, startIndex, span };
+  }).filter(Boolean);
 }
 
 function monthBands(weeks) {
@@ -736,18 +965,28 @@ const styles = StyleSheet.create({
   heat: { flexDirection: 'row', gap: 3, height: 8 },
   heatCell: { flex: 1, borderRadius: 3 },
   expand: { gap: 10 },
-  monthRow: { flexDirection: 'row' },
+  monthRow: { flexDirection: 'row', height: 18 },
   monthBand: { paddingBottom: 4 },
   monthLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
-  weekHead: { flexDirection: 'row' },
-  weekHeadCell: { width: WEEK_W, alignItems: 'center' },
-  weekNo: { fontSize: 12, fontWeight: '700' },
+  weekHead: { flexDirection: 'row', height: 34 },
+  weekHeadCell: { width: MATRIX_W, alignItems: 'center', justifyContent: 'center', height: 34 },
+  weekNo: { fontSize: 11, fontWeight: '700' },
   weekDate: { fontSize: 10 },
-  track: { position: 'relative', marginTop: 6 },
-  col: { position: 'absolute', top: 0, bottom: 0, width: WEEK_W, borderLeftWidth: StyleSheet.hairlineWidth },
-  bar: { position: 'absolute', height: 30, borderRadius: 8, borderWidth: 2, justifyContent: 'center', paddingLeft: 8, paddingRight: 12, cursor: 'grab' },
-  resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 12, cursor: 'ew-resize' },
-  barText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  matrix: { flexDirection: 'row', alignItems: 'flex-start' },
+  labelCol: { flexShrink: 0 },
+  labelHead: { height: 52, justifyContent: 'flex-end', paddingBottom: 6, paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  labelSum: { height: ROW_H, justifyContent: 'center', paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  sumLabel: { fontSize: 12, fontWeight: '700' },
+  labelCell: { height: ROW_H, justifyContent: 'center', paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 1 },
+  rowName: { fontSize: 13, fontWeight: '700' },
+  rowMeta: { fontSize: 11 },
+  sumRow: { flexDirection: 'row', height: ROW_H },
+  matrixRow: { flexDirection: 'row', height: ROW_H, position: 'relative' },
+  matrixCell: { width: MATRIX_W, height: ROW_H, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3 },
+  cellText: { fontSize: 11, fontWeight: '600' },
+  bar: { position: 'absolute', bottom: 4, borderRadius: 6, borderWidth: 1, justifyContent: 'center', paddingLeft: 6, paddingRight: 10, cursor: 'grab' },
+  resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 10, cursor: 'ew-resize' },
+  barText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },

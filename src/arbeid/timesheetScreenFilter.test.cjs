@@ -143,6 +143,13 @@ function loadJsx(rel) {
         ensureProjectHours: async () => projectState,
         putProjectState: () => projectState,
         saveProjectState: async () => {},
+        applyHoursOntoState: (current, loaded) => ({
+          ...(loaded || {}),
+          absences: (current?.absences || []).length ? current.absences : (loaded?.absences || []),
+          absenceAdjustments: (current?.absenceAdjustments || []).length
+            ? current.absenceAdjustments
+            : (loaded?.absenceAdjustments || []),
+        }),
       };
     }
     if (id.includes('employees/storage')) {
@@ -150,7 +157,10 @@ function loadJsx(rel) {
     }
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('usageClient')) return { recordUsage: () => {} };
-    if (id.includes('timeEntryStorage')) return { removeTimeEntry: async () => {} };
+    if (id.includes('timeEntryStorage')) {
+      return { removeTimeEntry: async () => {}, loadTimeEntries: async () => [] };
+    }
+    if (id.includes('absenceStorage')) return { loadAbsences: async () => [] };
     if (id.includes('TimesheetGrid')) {
       return {
         __esModule: true,

@@ -107,9 +107,8 @@ export function useTimesheetWorkspace({
       ),
       (rows) => {
         const next = Array.isArray(rows) ? rows : [];
+        if (!next.length) return;
         setState((current) => {
-          const prev = current?.absences || [];
-          if (!next.length && prev.length) return current;
           skipSave.current = true;
           noteAbsencesImported(workspaceId, next);
           return putProjectState({ ...current, absences: next }, workspaceId);

@@ -20,6 +20,7 @@ import {
   attachAbsencesToState,
   diffAbsences,
   mergeAbsenceLists,
+  planAbsenceRemovals,
   removeAbsence,
   saveAbsences,
   withoutDeletedAbsences,
@@ -395,7 +396,11 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
   const id = String(companyId || '').trim();
   if (!id) return;
   const window = ABSENCE_WINDOW.get(id) || null;
-  const { changed, removed } = diffAbsences(previousEntries, nextEntries);
+  const { changed, removed: requested } = diffAbsences(previousEntries, nextEntries);
+  const removed = planAbsenceRemovals(previousEntries, nextEntries, { allowRemovals });
+  // Tomt svar mot en fylt baseline skal ikke nullstille synken. Da blir neste
+  // lagring tolket som at importen er borte.
+  if (allowRemovals && requested.length && !removed.length) return;
   const safeChanged = withoutDeletedAbsences(id, changed);
   const bySource = new Map();
   for (const row of safeChanged) {
@@ -406,9 +411,7 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
   for (const [source, list] of bySource) {
     await saveAbsences(source, list);
   }
-  const removable = allowRemovals && window?.all === true
-    ? removed
-    : [];
+  const removable = allowRemovals && window?.all === true ? removed : [];
   if (removable.length) {
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {

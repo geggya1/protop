@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { planAbsenceRemovals } from '../arbeid/absenceStorage.js';
 import {
   applyAbsencesOntoState,
   applyHoursOntoState,
@@ -104,6 +105,17 @@ assert.equal(projectLoadMeta('co1'), 'ok');
 
   const emptyAbsenceLoad = applyAbsencesOntoState(onScreen, { absences: [], timeEntries: [] });
   assert.equal(emptyAbsenceLoad.absences.length, 1, 'tom fraværslasting skal beholde radene på skjermen');
+
+  const imported = [
+    { id: 'fra-1', employeeId: 'e1', date: '2026-07-01', hours: 8, type: 'ferie' },
+    { id: 'fra-2', employeeId: 'e1', date: '2026-07-02', hours: 8, type: 'ferie' },
+  ];
+  assert.deepEqual(planAbsenceRemovals(imported, []), [], 'tom liste skal ikke slette importen');
+  assert.deepEqual(
+    planAbsenceRemovals(imported, [imported[0]]),
+    ['fra-2'],
+    'én fjernet rad skal fortsatt kunne slettes',
+  );
 }
 
 console.log('storage.test.mjs: ok');

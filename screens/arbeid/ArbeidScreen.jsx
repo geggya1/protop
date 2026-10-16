@@ -697,7 +697,7 @@ export default function ArbeidScreen({
     });
     const through = result.ok ? lockThroughDate(result.state.timesheetLocks, employeeId) : '';
     applyResult(result, through
-      ? `Timelisten er låst til ${through}. Klar for fakturering.`
+      ? `Timelisten er låst til ${through}. Klar for kontroll.`
       : 'Timelisten er låst opp.');
   }
 

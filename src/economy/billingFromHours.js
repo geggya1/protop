@@ -21,8 +21,8 @@ function entryBillable(row) {
   if (row.invoiceId) return false;
   const hours = parseHours(row.billableHours != null ? row.billableHours : row.hours);
   if (!(hours > 0)) return false;
-  // Godkjente eller registrerte — PowerOffice lar ofte «fakturerbare» gå i forslag
-  return row.status === 'godkjent' || row.status === 'registrert' || row.status === 'låst';
+  // Låst uten godkjenning venter på kontroll og er ikke fakturagrunnlag.
+  return row.status === 'godkjent' || row.status === 'registrert';
 }
 
 /**
@@ -38,7 +38,7 @@ export function buildBillingProposals(state, {
   const projects = new Map((state.projects || []).map((p) => [p.id, p]));
   const rows = (state.timeEntries || []).filter((row) => {
     if (!entryBillable(row)) return false;
-    if (onlyApproved && row.status !== 'godkjent' && row.status !== 'låst') return false;
+    if (onlyApproved && row.status !== 'godkjent') return false;
     if (fromDate && row.date < fromDate) return false;
     if (toDate && row.date > toDate) return false;
     if (customerId && row.customerId !== customerId) return false;

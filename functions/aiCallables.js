@@ -37,6 +37,7 @@ import { handleUploadDocument } from './uploadDocument.js';
 import { handleUploadStorageFile, handleDownloadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
 import { runAiCleanup } from './aiCleanup.js';
 import { handleAiSupportChat, handleCreateSupportTicket } from './aiSupport.js';
+import { handleScanTimesheet } from './timesheetReviewAi.js';
 import { assertRateLimits, hashRateKey, requireAuth } from './security.js';
 
 if (!getApps().length) initializeApp();
@@ -498,6 +499,26 @@ export const aiSupportChat = onCall(
     } catch (error) {
       logger.warn('aiSupportChat failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke hente svar fra hjelpeboten.');
+    }
+  },
+);
+
+/** Kontroll av låst timeliste: skrivefeil og avvik før godkjenning. */
+export const scanTimesheetReview = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 45,
+    memory: '256MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      const uid = requireAuth(req.auth);
+      await guardAiBurst(uid, 'timesheetReview', 30, 80);
+      return await handleScanTimesheet(req.data);
+    } catch (error) {
+      logger.warn('scanTimesheetReview failed', { message: error?.message });
+      rethrowCallable(error, 'Klarte ikke lese timelisten.');
     }
   },
 );

@@ -7,9 +7,13 @@ import {
   importHolidayYear,
   upsertRedDay,
   toggleTimesheetLock,
+  approveTimesheetLock,
+  reviseLockedEntry,
   setBalanceAdjustment,
   setAbsenceAdjustment,
 } from './timesheetState.js';
+import { blockingFindings, reviewTimesheetEntries } from './timesheetReview.js';
+import { buildBillingProposals } from '../economy/billingFromHours.js';
 import { emptyProjectState } from '../project/engine.js';
 
 {
@@ -184,6 +188,34 @@ import { emptyProjectState } from '../project/engine.js';
   assert.equal(bank.incoming, 20);
   assert.equal(bank.outgoing, 12.5);
   assert.equal(bank.adjustment, -1);
+}
+
+{
+  let state = emptyProjectState();
+  state.timeEntries = [
+    { id: 'a', employeeId: 'e1', projectId: 'p', date: '2026-10-01', hours: 7.5, description: 'Befaring og proskjektmøte', status: 'registrert' },
+    { id: 'b', employeeId: 'e1', projectId: 'p', date: '2026-10-08', hours: 4, description: 'Oppfølging', status: 'registrert' },
+  ];
+  const locked = toggleTimesheetLock(state, { employeeId: 'e1', throughDate: '2026-10-02' });
+  assert.equal(locked.state.timesheetLocks[0].readyForBilling, false);
+  assert.equal(buildBillingProposals(locked.state, { onlyApproved: true }).length, 0);
+  const typos = reviewTimesheetEntries(locked.state.timeEntries.filter((row) => row.status === 'låst'));
+  assert.ok(blockingFindings(typos).some((row) => row.suggestion.includes('prosjektmøte')));
+  const fixed = reviseLockedEntry(locked.state, { entryId: 'a', description: 'Befaring og prosjektmøte' });
+  assert.equal(fixed.ok, true);
+  assert.equal(blockingFindings(reviewTimesheetEntries([fixed.state.timeEntries[0]])).length, 0);
+  const approved = approveTimesheetLock(fixed.state, { employeeId: 'e1', approvedByUid: 'boss' });
+  assert.equal(approved.ok, true);
+  assert.equal(approved.state.timeEntries.find((row) => row.id === 'a').status, 'godkjent');
+  assert.equal(approved.state.timeEntries.find((row) => row.id === 'b').status, 'registrert');
+  assert.equal(approved.state.timesheetLocks[0].readyForBilling, true);
+  assert.equal(approved.state.timesheetLocks[0].periodFrom, '');
+  assert.equal(approved.state.timesheetLocks[0].approvedThrough, '2026-10-02');
+  assert.equal(buildBillingProposals(approved.state, { onlyApproved: true }).length, 1);
+  const opened = toggleTimesheetLock(approved.state, { employeeId: 'e1', throughDate: '2026-10-02' });
+  assert.equal(lockThroughDate(opened.state.timesheetLocks, 'e1'), '');
+  assert.equal(opened.state.timesheetLockArchive[0].throughDate, '2026-10-02');
+  assert.equal(opened.state.timeEntries.find((row) => row.id === 'a').status, 'godkjent');
 }
 
 console.log('timesheetRules.test.mjs: ok');

@@ -89,7 +89,7 @@ export default function TimeEntryModal({
 
   function submit() {
     if (locked) {
-      setError('Dagen er låst. Timene er klare for fakturering.');
+      setError('Dagen er låst og venter på kontroll.');
       return;
     }
     const payload = [];

@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
-import { approveTimesheetLock } from '../../src/arbeid/timesheetState.js';
 import { formatMoney } from '../../src/economy/invoices.js';
-import { toDateKey } from '../../src/arbeid/calendar.js';
+import { ApprovalsScreen } from './ApprovalsScreen';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 
@@ -92,54 +91,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   );
 }
 
-export function ApprovalsScreen() {
-  const colors = useColors();
-  const hostedHero = useModuleHeroHosted();
-  const year = new Date().getFullYear();
-  const workspace = useTimesheetWorkspace({
-    fromDate: `${year}-01-01`,
-    toDate: toDateKey(new Date()),
-  });
-  const locks = (workspace.state?.timesheetLocks || []).filter((row) => (
-    workspace.manager || row.employeeId === workspace.linked?.id
-  ));
-  function approve(employeeId) {
-    const result = approveTimesheetLock(workspace.state, { employeeId, approvedByUid: workspace.uid });
-    if (!result.ok) {
-      workspace.setError(result.error);
-      return;
-    }
-    workspace.setState(result.state);
-    workspace.setError('');
-  }
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="godkjenninger">
-      {hostedHero ? null : (
-        <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Godkjenninger</Text>
-          <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
-        </>
-      )}
-      <Text style={{ color: colors.muted }}>Låst timeliste betyr at timene er klare for fakturering.</Text>
-      {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
-      {locks.map((row) => {
-        const person = workspace.employees.find((item) => item.id === row.employeeId);
-        return (
-          <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: row.approvedAt ? colors.card : '#ecfdf5' }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>{employeeDisplayName(person) || row.employeeId}</Text>
-            <Text style={{ color: colors.muted }}>Låst til {row.throughDate}. {row.approvedAt ? 'Godkjent.' : 'Klar for fakturering.'}</Text>
-            {workspace.manager && !row.approvedAt ? (
-              <TouchableOpacity onPress={() => approve(row.employeeId)} style={[styles.btn, { backgroundColor: colors.brand }]} nativeID={`approve-lock-${row.employeeId}`}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Godkjenn</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        );
-      })}
-      {!locks.length ? <Text style={{ color: colors.muted }}>Ingen timelister er låst.</Text> : null}
-    </ScrollView>
-  );
-}
+export { ApprovalsScreen };
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 8, paddingBottom: 40 },

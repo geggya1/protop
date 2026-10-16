@@ -4,7 +4,7 @@
  */
 
 import { norwegianHolidays } from './holidays.js';
-import { isDateLocked, lockThroughDate } from './locks.js';
+import { isDateLocked, lockRowFor, lockThroughDate } from './locks.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -97,7 +97,7 @@ export function setFullDayHours(state, hours) {
 function applyLockStatus(state, employeeId, throughDate) {
   const now = stamp();
   const timeEntries = list(state, 'timeEntries').map((row) => {
-    if (row.employeeId !== employeeId || row.invoiceId) return row;
+    if (row.employeeId !== employeeId || row.invoiceId || row.status === 'godkjent') return row;
     if (throughDate && isDateLocked(throughDate, row.date)) {
       return row.status === 'låst' ? row : { ...row, status: 'låst', updatedAt: now };
     }
@@ -105,7 +105,7 @@ function applyLockStatus(state, employeeId, throughDate) {
     return row;
   });
   const absences = list(state, 'absences').map((row) => {
-    if (row.employeeId !== employeeId) return row;
+    if (row.employeeId !== employeeId || row.status === 'godkjent') return row;
     if (throughDate && isDateLocked(throughDate, row.date)) {
       return row.status === 'låst' ? row : { ...row, status: 'låst' };
     }
@@ -115,6 +115,20 @@ function applyLockStatus(state, employeeId, throughDate) {
   return { timeEntries, absences };
 }
 
+function archiveLock(state, row, extra = {}) {
+  if (!row) return list(state, 'timesheetLockArchive');
+  const entry = {
+    id: row.id || createId('laslog'),
+    employeeId: row.employeeId,
+    throughDate: row.throughDate || '',
+    lockedAt: row.lockedAt || '',
+    approvedAt: row.approvedAt || '',
+    approvedThrough: row.approvedAt ? row.throughDate : (row.approvedThrough || ''),
+    unlockedAt: extra.unlockedAt || '',
+  };
+  return [entry, ...list(state, 'timesheetLockArchive')].slice(0, 400);
+}
+
 /** Lås alle timer til og med dagen. Samme dag på nytt låser opp. */
 export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUid } = {}) {
   const id = text(employeeId);
@@ -122,35 +136,119 @@ export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUi
   if (!id) return fail(state, 'Velg medarbeider.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(state, 'Velg en dag å låse mot.');
   const current = list(state, 'timesheetLocks').filter((row) => row.employeeId !== id);
-  const existing = lockThroughDate(state.timesheetLocks, id);
+  const existingRow = lockRowFor(state.timesheetLocks, id);
+  const existing = existingRow?.throughDate || '';
   if (existing === date) {
     const cleared = applyLockStatus(state, id, '');
-    return ok({ ...state, ...cleared, timesheetLocks: current });
+    return ok({
+      ...state,
+      ...cleared,
+      timesheetLocks: current,
+      timesheetLockArchive: archiveLock(state, existingRow, { unlockedAt: stamp() }),
+    });
   }
+  const approvedThrough = existingRow?.approvedAt
+    ? existingRow.throughDate
+    : (existingRow?.approvedThrough || '');
   const row = {
-    id: createId('las'),
+    id: existingRow?.id || createId('las'),
     employeeId: id,
     throughDate: date,
     lockedAt: stamp(),
     lockedByUid: text(lockedByUid),
-    readyForBilling: true,
+    readyForBilling: false,
     approvedAt: '',
+    approvedByUid: '',
+    approvedThrough,
+    dismissedFindingIds: [],
   };
   const locked = applyLockStatus(state, id, date);
-  return ok({ ...state, ...locked, timesheetLocks: [row, ...current] });
+  return ok({
+    ...state,
+    ...locked,
+    timesheetLocks: [row, ...current],
+    timesheetLockArchive: existingRow ? archiveLock(state, existingRow) : list(state, 'timesheetLockArchive'),
+  });
 }
 
+function inOpenControl(row, lock) {
+  const date = text(row?.date);
+  const through = text(lock?.throughDate);
+  const since = text(lock?.approvedThrough);
+  if (!date || !through || date > through) return false;
+  if (since && date <= since) return false;
+  return true;
+}
+
+/** Kontroll er ferdig: timene i den åpne perioden blir godkjent og klare for fakturering. */
 export function approveTimesheetLock(state, { employeeId, approvedByUid } = {}) {
   const id = text(employeeId);
-  const through = lockThroughDate(state.timesheetLocks, id);
-  if (!through) return fail(state, 'Timelisten er ikke låst.');
+  const lock = lockRowFor(state.timesheetLocks, id);
+  if (!lock?.throughDate) return fail(state, 'Timelisten er ikke låst.');
+  if (lock.approvedAt) return fail(state, 'Timelisten er allerede godkjent.');
+  const now = stamp();
+  const timeEntries = list(state, 'timeEntries').map((row) => {
+    if (row.employeeId !== id || row.invoiceId || row.status !== 'låst') return row;
+    if (!inOpenControl(row, lock)) return row;
+    return { ...row, status: 'godkjent', updatedAt: now };
+  });
+  const absences = list(state, 'absences').map((row) => {
+    if (row.employeeId !== id || row.status !== 'låst') return row;
+    if (!inOpenControl(row, lock)) return row;
+    return { ...row, status: 'godkjent' };
+  });
+  return ok({
+    ...state,
+    timeEntries,
+    absences,
+    timesheetLocks: list(state, 'timesheetLocks').map((row) => (
+      row.employeeId === id && row.throughDate === lock.throughDate
+        ? {
+          ...row,
+          approvedAt: now,
+          approvedByUid: text(approvedByUid),
+          readyForBilling: true,
+          periodFrom: text(lock.approvedThrough),
+          approvedThrough: lock.throughDate,
+        }
+        : row
+    )),
+  });
+}
+
+/** Rett tekst på en låst føring mens listen venter på godkjenning. */
+export function reviseLockedEntry(state, { entryId, description } = {}) {
+  const id = text(entryId);
+  const entry = list(state, 'timeEntries').find((row) => row.id === id);
+  if (!entry) return fail(state, 'Føringen finnes ikke.');
+  if (entry.invoiceId) return fail(state, 'Føringen er fakturert og kan ikke endres.');
+  const lock = lockRowFor(state.timesheetLocks, entry.employeeId);
+  if (!lock || lock.approvedAt) return fail(state, 'Listen er ikke åpen for kontroll.');
+  if (!inOpenControl(entry, lock) || entry.status !== 'låst') {
+    return fail(state, 'Føringen ligger utenfor perioden som kontrolleres.');
+  }
+  const next = text(description);
   const now = stamp();
   return ok({
     ...state,
+    timeEntries: list(state, 'timeEntries').map((row) => (
+      row.id === id ? { ...row, description: next, updatedAt: now } : row
+    )),
+  });
+}
+
+export function dismissTimesheetFinding(state, { employeeId, findingId } = {}) {
+  const id = text(employeeId);
+  const finding = text(findingId);
+  const lock = lockRowFor(state.timesheetLocks, id);
+  if (!lock) return fail(state, 'Timelisten er ikke låst.');
+  if (!finding) return fail(state, 'Mangler funn.');
+  const current = Array.isArray(lock.dismissedFindingIds) ? lock.dismissedFindingIds : [];
+  if (current.includes(finding)) return ok(state);
+  return ok({
+    ...state,
     timesheetLocks: list(state, 'timesheetLocks').map((row) => (
-      row.employeeId === id && row.throughDate === through
-        ? { ...row, approvedAt: now, approvedByUid: text(approvedByUid) }
-        : row
+      row.id === lock.id ? { ...row, dismissedFindingIds: [...current, finding] } : row
     )),
   });
 }

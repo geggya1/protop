@@ -356,8 +356,8 @@ export const COMPANY_HERO = {
     kicker: t('Arbeid', 'Work'),
     title: t('Godkjenninger', 'Approvals'),
     pitch: t(
-      'Timer og fravær som venter på godkjenning.',
-      'Hours and absence waiting for approval.',
+      'Kontroller låste timelister. Timene blir klare for fakturering først når de er godkjent.',
+      'Review locked timesheets. Hours are ready to invoice only after approval.',
     ),
   },
   'okonomi-oversikt': {

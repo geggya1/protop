@@ -22,6 +22,10 @@ assert.match(desktop, /StatusCard/);
 assert.match(desktop, /countBadge/);
 assert.match(desktop, /Borte i dag/);
 assert.match(desktop, /Planlagt fremover/);
+assert.doesNotMatch(desktop, /Registrerte perioder/);
+assert.match(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /absence-organize-panel/);
+assert.match(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /Kolonner i tabellen/);
+assert.doesNotMatch(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePanel.jsx'), 'utf8'), /width:\s*300/);
 
 // Compact overview should stay readable without heavy type.
 assert.doesNotMatch(desktop, /fontWeight:\s*['"](?:[56789]00|bold)['"]/);

@@ -832,6 +832,7 @@ export default function AgreementDetail({
               colors={colors}
               people={people}
               ownerUid={form.ownerUid}
+              ownerName={form.ownerName}
               label="Ansvarlig for avtalen"
               onSelect={selectOwner}
             />
@@ -964,6 +965,7 @@ export default function AgreementDetail({
               colors={colors}
               people={people}
               ownerUid={contract.ownerUid || customer?.ownerUid || ''}
+              ownerName={contract.ownerName || customer?.ownerName || ''}
               label="Ansvarlig for avtalen"
               onSelect={selectOwner}
             />

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { anbudLocalKey, ANBUD_LOCAL_KEY, storeAnbudPayload } from './localStore.js';
+import { anbudLocalKey, ANBUD_LOCAL_KEY, saveWhereItFits, storeAnbudPayload } from './localStore.js';
 import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { normalizeCustomers } from './customers.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
@@ -230,6 +230,15 @@ async function writeRemote(companyId, state) {
   }
 }
 
+function clearRemoteQueue(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const prev = remoteTimers.get(id);
+  if (prev) clearTimeout(prev);
+  remoteTimers.delete(id);
+  remotePending.delete(id);
+}
+
 function queueRemote(companyId, state) {
   const id = String(companyId || '').trim();
   if (!id) return;
@@ -320,14 +329,15 @@ export async function saveAnbudState(state, companyId) {
   const { next, registryOk } = await mergedForSave(state, companyId);
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
   if (companyId && registryOk) await writeCustomerRegistry(companyId, next.customers).catch(() => {});
-  try {
-    await writeLocal(companyId, next);
-  } catch (err) {
-    queueRemote(companyId, next);
-    putAnbudMemory(companyId, next);
-    throw err;
-  }
-  queueRemote(companyId, next);
+  const where = await saveWhereItFits({
+    companyId,
+    writeLocal: () => writeLocal(companyId, next),
+    writeRemote: async () => {
+      clearRemoteQueue(companyId);
+      await writeRemote(companyId, next);
+    },
+  });
+  if (where === 'local') queueRemote(companyId, next);
   return putAnbudMemory(companyId, next);
 }
 
@@ -337,25 +347,19 @@ export async function persistAnbudState(state, companyId) {
   const id = String(companyId || '').trim();
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
   if (id && registryOk) await writeCustomerRegistry(id, next.customers);
+  clearRemoteQueue(id);
+  let localError = null;
   try {
     await writeLocal(companyId, next);
   } catch (err) {
-    if (id) {
-      const prev = remoteTimers.get(id);
-      if (prev) clearTimeout(prev);
-      remoteTimers.delete(id);
-      remotePending.delete(id);
-    }
-    await writeRemote(companyId, next);
+    localError = err;
+  }
+  try {
+    if (id) await writeRemote(id, next);
+    else if (localError) throw localError;
+  } catch (err) {
     putAnbudMemory(companyId, next);
-    throw err;
+    throw localError || err;
   }
-  if (id) {
-    const prev = remoteTimers.get(id);
-    if (prev) clearTimeout(prev);
-    remoteTimers.delete(id);
-    remotePending.delete(id);
-  }
-  await writeRemote(companyId, next);
   return putAnbudMemory(companyId, next);
 }

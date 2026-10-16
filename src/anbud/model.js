@@ -612,6 +612,132 @@ function shrinkToBudget(state, maxBytes) {
   return dropOldestUndecided({ ...next, notices }, maxBytes);
 }
 
+/** Største prefiks av en liste som fortsatt holder seg innenfor budsjettet. */
+function fitPrefix(state, key, maxBytes) {
+  const rows = Array.isArray(state?.[key]) ? state[key] : [];
+  if (encodedBytes(state) <= maxBytes) return state;
+  let lo = 0;
+  let hi = rows.length;
+  let best = { ...state, [key]: [] };
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = { ...state, [key]: rows.slice(0, mid) };
+    if (encodedBytes(candidate) <= maxBytes) {
+      best = candidate;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+function stripSecondary(state) {
+  return {
+    ...state,
+    library: [],
+    audit: (state.audit || []).slice(-20).map((row) => ({
+      id: row?.id || '',
+      at: row?.at || '',
+      action: String(row?.action || '').slice(0, 40),
+      detail: String(row?.detail || '').slice(0, 80),
+      bidId: row?.bidId || '',
+      contractId: row?.contractId || '',
+    })),
+    contracts: (state.contracts || []).map((row) => ({
+      ...row,
+      documents: (row.documents || []).slice(0, 20).map((doc) => ({
+        id: doc.id,
+        name: String(doc.name || doc.title || '').slice(0, 180),
+        url: String(doc.url || '').slice(0, 300),
+        storagePath: String(doc.storagePath || '').slice(0, 300),
+        mimeType: doc.mimeType || '',
+        role: doc.role || '',
+      })),
+      regulations: (row.regulations || []).slice(0, 8).map((item) => ({
+        id: item.id,
+        savedAt: item.savedAt,
+        before: item.before,
+        after: item.after,
+        changePercent: item.changePercent,
+      })),
+    })),
+    bids: (state.bids || []).map((bid) => ({
+      ...bid,
+      dossier: bid.dossier ? { id: bid.dossier.id, title: bid.dossier.title } : null,
+      files: (bid.files || []).slice(0, 12).map((file) => ({
+        id: file.id,
+        name: file.name,
+        url: file.url,
+        storagePath: file.storagePath,
+      })),
+    })),
+    formTemplates: Array.isArray(state.formTemplates)
+      ? state.formTemplates.slice(0, 40).map((row) => ({
+        id: row.id,
+        title: row.title,
+        category: row.category,
+      }))
+      : state.formTemplates,
+    profiles: (state.profiles || []).slice(0, 12),
+    notices: (state.notices || []).map((row) => slimDecidedNotice(row)),
+  };
+}
+
+function bareWatch(state) {
+  return {
+    watch: state.watch,
+    notices: [],
+    bids: [],
+    contracts: [],
+    deletedContracts: (state.deletedContracts || []).slice(0, 80),
+    customers: [],
+    audit: [],
+    formTemplates: null,
+    formTemplatesAt: state.formTemplatesAt || '',
+    agreementCases: [],
+    supplierProfile: state.supplierProfile || null,
+    profiles: [],
+    activeProfileId: state.activeProfileId || '',
+    library: [],
+    syncedAt: state.syncedAt || null,
+    queryKey: state.queryKey || '',
+  };
+}
+
+/**
+ * Siste pass: budsjettet skal faktisk holdes.
+ * Kundelisten kan kortes ned her — registeret lagres for seg.
+ * Vurderte treff beholdes så lenge de får plass.
+ */
+function enforceStorageBudget(state, maxBytes) {
+  if (encodedBytes(state) <= maxBytes) return state;
+  const customers = state.customers || [];
+  let next = fitPrefix(state, 'customers', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = stripSecondary({ ...next, customers });
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix(next, 'customers', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix(next, 'contracts', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix(next, 'bids', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix(next, 'agreementCases', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix(next, 'notices', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  const bare = bareWatch(next);
+  if (encodedBytes(bare) <= maxBytes) return bare;
+  return {
+    ...bare,
+    watch: clipDeep(bare.watch, 400, new WeakSet()),
+    supplierProfile: null,
+    deletedContracts: [],
+    queryKey: '',
+  };
+}
+
 /**
  * Tilstand som får plass i Firestore og i nettleseren.
  * Vurderte treff (aktuelle og andre avkrysninger) blir stående selv om et nytt søk
@@ -620,15 +746,19 @@ function shrinkToBudget(state, maxBytes) {
 export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
   const base = compactAnbudState(raw);
   const customers = base.customers || [];
-  const keepCustomers = (state) => (
-    (state?.customers || []).length >= customers.length ? state : { ...state, customers }
-  );
+  const keepCustomers = (state) => {
+    if ((state?.customers || []).length >= customers.length) return state;
+    const kept = { ...state, customers };
+    return encodedBytes(kept) <= maxBytes ? kept : state;
+  };
   let fitted = base;
   for (const limit of [8000, 2000, 600, 160]) {
     fitted = clipState(base, limit);
     if (encodedBytes(fitted) <= maxBytes) return keepCustomers(fitted);
   }
-  return keepCustomers(shrinkToBudget(fitted, maxBytes));
+  fitted = keepCustomers(shrinkToBudget(fitted, maxBytes));
+  if (encodedBytes(fitted) <= maxBytes) return fitted;
+  return enforceStorageBudget(fitted, maxBytes);
 }
 
 export const LOGIN_PORTALS = [

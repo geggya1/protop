@@ -3,6 +3,7 @@ import {
   ABSENCE_DAY_HOURS,
   STATUTORY_VACATION_DAYS,
   absenceRoster,
+  absenceYears,
   buildAbsenceDashboard,
   buildAbsencePeriodGrid,
   buildAbsenceWebBoard,
@@ -398,6 +399,33 @@ const employees = [
   assert.equal(future.planned.length, 1);
   assert.equal(future.sykdom, 1);
 
+  assert.deepEqual(absenceYears([
+    { employeeId: 'own', date: '14.07.2024', hours: 8, type: 'ferie' },
+    { employeeId: 'own', date: '2023-01-02', hours: 8, type: 'ferie' },
+  ], roster), ['2023', '2024']);
+  const linked = buildAbsenceWebBoard({
+    employees: [{
+      id: 'own',
+      person: { firstName: 'Ada', lastName: 'Nord' },
+      company: { status: 'active', personnelKind: 'staff', externalEmployeeNumber: '12' },
+    }],
+    today: '2026-10-16',
+    fullDayHours: 8,
+    names: { own: 'Ada Nord' },
+    year: '2024',
+    absences: [{
+      id: 'old-id',
+      employeeId: 'moment-99',
+      employeeName: 'Ada Nord',
+      employeeNumber: '12',
+      type: 'ferie',
+      date: '01.07.2024',
+      hours: 8,
+    }],
+  });
+  assert.equal(linked.staff.length, 1);
+  assert.equal(linked.yearTotals.ferie, 1);
+  assert.equal(linked.lines[0].start, '2024-07-01');
   assert.equal(ABSENCE_DAY_HOURS, 8);
   assert.equal(dash.headcount, 1);
   assert.equal(dash.summary.used, 1.5);

@@ -5,6 +5,8 @@
 
 import { ABSENCE_TYPES, absenceTypeById } from './absenceCatalog.js';
 import { hoursToDays, buildAbsenceOverview } from './balance.js';
+import { matchEmployee } from '../economy/hoursImport.js';
+import { parseDate, text } from '../economy/invoices.js';
 import { employeeActivityTab, personnelKind } from '../employees/model.js';
 
 export const STATUTORY_VACATION_DAYS = 25;
@@ -26,6 +28,47 @@ const CATEGORY_TITLE = {
 
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+/** ISO-dato. Excel og «dd.mm.åååå» skal telle i samme år som uken. */
+export function absenceDateKey(row) {
+  return parseDate(row?.date) || text(row?.date);
+}
+
+/**
+ * Koble fravær til ansattlisten. Id som fortsatt finnes beholdes.
+ * Ellers brukes ansattnummer og navn, så en ny id i Ansatte ikke nuller oversikten.
+ */
+export function linkAbsencesToEmployees(absences = [], employees = []) {
+  const list = Array.isArray(employees) ? employees : [];
+  const ids = new Set(list.map((row) => text(row?.id)).filter(Boolean));
+  return (Array.isArray(absences) ? absences : []).map((row) => {
+    if (!row) return row;
+    const date = absenceDateKey(row);
+    const id = text(row.employeeId);
+    let employeeId = id;
+    if (!(id && ids.has(id)) && list.length) {
+      const hit = matchEmployee(list, {
+        employeeName: row.employeeName,
+        employeeNumber: row.employeeNumber,
+      });
+      if (hit?.id) employeeId = hit.id;
+    }
+    if (employeeId === id && date === text(row.date)) return row;
+    return { ...row, date, employeeId };
+  });
+}
+
+/** År som har minst én føring for personene i utvalget, eldst først. */
+export function absenceYears(absences = [], employees = []) {
+  const ids = new Set((employees || []).map((row) => text(row?.id)).filter(Boolean));
+  const years = new Set();
+  for (const row of linkAbsencesToEmployees(absences, employees)) {
+    if (ids.size && !ids.has(row.employeeId)) continue;
+    const year = String(row.date || '').slice(0, 4);
+    if (/^\d{4}$/.test(year)) years.add(year);
+  }
+  return [...years].sort();
 }
 
 function pad(value) {
@@ -219,6 +262,7 @@ export function buildAbsenceDashboard({
   today = '',
   names = {},
 } = {}) {
+  absences = linkAbsencesToEmployees(absences, employees);
   const people = activeEmployees(employees);
   const selected = employeeId ? people.filter((row) => row.id === employeeId) : people;
   const selectedIds = new Set(selected.map((row) => row.id));
@@ -416,6 +460,7 @@ export function buildAbsenceWebBoard({
   names = {},
   year: yearOverride = '',
 } = {}) {
+  absences = linkAbsencesToEmployees(absences, employees);
   const dash = buildAbsenceDashboard({
     employees,
     employeeId,
@@ -555,6 +600,7 @@ export function buildAbsencePeriodGrid({
   end = '',
   fullDayHours = 7.5,
 } = {}) {
+  absences = linkAbsencesToEmployees(absences, employees);
   const days = eachDate(start, end);
   const dayKeys = new Set(days.map((day) => day.key));
   const chosen = new Set((employees || []).map((row) => row.id));
@@ -623,7 +669,9 @@ export function summarizeAbsenceSpan({
   end = '',
   today = '',
   fullDayHours = 7.5,
+  employees = [],
 } = {}) {
+  absences = linkAbsencesToEmployees(absences, employees);
   const chosen = new Set((employeeIds || []).filter(Boolean));
   const dayHours = Number(fullDayHours) > 0 ? Number(fullDayHours) : 7.5;
   const from = String(start || '');

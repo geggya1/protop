@@ -17,7 +17,7 @@ import {
 import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { absenceRoster, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan } from '../../src/arbeid/absenceDashboard.js';
+import { absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan } from '../../src/arbeid/absenceDashboard.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
 
@@ -150,14 +150,19 @@ export function CompanyAbsenceDesktop({
   const [view, setView] = useState('diagram');
   const [span, setSpan] = useState('uke');
   const [cursor, setCursor] = useState(today || '');
+  const [yearChoice, setYearChoice] = useState('');
   const period = useMemo(() => periodOf(span, cursor || today), [span, cursor, today]);
-  const focusYear = String(period.start || today).slice(0, 4);
+  const weekYear = String(period.start || today).slice(0, 4);
   const roster = useMemo(
     () => (employeeId ? employees.filter((row) => row.id === employeeId) : audience.roster),
     [employeeId, employees, audience.roster],
   );
+  const dataYears = useMemo(() => absenceYears(absences, roster), [absences, roster]);
+  const boardYear = (yearChoice && dataYears.includes(yearChoice))
+    ? yearChoice
+    : (dataYears.includes(weekYear) ? weekYear : (dataYears[dataYears.length - 1] || weekYear));
   const board = useBoard({
-    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today, year: focusYear,
+    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today, year: boardYear,
   });
   const grid = useMemo(() => buildAbsencePeriodGrid({
     employees: roster,
@@ -169,6 +174,7 @@ export function CompanyAbsenceDesktop({
   }), [roster, absences, names, period.start, period.end, fullDayHours]);
   const spanSummary = useMemo(() => summarizeAbsenceSpan({
     absences,
+    employees: roster,
     employeeIds: roster.map((row) => row.id),
     names,
     start: period.start,
@@ -180,7 +186,7 @@ export function CompanyAbsenceDesktop({
   const yearUsed = Number(board.yearTotals?.ferie) || 0;
   const remaining = board.staff.reduce((sum, person) => sum + (person.earned ? Number(person.remaining) || 0 : 0), 0);
   const hasQuota = earned > 0;
-  const lines = spanSummary.registered.filter((row) => kind === 'alle' || row.category === kind);
+  const lines = (board.lines || []).filter((row) => kind === 'alle' || row.category === kind);
   const away = spanSummary.away;
   const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : 'Alle i utvalget';
   const openPerson = (id) => {
@@ -194,7 +200,7 @@ export function CompanyAbsenceDesktop({
   const ferieNow = spanSummary.ferie;
   const sykNow = spanSummary.sykdom;
   const annetNow = spanSummary.annet;
-  const planned = spanSummary.planned;
+  const planned = board.planned || [];
   const onToday = span === 'dag' && period.start === today;
   const awayTitle = span === 'dag'
     ? (onToday ? 'Borte i dag' : `Borte ${period.label}`)
@@ -341,7 +347,7 @@ export function CompanyAbsenceDesktop({
                 <StatusCard
                   title="Planlagt fremover"
                   count={planned.length}
-                  empty="Ingen planlagt fravær i perioden"
+                  empty="Ingen planlagt fravær fremover"
                   nativeID="planlagt-fravaer"
                 >
                   {planned.slice(0, 6).map((row) => (
@@ -392,7 +398,28 @@ export function CompanyAbsenceDesktop({
               </View>
 
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>{`Fravær i ${board.year}`}</Text>
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardTitle}>{`Fravær i ${board.year}`}</Text>
+                  {dataYears.length > 1 ? (
+                    <View style={styles.yearRow} accessibilityRole="tablist">
+                      {dataYears.map((year) => {
+                        const on = year === board.year;
+                        return (
+                          <TouchableOpacity
+                            key={year}
+                            onPress={() => setYearChoice(year)}
+                            style={[styles.yearChip, on && styles.yearChipOn]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
+                            nativeID={`fravaer-aar-${year}`}
+                          >
+                            <Text style={[styles.yearChipTxt, on && styles.yearChipTxtOn]}>{year}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.hint}>Dager per måned. Til gode = startsaldo minus registrert ferie.</Text>
                 {board.staff.length ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1416,6 +1443,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: { color: ink, fontSize: 13, fontWeight: '400' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+  yearRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' },
+  yearChip: {
+    borderWidth: 1, borderColor: line, backgroundColor: '#fff', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  yearChipOn: { borderColor: blue, backgroundColor: '#E8F0FE' },
+  yearChipTxt: { color: muted, fontSize: 12, fontWeight: '400' },
+  yearChipTxtOn: { color: blue, fontWeight: '400' },
   hint: { color: muted, fontSize: 13, fontWeight: '400', marginTop: -2 },
   empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
   moreHint: { color: muted, fontSize: 13, fontWeight: '400', paddingTop: 2 },

@@ -384,10 +384,54 @@ function normalizeCv(raw) {
   };
 }
 
+function nameWords(value) {
+  return text(value).split(/\s+/).filter(Boolean);
+}
+
+function sameNameWord(left, right) {
+  return left.toLocaleLowerCase('nb-NO') === right.toLocaleLowerCase('nb-NO');
+}
+
+function dropLeadingOverlap(head, tail) {
+  const max = Math.min(head.length, tail.length);
+  for (let size = max; size > 0; size -= 1) {
+    const suffix = head.slice(head.length - size);
+    const prefix = tail.slice(0, size);
+    if (suffix.every((word, index) => sameNameWord(word, prefix[index]))) return tail.slice(size);
+  }
+  return tail;
+}
+
+function dropTrailingOverlap(head, tail) {
+  const max = Math.min(head.length, tail.length);
+  for (let size = max; size > 0; size -= 1) {
+    const suffix = head.slice(head.length - size);
+    const prefix = tail.slice(0, size);
+    if (suffix.every((word, index) => sameNameWord(word, prefix[index]))) return head.slice(0, head.length - size);
+  }
+  return head;
+}
+
+/** Fornavn som allerede slutter på mellomnavnet skal ikke lagre det en gang til. */
+function separateRepeatedMiddle(firstName, middleName, lastName) {
+  const first = nameWords(firstName);
+  const last = nameWords(lastName);
+  const middle = dropTrailingOverlap(dropLeadingOverlap(first, nameWords(middleName)), last);
+  return {
+    firstName: first.join(' '),
+    middleName: middle.join(' '),
+    lastName: last.join(' '),
+  };
+}
+
 function normalizePerson(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const person = emptyPerson();
   for (const key of PERSON_KEYS) person[key] = text(source[key]);
+  const names = separateRepeatedMiddle(person.firstName, person.middleName, person.lastName);
+  person.firstName = names.firstName;
+  person.middleName = names.middleName;
+  person.lastName = names.lastName;
   person.email = person.email.toLowerCase();
   person.kinEmail = person.kinEmail.toLowerCase();
   person.phone = person.phone ? (normalizePhone(person.phone) || person.phone) : '';
@@ -546,19 +590,21 @@ function emailsOf(employee) {
   return employeeEmails(employee);
 }
 
+/** «Geir Ove Ove Andersen» → «Geir Ove Andersen». */
+export function collapseNameTokens(value) {
+  const tokens = [];
+  for (const token of text(value).split(/\s+/).filter(Boolean)) {
+    const prev = tokens[tokens.length - 1];
+    if (prev && sameNameWord(prev, token)) continue;
+    tokens.push(token);
+  }
+  return tokens.join(' ');
+}
+
 export function displayName(employee) {
   const person = employee?.person || {};
   const parts = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean);
-  // Unngå «Geir Ove» + «Ove» + «Andersen» → «Geir Ove Ove Andersen».
-  const tokens = [];
-  for (const part of parts) {
-    for (const token of part.split(/\s+/).filter(Boolean)) {
-      const prev = tokens[tokens.length - 1];
-      if (prev && prev.toLowerCase() === token.toLowerCase()) continue;
-      tokens.push(token);
-    }
-  }
-  return tokens.join(' ') || 'Uten navn';
+  return collapseNameTokens(parts.join(' ')) || 'Uten navn';
 }
 
 function namesFromHint(value) {

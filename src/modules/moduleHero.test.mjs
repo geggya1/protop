@@ -142,12 +142,12 @@ assert.doesNotMatch(
 );
 assert.match(
   headerSrc,
-  /heroTitleRight:[\s\S]*bottom:\s*\d+/,
+  /heroTitleRight:\s*\{[^}]*bottom:\s*\d+/,
   'add overlays the bottom of the pastel band',
 );
 assert.doesNotMatch(
   headerSrc,
-  /heroTitleRight:[\s\S]*top:\s*0/,
+  /heroTitleRight:\s*\{[^}]*top:\s*0/,
   'add is not a detached title row at the top of the band',
 );
 assert.match(headerSrc, /justifyContent: 'flex-end'/, 'help aligns to the right under the band');

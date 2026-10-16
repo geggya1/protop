@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { fitAnbudState } from './model.js';
-import { storeAnbudPayload } from './localStore.js';
+import { saveWhereItFits, storeAnbudPayload } from './localStore.js';
 
 function quotaStorage({ quota }) {
   const map = new Map();
@@ -81,5 +81,72 @@ crowded.force('protop.anbud.v1.co1', original);
 crowded.force('protop.anbud.v1', 'q'.repeat(80));
 await assert.rejects(() => storeAnbudPayload(crowded, 'co1', fat));
 assert.equal(crowded.map.get('protop.anbud.v1.co1'), original);
+
+const crowdedCustomers = Array.from({ length: 1200 }, (_, index) => ({
+  id: `kunde_${index}`,
+  name: `Kunde ${index} AS`,
+  kind: 'org',
+  orgnr: String(800000000 + index).slice(0, 9),
+  email: `post${index}@example.com`,
+  notes: 'Notat '.repeat(30),
+  customerNumber: String(10000 + index),
+}));
+const phoneState = {
+  watch: {
+    companyName: 'CONSULT1 AS',
+    savedAt: '2026-10-16T06:32:00.000Z',
+    nationwide: true,
+    keywords: ['sykehus', 'rådgivning'],
+    profile: { summary: 'Consult1 er en foretrukken leverandør.' },
+  },
+  notices: [
+    {
+      id: '2026-7',
+      title: 'Sykehus',
+      decision: 'aktuell',
+      description: 'Kort beskrivelse',
+      dossier: { description: 'B'.repeat(8000) },
+    },
+    ...Array.from({ length: 40 }, (_, index) => ({
+      id: `ny-${index}`,
+      title: `Ny ${index}`,
+      decision: 'ubestemt',
+      description: 'N'.repeat(4000),
+    })),
+  ],
+  customers: crowdedCustomers,
+};
+const phoneQuota = quotaStorage({ quota: 150_000 });
+phoneQuota.force('protop.anbud.v1.co1', 'x'.repeat(140_000));
+const phoneStored = await storeAnbudPayload(phoneQuota, 'co1', phoneState);
+const phoneParsed = JSON.parse(phoneStored);
+assert.ok(new TextEncoder().encode(phoneStored).length <= 150_000);
+assert.equal(phoneParsed.watch.companyName, 'CONSULT1 AS');
+assert.equal(phoneParsed.notices.find((row) => row.id === '2026-7').decision, 'aktuell');
+assert.ok(phoneParsed.customers.length > 0);
+assert.ok(phoneParsed.customers.length < crowdedCustomers.length);
+
+const remoteOnly = await saveWhereItFits({
+  companyId: 'co1',
+  writeLocal: async () => {
+    const err = new Error('The quota has been exceeded.');
+    err.name = 'QuotaExceededError';
+    throw err;
+  },
+  writeRemote: async () => {},
+});
+assert.equal(remoteOnly, 'remote');
+
+await assert.rejects(() => saveWhereItFits({
+  companyId: '',
+  writeLocal: async () => {
+    const err = new Error('The quota has been exceeded.');
+    err.name = 'QuotaExceededError';
+    throw err;
+  },
+  writeRemote: async () => {
+    throw new Error('skal ikke kalles uten bedrift');
+  },
+}));
 
 console.log('storage.test.mjs ok');

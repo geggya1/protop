@@ -10,9 +10,9 @@ const PAGES = {
     title: 'Ansettelsesavtaler',
     subtitle: 'Oversikt på tvers av ansatte. Avtalen registreres inne på den enkelte.',
     sheet: 'avtale',
+    staffOnly: true,
     columns: [
       { key: 'name', label: 'Navn', width: 200, value: (row) => displayName(row.employee) },
-      { key: 'kind', label: 'Type', width: 100, value: (row) => row.cells.kindLabel },
       { key: 'title', label: 'Avtale', width: 180, value: (row) => row.cells.contractTitle, warn: (row) => row.cells.contractTitle === 'Mangler' },
       { key: 'aml', label: 'AML', width: 90, value: (row) => row.cells.contractAml, warn: (row) => row.cells.contract === 'Mangler' },
       { key: 'from', label: 'Fra dato', width: 110, value: (row) => row.cells.contractFrom },
@@ -61,7 +61,7 @@ export default function HrControl({
   colors, page = 'avtaler', employees, hr, entries, onOpenEmployee,
 }) {
   const spec = PAGES[page] || PAGES.avtaler;
-  const dir = useHrDirectory(employees);
+  const dir = useHrDirectory(employees, spec.staffOnly ? { lockedKind: 'internal' } : undefined);
   const rows = useMemo(
     () => dir.rows.map((employee) => ({
       employee,
@@ -87,6 +87,7 @@ export default function HrControl({
           kind={dir.kind}
           onKind={dir.setKind}
           counts={dir.counts}
+          showKind={!spec.staffOnly}
         />
         <HrTable
           colors={colors}

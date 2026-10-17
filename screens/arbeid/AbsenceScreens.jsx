@@ -16,7 +16,6 @@ import {
   toggleAbsenceReviewRow,
 } from '../../src/arbeid/absenceImport.js';
 import { clearAbsences, removeAbsences, saveAbsenceImport } from '../../src/arbeid/absenceStorage.js';
-import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -68,25 +67,6 @@ function usePeople(lockedEmployeeId) {
   const activeId = workspace.lockedId || employeeId || workspace.linked?.id || '';
   const employee = workspace.employees.find((row) => row.id === activeId) || workspace.linked;
   return { workspace, activeId, employee, setEmployeeId };
-}
-
-function PersonChips({ workspace, activeId, onPick }) {
-  const colors = useColors();
-  if (!workspace.manager || workspace.lockedId) return null;
-  const choices = filterEmployeesForPicker(workspace.employees, '');
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
-      {choices.map((row) => (
-        <TouchableOpacity
-          key={row.id}
-          onPress={() => onPick(row.id)}
-          style={[styles.chip, { borderColor: row.id === activeId ? colors.brand : colors.line }]}
-        >
-          <Text style={{ color: colors.ink }}>{employeeDisplayName(row)}</Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
 }
 
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
@@ -493,9 +473,8 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { isDesktop } = useLayout();
   const { shellIntent, clearShellIntent } = useApp();
-  const { workspace, activeId, employee, setEmployeeId } = usePeople(lockedEmployeeId);
+  const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
   useEffect(() => {
     if (!shellIntent || shellIntent.type !== 'plannedAbsenceFocus') return;
@@ -512,42 +491,27 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
-  if (isDesktop) {
-    return (
-      <PlannedAbsenceDesktop
-        employees={canChooseEmployee ? people : people.filter((row) => row.id === activeId)}
-        names={names}
-        absences={workspace.state.absences || []}
-        adjustments={workspace.state.absenceAdjustments || []}
-        fullDayHours={fullDay}
-        today={today}
-        canChooseEmployee={canChooseEmployee}
-        lockedEmployeeId={activeId}
-        focusEmployeeId={focusEmployeeId}
-      />
-    );
-  }
-  const rows = (workspace.state.absences || [])
-    .filter((row) => row.employeeId === activeId && row.date >= today)
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="planlagt-fravaer">
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {hostedHero ? null : (
-        <>
+        <View style={styles.body}>
           <Text style={[styles.crumb, { color: colors.muted }]}>Mine sider / Tid / Planlagt fravær</Text>
           <Text style={[styles.title, { color: colors.ink }]}>Planlagt fravær</Text>
-        </>
-      )}
-      <Text style={{ color: colors.muted, marginBottom: 8 }}>{employeeDisplayName(employee)}</Text>
-      <PersonChips workspace={workspace} activeId={activeId} onPick={setEmployeeId} />
-      {rows.map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.date} · {absenceTypeById(row.type).label}</Text>
-          <Text style={{ color: colors.muted }}>{hoursToDays(row.hours, fullDay)} dager · {row.description || 'Ingen merknad'}</Text>
         </View>
-      ))}
-      {!rows.length ? <Text style={{ color: colors.muted }}>Ingen planlagt fravær frem i tid.</Text> : null}
-    </ScrollView>
+      )}
+    <PlannedAbsenceDesktop
+      employees={canChooseEmployee ? people : people.filter((row) => row.id === activeId)}
+      names={names}
+      absences={workspace.state.absences || []}
+      adjustments={workspace.state.absenceAdjustments || []}
+      fullDayHours={fullDay}
+      today={today}
+      canChooseEmployee={canChooseEmployee}
+      lockedEmployeeId={activeId}
+      focusEmployeeId={focusEmployeeId}
+      loading={!workspace.ready}
+    />
+    </View>
   );
 }
 
@@ -633,7 +597,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700' },
   mobileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   mobileImport: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
 });

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
@@ -74,9 +74,18 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
     setDrawerOpen(true);
   }, [isDesktop]);
 
+  const headerCoversStatusBar = Platform.OS === 'web' && isPhone;
   return (
     <ShellTitleRightContext.Provider value={shellTitleApi}>
-      <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={[styles.safe, { backgroundColor: colors.bg }]}>
+      <SafeAreaView
+        edges={{
+          top: headerCoversStatusBar ? 'off' : 'additive',
+          right: 'additive',
+          bottom: 'additive',
+          left: 'additive',
+        }}
+        style={[styles.safe, { backgroundColor: colors.bg }]}
+      >
         <View style={[styles.wrap, isDesktop && styles.wrapRow]}>
           {isDesktop ? (
             <View style={[
@@ -100,6 +109,7 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
             <ModuleHeroHostProvider hosted={!!heroId}>
               <ShellHeader
                 title={title}
+                coverStatusBar={headerCoversStatusBar}
                 onMenuPress={simpleChildUi ? null : onMenuPress}
                 compact={isDesktop}
                 titleRight={!isDesktop ? shellTitleRight : null}

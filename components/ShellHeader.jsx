@@ -1,5 +1,6 @@
 import React, { createContext, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
@@ -18,6 +19,7 @@ import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 import { isPersonalShell } from '../src/utils/personalShell';
 import { companyContextLabel } from '../src/project/companyOffer';
 import { openNotifications } from '../src/navigation/openNotifications';
+import { isStandaloneWeb, statusBarCover } from '../src/shell/standaloneChrome';
 
 /**
  * PlanScreen (and similar) register a control to sit on the page-title row.
@@ -58,11 +60,16 @@ export default function ShellHeader({
   onLogoHome = null,
   hero = null,
   viewAs = null,
+  coverStatusBar = false,
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
   const { isPhone } = useLayout();
+  const insets = useSafeAreaInsets();
+  const statusPad = coverStatusBar
+    ? statusBarCover(insets.top, { standalone: isStandaloneWeb(), phone: isPhone })
+    : 0;
   const { activeProfile, family } = useApp();
   const { unreadTotal } = useUnread();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -204,6 +211,7 @@ export default function ShellHeader({
         <View
           style={[
             styles.bar,
+            statusPad > 0 && { paddingTop: 4 + statusPad },
             chromeOnly && styles.barChromeOnly,
             showFamilyHint && styles.barTablet,
             hero && styles.barHero,

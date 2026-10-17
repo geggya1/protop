@@ -72,9 +72,22 @@ const pwaMeta = [
   ['apple-mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-title', 'ProTop'],
   ['application-name', 'ProTop'],
-  ['apple-mobile-web-app-status-bar-style', 'default'],
-  ['theme-color', '#1099F4'],
+  /* black-translucent: innholdet tegnes under statusfeltet, så toppbaren kan gå opp. */
+  ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
+  ['theme-color', '#ffffff'],
 ];
+const standaloneBoot = `  <style data-protop-standalone>
+    @media (display-mode: standalone), (display-mode: fullscreen) {
+      html, body, #root { height: 100lvh !important; min-height: 100lvh !important; }
+    }
+    html[data-standalone="1"], html[data-standalone="1"] body, html[data-standalone="1"] #root {
+      height: 100lvh !important; min-height: 100lvh !important;
+    }
+  </style>
+  <script data-protop-standalone>(function(){try{var n=navigator;var m=window.matchMedia;var s=n.standalone===true||(!!m&&(m('(display-mode: standalone)').matches||m('(display-mode: fullscreen)').matches));if(s)document.documentElement.setAttribute('data-standalone','1');}catch(e){}})();</script>`;
+if (!/data-protop-standalone/.test(html)) {
+  html = html.replace('</head>', `${standaloneBoot}\n  </head>`);
+}
 const ogImage = '  <meta property="og:image" content="https://protop.no/og-image.png" />';
 html = /property="og:image"/.test(html)
   ? html.replace(/<meta property="og:image"[^>]*>/, ogImage.trim())

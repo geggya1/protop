@@ -828,9 +828,15 @@ function AppShellInner() {
   });
   const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
-  const safeEdges = showParentBottomNav
-    ? { top: 'additive', right: 'additive', bottom: 'off', left: 'additive' }
-    : { top: 'additive', right: 'additive', bottom: 'additive', left: 'additive' };
+  // Phone web: the header paints into the status bar, so the top bar sits on the
+  // screen edge instead of leaving a system strip above it.
+  const headerCoversStatusBar = Platform.OS === 'web' && isPhone && !kitchenMode;
+  const safeEdges = {
+    top: headerCoversStatusBar ? 'off' : 'additive',
+    right: 'additive',
+    bottom: showParentBottomNav ? 'off' : 'additive',
+    left: 'additive',
+  };
 
   return (
     <HomeImmersiveProvider value={immersiveHome}>
@@ -938,6 +944,7 @@ function AppShellInner() {
           {!kitchenMode ? (
             <ShellHeader
               title={shellHeaderTitle}
+              coverStatusBar={headerCoversStatusBar}
               onMenuPress={(!hasRail && !simpleChildUi) ? () => setDrawerOpen(true) : null}
               compact={isDesktop}
               dense={false}

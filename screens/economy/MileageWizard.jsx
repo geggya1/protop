@@ -29,19 +29,20 @@ import { employeeLevelIds } from '../../src/access/companyAccess';
 import { recordDutyTrip } from '../../src/economy/opsState';
 import { upsertEquipment, upsertPersonalVehicle } from '../../src/equipment/state';
 import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
+import { firebaseConfig } from '../../firebase';
 import {
   companyAddressLabel,
   mileageProjectOptions,
   mileageRate,
   projectAddressLabel,
+  projectDestinationSuggestion,
   roundTripKm,
   sumCharges,
   tripCost,
   visitPurposeLabel,
   VISIT_PURPOSES,
 } from '../../src/mileage/flow';
-import { chargesForRoute } from '../../src/mileage/routePlan';
-import { planDrivingRoute } from '../../src/mileage/drivingRoute';
+import { suggestDriving } from '../../src/mileage/suggestRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { searchPlaces } from '../../src/utils/location';
 
@@ -76,13 +77,14 @@ function todayKey() {
   return `${now.getFullYear()}-${m}-${d}`;
 }
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus }) {
   return (
     <View style={{ minWidth: 160, flexBasis: 180, alignSelf: 'stretch' }}>
       <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChange}
+        onFocus={onFocus}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         keyboardType={keyboardType || 'default'}
@@ -108,9 +110,10 @@ function Chip({ label, active, onPress, colors }) {
 
 function AddressField({ label, value, onChange, onPick, colors }) {
   const [hits, setHits] = useState([]);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     const q = String(value || '').trim();
-    if (q.length < 3) {
+    if (!open || q.length < 3) {
       setHits([]);
       return undefined;
     }
@@ -126,14 +129,21 @@ function AddressField({ label, value, onChange, onPick, colors }) {
       live = false;
       clearTimeout(timer);
     };
-  }, [value]);
+  }, [value, open]);
   return (
     <View style={{ minWidth: 220, flexGrow: 1, flexBasis: 260 }}>
-      <Field label={label} value={value} onChange={onChange} colors={colors} placeholder="Søk adresse" />
+      <Field
+        label={label}
+        value={value}
+        colors={colors}
+        placeholder="Søk adresse"
+        onFocus={() => setOpen(true)}
+        onChange={(next) => { setOpen(true); onChange(next); }}
+      />
       {hits.length ? (
         <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
           {hits.map((hit) => (
-            <TouchableOpacity key={hit.placeId || hit.label} onPress={() => { onPick(hit); setHits([]); }}>
+            <TouchableOpacity key={hit.placeId || hit.label} onPress={() => { onPick(hit); setHits([]); setOpen(false); }}>
               <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 6 }}>{hit.label}</Text>
             </TouchableOpacity>
           ))}
@@ -143,7 +153,15 @@ function AddressField({ label, value, onChange, onPick, colors }) {
   );
 }
 
-export default function MileageWizard({ colors, state, onApply, company, onOpenBilling }) {
+export default function MileageWizard({
+  colors,
+  state,
+  onApply,
+  company,
+  onOpenBilling,
+  customers = [],
+  contracts = [],
+}) {
   const { familyId, user, uid, activeProfile } = useApp();
   const access = useCompanyAccess();
   const { width, height } = useViewportSize();
@@ -177,6 +195,7 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
     oneWayKm: 0,
     km: 0,
     routeSource: '',
+    suggestedTo: '',
     routeCharges: [],
     tolls: 0,
     ferries: 0,
@@ -201,9 +220,13 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
     ? employeeLevelIds(access.viewingAs)
     : (employeeLevelIds(me).length ? employeeLevelIds(me) : (access.levelId ? [access.levelId] : []));
   const canCompany = canAddCompanyVehicle(levelIds, { bypass: !!access.bypass && !access.previewing });
+  const addressSources = useMemo(() => ({
+    customers,
+    contracts: [...(contracts || []), ...(state?.contracts || [])],
+  }), [customers, contracts, state]);
   const projects = useMemo(
-    () => mileageProjectOptions(state, employeeId, { query }),
-    [state, employeeId, query],
+    () => mileageProjectOptions(state, employeeId, { query, customers, contracts: addressSources.contracts }),
+    [state, employeeId, query, customers, addressSources],
   );
   function patch(partial) {
     if (Object.prototype.hasOwnProperty.call(partial, 'routeEdited')) {
@@ -213,7 +236,19 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
   }
 
   function chooseProject(option) {
-    patch({ project: option.project });
+    patch({
+      project: option.project,
+      to: '',
+      toPlace: null,
+      suggestedTo: '',
+      oneWayKm: 0,
+      km: 0,
+      routeSource: '',
+      routeCharges: [],
+      tolls: 0,
+      ferries: 0,
+      routeEdited: false,
+    });
     setError('');
   }
 
@@ -301,14 +336,26 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
       setError('Velg firmabil eller egen bil.');
       return;
     }
+    const destination = draft.to || projectDestinationSuggestion(draft.project, addressSources);
     patch({
       from: draft.from || companyAddressLabel(company),
-      to: draft.to || projectAddressLabel(draft.project),
+      to: destination,
+      suggestedTo: projectDestinationSuggestion(draft.project, addressSources),
       routeEdited: false,
     });
     setError('');
     setStep('rute');
   }
+
+  useEffect(() => {
+    if (step !== 'rute' || draft.routeEdited) return undefined;
+    const real = projectAddressLabel(draft.project, addressSources);
+    if (!real || !draft.to || draft.to === real) return undefined;
+    const name = String(draft.project?.name || '').trim();
+    if (draft.to !== name && draft.to !== draft.suggestedTo) return undefined;
+    patch({ to: real, suggestedTo: real, toPlace: null, routeEdited: false });
+    return undefined;
+  }, [step, draft.project, draft.to, draft.suggestedTo, draft.routeEdited, addressSources]);
 
   useEffect(() => {
     if (step !== 'rute' || draft.routeEdited) return undefined;
@@ -338,17 +385,18 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
         patch({ fromPlace, toPlace });
         return;
       }
-      const route = await planDrivingRoute(fromPlace, toPlace);
+      const route = await suggestDriving(fromPlace, toPlace, {
+        apiKey: firebaseConfig?.apiKey || '',
+        roundTrip: true,
+      });
       if (!live || routeEditedRef.current || !route) {
         setRouting(false);
         return;
       }
-      const charges = chargesForRoute(route.points, { roundTrip: true });
+      const charges = route.charges || [];
       patch({
         fromPlace,
         toPlace,
-        from: fromPlace.label || fromLabel,
-        to: toPlace.label || toLabel,
         oneWayKm: route.oneWayKm,
         km: roundTripKm(route.oneWayKm),
         routeSource: route.source,
@@ -449,6 +497,7 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
       oneWayKm: 0,
       km: 0,
       routeSource: '',
+      suggestedTo: '',
       routeCharges: [],
       tolls: 0,
       ferries: 0,
@@ -743,17 +792,33 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
               onChange={(value) => patch({ km: Number(String(value).replace(',', '.')) || 0, routeEdited: true, routeSource: 'manuell' })}
             />
           </View>
+          {draft.to && draft.to === draft.suggestedTo ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {projectAddressLabel(draft.project, addressSources)
+                ? 'Til er prosjektets adresse. Den kan endres.'
+                : 'Til er foreslått fra prosjektnavnet. Rett adressen om stedet er et annet.'}
+            </Text>
+          ) : null}
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {draft.routeSource === 'osrm'
-              ? 'Kjørelengde fra veirute, ganget med to for tur/retur.'
-              : draft.routeSource === 'estimate'
-                ? 'Veitjenesten svarte ikke. Lengden er et estimat og kan rettes.'
-                : 'Lengde og bom fylles når begge adressene er funnet.'}
+            {draft.routeSource === 'google'
+              ? 'Kjørelengde fra Google Maps, ganget med to for tur/retur.'
+              : draft.routeSource === 'osrm'
+                ? 'Kjørelengde fra veirute, ganget med to for tur/retur.'
+                : draft.routeSource === 'estimate'
+                  ? 'Veitjenesten svarte ikke. Lengden er et estimat og kan rettes.'
+                  : routing
+                    ? 'Henter kjørelengde og bompasseringer…'
+                    : 'Lengde og bom fylles når begge adressene er funnet.'}
           </Text>
+          {draft.routeCharges.some((row) => row.source === 'nvdb') ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Bompasseringene er AutoPASS-stasjonene ruta krysser. Beløpet er takst for liten bil og kan endres.
+            </Text>
+          ) : null}
           {draft.routeCharges.map((row) => (
             <View key={row.id} style={styles.row}>
               <Text style={{ color: colors.ink, flex: 1 }}>
-                {row.kind === 'ferry' ? 'Ferje' : 'Bom'} · {row.name} · {row.passes} passeringer
+                {row.kind === 'ferry' ? 'Ferje' : 'Bom'} · {row.name} · {row.passes === 1 ? '1 passering' : `${row.passes} passeringer`}
               </Text>
               <Field
                 label="Beløp"

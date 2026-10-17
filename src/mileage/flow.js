@@ -24,10 +24,70 @@ export function visitPurposeLabel(id, custom = '') {
   return VISIT_PURPOSES.find((row) => row.id === id)?.label || 'Befaring';
 }
 
-export function projectAddressLabel(project) {
+function joinAddress(street, postalCode, placeName) {
+  const streetText = text(street);
+  const postal = text(postalCode);
+  const place = text(placeName);
+  const tail = [postal, place].filter(Boolean).join(' ');
+  if (!streetText) return tail;
+  if (tail && streetText.toLowerCase().includes(tail.toLowerCase())) return streetText;
+  if (postal && streetText.includes(postal)) return streetText;
+  return [streetText, tail].filter(Boolean).join(', ');
+}
+
+function agreementForProject(project, contracts) {
+  const list = (Array.isArray(contracts) ? contracts : []).filter((row) => row && !row.deletedAt);
+  const byId = text(project?.contractId)
+    ? list.find((row) => row.id === project.contractId) || null
+    : null;
+  if (byId) return byId;
+  const pointing = list.filter((row) => text(row.projectId) && row.projectId === project?.id);
+  return pointing.find((row) => row.status !== 'avsluttet') || pointing[0] || null;
+}
+
+function customerForProject(project, customers) {
+  const list = Array.isArray(customers) ? customers : [];
+  const id = text(project?.customerId);
+  const number = text(project?.customerNumber);
+  const orgnr = text(project?.orgnr);
+  return list.find((row) => (
+    (id && row?.id === id)
+    || (number && text(row?.customerNumber) === number)
+    || (orgnr && text(row?.orgnr) === orgnr)
+  )) || null;
+}
+
+/**
+ * Gate, postnummer og poststed på prosjektet.
+ * Mangler de, brukes stedsteksten, deretter adressen på avtalen, deretter kunden.
+ */
+export function projectAddressLabel(project, sources = {}) {
   if (!project) return '';
-  const place = [text(project.postalCode), text(project.placeName)].filter(Boolean).join(' ');
-  return [text(project.street), place].filter(Boolean).join(', ');
+  const own = joinAddress(project.street, project.postalCode, project.placeName);
+  if (own) return own;
+  const place = text(project.place);
+  if (place) return place;
+  const contract = agreementForProject(project, sources.contracts);
+  if (contract) {
+    const fields = contract.fields || {};
+    const fromContract = joinAddress(
+      fields.address || contract.address,
+      fields.postalCode || contract.postalCode,
+      fields.place || contract.place,
+    );
+    if (fromContract) return fromContract;
+  }
+  const customer = customerForProject(project, sources.customers);
+  if (customer) {
+    const fromCustomer = joinAddress(customer.address, customer.postalCode, customer.place);
+    if (fromCustomer) return fromCustomer;
+  }
+  return '';
+}
+
+/** Til-feltet. Uten registrert adresse brukes prosjektnavnet, så stedet kan geokodes. */
+export function projectDestinationSuggestion(project, sources = {}) {
+  return projectAddressLabel(project, sources) || text(project?.name);
 }
 
 export function companyAddressLabel(company) {
@@ -41,7 +101,7 @@ export function companyAddressLabel(company) {
  * Forslagslisten er den ansattes aktive prosjekt siste to måneder,
  * pluss stjernemerkede rader slik timelisten gjør. Søk åpner hele registeret.
  */
-export function mileageProjectOptions(state, employeeId, { query = '', today = new Date() } = {}) {
+export function mileageProjectOptions(state, employeeId, { query = '', today = new Date(), customers, contracts } = {}) {
   const q = text(query).toLowerCase();
   const projects = (state?.projects || []).filter((row) => row?.status !== 'arkivert' && row?.id);
   const range = timesheetActivityRange(today);
@@ -61,7 +121,10 @@ export function mileageProjectOptions(state, employeeId, { query = '', today = n
   const ranked = projects.map((project) => ({
     project,
     recent: recent.has(project.id),
-    address: projectAddressLabel(project),
+    address: projectAddressLabel(project, {
+      customers: customers || state?.customers,
+      contracts: [...(contracts || []), ...(state?.contracts || [])],
+    }),
     label: [project.number ? `#${project.number}` : '', project.name].filter(Boolean).join(' '),
   }));
   const pool = q

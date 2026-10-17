@@ -19,6 +19,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { loadAnbudState } from '../../src/anbud/storage';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
   EXPENSE_CATEGORIES,
@@ -95,6 +96,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const { familyId, requestShellTab } = useApp();
   const access = useCompanyAccess();
   const [state, setState] = useState(emptyProjectState());
+  const [customers, setCustomers] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -110,6 +113,11 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
       setState(loaded);
       setReady(true);
     });
+    loadAnbudState(familyId).then((loaded) => {
+      if (!live) return;
+      setCustomers(loaded?.customers || []);
+      setContracts(loaded?.contracts || []);
+    }).catch(() => {});
     return () => { live = false; };
   }, [familyId]);
 
@@ -275,6 +283,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           colors={colors}
           state={state}
           company={company}
+          customers={customers}
+          contracts={contracts}
           onApply={apply}
           onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />

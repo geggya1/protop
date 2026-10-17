@@ -109,7 +109,11 @@ function loadJsx(rel) {
       };
     }
     if (id.includes('mileage/drivingRoute')) return { planDrivingRoute: async () => null };
+    if (id.includes('mileage/suggestRoute')) return { suggestDriving: async () => null };
     if (id.includes('mileage/routePlan')) return { chargesForRoute: () => [] };
+    if (id.endsWith('/firebase') || id.endsWith('/firebase.js') || id === '../../firebase') {
+      return { firebaseConfig: { apiKey: '' } };
+    }
     if (id.includes('utils/location')) return { searchPlaces: async () => [] };
     if (id.includes('vegvesenLookupClient')) return { lookupVehicleByReg: async () => ({}) };
     return orig(id);
@@ -292,5 +296,14 @@ pressLabel(getTree(), 'Pool');
 press(getTree(), 'mileage-wizard-next');
 assert.ok(texts(getTree()).includes('Én vei, km'));
 assert.deepEqual(sheetStyle(getTree()), expected, 'rute-trinnet har samme popup');
+
+const fieldValues = [];
+walk(getTree(), (element) => {
+  const placeholder = element.props && element.props.placeholder;
+  if (placeholder === 'Søk adresse') fieldValues.push(element.props.value);
+});
+assert.ok(fieldValues.includes('Storgata 1 4000 Stavanger'), 'fra er selskapets adresse');
+assert.ok(fieldValues.includes('Kvitsøy skole'), 'til foreslår prosjektet når gateadresse mangler');
+assert.ok(texts(getTree()).includes('Til er foreslått fra prosjektnavnet. Rett adressen om stedet er et annet.'));
 
 console.log('mileageWizardModal.test.cjs: ok');

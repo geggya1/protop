@@ -53,25 +53,71 @@ html, body, #root {
   overflow: hidden;
 }
 /*
+ * Telefon: lås skallet til synlig flate (mellom nettleserens topplinje og
+ * bunnlinje). Da blir toppmenyen liggende helt oppe, bunnmenyen helt nede,
+ * og bare innholdet scroller. 100dvh alene er layout-viewporten, som er
+ * høyere enn det man ser, så fast bunnmeny ble stående for høyt.
+ */
+@media (max-width: 767px) {
+  html, body, #root {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--protop-vv-top, 0px);
+    width: 100%;
+    height: var(--protop-vv-height, 100dvh);
+    min-height: 0;
+    max-height: var(--protop-vv-height, 100dvh);
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #root {
+    display: flex;
+    flex-direction: column;
+  }
+  #root > * {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+}
+/* Phone and tablet: one scrollport. :where stays weaker than a component
+   min-height, so buttons keep their size while ScrollViews can shrink. */
+@media (max-width: 1023px) {
+  #shell-scroll {
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+  :where(#shell-scroll *) {
+    min-height: 0;
+  }
+}
+/*
  * Safari-app (lagt til på Hjem-skjermen): 100dvh er skjermen minus
  * statusfeltet, så skallet stopper for tidlig og iOS beholder stolpe
  * over og under. 100lvh er hele skjermen. Vanlig Safari-fane blir på 100dvh.
  */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html, body, #root {
+    top: 0;
     height: -webkit-fill-available;
     height: 100lvh;
     min-height: -webkit-fill-available;
     min-height: 100lvh;
+    max-height: none;
   }
 }
 html[data-standalone="1"],
 html[data-standalone="1"] body,
 html[data-standalone="1"] #root {
+  top: 0;
   height: -webkit-fill-available;
   height: 100lvh;
   min-height: -webkit-fill-available;
   min-height: 100lvh;
+  max-height: none;
 }
 html {
   -webkit-text-size-adjust: 100%;

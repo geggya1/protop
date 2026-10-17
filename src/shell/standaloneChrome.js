@@ -31,11 +31,12 @@ export function statusBarCover(insetTop, { standalone = false, phone = false } =
 
 /**
  * Padding inside the bottom menu. The bar itself is flush with the screen.
- * Standalone uses at least the home-indicator height when env() under-reports.
+ * A browser tab already ends above the toolbar, so a safe-area inset here
+ * only lifts the icons. Standalone still clears the home indicator.
  */
 export function tabBarBottomPad(insetBottom, { standalone = false, web = false } = {}) {
   const reported = Math.max(0, Number(insetBottom) || 0);
   if (!web) return Math.max(reported, 4);
-  if (!standalone) return Math.max(Math.min(reported, 34), 8);
+  if (!standalone) return 4;
   return Math.max(reported, 34);
 }

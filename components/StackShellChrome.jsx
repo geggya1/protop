@@ -127,7 +127,7 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
                   <ModuleHero moduleId={pageHeroId} flush />
                 </View>
               ) : null}
-              <View style={styles.body}>
+              <View nativeID="shell-scroll" style={styles.body}>
                 <EdgeSwipeBack enabled={!isDesktop} onBack={onEdgeSwipeBack}>
                   {children}
                 </EdgeSwipeBack>
@@ -150,8 +150,8 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  wrap: { flex: 1, overflow: 'visible' },
+  safe: { flex: 1, minHeight: 0 },
+  wrap: { flex: 1, minHeight: 0, overflow: 'visible' },
   wrapRow: { flexDirection: 'row' },
   rail: {
     backgroundColor: '#f7f8fb',
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 6,
   },
-  main: { flex: 1, minWidth: 0, overflow: 'visible', zIndex: 1 },
+  main: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'visible', zIndex: 1 },
   heroBand: {
     flexShrink: 0,
     zIndex: 1,
@@ -176,5 +176,5 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 4,
   },
-  body: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0, overflow: 'hidden' },
 });

@@ -287,7 +287,7 @@ export default function SocialPlatformShell({ platformType }) {
         }) ? <ViewAsControl access={companyAccess} labeled={isDesktop} /> : null}
       />
 
-      <View style={styles.body}>
+      <View nativeID="shell-scroll" style={styles.body}>
         <View style={styles.bodyFill}>
           <ShellErrorBoundary key={tab}>{body}</ShellErrorBoundary>
           <ModuleIntroHost scope={platformType} moduleId={tab} />
@@ -332,9 +332,9 @@ export default function SocialPlatformShell({ platformType }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  body: { flex: 1, position: 'relative' },
-  bodyFill: { flex: 1, minHeight: 0 },
+  safe: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' },
+  bodyFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

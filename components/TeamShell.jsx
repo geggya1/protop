@@ -122,7 +122,7 @@ export default function TeamShell() {
         }
       />
 
-      <View style={styles.body}>
+      <View nativeID="shell-scroll" style={styles.body}>
         {body}
         <ModuleIntroHost scope="team" moduleId={tab} />
       </View>
@@ -164,8 +164,8 @@ export default function TeamShell() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.bg },
-  body: { flex: 1, minHeight: 0, position: 'relative' },
+  safe: { flex: 1, minHeight: 0, backgroundColor: c.bg },
+  body: { flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

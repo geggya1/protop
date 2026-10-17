@@ -10,17 +10,19 @@ import ChildThemeBackdrop from './ChildThemeBackdrop';
 export function Screen({ children, style }) {
   const themeColors = useColors();
   const { isChildTheme, theme } = useThemeMeta();
+  const { isDesktop } = useLayout();
   const immersive = useHomeImmersive();
   const showPattern = isChildTheme && !!theme?.pattern && !immersive;
   return (
     <View style={[
       styles.screen,
+      !isDesktop && styles.screenClip,
       { backgroundColor: immersive ? 'transparent' : themeColors.bg },
       style,
     ]}
     >
       {showPattern ? <ChildThemeBackdrop /> : null}
-      <View style={styles.screenContent}>{children}</View>
+      <View style={[styles.screenContent, !isDesktop && styles.screenClip]}>{children}</View>
     </View>
   );
 }
@@ -120,6 +122,7 @@ export function ScrollBody({ children, pad = space.md }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, height: '100%', backgroundColor: baseColors.bg },
+  screenClip: { overflow: 'hidden' },
   screenContent: { flex: 1, minHeight: 0, zIndex: 1, position: 'relative', overflow: 'visible', backgroundColor: 'transparent' },
   scroll: { flex: 1, minHeight: 0 },
   card: {

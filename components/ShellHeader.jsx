@@ -1,5 +1,5 @@
 import React, { createContext, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -201,7 +201,7 @@ export default function ShellHeader({
   return (
     <>
       <View
-        style={styles.chromeRoot}
+        style={[styles.chromeRoot, Platform.OS === 'web' && isPhone && styles.chromeLocked]}
         collapsable={false}
       >
         <View
@@ -322,6 +322,12 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     flexGrow: 0,
     flexShrink: 0,
+  },
+  /* Stays at the top of the phone shell even if a page tries to scroll it. */
+  chromeLocked: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 40,
   },
   bar: {
     paddingHorizontal: 12,

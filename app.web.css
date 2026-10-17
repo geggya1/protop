@@ -52,6 +52,27 @@ html, body, #root {
   max-width: 100%;
   overflow: hidden;
 }
+/*
+ * Safari-app (lagt til på Hjem-skjermen): 100dvh er skjermen minus
+ * statusfeltet, så skallet stopper for tidlig og iOS beholder stolpe
+ * over og under. 100lvh er hele skjermen. Vanlig Safari-fane blir på 100dvh.
+ */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html, body, #root {
+    height: -webkit-fill-available;
+    height: 100lvh;
+    min-height: -webkit-fill-available;
+    min-height: 100lvh;
+  }
+}
+html[data-standalone="1"],
+html[data-standalone="1"] body,
+html[data-standalone="1"] #root {
+  height: -webkit-fill-available;
+  height: 100lvh;
+  min-height: -webkit-fill-available;
+  min-height: 100lvh;
+}
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

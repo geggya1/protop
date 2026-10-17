@@ -8,6 +8,7 @@ import { MAX_PARENT_BOTTOM_SHORTCUTS } from '../../src/parentDashboardThemes';
 import { useI18n } from '../../src/i18n';
 import { soft } from './softTheme';
 import { IMMERSIVE_GLASS_BG, immersiveGlassBarStyle } from '../../src/theme/immersiveGlass';
+import { isStandaloneWeb, tabBarBottomPad } from '../../src/shell/standaloneChrome';
 
 function builtinNav(t) {
   return {
@@ -81,11 +82,14 @@ export default function ParentHomeBottomNav({
 
   if (!items.length) return null;
 
-  // Home-indicator clearance lives inside the bar. Cap web inset so a bad
-  // safe-area reading cannot recreate a large empty band under the icons.
-  const insetBottom = includeSafeArea ? insets.bottom : 0;
-  const safeInset = Platform.OS === 'web' ? Math.min(insetBottom, 34) : insetBottom;
-  const bottomPad = Math.max(safeInset, Platform.OS === 'web' ? 8 : 4);
+  // Home-indicator clearance lives inside the bar, so the bar itself reaches
+  // the screen edge. Standalone iOS sometimes reports a 0 inset.
+  const bottomPad = includeSafeArea
+    ? tabBarBottomPad(insets.bottom, {
+      standalone: isStandaloneWeb(),
+      web: Platform.OS === 'web',
+    })
+    : 0;
 
   return (
     <View

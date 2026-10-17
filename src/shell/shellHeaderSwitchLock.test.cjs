@@ -66,6 +66,16 @@ function loadShellHeader() {
   m.require = function requireMock(id) {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id === 'react-native-safe-area-context') {
+      return { useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) };
+    }
+    if (id.includes('standaloneChrome')) {
+      return {
+        isStandaloneWeb: () => false,
+        statusBarCover: () => 0,
+        tabBarBottomPad: () => 0,
+      };
+    }
     if (id === '@react-navigation/native') return { useNavigation: () => ({}) };
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('ThemeContext')) return { useColors: () => ({ ink: '#111', muted: '#888', line: '#ddd', card: '#fff' }) };

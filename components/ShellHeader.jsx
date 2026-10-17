@@ -202,7 +202,7 @@ export default function ShellHeader({
 
   return (
     <>
-      <View style={styles.chromeRoot} collapsable={false}>
+      <View nativeID="shell-header" style={styles.chromeRoot} collapsable={false}>
         <View
           style={[
             styles.bar,
@@ -317,7 +317,7 @@ const SWITCH_LOCK_GUTTER = 118;
 const styles = StyleSheet.create({
   chromeRoot: {
     position: 'relative',
-    zIndex: 2,
+    zIndex: 50,
     overflow: 'visible',
     flexGrow: 0,
     flexShrink: 0,

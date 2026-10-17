@@ -84,18 +84,22 @@ html, body, #root {
   }
 }
 /*
- * iPhone Safari tegner adresse-pillen oppå layout-viewporten. Uten dette
- * ligger logo og sidetittel i samme bånd som «protop.no». Polstringen er
- * inni høyden, så bunnmenyen blir stående over verktøylinjen. Installert
- * app har ingen adresse-pille.
+ * iPhone Safari legger et gjennomsiktig lag over toppen av siden. Det fader
+ * nedover og tar både trykk og lesbarhet fra meny, logo, varsler og profil.
+ * Hele det båndet må være tomt. Polstringen er inni høyden, så bunnmenyen
+ * blir stående. Installert app har ikke dette laget.
  */
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 767px) and (hover: none) and (pointer: coarse) {
     html:not([data-standalone="1"]) #root {
-      padding-top: 50px;
+      padding-top: 64px;
       background: #fff;
     }
   }
+}
+#shell-header {
+  position: relative;
+  z-index: 50;
 }
 /* Phone and tablet: one scrollport. :where stays weaker than a component
    min-height, so buttons keep their size while ScrollViews can shrink. */

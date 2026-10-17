@@ -51,7 +51,8 @@ assert.equal(cssVars['--protop-vv-height'], '612px');
 
 assert.match(css, /--protop-vv-height/, 'phone shell tracks the visual viewport');
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*position:\s*fixed/, 'phone document does not scroll');
-assert.match(css, /padding-top:\s*50px/, 'iOS address pill does not cover the app bar');
+assert.match(css, /padding-top:\s*64px/, 'iOS address overlay does not cover the app bar');
+assert.match(css, /#shell-header[\s\S]*z-index:\s*50/, 'top bar stays above page layers');
 assert.match(css, /html\[data-standalone="1"\][\s\S]*padding-top:\s*0\s*!important/, 'installed app has no address-pill gap');
 assert.match(css, /@media \(max-width: 1023px\)[\s\S]*#shell-scroll/, 'page body is the only scrollport');
 assert.match(app, /usePhoneVisualViewport/, 'app publishes the visible frame');

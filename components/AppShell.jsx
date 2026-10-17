@@ -848,7 +848,7 @@ function AppShellInner() {
       {immersiveHome ? (
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}
-      <SafeAreaView edges={safeEdges} style={[styles.safe, { backgroundColor: 'transparent' }]}>
+      <SafeAreaView edges={safeEdges} style={[styles.safe, styles.shellAboveBackdrop]}>
       <View style={[styles.wrap, hasRail && !kitchenMode && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
         {hasRail && !kitchenMode && (
           <View style={[
@@ -1074,6 +1074,8 @@ export default function AppShell() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, minHeight: 0 },
+  /* Photo backdrop is z-index 0. The shell must stay above that fade. */
+  shellAboveBackdrop: { backgroundColor: 'transparent', zIndex: 1 },
   wrap: { flex: 1, minHeight: 0, overflow: 'visible', position: 'relative', zIndex: 1, backgroundColor: 'transparent' },
   immersiveLayer: { backgroundColor: 'transparent' },
   wrapRow: { flexDirection: 'row' },

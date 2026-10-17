@@ -271,9 +271,22 @@ const absences = [
 }
 
 {
-  assertRenders('PlannedAbsenceDesktop', React.createElement(PlannedAbsenceDesktop, {
+  const element = React.createElement(PlannedAbsenceDesktop, {
     employees, names, absences, adjustments: [], fullDayHours: 7.5, today, canChooseEmployee: true,
-  }));
+  });
+  assertRenders('PlannedAbsenceDesktop', element);
+  const text = collectText(element).join('\n');
+  const ids = nativeIds(element);
+  assert.match(text, /Intern/);
+  assert.match(text, /Ada/);
+  assert.match(text, /Bjørn/);
+  assert.match(text, /2026-11-01/);
+  assert.match(text, /2026-10-16/);
+  assert.doesNotMatch(text, /Ingen planlagt fravær/);
+  assert.ok(ids.includes('planlagt-filter-toggle'));
+  assert.equal(ids.includes('planlagt-filter-sheet'), false);
+  assert.equal(ids.includes('planlagt-intern'), false);
+  assert.equal(ids.includes('fravaer-utvalg'), false);
 }
 
 {
@@ -373,6 +386,8 @@ function interactiveRender(element) {
   rerender();
   return {
     ids() { return idsOf(tree); },
+    text() { return collectText(tree).join('\n'); },
+    node(nativeID) { return findByNativeId(tree, nativeID); },
     press(nativeID) {
       const node = findByNativeId(tree, nativeID);
       assert.ok(node, `fant ikke ${nativeID}`);
@@ -426,6 +441,60 @@ function interactiveRender(element) {
   assert.ok(ui.ids().includes('fravaer-settings-menu'));
   ui.press('fravaer-settings-dismiss');
   assert.equal(ui.ids().includes('fravaer-settings-menu'), false);
+}
+
+{
+  const plannedEmployees = [
+    ...employees,
+    { id: 'e3', name: 'Celine', company: { status: 'active', personnelKind: 'external' } },
+  ];
+  const plannedNames = { ...names, e3: 'Celine' };
+  const plannedAbsences = [
+    ...absences,
+    { id: 'a4', employeeId: 'e3', type: 'ferie', date: '2026-12-01', hours: 7.5 },
+  ];
+  const ui = interactiveRender(React.createElement(PlannedAbsenceDesktop, {
+    employees: plannedEmployees,
+    names: plannedNames,
+    absences: plannedAbsences,
+    adjustments: [],
+    fullDayHours: 7.5,
+    today,
+    canChooseEmployee: true,
+  }));
+  assert.match(ui.text(), /Ada/);
+  assert.match(ui.text(), /Bjørn/);
+  assert.doesNotMatch(ui.text(), /Celine/);
+  assert.doesNotMatch(ui.text(), /2026-12-01/);
+  assert.doesNotMatch(ui.text(), /Ingen planlagt fravær/);
+  assert.equal(ui.ids().includes('planlagt-filter-sheet'), false);
+
+  ui.press('planlagt-filter-toggle');
+  assert.ok(ui.ids().includes('planlagt-filter-sheet'));
+  assert.equal(ui.node('planlagt-intern').props.accessibilityState.checked, true);
+  assert.ok(ui.ids().includes('planlagt-navn-sok'));
+  assert.match(ui.text(), /Tidligst/);
+
+  ui.press('planlagt-person-e2');
+  assert.equal(ui.ids().includes('planlagt-filter-sheet'), false);
+  assert.match(ui.text(), /Bjørn/);
+  assert.doesNotMatch(ui.text(), /2026-11-01/);
+
+  ui.press('planlagt-filter-toggle');
+  ui.press('planlagt-person-alle');
+  assert.match(ui.text(), /2026-11-01/);
+  ui.press('planlagt-filter-toggle');
+  ui.press('planlagt-kind-external');
+  assert.match(ui.text(), /Celine/);
+  ui.press('planlagt-filter-reset');
+  assert.equal(ui.node('planlagt-intern').props.accessibilityState.checked, true);
+  assert.doesNotMatch(ui.text(), /Celine/);
+  assert.match(ui.text(), /Ada/);
+
+  ui.node('planlagt-navn-sok').props.onChangeText('ada');
+  const menu = ui.text().split('Alle i utvalget')[1] || '';
+  assert.match(menu, /Ada/);
+  assert.doesNotMatch(menu, /Bjørn/);
 }
 
 console.log('absenceDesktopRender.test.cjs: ok');

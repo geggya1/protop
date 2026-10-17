@@ -33,6 +33,16 @@ const AUDIENCE = [
   { id: 'innleid', label: 'Innleid' },
   { id: 'external', label: 'Eksterne' },
 ];
+const PLANNED_KINDS = [
+  { id: 'staff', label: 'Intern' },
+  { id: 'innleid', label: 'Innleid' },
+  { id: 'external', label: 'Ekstern' },
+];
+const PLANNED_SORTS = [
+  { id: 'date-asc', label: 'Tidligst' },
+  { id: 'date-desc', label: 'Senest' },
+  { id: 'name', label: 'Navn' },
+];
 const SPANS = [
   { id: 'dag', label: 'Dag' },
   { id: 'uke', label: 'Uke' },
@@ -104,7 +114,41 @@ function useAudience(employees) {
     [employees, selected.join('|'), includeInactive],
   );
   const toggleKind = (id) => setKinds((current) => ({ ...current, [id]: !current[id] }));
-  return { kinds, toggleKind, includeInactive, setIncludeInactive, roster };
+  const resetAudience = () => {
+    setKinds({ staff: true, innleid: false, external: false });
+    setIncludeInactive(false);
+  };
+  return { kinds, toggleKind, includeInactive, setIncludeInactive, roster, resetAudience };
+}
+
+function sortPlannedRows(rows, sort) {
+  const copy = [...(rows || [])];
+  if (sort === 'date-desc') {
+    copy.sort((a, b) => String(b.start).localeCompare(String(a.start))
+      || String(a.employeeName).localeCompare(String(b.employeeName), 'nb'));
+  } else if (sort === 'name') {
+    copy.sort((a, b) => String(a.employeeName).localeCompare(String(b.employeeName), 'nb')
+      || String(a.start).localeCompare(String(b.start)));
+  } else {
+    copy.sort((a, b) => String(a.start).localeCompare(String(b.start))
+      || String(a.employeeName).localeCompare(String(b.employeeName), 'nb'));
+  }
+  return copy;
+}
+
+function plannedScopeLabel(employeeId, selectedName, kinds, includeInactive) {
+  if (employeeId) return selectedName || 'Ansatt';
+  const on = PLANNED_KINDS.filter((item) => kinds[item.id]);
+  if (on.length === 1 && on[0].id === 'staff' && !includeInactive) return 'Intern';
+  if (!on.length && !includeInactive) return 'Ingen utvalg';
+  return 'Utvalget';
+}
+
+function nameMatches(name, query) {
+  const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  const hay = String(name || '').toLowerCase();
+  return tokens.every((token) => hay.includes(token));
 }
 
 function useBoard(props) {
@@ -1016,62 +1060,206 @@ export function PlannedAbsenceDesktop({
   canChooseEmployee = false,
   lockedEmployeeId = '',
   focusEmployeeId = '',
+  loading = false,
 }) {
   const audience = useAudience(employees);
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? (focusEmployeeId || '') : lockedEmployeeId);
   useEffect(() => {
     if (canChooseEmployee && focusEmployeeId) setEmployeeId(focusEmployeeId);
   }, [canChooseEmployee, focusEmployeeId]);
-  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('date-asc');
   const roster = employeeId ? employees.filter((row) => row.id === employeeId) : audience.roster;
   const board = useBoard({
     employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today,
   });
-  const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : 'Alle i utvalget';
+  const plannedRows = sortPlannedRows(board.planned || [], sort);
+  const selectedName = employeeId ? (names[employeeId] || 'Ansatt') : '';
+  const scope = plannedScopeLabel(employeeId, selectedName, audience.kinds, audience.includeInactive);
+  const nameRows = audience.roster.filter((row) => nameMatches(names[row.id] || '', query));
+  const filtersActive = !audience.kinds.staff
+    || audience.kinds.innleid
+    || audience.kinds.external
+    || audience.includeInactive
+    || !!employeeId
+    || !!String(query || '').trim()
+    || sort !== 'date-asc';
+  const activeFilterCount = [
+    !audience.kinds.staff,
+    audience.kinds.innleid,
+    audience.kinds.external,
+    audience.includeInactive,
+    !!employeeId,
+    !!String(query || '').trim(),
+    sort !== 'date-asc',
+  ].filter(Boolean).length;
+
+  function resetFilters() {
+    audience.resetAudience();
+    setEmployeeId(canChooseEmployee ? '' : lockedEmployeeId);
+    setQuery('');
+    setSort('date-asc');
+  }
+
+  function pickPerson(id) {
+    setEmployeeId(id);
+    setQuery('');
+    setFilterOpen(false);
+  }
+
   return (
+    <View style={{ flex: 1, backgroundColor: '#F4F7FB' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: '#F4F7FB' }}
       contentContainerStyle={styles.page}
       nativeID="planlagt-fravaer-side"
     >
       <View style={styles.toolbar}>
-        <Text style={styles.hint}>Fravær som er registrert frem i tid, også inn i neste år.</Text>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.personHeading}>{scope}</Text>
+          <Text style={styles.hint}>Fravær som er registrert frem i tid, også inn i neste år.</Text>
+        </View>
         {canChooseEmployee ? (
           <TouchableOpacity
-            onPress={() => setPeopleOpen((value) => !value)}
-            style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+            onPress={() => setFilterOpen((open) => !open)}
+            style={[
+              reportStyles.ghostBtn,
+              {
+                borderColor: filterOpen || filtersActive ? blue : line,
+                backgroundColor: filterOpen || filtersActive ? '#E8F1FF' : '#fff',
+              },
+            ]}
             accessibilityRole="button"
-            accessibilityLabel="Velg ansatt"
+            accessibilityLabel="Filtrer og sorter"
+            accessibilityState={{ expanded: filterOpen }}
+            nativeID="planlagt-filter-toggle"
           >
-            <Ionicons name="people" size={15} color={blue} />
-            <Text style={styles.personTxt}>{selectedName}</Text>
-            <Ionicons name="chevron-down" size={14} color={muted} />
+            <Ionicons name="options-outline" size={16} color={filterOpen || filtersActive ? blue : ink} />
+            <Text style={{ color: filterOpen || filtersActive ? blue : ink, fontWeight: '400' }}>Filtrer</Text>
+            {activeFilterCount > 0 ? (
+              <View style={[reportStyles.filterBadge, { backgroundColor: blue }]}>
+                <Text style={reportStyles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         ) : null}
       </View>
-      {peopleOpen ? (
-        <View style={[styles.menu, { borderColor: line }]}>
-          <MenuRow label="Alle i utvalget" on={!employeeId} onPress={() => { setPeopleOpen(false); setEmployeeId(''); }} />
-          {audience.roster.map((row) => (
-            <MenuRow
-              key={row.id}
-              label={names[row.id] || 'Ansatt'}
-              on={row.id === employeeId}
-              onPress={() => { setPeopleOpen(false); setEmployeeId(row.id); }}
-            />
-          ))}
+      {loading && !plannedRows.length ? (
+        <View style={styles.card} nativeID="planlagt-fravaer">
+          <Text style={styles.empty}>Laster fravær…</Text>
         </View>
-      ) : null}
-      {canChooseEmployee ? (
-        <AudienceBar
-          kinds={audience.kinds}
-          onToggleKind={audience.toggleKind}
-          includeInactive={audience.includeInactive}
-          onToggleInactive={() => audience.setIncludeInactive((value) => !value)}
-        />
-      ) : null}
-      <PlannedCard rows={board.planned || []} heading="" />
+      ) : (
+        <PlannedCard rows={plannedRows} heading="" />
+      )}
     </ScrollView>
+      {canChooseEmployee ? (
+        <Modal transparent visible={filterOpen} animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+          <View style={[reportStyles.modalBg, reportStyles.modalBgSheet]}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setFilterOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Lukk filter"
+              nativeID="planlagt-filter-dismiss"
+            />
+            <View
+              style={[reportStyles.filterSheet, { backgroundColor: '#F4F7FB', borderColor: line }]}
+              nativeID="planlagt-filter-sheet"
+            >
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={reportStyles.sheetScroll}>
+                <View style={styles.filterHead}>
+                  <Text style={styles.cardTitle}>Filtrer og sorter</Text>
+                  <TouchableOpacity
+                    onPress={() => setFilterOpen(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk filter"
+                    nativeID="planlagt-filter-close"
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={20} color={ink} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.hint}>Utvalg</Text>
+                {PLANNED_KINDS.map((item) => (
+                  <CheckRow
+                    key={item.id}
+                    label={item.label}
+                    on={!!audience.kinds[item.id]}
+                    onPress={() => audience.toggleKind(item.id)}
+                    nativeID={item.id === 'staff' ? 'planlagt-intern' : `planlagt-kind-${item.id}`}
+                  />
+                ))}
+                <CheckRow
+                  label="Deaktiverte"
+                  on={audience.includeInactive}
+                  onPress={() => audience.setIncludeInactive((value) => !value)}
+                  nativeID="planlagt-deaktivert"
+                />
+                <Text style={[styles.hint, { marginTop: 8 }]}>Sorter</Text>
+                <View style={styles.chipWrap}>
+                  {PLANNED_SORTS.map((item) => {
+                    const on = sort === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => setSort(item.id)}
+                        style={[styles.sortChip, on && styles.sortChipOn]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        nativeID={`planlagt-sort-${item.id}`}
+                      >
+                        <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={styles.searchBox}>
+                  <Ionicons name="search" size={16} color={muted} />
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Søk navn"
+                    placeholderTextColor="#A0A8B8"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={styles.searchInput}
+                    accessibilityLabel="Søk navn"
+                    nativeID="planlagt-navn-sok"
+                  />
+                </View>
+                <Text style={styles.hint}>Navn</Text>
+                <MenuRow
+                  label="Alle i utvalget"
+                  on={!employeeId}
+                  onPress={() => pickPerson('')}
+                  nativeID="planlagt-person-alle"
+                />
+                {nameRows.length ? nameRows.map((row) => (
+                  <MenuRow
+                    key={row.id}
+                    label={names[row.id] || 'Ansatt'}
+                    on={row.id === employeeId}
+                    onPress={() => pickPerson(row.id)}
+                    nativeID={`planlagt-person-${row.id}`}
+                  />
+                )) : (
+                  <Text style={styles.empty}>{String(query || '').trim() ? 'Ingen treff.' : 'Ingen navn i utvalget.'}</Text>
+                )}
+                <TouchableOpacity
+                  onPress={resetFilters}
+                  style={[reportStyles.ghostBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
+                  accessibilityRole="button"
+                  nativeID="planlagt-filter-reset"
+                >
+                  <Text style={styles.nameTxt}>Nullstill</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </View>
   );
 }
 
@@ -1316,9 +1504,30 @@ function Key({ color, label }) {
   );
 }
 
-function MenuRow({ label, on, onPress }) {
+function CheckRow({ label, on, onPress, nativeID }) {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.menuRow} accessibilityRole="button">
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.checkRow}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: !!on }}
+      nativeID={nativeID}
+    >
+      <Ionicons name={on ? 'checkbox' : 'square-outline'} size={18} color={on ? blue : muted} />
+      <Text style={styles.nameTxt}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function MenuRow({ label, on, onPress, nativeID }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.menuRow}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!on }}
+      nativeID={nativeID}
+    >
       <Text style={[styles.nameTxt, on && { color: blue }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -1507,6 +1716,30 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   errorTxt: { color: '#b42318', fontSize: 13, fontWeight: '400' },
+  filterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  sortChip: {
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  sortChipOn: { borderColor: blue, backgroundColor: '#E8F1FF' },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    minHeight: 40,
+  },
+  searchInput: { flex: 1, color: ink, fontSize: 14, paddingVertical: 8 },
   personBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,

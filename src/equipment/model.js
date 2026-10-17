@@ -3,7 +3,7 @@
  * Ren data inn / data ut, slik at kalender og kjørebok deler samme register.
  */
 
-import { equipmentCategory } from './catalog.js';
+import { equipmentCategory, equipmentGroup } from './catalog.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -36,13 +36,24 @@ export function equipmentInterval(row) {
 
 export function normalizeEquipment(input = {}) {
   const row = input && typeof input === 'object' ? input : {};
-  const category = equipmentCategory(row.category);
+  const hinted = equipmentGroup(row.group || row.category);
+  const category = equipmentCategory(
+    EQUIPMENT_CATEGORY_IDS.has(row.category)
+      ? row.category
+      : (hinted.id === 'kjoretoy' ? 'poolbil' : hinted.id === 'rom' ? 'rom' : 'annet'),
+  );
+  const group = equipmentGroup(row.group || category.group || category.id);
+  const kind = group.id === 'kjoretoy' ? 'vehicle' : group.id === 'rom' ? 'room' : category.kind;
   const status = ['available', 'service', 'retired'].includes(row.status) ? row.status : 'available';
   return {
     id: text(row.id),
     name: text(row.name),
     category: category.id,
-    kind: category.kind,
+    group: group.id,
+    kind,
+    scope: row.scope === 'private' ? 'private' : 'company',
+    ownerEmployeeId: text(row.ownerEmployeeId),
+    ownerName: text(row.ownerName),
     plate: text(row.plate).toUpperCase().replace(/[^A-Z0-9ÆØÅ]/gi, ''),
     serial: text(row.serial),
     make: text(row.make),
@@ -142,10 +153,49 @@ export function validatePersonalVehicle(input) {
   return { ok: true, error: null, vehicle: row };
 }
 
+const EQUIPMENT_CATEGORY_IDS = new Set([
+  'poolbil', 'drone', 'ipad', 'termokamera', 'verktoy', 'annet', 'rom',
+]);
+
 export function companyVehicles(equipment = []) {
   return (equipment || [])
     .map(normalizeEquipment)
-    .filter((row) => row.bookable && (row.category === 'poolbil' || row.kind === 'vehicle') && row.status === 'available');
+    .filter((row) => (
+      row.scope !== 'private'
+      && row.bookable
+      && row.status === 'available'
+      && (row.group === 'kjoretoy' || row.category === 'poolbil' || row.kind === 'vehicle')
+    ));
+}
+
+/** Egne biler fra kjøreboken, pluss privat kjøretøy i utstyrsregisteret. */
+export function employeeVehicles(personalVehicles = [], equipment = [], employeeId = '') {
+  const own = vehiclesForEmployee(personalVehicles, employeeId);
+  const plates = new Set(own.map((row) => row.plate));
+  const id = text(employeeId);
+  const gear = (equipment || [])
+    .map(normalizeEquipment)
+    .filter((row) => (
+      row.scope === 'private'
+      && row.ownerEmployeeId === id
+      && row.plate
+      && (row.group === 'kjoretoy' || row.kind === 'vehicle')
+      && !plates.has(row.plate)
+    ))
+    .map((row) => ({
+      id: row.id,
+      employeeId: row.ownerEmployeeId,
+      employeeName: row.ownerName,
+      plate: row.plate,
+      nickname: row.name,
+      make: row.make,
+      model: row.model,
+      year: row.year,
+      fuel: row.fuel,
+      electric: row.electric,
+      vegvesenSummary: row.vegvesenSummary,
+    }));
+  return [...own, ...gear];
 }
 
 export function vehiclesForEmployee(vehicles = [], employeeId = '') {

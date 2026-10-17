@@ -692,6 +692,7 @@ function navItemAllowed(id, grants) {
   if (id === 'produkt-produkter') return allows(grants, 'economy', 'see');
   if (id === 'produkt') return hoursAllowed(grants) || allows(grants, 'economy', 'see');
   if (id === 'okonomi-prosjektutlegg') return hoursAllowed(grants);
+  if (id === 'kjorebok') return allows(grants, 'economy', 'see');
   if (id === 'okonomi') {
     return allows(grants, 'economy', 'see') || hoursAllowed(grants);
   }

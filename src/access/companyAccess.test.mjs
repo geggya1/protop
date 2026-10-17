@@ -300,6 +300,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
   assert.deepEqual(visible, ['selskap', 'arbeid', 'produkt', 'utstyr', 'okonomi']);
+  assert.equal(visible.includes('kjorebok'), false);
   const innleieSelskap = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'selskap');
   assert.deepEqual(innleieSelskap.children.map((child) => child.id), ['fravaer']);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
@@ -308,6 +309,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.equal(innleieOkonomi.action.subView, 'utlegg');
   const admin = filterCompanyNav(companyNavItems(), standardGrants('administrator')).map((item) => item.id);
   assert.ok(admin.includes('okonomi'));
+  assert.ok(admin.includes('kjorebok'));
   assert.ok(admin.includes('selskap'));
   assert.ok(admin.includes('arbeid'));
   assert.ok(admin.includes('produkt'));
@@ -341,6 +343,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.ok(andreNav.includes('arbeid'));
   assert.equal(andreNav.includes('anbud'), false);
   assert.ok(andreNav.includes('okonomi'));
+  assert.equal(andreNav.includes('kjorebok'), false);
   const andreOkonomi = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
     .find((item) => item.id === 'okonomi');
   assert.deepEqual(andreOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
@@ -386,6 +389,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     false,
   );
   assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'okonomi'));
+  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'kjorebok'));
 
   const full = resolveViewAsAccess({
     actor, targetEmployee: ansatt, policy: null, lens: 'all',
@@ -401,6 +405,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   }), true);
   const fullIds = filterCompanyNav(companyNavItems(), full.grants).map((item) => item.id);
   assert.ok(fullIds.includes('okonomi'));
+  assert.equal(fullIds.includes('kjorebok'), false);
   assert.deepEqual(
     filterCompanyNav(companyNavItems(), full.grants).find((item) => item.id === 'okonomi')
       .children.map((child) => child.id),

@@ -82,6 +82,34 @@ export function editorLeft({ startIndex, trackWeeks, scrollX = 0, paneWidth, pop
 export function editorTop(barPx) {
   return 16 + Math.max(0, Number(barPx) || 0) + 2;
 }
+
+export const HOLD_MS = 450;
+export const GESTURE_SLOP = 12;
+
+/**
+ * På berøring venter vi. Loddrett eller vilkårlig drag er scrolling.
+ * Sidelengs drag på en stolpe flytter eller endrer lengden.
+ * Nytt belegg kommer først etter langt trykk, ikke av selve draget.
+ */
+export function gestureIntent(mode, dx, dy, slop = GESTURE_SLOP) {
+  if (mode === 'arm-paint') {
+    if (Math.hypot(dx, dy) >= slop) return 'scroll';
+    return 'wait';
+  }
+  if (mode === 'arm-move' || mode === 'arm-resize') {
+    if (Math.abs(dy) >= slop && Math.abs(dy) > Math.abs(dx)) return 'scroll';
+    if (Math.abs(dx) >= slop && Math.abs(dx) >= Math.abs(dy)) {
+      return mode === 'arm-resize' ? 'resize' : 'move';
+    }
+    return 'wait';
+  }
+  return 'free';
+}
+
+function isDirectPointer(event) {
+  const kind = event?.nativeEvent?.pointerType || event?.pointerType;
+  return kind === 'mouse' || kind === 'pen';
+}
 const KINDS = [
   { id: 'alle', label: 'Alle' },
   { id: 'staff', label: 'Interne' },
@@ -197,6 +225,7 @@ export default function ProductivityBoard({
   const [hoursDraft, setHoursDraft] = useState('');
   const [nameDraft, setNameDraft] = useState('');
   const dragRef = useRef(null);
+  const holdTimer = useRef(null);
   const tracks = useRef({});
   const gridScroll = useRef({});
   const laneLock = useRef(false);
@@ -326,10 +355,49 @@ export default function ProductivityBoard({
     return Math.max(0, Math.min(weeks.length - 1, Math.floor(local / MATRIX_W)));
   }
 
+  function clearHold() {
+    if (!holdTimer.current) return;
+    clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  }
+
+  function promoteHold() {
+    holdTimer.current = null;
+    const drag = dragRef.current;
+    if (!drag || gestureIntent(drag.mode, 0, 0) === 'free') return;
+    drag.mode = drag.mode === 'arm-resize' ? 'resize' : drag.mode === 'arm-move' ? 'move' : 'paint';
+    if (drag.mode === 'paint') {
+      setPaint({
+        employeeId: drag.employeeId,
+        projectId: drag.projectId || '',
+        allocId: drag.allocId || '',
+        startIndex: drag.originIndex,
+        endIndex: drag.originIndex,
+        percent: drag.percent ?? 50,
+      });
+    }
+    if (drag.alloc) selectAlloc(drag.alloc, drag.person);
+  }
+
   function onTrackPointerMove(event) {
     const drag = dragRef.current;
     if (!drag) return;
     const { x, y } = pointOf(event);
+    const intent = gestureIntent(drag.mode, x - drag.x, y - drag.y);
+    if (intent === 'wait') return;
+    if (intent === 'scroll') {
+      clearHold();
+      dragRef.current = null;
+      setPaint(null);
+      setDraft(null);
+      return;
+    }
+    if (intent === 'paint' || intent === 'move' || intent === 'resize') {
+      clearHold();
+      drag.mode = intent;
+      event?.nativeEvent?.preventDefault?.();
+      if (drag.alloc) selectAlloc(drag.alloc, drag.person);
+    }
     if (drag.mode === 'paint' || drag.mode === 'load') {
       const index = weekIndexAt(drag.employeeId, x);
       const percent = percentFromPointerDelta(drag.percent, y - drag.y);
@@ -357,7 +425,7 @@ export default function ProductivityBoard({
     }
     const dx = x - drag.x;
     const dy = y - drag.y;
-    if (drag.mode === 'move' && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) + 6) {
+    if (!drag.touch && drag.mode === 'move' && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) + 6) {
       drag.mode = 'load';
       drag.percent = drag.basePercent ?? drag.alloc.percent;
       const person = drag.person || people.find((row) => row.id === drag.alloc.employeeId);
@@ -412,8 +480,14 @@ export default function ProductivityBoard({
 
   function onTrackPointerUp(event) {
     const drag = dragRef.current;
+    clearHold();
     dragRef.current = null;
     if (!drag) return;
+    if (drag.mode === 'arm-paint' || drag.mode === 'arm-move' || drag.mode === 'arm-resize') {
+      setPaint(null);
+      if (drag.alloc) selectAlloc(drag.alloc, drag.person);
+      return;
+    }
     const { x, y } = pointOf(event);
     if (drag.mode === 'paint') {
       setPaint(null);
@@ -451,7 +525,14 @@ export default function ProductivityBoard({
     }
   }
 
-  api.current = { onTrackPointerMove, onTrackPointerUp };
+  function onTrackPointerCancel() {
+    clearHold();
+    dragRef.current = null;
+    setPaint(null);
+    setDraft(null);
+  }
+
+  api.current = { onTrackPointerMove, onTrackPointerUp, onTrackPointerCancel };
 
   useEffect(() => {
     if (!openId) return undefined;
@@ -468,11 +549,18 @@ export default function ProductivityBoard({
     if (typeof window === 'undefined') return undefined;
     const move = (event) => api.current.onTrackPointerMove?.({ nativeEvent: event });
     const up = (event) => api.current.onTrackPointerUp?.({ nativeEvent: event });
+    const cancel = () => api.current.onTrackPointerCancel?.();
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      if (holdTimer.current) {
+        clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+      }
     };
   }, []);
 
@@ -510,10 +598,23 @@ export default function ProductivityBoard({
     if (!canWrite) return;
     const now = Date.now();
     const current = dragRef.current;
-    if (payload.mode === 'move' && current?.mode === 'resize' && now - (current.at || 0) < 40) return;
-    event?.preventDefault?.();
+    if (payload.mode === 'move' && (current?.mode === 'resize' || current?.mode === 'arm-resize') && now - (current.at || 0) < 40) return;
     const point = pointOf(event);
-    dragRef.current = { ...payload, x: point.x, y: point.y, at: now };
+    if (!isDirectPointer(event) && (payload.mode === 'paint' || payload.mode === 'move' || payload.mode === 'resize')) {
+      clearHold();
+      dragRef.current = {
+        ...payload,
+        mode: `arm-${payload.mode}`,
+        touch: true,
+        x: point.x,
+        y: point.y,
+        at: now,
+      };
+      holdTimer.current = setTimeout(promoteHold, HOLD_MS);
+      return;
+    }
+    event?.preventDefault?.();
+    dragRef.current = { ...payload, touch: false, x: point.x, y: point.y, at: now };
     if (payload.alloc) selectAlloc(payload.alloc, payload.person);
   }
 
@@ -741,7 +842,7 @@ export default function ProductivityBoard({
             {open ? (
               <View style={styles.expand} nativeID={`produktivitet-plan-${person.id}`}>
                 <Text style={[styles.cardSub, { color: colors.muted }]}>
-                  {`Mørkere blå er høyere belastning, i tydelige sprang. Prosenten står over stolpen. Planlagt fravær er oransje og stiplet.`}
+                  {`Mørkere blå er høyere belastning. Hold inne i en uke for å legge inn belegg, og dra stolpen sidelengs for å flytte den.`}
                 </Text>
                 <View style={styles.matrix} nativeID={`produktivitet-matrix-${person.id}`}>
                   <View style={[styles.labelCol, { width: labelW }]} nativeID={`produktivitet-labels-${person.id}`}>
@@ -881,6 +982,8 @@ export default function ProductivityBoard({
                                 <View
                                   key={alloc.id}
                                   nativeID={`produktivitet-bar-${alloc.id}`}
+                                  onTouchStart={(event) => event?.stopPropagation?.()}
+                                  onTouchMove={(event) => event?.stopPropagation?.()}
                                   onPointerDown={(event) => {
                                     event?.stopPropagation?.();
                                     beginDrag(event, {
@@ -906,6 +1009,8 @@ export default function ProductivityBoard({
                                   <Text numberOfLines={1} style={styles.barPct}>{formatPercent(pct)}</Text>
                                   <View
                                     style={styles.resize}
+                                    onTouchStart={(event) => event?.stopPropagation?.()}
+                                    onTouchMove={(event) => event?.stopPropagation?.()}
                                     onPointerDown={(event) => {
                                       event?.stopPropagation?.();
                                       beginDrag(event, {
@@ -1311,8 +1416,8 @@ const styles = StyleSheet.create({
   matrixRowActive: { zIndex: 8 },
   matrixCell: { width: MATRIX_W, height: ROW_H, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3 },
   cellText: { fontSize: 11, fontWeight: '600' },
-  bar: { position: 'absolute', top: 16, borderRadius: 5, borderWidth: 1, cursor: 'grab' },
-  resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 10, cursor: 'ew-resize' },
+  bar: { position: 'absolute', top: 16, borderRadius: 5, borderWidth: 1, cursor: 'grab', touchAction: 'pan-y' },
+  resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 14, cursor: 'ew-resize', touchAction: 'pan-y' },
   barPct: { position: 'absolute', top: -15, left: 2, fontSize: 10, fontWeight: '800', color: '#1e3a8a' },
   barText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   pctAbove: { fontSize: 10, fontWeight: '800' },

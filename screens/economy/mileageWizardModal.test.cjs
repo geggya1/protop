@@ -68,6 +68,17 @@ function loadJsx(rel) {
     if (id === 'react-native-safe-area-context') {
       return { useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }) };
     }
+    if (id.includes('useCompanyAccess')) {
+      return {
+        useCompanyAccess: () => ({
+          bypass: false,
+          previewing: false,
+          levelId: 'ansatt',
+          employee: null,
+          viewingAs: null,
+        }),
+      };
+    }
     if (id.includes('AppContext')) {
       return {
         useApp: () => ({
@@ -90,6 +101,11 @@ function loadJsx(rel) {
         companyVehicles: () => [{ id: 'pool', plate: 'EL1', nickname: 'Pool' }],
         employeeVehicles: () => [],
         vehicleTitle: (car) => car.nickname || car.plate || 'Bil',
+        canAddCompanyVehicle: (levelIds, options = {}) => {
+          if (options.bypass) return true;
+          const ids = Array.isArray(levelIds) ? levelIds : [levelIds];
+          return ids.includes('leder') || ids.includes('administrator');
+        },
       };
     }
     if (id.includes('mileage/drivingRoute')) return { planDrivingRoute: async () => null };
@@ -263,8 +279,14 @@ assert.deepEqual(sheetStyle(getTree()), expected);
 
 pressLabel(getTree(), '#10563 Kvitsøy skole');
 press(getTree(), 'mileage-wizard-next');
-assert.ok(texts(getTree()).includes('Firmaets biler'));
+assert.equal(texts(getTree()).includes('Hent fra Vegvesenet'), false);
+assert.equal(texts(getTree()).includes('Legg til ny'), false);
 assert.deepEqual(sheetStyle(getTree()), expected, 'kjøretøy-trinnet har samme popup');
+
+pressLabel(getTree(), 'Velg kjøretøy');
+assert.ok(texts(getTree()).includes('Legg til ny'));
+assert.ok(texts(getTree()).includes('Pool'));
+assert.deepEqual(sheetStyle(getTree()), expected, 'kjøretøylisten endrer ikke popupen');
 
 pressLabel(getTree(), 'Pool');
 press(getTree(), 'mileage-wizard-next');

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { emptyProjectState, normalizeProjectState } from '../project/engine.js';
 import {
   bookingsOnDate,
+  canAddCompanyVehicle,
   companyVehicles,
   employeeVehicles,
   normalizeBooking,
@@ -38,6 +39,11 @@ let state = emptyProjectState();
 state = upsertEquipment(state, gear.equipment).state;
 const car = state.equipment[0];
 assert.equal(companyVehicles(state.equipment).length, 1);
+assert.equal(canAddCompanyVehicle(['ansatt']), false);
+assert.equal(canAddCompanyVehicle(['avdelingsleder']), false);
+assert.equal(canAddCompanyVehicle(['leder']), true);
+assert.equal(canAddCompanyVehicle(['administrator']), true);
+assert.equal(canAddCompanyVehicle(['ansatt'], { bypass: true }), true);
 
 const clash = upsertBooking(state, {
   equipmentId: car.id,

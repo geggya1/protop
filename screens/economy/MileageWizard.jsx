@@ -24,9 +24,11 @@ import { useApp } from '../../src/context/AppContext';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { formatMoney } from '../../src/economy/invoices';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { employeeLevelIds } from '../../src/access/companyAccess';
 import { recordDutyTrip } from '../../src/economy/opsState';
-import { upsertPersonalVehicle } from '../../src/equipment/state';
-import { companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
+import { upsertEquipment, upsertPersonalVehicle } from '../../src/equipment/state';
+import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
 import {
   companyAddressLabel,
   mileageProjectOptions,
@@ -42,7 +44,6 @@ import { chargesForRoute } from '../../src/mileage/routePlan';
 import { planDrivingRoute } from '../../src/mileage/drivingRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { searchPlaces } from '../../src/utils/location';
-import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 
 const STEPS = [
   { id: 'prosjekt', label: 'Prosjekt' },
@@ -77,7 +78,7 @@ function todayKey() {
 
 function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
   return (
-    <View style={{ minWidth: 160, flexGrow: 1, flexBasis: 180 }}>
+    <View style={{ minWidth: 160, flexBasis: 180, alignSelf: 'stretch' }}>
       <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
       <TextInput
         value={value}
@@ -144,6 +145,7 @@ function AddressField({ label, value, onChange, onPick, colors }) {
 
 export default function MileageWizard({ colors, state, onApply, company, onOpenBilling }) {
   const { familyId, user, uid, activeProfile } = useApp();
+  const access = useCompanyAccess();
   const { width, height } = useViewportSize();
   const insets = useSafeAreaInsets();
   const frame = mileageModalFrame(width, height, insets);
@@ -153,8 +155,11 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [routing, setRouting] = useState(false);
-  const [plate, setPlate] = useState('');
-  const [lookupNote, setLookupNote] = useState('');
+  const [vehicleMenu, setVehicleMenu] = useState(false);
+  const [addingVehicle, setAddingVehicle] = useState(false);
+  const [newPlate, setNewPlate] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newScope, setNewScope] = useState('private');
   const [saved, setSaved] = useState(null);
   const routeEditedRef = useRef(false);
   const [draft, setDraft] = useState({
@@ -192,6 +197,10 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
   const rateInfo = mileageRate(state.mileagePolicies);
   const cars = companyVehicles(state.equipment);
   const mine = employeeVehicles(state.personalVehicles, state.equipment, employeeId);
+  const levelIds = access.previewing
+    ? employeeLevelIds(access.viewingAs)
+    : (employeeLevelIds(me).length ? employeeLevelIds(me) : (access.levelId ? [access.levelId] : []));
+  const canCompany = canAddCompanyVehicle(levelIds, { bypass: !!access.bypass && !access.previewing });
   const projects = useMemo(
     () => mileageProjectOptions(state, employeeId, { query }),
     [state, employeeId, query],
@@ -230,34 +239,61 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
     setError('');
   }
 
-  async function lookupPlate() {
-    setLookupNote('');
+  function openVehicleMenu() {
+    setAddingVehicle(false);
+    setVehicleMenu((open) => !open);
     setError('');
-    try {
-      const hit = await lookupVehicleByReg(plate);
+  }
+
+  function beginAddVehicle() {
+    setVehicleMenu(false);
+    setAddingVehicle(true);
+    setNewScope('private');
+    setNewPlate('');
+    setNewName('');
+    setError('');
+  }
+
+  function saveNewVehicle() {
+    const plate = newPlate.trim();
+    const name = newName.trim();
+    if (!plate) {
+      setError('Skriv inn skiltnummer.');
+      return;
+    }
+    if (newScope === 'company') {
+      if (!canCompany) {
+        setError('Bare øverste leder og administrator kan legge til kjøretøy på bedriften.');
+        return;
+      }
+      const result = onApply(upsertEquipment(state, {
+        name: name || plate,
+        plate,
+        category: 'poolbil',
+        group: 'kjoretoy',
+        scope: 'company',
+      }));
+      if (!result?.ok) {
+        setError(result?.error || 'Kunne ikke lagre kjøretøyet.');
+        return;
+      }
+      if (result.equipment) chooseCompanyCar(result.equipment);
+    } else {
       const result = onApply(upsertPersonalVehicle(state, {
         employeeId,
         employeeName,
-        plate: hit.regNumber || plate,
-        nickname: hit.title || '',
-        make: hit.make || '',
-        model: hit.model || '',
-        year: hit.year || '',
-        fuel: hit.fuelLabel || '',
-        electric: hit.fuelType === 'electric' || /el/i.test(hit.fuelLabel || ''),
-        vegvesenSummary: hit.summaryLine || '',
+        plate,
+        nickname: name,
       }));
-      if (!result?.ok && result?.error) {
-        setError(result.error);
+      if (!result?.ok) {
+        setError(result?.error || 'Kunne ikke lagre kjøretøyet.');
         return;
       }
-      const vehicle = result?.vehicle;
-      if (vehicle) chooseOwnCar(vehicle);
-      setLookupNote(hit.summaryLine || 'Kjøretøyet er lagret på din side.');
-      setPlate('');
-    } catch (err) {
-      setError(err?.message || 'Klarte ikke slå opp skiltnummeret.');
+      if (result.vehicle) chooseOwnCar(result.vehicle);
     }
+    setAddingVehicle(false);
+    setVehicleMenu(false);
+    setError('');
   }
 
   function goToRoute() {
@@ -580,27 +616,89 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
 
       {step === 'kjoretoy' ? (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>Firmaets biler</Text>
-          {cars.map((car) => (
-            <TouchableOpacity key={car.id} onPress={() => chooseCompanyCar(car)} accessibilityRole="button" accessibilityLabel={vehicleTitle(car)} accessibilityState={{ selected: draft.vehicleId === car.id }} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
-              <Text style={{ color: colors.ink }}>{vehicleTitle(car)}</Text>
-            </TouchableOpacity>
-          ))}
-          {!cars.length ? <Text style={{ color: colors.muted }}>Ingen poolbil er registrert under Utstyr ennå.</Text> : null}
-          <Text style={{ color: colors.ink, fontWeight: '600', marginTop: 6 }}>Egen bil</Text>
-          {mine.map((car) => (
-            <TouchableOpacity key={car.id} onPress={() => chooseOwnCar(car)} accessibilityRole="button" accessibilityLabel={vehicleTitle(car)} accessibilityState={{ selected: draft.vehicleId === car.id }} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
-              <Text style={{ color: colors.ink }}>{vehicleTitle(car)}</Text>
-              {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
-            </TouchableOpacity>
-          ))}
-          <View style={styles.row}>
-            <Field label="Skiltnummer" value={plate} onChange={setPlate} colors={colors} placeholder="EL12345" />
-            <TouchableOpacity onPress={lookupPlate} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Hent fra Vegvesenet</Text>
-            </TouchableOpacity>
-          </View>
-          {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
+          <TouchableOpacity
+            onPress={openVehicleMenu}
+            accessibilityRole="button"
+            accessibilityLabel="Velg kjøretøy"
+            accessibilityState={{ expanded: vehicleMenu }}
+            nativeID="mileage-vehicle-picker"
+            style={[styles.choice, styles.picker, { borderColor: draft.vehicleId ? colors.brand : colors.line }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Velg kjøretøy</Text>
+              <Text style={{ color: draft.vehicleName ? colors.ink : colors.muted, fontSize: 16 }}>
+                {draft.vehicleName || 'Firma eller din private bil'}
+              </Text>
+            </View>
+            <Ionicons name={vehicleMenu ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
+          </TouchableOpacity>
+          {vehicleMenu && !addingVehicle ? (
+            <View style={[styles.vehicleMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <ScrollView style={styles.vehicleScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {cars.length ? <Text style={[styles.menuLabel, { color: colors.muted }]}>Firma</Text> : null}
+                {cars.map((car) => (
+                  <TouchableOpacity
+                    key={car.id}
+                    onPress={() => { chooseCompanyCar(car); setVehicleMenu(false); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={vehicleTitle(car)}
+                    accessibilityState={{ selected: draft.vehicleId === car.id }}
+                    style={[styles.menuRow, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 16 }}>{vehicleTitle(car)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {mine.length ? <Text style={[styles.menuLabel, { color: colors.muted }]}>Privat</Text> : null}
+                {mine.map((car) => (
+                  <TouchableOpacity
+                    key={car.id}
+                    onPress={() => { chooseOwnCar(car); setVehicleMenu(false); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={vehicleTitle(car)}
+                    accessibilityState={{ selected: draft.vehicleId === car.id }}
+                    style={[styles.menuRow, { borderColor: colors.line }]}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 16 }}>{vehicleTitle(car)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {!cars.length && !mine.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 14, paddingVertical: 8 }}>Ingen registrerte kjøretøy ennå.</Text>
+                ) : null}
+              </ScrollView>
+              <TouchableOpacity
+                onPress={beginAddVehicle}
+                accessibilityRole="button"
+                accessibilityLabel="Legg til ny"
+                nativeID="mileage-add-vehicle"
+                style={[styles.menuAdd, { borderTopColor: colors.line }]}
+              >
+                <Ionicons name="add" size={18} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontSize: 16, fontWeight: '600' }}>Legg til ny</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {addingVehicle ? (
+            <View style={{ gap: 8 }}>
+              <Field label="Skiltnummer" value={newPlate} onChange={setNewPlate} colors={colors} placeholder="EL12345" />
+              <Field label="Navn" value={newName} onChange={setNewName} colors={colors} placeholder="Valgfritt" />
+              {canCompany ? (
+                <View style={styles.row}>
+                  <Chip label="På meg" colors={colors} active={newScope === 'private'} onPress={() => setNewScope('private')} />
+                  <Chip label="På bedriften" colors={colors} active={newScope === 'company'} onPress={() => setNewScope('company')} />
+                </View>
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Bilen lagres på deg.</Text>
+              )}
+              <View style={styles.row}>
+                <TouchableOpacity onPress={() => setAddingVehicle(false)} style={[styles.btn, styles.btnGhost, { borderColor: colors.line }]}>
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>Avbryt</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={saveNewVehicle} accessibilityRole="button" accessibilityLabel="Lagre kjøretøy" style={[styles.btn, { backgroundColor: colors.brand }]}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre kjøretøy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -819,5 +917,19 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, minHeight: 48 },
   btn: { borderRadius: 12, paddingHorizontal: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   choice: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
+  picker: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },
+  vehicleMenu: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  vehicleScroll: { maxHeight: 220 },
+  menuLabel: { fontSize: 12, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
+  menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  menuAdd: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  btnGhost: { borderWidth: 1, backgroundColor: 'transparent' },
   menu: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, marginTop: 4 },
 });

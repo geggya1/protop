@@ -9,6 +9,7 @@ import {
   normalizeKjoretoyResponse,
   holdingFieldsFromLookup,
   fetchKjoretoyPublicRaw,
+  vehicleFromProxyPayload,
 } from './vegvesenApis.js';
 
 assert.equal(normalizeRegNumber('el 12345'), 'EL12345');
@@ -124,6 +125,18 @@ const dieselHybrid = normalizeKjoretoydata({
 });
 assert.equal(dieselHybrid.fuelType, 'hybrid');
 assert.equal(dieselHybrid.vehicleType, 'car');
+
+assert.equal(vehicleFromProxyPayload(200, 'text/html', null).action, 'continue');
+assert.equal(vehicleFromProxyPayload(200, 'text/html; charset=utf-8', { raw: sample }).action, 'continue');
+const missingPlate = vehicleFromProxyPayload(404, 'application/json', {
+  ok: false,
+  code: 'not-found',
+  error: 'Fant ikke kjøretøy med det registreringsnummeret.',
+});
+assert.equal(missingPlate.action, 'not-found');
+const proxyHit = vehicleFromProxyPayload(200, 'application/json', { ok: true, raw: sample });
+assert.equal(proxyHit.action, 'hit');
+assert.equal(proxyHit.vehicle.regNumber, 'EL12345');
 
 // Live offentlig oppslag (ingen nøkkel) — hopp over ved nettverksfeil.
 try {

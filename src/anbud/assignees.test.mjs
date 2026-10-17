@@ -24,6 +24,14 @@ assert.equal(choices[0].email, 'geir@consult1.no');
 assert.equal(choices[0].phone, '90000001');
 assert.equal(choices[1].kind, 'ekstern');
 assert.equal(choices[2].kind, 'ekstern');
+const byLevel = followUpChoices([
+  { id: 'a1', company: { status: 'active', personnelKind: 'staff', accessLevel: 'regnskap_ekstern' }, person: { firstName: 'Regn', lastName: 'Skap' } },
+  { id: 'a2', company: { status: 'active', personnelKind: 'external', accessLevel: 'ansatt' }, person: { firstName: 'Fast', lastName: 'Ansatt' } },
+  { id: 'a3', company: { status: 'active', personnelKind: 'staff', accessLevel: 'ansatt_andre_avdelinger' }, person: { firstName: 'Anne', lastName: 'Avdeling' } },
+]);
+assert.equal(byLevel.find((row) => row.id === 'a1').kind, 'ekstern');
+assert.equal(byLevel.find((row) => row.id === 'a2').kind, 'intern');
+assert.equal(byLevel.find((row) => row.id === 'a3').kind, 'ekstern');
 
 const picked = assigneeFromChoice(choices[1]);
 assert.equal(picked.source, 'ekstern');

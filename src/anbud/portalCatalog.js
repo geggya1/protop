@@ -55,6 +55,17 @@ export function allowedCatalogUrl(url) {
   }
 }
 
+function absoluteCatalogUrl(href, pageUrl) {
+  const raw = String(href || '').trim();
+  if (!raw || /^javascript:/i.test(raw)) return '';
+  try {
+    const absolute = new URL(raw, pageUrl || 'https://www.mercell.com').href;
+    return allowedDownloadUrl(absolute) ? absolute : '';
+  } catch {
+    return '';
+  }
+}
+
 export function parseMercellCatalog(html, pageUrl = '') {
   const source = String(html || '');
   const files = [];
@@ -67,9 +78,8 @@ export function parseMercellCatalog(html, pageUrl = '') {
     const key = name.toLocaleLowerCase('nb-NO');
     if (name && !seen.has(key)) {
       seen.add(key);
-      const href = decode((match[0].match(/href="([^"]+)"/i) || [])[1] || '');
-      const url = /^https:\/\//i.test(href) ? href : '';
-      files.push({ name, size, access: 'portal', url });
+      const href = decode((match[0].match(/href=(['"])(.*?)\1/i) || [])[2] || '');
+      files.push({ name, size, access: 'portal', url: absoluteCatalogUrl(href, pageUrl) });
     }
     match = row.exec(source);
   }
@@ -92,7 +102,7 @@ export async function readPortalCatalog(url) {
   }
   const res = await fetch(start, {
     redirect: 'follow',
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(45000),
     headers: {
       Accept: 'text/html',
       'Accept-Language': 'nb',

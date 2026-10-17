@@ -3,9 +3,7 @@
  * Avoids importing MAIL_API_KEY / GEMINI secrets so the GitHub deploy SA can ship
  * listMyFamilies without Secret Manager access.
  */
-import { setGlobalOptions } from 'firebase-functions/v2/options';
-
-setGlobalOptions({ region: 'europe-west1' });
+import './setRegion.js';
 
 export {
   resolveJoinCode,

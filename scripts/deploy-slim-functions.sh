@@ -40,6 +40,18 @@ deploy_entry() {
   return 0
 }
 
+open_invokers() {
+  local name service
+  local names="${1//functions:/}"
+  IFS=',' read -ra parts <<< "$names"
+  for name in "${parts[@]}"; do
+    [ -n "$name" ] || continue
+    service=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+    NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 "$service" \
+      || echo "::warning::Klarte ikke å åpne $name for innloggede kall"
+  done
+}
+
 deploy_entry tenderIndex.js functions:tenderProxy
 deploy_entry anbudDigestIndex.js functions:anbudDigestDaily
 deploy_entry anbudFormIndex.js functions:generateCompanyForm
@@ -50,7 +62,9 @@ deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
 deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 deploy_entry anbudIntakeIndex.js functions:scanAnbudDocumentHttp
 deploy_entry friendListIndex.js functions:friendListHttp
-deploy_entry friendInviteIndex.js functions:listMyFriends,functions:listFriendRequests,functions:listOutgoingFriendRequests
+FRIENDS="functions:lookupFriendProfile,functions:sendFriendInviteV2,functions:sendFriendInviteSmsV2,functions:listMyFriends,functions:listFriendsForUid,functions:listFriendRequests,functions:listOutgoingFriendRequests,functions:createFriendRequestAdmin,functions:respondFriendRequestAdmin,functions:withdrawFriendRequestAdmin,functions:dismissOutgoingFriendRequestAdmin,functions:resendFriendRequestAdmin,functions:removeFriendAdmin,functions:sendFriendChatAdmin,functions:listFriendChatMessagesAdmin,functions:createPendingFriendInviteAdmin,functions:claimFriendInviteAdmin,functions:shareWithFriendsAdmin,functions:listSharedAlbumsAdmin,functions:listSharedWishlistsAdmin,functions:respondFriendGameInviteAdmin,functions:notifyFriendGameInvitesAdmin"
+deploy_entry friendInviteIndex.js "$FRIENDS"
+open_invokers "$FRIENDS"
 deploy_entry indeksIndex.js functions:interpretIndeksAvtale
 deploy_entry importIndex.js functions:interpretImport
 deploy_entry employeeInviteIndex.js functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
@@ -72,6 +86,36 @@ NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs 
   || echo "::warning::Klarte ikke åpne downloadStorageFile for innloggede kall"
 NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 applystoragecors \
   || echo "::warning::Klarte ikke åpne applyStorageCors for innloggede kall"
+
+# Kall som appen bruker, men som aldri lå i slim-listen og derfor svarer 404.
+DOFFIN="functions:searchDoffin,functions:searchTed,functions:lookupCompany,functions:fetchDossier,functions:sendTenderAlert,functions:sendAnbudRequest,functions:scanAnbudDocument"
+deploy_entry doffinIndex.js "$DOFFIN"
+open_invokers "$DOFFIN"
+
+AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIngredients,functions:aiRecipeImport,functions:aiReceiptOcr,functions:aiClassListOcr,functions:aiMatcoachWeekPlan,functions:aiMatcoachFridgeScan,functions:aiMatcoachLunchBoxes,functions:aiMatcoachSwapMeal,functions:aiImportPlan,functions:applyAiImport,functions:discardAiImport,functions:uploadDocumentFile,functions:createAlbumUploadUrl,functions:uploadAlbumFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
+deploy_entry aiIndex.js "$AI"
+open_invokers "$AI"
+
+deploy_entry vegvesenIndex.js functions:lookupVehicleByReg
+open_invokers functions:lookupVehicleByReg
+
+MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"
+deploy_entry membershipIndex.js "$MEMBERSHIP"
+open_invokers "$MEMBERSHIP"
+
+AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile"
+deploy_entry authIndex.js "$AUTH"
+open_invokers "$AUTH"
+
+HOSP="functions:hospSaveNukiToken,functions:hospGetNukiStatus,functions:hospDisconnectNuki,functions:hospSyncNukiLocks,functions:hospProvisionLockCode,functions:hospRevokeLockCode,functions:hospSyncChannelIcal,functions:hospConnectIcal,functions:hospSyncAllChannels,functions:hospProcessAutomessages,functions:hospGenerateReplyDraft,functions:hospLoginChecklist,functions:hospGetChannelStatus,functions:hospSavePartnerCredentials,functions:hospAirbnbExchangeToken,functions:hospBookingConnectProperty,functions:hospSyncChannelOAuth,functions:hospDisconnectChannel"
+deploy_entry hospitalityIndex.js "$HOSP"
+open_invokers "$HOSP"
+
+STRAVA="functions:getStravaAppStatus,functions:saveStravaAppConfig,functions:stravaExchangeToken,functions:stravaSyncActivities,functions:stravaDisconnect,functions:stravaWebhook,functions:registerStravaWebhook"
+deploy_entry stravaIndex.js "$STRAVA"
+open_invokers "$STRAVA"
+
+deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

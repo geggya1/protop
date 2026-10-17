@@ -22,6 +22,7 @@ function dmRecipientsFromChatId(chatId, senderUid) {
 export const onChatMessageCreated = onDocumentCreated(
   {
     document: 'families/{familyId}/chats/{chatId}/messages/{messageId}',
+    region: 'europe-west1',
     timeoutSeconds: 30,
     memory: '256MiB',
   },
@@ -120,6 +121,7 @@ export const onChatMessageCreated = onDocumentCreated(
 export const onFriendChatMessageCreated = onDocumentCreated(
   {
     document: 'friendChats/{chatId}/messages/{messageId}',
+    region: 'europe-west1',
     timeoutSeconds: 30,
     memory: '256MiB',
   },

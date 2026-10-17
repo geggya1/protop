@@ -2,9 +2,7 @@
  * Deploy entry for friend features without Secret Manager.
  * sendFriendInviteV2 / Sms use WEEKPLAN_MAIL_KEY (CI /.env), not defineSecret('MAIL_API_KEY').
  */
-import { setGlobalOptions } from 'firebase-functions/v2/options';
-
-setGlobalOptions({ region: 'europe-west1', invoker: 'public' });
+import './setRegion.js';
 
 export { lookupFriendProfile } from './friendLookup.js';
 export {

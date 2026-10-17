@@ -1,16 +1,25 @@
 /**
  * Kjørebok: prosjekt → kjøretøy → rute → se over.
+ * Registreringen åpnes i en popup med samme mål på alle trinn.
  * Forslag fylles ut. Den ansatte kan endre hvert felt før lagring.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
@@ -31,6 +40,7 @@ import {
 } from '../../src/mileage/flow';
 import { chargesForRoute } from '../../src/mileage/routePlan';
 import { planDrivingRoute } from '../../src/mileage/drivingRoute';
+import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { searchPlaces } from '../../src/utils/location';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 
@@ -40,6 +50,23 @@ const STEPS = [
   { id: 'rute', label: 'Rute' },
   { id: 'seover', label: 'Se over' },
 ];
+
+function useViewportSize() {
+  const windowSize = useWindowDimensions();
+  const [visualHeight, setVisualHeight] = useState(windowSize.height);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof globalThis.window === 'undefined' || !globalThis.window.visualViewport) {
+      setVisualHeight(windowSize.height);
+      return undefined;
+    }
+    const viewport = globalThis.window.visualViewport;
+    const read = () => setVisualHeight(viewport.height || windowSize.height);
+    read();
+    viewport.addEventListener('resize', read);
+    return () => viewport.removeEventListener('resize', read);
+  }, [windowSize.height]);
+  return { width: windowSize.width, height: visualHeight };
+}
 
 function todayKey() {
   const now = new Date();
@@ -117,6 +144,10 @@ function AddressField({ label, value, onChange, onPick, colors }) {
 
 export default function MileageWizard({ colors, state, onApply, company, onOpenBilling }) {
   const { familyId, user, uid, activeProfile } = useApp();
+  const { width, height } = useViewportSize();
+  const insets = useSafeAreaInsets();
+  const frame = mileageModalFrame(width, height, insets);
+  const [open, setOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [step, setStep] = useState('prosjekt');
   const [query, setQuery] = useState('');
@@ -393,22 +424,124 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
     setStep('prosjekt');
   }
 
-  return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>Ny kjøretur</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Turen lagres i kjøreboken og som utlegg på prosjektet.
-      </Text>
+  function closeModal() {
+    setOpen(false);
+    if (step === 'ferdig') reset();
+  }
 
-      {step !== 'ferdig' ? (
-        <View style={styles.row}>
-          {STEPS.map((item, index) => (
-            <Text key={item.id} style={{ color: step === item.id ? colors.ink : colors.muted, fontSize: 12, fontWeight: step === item.id ? '700' : '500' }}>
-              {index + 1}. {item.label}
-            </Text>
-          ))}
-        </View>
-      ) : null}
+  function goBack() {
+    const index = STEPS.findIndex((item) => item.id === step);
+    setError('');
+    if (step === 'ferdig' || index <= 0) {
+      closeModal();
+      return;
+    }
+    setStep(STEPS[index - 1].id);
+  }
+
+  function goNext() {
+    if (step === 'ferdig') {
+      reset();
+      return;
+    }
+    if (step === 'prosjekt') {
+      if (!draft.project) {
+        setError('Velg prosjekt før du går videre.');
+        return;
+      }
+      setError('');
+      setStep('kjoretoy');
+      return;
+    }
+    if (step === 'kjoretoy') {
+      goToRoute();
+      return;
+    }
+    if (step === 'rute') {
+      if (!draft.from || !draft.to || !(Number(draft.km) > 0)) {
+        setError('Fra, til og kjørelengde må være fylt ut.');
+        return;
+      }
+      setError('');
+      setStep('seover');
+      return;
+    }
+    if (step === 'seover') save();
+  }
+
+  const stepIndex = STEPS.findIndex((item) => item.id === step);
+  const done = step === 'ferdig';
+  const backLabel = done ? 'Lukk' : stepIndex <= 0 ? 'Avbryt' : 'Tilbake';
+  const nextLabel = done ? 'Ny tur' : step === 'seover' ? 'Lagre' : 'Neste';
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Registrer kjøretur"
+        nativeID="mileage-register"
+        style={[styles.launch, { backgroundColor: colors.brand }]}
+      >
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.launchTxt}>Registrer kjøretur</Text>
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={closeModal} statusBarTranslucent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.backdrop, { paddingTop: insets.top + 8, paddingBottom: Math.max(8, insets.bottom) }]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeModal} accessibilityLabel="Lukk registrering" />
+          <View
+            nativeID="mileage-wizard-modal"
+            style={[styles.sheet, {
+              width: frame.width,
+              height: frame.height,
+              backgroundColor: colors.card,
+              borderColor: colors.line,
+            }]}
+          >
+            <View style={styles.head}>
+              <View style={styles.headRow}>
+                <Text style={[styles.title, { color: colors.ink }]}>Ny kjøretur</Text>
+                <TouchableOpacity
+                  onPress={closeModal}
+                  accessibilityRole="button"
+                  accessibilityLabel="Lukk"
+                  hitSlop={8}
+                  style={styles.closeHit}
+                >
+                  <Ionicons name="close" size={22} color={colors.ink} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.steps}>
+                {STEPS.map((item, index) => {
+                  const active = item.id === step || (done && index === STEPS.length - 1);
+                  const reached = done || (stepIndex >= 0 && index <= stepIndex);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      disabled={!reached || done}
+                      onPress={() => { setError(''); setStep(item.id); }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      style={styles.stepHit}
+                    >
+                      <View style={[styles.stepBar, { backgroundColor: reached ? colors.brand : colors.line }]} />
+                      <Text numberOfLines={1} style={{ color: active ? colors.ink : colors.muted, fontSize: 12, fontWeight: active ? '700' : '500' }}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyInner}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
       {step === 'prosjekt' ? (
@@ -425,6 +558,9 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
               <TouchableOpacity
                 key={option.project.id}
                 onPress={() => chooseProject(option)}
+                accessibilityRole="button"
+                accessibilityLabel={option.label}
+                accessibilityState={{ selected: active }}
                 style={[styles.choice, { borderColor: active ? colors.brand : colors.line }]}
               >
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>{option.label}</Text>
@@ -439,19 +575,6 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
               {query ? 'Ingen prosjekt matcher søket.' : 'Ingen timer de siste to månedene. Søk frem prosjektet.'}
             </Text>
           ) : null}
-          <TouchableOpacity
-            onPress={() => {
-              if (!draft.project) {
-                setError('Velg prosjekt før du går videre.');
-                return;
-              }
-              setStep('kjoretoy');
-              setError('');
-            }}
-            style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Neste: kjøretøy</Text>
-          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -459,14 +582,14 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Firmaets biler</Text>
           {cars.map((car) => (
-            <TouchableOpacity key={car.id} onPress={() => chooseCompanyCar(car)} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
+            <TouchableOpacity key={car.id} onPress={() => chooseCompanyCar(car)} accessibilityRole="button" accessibilityLabel={vehicleTitle(car)} accessibilityState={{ selected: draft.vehicleId === car.id }} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
               <Text style={{ color: colors.ink }}>{vehicleTitle(car)}</Text>
             </TouchableOpacity>
           ))}
           {!cars.length ? <Text style={{ color: colors.muted }}>Ingen poolbil er registrert under Utstyr ennå.</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '600', marginTop: 6 }}>Egen bil</Text>
           {mine.map((car) => (
-            <TouchableOpacity key={car.id} onPress={() => chooseOwnCar(car)} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
+            <TouchableOpacity key={car.id} onPress={() => chooseOwnCar(car)} accessibilityRole="button" accessibilityLabel={vehicleTitle(car)} accessibilityState={{ selected: draft.vehicleId === car.id }} style={[styles.choice, { borderColor: draft.vehicleId === car.id ? colors.brand : colors.line }]}>
               <Text style={{ color: colors.ink }}>{vehicleTitle(car)}</Text>
               {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
             </TouchableOpacity>
@@ -478,14 +601,6 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
             </TouchableOpacity>
           </View>
           {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setStep('prosjekt')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Tilbake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={goToRoute} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Neste: rute</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       ) : null}
 
@@ -570,24 +685,6 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
               onChange={(value) => patch({ ferries: Number(String(value).replace(',', '.')) || 0, routeEdited: true })}
             />
           </View>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setStep('kjoretoy')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Tilbake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                if (!draft.from || !draft.to || !(Number(draft.km) > 0)) {
-                  setError('Fra, til og kjørelengde må være fylt ut.');
-                  return;
-                }
-                setError('');
-                setStep('seover');
-              }}
-              style={[styles.btn, { backgroundColor: colors.brand }]}
-            >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Neste: se over</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       ) : null}
 
@@ -618,14 +715,6 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
           <Text style={{ color: colors.ink, fontWeight: '700' }}>
             {formatMoney(cost.amount)} · {draft.km} km × {rateInfo.rate.toFixed(2)} + bom/ferje {formatMoney(cost.extras)}
           </Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setStep('rute')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Tilbake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={save} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre kjøretur</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       ) : null}
 
@@ -646,27 +735,89 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Lagret i kjøreboken og som utlegg på prosjektet. Fakturagrunnlaget bruker kjøreturen, så beløpet ikke faktureres dobbelt.
           </Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={reset} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Ny tur</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onOpenBilling} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Fakturagrunnlag</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={onOpenBilling} style={[styles.footBtn, styles.linkBtn, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '600' }}>Fakturagrunnlag</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
-    </View>
+            </ScrollView>
+            <View style={[styles.foot, { borderTopColor: colors.line }]}>
+              <TouchableOpacity
+                onPress={goBack}
+                accessibilityRole="button"
+                accessibilityLabel={backLabel}
+                nativeID="mileage-wizard-back"
+                style={[styles.footBtn, styles.footSecondary, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '600' }}>{backLabel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={goNext}
+                accessibilityRole="button"
+                accessibilityLabel={nextLabel}
+                nativeID="mileage-wizard-next"
+                style={[styles.footBtn, styles.footPrimary, { backgroundColor: colors.brand, borderColor: colors.brand }]}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{nextLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 8 },
+  launch: {
+    minHeight: 52,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  launchTxt: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheet: { borderWidth: 1, borderRadius: 16, overflow: 'hidden', flexDirection: 'column' },
+  head: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, gap: 8 },
+  headRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  title: { flex: 1, fontSize: 18, fontWeight: '700' },
+  closeHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  steps: { flexDirection: 'row', gap: 8 },
+  stepHit: { flex: 1, minHeight: 32, justifyContent: 'center', gap: 6 },
+  stepBar: { height: 4, borderRadius: 2 },
+  body: { flex: 1, minHeight: 0 },
+  bodyInner: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  foot: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  footBtn: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  footSecondary: { flex: 1 },
+  footPrimary: { flex: 1.45 },
+  linkBtn: { alignSelf: 'stretch' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
-  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
-  btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  btnGhost: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
-  choice: { borderWidth: 1, borderRadius: 8, padding: 10 },
-  menu: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, marginTop: 4 },
+  chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, minHeight: 44 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, minHeight: 48 },
+  btn: { borderRadius: 12, paddingHorizontal: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  choice: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
+  menu: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, marginTop: 4 },
 });

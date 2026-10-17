@@ -146,17 +146,19 @@ export function CompanyAbsenceView({
 
   const summary = dashboard?.summary || {};
   const earnedDays = Number(summary.earned) || 0;
-  const hasQuota = earnedDays > 0;
+  const allEmployees = !employeeId;
+  const hasQuota = !allEmployees && earnedDays > 0;
   const quota = hasQuota ? earnedDays : 0;
   const used = Number(summary.used) || 0;
   const remainingVisual = Math.max(0, Math.round((quota - used) * 100) / 100);
+  const year = dashboard?.year || '';
   const detailRows = [
-    { key: 'earned', label: 'Startsaldo og justeringer', icon: 'calendar-outline' },
-    { key: 'used', label: 'Brukte dager totalt', icon: usedIcon(category) },
-    { key: 'remaining', label: 'Dager til gode', icon: 'hourglass-outline' },
-    { key: 'planned', label: 'Planlagte fraværsdager', icon: 'calendar-outline' },
-    { key: 'unplanned', label: 'Dager som ikke er planlagt', icon: 'document-text-outline' },
-  ];
+    { key: 'earned', label: 'Startsaldo og justeringer', icon: 'calendar-outline', solo: true },
+    { key: 'used', label: year ? `Brukte dager ${year}` : 'Brukte dager', icon: usedIcon(category) },
+    { key: 'remaining', label: 'Dager til gode', icon: 'hourglass-outline', solo: true },
+    { key: 'planned', label: year ? `Planlagte dager ${year}` : 'Planlagte fraværsdager', icon: 'calendar-outline' },
+    { key: 'unplanned', label: 'Dager som ikke er planlagt', icon: 'document-text-outline', solo: true },
+  ].filter((row) => !allEmployees || !row.solo);
 
   function openSource(widget) {
     const months = dashboard?.recentMonths || [];

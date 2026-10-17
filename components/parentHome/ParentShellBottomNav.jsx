@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ParentHomeBottomNav from './ParentHomeBottomNav';
 import HelpTarget from '../HelpTarget';
@@ -18,6 +18,7 @@ import {
 import { buildParentDashboardApps } from '../../src/navigation/shellModules';
 import { countForModule } from '../../src/utils/notifications';
 import {
+  PARENT_BOTTOM_NAV_CONTENT_HEIGHT,
   resolveActiveParentBottomId,
   resolveParentBottomNavAction,
   shouldShowParentBottomNav,
@@ -74,6 +75,8 @@ export default function ParentShellBottomNav({
   const bottomShortcutIds = companyLocked
     ? COMPANY_BOTTOM_NAV.map((item) => item.id)
     : (asChildView ? childHome.layout.bottomIds : parentTheme.bottomShortcutIds);
+  const [barHeight, setBarHeight] = useState(PARENT_BOTTOM_NAV_CONTENT_HEIGHT);
+  const pinToViewport = Platform.OS === 'web';
   const show = focused && shouldShowParentBottomNav({
     ready,
     theme,
@@ -144,7 +147,10 @@ export default function ParentShellBottomNav({
   const onLayout = useCallback((e) => {
     const h = e?.nativeEvent?.layout?.height;
     // Clamp: a bad layout pass must not inflate chrome / spacer to full screen.
-    if (show && h > 0 && h < 160) setParentBottomNavChromeHeight(h);
+    if (show && h > 0 && h < 160) {
+      setParentBottomNavChromeHeight(h);
+      setBarHeight(h);
+    }
   }, [show]);
 
   if (!show) return null;
@@ -170,6 +176,19 @@ export default function ParentShellBottomNav({
     />
   );
 
+  if (pinToViewport) {
+    return (
+      <>
+        <View style={{ height: barHeight, flexShrink: 0 }} pointerEvents="none" />
+        <View style={styles.webDock} pointerEvents="box-none">
+          <HelpTarget id="tabs" style={styles.webDockInner}>
+            {bar}
+          </HelpTarget>
+        </View>
+      </>
+    );
+  }
+
   return (
     <HelpTarget id="tabs" style={styles.flowDock}>
       {bar}
@@ -178,7 +197,15 @@ export default function ParentShellBottomNav({
 }
 
 const styles = StyleSheet.create({
-  /* In the shell column, flush with the visible bottom. Not position:fixed:
-     that anchors to the layout viewport and floats above the browser toolbar. */
-  flowDock: { flexShrink: 0, zIndex: 20 },
+  flowDock: { flexShrink: 0 },
+  webDock: {
+    position: 'fixed',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+  },
+  webDockInner: {
+    flexShrink: 0,
+  },
 });

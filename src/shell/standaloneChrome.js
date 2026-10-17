@@ -37,6 +37,8 @@ export function statusBarCover(insetTop, { standalone = false, phone = false } =
 export function tabBarBottomPad(insetBottom, { standalone = false, web = false } = {}) {
   const reported = Math.max(0, Number(insetBottom) || 0);
   if (!web) return Math.max(reported, 4);
-  if (!standalone) return 4;
+  // Same as Weekplan: a browser tab keeps a small floor, and never grows a
+  // home-indicator band taller than 34 just because env() over-reports.
+  if (!standalone) return Math.max(Math.min(reported, 34), 8);
   return Math.max(reported, 34);
 }

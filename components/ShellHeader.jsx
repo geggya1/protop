@@ -317,7 +317,7 @@ const SWITCH_LOCK_GUTTER = 118;
 const styles = StyleSheet.create({
   chromeRoot: {
     position: 'relative',
-    zIndex: 50,
+    zIndex: 2,
     overflow: 'visible',
     flexGrow: 0,
     flexShrink: 0,

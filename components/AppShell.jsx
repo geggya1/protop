@@ -38,6 +38,7 @@ import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
 import UsageRecorder from './UsageRecorder';
+import { isStandaloneWeb } from '../src/shell/standaloneChrome';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
@@ -828,9 +829,10 @@ function AppShellInner() {
   });
   const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
-  // Phone web: the header paints into the status bar, so the top bar sits on the
-  // screen edge instead of leaving a system strip above it.
-  const headerCoversStatusBar = Platform.OS === 'web' && isPhone && !kitchenMode;
+  // Browser tab matches Weekplan: the safe-area top is additive, so the logo
+  // row starts on the first pixel of the webview. Only the installed app
+  // paints its header under the clock.
+  const headerCoversStatusBar = Platform.OS === 'web' && isPhone && !kitchenMode && isStandaloneWeb();
   const safeEdges = {
     top: headerCoversStatusBar ? 'off' : 'additive',
     right: 'additive',

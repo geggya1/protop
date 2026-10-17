@@ -12,6 +12,7 @@ import DesktopRail from './DesktopRail';
 import ModuleHero from './ModuleHero';
 import { ModuleHeroHostProvider } from './ModulePageBg';
 import EdgeSwipeBack from './EdgeSwipeBack';
+import { isStandaloneWeb } from '../src/shell/standaloneChrome';
 
 /**
  * Toppfelt + meny for stack-skjermer utenfor AppShell (Skole m.m.).
@@ -74,7 +75,7 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
     setDrawerOpen(true);
   }, [isDesktop]);
 
-  const headerCoversStatusBar = Platform.OS === 'web' && isPhone;
+  const headerCoversStatusBar = Platform.OS === 'web' && isPhone && isStandaloneWeb();
   return (
     <ShellTitleRightContext.Provider value={shellTitleApi}>
       <SafeAreaView

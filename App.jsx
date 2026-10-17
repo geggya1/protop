@@ -18,7 +18,6 @@ import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
 import SaveToastHost from './components/SaveToastHost';
 import { platformHomeRoute } from './src/utils/groupTypes';
-import { usePhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
 import {
   upgradeFamilyMembership,
   syncParentDocs,
@@ -315,7 +314,6 @@ const ClassroomAddStudentsWithSwipe = withStackEdgeSwipe(ClassroomAddStudentsScr
 const ClassroomStudentMapWithSwipe = withStackEdgeSwipe(ClassroomStudentMapScreen);
 
 export default function App() {
-  usePhoneVisualViewport();
   const [fontsLoaded] = useFonts({
     ...Ionicons.font,
     ...MaterialCommunityIcons.font,

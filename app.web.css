@@ -52,55 +52,6 @@ html, body, #root {
   max-width: 100%;
   overflow: hidden;
 }
-/*
- * Telefon: lås skallet til synlig flate (mellom nettleserens topplinje og
- * bunnlinje). Da blir toppmenyen liggende helt oppe, bunnmenyen helt nede,
- * og bare innholdet scroller. 100dvh alene er layout-viewporten, som er
- * høyere enn det man ser, så fast bunnmeny ble stående for høyt.
- */
-@media (max-width: 767px) {
-  html, body, #root {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: var(--protop-vv-top, 0px);
-    width: 100%;
-    height: var(--protop-vv-height, 100dvh);
-    min-height: 0;
-    max-height: var(--protop-vv-height, 100dvh);
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
-  #root {
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
-  #root > * {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 100%;
-    max-height: 100%;
-  }
-}
-/*
- * iPhone Safari legger et gjennomsiktig lag over toppen av siden. Det fader
- * nedover og tar både trykk og lesbarhet fra meny, logo, varsler og profil.
- * Hele det båndet må være tomt. Polstringen er inni høyden, så bunnmenyen
- * blir stående. Installert app har ikke dette laget.
- */
-@supports (-webkit-touch-callout: none) {
-  @media (max-width: 767px) and (hover: none) and (pointer: coarse) {
-    html:not([data-standalone="1"]) #root {
-      padding-top: 64px;
-      background: #fff;
-    }
-  }
-}
-#shell-header {
-  position: relative;
-  z-index: 50;
-}
 /* Phone and tablet: one scrollport. :where stays weaker than a component
    min-height, so buttons keep their size while ScrollViews can shrink. */
 @media (max-width: 1023px) {
@@ -120,8 +71,6 @@ html, body, #root {
  */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html, body, #root {
-    top: 0;
-    padding-top: 0 !important;
     height: -webkit-fill-available;
     height: 100lvh;
     min-height: -webkit-fill-available;
@@ -132,8 +81,6 @@ html, body, #root {
 html[data-standalone="1"],
 html[data-standalone="1"] body,
 html[data-standalone="1"] #root {
-  top: 0;
-  padding-top: 0 !important;
   height: -webkit-fill-available;
   height: 100lvh;
   min-height: -webkit-fill-available;

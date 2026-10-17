@@ -3,6 +3,7 @@ import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { absenceRoster, absencesForRoster } from '../../src/arbeid/absenceDashboard.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
@@ -73,9 +74,20 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const { workspace, activeId } = usePeople(lockedEmployeeId);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const people = filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted');
-  const names = {};
-  for (const row of people) names[row.id] = employeeDisplayName(row);
+  const people = useMemo(
+    () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
+    [workspace.employees],
+  );
+  const roster = useMemo(() => absenceRoster(people), [people]);
+  const names = useMemo(() => {
+    const map = {};
+    for (const row of roster) map[row.id] = employeeDisplayName(row);
+    return map;
+  }, [roster]);
+  const reportAbsences = useMemo(
+    () => absencesForRoster(workspace.state.absences || [], people, roster),
+    [workspace.state.absences, people, roster],
+  );
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
   const scopedEmployeeId = canChooseEmployee ? '' : (workspace.lockedId || activeId || '');
 
@@ -449,9 +461,9 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
         </View>
       ) : null}
       <AbsenceReportDesktop
-        employees={people}
+        employees={roster}
         names={names}
-        absences={workspace.state.absences || []}
+        absences={reportAbsences}
         canChooseEmployee={canChooseEmployee}
         lockedEmployeeId={scopedEmployeeId}
         canImport={!!workspace.manager}

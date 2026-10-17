@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ACTIVE_STAFF_LABEL } from '../../src/arbeid/absenceDashboard.js';
 import {
   ABSENCE_REPORT_COLUMNS,
   ABSENCE_REPORT_PERIODS,
@@ -219,7 +220,7 @@ export default function AbsenceOrganizePanel({
         <RowLabel color={colors.muted}>Medarbeider</RowLabel>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.people}>
           <Chip
-            label="Alle"
+            label={ACTIVE_STAFF_LABEL}
             on={!employeeId}
             onPress={() => onEmployee('')}
             colors={colors}

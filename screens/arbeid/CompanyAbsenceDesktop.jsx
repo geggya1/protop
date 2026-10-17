@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { useApp } from '../../src/context/AppContext';
@@ -799,14 +799,61 @@ export function AbsenceReportDesktop({
     </TouchableOpacity>
   ) : null;
 
-  const table = (
-    <View
-      style={[reportStyles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}
-      nativeID="absence-report-table"
-    >
-      <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ minWidth: Math.max(tableMin, stackRows ? contentWidth : tableMin) }}>
-          <View style={[reportStyles.tr, reportStyles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+  const tableRows = (
+    <>
+      {!pageRows.length ? emptyHint : pageRows.map((row) => (
+        <View
+          key={row.id}
+          style={[reportStyles.tr, { borderBottomColor: colors.line, backgroundColor: selectedIds.has(row.id) ? (colors.sunken || colors.bg) : 'transparent' }]}
+        >
+          {canImport ? (
+            <TouchableOpacity
+              onPress={() => toggleRow(row.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selectedIds.has(row.id) }}
+              accessibilityLabel={`Velg fravær ${row.employeeName} ${row.dateLabel || row.date}`}
+              nativeID={`absence-report-select-${row.id}`}
+              style={reportStyles.checkCell}
+            >
+              <Ionicons
+                name={selectedIds.has(row.id) ? 'checkbox' : 'square-outline'}
+                size={18}
+                color={selectedIds.has(row.id) ? colors.brand : colors.muted}
+              />
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={reportStyles.rowHit}
+            onPress={() => onOpenPeriod?.(dayRowAsPeriod(row))}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne fravær ${row.employeeName} ${row.dateLabel || row.date}`}
+            disabled={!onOpenPeriod}
+          >
+            {columns.map((column) => (
+              <Text
+                key={column.key}
+                style={[
+                  reportStyles.td,
+                  reportColumnStyle(column),
+                  { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
+                  (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '400' },
+                  column.key === 'employeeName' && { fontWeight: '400', color: colors.ink },
+                ]}
+                numberOfLines={2}
+              >
+                {reportCellValue(row, column.key)}
+              </Text>
+            ))}
+          </TouchableOpacity>
+        </View>
+      ))}
+      {moreButton}
+    </>
+  );
+
+  const tableSheet = (
+    <View style={{ minWidth: Math.max(tableMin, stackRows ? contentWidth : tableMin) }}>
+      <View style={[reportStyles.tr, reportStyles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
             {canImport ? (
               <TouchableOpacity
                 onPress={togglePage}
@@ -829,67 +876,44 @@ export function AbsenceReportDesktop({
                 {column.label}
               </Text>
             ))}
-          </View>
-          <View style={{ maxHeight: stackRows ? undefined : 720 }} nativeID="absence-report-table-body">
-            <ScrollView nestedScrollEnabled={!stackRows}>
-              {!pageRows.length ? emptyHint : pageRows.map((row) => (
-                <View
-                  key={row.id}
-                  style={[reportStyles.tr, { borderBottomColor: colors.line, backgroundColor: selectedIds.has(row.id) ? (colors.sunken || colors.bg) : 'transparent' }]}
-                >
-                  {canImport ? (
-                    <TouchableOpacity
-                      onPress={() => toggleRow(row.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selectedIds.has(row.id) }}
-                      accessibilityLabel={`Velg fravær ${row.employeeName} ${row.dateLabel || row.date}`}
-                      nativeID={`absence-report-select-${row.id}`}
-                      style={reportStyles.checkCell}
-                    >
-                      <Ionicons
-                        name={selectedIds.has(row.id) ? 'checkbox' : 'square-outline'}
-                        size={18}
-                        color={selectedIds.has(row.id) ? colors.brand : colors.muted}
-                      />
-                    </TouchableOpacity>
-                  ) : null}
-                  <TouchableOpacity
-                    style={reportStyles.rowHit}
-                    onPress={() => onOpenPeriod?.(dayRowAsPeriod(row))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Åpne fravær ${row.employeeName} ${row.dateLabel || row.date}`}
-                    disabled={!onOpenPeriod}
-                  >
-                    {columns.map((column) => (
-                      <Text
-                        key={column.key}
-                        style={[
-                          reportStyles.td,
-                          reportColumnStyle(column),
-                          { color: column.key === 'employeeName' || column.key === 'hours' || column.key === 'paidHours' ? colors.ink : colors.muted },
-                          (column.key === 'hours' || column.key === 'paidHours' || column.key === 'percent') && { textAlign: 'right', fontWeight: '400' },
-                          column.key === 'employeeName' && { fontWeight: '400', color: colors.ink },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {reportCellValue(row, column.key)}
-                      </Text>
-                    ))}
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {moreButton}
-            </ScrollView>
-          </View>
+      </View>
+      {stackRows ? (
+        <View nativeID="absence-report-table-body">{tableRows}</View>
+      ) : (
+        <View style={{ maxHeight: 720 }} nativeID="absence-report-table-body">
+          <ScrollView nestedScrollEnabled>{tableRows}</ScrollView>
         </View>
-      </ScrollView>
+      )}
     </View>
   );
 
+  const table = (
+    <View
+      style={[reportStyles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}
+      nativeID="absence-report-table"
+    >
+      {stackRows && Platform.OS === 'web' ? (
+        <View style={reportStyles.hScroll}>{tableSheet}</View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          {tableSheet}
+        </ScrollView>
+      )}
+    </View>
+  );
+
+  const ReportScreen = stackRows ? ScrollView : View;
   return (
-    <View style={[reportStyles.screen, { backgroundColor: colors.bg }]} nativeID="fravaersrapport">
-      <View style={reportStyles.desk}>
-        <View style={reportStyles.mainCol}>
+    <ReportScreen
+      style={[reportStyles.screen, { backgroundColor: colors.bg }]}
+      {...(stackRows ? {
+        contentContainerStyle: reportStyles.phoneScroll,
+        keyboardShouldPersistTaps: 'handled',
+      } : null)}
+      nativeID="fravaersrapport"
+    >
+      <View style={stackRows ? reportStyles.phoneCol : reportStyles.desk}>
+        <View style={stackRows ? reportStyles.phoneMain : reportStyles.mainCol}>
           <View style={reportStyles.toolbar}>
             <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
               {hostedHero ? null : (
@@ -1046,7 +1070,7 @@ export function AbsenceReportDesktop({
           </View>
         </Modal>
       ) : null}
-    </View>
+    </ReportScreen>
   );
 }
 
@@ -1601,6 +1625,10 @@ function MonthChart({ months, width }) {
 
 const reportStyles = StyleSheet.create({
   screen: { flex: 1 },
+  phoneScroll: { paddingBottom: 120 },
+  phoneCol: { width: '100%', padding: 16, gap: 14 },
+  phoneMain: { width: '100%', minWidth: 0, gap: 14 },
+  hScroll: { width: '100%', overflowX: 'auto', overflowY: 'visible' },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
   crumb: { fontSize: 12 },

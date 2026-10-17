@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   ABSENCE_DAY_HOURS,
   STATUTORY_VACATION_DAYS,
+  absencesForRoster,
   absenceRoster,
   absenceYears,
   buildAbsenceDashboard,
@@ -305,6 +306,30 @@ const employees = [
     absenceRoster(roster, { kinds: ['staff'], includeInactive: true }).map((row) => row.id),
     ['own', 'off', 'old'],
   );
+}
+
+{
+  const roster = [
+    { id: 'staff', company: { status: 'active', personnelKind: 'external', accessLevel: 'ansatt' } },
+    { id: 'book', company: { status: 'active', personnelKind: 'staff', accessLevel: 'regnskap_ekstern' } },
+    { id: 'hire', company: { status: 'active', personnelKind: 'staff', accessLevel: 'innleie_ekstern' } },
+    { id: 'other', company: { status: 'active', personnelKind: 'staff', accessLevel: 'ansatt_andre_avdelinger' } },
+    { id: 'off', company: { status: 'inactive', personnelKind: 'staff', accessLevel: 'ansatt' } },
+    { id: 'leave', company: { status: 'leave', personnelKind: 'staff', accessLevel: 'ansatt' } },
+  ];
+  assert.deepEqual(absenceRoster(roster).map((row) => row.id), ['staff', 'leave']);
+  const people = roster.map((row) => (
+    row.id === 'book'
+      ? { ...row, person: { firstName: 'Regnskap', lastName: 'Ekstern' } }
+      : row
+  ));
+  const rows = absencesForRoster([
+    { id: 'a1', employeeId: 'staff', date: '2026-06-01' },
+    { id: 'a2', employeeId: 'book', date: '2026-06-02' },
+    { id: 'a3', employeeId: 'off', date: '2026-06-03' },
+    { id: 'a4', employeeId: 'missing', employeeName: 'Regnskap Ekstern', date: '2026-06-04' },
+  ], people, absenceRoster(people));
+  assert.deepEqual(rows.map((row) => row.id), ['a1']);
 }
 
 {

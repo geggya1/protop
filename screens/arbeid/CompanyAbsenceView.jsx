@@ -5,6 +5,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
+import { ACTIVE_STAFF_LABEL } from '../../src/arbeid/absenceDashboard.js';
 import { absenceCategory } from '../../src/arbeid/absenceDashboard.js';
 import { absenceWidgetDestination, monthKeyEnd } from '../../src/arbeid/absenceWidgetNav.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
@@ -351,7 +352,7 @@ function AbsenceHeading({
           onPress={canChooseEmployee ? () => onToggle('employee') : undefined}
           disabled={!canChooseEmployee}
           accessibilityRole="button"
-          accessibilityLabel={`Ansatt: ${employeeId ? employeeName : 'Alle ansatte'}`}
+          accessibilityLabel={`Ansatt: ${employeeId ? employeeName : ACTIVE_STAFF_LABEL}`}
           nativeID="ansatt-filter"
         >
           <View style={styles.employeeIcon}>
@@ -361,7 +362,7 @@ function AbsenceHeading({
             <Text style={styles.employeeLabel}>Ansatt</Text>
             <View style={styles.employeeValueRow}>
               <Text style={styles.employeeText} numberOfLines={1}>
-                {employeeId ? employeeName : 'Alle ansatte'}
+                {employeeId ? employeeName : ACTIVE_STAFF_LABEL}
               </Text>
               {canChooseEmployee ? <Ionicons name="chevron-down" size={13} color={ui.muted} /> : null}
             </View>
@@ -400,7 +401,7 @@ function AbsenceHeading({
 
       {menu === 'employee' ? (
         <ChoiceList
-          options={[{ id: '', label: 'Alle ansatte' }, ...employees.map((row) => ({ id: row.id, label: row.name }))]}
+          options={[{ id: '', label: ACTIVE_STAFF_LABEL }, ...employees.map((row) => ({ id: row.id, label: row.name }))]}
           selected={employeeId}
           onPick={onPickEmployee}
         />

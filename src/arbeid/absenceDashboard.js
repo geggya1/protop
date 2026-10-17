@@ -7,7 +7,8 @@ import { ABSENCE_TYPES, absenceTypeById } from './absenceCatalog.js';
 import { hoursToDays, buildAbsenceOverview } from './balance.js';
 import { matchEmployee } from '../economy/hoursImport.js';
 import { parseDate, text } from '../economy/invoices.js';
-import { employeeActivityTab, personnelKind } from '../employees/model.js';
+import { kindOf } from '../employees/employmentFlags.js';
+import { employeeActivityTab } from '../employees/model.js';
 
 export const STATUTORY_VACATION_DAYS = 25;
 
@@ -559,17 +560,31 @@ export function buildAbsenceWebBoard({
 const KIND_RANK = { sykdom: 3, ferie: 2, annet: 1 };
 const WEEKDAY_SHORT = ['sø', 'ma', 'ti', 'on', 'to', 'fr', 'lø'];
 
-/** Eget personell med aktiv status er standard. Deaktiverte og andre grupper velges inn. */
+/** Tekst når utvalget er alle aktive ansatte, ikke hele personallisten. */
+export const ACTIVE_STAFF_LABEL = 'Aktive ansatte';
+
+/**
+ * Eget personell med aktiv status er standard.
+ * Tilgangsnivå vinner over eldre personelltype, samme gruppering som Ansatte.
+ * Deaktiverte og andre grupper velges inn.
+ */
 export function absenceRoster(employees = [], { kinds = ['staff'], includeInactive = false } = {}) {
   const wanted = new Set(kinds && kinds.length ? kinds : []);
   return (employees || []).filter((row) => {
     if (!row) return false;
     const tab = employeeActivityTab(row);
     if (tab === 'trash') return false;
-    if (tab === 'inactive') return includeInactive && wanted.has(personnelKind(row));
+    const kind = kindOf(row);
+    if (tab === 'inactive') return includeInactive && wanted.has(kind);
     if (tab !== 'active') return false;
-    return wanted.has(personnelKind(row));
+    return wanted.has(kind);
   });
+}
+
+/** Fraværsrader som hører til utvalget. Andre personer kobles ikke inn i rapporten. */
+export function absencesForRoster(absences = [], employees = [], roster = []) {
+  const ids = new Set((roster || []).map((row) => text(row?.id)).filter(Boolean));
+  return linkAbsencesToEmployees(absences, employees).filter((row) => ids.has(text(row?.employeeId)));
 }
 
 export function eachDate(start, end) {

@@ -3,6 +3,7 @@ import { emptyProjectState, normalizeProjectState } from '../project/engine.js';
 import {
   bookingsOnDate,
   companyVehicles,
+  employeeVehicles,
   normalizeBooking,
   validateBooking,
   validateEquipment,
@@ -29,6 +30,8 @@ const gear = validateEquipment({
 assert.equal(gear.ok, true);
 assert.equal(gear.equipment.plate, 'EL12345');
 assert.equal(gear.equipment.kind, 'vehicle');
+assert.equal(gear.equipment.group, 'kjoretoy');
+assert.equal(gear.equipment.scope, 'company');
 assert.equal(validateEquipment({ name: '' }).ok, false);
 
 let state = emptyProjectState();
@@ -168,3 +171,21 @@ assert.equal(roundTrip.equipment.length, 1);
 assert.equal(roundTrip.personalVehicles.length, 1);
 assert.equal(roundTrip.mileagePolicies[0].ratePerKm, 4.5);
 assert.equal(roundTrip.mileageTrips.length, 1);
+
+const room = validateEquipment({ name: 'Møterom A', group: 'rom' });
+assert.equal(room.ok, true);
+assert.equal(room.equipment.group, 'rom');
+assert.equal(room.equipment.kind, 'room');
+assert.equal(room.equipment.bookable, true);
+const privateCar = validateEquipment({
+  name: 'Min bil',
+  group: 'kjoretoy',
+  scope: 'private',
+  ownerEmployeeId: 'ada',
+  plate: 'en 63224',
+});
+assert.equal(privateCar.equipment.scope, 'private');
+assert.equal(privateCar.equipment.plate, 'EN63224');
+assert.equal(companyVehicles([gear.equipment, privateCar.equipment]).length, 1);
+assert.equal(employeeVehicles([], [privateCar.equipment], 'ada')[0].plate, 'EN63224');
+assert.equal(employeeVehicles([], [privateCar.equipment], 'bo').length, 0);

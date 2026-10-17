@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -35,6 +36,8 @@ import {
   productsToCsv,
   saleFromProduct,
 } from '../../src/economy/products.js';
+import { setMileageRate } from '../../src/equipment/state';
+import { mileageRate } from '../../src/mileage/flow';
 import {
   setExpenseStatus,
   setSaleStatus,
@@ -90,10 +93,13 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
+  const access = useCompanyAccess();
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [rateOpen, setRateOpen] = useState(false);
+  const [rateDraft, setRateDraft] = useState('');
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState(kind === 'produkter' || kind === 'products' ? 'catalog' : 'list');
 
@@ -117,6 +123,13 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const products = state.products || [];
   const sales = state.sales || [];
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
+  const rateInfo = mileageRate(state.mileagePolicies);
+  const canEditRate = access.can('economy', 'write') || access.can('companyProfile', 'write');
+
+  useEffect(() => {
+    const current = (state.mileagePolicies || []).find((row) => row.id === 'company');
+    setRateDraft(current?.ratePerKm ? String(current.ratePerKm) : '');
+  }, [state.mileagePolicies]);
 
   function apply(result) {
     setError(result.ok ? '' : result.error);
@@ -169,11 +182,52 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         </Text>
       ) : null}
       {kind === 'mileage' ? (
-        <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-          {hostedHero ? '' : 'Yrkeskjøring med fra/til, formål og km. '}
-          Sats 2026: {MILEAGE_RATE_TAX_FREE.toFixed(2)} kr/km (skattefri). I år: {dutyKm} km yrkeskjøring
-          {dutyKm >= 6000 ? ' — over 6 000 km: vurder faktiske bilutgifter.' : '.'}
-        </Text>
+        <View style={{ gap: 8, maxWidth: 720 }}>
+          <View style={[styles.row, { alignItems: 'center' }]}>
+            <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
+              {hostedHero ? '' : 'Yrkeskjøring med fra/til, formål og km. '}
+              {rateInfo.label}: {rateInfo.rate.toFixed(2)} kr/km
+              {rateInfo.source === 'statutory' ? ' (skattefri)' : ''}. I år: {dutyKm} km yrkeskjøring
+              {dutyKm >= 6000 ? ' — over 6 000 km: vurder faktiske bilutgifter.' : '.'}
+            </Text>
+            {canEditRate ? (
+              <TouchableOpacity
+                onPress={() => setRateOpen((open) => !open)}
+                style={[styles.btnGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6, alignItems: 'center' }]}
+              >
+                <Ionicons name="settings-outline" size={16} color={colors.ink} />
+                <Text style={{ color: colors.ink }}>Innstillinger</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {rateOpen ? (
+            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Kjøresats</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Tomt felt bruker statens regulativ, {MILEAGE_RATE_TAX_FREE.toFixed(2)} kr/km skattefritt.
+              </Text>
+              <View style={styles.row}>
+                <Field
+                  label="Selskapssats kr/km"
+                  value={rateDraft}
+                  onChange={setRateDraft}
+                  colors={colors}
+                  placeholder="Tom = statens sats"
+                  keyboardType="decimal-pad"
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    apply(setMileageRate(state, rateDraft));
+                    setRateOpen(false);
+                  }}
+                  style={[styles.btn, { backgroundColor: colors.brand }]}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre sats</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+        </View>
       ) : null}
       {kind === 'products' ? (
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>

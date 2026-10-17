@@ -12,13 +12,12 @@ import {
   View,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
-import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { formatMoney } from '../../src/economy/invoices';
 import { recordDutyTrip } from '../../src/economy/opsState';
-import { setMileageRate, upsertPersonalVehicle } from '../../src/equipment/state';
-import { companyVehicles, vehiclesForEmployee, vehicleTitle } from '../../src/equipment/model';
+import { upsertPersonalVehicle } from '../../src/equipment/state';
+import { companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
 import {
   companyAddressLabel,
   mileageProjectOptions,
@@ -118,7 +117,6 @@ function AddressField({ label, value, onChange, onPick, colors }) {
 
 export default function MileageWizard({ colors, state, onApply, company, onOpenBilling }) {
   const { familyId, user, uid, activeProfile } = useApp();
-  const access = useCompanyAccess();
   const [employees, setEmployees] = useState([]);
   const [step, setStep] = useState('prosjekt');
   const [query, setQuery] = useState('');
@@ -127,7 +125,6 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
   const [plate, setPlate] = useState('');
   const [lookupNote, setLookupNote] = useState('');
   const [saved, setSaved] = useState(null);
-  const [rateDraft, setRateDraft] = useState('');
   const routeEditedRef = useRef(false);
   const [draft, setDraft] = useState({
     date: todayKey(),
@@ -163,18 +160,11 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
   const employeeName = me ? displayName(me) : (activeProfile?.name || user?.displayName || 'Ansatt');
   const rateInfo = mileageRate(state.mileagePolicies);
   const cars = companyVehicles(state.equipment);
-  const mine = vehiclesForEmployee(state.personalVehicles, employeeId);
+  const mine = employeeVehicles(state.personalVehicles, state.equipment, employeeId);
   const projects = useMemo(
     () => mileageProjectOptions(state, employeeId, { query }),
     [state, employeeId, query],
   );
-  const canEditRate = access.can('economy', 'write') || access.can('companyProfile', 'write');
-
-  useEffect(() => {
-    const current = (state.mileagePolicies || []).find((row) => row.id === 'company');
-    setRateDraft(current?.ratePerKm ? String(current.ratePerKm) : '');
-  }, [state.mileagePolicies]);
-
   function patch(partial) {
     if (Object.prototype.hasOwnProperty.call(partial, 'routeEdited')) {
       routeEditedRef.current = !!partial.routeEdited;
@@ -407,28 +397,8 @@ export default function MileageWizard({ colors, state, onApply, company, onOpenB
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <Text style={{ color: colors.ink, fontWeight: '700' }}>Ny kjøretur</Text>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
-        {rateInfo.label}: {rateInfo.rate.toFixed(2)} kr/km
-        {rateInfo.source === 'statutory' ? ' (statens regulativ, skattefri sats)' : ''}.
         Turen lagres i kjøreboken og som utlegg på prosjektet.
       </Text>
-      {canEditRate ? (
-        <View style={styles.row}>
-          <Field
-            label="Selskapssats kr/km"
-            value={rateDraft}
-            onChange={setRateDraft}
-            colors={colors}
-            placeholder="Tom = statens sats"
-            keyboardType="decimal-pad"
-          />
-          <TouchableOpacity
-            onPress={() => onApply(setMileageRate(state, rateDraft))}
-            style={[styles.btn, { backgroundColor: colors.brand }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre sats</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
 
       {step !== 'ferdig' ? (
         <View style={styles.row}>

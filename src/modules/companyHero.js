@@ -442,8 +442,8 @@ export const COMPANY_HERO = {
     kicker: t('Utstyr', 'Equipment'),
     title: t('Utstyr og lager', 'Equipment and stock'),
     pitch: t(
-      'Registrer det bedriften eier, og reserver det i kalenderen.',
-      'Register what the company owns, and reserve it in the calendar.',
+      'Se utstyret bedriften eier, og det du har privat. Registrer nytt, og reserver i kalenderen.',
+      'See company equipment and your own. Register something new, and book it in the calendar.',
     ),
   },
   'okonomi-produkter': {

@@ -969,8 +969,11 @@ function AppShellInner() {
           {!kitchenMode ? (
             <AddToHomeGuide visible={addHomeOpen} onClose={() => setAddHomeOpen(false)} />
           ) : null}
-          <View style={[
+          <View
+            nativeID="shell-scroll"
+            style={[
             styles.contentArea,
+            !isDesktop && styles.contentClip,
             hasRail && !isDesktop && !kitchenMode && styles.contentAreaCentered,
             isDesktop && !kitchenMode && styles.contentAreaDesktop,
             kitchenMode && styles.contentAreaKitchen,
@@ -979,6 +982,7 @@ function AppShellInner() {
           >
             <View style={[
               styles.contentInner,
+              !isDesktop && styles.contentClip,
               hasRail && !isDesktop && !kitchenMode && { maxWidth: contentMax, width: '100%' },
               isDesktop && !kitchenMode && styles.contentInnerDesktop,
               kitchenMode && styles.contentInnerKitchen,
@@ -1069,8 +1073,8 @@ export default function AppShell() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, overflow: 'visible' },
-  wrap: { flex: 1, overflow: 'visible', position: 'relative', zIndex: 1, backgroundColor: 'transparent' },
+  safe: { flex: 1, minHeight: 0 },
+  wrap: { flex: 1, minHeight: 0, overflow: 'visible', position: 'relative', zIndex: 1, backgroundColor: 'transparent' },
   immersiveLayer: { backgroundColor: 'transparent' },
   wrapRow: { flexDirection: 'row' },
   rail: {
@@ -1120,8 +1124,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   railToolsTxt: { fontWeight: '400', fontSize: 13 },
-  main: { flex: 1, minWidth: 0, overflow: 'visible', zIndex: 1, backgroundColor: 'transparent' },
+  main: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'visible', zIndex: 1, backgroundColor: 'transparent' },
   contentArea: { flex: 1, minHeight: 0, zIndex: 1, position: 'relative', backgroundColor: 'transparent' },
+  contentClip: { overflow: 'hidden', minHeight: 0 },
   contentAreaCentered: {
     alignItems: 'center',
   },
@@ -1148,9 +1153,9 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 4,
   },
-  bodyFill: { flex: 1, minHeight: 0, backgroundColor: 'transparent' },
-  viewAsFrame: { flex: 1, minHeight: 0, minWidth: 0 },
-  viewAsFrameBody: { flex: 1, minHeight: 0, minWidth: 0 },
+  bodyFill: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' },
+  viewAsFrame: { flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' },
+  viewAsFrameBody: { flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' },
   deskSplit: {
     flex: 1,
     flexDirection: 'row',

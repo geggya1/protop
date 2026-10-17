@@ -53,9 +53,6 @@ open_invokers() {
 }
 
 deploy_entry tenderIndex.js functions:tenderProxy
-deploy_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 lookupvehiclebyreg \
-  || echo "::warning::Klarte ikke åpne lookupVehicleByReg for innloggede kall"
 deploy_entry anbudDigestIndex.js functions:anbudDigestDaily
 deploy_entry anbudFormIndex.js functions:generateCompanyForm
 deploy_entry agreementIndex.js functions:agreementTreatment
@@ -99,7 +96,7 @@ AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIng
 deploy_entry aiIndex.js "$AI"
 open_invokers "$AI"
 
-deploy_entry vegvesenIndex.js functions:lookupVehicleByReg
+deploy_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
 open_invokers functions:lookupVehicleByReg
 
 MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"

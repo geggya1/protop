@@ -180,6 +180,8 @@ export function CompanyAbsenceView({
       style={styles.page}
       contentContainerStyle={styles.pageInner}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+      showsVerticalScrollIndicator
     >
       {inChrome ? null : heading}
       <View style={[styles.frame, wide && styles.frameWide]}>
@@ -628,8 +630,13 @@ const cardShadow = Platform.select({
 });
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: ui.page },
-  pageInner: { paddingBottom: 20 },
+  page: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: ui.page,
+    ...(Platform.OS === 'web' ? { overflowY: 'auto', touchAction: 'pan-y' } : null),
+  },
+  pageInner: { paddingBottom: 32, flexGrow: 1 },
   frame: { width: '100%', maxWidth: 1080, alignSelf: 'center', gap: 8, paddingTop: 8 },
   frameWide: { paddingBottom: 8 },
   headingChrome: { width: '100%' },
@@ -663,16 +670,18 @@ const styles = StyleSheet.create({
   lead: { color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 16, fontWeight: '400' },
   filterBar: {
     ...cardShadow,
-    marginTop: -12,
+    marginTop: 8,
     marginHorizontal: 8,
     marginBottom: 6,
     backgroundColor: ui.card,
     borderRadius: 12,
-    paddingVertical: 3,
-    paddingLeft: 4,
-    paddingRight: 4,
+    paddingVertical: 8,
+    paddingLeft: 6,
+    paddingRight: 6,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'visible',
     zIndex: 2,
   },
   employeeChip: {
@@ -683,8 +692,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
     maxWidth: '48%',
-    paddingVertical: 4,
-    paddingRight: 2,
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingRight: 4,
   },
   employeeIcon: {
     width: 32,
@@ -710,8 +720,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    paddingHorizontal: 4,
-    paddingVertical: 6,
+    minHeight: 36,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'transparent',

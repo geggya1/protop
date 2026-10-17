@@ -38,9 +38,8 @@ export const ShellPageHeroContext = createContext(null);
  * compact (desktop): én linje — tittel + handlinger.
  * Privat/Bedrift er låst i midten av linjen, uavhengig av tittel og sideknapper.
  * Mobil/nettbrett: logo øverst, deretter familie / side.
- * Lyspæren er et overlay rett under profilbildet på telefon, nettbrett og
- * desktop. Den tar ikke plass i flyten, så sidetittel, hero og innhold
- * kan ligge helt opp mot logo-raden.
+ * Lyspæren henger på selve profilbildet og starter under det, også når
+ * statusfeltet skyver logo-raden ned. Den tar ikke plass i flyten.
  * På Hjem (chromeOnly) er det samme hvite logo-feltet som på modulene —
  * meny, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
  * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger også her, under profilen.
@@ -84,6 +83,31 @@ export default function ShellHeader({
   // onBackHome kept as optional fallback for logo tap only (no visible Hjem link).
   const goHomeFromLogo = onLogoHome || onBackHome;
 
+  const profileButton = (size) => (
+    <View style={styles.avatarSlot}>
+      <TouchableOpacity
+        style={styles.avatarBtn}
+        onPress={() => setMenuOpen(true)}
+        accessibilityLabel="Profilmeny"
+      >
+        <AvatarBubble
+          avatarId={activeProfile?.avatarId}
+          photoURL={activeProfile?.photoURL}
+          name={activeProfile?.name || '?'}
+          size={size}
+        />
+      </TouchableOpacity>
+      <View pointerEvents="box-none" style={styles.helpOnAvatar}>
+        <HelpButton
+          floating
+          compact={size < 34}
+          color={colors.ink}
+          borderColor={colors.line}
+        />
+      </View>
+    </View>
+  );
+
   if (dense) {
     return (
       <>
@@ -113,21 +137,7 @@ export default function ShellHeader({
                 <Ionicons name="notifications-outline" size={18} color={colors.ink} />
               </IconBadge>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatarBtn}
-              onPress={() => setMenuOpen(true)}
-              accessibilityLabel="Profilmeny"
-            >
-              <AvatarBubble
-                avatarId={activeProfile?.avatarId}
-                photoURL={activeProfile?.photoURL}
-                name={activeProfile?.name || '?'}
-                size={28}
-              />
-            </TouchableOpacity>
-          </View>
-          <View pointerEvents="box-none" style={[styles.helpOverlay, styles.helpOverlayDense]}>
-            <HelpButton floating compact color={colors.ink} borderColor={colors.line} />
+            {profileButton(28)}
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -176,25 +186,11 @@ export default function ShellHeader({
                   <Ionicons name="notifications-outline" size={18} color={colors.ink} />
                 </IconBadge>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.avatarBtn}
-                onPress={() => setMenuOpen(true)}
-                accessibilityLabel="Profilmeny"
-              >
-                <AvatarBubble
-                  avatarId={activeProfile?.avatarId}
-                  photoURL={activeProfile?.photoURL}
-                  name={activeProfile?.name || '?'}
-                  size={28}
-                />
-              </TouchableOpacity>
+              {profileButton(28)}
             </View>
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
             <PlatformSwitch compact />
-          </View>
-          <View pointerEvents="box-none" style={[styles.helpOverlay, styles.helpOverlayCompact]}>
-            <HelpButton floating compact color={colors.ink} borderColor={colors.line} />
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -264,18 +260,7 @@ export default function ShellHeader({
                 <Ionicons name="notifications-outline" size={20} color={colors.ink} />
               </IconBadge>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatarBtn}
-              onPress={() => setMenuOpen(true)}
-              accessibilityLabel="Profilmeny"
-            >
-              <AvatarBubble
-                avatarId={activeProfile?.avatarId}
-                photoURL={activeProfile?.photoURL}
-                name={activeProfile?.name || '?'}
-                size={34}
-              />
-            </TouchableOpacity>
+            {profileButton(34)}
           </View>
         </View>
 
@@ -321,20 +306,6 @@ export default function ShellHeader({
           </View>
         ) : null}
         </View>
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.helpOverlay,
-            isPhone ? styles.helpOverlayPhone : styles.helpOverlayTablet,
-          ]}
-        >
-          <HelpButton
-            floating
-            compact={!isPhone}
-            color={colors.ink}
-            borderColor={colors.line}
-          />
-        </View>
       </View>
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
@@ -360,6 +331,7 @@ const styles = StyleSheet.create({
     gap: 2,
     flexGrow: 0,
     flexShrink: 0,
+    overflow: 'visible',
   },
   barChromeOnly: {
     /* Same chrome sizing as full header; only title rows are omitted */
@@ -384,26 +356,19 @@ const styles = StyleSheet.create({
     bottom: 8,
     zIndex: 2,
   },
-  helpOverlay: {
+  avatarSlot: {
+    position: 'relative',
+    overflow: 'visible',
+  },
+  /* Starts at the bottom edge of the profile photo, so status-bar padding cannot park it on the picture. */
+  helpOnAvatar: {
     position: 'absolute',
     zIndex: 8,
-  },
-  /* Just under the phone avatar, over the switch / top of the hero. */
-  helpOverlayPhone: {
-    top: 42,
-    right: 8,
-  },
-  helpOverlayTablet: {
-    top: 44,
-    right: 12,
-  },
-  helpOverlayCompact: {
-    top: 34,
-    right: 14,
-  },
-  helpOverlayDense: {
-    top: 32,
-    right: 8,
+    top: '100%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    marginTop: 6,
   },
   barTablet: {
     paddingHorizontal: 16,
@@ -414,10 +379,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     backgroundColor: '#fff',
     width: '100%',
+    minHeight: 52,
+    overflow: 'visible',
   },
   headerSide: {
     flex: 1,
@@ -440,10 +407,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     backgroundColor: '#fff',
-    minHeight: 44,
+    minHeight: 48,
     overflow: 'visible',
   },
   chromeRow: {
@@ -451,14 +418,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     position: 'relative',
-    minHeight: 40,
+    minHeight: 44,
+    overflow: 'visible',
   },
   sideSlot: {
-    zIndex: 1,
+    zIndex: 4,
     minWidth: 36,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    overflow: 'visible',
   },
   sideSlotEnd: {
     marginLeft: 'auto',
@@ -487,10 +456,12 @@ const styles = StyleSheet.create({
   switchRow: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 2,
-    paddingBottom: 0,
+    paddingTop: 8,
+    paddingBottom: 8,
+    minHeight: 52,
     width: '100%',
     zIndex: 3,
+    overflow: 'visible',
   },
   pageTitleRow: {
     flexDirection: 'row',

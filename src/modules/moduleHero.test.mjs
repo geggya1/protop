@@ -131,15 +131,16 @@ assert.match(headerSrc, /nativeID="module-hero-slot"/, 'phone heading sits in th
 assert.match(headerSrc, /styles\.heroTitleRight/, 'titleRight overlays the pastel band');
 assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as header chrome');
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
-assert.match(headerSrc, /styles\.helpOverlay/, 'help overlays under the profile');
+assert.match(headerSrc, /styles\.avatarSlot/, 'help anchors on the profile photo');
+assert.match(headerSrc, /helpOnAvatar/, 'help hangs off the profile photo');
 for (const headerName of ['platform/PlatformHeader.jsx', 'team/TeamHeader.jsx', 'classroom/ClassroomHeader.jsx']) {
   const shellHeader = readFileSync(join(ROOT, 'components', headerName), 'utf8');
   assert.match(shellHeader, /styles\.avatarSlot/, `${headerName} anchors help on the avatar`);
   assert.match(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*36/, `${headerName} help sits under the avatar`);
   assert.doesNotMatch(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*46/, `${headerName} help no longer covers the avatar`);
 }
-assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'phone help sits high under the avatar');
-assert.match(headerSrc, /helpOverlayPhone:\s*\{[^}]*right:\s*\d+/, 'phone help aligns under the profile');
+assert.match(headerSrc, /helpOnAvatar:\s*\{[^}]*top:\s*'100%'/, 'help starts under the profile photo');
+assert.doesNotMatch(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'help is not pinned over the profile from the header top');
 assert.doesNotMatch(headerSrc, /heroBelowRow/, 'help no longer reserves a row under the band');
 assert.doesNotMatch(headerSrc, /heroBackLink/, 'no dedicated Hjem back-link slot under the band');
 assert.doesNotMatch(headerSrc, /CompactBackLink/, 'ShellHeader no longer renders a Hjem back link');

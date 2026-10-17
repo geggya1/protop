@@ -83,7 +83,7 @@ export default function ReviewNotes({
               color: colors.ink,
               borderWidth: 1,
               borderColor: colors.line,
-              backgroundColor: colors.bg,
+              backgroundColor: colors.card,
               borderRadius: 10,
               minHeight: 72,
               paddingHorizontal: 10,

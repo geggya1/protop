@@ -13,6 +13,7 @@ import {
 } from '../../src/anbud/sideWidth';
 import { workGeocodeQuery } from '../../src/anbud/workMap';
 import { useParentBottomNavChrome } from '../../src/hooks/useParentBottomNavChrome';
+import { BREAKPOINTS } from '../../src/theme';
 import TenderMap from './TenderMap';
 
 let createPortal = null;
@@ -113,6 +114,8 @@ export default function MapRail({
 }) {
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const bottomNav = useParentBottomNavChrome();
+  const phone = viewportWidth < BREAKPOINTS.tablet;
+  const [phoneSheet, setPhoneSheet] = useState(false);
   const initialRail = useRef(null);
   if (!initialRail.current) initialRail.current = readRailWidth();
   const [width, setWidth] = useState(initialRail.current.width);
@@ -124,7 +127,7 @@ export default function MapRail({
   useEffect(() => () => stopDrag.current(), []);
 
   useEffect(() => {
-    if (!focusTick || !selectedId) return;
+    if (phone || !focusTick || !selectedId) return;
     if (Platform.OS !== 'web' || widthRef.current > RAIL_PEEK) return;
     const max = railMaxWidth(typeof window !== 'undefined' ? window.innerWidth : viewportWidth);
     const next = preferredOpen(max, openRef.current);
@@ -135,7 +138,7 @@ export default function MapRail({
       localStorage.setItem(RAIL_WIDTH_KEY, String(next));
       localStorage.setItem(RAIL_PREF_KEY, String(next));
     } catch { /* lagring er valgfri */ }
-  }, [focusTick]);
+  }, [focusTick, phone, selectedId]);
 
   const located = useMemo(
     () => (Array.isArray(rows) ? rows : []).map((row) => (
@@ -179,6 +182,10 @@ export default function MapRail({
   }
 
   function toggle() {
+    if (phone) {
+      setPhoneSheet((value) => !value);
+      return;
+    }
     const max = railMaxWidth(typeof window !== 'undefined' ? window.innerWidth : viewportWidth);
     if (widthRef.current > RAIL_PEEK) remember(RAIL_PEEK);
     else remember(preferredOpen(max, openRef.current));
@@ -191,6 +198,11 @@ export default function MapRail({
   }
 
   function startDrag(event) {
+    if (phone) {
+      event.preventDefault?.();
+      setPhoneSheet(false);
+      return;
+    }
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     event.preventDefault?.();
     const startX = event.clientX ?? event.nativeEvent?.clientX;
@@ -228,6 +240,16 @@ export default function MapRail({
   }
 
   function onKey(event) {
+    if (phone) {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowLeft') {
+        event.preventDefault?.();
+        setPhoneSheet(true);
+      } else if (event.key === 'ArrowRight' || event.key === 'Escape') {
+        event.preventDefault?.();
+        setPhoneSheet(false);
+      }
+      return;
+    }
     const max = railMaxWidth(typeof window !== 'undefined' ? window.innerWidth : viewportWidth);
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault?.();
@@ -244,16 +266,19 @@ export default function MapRail({
     }
   }
 
-  const open = width > RAIL_PEEK + 48;
+  const open = phone ? phoneSheet : width > RAIL_PEEK + 48;
   const maxNow = railMaxWidth(viewportWidth);
+  const sheetWidth = phone ? preferredOpen(maxNow, openRef.current) : width;
   const map = (
     <TenderMap
       pins={pins}
       selectedId={selectedId}
       colors={colors}
       missing={missingRows.length}
-      compact={width < 420}
-      mapHeight={mapHeightForRail(width, viewportHeight - bottomNav)}
+      compact={!open || sheetWidth < 420}
+      mapHeight={phone && !open
+        ? 220
+        : mapHeightForRail(open ? sheetWidth : width, viewportHeight - bottomNav)}
       showMark={false}
       openLabel={openLabel}
       kindLabel={kindLabel}
@@ -268,6 +293,28 @@ export default function MapRail({
 
   if (Platform.OS !== 'web') {
     return map;
+  }
+
+  // Telefon: kartet ligger i listen. En fast flik i høyre marg dekker hero, notat og chat.
+  if (phone && !open) {
+    const countLabel = `Kart${pins.length ? ` · ${pins.length}` : ''}`;
+    return (
+      <View style={{ gap: 8, width: '100%', minWidth: 0, alignSelf: 'stretch' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>{countLabel}</Text>
+          <TouchableOpacity
+            onPress={() => setPhoneSheet(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Større kart"
+          >
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Større kart</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+          {map}
+        </View>
+      </View>
+    );
   }
 
   const handle = React.createElement('div', {
@@ -325,7 +372,7 @@ export default function MapRail({
         top: 76,
         right: 0,
         bottom: Math.max(12, bottomNav + 8),
-        width,
+        width: sheetWidth,
         zIndex: 8000,
         flexDirection: 'row',
         backgroundColor: colors.bg,
@@ -354,7 +401,11 @@ export default function MapRail({
         <View style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: 12, gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ color: colors.ink, fontWeight: '600' }}>Kart</Text>
-            <TouchableOpacity onPress={() => remember(RAIL_PEEK)} accessibilityRole="button" accessibilityLabel="Legg kartet tilbake i høyre marg">
+            <TouchableOpacity
+              onPress={() => (phone ? setPhoneSheet(false) : remember(RAIL_PEEK))}
+              accessibilityRole="button"
+              accessibilityLabel="Legg kartet tilbake i høyre marg"
+            >
               <Text style={{ color: colors.brand, fontWeight: '600' }}>Legg i margen</Text>
             </TouchableOpacity>
           </View>

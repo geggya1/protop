@@ -119,7 +119,7 @@ function DecisionCard({
   const missing = assignmentGap({ departments, people, unitId, personId });
   const collectRef = React.useRef(() => notes || []);
   const decision = (
-    <View style={styles.col}>
+    <View style={wide ? styles.colSide : styles.colStack}>
       <TouchableOpacity
         onPress={onFocus}
         disabled={!onFocus}
@@ -161,13 +161,13 @@ function DecisionCard({
         empty="Ingen ansatte er registrert. Tilbudsarbeidet kan starte uten person."
       />
       <Text style={{ color: missing.length ? colors.ink : colors.muted }}>{assignmentHint(missing)}</Text>
-      <View style={styles.actions}>
+      <View style={[styles.actions, !wide && styles.actionsStack]}>
         <TouchableOpacity
           onPress={() => onGive(collectRef.current())}
           disabled={busy || missing.length > 0}
           accessibilityRole="button"
           accessibilityState={{ disabled: busy || missing.length > 0 }}
-          style={[styles.give, { backgroundColor: busy || missing.length ? colors.sunken : colors.brand }]}
+          style={[styles.give, !wide && styles.actionFill, { backgroundColor: busy || missing.length ? colors.sunken : colors.brand }]}
         >
           <Text style={{ color: busy || missing.length ? colors.muted : '#fff', fontWeight: '600' }}>
             {busy ? 'Oppretter …' : 'Gi tilbud'}
@@ -177,7 +177,7 @@ function DecisionCard({
           onPress={() => onDecline(collectRef.current())}
           disabled={busy}
           accessibilityRole="button"
-          style={[styles.decline, { borderColor: colors.line }]}
+          style={[styles.decline, !wide && styles.actionFill, { borderColor: colors.line }]}
         >
           <Text style={{ color: colors.ink }}>Ikke gi tilbud</Text>
         </TouchableOpacity>
@@ -195,7 +195,7 @@ function DecisionCard({
     >
       <View style={wide ? styles.split : styles.stack}>
         {decision}
-        <OppdragBrief brief={brief} colors={colors} loading={briefLoading} />
+        <OppdragBrief brief={brief} colors={colors} loading={briefLoading} stacked={!wide} />
       </View>
     </View>
   );
@@ -647,14 +647,18 @@ export default function CurrentReview({
 
 const styles = StyleSheet.create({
   lead: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, width: '100%', minWidth: 0, alignSelf: 'stretch' },
   pick: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   split: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
-  stack: { gap: 16 },
-  col: { flex: 1, minWidth: 280, gap: 8 },
+  stack: { gap: 16, width: '100%', minWidth: 0, alignSelf: 'stretch' },
+  colSide: { flex: 1, minWidth: 280, gap: 8 },
+  // flex:1 i en kolonne uten fast høyde kollapser til 0 og legger kortene oppå hverandre.
+  colStack: { width: '100%', minWidth: 0, gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  actionsStack: { flexDirection: 'column' },
+  actionFill: { alignSelf: 'stretch', alignItems: 'center' },
   give: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   decline: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
 });

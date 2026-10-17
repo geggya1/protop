@@ -6,6 +6,7 @@ import {
   isChatFabDrag,
   shouldOpenChatOnFabRelease,
   chatFabSlopForPointerType,
+  chatFabRestOffset,
 } from './chatFabGesture.js';
 
 assert.equal(CHAT_FAB_TAP_SLOP, 12);
@@ -54,5 +55,10 @@ assert.equal(chatFabSlopForPointerType('mouse'), CHAT_FAB_TAP_SLOP);
 assert.equal(shouldOpenChatOnFabRelease({ moved: false }), true);
 assert.equal(shouldOpenChatOnFabRelease({ moved: true }), false);
 assert.equal(shouldOpenChatOnFabRelease({}), true);
+
+assert.deepEqual(chatFabRestOffset(0), { right: 16, bottom: 40 });
+assert.deepEqual(chatFabRestOffset(72), { right: 16, bottom: 112 });
+assert.deepEqual(chatFabRestOffset(-4), { right: 16, bottom: 40 });
+assert.equal(Object.hasOwn(chatFabRestOffset(80), 'top'), false, 'resting button is not placed from a measured window height');
 
 console.log('chatFabGesture.test.mjs: ok');

@@ -53,3 +53,19 @@ export function isChatFabDrag(dx, dy, slop = CHAT_FAB_TAP_SLOP) {
 export function shouldOpenChatOnFabRelease({ moved } = {}) {
   return !moved;
 }
+
+/** Gap between the resting chat button and the screen edge, before the bottom nav. */
+export const CHAT_FAB_EDGE = 16;
+export const CHAT_FAB_BOTTOM_GAP = 24;
+
+/**
+ * Resting corner of the chat button, measured from the viewport edge.
+ * Anchoring with top + a short first window height parked the button over the page.
+ */
+export function chatFabRestOffset(extraBottom = 0) {
+  const nav = Math.max(0, Math.round(Number(extraBottom) || 0));
+  return {
+    right: CHAT_FAB_EDGE,
+    bottom: CHAT_FAB_EDGE + CHAT_FAB_BOTTOM_GAP + nav,
+  };
+}

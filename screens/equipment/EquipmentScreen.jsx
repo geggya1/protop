@@ -1,6 +1,6 @@
 /**
- * Utstyr og lager: registrer det selskapet eier, og reserver det i kalenderen.
- * Poolbiler herfra er valgbare i kjøreboken. Egne biler registreres på samme side.
+ * Utstyr: en liste for bedriften, en for det du eier privat, og registrering for seg.
+ * Kjøretøy slås opp hos Vegvesenet. Bedriftens enheter reserveres i kalenderen.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -20,12 +20,11 @@ import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
-import { EQUIPMENT_CATEGORIES, EQUIPMENT_STATUSES, equipmentCategory } from '../../src/equipment/catalog';
+import { EQUIPMENT_GROUPS, EQUIPMENT_STATUSES, equipmentGroup } from '../../src/equipment/catalog';
 import {
   bookingsOnDate,
   normalizeEquipment,
   vehicleTitle,
-  vehiclesForEmployee,
 } from '../../src/equipment/model';
 import {
   cancelBooking,
@@ -79,9 +78,17 @@ function dateKey(year, monthIndex, day) {
 }
 
 const EMPTY_GEAR = {
-  name: '', category: 'drone', plate: '', serial: '', make: '', model: '', location: '',
+  name: '', group: 'utstyr', category: 'annet', scope: 'company', plate: '', serial: '',
+  make: '', model: '', year: '', fuel: '', electric: false, location: '',
   status: 'available', purchasedAt: '', warrantyUntil: '', warrantyVendor: '', warrantyNote: '', warrantyUri: '', notes: '',
+  vegvesenSummary: '', ownerEmployeeId: '', ownerName: '',
 };
+
+function categoryForGroup(group) {
+  if (group === 'kjoretoy') return 'poolbil';
+  if (group === 'rom') return 'rom';
+  return 'annet';
+}
 
 export default function EquipmentScreen() {
   const colors = useColors();
@@ -91,11 +98,11 @@ export default function EquipmentScreen() {
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [employees, setEmployees] = useState([]);
-  const [tab, setTab] = useState('register');
+  const [tab, setTab] = useState('bedrift');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [gear, setGear] = useState(EMPTY_GEAR);
-  const [editing, setEditing] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState('');
   const [bookingGearId, setBookingGearId] = useState('');
@@ -104,7 +111,6 @@ export default function EquipmentScreen() {
   const [purpose, setPurpose] = useState('Prosjekt');
   const [projectQuery, setProjectQuery] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [plate, setPlate] = useState('');
   const [lookupNote, setLookupNote] = useState('');
 
   useEffect(() => {
@@ -134,19 +140,34 @@ export default function EquipmentScreen() {
   const year = cursor.getFullYear();
   const monthIndex = cursor.getMonth();
   const cells = monthCells(year, monthIndex);
-  const equipment = state.equipment || [];
-  const visible = equipment.filter((row) => {
-    const blob = `${row.name} ${row.plate} ${row.serial} ${row.make} ${equipmentCategory(row.category).label}`.toLowerCase();
-    return blob.includes(query.trim().toLowerCase());
-  });
+  const equipment = (state.equipment || []).map(normalizeEquipment);
+  const companyGear = equipment.filter((row) => row.scope !== 'private');
+  const privateGear = equipment.filter((row) => row.scope === 'private' && row.ownerEmployeeId === employeeId);
+  const privatePlates = new Set(privateGear.map((row) => row.plate).filter(Boolean));
+  const looseCars = (state.personalVehicles || []).filter((row) => (
+    row.employeeId === employeeId && row.plate && !privatePlates.has(String(row.plate).toUpperCase())
+  ));
+
+  function matches(blob) {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return true;
+    return blob.toLowerCase().includes(needle);
+  }
+
+  const visibleCompany = companyGear.filter((row) => matches(
+    `${row.name} ${row.plate} ${row.serial} ${row.location} ${equipmentGroup(row.group).label}`,
+  ));
+  const visiblePrivate = privateGear.filter((row) => matches(
+    `${row.name} ${row.plate} ${row.serial} ${row.location} ${equipmentGroup(row.group).label}`,
+  ));
+  const visibleCars = looseCars.filter((row) => matches(`${vehicleTitle(row)} ${row.plate} ${row.make}`));
   const dayBookings = bookingsOnDate(state.equipmentBookings, selectedDate);
   const projects = useMemo(
     () => mileageProjectOptions(state, employeeId, { query: projectQuery }),
     [state, employeeId, projectQuery],
   );
-  const mine = vehiclesForEmployee(state.personalVehicles, employeeId);
 
-  function apply(result) {
+  function commit(result) {
     setError(result.ok ? '' : result.error);
     if (result.ok) {
       setState(result.state);
@@ -155,61 +176,106 @@ export default function EquipmentScreen() {
     return result;
   }
 
-  async function lookupGearPlate() {
+  function openForm(scope, existing) {
+    setError('');
+    setLookupNote('');
+    setGear(existing ? { ...EMPTY_GEAR, ...normalizeEquipment(existing) } : {
+      ...EMPTY_GEAR,
+      scope,
+      group: 'kjoretoy',
+      category: 'poolbil',
+      ownerEmployeeId: scope === 'private' ? employeeId : '',
+      ownerName: scope === 'private' ? employeeName : '',
+    });
+    setFormOpen(true);
+  }
+
+  function closeForm() {
+    setGear(EMPTY_GEAR);
+    setFormOpen(false);
+    setLookupNote('');
+  }
+
+  async function lookupPlate() {
     setLookupNote('');
     try {
       const hit = await lookupVehicleByReg(gear.plate);
       setGear((row) => ({
         ...row,
         plate: hit.regNumber || row.plate,
-        name: row.name || hit.title || 'Poolbil',
+        name: row.name || hit.title || (row.scope === 'private' ? 'Min bil' : 'Kjøretøy'),
         make: hit.make || row.make,
         model: hit.model || row.model,
+        year: hit.year || row.year,
+        fuel: hit.fuelLabel || row.fuel,
+        electric: hit.fuelType === 'electric' || /el/i.test(hit.fuelLabel || ''),
+        vegvesenSummary: hit.summaryLine || '',
         notes: row.notes || hit.summaryLine || '',
       }));
       setLookupNote(hit.summaryLine || 'Opplysninger hentet.');
-    } catch (err) {
-      setError(err?.message || 'Klarte ikke slå opp skiltnummeret.');
-    }
-  }
-
-  async function lookupOwnPlate() {
-    setLookupNote('');
-    try {
-      const hit = await lookupVehicleByReg(plate);
-      const result = apply(upsertPersonalVehicle(state, {
-        employeeId,
-        employeeName,
-        plate: hit.regNumber || plate,
-        nickname: hit.title || '',
-        make: hit.make || '',
-        model: hit.model || '',
-        year: hit.year || '',
-        fuel: hit.fuelLabel || '',
-        electric: hit.fuelType === 'electric' || /el/i.test(hit.fuelLabel || ''),
-        vegvesenSummary: hit.summaryLine || '',
-      }));
-      if (result.ok) {
-        setPlate('');
-        setLookupNote(hit.summaryLine || 'Bilen er lagret.');
-      }
+      setError('');
     } catch (err) {
       setError(err?.message || 'Klarte ikke slå opp skiltnummeret.');
     }
   }
 
   function saveGear() {
-    const result = apply(upsertEquipment(state, gear));
-    if (result.ok) {
-      setGear(EMPTY_GEAR);
-      setEditing(false);
+    const scope = gear.scope === 'private' ? 'private' : 'company';
+    let next = upsertEquipment(state, {
+      ...gear,
+      scope,
+      ownerEmployeeId: scope === 'private' ? (gear.ownerEmployeeId || employeeId) : '',
+      ownerName: scope === 'private' ? (gear.ownerName || employeeName) : '',
+    });
+    if (!next.ok) {
+      setError(next.error);
+      return;
     }
+    const saved = next.equipment;
+    if (scope === 'private' && saved.group === 'kjoretoy' && saved.plate) {
+      next = upsertPersonalVehicle(next.state, {
+        employeeId,
+        employeeName,
+        plate: saved.plate,
+        nickname: saved.name,
+        make: saved.make,
+        model: saved.model,
+        year: saved.year,
+        fuel: saved.fuel,
+        electric: saved.electric,
+        vegvesenSummary: saved.vegvesenSummary || saved.notes,
+      });
+      if (!next.ok) {
+        setError(next.error);
+        return;
+      }
+    }
+    setState(next.state);
+    setError('');
+    showSaveToast('Lagret.');
+    closeForm();
+  }
+
+  function deleteGear(item) {
+    let next = removeEquipment(state, item.id);
+    if (!next.ok) {
+      setError(next.error);
+      return;
+    }
+    if (item.scope === 'private' && item.plate) {
+      const car = (next.state.personalVehicles || []).find((row) => (
+        row.employeeId === employeeId && String(row.plate).toUpperCase() === item.plate
+      ));
+      if (car) next = removePersonalVehicle(next.state, car.id);
+    }
+    setState(next.state);
+    showSaveToast('Lagret.');
   }
 
   function saveBooking() {
-    const item = equipment.find((row) => row.id === bookingGearId);
+    const item = companyGear.find((row) => row.id === bookingGearId);
     const project = (state.projects || []).find((row) => row.id === projectId);
-    apply(upsertBooking(state, {
+    commit(upsertBooking(state, {
       equipmentId: bookingGearId,
       equipmentName: item?.name || '',
       employeeId,
@@ -223,6 +289,37 @@ export default function EquipmentScreen() {
     }));
   }
 
+  function renderGear(row) {
+    const group = equipmentGroup(row.group);
+    return (
+      <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.name}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {group.label}
+          {row.plate ? ` · ${row.plate}` : ''}
+          {row.serial ? ` · ${row.serial}` : ''}
+          {row.location ? ` · ${row.location}` : ''}
+          {row.scope !== 'private' ? ` · ${EQUIPMENT_STATUSES.find((status) => status.id === row.status)?.label || row.status}` : ''}
+        </Text>
+        {row.warrantyUntil ? (
+          <Text style={{ color: colors.ink, fontSize: 12 }}>
+            Garanti til {row.warrantyUntil}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
+          </Text>
+        ) : null}
+        {(row.scope === 'private' || canManage) ? (
+          <View style={styles.row}>
+            <TouchableOpacity onPress={() => openForm(row.scope, row)} style={[styles.btnGhost, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Rediger</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => deleteGear(row)} style={[styles.btnGhost, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Slett</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   if (!ready) {
     return (
       <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
@@ -231,114 +328,144 @@ export default function EquipmentScreen() {
     );
   }
 
+  const showRegister = tab === 'privat' || canManage;
+
   return (
     <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
       {hostedHero ? null : <Text style={styles.title}>Utstyr</Text>}
-      <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-        Registrer utstyr selskapet eier, fra poolbil og drone til nettbrett og termokamera. Ansatte reserverer det i kalenderen til bruk på prosjekt.
-      </Text>
       <View style={styles.row}>
-        <Chip label="Register" active={tab === 'register'} onPress={() => setTab('register')} colors={colors} />
-        <Chip label="Kalender" active={tab === 'kalender'} onPress={() => setTab('kalender')} colors={colors} />
-        <Chip label="Mine biler" active={tab === 'biler'} onPress={() => setTab('biler')} colors={colors} />
+        <Chip label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
+        <Chip label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
+        <Chip label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
       </View>
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
-      {tab === 'register' ? (
-        <View style={{ gap: 10 }}>
-          <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Navn, skilt eller serienummer" />
-          {canManage ? (
-            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{gear.id ? 'Rediger enhet' : 'Ny enhet'}</Text>
-              {!editing && !gear.id ? (
-                <TouchableOpacity onPress={() => setEditing(true)} style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer utstyr</Text>
+      {formOpen ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>
+            {gear.id ? 'Rediger' : 'Registrer'} {gear.scope === 'private' ? 'privat' : 'bedrift'}
+          </Text>
+          <View style={styles.row}>
+            {EQUIPMENT_GROUPS.map((row) => (
+              <Chip
+                key={row.id}
+                label={row.label}
+                active={gear.group === row.id}
+                onPress={() => setGear((current) => ({
+                  ...current,
+                  group: row.id,
+                  category: categoryForGroup(row.id),
+                }))}
+                colors={colors}
+              />
+            ))}
+          </View>
+          <Field
+            label="Navn"
+            value={gear.name}
+            onChange={(value) => setGear((row) => ({ ...row, name: value }))}
+            colors={colors}
+            placeholder={gear.group === 'rom' ? 'Møterom' : gear.group === 'kjoretoy' ? 'Min bil' : 'Termokamera 2'}
+          />
+          {gear.group === 'kjoretoy' ? (
+            <View style={{ gap: 8 }}>
+              <View style={styles.row}>
+                <Field label="Skiltnummer" value={gear.plate} onChange={(value) => setGear((row) => ({ ...row, plate: value }))} colors={colors} placeholder="EN63224" />
+                <TouchableOpacity onPress={lookupPlate} style={[styles.btn, { backgroundColor: colors.brand }]}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Hent fra Vegvesenet</Text>
                 </TouchableOpacity>
-              ) : (
-                <View style={{ gap: 8 }}>
-                  <View style={styles.row}>
-                    <Field label="Navn" value={gear.name} onChange={(value) => setGear((row) => ({ ...row, name: value }))} colors={colors} placeholder="Termokamera 2" />
-                    <Field label="Serienummer" value={gear.serial} onChange={(value) => setGear((row) => ({ ...row, serial: value }))} colors={colors} />
-                    <Field label="Plassering" value={gear.location} onChange={(value) => setGear((row) => ({ ...row, location: value }))} colors={colors} />
-                  </View>
-                  <View style={styles.row}>
-                    {EQUIPMENT_CATEGORIES.map((row) => (
-                      <Chip key={row.id} label={row.label} active={gear.category === row.id} onPress={() => setGear((current) => ({ ...current, category: row.id }))} colors={colors} />
-                    ))}
-                  </View>
-                  {gear.category === 'poolbil' ? (
-                    <View style={styles.row}>
-                      <Field label="Skiltnummer" value={gear.plate} onChange={(value) => setGear((row) => ({ ...row, plate: value }))} colors={colors} placeholder="EL12345" />
-                      <TouchableOpacity onPress={lookupGearPlate} style={[styles.btn, { backgroundColor: colors.brand }]}>
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>Hent fra Vegvesenet</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                  <View style={styles.row}>
-                    {EQUIPMENT_STATUSES.map((row) => (
-                      <Chip key={row.id} label={row.label} active={gear.status === row.id} onPress={() => setGear((current) => ({ ...current, status: row.id }))} colors={colors} />
-                    ))}
-                  </View>
-                  <View style={styles.row}>
-                    <Field label="Kjøpt" value={gear.purchasedAt} onChange={(value) => setGear((row) => ({ ...row, purchasedAt: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-                    <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-                    <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
-                  </View>
-                  <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />
-                  <Field label="Garantimerknad" value={gear.warrantyNote} onChange={(value) => setGear((row) => ({ ...row, warrantyNote: value }))} colors={colors} />
-                  <Field label="Notat" value={gear.notes} onChange={(value) => setGear((row) => ({ ...row, notes: value }))} colors={colors} />
-                  {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
-                  <View style={styles.row}>
-                    <TouchableOpacity onPress={saveGear} style={[styles.btn, { backgroundColor: colors.brand }]}>
-                      <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre enhet</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setGear(EMPTY_GEAR); setEditing(false); }} style={[styles.btnGhost, { borderColor: colors.line }]}>
-                      <Text style={{ color: colors.ink }}>Avbryt</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
+              </View>
+              {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {[gear.make, gear.model, gear.year].filter(Boolean).join(' ') || 'Skiltnummeret fyller inn merke og modell.'}
+              </Text>
             </View>
           ) : null}
-          {visible.map((row) => {
-            const item = normalizeEquipment(row);
-            const category = equipmentCategory(item.category);
-            return (
-              <View key={item.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.name}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {category.label}
-                  {item.plate ? ` · ${item.plate}` : ''}
-                  {item.serial ? ` · ${item.serial}` : ''}
-                  {item.location ? ` · ${item.location}` : ''}
-                  {` · ${EQUIPMENT_STATUSES.find((status) => status.id === item.status)?.label || item.status}`}
-                </Text>
-                {item.warrantyUntil ? (
-                  <Text style={{ color: colors.ink, fontSize: 12 }}>
-                    Garanti til {item.warrantyUntil}{item.warrantyVendor ? ` · ${item.warrantyVendor}` : ''}
-                  </Text>
-                ) : null}
-                {item.warrantyUri ? <Text style={{ color: colors.brand, fontSize: 12 }}>{item.warrantyUri}</Text> : null}
-                {item.warrantyNote ? <Text style={{ color: colors.muted, fontSize: 12 }}>{item.warrantyNote}</Text> : null}
-                {canManage ? (
-                  <View style={styles.row}>
-                    <TouchableOpacity onPress={() => { setGear(item); setEditing(true); }} style={[styles.btnGhost, { borderColor: colors.line }]}>
-                      <Text style={{ color: colors.ink }}>Rediger</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => apply(removeEquipment(state, item.id))} style={[styles.btnGhost, { borderColor: colors.line }]}>
-                      <Text style={{ color: colors.ink }}>Slett</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
+          {gear.group === 'utstyr' ? (
+            <View style={styles.row}>
+              <Field label="Serienummer" value={gear.serial} onChange={(value) => setGear((row) => ({ ...row, serial: value }))} colors={colors} />
+              <Field label="Plassering" value={gear.location} onChange={(value) => setGear((row) => ({ ...row, location: value }))} colors={colors} />
+            </View>
+          ) : null}
+          {gear.group === 'rom' ? (
+            <Field label="Hvor" value={gear.location} onChange={(value) => setGear((row) => ({ ...row, location: value }))} colors={colors} placeholder="1. etasje" />
+          ) : null}
+          {gear.scope !== 'private' ? (
+            <View style={{ gap: 8 }}>
+              <View style={styles.row}>
+                {EQUIPMENT_STATUSES.map((row) => (
+                  <Chip key={row.id} label={row.label} active={gear.status === row.id} onPress={() => setGear((current) => ({ ...current, status: row.id }))} colors={colors} />
+                ))}
               </View>
-            );
-          })}
-          {!visible.length ? <Text style={{ color: colors.muted }}>Ingen utstyr er registrert ennå.</Text> : null}
+              <View style={styles.row}>
+                <Field label="Kjøpt" value={gear.purchasedAt} onChange={(value) => setGear((row) => ({ ...row, purchasedAt: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
+                <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
+                <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
+              </View>
+              <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />
+            </View>
+          ) : null}
+          <Field label="Notat" value={gear.notes} onChange={(value) => setGear((row) => ({ ...row, notes: value }))} colors={colors} />
+          <View style={styles.row}>
+            <TouchableOpacity onPress={saveGear} style={[styles.btn, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={closeForm} style={[styles.btnGhost, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink }}>Avbryt</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 
-      {tab === 'kalender' ? (
+      {!formOpen && tab === 'bedrift' ? (
         <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Utstyr bedriften eier. Søk i listen, eller registrer noe nytt.
+          </Text>
+          <View style={[styles.row, { alignItems: 'flex-end' }]}>
+            <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
+            {showRegister ? (
+              <TouchableOpacity onPress={() => openForm('company')} style={[styles.btn, { backgroundColor: colors.brand }]}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {visibleCompany.map(renderGear)}
+          {!visibleCompany.length ? <Text style={{ color: colors.muted }}>Ingen bedriftsutstyr er registrert.</Text> : null}
+        </View>
+      ) : null}
+
+      {!formOpen && tab === 'privat' ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Ditt private utstyr, for eksempel bilen du bruker i kjøreboken.
+          </Text>
+          <View style={[styles.row, { alignItems: 'flex-end' }]}>
+            <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
+            <TouchableOpacity onPress={() => openForm('private')} style={[styles.btn, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer</Text>
+            </TouchableOpacity>
+          </View>
+          {visiblePrivate.map(renderGear)}
+          {visibleCars.map((car) => (
+            <View key={car.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>{vehicleTitle(car)}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Kjøretøy</Text>
+              {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
+              <TouchableOpacity onPress={() => commit(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
+                <Text style={{ color: colors.ink }}>Slett</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+          {!visiblePrivate.length && !visibleCars.length ? (
+            <Text style={{ color: colors.muted }}>Du har ikke registrert privat utstyr.</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {!formOpen && tab === 'kalender' ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>Reserver bedriftens utstyr til et prosjekt.</Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setCursor(new Date(year, monthIndex - 1, 1))} style={[styles.btnGhost, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Forrige</Text>
@@ -373,7 +500,7 @@ export default function EquipmentScreen() {
             <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Reserver {selectedDate}</Text>
               <View style={styles.row}>
-                {equipment.filter((row) => normalizeEquipment(row).bookable).map((row) => (
+                {companyGear.filter((row) => row.bookable).map((row) => (
                   <Chip key={row.id} label={row.name} active={bookingGearId === row.id} onPress={() => setBookingGearId(row.id)} colors={colors} />
                 ))}
               </View>
@@ -396,7 +523,7 @@ export default function EquipmentScreen() {
                   <Text style={{ color: colors.ink }}>{row.start.slice(11)}–{row.end.slice(11)} · {row.equipmentName}</Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>{row.employeeName}{row.projectName ? ` · ${row.projectName}` : ''} · {row.purpose}</Text>
                   {row.employeeId === employeeId || canManage ? (
-                    <TouchableOpacity onPress={() => apply(cancelBooking(state, row.id))}>
+                    <TouchableOpacity onPress={() => commit(cancelBooking(state, row.id))}>
                       <Text style={{ color: colors.brand, fontSize: 12 }}>Avbestill</Text>
                     </TouchableOpacity>
                   ) : null}
@@ -404,33 +531,6 @@ export default function EquipmentScreen() {
               ))}
             </View>
           ) : <Text style={{ color: colors.muted }}>Velg en dag for å reservere.</Text>}
-        </View>
-      ) : null}
-
-      {tab === 'biler' ? (
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Egne biler lagres på deg og kan velges i kjøreboken. Skiltnummeret slås opp hos Statens vegvesen.
-          </Text>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <View style={styles.row}>
-              <Field label="Skiltnummer" value={plate} onChange={setPlate} colors={colors} placeholder="AB12345" />
-              <TouchableOpacity onPress={lookupOwnPlate} style={[styles.btn, { backgroundColor: colors.brand }]}>
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Hent og lagre</Text>
-              </TouchableOpacity>
-            </View>
-            {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
-          </View>
-          {mine.map((car) => (
-            <View key={car.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{vehicleTitle(car)}</Text>
-              {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
-              <TouchableOpacity onPress={() => apply(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
-                <Text style={{ color: colors.ink }}>Fjern</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          {!mine.length ? <Text style={{ color: colors.muted }}>Du har ingen egen bil registrert.</Text> : null}
         </View>
       ) : null}
     </ScrollView>

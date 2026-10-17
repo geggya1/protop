@@ -96,7 +96,7 @@ AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIng
 deploy_entry aiIndex.js "$AI"
 open_invokers "$AI"
 
-deploy_entry vegvesenIndex.js functions:lookupVehicleByReg
+deploy_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
 open_invokers functions:lookupVehicleByReg
 
 MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"

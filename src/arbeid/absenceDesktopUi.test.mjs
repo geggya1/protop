@@ -10,6 +10,12 @@ const person = readFileSync(join(ROOT, 'screens/arbeid/AbsenceOverviewView.jsx')
 const hero = readFileSync(join(ROOT, 'components/ModuleHero.jsx'), 'utf8');
 
 assert.match(desktop, /nativeID="fravaer-oversikt-web"/);
+assert.match(desktop, /phoneScroll/);
+assert.match(desktop, /nativeID="fravaersrapport"/);
+assert.match(phone, /ACTIVE_STAFF_LABEL/);
+assert.match(person, /ACTIVE_STAFF_LABEL/);
+assert.doesNotMatch(phone, /Alle ansatte/);
+assert.doesNotMatch(person, /Alle ansatte/);
 assert.match(desktop, /nativeID="absence-report-select-all"/);
 assert.match(desktop, /nativeID="absence-report-delete-selected"/);
 assert.match(desktop, /accessibilityRole="checkbox"/);

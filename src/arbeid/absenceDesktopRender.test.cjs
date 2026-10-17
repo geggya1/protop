@@ -49,7 +49,7 @@ const svgMock = {
   Rect: host('Rect'),
 };
 
-function loadJsx(rel) {
+function loadJsx(rel, { phone = false } = {}) {
   const full = path.join(ROOT, rel);
   const code = fs.readFileSync(full, 'utf8');
   const out = babel.transformSync(code, {
@@ -82,7 +82,9 @@ function loadJsx(rel) {
     }
     if (id.includes('/theme')) {
       return {
-        useLayout: () => ({ width: 1280, isPhone: false, hasRail: true, railWidth: 240, isDesktop: true }),
+        useLayout: () => (phone
+          ? { width: 390, isPhone: true, hasRail: false, railWidth: 0, isDesktop: false }
+          : { width: 1280, isPhone: false, hasRail: true, railWidth: 240, isDesktop: true }),
         colors,
       };
     }
@@ -158,6 +160,14 @@ function nativeIds(node) {
     if (id) ids.push(id);
   });
   return ids;
+}
+
+function hostTag(node, id) {
+  let found = '';
+  walk(node, (element) => {
+    if (element.props && element.props.nativeID === id && typeof element.type === 'string') found = element.type;
+  });
+  return found;
 }
 
 function assertRenders(label, element) {
@@ -252,6 +262,28 @@ const absences = [
   assert.match(text, /Filtrer/);
   assert.doesNotMatch(text, /Importer/);
   assert.doesNotMatch(text, /Tøm import/);
+  assert.equal(hostTag(element, 'fravaersrapport'), 'View');
+}
+
+{
+  const phoneUi = loadJsx('screens/arbeid/CompanyAbsenceDesktop.jsx', { phone: true });
+  const many = Array.from({ length: 40 }, (_, index) => ({
+    id: `d${index}`,
+    employeeId: 'e1',
+    type: 'syk_melding',
+    date: `2026-09-${String((index % 28) + 1).padStart(2, '0')}`,
+    hours: 7.5,
+    status: 'registrert',
+  }));
+  const element = React.createElement(phoneUi.AbsenceReportDesktop, {
+    employees, names, absences: many, canChooseEmployee: true, canImport: true, absenceCount: many.length,
+  });
+  assertRenders('AbsenceReportDesktop phone', element);
+  assert.equal(hostTag(element, 'fravaersrapport'), 'ScrollView');
+  const ids = nativeIds(element);
+  assert.ok(ids.includes('absence-report-table'));
+  assert.ok(ids.includes('absence-report-select-d0'));
+  assert.ok(ids.includes('absence-report-select-d39'));
 }
 
 {

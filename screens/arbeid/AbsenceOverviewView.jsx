@@ -9,6 +9,7 @@ import { useApp } from '../../src/context/AppContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import {
   ABSENCE_DAY_HOURS,
+  ACTIVE_STAFF_LABEL,
   absenceRoster,
   buildAbsenceDashboard,
   eachWeekday,
@@ -360,7 +361,7 @@ export function AbsenceOverviewView({
         <FilterField
           icon="person-outline"
           label="Ansatt"
-          value={employeeId ? employeeName : 'Alle ansatte'}
+          value={employeeId ? employeeName : ACTIVE_STAFF_LABEL}
           onPress={canChooseEmployee ? () => setMenu(menu === 'employee' ? '' : 'employee') : undefined}
           disabled={!canChooseEmployee}
         />
@@ -374,7 +375,7 @@ export function AbsenceOverviewView({
       </View>
       {menu === 'employee' ? (
         <ChoiceList
-          options={[{ id: '', label: 'Alle ansatte' }, ...employees.map((row) => ({ id: row.id, label: row.name }))]}
+          options={[{ id: '', label: ACTIVE_STAFF_LABEL }, ...employees.map((row) => ({ id: row.id, label: row.name }))]}
           selected={employeeId}
           onPick={(id) => { setMenu(''); onSelectEmployee?.(id); }}
         />

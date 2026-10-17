@@ -456,4 +456,27 @@ const employees = [
   assert.equal(dash.summary.used, 1.5);
 }
 
+{
+  const year = buildAbsenceDashboard({
+    employees,
+    employeeId: '',
+    category: 'ferie',
+    today: '2026-10-17',
+    fullDayHours: ABSENCE_DAY_HOURS,
+    absences: [
+      { id: 'd1', employeeId: 'e1', type: 'ferie', date: '2026-07-06', hours: 8 },
+      { id: 'd2', employeeId: 'e1', type: 'ferie', date: '2026-07-07', hours: 16 },
+      { id: 'old', employeeId: 'e1', type: 'ferie', date: '2024-07-01', hours: 8 },
+      { id: 'older', employeeId: 'e2', type: 'ferie', date: '2025-08-01', hours: 40 },
+      { id: 'later', employeeId: 'e1', type: 'ferie', date: '2026-12-14', hours: 8 },
+      { id: 'next', employeeId: 'e1', type: 'ferie', date: '2027-01-04', hours: 8 },
+      { id: 'out', employeeId: 'gone', type: 'ferie', date: '2026-07-08', hours: 8 },
+    ],
+  });
+  assert.equal(year.year, '2026');
+  assert.equal(year.summary.used, 4);
+  assert.equal(year.summary.planned, 1);
+  assert.equal(year.headcount, 2);
+}
+
 console.log('absenceDashboard ok');

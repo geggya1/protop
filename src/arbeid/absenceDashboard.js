@@ -278,6 +278,8 @@ export function buildAbsenceDashboard({
     ? balanceTypeIds(category, scoped, adjustments, selectedIds)
     : [balanceType];
 
+  const year = String(today || '').slice(0, 4) || String(new Date().getFullYear());
+  const yearAbsences = absences.filter((row) => String(row.date || '').startsWith(year));
   let used = 0;
   let earned = 0;
   let planned = 0;
@@ -289,7 +291,7 @@ export function buildAbsenceDashboard({
       const overview = buildAbsenceOverview({
         employeeId: person.id,
         typeId: type,
-        absences,
+        absences: yearAbsences,
         adjustments,
         fullDayHours: dayHours,
         today,
@@ -320,7 +322,6 @@ export function buildAbsenceDashboard({
     ? filtered
     : scoped.filter((row) => (row.type || 'ferie') === balanceType);
 
-  const year = String(today || '').slice(0, 4) || String(new Date().getFullYear());
   const months = MONTHS.map((label, index) => ({
     label,
     month: index + 1,

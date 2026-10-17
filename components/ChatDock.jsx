@@ -39,6 +39,9 @@ import {
   pointerClientPoint,
   shouldOpenChatOnFabRelease,
   chatFabSlopForPointerType,
+  chatFabRestOffset,
+  CHAT_FAB_EDGE,
+  CHAT_FAB_BOTTOM_GAP,
   CHAT_FAB_TAP_SLOP,
 } from '../src/utils/chatFabGesture';
 import {
@@ -694,7 +697,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
 }
 
 const FAB_SIZE = 56;
-const FAB_MARGIN = 16;
+const FAB_MARGIN = CHAT_FAB_EDGE;
 const DRAWER_WIDTH_RATIO = 0.8;
 
 function clampFabPos(x, y, winW, winH, extraBottom = 0) {
@@ -702,7 +705,7 @@ function clampFabPos(x, y, winW, winH, extraBottom = 0) {
     x: Math.min(Math.max(FAB_MARGIN, x), Math.max(FAB_MARGIN, winW - FAB_SIZE - FAB_MARGIN)),
     y: Math.min(
       Math.max(FAB_MARGIN, y),
-      Math.max(FAB_MARGIN, winH - FAB_SIZE - FAB_MARGIN - 24 - extraBottom),
+      Math.max(FAB_MARGIN, winH - FAB_SIZE - CHAT_FAB_EDGE - CHAT_FAB_BOTTOM_GAP - extraBottom),
     ),
   };
 }
@@ -710,7 +713,7 @@ function clampFabPos(x, y, winW, winH, extraBottom = 0) {
 function defaultFabPos(winW, winH, extraBottom = 0) {
   return clampFabPos(
     winW - FAB_SIZE - FAB_MARGIN,
-    winH - FAB_SIZE - FAB_MARGIN - 24 - extraBottom,
+    winH - FAB_SIZE - CHAT_FAB_EDGE - CHAT_FAB_BOTTOM_GAP - extraBottom,
     winW,
     winH,
     extraBottom,
@@ -732,6 +735,8 @@ function WebMovableChatFab({ onPress, open, label }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const extraBottom = useParentBottomNavChrome();
   const [pos, setPos] = useState(() => defaultFabPos(winW, winH, extraBottom));
+  const [dragged, setDragged] = useState(false);
+  const draggedRef = useRef(false);
   const nodeRef = useRef(null);
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -741,6 +746,7 @@ function WebMovableChatFab({ onPress, open, label }) {
   onPressRef.current = onPress;
 
   useEffect(() => {
+    if (!draggedRef.current) return;
     const next = clampFabPos(posRef.current.x, posRef.current.y, winW, winH, extraBottom);
     posRef.current = next;
     setPos(next);
@@ -762,8 +768,19 @@ function WebMovableChatFab({ onPress, open, label }) {
 
     const applyPos = (next) => {
       posRef.current = next;
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
       el.style.left = `${next.x}px`;
       el.style.top = `${next.y}px`;
+    };
+
+    const origin = () => {
+      const rect = el.getBoundingClientRect();
+      const host = el.offsetParent;
+      const base = host && typeof host.getBoundingClientRect === 'function'
+        ? host.getBoundingClientRect()
+        : { left: 0, top: 0 };
+      return { x: rect.left - base.left, y: rect.top - base.top };
     };
 
     const firePress = () => {
@@ -783,8 +800,9 @@ function WebMovableChatFab({ onPress, open, label }) {
       openedFromPointer = false;
       activePointerId = e.pointerId;
       slop = chatFabSlopForPointerType(e.pointerType);
-      start.x = posRef.current.x;
-      start.y = posRef.current.y;
+      const at = origin();
+      start.x = at.x;
+      start.y = at.y;
       start.pointerX = pt.x;
       start.pointerY = pt.y;
       try { el.setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
@@ -813,9 +831,18 @@ function WebMovableChatFab({ onPress, open, label }) {
       activePointerId = null;
       try { el.releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
       const { winW: w, winH: h, extraBottom: bottom } = dimsRef.current;
-      const next = clampFabPos(posRef.current.x, posRef.current.y, w, h, bottom);
-      applyPos(next);
-      setPos(next);
+      if (moved) {
+        draggedRef.current = true;
+        setDragged(true);
+        const next = clampFabPos(posRef.current.x, posRef.current.y, w, h, bottom);
+        applyPos(next);
+        setPos(next);
+      } else {
+        el.style.left = '';
+        el.style.top = '';
+        el.style.right = '';
+        el.style.bottom = '';
+      }
       if (shouldOpenChatOnFabRelease({ moved })) {
         openedFromPointer = true;
         firePress();
@@ -868,8 +895,9 @@ function WebMovableChatFab({ onPress, open, label }) {
       data-testid="chat-fab"
       style={{
         position: 'absolute',
-        left: pos.x,
-        top: pos.y,
+        ...(dragged
+          ? { left: pos.x, top: pos.y }
+          : chatFabRestOffset(extraBottom)),
         zIndex: 3,
         width: FAB_SIZE,
         height: FAB_SIZE,
@@ -904,10 +932,13 @@ function NativeMovableChatFab({ onPress, open, label }) {
   const startRef = useRef({ x: 0, y: 0 });
   const posRef = useRef(defaultFabPos(winW, winH, extraBottom));
   const movedRef = useRef(false);
+  const draggedRef = useRef(false);
   const pan = useRef(new Animated.ValueXY(posRef.current)).current;
 
   useEffect(() => {
-    posRef.current = clampFabPos(posRef.current.x, posRef.current.y, winW, winH, extraBottom);
+    posRef.current = draggedRef.current
+      ? clampFabPos(posRef.current.x, posRef.current.y, winW, winH, extraBottom)
+      : defaultFabPos(winW, winH, extraBottom);
     pan.setValue(posRef.current);
   }, [winW, winH, pan, extraBottom]);
 
@@ -922,6 +953,7 @@ function NativeMovableChatFab({ onPress, open, label }) {
       // Only translate after drag threshold so small jitter still counts as a tap.
       if (!isChatFabDrag(g.dx, g.dy, chatFabSlopForPointerType('touch'))) return;
       movedRef.current = true;
+      draggedRef.current = true;
       pan.setValue(clampFabPos(
         startRef.current.x + g.dx,
         startRef.current.y + g.dy,

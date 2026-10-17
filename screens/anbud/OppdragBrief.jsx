@@ -25,7 +25,7 @@ function awardLine(awards) {
     .join(' · ');
 }
 
-export default function OppdragBrief({ brief, colors, loading = false }) {
+export default function OppdragBrief({ brief, colors, loading = false, stacked = false }) {
   const [expanded, setExpanded] = useState(false);
   if (!brief) return null;
   const source = brief.source || 'Kunngjøringen';
@@ -45,7 +45,7 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
     || brief.links?.length
   );
   return (
-    <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+    <View style={[styles.panel, stacked ? styles.panelStacked : styles.panelSide, { borderColor: colors.line, backgroundColor: colors.bg }]}>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>Om oppdraget</Text>
       <Text style={{ color: colors.muted, fontSize: 12 }}>
         Offentlig informasjon fra kunngjøringen, slik at vurderingen kan gjøres her.
@@ -189,7 +189,10 @@ export default function OppdragBrief({ brief, colors, loading = false }) {
 }
 
 const styles = StyleSheet.create({
-  panel: { flex: 1, minWidth: 280, borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
+  panel: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
+  panelSide: { flex: 1, minWidth: 280 },
+  // I en kolonne må kortet ta sin egen høyde. flex:1 (basis 0) legger det oppå skjemaet.
+  panelStacked: { width: '100%', minWidth: 0, alignSelf: 'stretch' },
   primary: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pin: { minWidth: 140, flexGrow: 1, gap: 2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },

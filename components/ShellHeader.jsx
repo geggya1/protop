@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginHorizontal: -12,
     marginTop: 0,
-    overflow: 'hidden',
+    overflow: Platform.OS === 'web' ? 'clip' : 'hidden',
     zIndex: 1,
   },
   heroTitleRight: {

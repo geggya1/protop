@@ -68,6 +68,7 @@ export default function ModuleHero({
         bandStyle,
         chromePhone && styles.heroChromePhone,
         webBand,
+        Platform.OS === 'web' ? { overflow: 'clip' } : null,
       ]}
     >
       <View pointerEvents="none" style={[styles.glow, { backgroundColor: hero.bg2 }]} />
@@ -100,7 +101,7 @@ export default function ModuleHero({
           pointerEvents="none"
           style={[
             styles.artWrap,
-            { height: artH, aspectRatio: artRatio },
+            { height: artH, maxHeight: artH, aspectRatio: artRatio },
             isPhone ? styles.artWrapPhone : isDesktop ? styles.artWrapDesk : styles.artWrapTablet,
             chromePhone && styles.artWrapPhoneChrome,
           ]}
@@ -278,6 +279,7 @@ const styles = StyleSheet.create({
   artFit: {
     width: '100%',
     height: '100%',
+    maxHeight: '100%',
     backgroundColor: 'transparent',
     ...(Platform.OS === 'web' ? {
       objectFit: 'contain',

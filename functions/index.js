@@ -1000,7 +1000,7 @@ export {
   createSupportTicket,
 } from './aiCallables.js';
 
-export { lookupVehicleByReg } from './vegvesenLookup.js';
+export { lookupVehicleByReg, lookupVehicleHttp } from './vegvesenLookup.js';
 export { fetchOpenFeed, fetchOpenFeedHttp } from './openFeed.js';
 export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
 export { tenderProxy } from './tenderProxy.js';

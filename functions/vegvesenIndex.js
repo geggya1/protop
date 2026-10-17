@@ -11,4 +11,4 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 if (!getApps().length) initializeApp();
 setGlobalOptions({ region: 'europe-west1' });
 
-export { lookupVehicleByReg } from './vegvesenLookup.js';
+export { lookupVehicleByReg, lookupVehicleHttp } from './vegvesenLookup.js';

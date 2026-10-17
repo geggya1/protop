@@ -328,6 +328,28 @@ export async function fetchKjoretoyByReg(regOrVin, { apiKey, signal } = {}) {
   }
 }
 
+/**
+ * Svar fra /api/kjoretoy. HTML (Hosting-rewrite som ikke er deployet) skal
+ * ikke behandles som treff, og et ekte ikke-funnet skal ikke prøves på nytt.
+ */
+export function vehicleFromProxyPayload(status, contentType, body) {
+  const type = String(contentType || '').toLowerCase();
+  if (!type.includes('json') || !body || typeof body !== 'object' || Array.isArray(body)) {
+    return { action: 'continue' };
+  }
+  const statusCode = Number(status) || 0;
+  if (statusCode === 404 || body.code === 'not-found') {
+    return {
+      action: 'not-found',
+      error: String(body.error || body.message || 'Fant ikke kjøretøy med det registreringsnummeret.'),
+    };
+  }
+  if (statusCode >= 400 || body.ok === false) return { action: 'continue' };
+  if (body.raw) return { action: 'hit', vehicle: normalizeKjoretoydata(body.raw) };
+  if (body.vehicle && typeof body.vehicle === 'object') return { action: 'hit', vehicle: body.vehicle };
+  return { action: 'continue' };
+}
+
 /** Form-patch fra et normalisert oppslag (bevarer eksisterende notater/logger). */
 export function holdingFieldsFromLookup(vehicle, existing = {}) {
   if (!vehicle) return {};

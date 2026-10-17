@@ -1128,7 +1128,7 @@ const styles = StyleSheet.create({
   contentAreaDesktop: {
     alignItems: 'stretch',
   },
-  contentInner: { flex: 1, minWidth: 0, alignSelf: 'stretch', position: 'relative', backgroundColor: 'transparent' },
+  contentInner: { flex: 1, minWidth: 0, minHeight: 0, alignSelf: 'stretch', position: 'relative', backgroundColor: 'transparent' },
   contentInnerDesktop: {
     maxWidth: '100%',
     width: '100%',

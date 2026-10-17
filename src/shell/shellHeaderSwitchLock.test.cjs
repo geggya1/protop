@@ -160,4 +160,19 @@ assert.equal(sideStyles.length, 2);
 assert.equal(sideStyles.filter((style) => style.paddingRight === 118).length, 1);
 assert.equal(sideStyles.filter((style) => style.paddingLeft === 118).length, 1);
 
+const phone = renderToStaticMarkup(React.createElement(ShellHeader, {
+  compact: false,
+  title: 'Fraværsoversikt',
+}));
+const phoneStyles = [...phone.matchAll(/data-style="([^"]*)"/g)]
+  .map((hit) => JSON.parse(decodeAttr(hit[1])));
+const help = phoneStyles.find((style) => style.top === '100%');
+assert.ok(help, 'lyspæren skal starte under profilbildet');
+assert.equal(help.position, 'absolute');
+assert.ok((help.marginTop || 0) >= 4, 'lyspæren skal ha et mellomrom under bildet');
+const switchRow = phoneStyles.find((style) => style.minHeight === 52 && style.zIndex === 3);
+assert.ok(switchRow, 'Privat/Bedrift-baren skal ha full høyde');
+assert.equal(switchRow.overflow, 'visible');
+assert.ok(switchRow.paddingTop >= 8 && switchRow.paddingBottom >= 8);
+
 console.log('shellHeaderSwitchLock.test.cjs: ok');

@@ -78,6 +78,18 @@ html {
   text-size-adjust: 100%;
   touch-action: manipulation;
 }
+/*
+ * Fraværsoversikt: html har touch-action: manipulation og overflow: hidden.
+ * Uten egen pan-y og en avgrenset høyde stjeler Safari gesten, og siden
+ * klippes i stedet for å scrolle.
+ */
+#selskap-fravaer {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
 #root {
   display: flex;
   flex-direction: column;

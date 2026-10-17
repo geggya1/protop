@@ -151,7 +151,6 @@ export function CompanyAbsenceView({
   const quota = hasQuota ? earnedDays : 0;
   const used = Number(summary.used) || 0;
   const remainingVisual = Math.max(0, Math.round((quota - used) * 100) / 100);
-  const year = dashboard?.year || '';
   const detailRows = [
     { key: 'earned', label: 'Startsaldo og justeringer', icon: 'calendar-outline', solo: true },
     { key: 'used', label: year ? `Brukte dager ${year}` : 'Brukte dager', icon: usedIcon(category) },

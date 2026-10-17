@@ -51,9 +51,11 @@ assert.equal(cssVars['--protop-vv-height'], '612px');
 
 assert.match(css, /--protop-vv-height/, 'phone shell tracks the visual viewport');
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*position:\s*fixed/, 'phone document does not scroll');
+assert.match(css, /padding-top:\s*50px/, 'iOS address pill does not cover the app bar');
+assert.match(css, /html\[data-standalone="1"\][\s\S]*padding-top:\s*0\s*!important/, 'installed app has no address-pill gap');
 assert.match(css, /@media \(max-width: 1023px\)[\s\S]*#shell-scroll/, 'page body is the only scrollport');
 assert.match(app, /usePhoneVisualViewport/, 'app publishes the visible frame');
-assert.match(header, /chromeLocked/, 'phone top menu stays pinned');
+assert.doesNotMatch(header, /chromeLocked|position:\s*'sticky'/, 'page title stays under the in-flow top bar');
 assert.match(shell, /nativeID="shell-scroll"/, 'module body is the scrollport');
 assert.doesNotMatch(bottomNav, /position:\s*'fixed'/, 'bottom menu stays in the shell column');
 

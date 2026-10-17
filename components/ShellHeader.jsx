@@ -43,6 +43,8 @@ export const ShellPageHeroContext = createContext(null);
  * På Hjem (chromeOnly) er det samme hvite logo-feltet som på modulene —
  * meny, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
  * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger også her, under profilen.
+ * Sidetittel og modulheading ligger alltid under logo-raden, aldri over
+ * den og aldri i nettleserens adresselinje.
  * Når `hero` er satt (modulheading på telefon), er pastellbåndet selve
  * toppheadingen — rett under logo/meny, uten familienavn og uten stor
  * sidetittel. titleRight (blå «+ …») overlapper nedre høyre kant av båndet.
@@ -200,10 +202,7 @@ export default function ShellHeader({
 
   return (
     <>
-      <View
-        style={[styles.chromeRoot, Platform.OS === 'web' && isPhone && styles.chromeLocked]}
-        collapsable={false}
-      >
+      <View style={styles.chromeRoot} collapsable={false}>
         <View
           style={[
             styles.bar,
@@ -322,12 +321,6 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     flexGrow: 0,
     flexShrink: 0,
-  },
-  /* Stays at the top of the phone shell even if a page tries to scroll it. */
-  chromeLocked: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 40,
   },
   bar: {
     paddingHorizontal: 12,

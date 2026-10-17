@@ -149,7 +149,7 @@ function collectText(node, depth = 0, out = []) {
 
 const boardModule = loadJsx('screens/arbeid/ProductivityBoard.jsx');
 const Board = boardModule.default;
-const { WeekSumChart, labelColumnWidth, editorLeft, editorTop } = boardModule;
+const { WeekSumChart, labelColumnWidth, editorLeft, editorTop, gestureIntent } = boardModule;
 
 assert.equal(labelColumnWidth(390), 132);
 assert.equal(labelColumnWidth(700), 180);
@@ -159,6 +159,13 @@ assert.equal(editorTop(20), 38);
 assert.equal(editorLeft({ startIndex: 0, trackWeeks: 26, scrollX: 0, paneWidth: 200, popupWidth: 168 }), 0);
 assert.equal(editorLeft({ startIndex: 10, trackWeeks: 26, scrollX: 0, paneWidth: 200, popupWidth: 168 }), 28);
 assert.equal(editorLeft({ startIndex: 10, trackWeeks: 26, scrollX: 480, paneWidth: 200, popupWidth: 168 }), 480);
+assert.equal(gestureIntent('arm-paint', 0, 4), 'wait');
+assert.equal(gestureIntent('arm-paint', 30, 4), 'scroll');
+assert.equal(gestureIntent('arm-paint', 4, 40), 'scroll');
+assert.equal(gestureIntent('arm-move', 4, 40), 'scroll');
+assert.equal(gestureIntent('arm-move', 36, 4), 'move');
+assert.equal(gestureIntent('arm-resize', 36, 4), 'resize');
+assert.equal(gestureIntent('paint', 40, 0), 'free');
 
 const people = [
   { id: 'a', label: 'Ada Nord', company: { personnelKind: 'staff', workPercent: '80', status: 'active' } },

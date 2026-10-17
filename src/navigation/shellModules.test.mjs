@@ -5,10 +5,12 @@ import {
   buildParentDashboardApps,
   buildChildDashboardApps,
   companyNavItems,
+  defaultOkonomiSubView,
   drawerHasSubmenuToggle,
   drawerSubmenuOpen,
   isNavItemActive,
   normalizeShellSelection,
+  okonomiMenuTitle,
 } from './shellModules.js';
 import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
 import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
@@ -84,7 +86,7 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'iso', 'okonomi'],
+    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'iso', 'kjorebok', 'okonomi'],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
@@ -130,9 +132,16 @@ function idsIn(sections) {
   assert.equal(arbeid.action.subView, 'timeliste');
   assert.equal(arbeid.children[1].action.tab, 'arbeid');
   assert.equal(arbeid.children[1].action.subView, 'timerapport');
+  const kjorebok = companyItems.find((i) => i.id === 'kjorebok');
+  assert.equal(kjorebok.label, 'Kjørebok');
+  assert.equal(kjorebok.action.tab, 'okonomi');
+  assert.equal(kjorebok.action.subView, 'kjorebok');
+  assert.equal(kjorebok.children, undefined);
+  assert.ok(companyItems.findIndex((i) => i.id === 'iso') < companyItems.findIndex((i) => i.id === 'kjorebok'));
+  assert.ok(companyItems.findIndex((i) => i.id === 'kjorebok') < companyItems.findIndex((i) => i.id === 'okonomi'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Kjørebok', 'Indeksregulering'],
+    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
@@ -188,6 +197,13 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(indeks, 'okonomi', 'indeks'), true);
   assert.equal(isNavItemActive(indeks, 'okonomi', 'oversikt'), false);
   assert.equal(isNavItemActive(indeks, 'projects', null), false);
+  const kjorebok = items.find((item) => item.id === 'kjorebok');
+  assert.equal(isNavItemActive(kjorebok, 'okonomi', 'kjorebok'), true);
+  assert.equal(isNavItemActive(kjorebok, 'okonomi', 'oversikt'), false);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'kjorebok'), false);
+  assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', {}, 'kjorebok'), false);
+  assert.equal(defaultOkonomiSubView('kjorebok'), 'kjorebok');
+  assert.equal(okonomiMenuTitle('kjorebok'), 'Kjørebok');
   const selskap = items.find((item) => item.id === 'selskap');
   const units = selskap.children.find((item) => item.id === 'underenheter');
   assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);

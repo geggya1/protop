@@ -106,6 +106,7 @@ export const PRODUKT_MENU = [
  * åpnes uten å velge raden. Økonomi er lukket til modulen er valgt eller
  * ekspanderen trykkes, så Kunder ikke blandes med Kundesummer.
  * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
+ * Kjørebok er et eget punkt i bedriftsmenyen. Siden åpnes fortsatt via økonomi-fanen.
  */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
@@ -115,16 +116,16 @@ export const OKONOMI_MENU = [
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
   { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
-  { id: 'kjorebok', icon: 'car', label: 'Kjørebok' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
 ];
 
-/** Undersider som åpnes via Økonomi-fanen, også når menyen ligger under Produkt. */
+/** Undersider som åpnes via Økonomi-fanen, også når menyen ligger annet sted. */
 export const OKONOMI_ROUTE_IDS = [
   ...OKONOMI_MENU
     .filter((item) => !item.tab || item.tab === 'okonomi')
     .map((item) => item.id),
   'produkter',
+  'kjorebok',
 ];
 
 export const OKONOMI_SUBVIEW_IDS = OKONOMI_ROUTE_IDS;
@@ -281,6 +282,12 @@ export function companyNavItems() {
       action: { type: 'tab', tab: 'utstyr' },
     },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
+    {
+      id: 'kjorebok',
+      icon: 'car',
+      label: 'Kjørebok',
+      action: { type: 'tab', tab: 'okonomi', subView: 'kjorebok' },
+    },
     {
       id: 'okonomi',
       icon: 'wallet',

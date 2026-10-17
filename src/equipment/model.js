@@ -157,6 +157,13 @@ const EQUIPMENT_CATEGORY_IDS = new Set([
   'poolbil', 'drone', 'ipad', 'termokamera', 'verktoy', 'annet', 'rom',
 ]);
 
+/** Øverste leder og administrator kan registrere kjøretøy på bedriften. */
+export function canAddCompanyVehicle(levelIds, { bypass = false } = {}) {
+  if (bypass) return true;
+  const ids = Array.isArray(levelIds) ? levelIds : [levelIds];
+  return ids.includes('leder') || ids.includes('administrator');
+}
+
 export function companyVehicles(equipment = []) {
   return (equipment || [])
     .map(normalizeEquipment)

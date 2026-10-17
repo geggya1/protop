@@ -71,8 +71,10 @@ function toCss(style) {
 function domProps(props) {
   const id = props?.nativeID;
   const style = toCss(props?.style);
+  const label = props?.accessibilityLabel;
   return {
     ...(id ? { id } : {}),
+    ...(label ? { 'aria-label': label } : {}),
     ...(style && Object.keys(style).length ? { style } : {}),
   };
 }
@@ -83,8 +85,11 @@ const rnMock = {
   ScrollView: (props) => React.createElement('div', domProps(props), props?.children),
   Pressable: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
   TextInput: (props) => React.createElement('input', { placeholder: props?.placeholder, defaultValue: props?.value }),
-  StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {} },
+  StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} },
   Platform: { OS: 'web', select: (options) => options?.web || options?.default },
+  TouchableOpacity: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
+  Modal: (props) => (props?.visible === false ? null : React.createElement('div', domProps(props), props?.children)),
+  Dimensions: { get: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }) },
 };
 
 function mocked(id) {
@@ -102,6 +107,14 @@ function mocked(id) {
     };
   }
   if (id.includes('ui/saveToast')) return { showSaveToast: () => {} };
+  if (id.includes('ThemeContext')) {
+    return {
+      useColors: () => ({
+        brand: '#1099F4', ink: '#152033', muted: '#8B95A6', line: '#E6EBF2',
+        card: '#fff', bg: '#F4F7FB', danger: '#b42318',
+      }),
+    };
+  }
   if (id.includes('anbud/bidLibrary')) return { saveFormTemplate: () => ({ ok: true, state: {} }) };
   return null;
 }
@@ -478,6 +491,59 @@ let caseHtml = '';
   assert.match(caseHtml, /id="hr-open-task"/);
   assert.match(caseHtml, /Ansvar Geir/);
   assert.match(caseHtml, /Ada Nordmann/);
+}
+
+const HrSectionNav = component('screens/hr/HrSectionNav.jsx');
+const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lov & ISO', 'Rekruttering'];
+
+let phoneNavHtml = '';
+let phoneSheetHtml = '';
+let desktopNavHtml = '';
+{
+  phoneNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
+    colors,
+    page: 'oversikt',
+    isPhone: true,
+    onChange: () => {},
+  }));
+  assert.match(phoneNavHtml, /id="hr-section-picker"/);
+  assert.match(phoneNavHtml, /Bytt seksjon, Oversikt/);
+  assert.match(phoneNavHtml, /Oversikt/);
+  assert.equal(phoneNavHtml.includes('id="hr-tabs"'), false);
+  for (const label of sectionLabels.slice(1)) {
+    assert.equal(phoneNavHtml.includes(label), false, `lukket mobilmeny skal ikke vise ${label}`);
+  }
+}
+
+{
+  phoneSheetHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
+    colors,
+    page: 'oversikt',
+    isPhone: true,
+    sheetOpen: true,
+    onChange: () => {},
+  }));
+  assert.match(phoneSheetHtml, /id="hr-section-picker"/);
+  assert.match(phoneSheetHtml, /Seksjon/);
+  for (const label of sectionLabels) {
+    assert.match(phoneSheetHtml, new RegExp(label.replace('&', '&amp;')));
+  }
+  assert.match(phoneSheetHtml, /id="hr-section-personell"/);
+  assert.match(phoneSheetHtml, /id="hr-section-rekruttering"/);
+}
+
+{
+  desktopNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
+    colors,
+    page: 'personell',
+    isPhone: false,
+    onChange: () => {},
+  }));
+  assert.match(desktopNavHtml, /id="hr-tabs"/);
+  assert.equal(desktopNavHtml.includes('id="hr-section-picker"'), false);
+  for (const label of sectionLabels) {
+    assert.match(desktopNavHtml, new RegExp(label.replace('&', '&amp;')));
+  }
 }
 
 const previewDir = '/opt/cursor/artifacts';

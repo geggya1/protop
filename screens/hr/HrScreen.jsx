@@ -10,9 +10,10 @@ import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
-import { defaultHrSubView, HR_MENU } from '../../src/navigation/shellModules';
+import { defaultHrSubView } from '../../src/navigation/shellModules';
+import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrChip } from './HrShared';
+import HrSectionNav from './HrSectionNav';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
@@ -30,6 +31,7 @@ function periodWindow(months = 3) {
 
 export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
+  const { isPhone } = useLayout();
   const nav = useNavigation();
   const { familyId, uid, activeProfile, requestShellTab } = useApp();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
@@ -271,17 +273,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.content}
       nativeID="hr-screen"
     >
-      <View style={styles.tabs} nativeID="hr-tabs">
-        {HR_MENU.map((item) => (
-          <HrChip
-            key={item.id}
-            colors={colors}
-            label={item.label}
-            active={page === item.id}
-            onPress={() => go(item.id)}
-          />
-        ))}
-      </View>
+      <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
       {ready ? <View key={familyId || 'hr'}>{body}</View> : null}
     </ScrollView>
   );
@@ -290,5 +282,4 @@ export default function HrScreen({ subView = 'oversikt' }) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 40, gap: 12 },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

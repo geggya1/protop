@@ -192,6 +192,8 @@ function person(id, {
   assert.match(people, /Fakturerbarhet/);
   assert.doesNotMatch(people, /Hurtigregistrer kontrakt/);
   assert.match(screen, /HrControl/);
+  assert.match(screen, /HrSectionNav/);
+  assert.match(screen, /isPhone/);
   assert.doesNotMatch(screen, /from '\.\/HrContracts'/);
 }
 

@@ -42,6 +42,7 @@ export function indexNews(previous, next) {
       news.push({
         id,
         name: row.name || id,
+        table: row.table || '',
         period: row.period,
         value: row.value,
         previousPeriod: before.period,

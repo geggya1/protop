@@ -111,12 +111,16 @@ function sameCodes(left, right) {
  * Henter alle kontraktseriene i katalogen, med full historikk.
  * Delserier som ligger i samme tabell kommer i samme svar.
  */
-export async function fetchAllIndices({ fetchImpl = fetch, onProgress } = {}) {
+export async function fetchAllIndices({ fetchImpl = fetch, onProgress, ids = null } = {}) {
+  const allow = Array.isArray(ids) && ids.length ? new Set(ids.map((id) => String(id))) : null;
+  const fetches = allow
+    ? SSB_FETCHES.filter((spec) => INDEX_SERIES.some((item) => item.table === spec.table && allow.has(item.id)))
+    : SSB_FETCHES;
   const series = {};
   const errors = [];
-  for (let i = 0; i < SSB_FETCHES.length; i += 1) {
-    const spec = SSB_FETCHES[i];
-    onProgress?.({ index: i + 1, total: SSB_FETCHES.length, table: spec.table });
+  for (let i = 0; i < fetches.length; i += 1) {
+    const spec = fetches[i];
+    onProgress?.({ index: i + 1, total: fetches.length, table: spec.table });
     let rows = [];
     try {
       rows = await fetchTable(spec, fetchImpl);
@@ -124,7 +128,7 @@ export async function fetchAllIndices({ fetchImpl = fetch, onProgress } = {}) {
       errors.push(error?.message || `Kunne ikke hente tabell ${spec.table}.`);
       continue;
     }
-    INDEX_SERIES.filter((item) => item.table === spec.table).forEach((item) => {
+    INDEX_SERIES.filter((item) => item.table === spec.table && (!allow || allow.has(item.id))).forEach((item) => {
       const row = item.codes.length
         ? rows.find((candidate) => sameCodes(candidate.codes, item.codes))
         : rows[0];

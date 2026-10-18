@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Linking,
@@ -31,6 +31,12 @@ import { defaultWorkSettings, PROJECT_ROLES, employeeDisplayName } from '../../s
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel, PRICING_MODELS } from '../../src/project/projectFields.js';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
+import IndexLetterTable from '../economy/IndexLetterTable';
+import { lettersForProject, projectNeedsIndexAttention } from '../../src/indeksregulering/groups';
+import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
+import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
+import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
+import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
@@ -81,6 +87,38 @@ function openExternal(url) {
   Linking.openURL(href).catch(() => {});
 }
 
+function ProjectIndexNote({ project, contracts, timeEntries, colors }) {
+  const [dueById, setDueById] = useState(null);
+  const contractKey = (contracts || []).map((row) => row.id).join(',');
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      loadCases(),
+      loadIndexCache(),
+      loadRemoteIndexSnapshot().catch(() => null),
+    ]).then(([cases, cache, remote]) => {
+      if (!live) return;
+      setDueById(dueByContractId(contracts, cases, mergeIndexSnapshot(cache?.series, remote)));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [contractKey]);
+  if (!dueById) return null;
+  const attention = projectNeedsIndexAttention({
+    project,
+    contracts,
+    timeEntries,
+    dueById,
+    today: osloDate(),
+  });
+  if (!attention) return null;
+  return (
+    <View accessibilityLabel={attention.reason} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <Ionicons name="alert-circle" size={16} color={colors.danger || '#b45309'} />
+      <Text style={{ color: colors.danger || '#b45309', fontWeight: '600' }}>Ny indeks. Regulering bør foretas.</Text>
+    </View>
+  );
+}
+
 function AgreementPanel({
   cross,
   colors,
@@ -89,6 +127,9 @@ function AgreementPanel({
   onOpenInvoice,
   onOpenIndex,
   customerId,
+  project,
+  contracts,
+  timeEntries,
 }) {
   const contract = cross.contract;
   const feeLabel = cross.honorarText
@@ -147,6 +188,7 @@ function AgreementPanel({
           </TouchableOpacity>
         ) : null}
       </View>
+      <ProjectIndexNote project={project} contracts={contracts} timeEntries={timeEntries} colors={colors} />
 
       <Text nativeID="project-invoice-list" style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>
         Fakturaer ({cross.invoices.length})
@@ -167,6 +209,15 @@ function AgreementPanel({
       {!cross.invoices.length ? (
         <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen fakturaer er koblet til prosjektet.</Text>
       ) : null}
+
+      <View style={{ marginTop: 16 }}>
+        <IndexLetterTable
+          rows={lettersForProject(project, contracts)}
+          colors={colors}
+          title="Indeksreguleringer på prosjektet"
+          empty="Ingen indeksreguleringer er registrert på prosjektet."
+        />
+      </View>
 
       {cross.documents.length ? (
         <>
@@ -423,6 +474,9 @@ export default function ProjectDetail({
           cross={cross}
           colors={colors}
           customerId={customer?.id || project.customerId}
+          project={project}
+          contracts={contracts}
+          timeEntries={state.timeEntries || []}
           onOpenAgreement={onOpenAgreement}
           onOpenCustomer={onOpenCustomer}
           onOpenInvoice={onOpenInvoice}

@@ -47,6 +47,8 @@ import { loadProjectState } from '../../src/project/storage';
 import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
+import IndexLetterTable from '../../components/economy/IndexLetterTable';
+import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
 
 async function lookupBrregCustomer(orgnr) {
@@ -860,6 +862,15 @@ export default function CustomersScreen() {
             >
               <Text style={{ color: colors.brand }}>Registrer avtale</Text>
             </TouchableOpacity>
+          </View>
+          <View nativeID="customer-index-letters" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Økonomi</Text>
+            <IndexLetterTable
+              rows={lettersForCustomer(selected, contracts)}
+              colors={colors}
+              title="Indeksreguleringer"
+              empty="Ingen indeksbrev er lagret på kundens avtaler."
+            />
           </View>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.ink, fontWeight: '600' }}>

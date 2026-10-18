@@ -468,6 +468,16 @@ export const COMPANY_HERO = {
       'Adjust agreements by the agreed index.',
     ),
   },
+  'okonomi-indekser': {
+    ...BLUE,
+    name: 'Indekser',
+    kicker: t('Økonomi', 'Finance'),
+    title: t('Indekser', 'Index series'),
+    pitch: t(
+      'Siste SSB-punkt for indeksene som er i bruk i avtalene.',
+      'Latest Statistics Norway point for the indices used in agreements.',
+    ),
+  },
 };
 
 export function companyHeroId(tab, moreSubView = null) {

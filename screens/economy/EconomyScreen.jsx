@@ -17,6 +17,7 @@ import EconomyContracts from './EconomyContracts';
 import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
+import EconomyIndices from './EconomyIndices';
 import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
@@ -137,9 +138,22 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           customer={matchCustomer(customers, selectedContract)}
           company={company}
           project={projects.find((row) => row.id === selectedContract?.projectId) || null}
+          contracts={contracts}
           onClose={backToDesk}
           onSaveRegulations={saveRegulations}
         />
+      </ScrollView>
+    );
+  }
+
+  if (page === 'indekser') {
+    return (
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+      >
+        <EconomyIndices contracts={contracts} />
       </ScrollView>
     );
   }
@@ -155,11 +169,11 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           customers={customers}
           contracts={contracts}
           projects={projects}
+          timeEntries={state.timeEntries || []}
           dueById={dueById}
           chosenContractId={chosen?.id || ''}
           title=""
           lead=""
-          includeCustomers={false}
           searchPlaceholder="Søk i prosjekt, avtaler og rammeavtaler"
           onChooseContract={setChosen}
           onOpenIndex={openIndex}

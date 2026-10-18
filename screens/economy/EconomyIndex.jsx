@@ -5,6 +5,8 @@ import { calculate, emptyLine, parseAmount, periodLabel } from '../../src/indeks
 import { buildLetter, formatIndex, formatMoney, formatPercent } from '../../src/indeksregulering/letter';
 import { downloadBytes, exportFiles } from '../../src/indeksregulering/office';
 import { regulationCells, regulationEntry, rememberRegulation } from '../../src/indeksregulering/regulationLog';
+import { sendIndexLetter } from '../../src/indeksregulering/mailClient';
+import { osloDate } from '../../src/indeksregulering/watch';
 import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { seriesById } from '../../src/indeksregulering/catalog';
 import { draftFromRegisteredContract, knownIndexFacts, missingIndexFields } from '../../src/economy/fromContract';
@@ -96,12 +98,13 @@ export default function EconomyIndex({
   customer = null,
   company = null,
   project = null,
+  contracts = [],
   onClose,
   onSaveRegulations,
 }) {
   const colors = useColors();
   const companyLogo = companyLogoOf(company);
-  const extras = { customer, company, projectNumber: project?.number || '' };
+  const extras = { customer, company, projectNumber: project?.number || '', contracts };
   const [draft, setDraft] = useState(() => draftFromRegisteredContract(contract, extras));
   const [useLogo, setUseLogo] = useState(true);
   const [bundle, setBundle] = useState(null);
@@ -118,6 +121,7 @@ export default function EconomyIndex({
       customer,
       company,
       projectNumber: project?.number || '',
+      contracts,
     }));
     setOpenLetterId('');
     setSaveNote('');
@@ -136,8 +140,12 @@ export default function EconomyIndex({
     [draft, live, companyLogo, useLogo],
   );
   const entry = useMemo(
-    () => (live?.ok && letter ? regulationEntry(draft, live, letter) : null),
-    [draft, live, letter],
+    () => (live?.ok && letter ? regulationEntry(draft, live, letter, {
+      projectId: project?.id || contract?.projectId || '',
+      customerId: customer?.id || contract?.customerId || '',
+      contractTitle: contract?.title || draft.title,
+    }) : null),
+    [draft, live, letter, project?.id, contract?.projectId, contract?.customerId, contract?.title, customer?.id],
   );
   const history = useMemo(() => {
     const stored = Array.isArray(contract?.regulations) ? contract.regulations : [];
@@ -206,6 +214,32 @@ export default function EconomyIndex({
     });
     return () => { liveSave = false; };
   }, [entry, contract?.id, contract?.regulations, ownerId, onSaveRegulations]);
+
+  async function sendLetter() {
+    const to = customer?.email || draft.email;
+    if (!letter || !entry || !to) {
+      setError('Kunden mangler e-post, så varslet kan ikke sendes.');
+      return;
+    }
+    setWorking(true);
+    setError('');
+    try {
+      await sendIndexLetter({
+        to,
+        name: customer?.contactName || draft.contactName || customer?.name || draft.buyer,
+        companyName: company?.navn || draft.supplier,
+        letterPlain: letter.plain,
+        period: live?.regulationPoint?.period || '',
+      });
+      const sent = { ...entry, sentAt: osloDate(), sentTo: to };
+      await onSaveRegulations?.(contract.id, sent);
+      setSaveNote(`Varsel om indeksregulering er sendt til ${to}.`);
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke sende varslet.');
+    } finally {
+      setWorking(false);
+    }
+  }
 
   function exportKind(kind) {
     if (!letter || !live?.ok) {
@@ -331,6 +365,14 @@ export default function EconomyIndex({
             </TouchableOpacity>
             <TouchableOpacity onPress={() => exportKind('xlsx')} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
               <Text style={{ color: '#fff' }}>Excel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={sendLetter}
+              disabled={working}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.brand, opacity: working ? 0.55 : 1 }]}
+            >
+              <Text style={{ color: '#fff' }}>Send varsel på e-post</Text>
             </TouchableOpacity>
           </View>
           <LetterView notice={letter.notice} colors={colors} />

@@ -6,6 +6,7 @@ import { MODELS, STANDARDS, seriesById } from '../indeksregulering/catalog.js';
 import { interpretDocuments } from '../indeksregulering/interpret.js';
 import { formatKrone } from '../indeksregulering/letter.js';
 import { honorarPrice } from '../indeksregulering/priceText.js';
+import { effectiveRegulation, frequencyLabel, scopeLabel } from '../indeksregulering/settings.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -86,6 +87,7 @@ export function draftFromRegisteredContract(contract, extras = {}) {
     except(stored.phone, companyPhone),
     except(read?.phone, companyPhone),
   );
+  const settings = effectiveRegulation(contract, extras.contracts || []);
 
   return {
     title: pick(cover.title, contract?.title, stored.title, read?.title),
@@ -122,7 +124,12 @@ export function draftFromRegisteredContract(contract, extras = {}) {
     surchargePercent: pick(cover.surchargePercent, stored.surchargePercent),
     kind: pick(cover.kind, contract?.kind),
     lines: moneyLine(cover, stored),
-    terms: stored.terms || read?.terms || null,
+    terms: {
+      ...(stored.terms && typeof stored.terms === 'object' ? stored.terms : (read?.terms || {})),
+      frequency: settings.frequency,
+    },
+    firstRegulationDate: settings.firstRegulationDate,
+    regulationScope: settings.scope,
     documents: docs,
     findings: stored.findings || read?.findings || [],
     engine: stored.engine || read?.engine || 'avtale',
@@ -152,6 +159,9 @@ export function knownIndexFacts(draft) {
     { label: 'Org.nr oppdragstaker', value: draft?.supplierOrgnr },
     { label: 'Standard', value: rule?.label || draft?.standard },
     { label: 'Indeks', value: series ? `${series.name} · tabell ${series.table}` : draft?.indexId },
+    { label: 'Reguleringsnivå', value: scopeLabel(draft?.regulationScope) },
+    { label: 'Hvor ofte', value: frequencyLabel(draft?.terms?.frequency) },
+    { label: 'Første regulering', value: draft?.firstRegulationDate },
     { label: 'Modell', value: modelLabel(draft?.model) },
     { label: 'Avtaledato', value: draft?.contractDate },
     { label: 'Tilbudsdato', value: draft?.offerDate },

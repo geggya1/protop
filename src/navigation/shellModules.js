@@ -117,6 +117,7 @@ export const OKONOMI_MENU = [
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
   { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
+  { id: 'indekser', icon: 'stats-chart', label: 'Indekser' },
 ];
 
 /** Undersider som åpnes via Økonomi-fanen, også når menyen ligger annet sted. */
@@ -136,6 +137,7 @@ export function defaultOkonomiSubView(subView) {
 
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
+  if (subView === 'indekser') return 'Indekser';
   if (subView === 'kunder') return 'Kundesummer';
   if (subView === 'avtaler') return 'Avtalesummer';
   if (subView === 'faktura') return 'Faktura';

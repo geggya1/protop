@@ -10,27 +10,52 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from './security.js';
 import { touchGeminiEnv } from './geminiEnv.js';
 import { handleInterpretIndeks } from './interpretAvtaleCore.js';
+import { seriesById } from './indeksregulering/catalog.js';
 import { fetchAllIndices } from './indeksregulering/ssb.js';
-import { indexNews, latestMap } from './indeksregulering/watch.js';
+import { indexIdsInDocument, nextSsbRecord } from './indeksregulering/ledger.js';
 
 export { handleInterpretIndeks } from './interpretAvtaleCore.js';
 
-export async function recordSsbCheck(fetchImpl = fetch) {
+export async function collectUsedIndexIds(db) {
+  const ids = new Set();
+  const snap = await db.collectionGroup('anbud').limit(300).get();
+  snap.forEach((doc) => {
+    indexIdsInDocument(doc.data()).forEach((id) => {
+      if (seriesById(id)) ids.add(id);
+    });
+  });
+  return [...ids];
+}
+
+export async function recordSsbCheck(fetchImpl = fetch, dbImpl = null) {
   if (!getApps().length) initializeApp();
-  const bundle = await fetchAllIndices({ fetchImpl });
-  const db = getFirestore();
+  const db = dbImpl || getFirestore();
   const ref = db.doc('system/indeksSsb');
   const prev = await ref.get();
-  const next = latestMap(bundle.series);
-  const news = indexNews(prev.data()?.series, next);
-  const row = {
-    checkedAt: new Date().toISOString(),
-    errors: bundle.errors || [],
-    series: next,
-    news,
-  };
+  let ids = [];
+  try {
+    ids = await collectUsedIndexIds(db);
+  } catch (error) {
+    logger.error('Kunne ikke lese benyttede indekser', { message: error?.message });
+    return prev.data() || null;
+  }
+  if (!ids.length) {
+    const kept = prev.data() || {};
+    const row = {
+      checkedAt: new Date().toISOString(),
+      errors: ['Ingen benyttede indekser i inngåtte avtaler.'],
+      series: kept.series || {},
+      news: [],
+      history: kept.history || [],
+    };
+    await ref.set(row);
+    logger.info('SSB-sjekk uten benyttede indekser');
+    return row;
+  }
+  const bundle = await fetchAllIndices({ fetchImpl, ids });
+  const row = nextSsbRecord(prev.data(), bundle, new Date().toISOString());
   await ref.set(row);
-  logger.info('SSB-indeks sjekket', { series: Object.keys(next).length, news: news.length });
+  logger.info('SSB-indeks sjekket', { series: Object.keys(row.series).length, news: row.news.length, ids: ids.length });
   return row;
 }
 

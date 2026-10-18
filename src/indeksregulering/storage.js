@@ -34,6 +34,7 @@ export async function saveIndexCache(bundle) {
     fetchedAt: bundle.fetchedAt,
     checkedOn: bundle.checkedOn || '',
     news: bundle.news || [],
+    history: Array.isArray(bundle.history) ? bundle.history.slice(0, 200) : [],
     errors: bundle.errors || [],
     series: {},
   };

@@ -1,6 +1,7 @@
 /** Sammenligner SSB-tall og sier fra når en avtalt serie har fått et nytt punkt. */
 
 import { contractBasis, parseIsoDate } from './engine.js';
+import { effectiveRegulation } from './settings.js';
 
 export function osloDate(now = new Date()) {
   try {
@@ -42,6 +43,7 @@ export function indexNews(previous, next) {
       news.push({
         id,
         name: row.name || id,
+        table: row.table || '',
         period: row.period,
         value: row.value,
         previousPeriod: before.period,
@@ -249,22 +251,47 @@ export function dueByContractId(contracts, cases, series, today = '') {
     const caseId = contract?.indeksCaseId || (contract?.id ? `ir-${contract.id}` : '');
     const stored = byCase.get(caseId) || byCase.get(`contract:${contract.id}`) || null;
     const draft = stored?.draft || contract?.indexDraft || {};
+    const settings = effectiveRegulation(contract, contracts);
+    if (!settings.regulatesHere) {
+      out[contract.id] = {
+        due: false,
+        allowed: true,
+        reason: contract.kind === 'rammeavtale'
+          ? 'Avtalen sier at reguleringen skjer på avropene.'
+          : 'Avtalen sier at reguleringen skjer på rammeavtalen.',
+        indexId: settings.indexId,
+        period: '',
+        firstRegulationDate: settings.firstRegulationDate,
+        regulatedPeriod: stored?.regulatedPeriod || '',
+        caseId,
+        title: contract.title || draft.title || 'Avtale',
+        name: '',
+        table: '',
+      };
+      return;
+    }
     const status = regulationStatus({
       draft: {
         ...draft,
+        indexId: draft.indexId || settings.indexId,
         title: draft.title || contract.title,
         startDate: draft.startDate || contract.start,
         endDate: draft.endDate || contract.end,
+        firstRegulationDate: settings.firstRegulationDate || draft.firstRegulationDate || '',
+        terms: { ...(draft.terms || {}), frequency: settings.frequency },
         regulationExcluded: draft.regulationExcluded,
       },
       regulatedPeriod: stored?.regulatedPeriod || '',
       series,
       today,
     });
+    const meta = series?.[status.indexId] || {};
     out[contract.id] = {
       ...status,
       caseId,
       title: contract.title || draft.title || 'Avtale',
+      name: meta.name || '',
+      table: meta.table || '',
     };
   });
   return out;

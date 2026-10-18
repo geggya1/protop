@@ -243,6 +243,9 @@ function normalizeFields(raw) {
     honorarForm: text(raw.honorarForm).slice(0, 160),
     biomkostninger: text(raw.biomkostninger).slice(0, 400),
     indexBase: text(raw.indexBase).slice(0, 40),
+    regulationScope: ['avtale', 'ramme', 'avrop'].includes(text(raw.regulationScope)) ? text(raw.regulationScope) : '',
+    regulationFrequency: ['month', 'quarter', 'year', 'once'].includes(text(raw.regulationFrequency)) ? text(raw.regulationFrequency) : '',
+    firstRegulationDate: isoDate(raw.firstRegulationDate),
     paymentTerms: text(raw.paymentTerms).slice(0, 240),
     specialTerms: text(raw.specialTerms).slice(0, 400),
     projectName: text(raw.projectName).slice(0, 160),
@@ -293,6 +296,9 @@ function emptyCoverFields() {
     honorarForm: '',
     biomkostninger: '',
     indexBase: '',
+    regulationScope: '',
+    regulationFrequency: '',
+    firstRegulationDate: '',
     paymentTerms: '',
     specialTerms: '',
     projectName: '',
@@ -350,6 +356,12 @@ function normalizeRegulations(input) {
     query: text(row?.query).slice(0, 400),
     letterTitle: text(row?.letterTitle).slice(0, 160),
     letterPlain: text(row?.letterPlain).slice(0, 20000),
+    projectId: text(row?.projectId).slice(0, 80),
+    customerId: text(row?.customerId).slice(0, 80),
+    indexId: text(row?.indexId).slice(0, 40),
+    contractTitle: text(row?.contractTitle).slice(0, 160),
+    sentAt: text(row?.sentAt).slice(0, 10),
+    sentTo: text(row?.sentTo).slice(0, 120),
   })).filter((row) => row.id);
 }
 

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -50,6 +51,14 @@ import {
 } from '../../src/economy/invoices.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 import { releaseInvoicedWork } from '../../src/economy/invoiceRelease.js';
+import { loadAnbudState } from '../../src/anbud/storage';
+import { loadProjectState } from '../../src/project/storage';
+import { invoiceIndexWarning } from '../../src/indeksregulering/groups';
+import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
+import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
+import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
+import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
+import IndexWarning from './IndexWarning';
 import { buildEhfXml } from '../../src/economy/ehf.js';
 import { validateKid } from '../../src/economy/kid.js';
 
@@ -542,6 +551,7 @@ export default function EconomyInvoices({
     watchInvoices,
   } = store;
   const colors = useColors();
+  const { requestShellTab } = useApp();
   const hostedHero = useModuleHeroHosted();
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
@@ -566,6 +576,8 @@ export default function EconomyInvoices({
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [watch, setWatch] = useState(null);
+  const [askIndex, setAskIndex] = useState(false);
   const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
@@ -573,6 +585,26 @@ export default function EconomyInvoices({
   const [linkQuery, setLinkQuery] = useState({});
   const [pageSize, setPageSize] = useState(80);
   const hiddenIds = useRef(new Set());
+
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      loadAnbudState(familyId).catch(() => null),
+      loadProjectState(familyId).catch(() => null),
+      loadCases().catch(() => []),
+      loadIndexCache().catch(() => null),
+      loadRemoteIndexSnapshot().catch(() => null),
+    ]).then(([anbud, projectState, cases, cache, remote]) => {
+      if (!live) return;
+      const contracts = anbud?.contracts || [];
+      setWatch({
+        contracts,
+        timeEntries: projectState?.timeEntries || [],
+        dueById: dueByContractId(contracts, cases, mergeIndexSnapshot(cache?.series, remote)),
+      });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId]);
 
   useEffect(() => {
     const id = String(openInvoiceId || '').trim();
@@ -819,8 +851,26 @@ export default function EconomyInvoices({
     }
   }
 
-  async function sendSelectedInvoice() {
+  const indexWarning = useMemo(() => {
+    if (!selected?.projectId || !watch) return null;
+    return invoiceIndexWarning({
+      projectId: selected.projectId,
+      projects,
+      contracts: watch.contracts,
+      timeEntries: watch.timeEntries,
+      dueById: watch.dueById,
+      today: osloDate(),
+    });
+  }, [selected?.projectId, watch, projects]);
+
+  async function sendSelectedInvoice(options = {}) {
     if (!selected || !canManage || sending || deleting) return;
+    if (indexWarning && !options.force) {
+      setAskIndex(true);
+      setError('Indeksregulering bør foretas før fakturaen sendes.');
+      return;
+    }
+    setAskIndex(false);
     if (typeof saveInvoice !== 'function') {
       setError('Kan ikke lagre sendt-status i denne visningen.');
       return;
@@ -993,6 +1043,17 @@ export default function EconomyInvoices({
   if (view === 'detail' && selected) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
+        {askIndex ? (
+          <View style={{ padding: 16 }}>
+            <IndexWarning
+              warning={indexWarning}
+              colors={colors}
+              continueLabel="Send faktura likevel"
+              onContinue={() => sendSelectedInvoice({ force: true })}
+              onOpenIndex={() => requestShellTab?.('okonomi', 'indeks')}
+            />
+          </View>
+        ) : null}
         <InvoiceDetail
           invoice={selected}
           invoices={visible}

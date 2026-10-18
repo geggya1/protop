@@ -40,6 +40,13 @@ import { formatNumberId } from '../../src/anbud/numbering';
 import { documentHasOriginalFile, documentIsOpenable } from '../../src/anbud/openDocument';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
+import {
+  REGULATION_FREQUENCIES,
+  REGULATION_SCOPES,
+  frequencyLabel,
+  regulationFormFields,
+  scopeLabel,
+} from '../../src/indeksregulering/settings';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
@@ -188,7 +195,10 @@ export default function AgreementDetail({
   const [docBusyId, setDocBusyId] = useState('');
   const [docNote, setDocNote] = useState('');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(() => coverFromRecord(contract));
+  const [form, setForm] = useState(() => ({
+    ...coverFromRecord(contract),
+    ...regulationFormFields(contract, contracts),
+  }));
   const [saveNote, setSaveNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
@@ -213,8 +223,13 @@ export default function AgreementDetail({
   const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
 
   useEffect(() => {
-    if (!editing) setForm(coverFromRecord(contract));
-  }, [contract, editing]);
+    if (!editing) {
+      setForm({
+        ...coverFromRecord(contract),
+        ...regulationFormFields(contract, contracts),
+      });
+    }
+  }, [contract, contracts, editing]);
 
   useEffect(() => {
     const docs = contract?.documents || [];
@@ -335,6 +350,14 @@ export default function AgreementDetail({
       reference: source.oppdragId || source.reference,
       standard: source.standard,
       indexId: source.indexId,
+      regulationScope: source.regulationScope,
+      regulationFrequency: source.regulationFrequency,
+      firstRegulationDate: source.firstRegulationDate,
+      terms: {
+        ...(contract.fields?.terms && typeof contract.fields.terms === 'object' ? contract.fields.terms : {}),
+        frequency: source.regulationFrequency || 'month',
+        scope: source.regulationScope || '',
+      },
       surchargePercent: source.surchargePercent,
       contractDate: source.contractDate,
       projectName: source.projectName || source.title,
@@ -575,12 +598,16 @@ export default function AgreementDetail({
               onPress={() => {
                 if (editing) {
                   setEditing(false);
-                  setForm(coverFromRecord(contract));
+                  setForm({
+                    ...coverFromRecord(contract),
+                    ...regulationFormFields(contract, contracts),
+                  });
                   setSaveNote('');
                 } else {
                   setEditing(true);
                   setForm({
                     ...coverFromRecord(contract),
+                    ...regulationFormFields(contract, contracts),
                     ownerUid: contract.ownerUid || customer?.ownerUid || '',
                     ownerName: contract.ownerName || customer?.ownerName || '',
                   });
@@ -786,6 +813,35 @@ export default function AgreementDetail({
                   ))}
                 </View>
               </View>
+              <View style={[styles.fact, styles.factWide]}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Hvor reguleres prisen</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Rammeavtaler reguleres normalt på rammen, ikke på hvert avrop. Velg nivået i avtalen.
+                </Text>
+                <View style={styles.row}>
+                  {REGULATION_SCOPES.map((row) => (
+                    <TouchableOpacity key={row.id} onPress={() => patch({ regulationScope: row.id })} accessibilityRole="button">
+                      <Text style={{ color: form.regulationScope === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={[styles.fact, styles.factWide]}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Hvor ofte kan prisen reguleres</Text>
+                <View style={styles.row}>
+                  {REGULATION_FREQUENCIES.map((row) => (
+                    <TouchableOpacity key={row.id} onPress={() => patch({ regulationFrequency: row.id })} accessibilityRole="button">
+                      <Text style={{ color: form.regulationFrequency === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <DateEdit
+                colors={colors}
+                label="Første dato regulering kan virke"
+                value={form.firstRegulationDate}
+                onChange={(firstRegulationDate) => patch({ firstRegulationDate })}
+              />
             </View>
 
             <Text style={styles.groupTitle}>Varighet og fornyelse</Text>
@@ -915,6 +971,9 @@ export default function AgreementDetail({
                 { label: 'Påslagsprosent', value: contract.fields?.surchargePercent },
                 { label: 'Biomkostninger', value: contract.fields?.biomkostninger },
                 { label: 'Prisregulering / indeks', value: indexLabel(contract.fields?.indexId) },
+                { label: 'Hvor reguleres prisen', value: scopeLabel(regulationFormFields(contract, contracts).regulationScope) },
+                { label: 'Hvor ofte', value: frequencyLabel(regulationFormFields(contract, contracts).regulationFrequency) },
+                { label: 'Første regulering', value: regulationFormFields(contract, contracts).firstRegulationDate },
                 { label: 'Betalingsbetingelser', value: contract.fields?.paymentTerms },
                 { label: 'Særlige bestemmelser', value: contract.fields?.specialTerms },
               ]}

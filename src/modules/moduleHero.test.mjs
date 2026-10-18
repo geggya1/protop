@@ -300,6 +300,7 @@ const COMPANY_PAGES = [
   ['utstyr', null, 'utstyr'],
   ['okonomi', 'produkter', 'okonomi-produkter'],
   ['okonomi', 'indeks', 'okonomi-indeks'],
+  ['okonomi', 'indekser', 'okonomi-indekser'],
 ];
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);

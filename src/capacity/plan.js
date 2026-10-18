@@ -349,6 +349,23 @@ export function loadTone(ofContract) {
   return 'open';
 }
 
+/** Ledig andel av uken. Overbooking er 0 % ledig, og tallet stopper på 100. */
+export function freeCapacityPercent(freeHours, capacity) {
+  const cap = Number(capacity) || 0;
+  if (cap <= 0) return 0;
+  const free = Math.max(0, Number(freeHours) || 0);
+  return round1(Math.min(100, (free / cap) * 100));
+}
+
+/** Mye ledig tid er det som skal synes. Fullbooket er rolig. */
+export function freeCapacityTone(percent) {
+  const n = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (n >= 50) return 'over';
+  if (n >= 25) return 'full';
+  if (n > 0.5) return 'ok';
+  return 'open';
+}
+
 export const TONE_COLOR = {
   over: '#e11d48',
   full: '#d97706',
@@ -363,7 +380,7 @@ export function firstSlackWeek(employee, allocations, weeks, weekHours) {
       return {
         key,
         freeHours: row.freeHours,
-        freePercent: row.capacity ? round1((row.freeHours / row.capacity) * 100) : 0,
+        freePercent: freeCapacityPercent(row.freeHours, row.capacity),
         meta: weekMeta(key),
       };
     }
@@ -558,6 +575,30 @@ export function weeklyActualHours(entries, employeeId, weeks) {
     bucket.set(week, round1((bucket.get(week) || 0) + hours));
   }
   return byProject;
+}
+
+/**
+ * Sammenhengende uker med produksjon, til og med inneværende uke.
+ * Fremtidige uker holdes utenfor, de tegnes som planlagt belegg.
+ */
+export function actualWeekRuns(weekList, hoursByWeek, todayKey = '') {
+  const runs = [];
+  let run = null;
+  const today = mondayKey(todayKey) || text(todayKey);
+  (weekList || []).forEach((key, index) => {
+    const week = mondayKey(key) || text(key);
+    const hours = hoursByWeek instanceof Map ? Number(hoursByWeek.get(week) || 0) : 0;
+    const include = Boolean(week) && hours > 0 && (!today || week <= today);
+    if (!include) {
+      if (run) runs.push(run);
+      run = null;
+      return;
+    }
+    if (!run) run = { startIndex: index, weeks: [] };
+    run.weeks.push({ key: week, hours, index });
+  });
+  if (run) runs.push(run);
+  return runs;
 }
 
 export function actualHoursForWeek(entries, employeeId, monday) {

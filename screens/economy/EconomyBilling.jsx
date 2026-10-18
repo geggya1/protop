@@ -36,6 +36,13 @@ import {
 import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { formatMoney } from '../../src/economy/invoices.js';
+import { loadAnbudState } from '../../src/anbud/storage';
+import { invoiceIndexWarning } from '../../src/indeksregulering/groups';
+import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
+import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
+import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
+import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
+import IndexWarning from './IndexWarning';
 import { VAT_CODES as VAT_TABLE } from '../../src/economy/vat.js';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 
@@ -57,6 +64,8 @@ export default function EconomyBilling() {
   const [lastEhf, setLastEhf] = useState('');
   const [lastVoucher, setLastVoucher] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
+  const [watch, setWatch] = useState(null);
+  const [pending, setPending] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -64,13 +73,22 @@ export default function EconomyBilling() {
       loadProjectState(familyId),
       invoiceStorage.loadInvoices(familyId),
       loadProjectExpenses(familyId).catch(() => []),
-    ]).then(([projects, inv, remoteExpenses]) => {
+      loadAnbudState(familyId).catch(() => null),
+      loadCases().catch(() => []),
+      loadIndexCache().catch(() => null),
+      loadRemoteIndexSnapshot().catch(() => null),
+    ]).then(([projects, inv, remoteExpenses, anbud, cases, cache, remote]) => {
       if (!live) return;
       setProjectState({
         ...projects,
         expenses: mergeExpenseLists(remoteExpenses, projects?.expenses || []),
       });
       setInvoices(inv);
+      const contracts = anbud?.contracts || [];
+      setWatch({
+        contracts,
+        dueById: dueByContractId(contracts, cases, mergeIndexSnapshot(cache?.series, remote)),
+      });
       setReady(true);
     }).catch(() => setReady(true));
     return () => { live = false; };
@@ -86,7 +104,25 @@ export default function EconomyBilling() {
     [family],
   );
 
-  async function createInvoice(proposal) {
+  function warningFor(proposal) {
+    if (!watch || !proposal?.projectId) return null;
+    return invoiceIndexWarning({
+      projectId: proposal.projectId,
+      projects: projectState.projects || [],
+      contracts: watch.contracts,
+      timeEntries: projectState.timeEntries || [],
+      dueById: watch.dueById,
+      today: osloDate(),
+    });
+  }
+
+  async function createInvoice(proposal, options = {}) {
+    const warning = options.force ? null : warningFor(proposal);
+    if (warning) {
+      setPending({ warning, proposal });
+      return;
+    }
+    setPending(null);
     setBusyKey(proposal.key);
     setError('');
     setNote('');
@@ -257,6 +293,13 @@ export default function EconomyBilling() {
 
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+      <IndexWarning
+        warning={pending?.warning}
+        colors={colors}
+        continueLabel="Opprett utkast likevel"
+        onContinue={() => pending?.proposal && createInvoice(pending.proposal, { force: true })}
+        onOpenIndex={() => requestShellTab?.('okonomi', 'indeks')}
+      />
 
       {lastInvoice?.id ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -320,6 +363,11 @@ export default function EconomyBilling() {
               </View>
             ))}
           </ScrollView>
+          {warningFor(proposal) ? (
+            <Text style={{ color: colors.danger || '#b45309', marginTop: 8 }}>
+              Ny indeks på dette prosjektet. Regulering bør gjøres før fakturaen opprettes.
+            </Text>
+          ) : null}
           <TouchableOpacity
             onPress={() => createInvoice(proposal)}
             disabled={busyKey === proposal.key}

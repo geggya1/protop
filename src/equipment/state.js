@@ -3,6 +3,7 @@
  */
 
 import { createId } from '../project/engine.js';
+import { employeeMayBook } from './calendars.js';
 import {
   normalizeBooking,
   normalizeEquipment,
@@ -56,8 +57,18 @@ export function upsertBooking(state, input) {
   if (!check.ok) return fail(state, check.error);
   const gear = (state.equipment || []).find((row) => row.id === check.booking.equipmentId);
   if (!gear) return fail(state, 'Utstyret finnes ikke.');
-  if (gear.bookable === false || gear.status === 'retired') {
+  const normalizedGear = normalizeEquipment(gear);
+  if (normalizedGear.bookable === false || normalizedGear.status === 'retired') {
     return fail(state, 'Utstyret kan ikke reserveres.');
+  }
+  if (check.booking.recurring && normalizedGear.allowRepeating === false) {
+    return fail(state, `${normalizedGear.name} kan ikke bookes regelmessig.`);
+  }
+  if (input.enforceAccess && !input.manage) {
+    const employee = (input.employees || []).find((row) => row.id === check.booking.employeeId);
+    if (!employeeMayBook(normalizedGear, employee)) {
+      return fail(state, `Du kan ikke booke ${normalizedGear.name}.`);
+    }
   }
   const existing = (state.equipmentBookings || []).find((row) => row.id && row.id === input.id);
   const row = normalizeBooking({
@@ -71,6 +82,88 @@ export function upsertBooking(state, input) {
     ...state,
     equipmentBookings: replaceById(state.equipmentBookings || [], row),
   }, { booking: row });
+}
+
+function text(value) {
+  return String(value ?? '').trim();
+}
+
+/** Bytt hvilke utstyr en kalenderhendelse reserverer. Feil ruller ikke tilbake delvis. */
+export function replaceEventBookings(state, input = {}) {
+  const eventId = text(input.eventId);
+  if (!eventId) return fail(state, 'Bookingen mangler kalenderhendelse.');
+  const wanted = [...new Set((input.equipmentIds || []).map((id) => text(id)).filter(Boolean))];
+  for (const equipmentId of wanted) {
+    const gear = (state.equipment || []).find((row) => row.id === equipmentId);
+    if (!gear) return fail(state, 'Utstyret finnes ikke.');
+    const normalizedGear = normalizeEquipment(gear);
+    if (input.enforceAccess && !input.manage) {
+      const employee = (input.employees || []).find((row) => row.id === input.employeeId);
+      if (!employeeMayBook(normalizedGear, employee)) {
+        return fail(state, `Du kan ikke booke ${normalizedGear.name}.`);
+      }
+    }
+    const existing = (state.equipmentBookings || []).find((row) => (
+      row.eventId === eventId && row.equipmentId === equipmentId && row.status !== 'cancelled'
+    ));
+    const probe = upsertBooking(state, {
+      ...input,
+      id: existing?.id,
+      equipmentId,
+      eventId,
+      purpose: input.purpose || input.title || '',
+    });
+    if (!probe.ok) return fail(state, probe.error);
+  }
+  let next = state;
+  for (const row of state.equipmentBookings || []) {
+    if (row.eventId === eventId && row.status !== 'cancelled' && !wanted.includes(row.equipmentId)) {
+      const cancelled = cancelBooking(next, row.id);
+      if (!cancelled.ok) return fail(state, cancelled.error);
+      next = cancelled.state;
+    }
+  }
+  for (const equipmentId of wanted) {
+    const existing = (next.equipmentBookings || []).find((row) => (
+      row.eventId === eventId && row.equipmentId === equipmentId && row.status !== 'cancelled'
+    ));
+    const saved = upsertBooking(next, {
+      ...input,
+      id: existing?.id,
+      equipmentId,
+      eventId,
+      purpose: input.purpose || input.title || '',
+    });
+    if (!saved.ok) return fail(state, saved.error);
+    next = saved.state;
+  }
+  return ok(next);
+}
+
+export function cancelEventBookings(state, eventId) {
+  const id = text(eventId);
+  if (!id) return ok(state);
+  let next = state;
+  for (const row of state.equipmentBookings || []) {
+    if (row.eventId === id && row.status !== 'cancelled') {
+      const cancelled = cancelBooking(next, row.id);
+      if (cancelled.ok) next = cancelled.state;
+    }
+  }
+  return ok(next);
+}
+
+/** Hvem som kan booke, og om serien kan gjentas. Bare leder og administrator kaller denne. */
+export function setEquipmentBookingPolicy(state, input = {}) {
+  const gear = (state.equipment || []).find((row) => row.id === input.equipmentId);
+  if (!gear) return fail(state, 'Utstyret finnes ikke.');
+  const selected = input.bookingAccess === 'selected';
+  return upsertEquipment(state, {
+    ...gear,
+    bookingAccess: selected ? 'selected' : 'active',
+    bookingEmployeeIds: selected ? input.bookingEmployeeIds : [],
+    allowRepeating: input.allowRepeating !== false,
+  });
 }
 
 export function cancelBooking(state, id) {

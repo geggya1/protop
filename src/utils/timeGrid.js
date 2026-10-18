@@ -120,6 +120,9 @@ export function shouldListEventAsCalendarLayer(ev) {
 }
 
 export function calendarIdOf(ev, familyId) {
+  if (ev?.source === 'equipment' && ev?.equipmentId) {
+    return equipmentLayerId(ev.equipmentId);
+  }
   if (ev?.connectionId) {
     const cal = ev.graphCalendarId || 'primary';
     return `ext:${ev.connectionId}:${cal}`;
@@ -156,6 +159,17 @@ export function calendarSubLayerId(connectionId, graphCalendarId) {
   return `ext:${connectionId}:${graphCalendarId || 'primary'}`;
 }
 
+/** Samlekalender for firmaets utstyr i margen. */
+export function equipmentGroupLayerId() {
+  return 'eq:company';
+}
+
+/** Ett utstyr, samme avhuking som en delt kalender. */
+export function equipmentLayerId(equipmentId) {
+  const id = String(equipmentId || '').trim();
+  return id ? `eq:${id}` : null;
+}
+
 /**
  * True when the event's layer (or its parent connection) is hidden.
  * Parent `ext:connId` hides all `ext:connId:*` children.
@@ -165,6 +179,7 @@ export function isCalendarLayerHidden(ev, hiddenCals, familyId) {
   if (!hiddenCals || !hiddenCals.size) return false;
   const layerId = calendarIdOf(ev, familyId);
   if (hiddenCals.has(layerId)) return true;
+  if (ev?.source === 'equipment' && hiddenCals.has(equipmentGroupLayerId())) return true;
   if (ev?.connectionId) {
     const parent = calendarConnectionLayerId(ev.connectionId);
     if (parent && hiddenCals.has(parent)) return true;

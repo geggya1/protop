@@ -1,7 +1,7 @@
 import { periodLabel } from './engine.js';
 import { formatIndex, formatMoney, formatPercent } from './letter.js';
 
-export function regulationEntry(draft, result, letter) {
+export function regulationEntry(draft, result, letter, extra = {}) {
   const row = result?.rows?.[0] || {};
   const fromPeriod = result?.basisPoint?.period || '';
   const toPeriod = result?.regulationPoint?.period || '';
@@ -27,12 +27,24 @@ export function regulationEntry(draft, result, letter) {
     ].filter(Boolean).join(' · '),
     letterTitle: letter?.title || 'Varsel om indeksregulering',
     letterPlain: letter?.plain || '',
+    projectId: String(extra.projectId || ''),
+    customerId: String(extra.customerId || ''),
+    indexId: String(draft?.indexId || ''),
+    contractTitle: String(extra.contractTitle || draft?.title || ''),
+    sentAt: '',
+    sentTo: '',
   };
 }
 
 export function rememberRegulation(list, entry) {
-  const rows = Array.isArray(list) ? list.filter((row) => row && row.id && row.id !== entry.id) : [];
-  return [entry, ...rows].slice(0, 40);
+  const rows = Array.isArray(list) ? list.filter((row) => row && row.id) : [];
+  const previous = rows.find((row) => row.id === entry.id);
+  const next = {
+    ...entry,
+    sentAt: entry.sentAt || previous?.sentAt || '',
+    sentTo: entry.sentTo || previous?.sentTo || '',
+  };
+  return [next, ...rows.filter((row) => row.id !== entry.id)].slice(0, 40);
 }
 
 export function regulationCells(entry) {

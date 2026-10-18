@@ -19,7 +19,8 @@ import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 import { isPersonalShell } from '../src/utils/personalShell';
 import { companyContextLabel } from '../src/project/companyOffer';
 import { openNotifications } from '../src/navigation/openNotifications';
-import { isStandaloneWeb, statusBarCover } from '../src/shell/standaloneChrome';
+import { headerTopPad, isStandaloneWeb } from '../src/shell/standaloneChrome';
+import { useVisualViewportFrame } from '../src/shell/useVisualViewportFrame';
 
 /**
  * PlanScreen (and similar) register a control to sit on the page-title row.
@@ -68,8 +69,9 @@ export default function ShellHeader({
   const colors = useColors();
   const { isPhone } = useLayout();
   const insets = useSafeAreaInsets();
+  const frame = useVisualViewportFrame();
   const statusPad = coverStatusBar
-    ? statusBarCover(insets.top, { standalone: isStandaloneWeb(), phone: isPhone })
+    ? headerTopPad(insets.top, frame.top, { standalone: isStandaloneWeb(), phone: isPhone })
     : 0;
   const { activeProfile, family } = useApp();
   const { unreadTotal } = useUnread();
@@ -202,7 +204,7 @@ export default function ShellHeader({
 
   return (
     <>
-      <View nativeID="shell-header" style={styles.chromeRoot} collapsable={false}>
+      <View nativeID="shell-header" style={[styles.chromeRoot, isPhone && styles.chromeTop]} collapsable={false}>
         <View
           style={[
             styles.bar,
@@ -322,6 +324,9 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
   },
+  chromeTop: {
+    zIndex: 50,
+  },
   bar: {
     paddingHorizontal: 12,
     paddingTop: 4,
@@ -346,7 +351,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginHorizontal: -12,
     marginTop: 0,
-    overflow: 'hidden',
+    overflow: Platform.OS === 'web' ? 'clip' : 'hidden',
     zIndex: 1,
   },
   heroTitleRight: {

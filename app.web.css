@@ -52,6 +52,45 @@ html, body, #root {
   max-width: 100%;
   overflow: hidden;
 }
+/*
+ * Telefon: lås skallet til synlig flate, og ta med båndet Safari dekker.
+ * Toppen av dokumentet er vår header (ikke et tomt felt under adressefeltet).
+ * Bunnen er vår meny. Bare innholdet i #shell-scroll scroller.
+ * 100dvh alene er layout-viewporten, som er høyere enn det man ser, så en
+ * fast bunnmeny ble stående for høyt eller bak verktøylinjen.
+ */
+@media (max-width: 767px) {
+  html, body, #root {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    width: 100%;
+    height: calc(var(--protop-vv-top, 0px) + var(--protop-vv-height, 100dvh) + var(--protop-vv-bottom, 0px));
+    min-height: 0;
+    max-height: calc(var(--protop-vv-top, 0px) + var(--protop-vv-height, 100dvh) + var(--protop-vv-bottom, 0px));
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #root {
+    display: flex;
+    flex-direction: column;
+  }
+  #root > * {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+  #shell-header {
+    position: relative;
+    z-index: 50;
+  }
+  #parent-bottom-nav {
+    position: relative;
+    z-index: 40;
+  }
+}
 /* Phone and tablet: one scrollport. :where stays weaker than a component
    min-height, so buttons keep their size while ScrollViews can shrink. */
 @media (max-width: 1023px) {
@@ -71,6 +110,7 @@ html, body, #root {
  */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html, body, #root {
+    top: 0;
     height: -webkit-fill-available;
     height: 100lvh;
     min-height: -webkit-fill-available;
@@ -81,6 +121,7 @@ html, body, #root {
 html[data-standalone="1"],
 html[data-standalone="1"] body,
 html[data-standalone="1"] #root {
+  top: 0;
   height: -webkit-fill-available;
   height: 100lvh;
   min-height: -webkit-fill-available;

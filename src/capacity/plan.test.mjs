@@ -13,6 +13,8 @@ import {
   firstSlackWeek,
   kindOf,
   loadTone,
+  freeCapacityPercent,
+  freeCapacityTone,
   makeAllocation,
   intensityOf,
   percentFromPointerDelta,
@@ -23,6 +25,7 @@ import {
   spanBetween,
   visibleWeekKeys,
   weeklyActualHours,
+  actualWeekRuns,
   mondayKey,
   occupancy,
   packLanes,
@@ -120,6 +123,12 @@ import {
   assert.equal(early.ofContract, 60);
   assert.equal(loadTone(early.ofContract), 'ok');
   assert.equal(loadTone(110), 'over');
+  assert.equal(freeCapacityPercent(20, 40), 50);
+  assert.equal(freeCapacityPercent(-12, 40), 0);
+  assert.equal(freeCapacityPercent(80, 40), 100);
+  assert.equal(freeCapacityPercent(10, 0), 0);
+  assert.equal(freeCapacityTone(80), 'over');
+  assert.equal(freeCapacityTone(0), 'open');
 
   const full = { ...alpha, percent: 100, hoursPerWeek: 37.5 };
   const slack = firstSlackWeek(employee, [full], weeks, 37.5);
@@ -273,4 +282,26 @@ import {
   assert.equal(away.get('2026-10-19').hours, 16);
   assert.equal(away.get('2026-10-19').type, 'ferie');
   assert.equal(away.has('2026-08-31'), false);
+  const pastToo = weeklyAbsenceHours([
+    { employeeId: 'a', date: '2026-10-20', hours: 8, type: 'ferie' },
+    { employeeId: 'a', date: '2026-08-03', hours: 8, type: 'ferie' },
+  ], 'a', ['2026-08-03', '2026-10-19']);
+  assert.equal(pastToo.get('2026-08-03').type, 'ferie');
+  assert.equal(pastToo.get('2026-10-19').hours, 8);
+  const produced = new Map([
+    ['2026-08-31', 4],
+    ['2026-09-07', 12],
+    ['2026-09-21', 8],
+    ['2026-09-28', 8],
+  ]);
+  const runs = actualWeekRuns(
+    ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28'],
+    produced,
+    '2026-09-21',
+  );
+  assert.equal(runs.length, 2);
+  assert.deepEqual(runs[0].weeks.map((week) => week.key), ['2026-08-31', '2026-09-07']);
+  assert.equal(runs[0].startIndex, 0);
+  assert.deepEqual(runs[1].weeks.map((week) => week.key), ['2026-09-21']);
+  assert.equal(runs[1].startIndex, 3);
 }

@@ -62,32 +62,31 @@ export default function CalendarLayerList({
   calendars, hiddenCals, onToggleCal, defaultExpanded = false,
 }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set(
-    defaultExpanded
-      ? (calendars || []).filter((c) => c.expandable && c.children?.length).map((c) => c.id)
-      : [],
+    (calendars || [])
+      .filter((c) => c.expandable && c.children?.length && (defaultExpanded || c.defaultExpanded))
+      .map((c) => c.id),
   ));
 
   useEffect(() => {
-    if (!defaultExpanded) return undefined;
     setExpandedIds((prev) => {
       const next = new Set(prev);
       (calendars || []).forEach((c) => {
-        if (c.expandable && c.children?.length) next.add(c.id);
+        if (c.expandable && c.children?.length && (defaultExpanded || c.defaultExpanded)) next.add(c.id);
       });
       return next;
     });
-    return undefined;
   }, [calendars, defaultExpanded]);
 
   return (
     <View>
       {(calendars || []).map((c) => {
         const parentHidden = !!hiddenCals?.has(c.id);
+        const parentChecked = typeof c.checked === 'boolean' ? c.checked : !parentHidden;
         const isExpanded = expandedIds.has(c.id);
         return (
           <View key={c.id}>
             <CalCheck
-              checked={!parentHidden}
+              checked={parentChecked}
               color={c.color || colors.brand}
               label={c.label}
               sublabel={c.sublabel}
@@ -106,17 +105,19 @@ export default function CalendarLayerList({
             />
             {isExpanded && c.children?.length ? (
               c.children.map((child) => {
-                const childHidden = parentHidden || !!hiddenCals?.has(child.id);
+                const childChecked = typeof child.checked === 'boolean'
+                  ? child.checked
+                  : !(parentHidden || !!hiddenCals?.has(child.id));
                 return (
                   <CalCheck
                     key={child.id}
                     nested
-                    checked={!childHidden}
+                    checked={childChecked}
                     color={child.color || c.color || colors.brand}
                     label={child.label}
                     sublabel={child.sublabel || (child.shared ? 'Delt kalender' : null)}
                     onPress={() => {
-                      if (parentHidden) {
+                      if (typeof child.checked !== 'boolean' && parentHidden) {
                         onToggleCal?.(c.id);
                         return;
                       }

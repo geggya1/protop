@@ -77,10 +77,10 @@ function todayKey() {
   return `${now.getFullYear()}-${m}-${d}`;
 }
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus, half }) {
   return (
-    <View style={{ minWidth: 160, flexBasis: 180, alignSelf: 'stretch' }}>
-      <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
+    <View style={half ? styles.half : styles.field}>
+      <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 2 }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -131,7 +131,7 @@ function AddressField({ label, value, onChange, onPick, colors }) {
     };
   }, [value, open]);
   return (
-    <View style={{ minWidth: 220, flexGrow: 1, flexBasis: 260 }}>
+    <View style={styles.field}>
       <Field
         label={label}
         value={value}
@@ -173,6 +173,7 @@ export default function MileageWizard({
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [routing, setRouting] = useState(false);
+  const [projectMenu, setProjectMenu] = useState(false);
   const [vehicleMenu, setVehicleMenu] = useState(false);
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [newPlate, setNewPlate] = useState('');
@@ -249,6 +250,8 @@ export default function MileageWizard({
       ferries: 0,
       routeEdited: false,
     });
+    setProjectMenu(false);
+    setQuery('');
     setError('');
   }
 
@@ -630,41 +633,66 @@ export default function MileageWizard({
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
       {step === 'prosjekt' ? (
-        <View style={{ gap: 8 }}>
-          <Field label="Søk prosjekt" value={query} onChange={setQuery} colors={colors} placeholder="Nummer, navn eller kunde" />
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {query
-              ? 'Treff i hele prosjektregisteret.'
-              : `Aktive prosjekt ${projects.range.fromDate}–${projects.range.toDate}, som i timelisten.`}
-          </Text>
-          {projects.options.map((option) => {
-            const active = draft.project?.id === option.project.id;
-            return (
-              <TouchableOpacity
-                key={option.project.id}
-                onPress={() => chooseProject(option)}
-                accessibilityRole="button"
-                accessibilityLabel={option.label}
-                accessibilityState={{ selected: active }}
-                style={[styles.choice, { borderColor: active ? colors.brand : colors.line }]}
-              >
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>{option.label}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {[option.project.client, option.address].filter(Boolean).join(' · ') || 'Ingen adresse registrert'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-          {!projects.options.length ? (
-            <Text style={{ color: colors.muted }}>
-              {query ? 'Ingen prosjekt matcher søket.' : 'Ingen timer de siste to månedene. Søk frem prosjektet.'}
-            </Text>
+        <View style={styles.stack}>
+          <TouchableOpacity
+            onPress={() => { setProjectMenu((open) => !open); setError(''); }}
+            accessibilityRole="button"
+            accessibilityLabel="Velg prosjekt"
+            accessibilityState={{ expanded: projectMenu }}
+            nativeID="mileage-project-picker"
+            style={[styles.choice, styles.picker, { borderColor: draft.project ? colors.brand : colors.line }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
+              <Text style={{ color: draft.project ? colors.ink : colors.muted, fontSize: 16 }} numberOfLines={1}>
+                {draft.project
+                  ? [draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ')
+                  : 'Velg blant aktive prosjekt'}
+              </Text>
+            </View>
+            <Ionicons name={projectMenu ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
+          </TouchableOpacity>
+          {projectMenu ? (
+            <View style={[styles.vehicleMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <View style={styles.menuSearch}>
+                <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Nummer, navn eller kunde" />
+              </View>
+              <Text style={[styles.menuHint, { color: colors.muted }]}>
+                {query
+                  ? 'Treff i hele prosjektregisteret.'
+                  : `Aktive prosjekt ${projects.range.fromDate}–${projects.range.toDate}.`}
+              </Text>
+              <ScrollView style={styles.vehicleScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {projects.options.map((option) => {
+                  const active = draft.project?.id === option.project.id;
+                  const detail = [option.project.client, option.address].filter(Boolean).join(' · ');
+                  return (
+                    <TouchableOpacity
+                      key={option.project.id}
+                      onPress={() => chooseProject(option)}
+                      accessibilityRole="button"
+                      accessibilityLabel={option.label}
+                      accessibilityState={{ selected: active }}
+                      style={[styles.menuRow, { borderColor: colors.line, backgroundColor: active ? `${colors.brand}14` : 'transparent' }]}
+                    >
+                      <Text style={{ color: colors.ink, fontSize: 15 }} numberOfLines={1}>{option.label}</Text>
+                      {detail ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{detail}</Text> : null}
+                    </TouchableOpacity>
+                  );
+                })}
+                {!projects.options.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 14, padding: 12 }}>
+                    {query ? 'Ingen prosjekt matcher søket.' : 'Ingen timer de siste to månedene. Søk frem prosjektet.'}
+                  </Text>
+                ) : null}
+              </ScrollView>
+            </View>
           ) : null}
         </View>
       ) : null}
 
       {step === 'kjoretoy' ? (
-        <View style={{ gap: 8 }}>
+        <View style={styles.stack}>
           <TouchableOpacity
             onPress={openVehicleMenu}
             accessibilityRole="button"
@@ -727,7 +755,7 @@ export default function MileageWizard({
             </View>
           ) : null}
           {addingVehicle ? (
-            <View style={{ gap: 8 }}>
+            <View style={styles.stack}>
               <Field label="Skiltnummer" value={newPlate} onChange={setNewPlate} colors={colors} placeholder="EL12345" />
               <Field label="Navn" value={newName} onChange={setNewName} colors={colors} placeholder="Valgfritt" />
               {canCompany ? (
@@ -752,29 +780,28 @@ export default function MileageWizard({
       ) : null}
 
       {step === 'rute' ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <View style={styles.stack}>
+          <Text style={[styles.hint, { color: colors.muted }]}>
             Start er selskapets adresse. Destinasjon er prosjektadressen. Begge kan endres.
           </Text>
-          <View style={styles.row}>
-            <AddressField
-              label="Fra"
-              value={draft.from}
-              colors={colors}
-              onChange={(value) => patch({ from: value, fromPlace: null, routeEdited: false })}
-              onPick={(hit) => patch({ from: hit.label, fromPlace: hit, routeEdited: false })}
-            />
-            <AddressField
-              label="Til"
-              value={draft.to}
-              colors={colors}
-              onChange={(value) => patch({ to: value, toPlace: null, routeEdited: false })}
-              onPick={(hit) => patch({ to: hit.label, toPlace: hit, routeEdited: false })}
-            />
-          </View>
+          <AddressField
+            label="Fra"
+            value={draft.from}
+            colors={colors}
+            onChange={(value) => patch({ from: value, fromPlace: null, routeEdited: false })}
+            onPick={(hit) => patch({ from: hit.label, fromPlace: hit, routeEdited: false })}
+          />
+          <AddressField
+            label="Til"
+            value={draft.to}
+            colors={colors}
+            onChange={(value) => patch({ to: value, toPlace: null, routeEdited: false })}
+            onPick={(hit) => patch({ to: hit.label, toPlace: hit, routeEdited: false })}
+          />
           {routing ? <ActivityIndicator /> : null}
-          <View style={styles.row}>
+          <View style={styles.pair}>
             <Field
+              half
               label="Én vei, km"
               value={draft.oneWayKm ? String(draft.oneWayKm) : ''}
               colors={colors}
@@ -785,6 +812,7 @@ export default function MileageWizard({
               }}
             />
             <Field
+              half
               label="Tur/retur, km"
               value={draft.km ? String(draft.km) : ''}
               colors={colors}
@@ -793,13 +821,13 @@ export default function MileageWizard({
             />
           </View>
           {draft.to && draft.to === draft.suggestedTo ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={[styles.hint, { color: colors.muted }]}>
               {projectAddressLabel(draft.project, addressSources)
                 ? 'Til er prosjektets adresse. Den kan endres.'
                 : 'Til er foreslått fra prosjektnavnet. Rett adressen om stedet er et annet.'}
             </Text>
           ) : null}
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={[styles.hint, { color: colors.muted }]}>
             {draft.routeSource === 'google'
               ? 'Kjørelengde fra Google Maps, ganget med to for tur/retur.'
               : draft.routeSource === 'osrm'
@@ -811,29 +839,32 @@ export default function MileageWizard({
                     : 'Lengde og bom fylles når begge adressene er funnet.'}
           </Text>
           {draft.routeCharges.some((row) => row.source === 'nvdb') ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={[styles.hint, { color: colors.muted }]}>
               Bompasseringene er AutoPASS-stasjonene ruta krysser. Beløpet er takst for liten bil og kan endres.
             </Text>
           ) : null}
           {draft.routeCharges.map((row) => (
-            <View key={row.id} style={styles.row}>
-              <Text style={{ color: colors.ink, flex: 1 }}>
+            <View key={row.id} style={styles.charge}>
+              <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }} numberOfLines={2}>
                 {row.kind === 'ferry' ? 'Ferje' : 'Bom'} · {row.name} · {row.passes === 1 ? '1 passering' : `${row.passes} passeringer`}
               </Text>
-              <Field
-                label="Beløp"
+              <TextInput
                 value={String(row.amount ?? '')}
-                colors={colors}
+                onChangeText={(value) => updateCharge(row.id, value)}
                 keyboardType="decimal-pad"
-                onChange={(value) => updateCharge(row.id, value)}
+                accessibilityLabel={`Beløp ${row.name}`}
+                placeholder="kr"
+                placeholderTextColor={colors.muted}
+                style={[styles.amount, { color: colors.ink, borderColor: colors.line }]}
               />
             </View>
           ))}
           {!draft.routeCharges.length && draft.km ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen kjent bom eller ferje traff ruten. Legg inn beløp under om du har passert noe.</Text>
+            <Text style={[styles.hint, { color: colors.muted }]}>Ingen kjent bom eller ferje traff ruten. Legg inn beløp under om du har passert noe.</Text>
           ) : null}
-          <View style={styles.row}>
+          <View style={styles.pair}>
             <Field
+              half
               label="Bom, kr"
               value={String(draft.tolls ?? '')}
               colors={colors}
@@ -841,6 +872,7 @@ export default function MileageWizard({
               onChange={(value) => patch({ tolls: Number(String(value).replace(',', '.')) || 0, routeEdited: true })}
             />
             <Field
+              half
               label="Ferje, kr"
               value={String(draft.ferries ?? '')}
               colors={colors}
@@ -852,7 +884,7 @@ export default function MileageWizard({
       ) : null}
 
       {step === 'seover' ? (
-        <View style={{ gap: 8 }}>
+        <View style={styles.stack}>
           <Text style={{ color: colors.ink }}>
             {draft.from} → {draft.to} · {draft.km} km tur/retur
           </Text>
@@ -882,7 +914,7 @@ export default function MileageWizard({
       ) : null}
 
       {step === 'ferdig' && saved ? (
-        <View style={{ gap: 6 }}>
+        <View style={styles.stack}>
           <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{formatMoney(saved.trip.amount)}</Text>
           <Text style={{ color: colors.muted }}>
             {saved.rateInfo.label} {saved.rateInfo.rate.toFixed(2)} kr/km · {saved.purpose}
@@ -957,7 +989,25 @@ const styles = StyleSheet.create({
   stepHit: { flex: 1, minHeight: 32, justifyContent: 'center', gap: 6 },
   stepBar: { height: 4, borderRadius: 2 },
   body: { flex: 1, minHeight: 0 },
-  bodyInner: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  bodyInner: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16 },
+  stack: { gap: 6 },
+  pair: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  half: { flex: 1, minWidth: 0 },
+  field: { alignSelf: 'stretch' },
+  hint: { fontSize: 12, lineHeight: 16 },
+  charge: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
+  amount: {
+    width: 72,
+    minHeight: 36,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 15,
+    textAlign: 'right',
+  },
+  menuSearch: { paddingHorizontal: 10, paddingTop: 8 },
+  menuHint: { fontSize: 12, lineHeight: 16, paddingHorizontal: 12, paddingBottom: 4 },
   foot: {
     flexDirection: 'row',
     gap: 8,
@@ -977,16 +1027,16 @@ const styles = StyleSheet.create({
   footSecondary: { flex: 1 },
   footPrimary: { flex: 1.45 },
   linkBtn: { alignSelf: 'stretch' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
-  chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, minHeight: 44 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, minHeight: 48 },
-  btn: { borderRadius: 12, paddingHorizontal: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  choice: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
-  picker: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },
-  vehicleMenu: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
+  chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36 },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 15, minHeight: 36 },
+  btn: { borderRadius: 10, paddingHorizontal: 12, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
+  choice: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
+  picker: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  vehicleMenu: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   vehicleScroll: { maxHeight: 220 },
-  menuLabel: { fontSize: 12, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
-  menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  menuLabel: { fontSize: 12, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
+  menuRow: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   menuAdd: {
     minHeight: 48,
     flexDirection: 'row',

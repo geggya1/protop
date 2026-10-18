@@ -281,6 +281,8 @@ press(getTree(), 'mileage-wizard-next');
 assert.ok(texts(getTree()).includes('Velg prosjekt før du går videre.'));
 assert.deepEqual(sheetStyle(getTree()), expected);
 
+pressLabel(getTree(), 'Velg prosjekt');
+assert.ok(texts(getTree()).includes('#10563 Kvitsøy skole'));
 pressLabel(getTree(), '#10563 Kvitsøy skole');
 press(getTree(), 'mileage-wizard-next');
 assert.equal(texts(getTree()).includes('Hent fra Vegvesenet'), false);

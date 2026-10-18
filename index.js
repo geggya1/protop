@@ -6,11 +6,13 @@ import { Text, View, Pressable } from 'react-native';
 import App from './App';
 import { bootstrapAppearance } from './src/appearance/applyAppearance';
 import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
+import { installPhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
 
 bootstrapAppearance();
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try { captureAgreementLinkFromLocation(window.location.href); } catch { /* ignore */ }
+  installPhoneVisualViewport();
 }
 
 const RELOAD_FLAG = 'protop_fs_assert_reload_v1';

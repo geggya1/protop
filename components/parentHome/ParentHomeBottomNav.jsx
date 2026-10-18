@@ -9,6 +9,7 @@ import { useI18n } from '../../src/i18n';
 import { soft } from './softTheme';
 import { IMMERSIVE_GLASS_BG, immersiveGlassBarStyle } from '../../src/theme/immersiveGlass';
 import { isStandaloneWeb, tabBarBottomPad } from '../../src/shell/standaloneChrome';
+import { useVisualViewportFrame } from '../../src/shell/useVisualViewportFrame';
 
 function builtinNav(t) {
   return {
@@ -52,6 +53,7 @@ export default function ParentHomeBottomNav({
   presetItems = null,
 }) {
   const insets = useSafeAreaInsets();
+  const frame = useVisualViewportFrame();
   const { t } = useI18n();
   const palette = navPalette(tokens);
   const items = useMemo(() => {
@@ -83,11 +85,14 @@ export default function ParentHomeBottomNav({
   if (!items.length) return null;
 
   // Home-indicator clearance lives inside the bar, so the bar itself reaches
-  // the screen edge. Standalone iOS sometimes reports a 0 inset.
+  // the screen edge. Safari's covered bottom band is part of that padding:
+  // the icons stay visible and the toolbar sits on our background.
+  const standalone = isStandaloneWeb();
   const bottomPad = includeSafeArea
     ? tabBarBottomPad(insets.bottom, {
-      standalone: isStandaloneWeb(),
+      standalone,
       web: Platform.OS === 'web',
+      browserOverlap: standalone ? 0 : frame.bottom,
     })
     : 0;
 

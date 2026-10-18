@@ -21,6 +21,7 @@ import { useApp } from '../../src/context/AppContext';
 import { assignmentFromChoice, assignmentGap, assignmentHint, processStepsForBid } from '../../src/anbud/processTrail';
 import { departmentsOf } from '../../src/project/companyUnits';
 import ProcessTrail from './ProcessTrail';
+import { BidDeskActions } from './BidSymbolButton';
 import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
@@ -511,35 +512,16 @@ export default function BidDesk({
               colors={colors}
               steps={processStepsForBid(bid, (state?.notices || []).find((row) => row.id === bid.noticeId))}
             />
-            <View style={styles.actions}>
-              <TouchableOpacity
-                onPress={() => setOpenId(bid.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Åpne ${bid.title} her`}
-              >
-                <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne</Text>
-              </TouchableOpacity>
-              {bidCanReturnToReview(bid) ? (
-                <TouchableOpacity
-                  onPress={() => leaveDesk(bid, 'review')}
-                  disabled={busyId === bid.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Flytt ${bid.title} tilbake til vurdering`}
-                >
-                  <Text style={{ color: colors.brand }}>Tilbake til vurdering</Text>
-                </TouchableOpacity>
-              ) : null}
-              {bidCanLeaveDesk(bid) ? (
-                <TouchableOpacity
-                  onPress={() => leaveDesk(bid, 'uaktuell')}
-                  disabled={busyId === bid.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Meld ${bid.title} som uaktuell`}
-                >
-                  <Text style={{ color: colors.danger }}>Uaktuell</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            <BidDeskActions
+              colors={colors}
+              title={bid.title}
+              canReturn={bidCanReturnToReview(bid)}
+              canLeave={bidCanLeaveDesk(bid)}
+              busy={busyId === bid.id}
+              onOpen={() => setOpenId(bid.id)}
+              onReturn={() => leaveDesk(bid, 'review')}
+              onLeave={() => leaveDesk(bid, 'uaktuell')}
+            />
           </View>
         );
       })}
@@ -576,7 +558,6 @@ const styles = StyleSheet.create({
   cardBody: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   cardMain: { flex: 1, gap: 4, minWidth: 0 },
   deadlineSide: { width: 140, flexShrink: 0, alignItems: 'flex-end', gap: 2 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 2 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { useApp } from '../../src/context/AppContext';
@@ -175,6 +175,8 @@ export function CompanyAbsenceDesktop({
   opening = '',
   onOpeningChange,
   onSaveOpening,
+  peopleLoading = false,
+  absenceLoading = false,
 }) {
   const { requestShellTab } = useApp();
   const audience = useAudience(employees);
@@ -250,6 +252,7 @@ export function CompanyAbsenceDesktop({
   const awayEmpty = span === 'dag'
     ? (onToday ? 'Ingen registrert borte i dag' : 'Ingen registrert borte denne dagen')
     : 'Ingen registrert borte i perioden';
+  const boardPending = !!(peopleLoading || absenceLoading);
 
   return (
     <ScrollView
@@ -308,6 +311,7 @@ export function CompanyAbsenceDesktop({
           onSaveOpening={onSaveOpening}
           chartWidth={chartWidth}
           onChartWidth={setChartWidth}
+          pending={boardPending}
         />
       ) : (
         <>
@@ -362,93 +366,116 @@ export function CompanyAbsenceDesktop({
           </View>
 
           <View style={styles.kpis}>
-            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" onPress={() => openSource('headcount')} />
-            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} onPress={() => openSource('away-ferie')} />
-            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} onPress={() => openSource('away-sykdom')} />
-            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} onPress={() => openSource('away-annet')} />
+            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" pending={peopleLoading} pendingId="fravaer-loading-kpi-ansatte" onPress={() => openSource('headcount')} />
+            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} pending={boardPending} pendingId="fravaer-loading-kpi-ferie" onPress={() => openSource('away-ferie')} />
+            <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} pending={boardPending} pendingId="fravaer-loading-kpi-syk" onPress={() => openSource('away-sykdom')} />
+            <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} pending={boardPending} pendingId="fravaer-loading-kpi-annet" onPress={() => openSource('away-annet')} />
           </View>
 
           {view === 'diagram' ? (
             <>
-              <View style={styles.statusSplit}>
-                <StatusCard
-                  title={awayTitle}
-                  count={away.length}
-                  empty={awayEmpty}
-                  nativeID="borte-i-dag"
-                >
-                  {away.map((row) => (
-                    <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.awayPill} accessibilityRole="button">
-                      <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
-                      <Text style={styles.awayName} numberOfLines={1}>{row.employeeName}</Text>
-                      <Text style={styles.awayType} numberOfLines={1}>{row.typeLabel}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </StatusCard>
-                <StatusCard
-                  title="Planlagt fremover"
-                  count={planned.length}
-                  empty="Ingen planlagt fravær fremover"
-                  nativeID="planlagt-fravaer"
-                >
-                  {planned.slice(0, 6).map((row) => (
-                    <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
-                      <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
-                        <Text style={styles.periodMeta} numberOfLines={1}>
-                          {`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}
-                        </Text>
-                      </View>
-                      <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {planned.length > 6 ? (
-                    <Text style={styles.moreHint}>{`+ ${planned.length - 6} til i listen under`}</Text>
-                  ) : null}
-                </StatusCard>
-              </View>
-
-              <View style={styles.split}>
-                <TouchableOpacity
-                  style={[styles.card, styles.splitCard]}
-                  onPress={() => openSource('usage')}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Åpne kilden for feriebruk ${board.year}`}
-                  nativeID="widget-feriebruk"
-                >
-                  <Text style={styles.cardTitle}>{`Feriebruk ${board.year}`}</Text>
-                  <Text style={styles.hint}>Brukte feriedager mot startsaldo for utvalget.</Text>
-                  <View style={styles.donutRow}>
-                    <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
-                    <View style={styles.legend}>
-                      <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
-                      {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
-                      {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
-                      {!hasQuota ? <Legend label="Ingen startsaldo satt" value="" /> : null}
+              <View style={styles.board} nativeID="fravaer-board">
+                <View style={styles.boardMain} nativeID="fravaer-board-main">
+                  <StatusCard
+                    title={awayTitle}
+                    count={away.length}
+                    empty={awayEmpty}
+                    nativeID="borte-i-dag"
+                    pending={boardPending}
+                    pendingLabel="Henter hvem som er borte"
+                    pendingId="fravaer-loading-borte"
+                  >
+                    <View style={styles.awayList}>
+                      {away.map((row) => (
+                        <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.awayPill} accessibilityRole="button">
+                          <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+                          <Text style={styles.awayName} numberOfLines={1}>{row.employeeName}</Text>
+                          <Text style={styles.awayType} numberOfLines={1}>{row.typeLabel}</Text>
+                        </TouchableOpacity>
+                      ))}
                     </View>
+                  </StatusCard>
+                  <View style={styles.split}>
+                    <TouchableOpacity
+                      style={[styles.card, styles.splitCard]}
+                      onPress={() => openSource('usage')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Åpne kilden for feriebruk ${board.year}`}
+                      nativeID="widget-feriebruk"
+                    >
+                      <Text style={styles.cardTitle}>{`Feriebruk ${board.year}`}</Text>
+                      {boardPending ? (
+                        <CardPending label="Henter feriebruk" nativeID="fravaer-loading-ferie" />
+                      ) : (
+                        <>
+                          <Text style={styles.hint}>Brukte feriedager mot startsaldo for utvalget.</Text>
+                          <View style={styles.donutRow}>
+                            <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
+                            <View style={styles.legend}>
+                              <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
+                              {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
+                              {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
+                              {!hasQuota ? <Legend label="Ingen startsaldo satt" value="" /> : null}
+                            </View>
+                          </View>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.card, styles.splitCard]}
+                      onPress={() => openSource('chart')}
+                      onLayout={(event) => setChartWidth(Math.max(180, event.nativeEvent.layout.width - 28))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Åpne fraværsrapporten for perioden"
+                      nativeID="widget-periode"
+                    >
+                      <Text style={styles.cardTitle}>Fravær i perioden</Text>
+                      {boardPending ? (
+                        <CardPending label="Henter fravær i perioden" nativeID="fravaer-loading-periode" />
+                      ) : (
+                        <>
+                          <Text style={styles.hint}>{period.label}</Text>
+                          <MonthChart months={grid.totals} width={Math.max(chartWidth, grid.days.length * 16)} />
+                          <View style={styles.keys}>
+                            <Key color={BARS.ferie} label="Ferie" />
+                            <Key color={BARS.sykdom} label="Sykdom" />
+                            <Key color={BARS.annet} label="Annet" />
+                          </View>
+                        </>
+                      )}
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.card, styles.splitCard]}
-                  onPress={() => openSource('chart')}
-                  onLayout={(event) => setChartWidth(Math.max(180, event.nativeEvent.layout.width - 28))}
-                  accessibilityRole="button"
-                  accessibilityLabel="Åpne fraværsrapporten for perioden"
-                  nativeID="widget-periode"
-                >
-                  <Text style={styles.cardTitle}>Fravær i perioden</Text>
-                  <Text style={styles.hint}>{period.label}</Text>
-                  <MonthChart months={grid.totals} width={Math.max(chartWidth, grid.days.length * 16)} />
-                  <View style={styles.keys}>
-                    <Key color={BARS.ferie} label="Ferie" />
-                    <Key color={BARS.sykdom} label="Sykdom" />
-                    <Key color={BARS.annet} label="Annet" />
-                  </View>
-                </TouchableOpacity>
+                </View>
+                <View style={styles.boardSide} nativeID="fravaer-board-side">
+                  <StatusCard
+                    title="Planlagt fremover"
+                    count={planned.length}
+                    empty="Ingen planlagt fravær fremover"
+                    nativeID="planlagt-fravaer"
+                    pending={boardPending}
+                    pendingLabel="Henter planlagt fravær"
+                    pendingId="fravaer-loading-planlagt"
+                  >
+                    {planned.slice(0, 6).map((row) => (
+                      <TouchableOpacity key={row.id} onPress={() => openPerson(row.employeeId)} style={styles.period} accessibilityRole="button">
+                        <View style={[styles.swatch, { backgroundColor: BARS[row.bucket] || BARS.annet }]} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.periodName} numberOfLines={1}>{row.employeeName}</Text>
+                          <Text style={styles.periodMeta} numberOfLines={1}>
+                            {`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}
+                          </Text>
+                        </View>
+                        <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    {planned.length > 6 ? (
+                      <Text style={styles.moreHint}>{`+ ${planned.length - 6} til i listen under`}</Text>
+                    ) : null}
+                  </StatusCard>
+                </View>
               </View>
 
-              <View style={styles.card}>
+              <View style={styles.card} nativeID="fravaer-aar">
                 <View style={styles.cardHead}>
                   <Text style={styles.cardTitle}>{`Fravær i ${board.year}`}</Text>
                   {dataYears.length > 1 ? (
@@ -471,42 +498,48 @@ export function CompanyAbsenceDesktop({
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.hint}>Dager per måned. Til gode = startsaldo minus registrert ferie.</Text>
-                {board.staff.length ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.matrix}>
-                      <View style={styles.matrixHead}>
-                        <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
-                        {board.months.map((label) => (
-                          <Text key={label} style={[styles.monthCol, styles.headTxt]}>{label}</Text>
-                        ))}
-                        <Text style={[styles.numCol, styles.headTxt]}>Ferie</Text>
-                        <Text style={[styles.numCol, styles.headTxt]}>Til gode</Text>
-                      </View>
-                      {board.staff.map((staffRow) => (
-                        <TouchableOpacity key={staffRow.id} onPress={() => openPerson(staffRow.id)} style={styles.matrixRow} accessibilityRole="button">
-                          <Text style={[styles.nameCol, styles.nameTxt]} numberOfLines={1}>{staffRow.name}</Text>
-                          {staffRow.months.map((month) => {
-                            const total = monthTotal(month);
-                            return (
-                              <Text key={month.label} style={[styles.monthCol, styles.monthNum, total ? { color: monthTone(month) } : null]}>
-                                {total ? formatCount(total) : ''}
-                              </Text>
-                            );
-                          })}
-                          <Text style={[styles.numCol, styles.numTxt]}>{staffRow.vacationUsed ? formatCount(staffRow.vacationUsed) : ''}</Text>
-                          <Text style={[styles.numCol, styles.numTxt]}>{staffRow.earned ? formatCount(staffRow.remaining) : '–'}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
+                {boardPending ? (
+                  <CardPending label={`Henter fravær for ${board.year || 'året'}`} nativeID="fravaer-loading-aar" />
                 ) : (
-                  <Text style={styles.empty}>{`Ingen fravær registrert i ${board.year}.`}</Text>
+                  <>
+                    <Text style={styles.hint}>Dager per måned. Til gode = startsaldo minus registrert ferie.</Text>
+                    {board.staff.length ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={styles.matrix}>
+                          <View style={styles.matrixHead}>
+                            <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
+                            {board.months.map((label) => (
+                              <Text key={label} style={[styles.monthCol, styles.headTxt]}>{label}</Text>
+                            ))}
+                            <Text style={[styles.numCol, styles.headTxt]}>Ferie</Text>
+                            <Text style={[styles.numCol, styles.headTxt]}>Til gode</Text>
+                          </View>
+                          {board.staff.map((staffRow) => (
+                            <TouchableOpacity key={staffRow.id} onPress={() => openPerson(staffRow.id)} style={styles.matrixRow} accessibilityRole="button">
+                              <Text style={[styles.nameCol, styles.nameTxt]} numberOfLines={1}>{staffRow.name}</Text>
+                              {staffRow.months.map((month) => {
+                                const total = monthTotal(month);
+                                return (
+                                  <Text key={month.label} style={[styles.monthCol, styles.monthNum, total ? { color: monthTone(month) } : null]}>
+                                    {total ? formatCount(total) : ''}
+                                  </Text>
+                                );
+                              })}
+                              <Text style={[styles.numCol, styles.numTxt]}>{staffRow.vacationUsed ? formatCount(staffRow.vacationUsed) : ''}</Text>
+                              <Text style={[styles.numCol, styles.numTxt]}>{staffRow.earned ? formatCount(staffRow.remaining) : '–'}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    ) : (
+                      <Text style={styles.empty}>{`Ingen fravær registrert i ${board.year}.`}</Text>
+                    )}
+                  </>
                 )}
               </View>
             </>
           ) : (
-            <PeriodTable grid={grid} today={today} onOpen={openPerson} />
+            <PeriodTable grid={grid} today={today} onOpen={openPerson} pending={boardPending} />
           )}
         </>
       )}
@@ -1343,22 +1376,52 @@ function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive })
   );
 }
 
-function StatusCard({ title, count, empty, children, nativeID }) {
+function CardPending({ label, nativeID }) {
   return (
-    <View style={[styles.card, styles.statusCard]} nativeID={nativeID}>
-      <View style={styles.statusHead}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.countBadge}>{count}</Text>
+    <View
+      style={styles.pending}
+      nativeID={nativeID}
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+    >
+      <View style={styles.pendingTrack}>
+        <View style={[styles.pendingBar, { width: '78%' }]} />
+        <View style={[styles.pendingBar, { width: '46%' }]} />
       </View>
-      {count > 0 ? children : <Text style={styles.empty}>{empty}</Text>}
+      <View style={styles.pendingRow}>
+        <ActivityIndicator size="small" color={blue} />
+        <Text style={styles.pendingTxt}>{label}</Text>
+      </View>
     </View>
   );
 }
 
-function PeriodTable({ grid, today, onOpen }) {
+function StatusCard({ title, count, empty, children, nativeID, pending = false, pendingLabel = 'Henter', pendingId }) {
+  return (
+    <View style={[styles.card, styles.statusCard]} nativeID={nativeID}>
+      <View style={styles.statusHead}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        {pending ? (
+          <ActivityIndicator size="small" color={blue} />
+        ) : (
+          <Text style={styles.countBadge}>{count}</Text>
+        )}
+      </View>
+      {pending ? (
+        <CardPending label={pendingLabel} nativeID={pendingId} />
+      ) : (count > 0 ? children : <Text style={styles.empty}>{empty}</Text>)}
+    </View>
+  );
+}
+
+function PeriodTable({ grid, today, onOpen, pending = false }) {
   return (
     <View style={styles.card} nativeID="fravaer-tabell">
       <Text style={styles.cardTitle}>Hvem som har fravær</Text>
+      {pending ? (
+        <CardPending label="Henter fravær i perioden" nativeID="fravaer-loading-tabell" />
+      ) : (
+      <>
       <Text style={styles.hint}>Fargen viser registrert ferie, sykdom eller annet. Trykk på navnet for mer om personen.</Text>
       <View style={styles.keys}>
         <Key color={BARS.ferie} label="Ferie" />
@@ -1399,6 +1462,8 @@ function PeriodTable({ grid, today, onOpen }) {
       ) : (
         <Text style={styles.empty}>Ingen ansatte i dette utvalget.</Text>
       )}
+      </>
+      )}
     </View>
   );
 }
@@ -1406,6 +1471,7 @@ function PeriodTable({ grid, today, onOpen }) {
 function EmployeePane({
   name, kind, person, year, earned, yearUsed, remaining, hasQuota, planned,
   opening, openingPlaceholder, onOpeningChange, onSaveOpening, chartWidth, onChartWidth,
+  pending = false,
 }) {
   return (
     <View nativeID="fravaer-ansatt" style={{ gap: 10 }}>
@@ -1416,14 +1482,18 @@ function EmployeePane({
       <View style={styles.split}>
         <View style={[styles.card, styles.splitCard]}>
           <Text style={styles.cardTitle}>{`Feriebruk ${year}`}</Text>
-          <View style={styles.donutRow}>
-            <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
-            <View style={styles.legend}>
-              <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
-              {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
-              {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
+          {pending ? (
+            <CardPending label="Henter feriebruk" nativeID="fravaer-loading-ferie" />
+          ) : (
+            <View style={styles.donutRow}>
+              <Donut used={yearUsed} total={earned} hasQuota={hasQuota} />
+              <View style={styles.legend}>
+                <Legend color={blue} label="Brukt i år" value={formatCount(yearUsed)} />
+                {hasQuota ? <Legend color="#D5DEEA" label="Til gode" value={formatCount(remaining)} /> : null}
+                {hasQuota ? <Legend label="Startsaldo" value={formatCount(earned)} /> : null}
+              </View>
             </View>
-          </View>
+          )}
           <View style={styles.opening}>
             <Text style={styles.openingLabel}>Startsaldo ferie</Text>
             <TextInput
@@ -1443,15 +1513,27 @@ function EmployeePane({
         </View>
         <View style={[styles.card, styles.splitCard]} onLayout={(event) => onChartWidth?.(Math.max(180, event.nativeEvent.layout.width - 28))}>
           <Text style={styles.cardTitle}>{`Fravær i ${year}`}</Text>
-          <MonthChart months={person?.months || []} width={chartWidth} />
-          <View style={styles.keys}>
-            <Key color={BARS.ferie} label="Ferie" />
-            <Key color={BARS.sykdom} label="Sykdom" />
-            <Key color={BARS.annet} label="Annet" />
-          </View>
+          {pending ? (
+            <CardPending label={`Henter fravær for ${year || 'året'}`} nativeID="fravaer-loading-ansatt-aar" />
+          ) : (
+            <>
+              <MonthChart months={person?.months || []} width={chartWidth} />
+              <View style={styles.keys}>
+                <Key color={BARS.ferie} label="Ferie" />
+                <Key color={BARS.sykdom} label="Sykdom" />
+                <Key color={BARS.annet} label="Annet" />
+              </View>
+            </>
+          )}
         </View>
       </View>
-      <PlannedCard rows={planned} />
+      {pending ? (
+        <View style={styles.card}>
+          <CardPending label="Henter planlagt fravær" nativeID="fravaer-loading-planlagt" />
+        </View>
+      ) : (
+        <PlannedCard rows={planned} />
+      )}
     </View>
   );
 }
@@ -1489,20 +1571,25 @@ function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
   );
 }
 
-function Kpi({ icon, tint, bg, value, label, onPress }) {
+function Kpi({ icon, tint, bg, value, label, onPress, pending = false, pendingId }) {
   return (
     <TouchableOpacity
       style={styles.kpi}
       onPress={onPress}
-      disabled={!onPress}
+      disabled={!onPress || pending}
       accessibilityRole="button"
-      accessibilityLabel={`${label}. Åpne kilden`}
+      accessibilityLabel={pending ? `Henter ${label}` : `${label}. Åpne kilden`}
+      nativeID={pending ? pendingId : undefined}
     >
       <View style={[styles.kpiIcon, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={14} color={tint} />
       </View>
       <View style={styles.kpiCopy}>
-        <Text style={styles.kpiValue}>{value}</Text>
+        {pending ? (
+          <ActivityIndicator size="small" color={tint} />
+        ) : (
+          <Text style={styles.kpiValue}>{value}</Text>
+        )}
         <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
       </View>
     </TouchableOpacity>
@@ -1799,8 +1886,15 @@ const styles = StyleSheet.create({
   kpiValue: { color: ink, fontSize: 13, fontWeight: '400', fontVariant: ['tabular-nums'] },
   kpiLabel: { color: muted, fontSize: 13, fontWeight: '400' },
   card: { backgroundColor: '#fff', borderWidth: 1, borderColor: line, borderRadius: 12, padding: 12, gap: 6 },
-  statusCard: { flex: 1, minWidth: 240, gap: 4 },
-  statusSplit: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
+  statusCard: { alignSelf: 'stretch', gap: 4 },
+  board: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' },
+  boardMain: { flexGrow: 1.7, flexShrink: 1, flexBasis: 640, minWidth: 300, gap: 10 },
+  boardSide: { flexGrow: 1, flexShrink: 1, flexBasis: 300, minWidth: 260 },
+  pending: { gap: 8, paddingVertical: 4 },
+  pendingTrack: { gap: 6 },
+  pendingBar: { height: 8, borderRadius: 4, backgroundColor: '#E6EBF2' },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pendingTxt: { color: muted, fontSize: 13, fontWeight: '400' },
   statusHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   countBadge: {
     color: muted,
@@ -1826,13 +1920,14 @@ const styles = StyleSheet.create({
   hint: { color: muted, fontSize: 13, fontWeight: '400', marginTop: -2 },
   empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
   moreHint: { color: muted, fontSize: 13, fontWeight: '400', paddingTop: 2 },
+  awayList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   awayPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#F4F7FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
-    marginTop: 2,
+    maxWidth: '100%',
   },
   awayName: { color: ink, fontWeight: '400', fontSize: 13, flexShrink: 1 },
-  awayType: { color: muted, fontSize: 13, fontWeight: '400', marginLeft: 'auto' },
+  awayType: { color: muted, fontSize: 13, fontWeight: '400', flexShrink: 1 },
   split: { flexDirection: 'row', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' },
   splitCard: { flex: 1, minWidth: 260 },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 2 },

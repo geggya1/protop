@@ -577,6 +577,30 @@ export function weeklyActualHours(entries, employeeId, weeks) {
   return byProject;
 }
 
+/**
+ * Sammenhengende uker med produksjon, til og med inneværende uke.
+ * Fremtidige uker holdes utenfor, de tegnes som planlagt belegg.
+ */
+export function actualWeekRuns(weekList, hoursByWeek, todayKey = '') {
+  const runs = [];
+  let run = null;
+  const today = mondayKey(todayKey) || text(todayKey);
+  (weekList || []).forEach((key, index) => {
+    const week = mondayKey(key) || text(key);
+    const hours = hoursByWeek instanceof Map ? Number(hoursByWeek.get(week) || 0) : 0;
+    const include = Boolean(week) && hours > 0 && (!today || week <= today);
+    if (!include) {
+      if (run) runs.push(run);
+      run = null;
+      return;
+    }
+    if (!run) run = { startIndex: index, weeks: [] };
+    run.weeks.push({ key: week, hours, index });
+  });
+  if (run) runs.push(run);
+  return runs;
+}
+
 export function actualHoursForWeek(entries, employeeId, monday) {
   const key = mondayKey(monday);
   const id = text(employeeId);

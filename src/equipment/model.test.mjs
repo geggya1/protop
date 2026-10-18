@@ -16,10 +16,16 @@ import {
   upsertEquipment,
   upsertPersonalVehicle,
 } from './state.js';
-import { recordDutyTrip } from '../economy/opsState.js';
+import { deleteTrip, recordDutyTrip } from '../economy/opsState.js';
 import { buildOperationsProposals } from '../economy/billingFromOperations.js';
 import { normalizeTrip } from '../economy/mileage.js';
-import { mileageProjectOptions, mileageRate, tripCost } from '../mileage/flow.js';
+import {
+  mileageProjectOptions,
+  mileageRate,
+  projectHasOwnAddress,
+  tripCost,
+  vehicleOdometer,
+} from '../mileage/flow.js';
 
 const gear = validateEquipment({
   name: 'Poolbil 1',
@@ -116,6 +122,15 @@ assert.deepEqual(suggested.options.map((row) => row.project.id), ['p1']);
 assert.equal(suggested.options[0].address, 'Kai 1, 0150 Oslo');
 const searched = mileageProjectOptions(state, 'ada', { query: 'gammelt', today: new Date('2026-10-16') });
 assert.deepEqual(searched.options.map((row) => row.project.id), ['p2']);
+const withMember = mileageProjectOptions({
+  ...state,
+  members: [{ employeeId: 'ada', projectId: 'p2', active: true }],
+}, 'ada', { today: new Date('2026-10-16T12:00:00') });
+assert.deepEqual(withMember.options.map((row) => row.project.id).sort(), ['p1', 'p2']);
+assert.equal(projectHasOwnAddress(state.projects[0]), true);
+assert.equal(projectHasOwnAddress(state.projects[1]), false);
+assert.equal(projectHasOwnAddress({ place: 'Foss Eikeland' }), true);
+assert.equal(projectHasOwnAddress({ client: 'Kunde' }), false);
 
 const saved = recordDutyTrip(state, {
   date: '2026-10-16',
@@ -147,6 +162,35 @@ assert.equal(saved.expense.projectId, 'p1');
 assert.equal(saved.expense.tripId, saved.trip.id);
 assert.equal(saved.expense.vehicleId, state.personalVehicles[0].id);
 assert.equal(saved.state.mileageTrips[0].status, 'approved');
+const tracked = {
+  id: state.personalVehicles[0].id,
+  trackOdometer: true,
+  odometerStart: 1000,
+  odometerSince: '2026-01-01',
+};
+assert.equal(vehicleOdometer(tracked, saved.state.mileageTrips).current, 1024);
+assert.equal(vehicleOdometer({ ...tracked, odometerSince: '2026-10-17' }, saved.state.mileageTrips).driven, 0);
+assert.equal(vehicleOdometer({ ...tracked, trackOdometer: false }, saved.state.mileageTrips), null);
+const removed = deleteTrip(saved.state, saved.trip.id);
+assert.equal(removed.ok, true);
+assert.equal(removed.state.mileageTrips.length, 0);
+assert.equal((removed.state.expenses || []).some((row) => row.tripId === saved.trip.id), false);
+const invoiced = deleteTrip({
+  ...saved.state,
+  mileageTrips: [{ ...saved.trip, status: 'invoiced' }],
+}, saved.trip.id);
+assert.equal(invoiced.ok, false);
+const counted = validateEquipment({
+  name: 'Bil',
+  group: 'kjoretoy',
+  plate: 'AB1',
+  trackOdometer: true,
+  odometerStart: '1000',
+  odometerSince: '2026-10-01',
+});
+assert.equal(counted.equipment.trackOdometer, true);
+assert.equal(counted.equipment.odometerStart, 1000);
+assert.equal(counted.equipment.odometerSince, '2026-10-01');
 
 const clearedToll = normalizeTrip({
   date: '2026-10-16',

@@ -1,5 +1,4 @@
 import { Platform, Linking } from 'react-native';
-import { firebaseConfig } from '../../firebase';
 import { mapsEmbed, mapsUrl } from './locationMaps';
 import {
   searchKartverketAdresser,
@@ -8,11 +7,7 @@ import {
 
 export { mapsEmbed, mapsUrl };
 
-const MAPS_KEY = firebaseConfig?.apiKey || '';
-const GOOGLE_SEARCH_TIMEOUT_MS = 2500;
-
-let googleMapsReady = null;
-let placesServiceHost = null;
+const PLACE_SEARCH_TIMEOUT_MS = 2800;
 
 function withTimeout(promise, ms, fallback = null) {
   return Promise.race([
@@ -45,144 +40,6 @@ function placeFromCoords(lat, lng, label, source = 'coords') {
     placeId: '',
     source,
   };
-}
-
-/**
- * Load Maps JS (Places library). Resolves null on failure / timeout — never hangs.
- */
-function loadGoogleMaps() {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    return Promise.resolve(null);
-  }
-  if (window.google?.maps) {
-    return Promise.resolve(window.google.maps);
-  }
-  if (googleMapsReady) return googleMapsReady;
-
-  googleMapsReady = new Promise((resolve) => {
-    const finish = () => resolve(window.google?.maps || null);
-    const existing = document.getElementById('weekplan-google-maps');
-    if (existing) {
-      if (window.google?.maps) {
-        finish();
-        return;
-      }
-      existing.addEventListener('load', finish, { once: true });
-      existing.addEventListener('error', () => resolve(null), { once: true });
-      // Load event may already have fired — don't hang.
-      setTimeout(finish, 4000);
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'weekplan-google-maps';
-    script.async = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&libraries=places&language=no`;
-    script.onload = finish;
-    script.onerror = () => resolve(null);
-    document.head.appendChild(script);
-    setTimeout(finish, 8000);
-  });
-  return googleMapsReady;
-}
-
-/** PlacesService needs a DOM-attached element; a detached div often fails silently. */
-function getPlacesServiceHost() {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
-  if (placesServiceHost?.isConnected) return placesServiceHost;
-  const el = document.createElement('div');
-  el.id = 'weekplan-places-host';
-  el.setAttribute('aria-hidden', 'true');
-  el.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;';
-  document.body.appendChild(el);
-  placesServiceHost = el;
-  return el;
-}
-
-async function searchPlacesGoogle(query) {
-  const maps = await withTimeout(loadGoogleMaps(), 5000, null);
-  if (!maps?.places?.AutocompleteService) return null;
-
-  const service = new maps.places.AutocompleteService();
-  const predictions = await withTimeout(
-    new Promise((resolve) => {
-      try {
-        service.getPlacePredictions(
-          {
-            input: query,
-            componentRestrictions: { country: ['no', 'se', 'dk'] },
-          },
-          (result, status) => {
-            if (status !== 'OK' || !result) resolve([]);
-            else resolve(result);
-          },
-        );
-      } catch {
-        resolve([]);
-      }
-    }),
-    GOOGLE_SEARCH_TIMEOUT_MS,
-    [],
-  );
-
-  if (!predictions?.length) return [];
-
-  const host = getPlacesServiceHost();
-  if (!host) return [];
-  const detailService = new maps.places.PlacesService(host);
-  const detailed = await Promise.all(
-    predictions.slice(0, 6).map(
-      (p) => withTimeout(
-        new Promise((resolve) => {
-          try {
-            detailService.getDetails(
-              { placeId: p.place_id, fields: ['geometry', 'formatted_address', 'name', 'place_id'] },
-              (place, status) => {
-                if (status !== 'OK' || !place) {
-                  resolve({
-                    label: p.description,
-                    lat: null,
-                    lng: null,
-                    placeId: p.place_id,
-                    source: 'google',
-                  });
-                  return;
-                }
-                resolve({
-                  label: place.formatted_address || place.name || p.description,
-                  lat: place.geometry?.location?.lat?.() ?? null,
-                  lng: place.geometry?.location?.lng?.() ?? null,
-                  placeId: place.place_id || p.place_id,
-                  source: 'google',
-                });
-              },
-            );
-          } catch {
-            resolve({
-              label: p.description,
-              lat: null,
-              lng: null,
-              placeId: p.place_id,
-              source: 'google',
-            });
-          }
-        }),
-        2000,
-        {
-          label: p.description,
-          lat: null,
-          lng: null,
-          placeId: p.place_id,
-          source: 'google',
-        },
-      ),
-    ),
-  );
-  // Drop predictions that never got geometry — label-only hits break maps/weather/places.
-  return detailed.filter(
-    (p) => p
-      && Number.isFinite(Number(p.lat))
-      && Number.isFinite(Number(p.lng)),
-  );
 }
 
 async function searchPlacesOsm(query, lang = 'en') {
@@ -224,42 +81,72 @@ function kartverketHitToPlace(hit) {
 }
 
 async function searchPlacesKartverket(query) {
-  const { results } = await searchKartverketAdresser(query, { treffPerSide: 6 });
+  // Fuzzy slår av stedsnavn som «Foss eik» og fyller lista med urelaterte treff.
+  // Gateadresser treffer uten fuzzy. Stedsnavn kommer fra Photon og Nominatim.
+  const { results } = await searchKartverketAdresser(query, { treffPerSide: 6, fuzzy: false });
   return results.map(kartverketHitToPlace);
 }
 
+async function searchPlacesPhoton(query) {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8&lang=en&lat=61.5&lon=8.5`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) return [];
+  const json = await res.json();
+  const allowed = new Set(['NO', 'SE', 'DK']);
+  return (json?.features || []).map((feature) => {
+    const props = feature?.properties || {};
+    const country = String(props.countrycode || '').toUpperCase();
+    if (country && !allowed.has(country)) return null;
+    const street = [props.street || props.name, props.housenumber].filter(Boolean).join(' ');
+    const city = props.city || props.locality || props.county || '';
+    const postcode = props.postcode || '';
+    const label = [street, [postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const coords = feature?.geometry?.coordinates || [];
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (!label || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return {
+      label,
+      lat,
+      lng,
+      placeId: `ph:${props.osm_id || label}`,
+      source: 'photon',
+      adressetekst: street,
+      postnummer: postcode,
+      poststed: city,
+    };
+  }).filter(Boolean);
+}
+
+function mergePlaceHits(...groups) {
+  const seen = new Set();
+  const out = [];
+  for (const group of groups) {
+    for (const hit of group || []) {
+      const key = String(hit?.label || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!key || seen.has(key)) continue;
+      if (!Number.isFinite(Number(hit.lat)) || !Number.isFinite(Number(hit.lng))) continue;
+      seen.add(key);
+      out.push(hit);
+      if (out.length >= 6) return out;
+    }
+  }
+  return out;
+}
+
 /**
- * Search for places. Official Kartverket addresses first when the query looks
- * like a Nordic street address, then OSM, then Google Places.
+ * Adressetreff etter tre bokstaver. Kartverket, Photon og Nominatim i parallell.
+ * Google Maps JavaScript Places brukes ikke: nøkkelen har ikke Places aktivert.
  */
 export async function searchPlaces(query, lang = 'en') {
   const q = String(query || '').trim();
-  if (q.length < 2) return [];
-
-  if (looksLikeNordicStreetAddress(q)) {
-    try {
-      const kvHits = await searchPlacesKartverket(q);
-      if (kvHits.length) return kvHits;
-    } catch {
-      // fall through
-    }
-  }
-
-  try {
-    const osmHits = await searchPlacesOsm(q, lang);
-    if (osmHits.length) return osmHits;
-  } catch {
-    // fall through
-  }
-
-  try {
-    const googleHits = await searchPlacesGoogle(q);
-    if (googleHits && googleHits.length) return googleHits;
-  } catch {
-    // fall through
-  }
-
-  return [];
+  if (q.length < 3) return [];
+  const [kv, photon, osm] = await Promise.all([
+    withTimeout(searchPlacesKartverket(q).catch(() => []), PLACE_SEARCH_TIMEOUT_MS, []),
+    withTimeout(searchPlacesPhoton(q).catch(() => []), PLACE_SEARCH_TIMEOUT_MS, []),
+    withTimeout(searchPlacesOsm(q, lang).catch(() => []), PLACE_SEARCH_TIMEOUT_MS, []),
+  ]);
+  return mergePlaceHits(kv, photon, osm);
 }
 
 /** Build a usable location from free-typed text (optional geocode). */

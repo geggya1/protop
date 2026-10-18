@@ -110,6 +110,17 @@ export function recordDutyTrip(state, input) {
   return ok(expenseSaved.state, { trip, expense: expenseSaved.expense });
 }
 
+export function deleteTrip(state, id) {
+  const current = (state.mileageTrips || []).find((row) => row.id === id);
+  if (!current) return fail(state, 'Turen finnes ikke.');
+  if (current.status === 'invoiced') return fail(state, 'Fakturert tur kan ikke slettes.');
+  return ok({
+    ...state,
+    mileageTrips: (state.mileageTrips || []).filter((row) => row.id !== id),
+    expenses: (state.expenses || []).filter((row) => row.id !== current.expenseId && row.tripId !== id),
+  }, { trip: current });
+}
+
 export function setTripStatus(state, id, status) {
   const current = (state.mileageTrips || []).find((row) => row.id === id);
   if (!current) return fail(state, 'Turen finnes ikke.');

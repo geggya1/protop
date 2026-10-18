@@ -38,13 +38,13 @@ import {
 } from '../../src/equipment/state';
 import { employeeLevelIds } from '../../src/access/companyAccess';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
-import { mileageProjectOptions } from '../../src/mileage/flow';
+import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 
 const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
-function Field({ label, value, onChange, colors, placeholder }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
   return (
     <View style={{ minWidth: 140, flexGrow: 1, flexBasis: 160 }}>
       <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
@@ -53,8 +53,53 @@ function Field({ label, value, onChange, colors, placeholder }) {
         onChangeText={onChange}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
+        keyboardType={keyboardType || 'default'}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />
+    </View>
+  );
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function CarOdometer({ car, trips, colors, onSave }) {
+  const reading = vehicleOdometer(car, trips);
+  const [on, setOn] = useState(!!car.trackOdometer);
+  const [start, setStart] = useState(car.odometerStart ? String(car.odometerStart) : '');
+  return (
+    <View style={{ gap: 6, marginTop: 6 }}>
+      <Text style={{ color: colors.ink, fontSize: 13 }}>
+        {reading ? `Kilometerstand ${reading.current} km` : 'Kilometertelling er av'}
+      </Text>
+      <TouchableOpacity
+        onPress={() => setOn((value) => !value)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: on }}
+      >
+        <Text style={{ color: colors.ink }}>{on ? 'Tell kilometer er på' : 'Tell kilometer'}</Text>
+      </TouchableOpacity>
+      {on ? (
+        <Field
+          label="Start kilometerstand"
+          value={start}
+          onChange={setStart}
+          colors={colors}
+          placeholder="0"
+          keyboardType="decimal-pad"
+        />
+      ) : null}
+      <TouchableOpacity
+        onPress={() => onSave({
+          trackOdometer: on,
+          odometerStart: start,
+          odometerSince: on && !car.odometerSince ? todayKey() : (car.odometerSince || ''),
+        })}
+        style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}
+      >
+        <Text style={{ color: colors.ink }}>Lagre kilometerstand</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -86,6 +131,7 @@ const EMPTY_GEAR = {
   make: '', model: '', year: '', fuel: '', electric: false, location: '',
   status: 'available', purchasedAt: '', warrantyUntil: '', warrantyVendor: '', warrantyNote: '', warrantyUri: '', notes: '',
   vegvesenSummary: '', ownerEmployeeId: '', ownerName: '',
+  trackOdometer: false, odometerStart: '', odometerSince: '',
 };
 
 function categoryForGroup(group) {
@@ -252,6 +298,9 @@ export default function EquipmentScreen() {
         fuel: saved.fuel,
         electric: saved.electric,
         vegvesenSummary: saved.vegvesenSummary || saved.notes,
+        trackOdometer: saved.trackOdometer,
+        odometerStart: saved.odometerStart,
+        odometerSince: saved.odometerSince,
       });
       if (!next.ok) {
         setError(next.error);
@@ -315,6 +364,11 @@ export default function EquipmentScreen() {
         {row.warrantyUntil ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
             Garanti til {row.warrantyUntil}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
+          </Text>
+        ) : null}
+        {row.group === 'kjoretoy' && row.trackOdometer ? (
+          <Text style={{ color: colors.ink, fontSize: 12 }}>
+            Kilometerstand {vehicleOdometer(row, state.mileageTrips)?.current ?? row.odometerStart} km
           </Text>
         ) : null}
         {(row.scope === 'private' || canManage) ? (
@@ -391,6 +445,41 @@ export default function EquipmentScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {[gear.make, gear.model, gear.year].filter(Boolean).join(' ') || 'Skiltnummeret fyller inn merke og modell.'}
               </Text>
+              <TouchableOpacity
+                onPress={() => setGear((row) => {
+                  const trackOdometer = !row.trackOdometer;
+                  return {
+                    ...row,
+                    trackOdometer,
+                    odometerSince: trackOdometer && !row.odometerSince ? todayKey() : (row.odometerSince || ''),
+                  };
+                })}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: !!gear.trackOdometer }}
+              >
+                <Text style={{ color: colors.ink }}>
+                  {gear.trackOdometer ? 'Tell kilometer er på' : 'Tell kilometer'}
+                </Text>
+              </TouchableOpacity>
+              {gear.trackOdometer ? (
+                <Field
+                  label="Start kilometerstand"
+                  value={gear.odometerStart === 0 || gear.odometerStart ? String(gear.odometerStart) : ''}
+                  onChange={(value) => setGear((row) => ({ ...row, odometerStart: value }))}
+                  colors={colors}
+                  placeholder="0"
+                  keyboardType="decimal-pad"
+                />
+              ) : null}
+              {gear.trackOdometer && gear.id ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Kilometerstand nå: {vehicleOdometer({
+                    ...gear,
+                    trackOdometer: true,
+                    odometerStart: Number(String(gear.odometerStart).replace(',', '.')) || 0,
+                  }, state.mileageTrips)?.current ?? 0} km
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {gear.group === 'utstyr' ? (
@@ -464,6 +553,13 @@ export default function EquipmentScreen() {
               <Text style={{ color: colors.ink, fontWeight: '700' }}>{vehicleTitle(car)}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Kjøretøy</Text>
               {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
+              <CarOdometer
+                key={`${car.id}-${car.trackOdometer}-${car.odometerStart}-${car.odometerSince}`}
+                car={car}
+                trips={state.mileageTrips}
+                colors={colors}
+                onSave={(patch) => commit(upsertPersonalVehicle(state, { ...car, ...patch }))}
+              />
               <TouchableOpacity onPress={() => commit(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
                 <Text style={{ color: colors.ink }}>Slett</Text>
               </TouchableOpacity>

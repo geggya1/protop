@@ -31,6 +31,10 @@ import { defaultWorkSettings, PROJECT_ROLES, employeeDisplayName } from '../../s
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel, PRICING_MODELS } from '../../src/project/projectFields.js';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
+import { deleteTrip } from '../../src/economy/opsState';
+import { addressFieldsFromPlace, projectAddressLabel } from '../../src/mileage/flow';
+import { searchPlaces } from '../../src/utils/location';
+import MileageWizard from '../../screens/economy/MileageWizard';
 import IndexLetterTable from '../economy/IndexLetterTable';
 import { lettersForProject, projectNeedsIndexAttention } from '../../src/indeksregulering/groups';
 import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
@@ -42,6 +46,7 @@ const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
   { id: 'aktiviteter', label: 'Aktiviteter' },
   { id: 'fakturering', label: 'Faktureringsvalg' },
+  { id: 'fakturaer', label: 'Fakturaer' },
   { id: 'timerapport', label: 'Timerapport' },
   { id: 'team', label: 'Team' },
 ];
@@ -190,26 +195,6 @@ function AgreementPanel({
       </View>
       <ProjectIndexNote project={project} contracts={contracts} timeEntries={timeEntries} colors={colors} />
 
-      <Text nativeID="project-invoice-list" style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>
-        Fakturaer ({cross.invoices.length})
-      </Text>
-      {cross.invoices.map((row) => (
-        <TouchableOpacity
-          key={row.id}
-          onPress={() => onOpenInvoice?.(row.id)}
-          accessibilityRole="button"
-          style={[styles.invoiceRow, { borderColor: colors.line }]}
-        >
-          <Text style={{ color: colors.ink, fontWeight: '600', width: 88 }}>{row.invoiceNumber}</Text>
-          <Text style={{ color: colors.muted, width: 88 }}>{formatDate(row.invoiceDate)}</Text>
-          <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{row.customerName || row.status}</Text>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatMoney(row.amountExVat)}</Text>
-        </TouchableOpacity>
-      ))}
-      {!cross.invoices.length ? (
-        <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen fakturaer er koblet til prosjektet.</Text>
-      ) : null}
-
       <View style={{ marginTop: 16 }}>
         <IndexLetterTable
           rows={lettersForProject(project, contracts)}
@@ -264,6 +249,109 @@ function AgreementPanel({
   );
 }
 
+function ProjectAddressEditor({ project, colors, onSave }) {
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState([]);
+  const [street, setStreet] = useState(project.street || '');
+  const [postalCode, setPostalCode] = useState(project.postalCode || '');
+  const [placeName, setPlaceName] = useState(project.placeName || '');
+  useEffect(() => {
+    setStreet(project.street || '');
+    setPostalCode(project.postalCode || '');
+    setPlaceName(project.placeName || '');
+  }, [project.id, project.street, project.postalCode, project.placeName]);
+  useEffect(() => {
+    const q = String(query || '').trim();
+    if (q.length < 3) {
+      setHits([]);
+      return undefined;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      searchPlaces(q, 'nb').then((rows) => {
+        if (live) setHits((rows || []).slice(0, 5));
+      }).catch(() => {
+        if (live) setHits([]);
+      });
+    }, 280);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  function applyHit(hit) {
+    const fields = addressFieldsFromPlace(hit, hit.label);
+    setStreet(fields.street);
+    setPostalCode(fields.postalCode);
+    setPlaceName(fields.placeName);
+    setQuery('');
+    setHits([]);
+    onSave(fields);
+  }
+
+  const current = projectAddressLabel({ street, postalCode, placeName, place: project.place });
+  return (
+    <View style={{ marginTop: 16, gap: 6 }}>
+      <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektadresse</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>
+        {current || 'Ingen egen adresse. Søk og lagre, så kjøreboken bruker den som destinasjon.'}
+      </Text>
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Søk adresse, minst tre bokstaver"
+        placeholderTextColor={colors.muted}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      />
+      {query.trim().length >= 3 && !hits.length ? (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Søker adresser…</Text>
+      ) : null}
+      {hits.map((hit) => (
+        <TouchableOpacity key={hit.placeId || hit.label} onPress={() => applyHit(hit)} accessibilityRole="button">
+          <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 4 }}>{hit.label}</Text>
+        </TouchableOpacity>
+      ))}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <TextInput
+          value={street}
+          onChangeText={setStreet}
+          placeholder="Gate"
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 140 }]}
+        />
+        <TextInput
+          value={postalCode}
+          onChangeText={setPostalCode}
+          placeholder="Postnr"
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]}
+        />
+        <TextInput
+          value={placeName}
+          onChangeText={setPlaceName}
+          placeholder="Poststed"
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 120 }]}
+        />
+      </View>
+      <TouchableOpacity
+        onPress={() => onSave({
+          street,
+          postalCode,
+          placeName,
+          place: [street, [postalCode, placeName].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+        })}
+        accessibilityRole="button"
+        accessibilityLabel="Lagre prosjektadresse"
+        style={[styles.primaryBtn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
+      >
+        <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre adresse</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 /**
  * Oppgradert prosjektvisning med faner (Moment-inspirert).
  * onChangeState(nextState) / onEditForm() for å hoppe til klassisk redigering.
@@ -294,6 +382,8 @@ export default function ProjectDetail({
   const [pickEmployeeId, setPickEmployeeId] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [editingTrip, setEditingTrip] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState('');
 
   const members = useMemo(
     () => state.members.filter((row) => row.projectId === project.id && row.active !== false),
@@ -323,6 +413,42 @@ export default function ProjectDetail({
     time: summary,
   }), [project, contracts, customer, invoices, state, summary]);
   const settings = defaultWorkSettings(project.workSettings);
+  const projectTrips = useMemo(
+    () => (state.mileageTrips || [])
+      .filter((row) => row.projectId === project.id)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date))),
+    [state.mileageTrips, project.id],
+  );
+
+  function saveAddress(patch) {
+    const result = updateProject(state, project.id, patch);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onChangeState(result.state);
+    setError('');
+    setNote('Prosjektadressen er lagret.');
+    showSaveToast('Lagret.');
+  }
+
+  function removeTrip(id) {
+    if (pendingDelete !== id) {
+      setPendingDelete(id);
+      return;
+    }
+    const result = deleteTrip(state, id);
+    setPendingDelete('');
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onChangeState(result.state);
+    if (editingTrip?.id === id) setEditingTrip(null);
+    setError('');
+    setNote('Turen er slettet.');
+    showSaveToast('Turen er slettet.');
+  }
 
   const availableEmployees = employees.filter((row) => (
     row.company?.status !== 'former'
@@ -470,18 +596,20 @@ export default function ProjectDetail({
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
       <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
-        <AgreementPanel
-          cross={cross}
-          colors={colors}
-          customerId={customer?.id || project.customerId}
-          project={project}
-          contracts={contracts}
-          timeEntries={state.timeEntries || []}
-          onOpenAgreement={onOpenAgreement}
-          onOpenCustomer={onOpenCustomer}
-          onOpenInvoice={onOpenInvoice}
-          onOpenIndex={onOpenIndex}
-        />
+        {tab === 'hovedside' ? (
+          <AgreementPanel
+            cross={cross}
+            colors={colors}
+            customerId={customer?.id || project.customerId}
+            project={project}
+            contracts={contracts}
+            timeEntries={state.timeEntries || []}
+            onOpenAgreement={onOpenAgreement}
+            onOpenCustomer={onOpenCustomer}
+            onOpenInvoice={onOpenInvoice}
+            onOpenIndex={onOpenIndex}
+          />
+        ) : null}
         {tab === 'hovedside' ? (
           <View style={styles.columns}>
             <View style={[styles.mainCol, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -500,6 +628,30 @@ export default function ProjectDetail({
               {project.description ? (
                 <Text style={{ color: colors.muted, marginTop: 12, lineHeight: 20 }}>{project.description}</Text>
               ) : null}
+              <ProjectAddressEditor project={project} colors={colors} onSave={saveAddress} />
+              <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Kjøreturer</Text>
+              {!projectTrips.length ? (
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen kjøreturer er registrert på prosjektet.</Text>
+              ) : projectTrips.map((row) => (
+                <View key={row.id} style={[styles.tableRow, { borderBottomColor: colors.line }]}>
+                  <TouchableOpacity onPress={() => setEditingTrip(row)} style={{ flex: 1 }} accessibilityRole="button">
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>
+                      {row.date} · {row.from} → {row.to} · {row.km} km
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {row.employeeName || 'Ansatt'} · {row.vehicleName || 'Kjøretøy'} · {formatMoney(row.amount)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
+                    <Text style={{ color: colors.brand, fontWeight: '600' }}>Rediger</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeTrip(row.id)} accessibilityRole="button" accessibilityLabel="Slett tur">
+                    <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>
+                      {pendingDelete === row.id ? 'Bekreft' : 'Slett'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
 
               <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Innstillinger for timeføring</Text>
               <View style={styles.settingsGrid}>
@@ -584,6 +736,33 @@ export default function ProjectDetail({
                 </View>
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {tab === 'fakturaer' ? (
+          <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text nativeID="project-invoice-list" style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>
+              Fakturaer ({cross.invoices.length})
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 8 }}>
+              Fakturert eks. mva {formatMoney(cross.totals.amountExVat)} · utestående {formatMoney(cross.totals.outstanding)}
+            </Text>
+            {cross.invoices.map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={() => onOpenInvoice?.(row.id)}
+                accessibilityRole="button"
+                style={[styles.invoiceRow, { borderColor: colors.line }]}
+              >
+                <Text style={{ color: colors.ink, fontWeight: '600', width: 88 }}>{row.invoiceNumber}</Text>
+                <Text style={{ color: colors.muted, width: 88 }}>{formatDate(row.invoiceDate)}</Text>
+                <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{row.customerName || row.status}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatMoney(row.amountExVat)}</Text>
+              </TouchableOpacity>
+            ))}
+            {!cross.invoices.length ? (
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen fakturaer er koblet til prosjektet.</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -826,6 +1005,22 @@ export default function ProjectDetail({
           </Pressable>
         </Pressable>
       </Modal>
+      {editingTrip ? (
+        <MileageWizard
+          key={editingTrip.id}
+          colors={colors}
+          state={state}
+          customers={customers}
+          contracts={contracts}
+          launch={false}
+          editingTrip={editingTrip}
+          onDismiss={() => setEditingTrip(null)}
+          onApply={(result) => {
+            if (result?.ok && result.state) onChangeState(result.state);
+            return result;
+          }}
+        />
+      ) : null}
     </View>
   );
 }

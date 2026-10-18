@@ -59,6 +59,7 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
       <Text style={[styles.title, { color: colors.ink }]}>Kalender og røde dager</Text>
       <Text style={{ color: colors.muted, marginBottom: 8 }}>
         Importer norske helligdager, eller legg inn egne røde dager og hele eller halve fridager.
+        Firmaets utstyr bookes som egne kalendere under Utstyr. Der styrer øverste leder og administrator hvem som kan booke.
       </Text>
       <Text style={{ color: colors.muted, fontSize: 12 }}>Standard arbeidsdag (timer)</Text>
       <Text style={{ color: colors.muted, marginBottom: 8 }}>

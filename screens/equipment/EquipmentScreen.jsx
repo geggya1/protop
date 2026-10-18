@@ -21,6 +21,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { EQUIPMENT_GROUPS, EQUIPMENT_STATUSES, equipmentGroup } from '../../src/equipment/catalog';
+import { canManageEquipmentAccess, employeeMayBook } from '../../src/equipment/calendars';
 import {
   bookingsOnDate,
   normalizeEquipment,
@@ -30,10 +31,13 @@ import {
   cancelBooking,
   removeEquipment,
   removePersonalVehicle,
+  setEquipmentBookingPolicy,
   upsertBooking,
   upsertEquipment,
   upsertPersonalVehicle,
 } from '../../src/equipment/state';
+import { employeeLevelIds } from '../../src/access/companyAccess';
+import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
 import { mileageProjectOptions } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 
@@ -130,6 +134,10 @@ export default function EquipmentScreen() {
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
   const canManage = access.can('projects', 'write') || access.can('economy', 'write');
+  const canEditAccess = canManageEquipmentAccess(
+    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
+    { bypass: access.bypass, previewing: access.previewing },
+  );
   const me = ownEmployee(employees, {
     uid: uid || '',
     emails: [user?.email, activeProfile?.email].filter(Boolean),
@@ -286,6 +294,9 @@ export default function EquipmentScreen() {
       startTime,
       endTime,
       purpose,
+      enforceAccess: true,
+      manage: canEditAccess,
+      employees,
     }));
   }
 
@@ -337,6 +348,7 @@ export default function EquipmentScreen() {
         <Chip label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
+        <Chip label="Tilgang" active={tab === 'tilgang' && !formOpen} onPress={() => { setTab('tilgang'); closeForm(); }} colors={colors} />
       </View>
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
@@ -465,7 +477,9 @@ export default function EquipmentScreen() {
 
       {!formOpen && tab === 'kalender' ? (
         <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>Reserver bedriftens utstyr til et prosjekt.</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Huk av utstyret i kalenderen og book der. Her kan du også reservere en enkelt dag til et prosjekt.
+          </Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setCursor(new Date(year, monthIndex - 1, 1))} style={[styles.btnGhost, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Forrige</Text>
@@ -500,7 +514,7 @@ export default function EquipmentScreen() {
             <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Reserver {selectedDate}</Text>
               <View style={styles.row}>
-                {companyGear.filter((row) => row.bookable).map((row) => (
+                {companyGear.filter((row) => row.bookable && (canEditAccess || employeeMayBook(row, me))).map((row) => (
                   <Chip key={row.id} label={row.name} active={bookingGearId === row.id} onPress={() => setBookingGearId(row.id)} colors={colors} />
                 ))}
               </View>
@@ -532,6 +546,16 @@ export default function EquipmentScreen() {
             </View>
           ) : <Text style={{ color: colors.muted }}>Velg en dag for å reservere.</Text>}
         </View>
+      ) : null}
+
+      {!formOpen && tab === 'tilgang' ? (
+        <EquipmentBookingAccess
+          equipment={companyGear}
+          employees={employees}
+          canEdit={canEditAccess}
+          colors={colors}
+          onSave={(equipmentId, patch) => commit(setEquipmentBookingPolicy(state, { equipmentId, ...patch }))}
+        />
       ) : null}
     </ScrollView>
   );

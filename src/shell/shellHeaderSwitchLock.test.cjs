@@ -73,8 +73,12 @@ function loadShellHeader() {
       return {
         isStandaloneWeb: () => false,
         statusBarCover: () => 0,
+        headerTopPad: () => 0,
         tabBarBottomPad: () => 0,
       };
+    }
+    if (id.includes('useVisualViewportFrame')) {
+      return { useVisualViewportFrame: () => ({ top: 0, height: 0, bottom: 0 }) };
     }
     if (id === '@react-navigation/native') return { useNavigation: () => ({}) };
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };

@@ -85,6 +85,24 @@ export function projectAddressLabel(project, sources = {}) {
   return '';
 }
 
+/** Prosjektet har egen gate/sted, ikke bare adresse fra avtale eller kunde. */
+export function projectHasOwnAddress(project) {
+  if (!project) return false;
+  return Boolean(joinAddress(project.street, project.postalCode, project.placeName) || text(project.place));
+}
+
+/** Felter som lagres på prosjektet når en tur skal bli fast prosjektadresse. */
+export function addressFieldsFromPlace(place, fallbackLabel = '') {
+  const label = text(place?.label || fallbackLabel);
+  const street = text(place?.adressetekst) || label;
+  return {
+    street,
+    postalCode: text(place?.postnummer),
+    placeName: text(place?.poststed),
+    place: label || street,
+  };
+}
+
 /** Til-feltet. Uten registrert adresse brukes prosjektnavnet, så stedet kan geokodes. */
 export function projectDestinationSuggestion(project, sources = {}) {
   return projectAddressLabel(project, sources) || text(project?.name);
@@ -98,29 +116,32 @@ export function companyAddressLabel(company) {
 }
 
 /**
- * Forslagslisten er den ansattes aktive prosjekt siste to måneder,
- * pluss stjernemerkede rader slik timelisten gjør. Søk åpner hele registeret.
+ * Uten søk vises prosjekt som er aktive på den ansatte: medlemskap og timer
+ * siste to måneder. Søk treffer alle aktive prosjekt, med egne først.
  */
 export function mileageProjectOptions(state, employeeId, { query = '', today = new Date(), customers, contracts } = {}) {
   const q = text(query).toLowerCase();
   const projects = (state?.projects || []).filter((row) => row?.status !== 'arkivert' && row?.id);
   const range = timesheetActivityRange(today);
   const recent = new Set();
+  const mine = new Set();
   for (const row of state?.timeEntries || []) {
     if (text(row.employeeId) !== text(employeeId)) continue;
     if (parseHours(row.hours) <= 0) continue;
     const date = text(row.date);
     if (!date || date < range.fromDate || date > range.toDate) continue;
     recent.add(text(row.projectId));
+    mine.add(text(row.projectId));
   }
   for (const member of state?.members || []) {
     if (text(member.employeeId) !== text(employeeId)) continue;
-    if (member.active === false || !member.starred) continue;
-    recent.add(text(member.projectId));
+    if (member.active === false) continue;
+    mine.add(text(member.projectId));
   }
   const ranked = projects.map((project) => ({
     project,
     recent: recent.has(project.id),
+    mine: mine.has(project.id),
     address: projectAddressLabel(project, {
       customers: customers || state?.customers,
       contracts: [...(contracts || []), ...(state?.contracts || [])],
@@ -129,12 +150,36 @@ export function mileageProjectOptions(state, employeeId, { query = '', today = n
   }));
   const pool = q
     ? ranked.filter((row) => `${row.label} ${row.project.client || ''} ${row.address}`.toLowerCase().includes(q))
-    : ranked.filter((row) => row.recent);
+    : ranked.filter((row) => row.mine);
   pool.sort((a, b) => (
-    Number(b.recent) - Number(a.recent)
+    Number(b.mine) - Number(a.mine)
+    || Number(b.recent) - Number(a.recent)
     || a.label.localeCompare(b.label, 'nb')
   ));
   return { range, options: pool };
+}
+
+/** Kilometerstand når bilen har telling på: startsaldo pluss turer etter startdatoen. */
+export function vehicleOdometer(vehicle, trips = []) {
+  if (!vehicle?.trackOdometer) return null;
+  const since = text(vehicle.odometerSince);
+  const id = text(vehicle.id);
+  let driven = 0;
+  for (const row of trips || []) {
+    if (text(row?.vehicleId) !== id) continue;
+    if (row?.status === 'rejected') continue;
+    const date = text(row?.date);
+    if (since && date && date < since) continue;
+    driven += Number(row?.km) || 0;
+  }
+  const start = Math.max(0, Number(vehicle.odometerStart) || 0);
+  const drivenKm = Math.round(driven * 10) / 10;
+  return {
+    start,
+    driven: drivenKm,
+    current: Math.round((start + drivenKm) * 10) / 10,
+    since,
+  };
 }
 
 export function mileageRate(policies = []) {

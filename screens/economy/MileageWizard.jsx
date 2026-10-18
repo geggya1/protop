@@ -27,24 +27,28 @@ import { formatMoney } from '../../src/economy/invoices';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { employeeLevelIds } from '../../src/access/companyAccess';
 import { recordDutyTrip } from '../../src/economy/opsState';
+import { updateProject } from '../../src/project/engine';
 import { upsertEquipment, upsertPersonalVehicle } from '../../src/equipment/state';
 import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
 import { firebaseConfig } from '../../firebase';
 import {
+  addressFieldsFromPlace,
   companyAddressLabel,
   mileageProjectOptions,
   mileageRate,
   projectAddressLabel,
   projectDestinationSuggestion,
+  projectHasOwnAddress,
   roundTripKm,
   sumCharges,
   tripCost,
+  vehicleOdometer,
   visitPurposeLabel,
   VISIT_PURPOSES,
 } from '../../src/mileage/flow';
 import { suggestDriving } from '../../src/mileage/suggestRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
-import { searchPlaces } from '../../src/utils/location';
+import { getDeviceLocation, reverseGeocode, searchPlaces } from '../../src/utils/location';
 
 const STEPS = [
   { id: 'prosjekt', label: 'Prosjekt' },
@@ -77,10 +81,13 @@ function todayKey() {
   return `${now.getFullYear()}-${m}-${d}`;
 }
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus, half }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus, half, accessory }) {
   return (
     <View style={half ? styles.half : styles.field}>
-      <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 2 }}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
+        {accessory || null}
+      </View>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -108,7 +115,7 @@ function Chip({ label, active, onPress, colors }) {
   );
 }
 
-function AddressField({ label, value, onChange, onPick, colors }) {
+function AddressField({ label, value, onChange, onPick, colors, accessory }) {
   const [hits, setHits] = useState([]);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -137,9 +144,13 @@ function AddressField({ label, value, onChange, onPick, colors }) {
         value={value}
         colors={colors}
         placeholder="Søk adresse"
+        accessory={accessory}
         onFocus={() => setOpen(true)}
         onChange={(next) => { setOpen(true); onChange(next); }}
       />
+      {open && String(value || '').trim().length >= 3 && !hits.length ? (
+        <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>Søker adresser…</Text>
+      ) : null}
       {hits.length ? (
         <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
           {hits.map((hit) => (
@@ -153,35 +164,21 @@ function AddressField({ label, value, onChange, onPick, colors }) {
   );
 }
 
-export default function MileageWizard({
-  colors,
-  state,
-  onApply,
-  company,
-  onOpenBilling,
-  customers = [],
-  contracts = [],
-}) {
-  const { familyId, user, uid, activeProfile } = useApp();
-  const access = useCompanyAccess();
-  const { width, height } = useViewportSize();
-  const insets = useSafeAreaInsets();
-  const frame = mileageModalFrame(width, height, insets);
-  const [open, setOpen] = useState(false);
-  const [employees, setEmployees] = useState([]);
-  const [step, setStep] = useState('prosjekt');
-  const [query, setQuery] = useState('');
-  const [error, setError] = useState('');
-  const [routing, setRouting] = useState(false);
-  const [projectMenu, setProjectMenu] = useState(false);
-  const [vehicleMenu, setVehicleMenu] = useState(false);
-  const [addingVehicle, setAddingVehicle] = useState(false);
-  const [newPlate, setNewPlate] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newScope, setNewScope] = useState('private');
-  const [saved, setSaved] = useState(null);
-  const routeEditedRef = useRef(false);
-  const [draft, setDraft] = useState({
+function readingAfterDraft(odometer, draft, trips) {
+  if (!odometer) return null;
+  const existing = (trips || []).find((row) => row?.id && row.id === draft.id && row.vehicleId === draft.vehicleId);
+  let counted = 0;
+  if (existing && existing.status !== 'rejected') {
+    const date = String(existing.date || '');
+    if (!(odometer.since && date && date < odometer.since)) counted = Number(existing.km) || 0;
+  }
+  return Math.round((odometer.current - counted + (Number(draft.km) || 0)) * 10) / 10;
+}
+
+function emptyDraft() {
+  return {
+    id: '',
+    expenseId: '',
     date: todayKey(),
     project: null,
     vehicleKind: 'company',
@@ -203,7 +200,81 @@ export default function MileageWizard({
     visitPurpose: 'befaring',
     visitCustom: '',
     routeEdited: false,
-  });
+  };
+}
+
+function draftFromTrip(trip) {
+  const base = emptyDraft();
+  if (!trip) return base;
+  return {
+    ...base,
+    id: trip.id || '',
+    expenseId: trip.expenseId || '',
+    date: trip.date || base.date,
+    project: trip.projectId ? {
+      id: trip.projectId,
+      number: trip.projectNumber || '',
+      name: trip.projectName || '',
+      client: trip.customerName || '',
+      customerId: trip.customerId || '',
+      customerNumber: trip.customerNumber || '',
+    } : null,
+    vehicleKind: trip.vehicleKind === 'company' ? 'company' : 'private',
+    vehicleId: trip.vehicleId || '',
+    vehicleName: trip.vehicleName || '',
+    plate: trip.plate || '',
+    electric: !!trip.electric,
+    from: trip.from || '',
+    to: trip.to || '',
+    fromPlace: trip.fromLat ? { label: trip.from, lat: trip.fromLat, lng: trip.fromLng } : null,
+    toPlace: trip.toLat ? { label: trip.to, lat: trip.toLat, lng: trip.toLng } : null,
+    oneWayKm: Number(trip.oneWayKm) || 0,
+    km: Number(trip.km) || 0,
+    routeSource: trip.routeSource || 'manuell',
+    routeCharges: trip.routeCharges || [],
+    tolls: Number(trip.tolls) || 0,
+    ferries: Number(trip.ferries) || 0,
+    visitPurpose: trip.visitPurpose || 'befaring',
+    routeEdited: true,
+  };
+}
+
+export default function MileageWizard({
+  colors,
+  state,
+  onApply,
+  company,
+  onOpenBilling,
+  customers = [],
+  contracts = [],
+  launch = true,
+  editingTrip = null,
+  onDismiss,
+}) {
+  const { familyId, user, uid, activeProfile } = useApp();
+  const access = useCompanyAccess();
+  const { width, height } = useViewportSize();
+  const insets = useSafeAreaInsets();
+  const frame = mileageModalFrame(width, height, insets);
+  const editing = !!editingTrip;
+  const [open, setOpen] = useState(editing);
+  const [employees, setEmployees] = useState([]);
+  const [step, setStep] = useState(editing ? 'rute' : 'prosjekt');
+  const [query, setQuery] = useState('');
+  const [error, setError] = useState('');
+  const [routing, setRouting] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [pinAddress, setPinAddress] = useState(false);
+  const [vehicleMenu, setVehicleMenu] = useState(false);
+  const [addingVehicle, setAddingVehicle] = useState(false);
+  const [newPlate, setNewPlate] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newScope, setNewScope] = useState('private');
+  const [saved, setSaved] = useState(null);
+  const routeEditedRef = useRef(!!editingTrip);
+  const [draft, setDraft] = useState(() => draftFromTrip(editingTrip));
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
@@ -250,8 +321,8 @@ export default function MileageWizard({
       ferries: 0,
       routeEdited: false,
     });
-    setProjectMenu(false);
     setQuery('');
+    setPinAddress(false);
     setError('');
   }
 
@@ -418,6 +489,55 @@ export default function MileageWizard({
     };
   }, [step, draft.from, draft.to, draft.routeEdited]);
 
+  async function useHere() {
+    setLocating(true);
+    setError('');
+    try {
+      const pos = await getDeviceLocation();
+      const place = await reverseGeocode(pos.lat, pos.lng, 'nb');
+      patch({ from: place.label, fromPlace: place, routeEdited: false });
+    } catch (err) {
+      const code = err?.message;
+      setError(code === 'denied'
+        ? 'Posisjon er ikke tillatt i nettleseren.'
+        : 'Fant ikke posisjonen. Skriv adressen i Fra.');
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function fillRouteIfMissing(current) {
+    const from = String(current.from || '').trim();
+    const to = String(current.to || '').trim();
+    let km = Number(current.km) || 0;
+    const oneWay = Number(current.oneWayKm) || 0;
+    if (!(km > 0) && oneWay > 0) km = roundTripKm(oneWay);
+    if (!from || !to || km > 0) return { from, to, km };
+    let fromPlace = current.fromPlace?.lat ? current.fromPlace : null;
+    let toPlace = current.toPlace?.lat ? current.toPlace : null;
+    if (!fromPlace) fromPlace = (await searchPlaces(from, 'nb').catch(() => []))[0] || null;
+    if (!toPlace) toPlace = (await searchPlaces(to, 'nb').catch(() => []))[0] || null;
+    if (!fromPlace?.lat || !toPlace?.lat) return { from, to, km: 0, fromPlace, toPlace };
+    const route = await suggestDriving(fromPlace, toPlace, {
+      apiKey: firebaseConfig?.apiKey || '',
+      roundTrip: true,
+    });
+    if (!route?.oneWayKm) return { from, to, km: 0, fromPlace, toPlace };
+    const charges = route.charges || [];
+    const nextKm = roundTripKm(route.oneWayKm);
+    patch({
+      fromPlace,
+      toPlace,
+      oneWayKm: route.oneWayKm,
+      km: nextKm,
+      routeSource: route.source,
+      routeCharges: charges,
+      tolls: sumCharges(charges, 'toll'),
+      ferries: sumCharges(charges, 'ferry'),
+    });
+    return { from, to, km: nextKm };
+  }
+
   function updateCharge(id, amount) {
     const routeCharges = draft.routeCharges.map((row) => (
       row.id === id ? { ...row, amount: Number(String(amount).replace(',', '.')) || 0, source: 'manuell' } : row
@@ -437,10 +557,20 @@ export default function MileageWizard({
     ferries: draft.ferries,
   });
   const purpose = visitPurposeLabel(draft.visitPurpose, draft.visitCustom);
+  const fullProject = draft.project?.id
+    ? ((state.projects || []).find((row) => row.id === draft.project.id) || draft.project)
+    : null;
+  const needsAddress = !!(fullProject && !projectHasOwnAddress(fullProject) && draft.to);
+  const selectedVehicle = draft.vehicleKind === 'company'
+    ? cars.find((row) => row.id === draft.vehicleId)
+    : mine.find((row) => row.id === draft.vehicleId);
+  const odometer = vehicleOdometer(selectedVehicle, state.mileageTrips);
 
   function save() {
     const project = draft.project;
     const result = onApply(recordDutyTrip(state, {
+      id: draft.id || undefined,
+      expenseId: draft.expenseId || undefined,
       date: draft.date || todayKey(),
       employeeId,
       employeeName,
@@ -478,6 +608,16 @@ export default function MileageWizard({
       setError(result?.error || 'Kunne ikke lagre turen.');
       return;
     }
+    if (pinAddress && needsAddress && fullProject) {
+      const addressed = onApply(updateProject(
+        result.state,
+        fullProject.id,
+        addressFieldsFromPlace(draft.toPlace, draft.to),
+      ));
+      if (!addressed?.ok) {
+        setError(addressed?.error || 'Turen er lagret, men prosjektadressen ble ikke oppdatert.');
+      }
+    }
     setSaved({ trip: result.trip, expense: result.expense, cost, rateInfo, purpose });
     setStep('ferdig');
     setError('');
@@ -485,35 +625,19 @@ export default function MileageWizard({
 
   function reset() {
     setSaved(null);
-    setDraft({
-      date: todayKey(),
-      project: null,
-      vehicleKind: 'company',
-      vehicleId: '',
-      vehicleName: '',
-      plate: '',
-      electric: false,
-      from: '',
-      to: '',
-      fromPlace: null,
-      toPlace: null,
-      oneWayKm: 0,
-      km: 0,
-      routeSource: '',
-      suggestedTo: '',
-      routeCharges: [],
-      tolls: 0,
-      ferries: 0,
-      visitPurpose: 'befaring',
-      visitCustom: '',
-      routeEdited: false,
-    });
+    setPinAddress(false);
+    setDraft(emptyDraft());
+    routeEditedRef.current = false;
     setQuery('');
     setStep('prosjekt');
   }
 
   function closeModal() {
     setOpen(false);
+    if (editing) {
+      onDismiss?.();
+      return;
+    }
     if (step === 'ferdig') reset();
   }
 
@@ -527,13 +651,18 @@ export default function MileageWizard({
     setStep(STEPS[index - 1].id);
   }
 
-  function goNext() {
+  async function goNext() {
     if (step === 'ferdig') {
+      if (editing) {
+        closeModal();
+        return;
+      }
       reset();
       return;
     }
+    const current = draftRef.current;
     if (step === 'prosjekt') {
-      if (!draft.project) {
+      if (!current.project) {
         setError('Velg prosjekt før du går videre.');
         return;
       }
@@ -546,8 +675,29 @@ export default function MileageWizard({
       return;
     }
     if (step === 'rute') {
-      if (!draft.from || !draft.to || !(Number(draft.km) > 0)) {
-        setError('Fra, til og kjørelengde må være fylt ut.');
+      const date = String(current.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        setError('Dato må være på formen ÅÅÅÅ-MM-DD.');
+        return;
+      }
+      const from = String(current.from || '').trim();
+      const to = String(current.to || '').trim();
+      if (!from || !to) {
+        setError(from ? 'Til må være fylt ut.' : 'Fra må være fylt ut.');
+        return;
+      }
+      setRouting(true);
+      let km = 0;
+      try {
+        const filled = await fillRouteIfMissing(draftRef.current);
+        km = filled.km;
+      } catch {
+        km = Number(draftRef.current.km) || 0;
+      } finally {
+        setRouting(false);
+      }
+      if (!(km > 0)) {
+        setError('Kjørelengde mangler. Skriv inn kilometer, eller velg et adressetreff.');
         return;
       }
       setError('');
@@ -562,18 +712,22 @@ export default function MileageWizard({
   const backLabel = done ? 'Lukk' : stepIndex <= 0 ? 'Avbryt' : 'Tilbake';
   const nextLabel = done ? 'Ny tur' : step === 'seover' ? 'Lagre' : 'Neste';
 
+  const bodyMax = Math.max(160, frame.maxHeight - 132);
+
   return (
     <>
-      <TouchableOpacity
-        onPress={() => setOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Registrer kjøretur"
-        nativeID="mileage-register"
-        style={[styles.launch, { backgroundColor: colors.brand }]}
-      >
-        <Ionicons name="add" size={22} color="#fff" />
-        <Text style={styles.launchTxt}>Registrer kjøretur</Text>
-      </TouchableOpacity>
+      {launch ? (
+        <TouchableOpacity
+          onPress={() => setOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Registrer kjøretur"
+          nativeID="mileage-register"
+          style={[styles.launch, { backgroundColor: colors.brand }]}
+        >
+          <Ionicons name="add" size={18} color="#fff" />
+          <Text style={styles.launchTxt}>Registrer kjøretur</Text>
+        </TouchableOpacity>
+      ) : null}
       <Modal visible={open} transparent animationType="fade" onRequestClose={closeModal} statusBarTranslucent>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -584,14 +738,14 @@ export default function MileageWizard({
             nativeID="mileage-wizard-modal"
             style={[styles.sheet, {
               width: frame.width,
-              height: frame.height,
+              maxHeight: frame.maxHeight,
               backgroundColor: colors.card,
               borderColor: colors.line,
             }]}
           >
             <View style={styles.head}>
               <View style={styles.headRow}>
-                <Text style={[styles.title, { color: colors.ink }]}>Ny kjøretur</Text>
+                <Text style={[styles.title, { color: colors.ink }]}>{editing ? 'Rediger kjøretur' : 'Ny kjøretur'}</Text>
                 <TouchableOpacity
                   onPress={closeModal}
                   accessibilityRole="button"
@@ -625,7 +779,7 @@ export default function MileageWizard({
               </View>
             </View>
             <ScrollView
-              style={styles.body}
+              style={[styles.body, { maxHeight: bodyMax }]}
               contentContainerStyle={styles.bodyInner}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
@@ -634,60 +788,52 @@ export default function MileageWizard({
 
       {step === 'prosjekt' ? (
         <View style={styles.stack}>
-          <TouchableOpacity
-            onPress={() => { setProjectMenu((open) => !open); setError(''); }}
-            accessibilityRole="button"
-            accessibilityLabel="Velg prosjekt"
-            accessibilityState={{ expanded: projectMenu }}
-            nativeID="mileage-project-picker"
-            style={[styles.choice, styles.picker, { borderColor: draft.project ? colors.brand : colors.line }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
-              <Text style={{ color: draft.project ? colors.ink : colors.muted, fontSize: 16 }} numberOfLines={1}>
-                {draft.project
-                  ? [draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ')
-                  : 'Velg blant aktive prosjekt'}
-              </Text>
-            </View>
-            <Ionicons name={projectMenu ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
-          </TouchableOpacity>
-          {projectMenu ? (
-            <View style={[styles.vehicleMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <View style={styles.menuSearch}>
-                <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Nummer, navn eller kunde" />
-              </View>
-              <Text style={[styles.menuHint, { color: colors.muted }]}>
-                {query
-                  ? 'Treff i hele prosjektregisteret.'
-                  : `Aktive prosjekt ${projects.range.fromDate}–${projects.range.toDate}.`}
-              </Text>
-              <ScrollView style={styles.vehicleScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                {projects.options.map((option) => {
-                  const active = draft.project?.id === option.project.id;
-                  const detail = [option.project.client, option.address].filter(Boolean).join(' · ');
-                  return (
-                    <TouchableOpacity
-                      key={option.project.id}
-                      onPress={() => chooseProject(option)}
-                      accessibilityRole="button"
-                      accessibilityLabel={option.label}
-                      accessibilityState={{ selected: active }}
-                      style={[styles.menuRow, { borderColor: colors.line, backgroundColor: active ? `${colors.brand}14` : 'transparent' }]}
-                    >
-                      <Text style={{ color: colors.ink, fontSize: 15 }} numberOfLines={1}>{option.label}</Text>
-                      {detail ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{detail}</Text> : null}
-                    </TouchableOpacity>
-                  );
-                })}
-                {!projects.options.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 14, padding: 12 }}>
-                    {query ? 'Ingen prosjekt matcher søket.' : 'Ingen timer de siste to månedene. Søk frem prosjektet.'}
-                  </Text>
-                ) : null}
-              </ScrollView>
-            </View>
+          <Field
+            label="Søk prosjekt"
+            value={query}
+            onChange={setQuery}
+            colors={colors}
+            placeholder="Nummer, navn eller kunde"
+          />
+          <Text style={[styles.hint, { color: colors.muted }]}>
+            {query
+              ? 'Treff i hele prosjektregisteret. Dine aktive prosjekt står først.'
+              : 'Aktive prosjekt på deg. Søk for å finne andre.'}
+          </Text>
+          {draft.project ? (
+            <Text style={{ color: colors.ink, fontSize: 13 }}>
+              Valgt: {[draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ')}
+            </Text>
           ) : null}
+          <ScrollView
+            style={styles.vehicleScroll}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
+            {projects.options.map((option) => {
+              const active = draft.project?.id === option.project.id;
+              const detail = [option.project.client, option.address].filter(Boolean).join(' · ');
+              return (
+                <TouchableOpacity
+                  key={option.project.id}
+                  onPress={() => chooseProject(option)}
+                  accessibilityRole="button"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ selected: active }}
+                  nativeID="mileage-project-picker"
+                  style={[styles.menuRow, { borderColor: colors.line, backgroundColor: active ? `${colors.brand}14` : colors.card }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 15 }} numberOfLines={1}>{option.label}</Text>
+                  {detail ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{detail}</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+            {!projects.options.length ? (
+              <Text style={{ color: colors.muted, fontSize: 14, paddingVertical: 8 }}>
+                {query ? 'Ingen prosjekt matcher søket.' : 'Ingen aktive prosjekt på deg. Søk i registeret.'}
+              </Text>
+            ) : null}
+          </ScrollView>
         </View>
       ) : null}
 
@@ -709,6 +855,11 @@ export default function MileageWizard({
             </View>
             <Ionicons name={vehicleMenu ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
           </TouchableOpacity>
+          {odometer ? (
+            <Text style={{ color: colors.ink, fontSize: 13 }}>
+              Kilometerstand nå: {odometer.current} km
+            </Text>
+          ) : null}
           {vehicleMenu && !addingVehicle ? (
             <View style={[styles.vehicleMenu, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <ScrollView style={styles.vehicleScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
@@ -781,13 +932,36 @@ export default function MileageWizard({
 
       {step === 'rute' ? (
         <View style={styles.stack}>
-          <Text style={[styles.hint, { color: colors.muted }]}>
-            Start er selskapets adresse. Destinasjon er prosjektadressen. Begge kan endres.
-          </Text>
+          <View style={styles.pair}>
+            <Field
+              half
+              label="Dato"
+              value={draft.date}
+              colors={colors}
+              placeholder="ÅÅÅÅ-MM-DD"
+              onChange={(value) => patch({ date: value })}
+            />
+            <View style={styles.half}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Registrert av</Text>
+              <Text style={{ color: colors.ink, fontSize: 15, marginTop: 6 }}>{employeeName}</Text>
+            </View>
+          </View>
           <AddressField
             label="Fra"
             value={draft.from}
             colors={colors}
+            accessory={(
+              <TouchableOpacity
+                onPress={useHere}
+                disabled={locating}
+                accessibilityRole="button"
+                accessibilityLabel="Bruk hvor jeg er nå"
+              >
+                <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '600' }}>
+                  {locating ? 'Henter posisjon…' : 'Bruk hvor jeg er nå'}
+                </Text>
+              </TouchableOpacity>
+            )}
             onChange={(value) => patch({ from: value, fromPlace: null, routeEdited: false })}
             onPick={(hit) => patch({ from: hit.label, fromPlace: hit, routeEdited: false })}
           />
@@ -828,15 +1002,13 @@ export default function MileageWizard({
             </Text>
           ) : null}
           <Text style={[styles.hint, { color: colors.muted }]}>
-            {draft.routeSource === 'google'
-              ? 'Kjørelengde fra Google Maps, ganget med to for tur/retur.'
-              : draft.routeSource === 'osrm'
-                ? 'Kjørelengde fra veirute, ganget med to for tur/retur.'
-                : draft.routeSource === 'estimate'
-                  ? 'Veitjenesten svarte ikke. Lengden er et estimat og kan rettes.'
-                  : routing
-                    ? 'Henter kjørelengde og bompasseringer…'
-                    : 'Lengde og bom fylles når begge adressene er funnet.'}
+            {draft.routeSource === 'google' || draft.routeSource === 'osrm'
+              ? 'Kjørelengde er tur/retur. Bom fylles fra passeringene på ruta.'
+              : draft.routeSource === 'estimate'
+                ? 'Veitjenesten svarte ikke. Lengden er et estimat og kan rettes.'
+                : routing
+                  ? 'Henter kjørelengde og bompasseringer…'
+                  : 'Lengde og bom fylles når begge adressene er funnet. Skriv minst tre bokstaver.'}
           </Text>
           {draft.routeCharges.some((row) => row.source === 'nvdb') ? (
             <Text style={[styles.hint, { color: colors.muted }]}>
@@ -889,8 +1061,40 @@ export default function MileageWizard({
             {draft.from} → {draft.to} · {draft.km} km tur/retur
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {draft.project ? `#${draft.project.number || ''} ${draft.project.name}` : ''} · {draft.vehicleName} · {employeeName}
+            {draft.date} · {employeeName}
+            {draft.project ? ` · #${draft.project.number || ''} ${draft.project.name}` : ''}
+            {draft.vehicleName ? ` · ${draft.vehicleName}` : ''}
           </Text>
+          {odometer ? (
+            <Text style={{ color: colors.ink, fontSize: 13 }}>
+              Kilometerstand etter denne turen: {readingAfterDraft(odometer, draft, state.mileageTrips)} km
+            </Text>
+          ) : null}
+          {needsAddress ? (
+            <View style={[styles.prompt, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>
+                Vil du registrere dette som fast prosjektadresse på prosjektet?
+              </Text>
+              <View style={styles.row}>
+                <TouchableOpacity
+                  onPress={() => setPinAddress(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ja, lagre prosjektadresse"
+                  style={[styles.btn, { backgroundColor: pinAddress ? colors.brand : 'transparent', borderColor: colors.brand, borderWidth: 1 }]}
+                >
+                  <Text style={{ color: pinAddress ? '#fff' : colors.brand, fontWeight: '600' }}>Ja</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPinAddress(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nei, ikke lagre prosjektadresse"
+                  style={[styles.btn, { borderColor: colors.line, borderWidth: 1, backgroundColor: pinAddress ? 'transparent' : colors.card }]}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>Nei</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
           <Field label="Dato" value={draft.date} onChange={(value) => patch({ date: value })} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>Hensikt med turen</Text>
           <View style={styles.row}>
@@ -965,15 +1169,16 @@ export default function MileageWizard({
 
 const styles = StyleSheet.create({
   launch: {
-    minHeight: 52,
-    borderRadius: 12,
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingHorizontal: 14,
   },
-  launchTxt: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  launchTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
@@ -988,12 +1193,14 @@ const styles = StyleSheet.create({
   steps: { flexDirection: 'row', gap: 8 },
   stepHit: { flex: 1, minHeight: 32, justifyContent: 'center', gap: 6 },
   stepBar: { height: 4, borderRadius: 2 },
-  body: { flex: 1, minHeight: 0 },
-  bodyInner: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16 },
+  body: { flexGrow: 0, flexShrink: 1 },
+  bodyInner: { flexGrow: 0, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   stack: { gap: 6 },
   pair: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   half: { flex: 1, minWidth: 0 },
   field: { alignSelf: 'stretch' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2, minHeight: 18 },
+  prompt: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   hint: { fontSize: 12, lineHeight: 16 },
   charge: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
   amount: {
@@ -1010,22 +1217,25 @@ const styles = StyleSheet.create({
   menuHint: { fontSize: 12, lineHeight: 16, paddingHorizontal: 12, paddingBottom: 4 },
   foot: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 8,
     paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   footBtn: {
-    minHeight: 48,
-    borderRadius: 12,
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    minWidth: 96,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
-  footSecondary: { flex: 1 },
-  footPrimary: { flex: 1.45 },
+  footSecondary: {},
+  footPrimary: {},
   linkBtn: { alignSelf: 'stretch' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36 },
@@ -1034,7 +1244,7 @@ const styles = StyleSheet.create({
   choice: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
   picker: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   vehicleMenu: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  vehicleScroll: { maxHeight: 220 },
+  vehicleScroll: { maxHeight: 220, flexGrow: 0 },
   menuLabel: { fontSize: 12, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
   menuRow: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   menuAdd: {
@@ -1046,5 +1256,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   btnGhost: { borderWidth: 1, backgroundColor: 'transparent' },
-  menu: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, marginTop: 4 },
+  menu: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, marginTop: 2 },
 });

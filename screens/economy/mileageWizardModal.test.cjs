@@ -114,7 +114,14 @@ function loadJsx(rel) {
     if (id.endsWith('/firebase') || id.endsWith('/firebase.js') || id === '../../firebase') {
       return { firebaseConfig: { apiKey: '' } };
     }
-    if (id.includes('utils/location')) return { searchPlaces: async () => [] };
+    if (id.includes('utils/location')) {
+      return {
+        searchPlaces: async () => [],
+        getDeviceLocation: async () => ({ lat: 0, lng: 0 }),
+        reverseGeocode: async () => ({ label: '', lat: 0, lng: 0 }),
+      };
+    }
+    if (id.includes('project/engine')) return { updateProject: (state) => ({ ok: true, state }) };
     if (id.includes('vegvesenLookupClient')) return { lookupVehicleByReg: async () => ({}) };
     return orig(id);
   };
@@ -234,7 +241,7 @@ function sheetStyle(node) {
   });
   assert.ok(style, 'popupen er åpen');
   const flat = Array.isArray(style) ? Object.assign({}, ...style) : style;
-  return { width: flat.width, height: flat.height };
+  return { width: flat.width, maxHeight: flat.maxHeight };
 }
 
 function texts(node) {
@@ -276,13 +283,12 @@ const expected = mileageModalFrame(390, 844, { top: 47, bottom: 34 });
 assert.deepEqual(sheetStyle(getTree()), expected);
 assert.ok(texts(getTree()).includes('Neste'));
 assert.ok(texts(getTree()).includes('Prosjekt'));
+assert.ok(texts(getTree()).includes('#10563 Kvitsøy skole'), 'prosjektlisten er åpen med en gang');
 
 press(getTree(), 'mileage-wizard-next');
 assert.ok(texts(getTree()).includes('Velg prosjekt før du går videre.'));
 assert.deepEqual(sheetStyle(getTree()), expected);
 
-pressLabel(getTree(), 'Velg prosjekt');
-assert.ok(texts(getTree()).includes('#10563 Kvitsøy skole'));
 pressLabel(getTree(), '#10563 Kvitsøy skole');
 press(getTree(), 'mileage-wizard-next');
 assert.equal(texts(getTree()).includes('Hent fra Vegvesenet'), false);

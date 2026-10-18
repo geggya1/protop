@@ -71,6 +71,9 @@ export function normalizeEquipment(input = {}) {
     warrantyUri: text(row.warrantyUri),
     notes: text(row.notes),
     vegvesenSummary: text(row.vegvesenSummary),
+    trackOdometer: !!row.trackOdometer,
+    odometerStart: Math.max(0, Number(row.odometerStart) || 0),
+    odometerSince: stampDate(row.odometerSince),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
@@ -141,6 +144,9 @@ export function normalizePersonalVehicle(input = {}) {
     fuel: text(row.fuel),
     electric: !!row.electric || /el|elektr/i.test(text(row.fuel)),
     vegvesenSummary: text(row.vegvesenSummary),
+    trackOdometer: !!row.trackOdometer,
+    odometerStart: Math.max(0, Number(row.odometerStart) || 0),
+    odometerSince: stampDate(row.odometerSince),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
@@ -201,6 +207,9 @@ export function employeeVehicles(personalVehicles = [], equipment = [], employee
       fuel: row.fuel,
       electric: row.electric,
       vegvesenSummary: row.vegvesenSummary,
+      trackOdometer: row.trackOdometer,
+      odometerStart: row.odometerStart,
+      odometerSince: row.odometerSince,
     }));
   return [...own, ...gear];
 }

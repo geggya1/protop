@@ -86,6 +86,8 @@ import {
 } from '../../src/project/storage';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
+import { searchPlaces } from '../../src/utils/location';
+import { addressFieldsFromPlace } from '../../src/mileage/flow';
 import ProjectDetail from '../../components/project/ProjectDetail';
 import { watchEmployees } from '../../src/employees/storage';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
@@ -247,6 +249,57 @@ function Field({ label, value, onChangeText, placeholder, colors, multiline }) {
         multiline={!!multiline}
         style={[styles.input, multiline && styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
       />
+    </View>
+  );
+}
+
+function PlaceSearch({ colors, onPick }) {
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState([]);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) {
+      setHits([]);
+      return undefined;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      searchPlaces(q, 'nb').then((rows) => {
+        if (live) setHits((rows || []).slice(0, 5));
+      }).catch(() => {
+        if (live) setHits([]);
+      });
+    }, 280);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+  return (
+    <View style={{ gap: 4 }}>
+      <Field
+        label="Søk adresse"
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Minst tre bokstaver"
+        colors={colors}
+      />
+      {query.trim().length >= 3 && !hits.length ? (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Søker adresser…</Text>
+      ) : null}
+      {hits.map((hit) => (
+        <TouchableOpacity
+          key={hit.placeId || hit.label}
+          onPress={() => {
+            onPick(hit);
+            setQuery('');
+            setHits([]);
+          }}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: colors.ink, fontSize: 14, paddingVertical: 4 }}>{hit.label}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -1287,6 +1340,19 @@ export default function ProjectWorkScreen() {
       {form.client && !form.customerId ? (
         <Text style={{ color: colors.danger || '#b42318' }}>Kundenavn er satt, men ikke koblet til kunderegisteret.</Text>
       ) : null}
+      <PlaceSearch
+        colors={colors}
+        onPick={(hit) => {
+          const fields = addressFieldsFromPlace(hit, hit.label);
+          setForm((current) => ({
+            ...current,
+            street: fields.street,
+            postalCode: fields.postalCode,
+            placeName: fields.placeName,
+            place: fields.place,
+          }));
+        }}
+      />
       <Field label="Gate" value={form.street} onChangeText={(v) => patchForm('street', v)} colors={colors} />
       <Field label="Postnr" value={form.postalCode} onChangeText={(v) => patchForm('postalCode', v)} colors={colors} />
       <Field label="Poststed" value={form.placeName} onChangeText={(v) => patchForm('placeName', v)} colors={colors} />

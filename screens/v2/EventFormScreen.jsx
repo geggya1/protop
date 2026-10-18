@@ -8,6 +8,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { employeeLevelIds } from '../../src/access/companyAccess';
+import { isOrganizationType } from '../../src/utils/groupTypes';
+import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { canManageEquipmentAccess, equipmentCalendarGroup } from '../../src/equipment/calendars';
+import { cancelBooking, cancelEventBookings, replaceEventBookings, upsertBooking } from '../../src/equipment/state';
+import { displayName, ownEmployee } from '../../src/employees/model';
 import { colors, MEMBER_COLORS, radius, useLayout } from '../../src/theme';
 import { dateKey, parseDateKey, WEEKDAYS_SHORT } from '../../src/utils/dates';
 import {
@@ -214,7 +221,13 @@ export default function EventFormScreen() {
   useHelpScene('inner', { onRetreat: () => nav.goBack() });
   const { params } = useRoute();
   const { isDesktop } = useLayout();
-  const { familyId: activeFamilyId, members, friendPeople, uid, isParent } = useApp();
+  const { familyId: activeFamilyId, members, friendPeople, uid, isParent, family, user, activeProfile } = useApp();
+  const access = useCompanyAccess();
+  const isCompany = isOrganizationType(family?.type);
+  const manageEquipment = canManageEquipmentAccess(
+    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
+    { bypass: access.bypass, previewing: access.previewing },
+  );
 
   const existing = params?.event || null;
   const isEdit = !!existing;
@@ -230,6 +243,8 @@ export default function EventFormScreen() {
   );
   const familyId = writeTarget.familyId || params?.familyId || activeFamilyId;
   const eventDocId = writeTarget.eventId || null;
+  const equipmentBookingId = params?.equipmentBookingId || existing?.equipmentBookingId || '';
+  const equipmentOnly = existing?.source === 'equipment' && !eventDocId;
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -277,6 +292,11 @@ export default function EventFormScreen() {
   const [saving, setSaving] = useState(false);
   const [visibilityLoaded, setVisibilityLoaded] = useState(!visibilityEditOnly);
   const [initialVisibility, setInitialVisibility] = useState(null);
+  const [equipmentIds, setEquipmentIds] = useState(() => {
+    const pickedGear = params?.equipmentIds || existing?.equipmentIds;
+    return Array.isArray(pickedGear) ? pickedGear.filter(Boolean) : [];
+  });
+  const [projectGear, setProjectGear] = useState(null);
   const [allDay, setAllDay] = useState(() => {
     if (existing) return !existing.startTime;
     if (params?.allDay === true) return true;
@@ -341,6 +361,99 @@ export default function EventFormScreen() {
     const b = [...initialVisibility.picked].sort().join('|');
     return a !== b;
   }, [visibilityEditOnly, initialVisibility, wholeFamily, picked]);
+
+  useEffect(() => {
+    if (!isCompany || !familyId) {
+      setProjectGear(null);
+      return undefined;
+    }
+    let live = true;
+    loadProjectState(familyId, { force: true }).then((loaded) => {
+      if (!live) return;
+      setProjectGear(loaded);
+      const linked = (loaded.equipmentBookings || []).filter((row) => (
+        row.status !== 'cancelled'
+        && (
+          (eventDocId && row.eventId === eventDocId)
+          || (equipmentBookingId && row.id === equipmentBookingId)
+        )
+      )).map((row) => row.equipmentId);
+      if (linked.length) {
+        setEquipmentIds((prev) => (prev.length ? prev : linked));
+      }
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [isCompany, familyId, eventDocId, equipmentBookingId]);
+
+  const booker = access.employee || ownEmployee(access.employees, {
+    uid: uid || '',
+    emails: [user?.email, activeProfile?.email].filter(Boolean),
+    name: activeProfile?.name || user?.displayName || '',
+  });
+  const bookerId = booker?.id || uid || '';
+  const bookerName = booker ? displayName(booker) : (activeProfile?.name || user?.displayName || 'Ansatt');
+  const bookableGear = useMemo(() => (
+    equipmentCalendarGroup({
+      equipment: projectGear?.equipment,
+      employees: access.employees,
+      viewer: booker,
+      manage: manageEquipment,
+    })?.children || []
+  ), [projectGear, access.employees, booker, manageEquipment]);
+
+  function toggleEquipment(id) {
+    setEquipmentIds((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]));
+  }
+
+  async function applyEquipmentReservation(eventId, { persist }) {
+    if (!isCompany || !familyId) return { ok: true };
+    const loaded = await loadProjectState(familyId, { force: true });
+    const linked = (loaded.equipmentBookings || []).some((row) => (
+      row.status !== 'cancelled'
+      && (
+        (eventId && row.eventId === eventId)
+        || (equipmentBookingId && row.id === equipmentBookingId)
+      )
+    ));
+    if (!equipmentIds.length && !linked) return { ok: true };
+    const recurrence = buildRecurrencePayload({
+      preset, customType, customInterval, recurrenceByDays, recurrenceUntilKey, baseDay,
+    });
+    const fields = {
+      employeeId: bookerId,
+      employeeName: bookerName,
+      employees: access.employees,
+      manage: manageEquipment,
+      enforceAccess: true,
+      date: when,
+      endDate: until,
+      startTime: allDay ? '00:00' : (startTime || '08:00'),
+      endTime: allDay ? '23:59' : (endTime || '16:00'),
+      purpose: title.trim(),
+      ...recurrence,
+    };
+    let result;
+    if (equipmentOnly) {
+      if (!equipmentIds.length) {
+        result = cancelBooking(loaded, equipmentBookingId);
+      } else {
+        result = upsertBooking(loaded, {
+          ...fields,
+          id: equipmentBookingId,
+          equipmentId: equipmentIds[0],
+        });
+        for (const extra of equipmentIds.slice(1)) {
+          if (!result.ok) break;
+          result = upsertBooking(result.state, { ...fields, equipmentId: extra });
+        }
+      }
+    } else {
+      result = replaceEventBookings(loaded, { ...fields, eventId, equipmentIds });
+    }
+    if (!result?.ok) return result || { ok: false, error: 'Klarte ikke booke utstyret.' };
+    if (persist) await saveProjectState(result.state, familyId);
+    return result;
+  }
 
   const [preset, setPreset] = useState(initRepeat.preset);
   const [customType, setCustomType] = useState(initRepeat.customType);
@@ -550,12 +663,27 @@ export default function EventFormScreen() {
   const save = async () => {
     if (contentReadOnly) return;
     if (!title.trim() || !familyId) return;
-    if (isEdit && !eventDocId) {
+    if (isEdit && !eventDocId && !equipmentOnly) {
       showInfo('Feil', 'Mangler hendelses-id — kan ikke lagre.');
       return;
     }
     setSaving(true);
     try {
+      const reservationId = eventDocId || 'draft';
+      const probe = await applyEquipmentReservation(reservationId, { persist: false });
+      if (!probe.ok) {
+        showInfo('Utstyr', probe.error || 'Klarte ikke booke utstyret.');
+        return;
+      }
+      if (equipmentOnly) {
+        const savedGear = await applyEquipmentReservation(equipmentBookingId, { persist: true });
+        if (!savedGear.ok) {
+          showInfo('Utstyr', savedGear.error || 'Klarte ikke booke utstyret.');
+          return;
+        }
+        nav.goBack();
+        return;
+      }
       const recurrence = buildRecurrencePayload({
         preset,
         customType,
@@ -589,6 +717,7 @@ export default function EventFormScreen() {
         ? []
         : selectedIds.filter((id) => id && id !== uid && familyUids.has(id));
 
+      let savedEventId = eventDocId;
       if (isEdit) {
         // Fjern legacy childIds helt ved lagring. Skriv alltid til kilde-familien.
         await updateDoc(doc(db, 'families', familyId, 'events', eventDocId), {
@@ -615,6 +744,7 @@ export default function EventFormScreen() {
           createdBy: uid,
           createdAt: serverTimestamp(),
         });
+        savedEventId = created.id;
         if (familyNotifyIds.length) {
           notifyUsers(familyNotifyIds, {
             eventType: 'eventCreated',
@@ -636,6 +766,11 @@ export default function EventFormScreen() {
           }).catch(() => {});
         }
       }
+      const reserved = await applyEquipmentReservation(savedEventId, { persist: true });
+      if (!reserved.ok) {
+        showInfo('Utstyr', reserved.error || 'Hendelsen er lagret, men utstyret ble ikke booket.');
+        return;
+      }
       nav.goBack();
     } catch (e) {
       console.warn('[EventForm] save failed', e);
@@ -651,7 +786,7 @@ export default function EventFormScreen() {
       showInfo('Kan ikke slette', 'Eksterne kalenderhendelser kan ikke slettes her.');
       return;
     }
-    if (!familyId || !eventDocId) {
+    if (!familyId || (!eventDocId && !equipmentBookingId)) {
       showInfo(
         'Kan ikke slette',
         `Mangler referanse til hendelsen (familie=${familyId || 'ukjent'}, id=${eventDocId || 'ukjent'}).`,
@@ -661,6 +796,14 @@ export default function EventFormScreen() {
     setDeleting(true);
     setConfirmDeleteOpen(false);
     try {
+      if (!eventDocId && equipmentBookingId) {
+        const loaded = await loadProjectState(familyId, { force: true });
+        const result = cancelBooking(loaded, equipmentBookingId);
+        if (!result.ok) throw new Error(result.error);
+        await saveProjectState(result.state, familyId);
+        nav.goBack();
+        return;
+      }
       const ref = doc(db, 'families', familyId, 'events', eventDocId);
       try {
         await deleteDoc(ref);
@@ -672,6 +815,11 @@ export default function EventFormScreen() {
           active: false,
           updatedAt: serverTimestamp(),
         });
+      }
+      if (isCompany) {
+        const loaded = await loadProjectState(familyId, { force: true });
+        const cleared = cancelEventBookings(loaded, eventDocId);
+        if (cleared.ok) await saveProjectState(cleared.state, familyId);
       }
       nav.goBack();
     } catch (e) {
@@ -688,7 +836,7 @@ export default function EventFormScreen() {
       showInfo('Kan ikke slette', 'Eksterne kalenderhendelser kan ikke slettes her.');
       return;
     }
-    if (!familyId || !eventDocId) {
+    if (!familyId || (!eventDocId && !equipmentBookingId)) {
       showInfo(
         'Kan ikke slette',
         `Mangler referanse til hendelsen (familie=${familyId || 'ukjent'}, id=${eventDocId || 'ukjent'}).`,
@@ -778,6 +926,40 @@ export default function EventFormScreen() {
             editable={!contentReadOnly}
           />
         </GroupCard>
+
+        {isCompany && bookableGear.length ? (
+          <GroupCard>
+            <Text style={styles.inlineRowLabel}>Utstyr</Text>
+            <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: 4, paddingBottom: 8 }}>
+              Huk av utstyret i kalenderen for å se om det er ledig. Bookingen bruker samme innkalling og gjentakelse som hendelsen.
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4, paddingBottom: 8 }}>
+              {bookableGear.map((gear) => {
+                const on = equipmentIds.includes(gear.equipmentId);
+                return (
+                  <TouchableOpacity
+                    key={gear.id}
+                    disabled={contentReadOnly}
+                    onPress={() => toggleEquipment(gear.equipmentId)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={gear.label}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: on ? colors.brand : colors.line,
+                      backgroundColor: on ? `${colors.brand}18` : colors.card,
+                      borderRadius: 8,
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                    }}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>{on ? '✓ ' : ''}{gear.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </GroupCard>
+        ) : null}
 
         <GroupCard>
           <TouchableOpacity

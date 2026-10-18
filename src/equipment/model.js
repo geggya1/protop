@@ -3,6 +3,8 @@
  * Ren data inn / data ut, slik at kalender og kjørebok deler samme register.
  */
 
+import { addDays, dateKey, parseDateKey } from '../utils/dates.js';
+import { eventOccursOnDate } from '../utils/events.js';
 import { equipmentCategory, equipmentGroup } from './catalog.js';
 
 function text(value) {
@@ -71,8 +73,33 @@ export function normalizeEquipment(input = {}) {
     warrantyUri: text(row.warrantyUri),
     notes: text(row.notes),
     vegvesenSummary: text(row.vegvesenSummary),
+    bookingAccess: row.bookingAccess === 'selected' ? 'selected' : 'active',
+    bookingEmployeeIds: uniqueIds(row.bookingEmployeeIds),
+    allowRepeating: row.allowRepeating !== false,
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
+  };
+}
+
+function uniqueIds(value) {
+  const list = Array.isArray(value) ? value : [];
+  return [...new Set(list.map((id) => text(id)).filter(Boolean))];
+}
+
+const REPEAT_TYPES = new Set(['daily', 'weekly', 'monthly', 'yearly']);
+
+function recurrenceOf(row) {
+  const type = text(row?.recurrenceType).toLowerCase();
+  const recurring = !!row?.recurring && REPEAT_TYPES.has(type);
+  const days = Array.isArray(row?.recurrenceByDays) ? row.recurrenceByDays : [];
+  return {
+    recurring,
+    recurrenceType: recurring ? type : null,
+    recurrenceInterval: recurring ? Math.max(1, Number(row?.recurrenceInterval) || 1) : 1,
+    recurrenceByDays: recurring && type === 'weekly'
+      ? [...new Set(days.map((day) => Number(day)).filter((day) => day >= 0 && day <= 6))]
+      : [],
+    recurrenceUntilKey: recurring ? (stampDate(row?.recurrenceUntilKey) || null) : null,
   };
 }
 
@@ -88,7 +115,8 @@ export function validateEquipment(input) {
 export function normalizeBooking(input = {}) {
   const row = input && typeof input === 'object' ? input : {};
   const interval = equipmentInterval(row);
-  const status = row.status === 'cancelled' ? 'cancelled' : 'reserved';
+  const status = row.status === 'cancelled' ? 'cancelled' : (row.status === 'pending' ? 'pending' : 'reserved');
+  const endDate = stampDate(row.endDate || row.endDateKey) || interval.date;
   return {
     id: text(row.id),
     equipmentId: text(row.equipmentId),
@@ -97,14 +125,70 @@ export function normalizeBooking(input = {}) {
     employeeName: text(row.employeeName),
     projectId: text(row.projectId),
     projectName: text(row.projectName),
+    eventId: text(row.eventId),
     date: interval.date,
+    endDate: endDate < interval.date ? interval.date : endDate,
     start: interval.start,
     end: interval.end,
     purpose: text(row.purpose),
     status,
+    ...recurrenceOf(row),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
+}
+
+function bookingShape(row) {
+  return {
+    dateKey: row.date,
+    endDateKey: row.endDate || row.date,
+    recurring: row.recurring,
+    recurrenceType: row.recurrenceType,
+    recurrenceInterval: row.recurrenceInterval,
+    recurrenceByDays: row.recurrenceByDays,
+    recurrenceUntilKey: row.recurrenceUntilKey,
+  };
+}
+
+function clockSpan(row) {
+  const start = String(row.start || '').slice(11, 16) || '00:00';
+  const end = String(row.end || '').slice(11, 16) || '23:59';
+  return { start, end: end > start ? end : '23:59' };
+}
+
+function clocksOverlap(a, b) {
+  return a.start < b.end && b.start < a.end;
+}
+
+/** Datoer bookingen opptar. Serier uten sluttdato sjekkes et år frem. */
+export function bookingDateKeys(row, limit = 400) {
+  const booking = row?.date ? row : normalizeBooking(row);
+  const start = parseDateKey(booking.date);
+  if (!start) return [];
+  const cap = booking.recurring ? limit : 62;
+  const untilKey = booking.recurring
+    ? (booking.recurrenceUntilKey || '')
+    : (booking.endDate || booking.date);
+  const keys = [];
+  for (let i = 0; i < cap; i += 1) {
+    const day = addDays(start, i);
+    const key = dateKey(day);
+    if (untilKey && key > untilKey) break;
+    if (eventOccursOnDate(bookingShape(booking), day)) keys.push(key);
+    if (!booking.recurring && key >= (booking.endDate || booking.date)) break;
+  }
+  return keys;
+}
+
+function bookingClash(row, bookings) {
+  const mine = new Set(bookingDateKeys(row));
+  const myClock = clockSpan(row);
+  return (bookings || []).map(normalizeBooking).find((other) => {
+    if (!other.equipmentId || other.id === row.id) return false;
+    if (other.equipmentId !== row.equipmentId || other.status === 'cancelled') return false;
+    if (!clocksOverlap(myClock, clockSpan(other))) return false;
+    return bookingDateKeys(other).some((key) => mine.has(key));
+  }) || null;
 }
 
 export function validateBooking(input, bookings = []) {
@@ -112,17 +196,17 @@ export function validateBooking(input, bookings = []) {
   if (!row.equipmentId) return { ok: false, error: 'Velg utstyr som skal reserveres.', booking: row };
   if (!row.date) return { ok: false, error: 'Velg dato.', booking: row };
   if (!row.employeeId) return { ok: false, error: 'Reservasjonen mangler ansatt.', booking: row };
-  const clash = (bookings || []).find((other) => (
-    other.id !== row.id
-    && other.equipmentId === row.equipmentId
-    && other.status !== 'cancelled'
-    && row.status !== 'cancelled'
-    && row.start < other.end
-    && other.start < row.end
-  ));
-  if (clash) {
-    const who = clash.employeeName || 'en annen';
-    return { ok: false, error: `Opptatt ${clash.start.slice(11)}–${clash.end.slice(11)} (${who}).`, booking: row };
+  if (row.status !== 'cancelled') {
+    const clash = bookingClash(row, bookings);
+    if (clash) {
+      const who = clash.employeeName || 'en annen';
+      const when = clash.date === row.date ? '' : ` ${clash.date}`;
+      return {
+        ok: false,
+        error: `Opptatt${when} ${clash.start.slice(11)}–${clash.end.slice(11)} (${who}).`,
+        booking: row,
+      };
+    }
   }
   return { ok: true, error: null, booking: row };
 }
@@ -223,6 +307,6 @@ export function bookingsOnDate(bookings = [], date) {
   const key = stampDate(date);
   return (bookings || [])
     .map(normalizeBooking)
-    .filter((row) => row.status !== 'cancelled' && row.date === key)
+    .filter((row) => row.status !== 'cancelled' && bookingDateKeys(row).includes(key))
     .sort((a, b) => a.start.localeCompare(b.start));
 }

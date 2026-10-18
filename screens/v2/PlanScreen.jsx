@@ -11,7 +11,7 @@ import { colors, useLayout } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
-import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY } from '../../src/utils/timeGrid';
+import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY, equipmentGroupLayerId, equipmentLayerId } from '../../src/utils/timeGrid';
 import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
@@ -60,6 +60,17 @@ import {
   loadCustodyOverlayPrefs,
   saveCustodyOverlayPrefs,
 } from '../../src/utils/custodyOverlayPrefs';
+import { isOrganizationType } from '../../src/utils/groupTypes';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { employeeLevelIds } from '../../src/access/companyAccess';
+import { loadProjectState } from '../../src/project/storage';
+import {
+  SHOWN_EQUIPMENT_CALENDARS_KEY,
+  canManageEquipmentAccess,
+  equipmentCalendarGroup,
+  equipmentEventsFromBookings,
+  withEquipmentChecks,
+} from '../../src/equipment/calendars';
 
 const HIDDEN_CALS_KEY = HIDDEN_CALENDAR_LAYERS_KEY;
 
@@ -172,6 +183,14 @@ export default function PlanScreen({ active = true }) {
   const [externalSyncErrors, setExternalSyncErrors] = useState([]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [hiddenCals, setHiddenCals] = useState(() => new Set());
+  const [shownEquipment, setShownEquipment] = useState(() => new Set());
+  const [projectState, setProjectState] = useState(null);
+  const access = useCompanyAccess();
+  const isCompany = isOrganizationType(family?.type);
+  const manageEquipment = canManageEquipmentAccess(
+    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
+    { bypass: access.bypass, previewing: access.previewing },
+  );
   const [showCalendarSettings, setShowCalendarSettings] = useState(false);
   const [parentTodos, setParentTodos] = useState([]);
   const [kidsTodosById, setKidsTodosById] = useState({});
@@ -258,18 +277,6 @@ export default function PlanScreen({ active = true }) {
     childCanEditCalendar,
   });
 
-  const calendarAddBtn = useMemo(() => {
-    if (!canCreateCalendarEvent || mode === 'meals') return null;
-    return (
-      <ShellAddButton
-        label="Ny hendelse"
-        accessibilityLabel="Ny hendelse"
-        onPress={() => nav.navigate('EventForm', { familyId, dateKey: selectedKey })}
-      />
-    );
-  }, [isDesktop, canCreateCalendarEvent, mode, familyId, selectedKey, nav]);
-  useShellTitleRight(calendarAddBtn, { active });
-
   const viewerIds = useMemo(() => {
     const child = isActingAsChild ? activeChild : (isChild ? meChild : null);
     // «Vis som barn» / innlogget barn: kun barnets id-er (ikke foresattes uid).
@@ -350,6 +357,37 @@ export default function PlanScreen({ active = true }) {
       setMeals(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     }, () => setMeals([]));
   }, [familyId]);
+
+  useFocusEffect(useCallback(() => {
+    if (!isCompany || !familyId) {
+      setProjectState(null);
+      return undefined;
+    }
+    let live = true;
+    loadProjectState(familyId, { force: true }).then((loaded) => {
+      if (live) setProjectState(loaded);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [isCompany, familyId]));
+
+  useEffect(() => {
+    if (!uid) {
+      setShownEquipment(new Set());
+      return undefined;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(`${SHOWN_EQUIPMENT_CALENDARS_KEY}.${uid}`);
+        if (!alive) return;
+        const list = raw ? JSON.parse(raw) : [];
+        setShownEquipment(new Set(Array.isArray(list) ? list : []));
+      } catch {
+        if (alive) setShownEquipment(new Set());
+      }
+    })();
+    return () => { alive = false; };
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) {
@@ -481,6 +519,7 @@ export default function PlanScreen({ active = true }) {
   /** Foreldre kan åpne alle; barn kan lese synlige hendelser (redigering krever calendarSelfEdit). */
   const canOpenEvent = useCallback((e) => {
     if (!e) return false;
+    if (e.source === 'equipment') return true;
     if (e.sharedFromFriend) return true;
     if (asChildViewer) {
       if (e.sharedFromExternal) return childEventVisible(e);
@@ -494,6 +533,41 @@ export default function PlanScreen({ active = true }) {
 
   const openEventForm = useCallback((e) => {
     if (!canOpenEvent(e)) return;
+    if (e?.source === 'equipment') {
+      const linked = e.eventId
+        ? events.find((row) => row.id === e.eventId)
+        : null;
+      if (linked) {
+        nav.navigate('EventForm', {
+          familyId: linked.familyId || familyId,
+          event: linked,
+        });
+        return;
+      }
+      nav.navigate('EventForm', {
+        familyId,
+        equipmentBookingId: e.equipmentBookingId,
+        equipmentIds: e.equipmentId ? [e.equipmentId] : [],
+        event: {
+          source: 'equipment',
+          equipmentBookingId: e.equipmentBookingId,
+          equipmentIds: e.equipmentId ? [e.equipmentId] : [],
+          title: e.bookingPurpose || e.title,
+          dateKey: e.dateKey,
+          endDateKey: e.endDateKey || e.dateKey,
+          startTime: e.startTime,
+          endTime: e.endTime,
+          place: e.place,
+          recurring: e.recurring,
+          recurrenceType: e.recurrenceType,
+          recurrenceInterval: e.recurrenceInterval,
+          recurrenceByDays: e.recurrenceByDays,
+          recurrenceUntilKey: e.recurrenceUntilKey,
+          readOnly: !(manageEquipment || (e.employeeId && access.employee?.id && e.employeeId === access.employee.id)),
+        },
+      });
+      return;
+    }
     const external = isExternalCalendarEvent(e);
     const fromFriend = !!e.sharedFromFriend;
     const editable = !fromFriend && canManageEvent(e);
@@ -508,7 +582,18 @@ export default function PlanScreen({ active = true }) {
         readOnly: fromFriend || external || !editable ? true : !!e.readOnly,
       },
     });
-  }, [canOpenEvent, canManageEvent, familyId, nav]);
+  }, [canOpenEvent, canManageEvent, familyId, nav, events, manageEquipment, access.employee]);
+
+  const equipmentGroup = useMemo(() => (
+    isCompany
+      ? equipmentCalendarGroup({
+        equipment: projectState?.equipment,
+        employees: access.employees,
+        viewer: access.employee,
+        manage: manageEquipment,
+      })
+      : null
+  ), [isCompany, projectState, access.employees, access.employee, manageEquipment]);
 
   const itemsForDay = useCallback((d) => {
     const k = dateKey(d);
@@ -543,8 +628,19 @@ export default function PlanScreen({ active = true }) {
         occurrenceDateKey: k,
         color: e.color || colorForFamilyEvent(e, members),
       }));
+    const visibleGear = new Set(
+      (equipmentGroup?.children || [])
+        .filter((child) => shownEquipment.has(child.id))
+        .map((child) => child.id),
+    );
+    const equipmentEv = isCompany && !asChildViewer
+      ? equipmentEventsFromBookings(projectState?.equipmentBookings, projectState?.equipment)
+        .filter((e) => visibleGear.has(equipmentLayerId(e.equipmentId)))
+        .filter((e) => eventOccursOnDate(e, d))
+        .map((e) => ({ ...e, occurrenceDateKey: k }))
+      : [];
     const seen = new Set();
-    const ev = [...familyEv, ...privateEv, ...friendEv]
+    const ev = [...familyEv, ...privateEv, ...friendEv, ...equipmentEv]
       .filter((e) => {
         const key = `${e.familyId || ''}:${e.id}`;
         if (seen.has(key)) return false;
@@ -558,7 +654,7 @@ export default function PlanScreen({ active = true }) {
         return ta.localeCompare(tb);
       });
     return { ev };
-  }, [events, visibleExternalEvents, friendSharedEvents, isParent, isActingAsChild, asChildViewer, isGrandparent, viewerIds, members, hiddenCals, familyId]);
+  }, [events, visibleExternalEvents, friendSharedEvents, isParent, isActingAsChild, asChildViewer, isGrandparent, viewerIds, members, hiddenCals, familyId, isCompany, projectState, shownEquipment, equipmentGroup]);
 
   const paneKids = useMemo(
     () => (asChildViewer && meChild?.id ? [meChild] : []),
@@ -758,10 +854,14 @@ export default function PlanScreen({ active = true }) {
       });
     });
 
+    const gear = withEquipmentChecks(equipmentGroup, shownEquipment);
+    if (gear) list.push(gear);
+
     return list;
   }, [
     familyId, externalEvents,
     calendarConnections, externalLayers, externalSyncErrors,
+    equipmentGroup, shownEquipment,
   ]);
 
   const syncNotice = useMemo(
@@ -773,6 +873,28 @@ export default function PlanScreen({ active = true }) {
   );
 
   const toggleCal = useCallback((id) => {
+    if (id === equipmentGroupLayerId() || String(id || '').startsWith('eq:')) {
+      setShownEquipment((prev) => {
+        const next = new Set(prev);
+        const visibleIds = (equipmentGroup?.children || []).map((child) => child.id);
+        if (id === equipmentGroupLayerId()) {
+          const allOn = visibleIds.length > 0 && visibleIds.every((layerId) => next.has(layerId));
+          visibleIds.forEach((layerId) => {
+            if (allOn) next.delete(layerId);
+            else next.add(layerId);
+          });
+        } else if (next.has(id)) next.delete(id);
+        else next.add(id);
+        if (uid) {
+          AsyncStorage.setItem(
+            `${SHOWN_EQUIPMENT_CALENDARS_KEY}.${uid}`,
+            JSON.stringify([...next]),
+          ).catch(() => {});
+        }
+        return next;
+      });
+      return;
+    }
     setHiddenCals((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -785,7 +907,28 @@ export default function PlanScreen({ active = true }) {
       }
       return next;
     });
-  }, [uid]);
+  }, [uid, equipmentGroup]);
+
+  const presetEquipmentIds = useMemo(() => {
+    const shown = (equipmentGroup?.children || []).filter((child) => shownEquipment.has(child.id));
+    return shown.length === 1 ? [shown[0].equipmentId] : [];
+  }, [equipmentGroup, shownEquipment]);
+
+  const calendarAddBtn = useMemo(() => {
+    if (!canCreateCalendarEvent || mode === 'meals') return null;
+    return (
+      <ShellAddButton
+        label="Ny hendelse"
+        accessibilityLabel="Ny hendelse"
+        onPress={() => nav.navigate('EventForm', {
+          familyId,
+          dateKey: selectedKey,
+          equipmentIds: presetEquipmentIds,
+        })}
+      />
+    );
+  }, [isDesktop, canCreateCalendarEvent, mode, familyId, selectedKey, nav, presetEquipmentIds]);
+  useShellTitleRight(calendarAddBtn, { active });
 
   const shift = (dir) => {
     if (mode === 'month') setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + dir, 1));
@@ -989,6 +1132,7 @@ export default function PlanScreen({ active = true }) {
             startTime: opts.startTime,
             endTime: opts.endTime,
             allDay: opts.allDay,
+            equipmentIds: presetEquipmentIds,
           })}
           isParent={isParent}
           canCreateCalendarEvent={canCreateCalendarEvent}

@@ -18,6 +18,8 @@ import {
   firstSlackWeek,
   formatHours,
   formatPercent,
+  freeCapacityPercent,
+  freeCapacityTone,
   intensityOf,
   kindLabel,
   kindOf,
@@ -255,7 +257,12 @@ export default function ProductivityBoard({
     [visiblePeople, allocations, forwardWeeks, weekHours],
   );
   const thisWeek = series[0];
-  const peak = series.reduce((best, row) => (row.ofContract > (best?.ofContract || 0) ? row : best), null);
+  const thisWeekFree = freeCapacityPercent(thisWeek?.freeHours, thisWeek?.capacity);
+  const mostIdle = series.reduce((best, row) => {
+    const pct = freeCapacityPercent(row.freeHours, row.capacity);
+    if (!best || pct > best.pct) return { row, pct };
+    return best;
+  }, null);
   const companySlack = series.find((row) => row.freeHours > 0.05);
 
   function commit(next) {
@@ -701,14 +708,14 @@ export default function ProductivityBoard({
         <Stat
           colors={colors}
           label={thisWeek ? `Uke ${thisWeek.meta.week}` : 'Uke'}
-          value={formatPercent(thisWeek?.ofContract || 0)}
-          hint={`${formatHours(thisWeek?.hours || 0)} t av ${formatHours(thisWeek?.capacity || 0)} t`}
+          value={formatPercent(thisWeekFree)}
+          hint={`${formatHours(Math.max(0, thisWeek?.freeHours || 0))} t ledig av ${formatHours(thisWeek?.capacity || 0)} t`}
         />
         <Stat
           colors={colors}
-          label="Topp i vinduet"
-          value={peak ? formatPercent(peak.ofContract) : '0 %'}
-          hint={peak ? `${peak.meta.short} · ${peak.meta.date}` : ''}
+          label="Mest ledig"
+          value={mostIdle ? formatPercent(mostIdle.pct) : '0 %'}
+          hint={mostIdle ? `${mostIdle.row.meta.short} · ${mostIdle.row.meta.date}` : ''}
         />
         <Stat
           colors={colors}
@@ -764,6 +771,8 @@ export default function ProductivityBoard({
         const actualByProject = weeklyActualHours(timeEntries, person.id, weeks);
         const absenceByWeek = weeklyAbsenceHours(absences, person.id, weeks, toDateKey(new Date()));
         const hasPlannedAbsence = absenceByWeek.size > 0;
+        const headerFreeHours = round1(now.freeHours - (absenceByWeek.get(forwardWeeks[0])?.hours || 0));
+        const headerFree = freeCapacityPercent(headerFreeHours, now.capacity);
         return (
           <View
             key={person.id}
@@ -781,13 +790,13 @@ export default function ProductivityBoard({
                 </Text>
               </View>
               <View style={styles.personStats}>
-                <Text style={[styles.personPct, { color: TONE_COLOR[loadTone(now.ofContract)] }]}>
-                  {formatPercent(now.ofContract)}
+                <Text style={[styles.personPct, { color: TONE_COLOR[freeCapacityTone(headerFree)] }]}>
+                  {formatPercent(headerFree)}
                 </Text>
                 <Text style={[styles.personMeta, { color: colors.muted }]}>
-                  {now.freeHours <= 0.05
+                  {headerFreeHours <= 0.05
                     ? (slack ? `Ledig fra ${slack.meta.short}` : 'Fullbooket')
-                    : `${formatHours(now.freeHours)} t ledig`}
+                    : `${formatHours(headerFreeHours)} t ledig`}
                 </Text>
               </View>
               <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
@@ -849,8 +858,11 @@ export default function ProductivityBoard({
                     <View style={[styles.labelHead, { borderColor: colors.line }]}>
                       <Text style={[styles.sectionLabel, { color: colors.muted }]}>Prosjekt</Text>
                     </View>
+                    <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: '#fff1f2' }]}>
+                      <Text numberOfLines={2} style={[styles.sumLabel, { color: colors.ink }]}>Ledig kapasitet</Text>
+                    </View>
                     <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-                      <Text style={[styles.sumLabel, { color: colors.ink }]}>Sum</Text>
+                      <Text numberOfLines={2} style={[styles.sumLabel, { color: colors.ink }]}>Planlagt sum timer</Text>
                     </View>
                     {hasPlannedAbsence ? (
                       <View style={[styles.labelCell, { borderColor: colors.line, backgroundColor: '#fff7ed' }]}>
@@ -894,6 +906,35 @@ export default function ProductivityBoard({
                             <View key={key} style={[styles.weekHeadCell, current && { backgroundColor: withAlpha(colors.brand, '18') }]}>
                               <Text style={[styles.weekNo, { color: current ? colors.brand : colors.ink }]}>{meta.short}</Text>
                               <Text style={[styles.weekDate, { color: colors.muted }]}>{meta.date}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                      <View
+                        style={[styles.sumRow, { backgroundColor: '#fff1f2' }]}
+                        nativeID={`produktivitet-ledig-pct-${person.id}`}
+                      >
+                        {weeks.map((key) => {
+                          const future = key >= todayKey;
+                          const occ = future ? occupancy(person, personAllocs, key, weekHours) : null;
+                          const pct = occ
+                            ? freeCapacityPercent(occ.freeHours - (absenceByWeek.get(key)?.hours || 0), occ.capacity)
+                            : null;
+                          return (
+                            <View
+                              key={key}
+                              style={[
+                                styles.matrixCell,
+                                styles.freePctCell,
+                                {
+                                  borderColor: colors.line,
+                                  backgroundColor: key === todayKey ? withAlpha(colors.brand, '10') : 'transparent',
+                                },
+                              ]}
+                            >
+                              <Text style={[styles.cellText, { color: pct == null ? colors.muted : TONE_COLOR[freeCapacityTone(pct)] }]}>
+                                {pct == null ? '' : formatPercent(pct)}
+                              </Text>
                             </View>
                           );
                         })}
@@ -1179,11 +1220,12 @@ function barHeight(percent) {
 }
 
 function freeTone(free, capacity) {
-  if (!(capacity > 0) || free <= 0.05) return '#fecdd3';
-  const ratio = free / capacity;
-  if (ratio < 0.25) return '#fed7aa';
-  if (ratio < 0.6) return '#fde68a';
-  return '#bbf7d0';
+  if (!(capacity > 0)) return 'transparent';
+  const ratio = Math.max(0, free) / capacity;
+  if (ratio >= 0.5) return '#fecdd3';
+  if (ratio >= 0.25) return '#fde68a';
+  if (ratio > 0.02) return '#bbf7d0';
+  return '#e2e8f0';
 }
 
 function segmentsFor(row, allocs, weeks, todayKey) {
@@ -1415,6 +1457,7 @@ const styles = StyleSheet.create({
   matrixRow: { flexDirection: 'row', height: ROW_H, position: 'relative' },
   matrixRowActive: { zIndex: 8 },
   matrixCell: { width: MATRIX_W, height: ROW_H, borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3 },
+  freePctCell: { justifyContent: 'center', paddingTop: 0 },
   cellText: { fontSize: 11, fontWeight: '600' },
   bar: { position: 'absolute', top: 16, borderRadius: 5, borderWidth: 1, cursor: 'grab', touchAction: 'pan-y' },
   resize: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 14, cursor: 'ew-resize', touchAction: 'pan-y' },

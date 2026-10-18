@@ -349,6 +349,23 @@ export function loadTone(ofContract) {
   return 'open';
 }
 
+/** Ledig andel av uken. Overbooking er 0 % ledig, og tallet stopper på 100. */
+export function freeCapacityPercent(freeHours, capacity) {
+  const cap = Number(capacity) || 0;
+  if (cap <= 0) return 0;
+  const free = Math.max(0, Number(freeHours) || 0);
+  return round1(Math.min(100, (free / cap) * 100));
+}
+
+/** Mye ledig tid er det som skal synes. Fullbooket er rolig. */
+export function freeCapacityTone(percent) {
+  const n = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (n >= 50) return 'over';
+  if (n >= 25) return 'full';
+  if (n > 0.5) return 'ok';
+  return 'open';
+}
+
 export const TONE_COLOR = {
   over: '#e11d48',
   full: '#d97706',
@@ -363,7 +380,7 @@ export function firstSlackWeek(employee, allocations, weeks, weekHours) {
       return {
         key,
         freeHours: row.freeHours,
-        freePercent: row.capacity ? round1((row.freeHours / row.capacity) * 100) : 0,
+        freePercent: freeCapacityPercent(row.freeHours, row.capacity),
         meta: weekMeta(key),
       };
     }

@@ -13,6 +13,8 @@ import {
   firstSlackWeek,
   kindOf,
   loadTone,
+  freeCapacityPercent,
+  freeCapacityTone,
   makeAllocation,
   intensityOf,
   percentFromPointerDelta,
@@ -120,6 +122,12 @@ import {
   assert.equal(early.ofContract, 60);
   assert.equal(loadTone(early.ofContract), 'ok');
   assert.equal(loadTone(110), 'over');
+  assert.equal(freeCapacityPercent(20, 40), 50);
+  assert.equal(freeCapacityPercent(-12, 40), 0);
+  assert.equal(freeCapacityPercent(80, 40), 100);
+  assert.equal(freeCapacityPercent(10, 0), 0);
+  assert.equal(freeCapacityTone(80), 'over');
+  assert.equal(freeCapacityTone(0), 'open');
 
   const full = { ...alpha, percent: 100, hoursPerWeek: 37.5 };
   const slack = firstSlackWeek(employee, [full], weeks, 37.5);

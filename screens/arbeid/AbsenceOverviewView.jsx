@@ -231,6 +231,8 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         opening={opening}
         onOpeningChange={setOpening}
         onSaveOpening={saveOpening}
+        peopleLoading={!workspace.employeesReady}
+        absenceLoading={!workspace.absencesReady}
       />
     );
   }

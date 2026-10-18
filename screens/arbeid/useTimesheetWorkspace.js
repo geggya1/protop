@@ -39,6 +39,11 @@ export function useTimesheetWorkspace({
   const cached = peekProjectState(workspaceId);
   const [state, setState] = useState(() => cached || emptyProjectState());
   const [employees, setEmployees] = useState([]);
+  const [employeesReady, setEmployeesReady] = useState(false);
+  const [absencesReady, setAbsencesReady] = useState(() => {
+    const warm = peekProjectState(workspaceId);
+    return Array.isArray(warm?.absences) && warm.absences.length > 0;
+  });
   const [ready, setReady] = useState(!!cached);
   const [error, setError] = useState('');
   const skipSave = useRef(true);
@@ -83,8 +88,15 @@ export function useTimesheetWorkspace({
   }, [ready, workspaceId, fromDate, toDate]);
 
   useEffect(() => {
-    if (!ready || !workspaceId || absenceOff) return undefined;
+    if (!workspaceId || absenceOff) {
+      setAbsencesReady(true);
+      return undefined;
+    }
+    if (!ready) return undefined;
     let live = true;
+    const warm = peekProjectState(workspaceId);
+    const hasAbsences = Array.isArray(warm?.absences) && warm.absences.length > 0;
+    if (!hasAbsences) setAbsencesReady(false);
     const range = absenceAll
       ? { all: true }
       : { fromDate: absenceFrom, toDate: absenceTo || absenceFrom, employeeId: absenceEmployee };
@@ -92,7 +104,10 @@ export function useTimesheetWorkspace({
       if (!live) return;
       skipSave.current = true;
       setState((current) => applyAbsencesOntoState(current, loaded));
-    }).catch(() => {});
+      setAbsencesReady(true);
+    }).catch(() => {
+      if (live) setAbsencesReady(true);
+    });
     return () => { live = false; };
   }, [ready, workspaceId, absenceOff, absenceAll, absenceFrom, absenceTo, absenceEmployee]);
 
@@ -108,6 +123,7 @@ export function useTimesheetWorkspace({
       (rows) => {
         const next = Array.isArray(rows) ? rows : [];
         if (!next.length) return;
+        setAbsencesReady(true);
         setState((current) => {
           skipSave.current = true;
           noteAbsencesImported(workspaceId, next);
@@ -118,8 +134,31 @@ export function useTimesheetWorkspace({
   }, [ready, workspaceId, liveAbsences, absenceAll]);
 
   useEffect(() => {
-    if (!workspaceId) return undefined;
-    return watchEmployees(workspaceId, setEmployees, () => setEmployees([]));
+    if (!workspaceId) {
+      setEmployees([]);
+      setEmployeesReady(true);
+      return undefined;
+    }
+    let live = true;
+    let sawRemote = false;
+    setEmployeesReady(false);
+    const stop = watchEmployees(workspaceId, (rows, meta) => {
+      if (!live) return;
+      const list = Array.isArray(rows) ? rows : [];
+      const remote = meta?.source === 'remote';
+      if (remote) sawRemote = true;
+      else if (sawRemote || !list.length) return;
+      setEmployees(list);
+      setEmployeesReady(true);
+    }, () => {
+      if (!live) return;
+      setEmployees([]);
+      setEmployeesReady(true);
+    });
+    return () => {
+      live = false;
+      stop();
+    };
   }, [workspaceId]);
 
   useEffect(() => {
@@ -152,6 +191,8 @@ export function useTimesheetWorkspace({
     state,
     setState,
     employees,
+    employeesReady,
+    absencesReady,
     ready,
     error,
     setError,

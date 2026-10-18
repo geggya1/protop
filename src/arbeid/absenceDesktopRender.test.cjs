@@ -27,6 +27,7 @@ function host(name) {
 const rnMock = {
   View: host('View'),
   Text: host('Text'),
+  ActivityIndicator: host('ActivityIndicator'),
   ScrollView: host('ScrollView'),
   TouchableOpacity: host('TouchableOpacity'),
   Pressable: host('Pressable'),
@@ -153,6 +154,31 @@ function deepRender(node) {
   return count;
 }
 
+function ancestorIds(node, target) {
+  let found = null;
+  const visit = (current, stack, depth) => {
+    if (found || depth > 40 || current == null || typeof current === 'boolean') return;
+    if (Array.isArray(current)) {
+      current.forEach((child) => visit(child, stack, depth));
+      return;
+    }
+    if (typeof current === 'string' || typeof current === 'number' || !React.isValidElement(current)) return;
+    const id = current.props && current.props.nativeID;
+    if (id === target) {
+      found = stack.slice();
+      return;
+    }
+    const next = id ? stack.concat(id) : stack;
+    if (typeof current.type === 'function') {
+      visit(withHooks(() => current.type(current.props || {})), next, depth + 1);
+      return;
+    }
+    visit(current.props && current.props.children, next, depth + 1);
+  };
+  visit(node, [], 0);
+  return found || [];
+}
+
 function nativeIds(node) {
   const ids = [];
   walk(node, (element) => {
@@ -226,6 +252,42 @@ const absences = [
   assert.match(text, /periode-midten|Dag/);
   assert.match(text, /Ada/);
   assert.match(text, /Bjørn/);
+  assert.ok(nativeIds(element).includes('fravaer-board-main'));
+  assert.ok(ancestorIds(element, 'widget-feriebruk').includes('fravaer-board-main'));
+  assert.ok(ancestorIds(element, 'widget-periode').includes('fravaer-board-main'));
+  assert.ok(ancestorIds(element, 'borte-i-dag').includes('fravaer-board-main'));
+  assert.ok(ancestorIds(element, 'planlagt-fravaer').includes('fravaer-board-side'));
+  assert.equal(ancestorIds(element, 'fravaer-aar').includes('fravaer-board'), false);
+}
+
+{
+  const element = React.createElement(CompanyAbsenceDesktop, {
+    employees: [],
+    names: {},
+    absences: [],
+    adjustments: [],
+    fullDayHours: 7.5,
+    today,
+    canChooseEmployee: true,
+    peopleLoading: true,
+    absenceLoading: true,
+  });
+  assertRenders('CompanyAbsenceDesktop loading', element);
+  const text = collectText(element).join('\n');
+  const ids = nativeIds(element);
+  assert.match(text, /Henter hvem som er borte/);
+  assert.match(text, /Henter planlagt fravær/);
+  assert.match(text, /Henter feriebruk/);
+  assert.match(text, /Henter fravær i perioden/);
+  assert.match(text, /Henter fravær for/);
+  assert.doesNotMatch(text, /Ingen registrert borte/);
+  assert.doesNotMatch(text, /Ingen planlagt fravær fremover/);
+  assert.ok(ids.includes('fravaer-loading-borte'));
+  assert.ok(ids.includes('fravaer-loading-planlagt'));
+  assert.ok(ids.includes('fravaer-loading-ferie'));
+  assert.ok(ids.includes('fravaer-loading-periode'));
+  assert.ok(ids.includes('fravaer-loading-aar'));
+  assert.ok(ids.includes('fravaer-loading-kpi-ansatte'));
 }
 
 {

@@ -76,6 +76,7 @@ import { processStepsForBid } from '../../src/anbud/processTrail';
 import { bidCanLeaveDesk, bidCanReturnToReview } from '../../src/anbud/model';
 import FormAnswer from './FormAnswer';
 import ProcessTrail from './ProcessTrail';
+import BidSymbolButton from './BidSymbolButton';
 import ReviewNotes from './ReviewNotes';
 
 const FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,application/pdf,image/*';
@@ -388,14 +389,28 @@ export default function BidWorkspace({
           <Text style={{ color: colors.brand }}>Alle tilbud</Text>
         </TouchableOpacity>
         {bidCanReturnToReview(bid) ? (
-          <TouchableOpacity onPress={onReturnToReview} disabled={busy} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Tilbake til vurdering</Text>
-          </TouchableOpacity>
+          <BidSymbolButton
+            icon="arrow-undo-outline"
+            tip="Tilbake til vurdering"
+            label="Tilbake til vurdering"
+            color={colors.brand}
+            backgroundColor={colors.card}
+            borderColor={colors.brand}
+            onPress={onReturnToReview}
+            disabled={busy}
+          />
         ) : null}
         {bidCanLeaveDesk(bid) ? (
-          <TouchableOpacity onPress={onMarkUaktuell} disabled={busy} accessibilityRole="button">
-            <Text style={{ color: colors.danger }}>Uaktuell</Text>
-          </TouchableOpacity>
+          <BidSymbolButton
+            icon="ban-outline"
+            tip="Uaktuell"
+            label="Uaktuell"
+            color={colors.danger}
+            backgroundColor={colors.card}
+            borderColor={colors.danger}
+            onPress={onMarkUaktuell}
+            disabled={busy}
+          />
         ) : null}
         <TouchableOpacity onPress={() => setSettingsOpen((value) => !value)} accessibilityRole="button">
           <Text style={{ color: colors.brand }}>{settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}</Text>

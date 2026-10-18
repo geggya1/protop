@@ -45,7 +45,7 @@ const deployed = readFileSync(join(__dirname, 'anbud/formBuilder.js'), 'utf8');
 const source = readFileSync(join(__dirname, '../src/anbud/formBuilder.js'), 'utf8');
 assert.equal(deployed, source);
 
-const copies = ['catalog.js', 'engine.js', 'interpret.js', 'ssb.js', 'watch.js'];
+const copies = ['catalog.js', 'engine.js', 'interpret.js', 'settings.js', 'ssb.js', 'watch.js'];
 for (const name of copies) {
   const a = readFileSync(join(__dirname, 'indeksregulering', name), 'utf8');
   const b = readFileSync(join(__dirname, '../src/indeksregulering', name), 'utf8');
@@ -55,6 +55,10 @@ for (const name of copies) {
 const indeksAi = readFileSync(join(__dirname, 'indeksreguleringAi.js'), 'utf8');
 assert.doesNotMatch(indeksAi, /\.\.\/src\//);
 assert.match(indeksAi, /from '\.\/indeksregulering\/ssb\.js'/);
-assert.match(indeksAi, /from '\.\/indeksregulering\/watch\.js'/);
+assert.match(indeksAi, /from '\.\/indeksregulering\/ledger\.js'/);
+
+const ledger = readFileSync(join(__dirname, 'indeksregulering/ledger.js'), 'utf8');
+assert.doesNotMatch(ledger, /\.\.\/src\//);
+assert.match(ledger, /from '\.\/watch\.js'/);
 
 console.log('functions/anbudForm.smoke.test.mjs: all passed');

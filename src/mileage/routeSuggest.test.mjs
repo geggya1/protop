@@ -3,6 +3,7 @@ import {
   automaticPlaceHit,
   companyAddressLabel,
   companyAddressQueries,
+  companyAddressSearchHit,
   projectAddressLabel,
   projectDestinationSuggestion,
 } from './flow.js';
@@ -57,6 +58,30 @@ assert.equal(companyAddressLabel({
   poststed: 'Stavanger',
 }), 'Storgata 1, 4000 Stavanger');
 assert.equal(companyAddressLabel({ addressLabel: 'Svanholmen 7, 4313 SANDNES' }), 'Svanholmen 7, 4313 SANDNES');
+assert.equal(companyAddressLabel({
+  addressLabel: '2 Etasje Svanholmen 7, 4313 SANDNES',
+}), 'Svanholmen 7, 4313 SANDNES');
+assert.equal(companyAddressLabel({
+  forretning: {
+    lines: ['2 Etasje Svanholmen 7'],
+    postnummer: '4313',
+    poststed: 'SANDNES',
+    label: '2 Etasje Svanholmen 7, 4313 SANDNES',
+  },
+}), 'Svanholmen 7, 4313 SANDNES');
+assert.equal(companyAddressLabel({
+  kjoeradresse: { gate: 'Svanholmen 7', postnummer: '4313', poststed: 'Sandnes' },
+  addressLabel: '2 Etasje Svanholmen 7, 4313 SANDNES',
+}), 'Svanholmen 7, 4313 Sandnes');
+assert.equal(companyAddressQueries({
+  addressLabel: '2 Etasje Svanholmen 7, 4313 SANDNES',
+})[0], 'Svanholmen 7, 4313 SANDNES');
+const officeHit = companyAddressSearchHit({
+  kjoeradresse: { gate: 'Svanholmen 7', postnummer: '4313', poststed: 'Sandnes' },
+}, 'svan');
+assert.equal(officeHit.label, 'Svanholmen 7, 4313 Sandnes');
+assert.equal(officeHit.source, 'company');
+assert.equal(companyAddressSearchHit(consult, 'xyz'), null);
 
 const sandnes = { label: 'Svanholmen 7, 4313 SANDNES', adressetekst: 'Svanholmen 7', lat: 58.89, lng: 5.7, postnummer: '4313' };
 const vestre = { label: 'Vestre Svanholmen 7, 4313 SANDNES', adressetekst: 'Vestre Svanholmen 7', lat: 58.88, lng: 5.7, postnummer: '4313' };
@@ -93,6 +118,22 @@ assert.equal(passages[0].name, 'E 39 Stokkamyra, mot Nord - Forus');
 assert.equal(passages[0].passes, 2);
 assert.equal(passages[0].amount, 60);
 assert.equal(passages[0].source, 'nvdb');
+
+const classed = tollPassagesForRoute(line, [
+  { id: '9', name: 'E39 Mundalsberget', lat: 58.90, lng: 5.70, price: 25, priceElectric: 14, priceHeavy: 40 },
+], { roundTrip: false, feeClass: 'elbil' });
+assert.equal(classed[0].unitPrice, 14);
+assert.equal(classed[0].amount, 14);
+assert.equal(classed[0].tariff, 'elbil');
+assert.equal(classed[0].tariffExact, true);
+const heavy = tollPassagesForRoute(line, [
+  { id: '9', name: 'E39 Mundalsberget', lat: 58.90, lng: 5.70, price: 25, priceElectric: 14, priceHeavy: 40 },
+], { roundTrip: true, feeClass: 'tung' });
+assert.equal(heavy[0].unitPrice, 40);
+assert.equal(heavy[0].amount, 80);
+const ferryEl = ferryPassages([{ name: 'Mortavika', price: 200, priceElectric: 80 }], { roundTrip: false, feeClass: 'elbil' });
+assert.equal(ferryEl[0].unitPrice, 80);
+assert.equal(ferryEl[0].tariffExact, true);
 
 const ferries = ferryPassages([{ name: 'Kvitsøy - Mekjarvik' }, { name: 'Kvitsøy - Mekjarvik' }], { roundTrip: true });
 assert.equal(ferries.length, 1);

@@ -7,7 +7,8 @@
 import { planDrivingRoute } from './drivingRoute.js';
 import { chargesForRoute } from './routePlan.js';
 import { TOLL_STATIONS } from './tollStations.js';
-import { ferryPassages, tollPassagesForRoute } from './tollPassages.js';
+import { ferryPassages, fetchTollStations, tollPassagesForRoute } from './tollPassages.js';
+import { normalizeFeeClass } from './vehicleFee.js';
 import { roundMoney } from '../economy/vat.js';
 
 function googleTollRow(estimate, roundTrip) {
@@ -28,29 +29,40 @@ export async function suggestDriving(from, to, {
   apiKey = '',
   roundTrip = true,
   stations,
+  feeClass = 'lett',
 } = {}) {
   const route = await planDrivingRoute(from, to, { fetchImpl, apiKey });
   if (!route) return null;
-  const stationList = Array.isArray(stations) ? stations : TOLL_STATIONS;
+  const tariff = normalizeFeeClass(feeClass) || 'lett';
+  let stationList = Array.isArray(stations) ? stations : null;
+  if (!stationList && route.source !== 'estimate' && route.points?.length > 1) {
+    try {
+      const live = await fetchTollStations(route.points, { fetchImpl });
+      if (live.length) stationList = live;
+    } catch {
+      stationList = null;
+    }
+  }
+  if (!stationList?.length) stationList = TOLL_STATIONS;
   let tolls = [];
   let listedPasses = false;
   if (route.source !== 'estimate' && route.points?.length > 1) {
-    tolls = tollPassagesForRoute(route.points, stationList, { roundTrip });
+    tolls = tollPassagesForRoute(route.points, stationList, { roundTrip, feeClass: tariff });
     listedPasses = true;
   }
   if (!listedPasses) {
     if (route.tollEstimate > 0) {
       tolls = [googleTollRow(route.tollEstimate, roundTrip)];
     } else {
-      tolls = chargesForRoute(route.points, { roundTrip }).filter((row) => row.kind === 'toll');
+      tolls = chargesForRoute(route.points, { roundTrip, feeClass: tariff }).filter((row) => row.kind === 'toll');
     }
   } else if (!tolls.length && route.tollEstimate > 0) {
     tolls = [googleTollRow(route.tollEstimate, roundTrip)];
   }
-  const ferries = ferryPassages(route.ferries, { roundTrip });
+  const ferries = ferryPassages(route.ferries, { roundTrip, feeClass: tariff });
   const catalogFerries = ferries.length
     ? []
-    : chargesForRoute(route.points, { roundTrip }).filter((row) => row.kind === 'ferry');
+    : chargesForRoute(route.points, { roundTrip, feeClass: tariff }).filter((row) => row.kind === 'ferry');
   return {
     oneWayKm: route.oneWayKm,
     points: route.points,

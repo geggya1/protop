@@ -6,6 +6,7 @@ import {
   companyVehicles,
   employeeVehicles,
   normalizeBooking,
+  normalizePersonalVehicle,
   validateBooking,
   validateEquipment,
 } from './model.js';
@@ -19,6 +20,7 @@ import {
 import { deleteTrip, recordDutyTrip } from '../economy/opsState.js';
 import { buildOperationsProposals } from '../economy/billingFromOperations.js';
 import { normalizeTrip } from '../economy/mileage.js';
+import { feeClassFromSignals } from '../mileage/vehicleFee.js';
 import {
   mileageProjectOptions,
   mileageRate,
@@ -247,3 +249,36 @@ assert.equal(privateCar.equipment.plate, 'EN63224');
 assert.equal(companyVehicles([gear.equipment, privateCar.equipment]).length, 1);
 assert.equal(employeeVehicles([], [privateCar.equipment], 'ada')[0].plate, 'EN63224');
 assert.equal(employeeVehicles([], [privateCar.equipment], 'bo').length, 0);
+
+const elbil = validateEquipment({
+  name: 'Elbil',
+  group: 'kjoretoy',
+  plate: 'EL100',
+  feeClass: 'elbil',
+  electric: true,
+});
+assert.equal(elbil.equipment.feeClass, 'elbil');
+assert.equal(elbil.equipment.electric, true);
+assert.equal(feeClassFromSignals({ fuelType: 'electric', fuel: 'Elektrisk' }), 'elbil');
+assert.equal(feeClassFromSignals({ vehicleType: 'motorcycle', tekniskKode: 'L3e' }), 'mc');
+assert.equal(feeClassFromSignals({ tekniskKode: 'N2', totalWeight: 12000 }), 'tung');
+assert.equal(feeClassFromSignals({ fuel: 'Diesel', feeClass: 'lett' }), 'lett');
+assert.equal(normalizePersonalVehicle({ employeeId: 'a', plate: 'AB1', fuel: 'Diesel' }).electric, false);
+const withCosts = normalizeTrip({
+  date: '2026-10-19',
+  from: 'Svanholmen 7, 4313 Sandnes',
+  to: 'KinoKino',
+  notes: 'Befaring',
+  km: 12,
+  extraCosts: [
+    { id: 'p', kind: 'parking', amount: 40, receiptUri: 'https://files.example/parkering.jpg', receiptName: 'parkering.jpg' },
+    { id: 'l', kind: 'charging', amount: 15 },
+    { id: 'a', kind: 'other', amount: 10, label: 'Vask' },
+  ],
+});
+assert.equal(withCosts.parking, 40);
+assert.equal(withCosts.charging, 15);
+assert.equal(withCosts.otherCosts, 10);
+assert.equal(withCosts.extraCosts[0].receiptName, 'parkering.jpg');
+assert.equal(withCosts.extras, 65);
+assert.equal(tripCost({ km: 12, rate: 3.5, tolls: 22, ferries: 0, parking: 40, charging: 15, other: 10 }).amount, 12 * 3.5 + 22 + 65);

@@ -31,14 +31,17 @@ assert.match(css, /--protop-vv-bottom/, 'bottom menu can cover the band Safari h
 assert.match(css, /#shell-header[\s\S]*z-index:\s*50/, 'top bar stays above page layers');
 assert.match(
   css,
-  /@media \(display-mode: standalone\), \(display-mode: fullscreen\) \{[\s\S]*height:\s*100lvh/,
-  'installed Safari app fills the large viewport',
+  /@media \(display-mode: standalone\), \(display-mode: fullscreen\) \{[\s\S]*height:\s*100dvh/,
+  'installed app uses the visible dynamic viewport',
 );
-assert.match(css, /html\[data-standalone="1"\][\s\S]*height:\s*100lvh/, 'navigator.standalone also fills the screen');
+assert.match(css, /html\[data-standalone="1"\][\s\S]*max-height:\s*100dvh/, 'standalone shell cannot grow past the screen');
+assert.doesNotMatch(css, /100lvh/, 'large viewport must not push the bottom menu off screen');
 assert.match(stamp, /apple-mobile-web-app-status-bar-style',\s*'black-translucent'/);
 assert.match(stamp, /data-protop-standalone/, 'hosted HTML marks the installed app before paint');
 assert.match(stamp, /data-protop-vv/, 'hosted HTML measures the visible frame before paint');
-assert.match(stamp, /height: 100lvh !important/, 'hosted shell overrides a short 100dvh');
+assert.match(stamp, /height: 100dvh !important/, 'hosted shell stays on the dynamic viewport');
+assert.doesNotMatch(stamp, /100lvh/, 'hosted shell must not force the large viewport');
+assert.match(stamp, /\[protop-pwa\]/, 'hosted HTML logs launch URL and standalone state');
 assert.match(shell, /headerCoversStatusBar = Platform\.OS === 'web' && isPhone && !kitchenMode/, 'phone web header owns the top edge');
 assert.match(shell, /coverStatusBar=\{headerCoversStatusBar\}/, 'header background extends to the top edge');
 assert.match(header, /headerTopPad/, 'top bar padding sits inside the header');

@@ -104,29 +104,26 @@ html, body, #root {
   }
 }
 /*
- * Safari-app (lagt til på Hjem-skjermen): 100dvh er skjermen minus
- * statusfeltet, så skallet stopper for tidlig og iOS beholder stolpe
- * over og under. 100lvh er hele skjermen. Vanlig Safari-fane blir på 100dvh.
+ * Installert nettapp: skallet er den synlige flaten (100dvh).
+ * Et høyere viewport skyver bunnmenyen under kanten iOS faktisk viser.
+ * Statuslinje og Hjem-indikator får plass inne i toppfelt og bunnmeny.
+ * Vanlig Safari-fane bruker fortsatt visual viewport over.
  */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html, body, #root {
     top: 0;
-    height: -webkit-fill-available;
-    height: 100lvh;
-    min-height: -webkit-fill-available;
-    min-height: 100lvh;
-    max-height: none;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
   }
 }
 html[data-standalone="1"],
 html[data-standalone="1"] body,
 html[data-standalone="1"] #root {
   top: 0;
-  height: -webkit-fill-available;
-  height: 100lvh;
-  min-height: -webkit-fill-available;
-  min-height: 100lvh;
-  max-height: none;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
 }
 html {
   -webkit-text-size-adjust: 100%;

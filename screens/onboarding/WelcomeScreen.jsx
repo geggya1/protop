@@ -11,6 +11,8 @@ import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import LanguageMenu from '../../components/LanguageMenu';
 import WelcomeTeasers from '../../components/WelcomeTeasers';
 import BrandLogo from '../../components/BrandLogo';
+import { isStandaloneDisplay } from '../../src/utils/preferApp';
+import { applyBootNavigation } from '../../src/shell/pwaNavigation';
 
 const HERO = require('../../assets/hero-family.png');
 
@@ -45,7 +47,7 @@ export default function WelcomeScreen({ onTryFree, onLogin }) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     try {
-      window.location.replace('/');
+      applyBootNavigation(window, '/', { standalone: isStandaloneDisplay() });
     } catch { /* ignore */ }
   }, []);
 

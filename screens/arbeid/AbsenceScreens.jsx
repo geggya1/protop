@@ -3,7 +3,7 @@ import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
-import { absenceRoster, absencesForRoster } from '../../src/arbeid/absenceDashboard.js';
+import { absenceRoster, absencesForRoster, eachWeekday } from '../../src/arbeid/absenceDashboard.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
@@ -39,6 +39,16 @@ import AbsencePeriodModal from '../../components/arbeid/AbsencePeriodModal';
 import { ImportResult } from '../../components/ImportReview';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { AbsenceReportDesktop, PlannedAbsenceDesktop } from './CompanyAbsenceDesktop';
+import VacationPlanPanel from '../../components/arbeid/VacationPlanPanel';
+import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
+import { saveProjectState } from '../../src/project/storage';
+import { applyVacationPlan } from '../../src/arbeid/vacationPlanApply.js';
+import { loadVacationPlan, saveVacationPlan } from '../../src/arbeid/vacationPlanStorage.js';
+import { publishVacationPlanNotice, sweepVacationPlan } from '../../src/arbeid/vacationPlanClient.js';
+import {
+  normalizeVacationPlan,
+  planningWindow,
+} from '../../src/arbeid/vacationPlan.js';
 
 // Fraværsrapport bruker samme dagstabell + filter på mobil og desktop.
 
@@ -486,9 +496,14 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { shellIntent, clearShellIntent } = useApp();
+  const { shellIntent, clearShellIntent, familyId, family } = useApp();
   const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
+  const [plan, setPlan] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [planError, setPlanError] = useState('');
+  const [registerOpen, setRegisterOpen] = useState(false);
   useEffect(() => {
     if (!shellIntent || shellIntent.type !== 'plannedAbsenceFocus') return;
     const id = String(shellIntent.employeeId || '');
@@ -498,12 +513,137 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
     }
     clearShellIntent?.();
   }, [shellIntent, clearShellIntent, setEmployeeId]);
+  useEffect(() => {
+    let stop = false;
+    if (!familyId) {
+      setPlan(normalizeVacationPlan({}));
+      return undefined;
+    }
+    loadVacationPlan(familyId).then((loaded) => {
+      if (stop) return;
+      setPlan(loaded);
+      if (!loaded?.announcedAt) return;
+      sweepVacationPlan(familyId).then((result) => {
+        if (!stop && result?.plan) setPlan(normalizeVacationPlan(result.plan));
+      }).catch(() => {});
+    });
+    return () => { stop = true; };
+  }, [familyId]);
   const today = toDateKey(new Date());
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const people = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
+  const companyName = String(family?.company?.navn || family?.name || '').trim();
+  const window = planningWindow(plan || {}, today);
+  const registrationLocked = !!plan?.announcedAt && window.locked && !workspace.manager;
+
+  async function persist(draft, { announce }) {
+    if (announce && !draft?.planDeadline) {
+      setPlanError('Sett en frist for planleggingen før du sender meldingen.');
+      return;
+    }
+    setBusy(true);
+    setPlanError('');
+    setNotice('');
+    try {
+      let next = normalizeVacationPlan(draft);
+      if (announce) next = normalizeVacationPlan({ ...next, announcedAt: new Date().toISOString() });
+      next = await saveVacationPlan(familyId, next);
+      if (announce || next.announcedAt) {
+        const applied = applyVacationPlan(workspace.state, next, people, {
+          today,
+          dayHours: fullDay,
+          assignDates: announce,
+        });
+        if (!applied.ok) throw new Error(applied.error || 'Kunne ikke oppdatere startsaldo.');
+        await saveProjectState(applied.state, familyId);
+        workspace.setState(applied.state);
+      }
+      setPlan(next);
+      if (!announce) {
+        setNotice(next.announcedAt ? 'Ferieplanen er lagret og startsaldone er oppdatert.' : 'Ferieplanen er lagret.');
+        return;
+      }
+      const sent = await publishVacationPlanNotice(familyId);
+      if (!sent?.ok) throw new Error(sent?.error || 'Meldingen ble ikke sendt.');
+      const mailNote = sent.mailConfigured === false ? ' E-post er ikke satt opp, så bare varslet i ProTop gikk ut.' : '';
+      setNotice(`Melding sendt. ${sent.sent || 0} e-poster, ${sent.notified || 0} varsler i ProTop.${mailNote}`);
+    } catch (err) {
+      setPlanError(err?.message || 'Kunne ikke lagre ferieplanen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function register({ personId, from, to, note, extraordinary }) {
+    const days = eachWeekday(from, to);
+    if (!personId) {
+      setPlanError('Velg ansatt.');
+      return false;
+    }
+    if (!days.length) {
+      setPlanError('Velg minst én virkedag.');
+      return false;
+    }
+    let state = workspace.state;
+    const name = names[personId] || '';
+    const flagged = extraordinary || registrationLocked;
+    for (const date of days) {
+      const result = addAbsence(state, {
+        employeeId: personId,
+        employeeName: name,
+        date,
+        hours: fullDay,
+        type: 'ferie',
+        description: note,
+        extraordinary: flagged,
+        createdByUid: workspace.uid,
+      });
+      if (!result.ok) {
+        setPlanError(result.error);
+        return false;
+      }
+      state = result.state;
+    }
+    workspace.setState(state);
+    setPlanError('');
+    setNotice(flagged ? 'Ferien er sendt til særskilt godkjenning.' : 'Ferien er registrert og venter på godkjenning.');
+    return true;
+  }
+
+  function approve(ids) {
+    const result = setAbsenceStatuses(workspace.state, ids, 'godkjent');
+    if (!result.ok) {
+      setPlanError(result.error);
+      return;
+    }
+    workspace.setState(result.state);
+    setNotice('Ferien er godkjent.');
+  }
+
+  const panel = (
+    <VacationPlanPanel
+      plan={plan || undefined}
+      employees={people}
+      names={names}
+      absences={workspace.state.absences || []}
+      dayHours={fullDay}
+      today={today}
+      canManage={canChooseEmployee}
+      focusEmployeeId={canChooseEmployee ? '' : activeId}
+      companyName={companyName}
+      busy={busy}
+      notice={notice}
+      error={planError}
+      onChange={setPlan}
+      onSave={(draft) => persist(draft, { announce: false })}
+      onSend={(draft) => persist(draft, { announce: true })}
+      onApprove={approve}
+      onRegister={() => setRegisterOpen(true)}
+    />
+  );
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {hostedHero ? null : (
@@ -523,6 +663,19 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
       lockedEmployeeId={activeId}
       focusEmployeeId={focusEmployeeId}
       loading={!workspace.ready}
+      header={plan ? panel : null}
+    />
+    <RegisterVacationModal
+      visible={registerOpen}
+      employees={people.map((row) => ({ id: row.id, name: names[row.id] || employeeDisplayName(row) }))}
+      employeeId={canChooseEmployee ? (focusEmployeeId || activeId) : activeId}
+      requireEmployee={canChooseEmployee && !(focusEmployeeId || activeId)}
+      locked={registrationLocked}
+      onClose={() => setRegisterOpen(false)}
+      onSave={(payload) => {
+        const ok = register(payload);
+        if (ok) setRegisterOpen(false);
+      }}
     />
     </View>
   );

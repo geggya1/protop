@@ -280,20 +280,26 @@ export function buildAbsenceOverview({
   adjustments = [],
   fullDayHours = 7.5,
   today = '',
+  year: yearInput = '',
 } = {}) {
   const type = absenceTypeById(typeId);
   const mine = (absences || []).filter((row) => row.employeeId === employeeId && (row.type || 'ferie') === typeId);
   const adjust = (adjustments || []).filter((row) => row.employeeId === employeeId && (row.typeId || 'ferie') === typeId);
-  const opening = adjust
-    .filter((row) => row.kind === 'opening')
-    .reduce((sum, row) => sum + (Number(row.days) || 0), 0);
+  const balanceYear = String(yearInput || today || '').slice(0, 4);
+  const openingRows = adjust.filter((row) => {
+    if (row.kind !== 'opening') return false;
+    const rowYear = String(row.date || '').slice(0, 4);
+    if (!balanceYear || !rowYear) return true;
+    return rowYear === balanceYear;
+  });
+  const opening = openingRows.reduce((sum, row) => sum + (Number(row.days) || 0), 0);
   const manual = adjust
     .filter((row) => row.kind !== 'opening')
     .reduce((sum, row) => sum + (Number(row.days) || 0), 0);
   const periods = consecutivePeriods(mine);
   let running = Math.round((opening + manual) * 100) / 100;
   const rows = [];
-  const openingDate = adjust.find((row) => row.kind === 'opening')?.date || '';
+  const openingDate = openingRows.find((row) => row.date)?.date || '';
   if (opening || openingDate) {
     rows.push({
       id: 'opening',
@@ -353,7 +359,8 @@ export function buildAbsenceOverview({
   }
   const earned = Math.round((opening + manual) * 100) / 100;
   const remaining = Math.round((earned - used) * 100) / 100;
-  const unplanned = Math.round((remaining - planned) * 100) / 100;
+  // used inkluderer allerede planlagte dager frem i tid. Ikke trekk dem fra en gang til.
+  const unplanned = remaining;
   return {
     type,
     rows,

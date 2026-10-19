@@ -480,6 +480,7 @@ export function normalizeAbsenceRow(row) {
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
+    ...(row.extraordinary === true ? { extraordinary: true } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
   };
 }
@@ -1668,6 +1669,7 @@ export function addAbsence(state, input) {
     percent: input.percent != null ? input.percent : existing?.percent,
     importFingerprint: text(input.importFingerprint) || existing?.importFingerprint,
     source: input.source || existing?.source || null,
+    extraordinary: input.extraordinary != null ? input.extraordinary === true : existing?.extraordinary === true,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     createdByUid: text(input.createdByUid) || existing?.createdByUid,

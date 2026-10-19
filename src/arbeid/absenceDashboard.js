@@ -525,6 +525,7 @@ export function buildAbsenceWebBoard({
       adjustments,
       fullDayHours: dayHours,
       today,
+      year,
     });
     const hasMonths = grid.months.some((month) => month.ferie || month.sykdom || month.annet);
     if (!hasMonths && !overview.summary.earned) continue;

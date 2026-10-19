@@ -44,6 +44,8 @@ export const DEPLOY_ENTRIES = [
   'hospitalityIndex.js',
   'stravaIndex.js',
   'pushIndex.js',
+  'vacationPlanIndex.js',
+  'vacationPlanDailyIndex.js',
 ];
 
 const SPECIFIER_RE = [

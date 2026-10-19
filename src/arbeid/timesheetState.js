@@ -330,10 +330,16 @@ export function setAbsenceAdjustment(state, input = {}) {
   if (!Number.isFinite(days)) return fail(state, 'Antall dager mangler.');
   const kind = input.kind === 'opening' ? 'opening' : 'adjustment';
   const current = list(state, 'absenceAdjustments');
+  const openingYear = text(input.date).slice(0, 4);
   const existing = text(input.id)
     ? current.find((row) => row.id === input.id)
     : (kind === 'opening'
-      ? current.find((row) => row.employeeId === employeeId && row.typeId === typeId && row.kind === 'opening')
+      ? current.find((row) => (
+        row.employeeId === employeeId
+        && row.typeId === typeId
+        && row.kind === 'opening'
+        && String(row.date || '').slice(0, 4) === openingYear
+      ))
       : null);
   const row = {
     id: existing?.id || createId('fav'),

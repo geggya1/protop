@@ -376,7 +376,7 @@ export const sendNotificationEmail = onDocumentCreated(
         }
       }
 
-      const emailFallback = eventType === 'attestPending' || eventType === 'wishReserved'
+      const emailFallback = eventType === 'attestPending' || eventType === 'wishReserved' || notif.skipEmail === true
         ? false
         : true;
       const emailOn = channelOn(prefs, eventType, 'email', emailFallback);

@@ -139,6 +139,18 @@ import { emptyProjectState } from '../project/engine.js';
   }).state;
   assert.equal(state.absenceAdjustments.length, 1);
   assert.equal(state.absenceAdjustments[0].days, 30);
+  state = setAbsenceAdjustment(state, {
+    employeeId: 'e1', typeId: 'ferie', kind: 'opening', date: '2027-01-01', days: 27,
+  }).state;
+  assert.equal(state.absenceAdjustments.length, 2);
+  const nextYear = buildAbsenceOverview({
+    employeeId: 'e1',
+    today: '2027-02-01',
+    adjustments: state.absenceAdjustments,
+    absences: [],
+  });
+  assert.equal(nextYear.summary.opening, 27);
+  assert.equal(nextYear.summary.earned, 27);
 }
 
 {

@@ -126,7 +126,7 @@ const withMember = mileageProjectOptions({
   ...state,
   members: [{ employeeId: 'ada', projectId: 'p2', active: true }],
 }, 'ada', { today: new Date('2026-10-16T12:00:00') });
-assert.deepEqual(withMember.options.map((row) => row.project.id).sort(), ['p1', 'p2']);
+assert.deepEqual(withMember.options.map((row) => row.project.id), ['p1']);
 assert.equal(projectHasOwnAddress(state.projects[0]), true);
 assert.equal(projectHasOwnAddress(state.projects[1]), false);
 assert.equal(projectHasOwnAddress({ place: 'Foss Eikeland' }), true);

@@ -657,7 +657,13 @@ export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
   if (tab === 'selskap' && subView === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
-  if (tab === 'selskap' && subView === 'innstillinger') return allows(grants, 'companyProfile', 'read');
+  if (tab === 'selskap' && (
+    subView === 'innstillinger'
+    || subView === 'fravaerstyper'
+    || subView === 'kontoplan'
+    || subView === 'regnskapskontoer'
+    || subView === 'fridager'
+  )) return allows(grants, 'companyProfile', 'read');
   if (tab === 'underenheter') return allows(grants, 'units', 'see');
   if (tab === 'utstyr') {
     return allows(grants, 'projects', 'see')

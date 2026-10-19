@@ -82,7 +82,8 @@ import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePi
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
-import { agreedHoursForDate, redDayMap } from '../../src/arbeid/holidays.js';
+import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
+import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
@@ -400,8 +401,10 @@ export default function ArbeidScreen({
   const fullDayHours = Number(state.fullDayHours) > 0 ? Number(state.fullDayHours) : DAILY;
   const timeSettings = timeSettingsOf(selectedEmployee);
   const lockThrough = lockThroughDate(state.timesheetLocks, employeeId);
+  const redDays = useMemo(() => resolveRedDays(state, [year]), [state.redDays, year]);
+  const absenceTypes = useMemo(() => resolveAbsenceTypes(state), [state.absenceTypes, state.absenceTypesCustom]);
   const markedDays = useMemo(() => {
-    const marks = redDayMap(state.redDays);
+    const marks = redDayMap(redDays);
     return days.map((day) => {
       const mark = marks.get(day.key);
       return {
@@ -411,7 +414,7 @@ export default function ArbeidScreen({
         name: mark?.name || '',
       };
     });
-  }, [days, state.redDays]);
+  }, [days, redDays]);
 
   const agreedByDay = useMemo(() => {
     const map = new Map();
@@ -419,13 +422,13 @@ export default function ArbeidScreen({
       const schedule = scheduledHours(selectedEmployee, day.date, fullDayHours);
       const agreed = agreedHoursForDate(day.date, {
         fullDayHours,
-        redDays: state.redDays,
+        redDays,
         scheduleHours: schedule,
       });
       map.set(day.key, agreed.hours);
     }
     return map;
-  }, [markedDays, selectedEmployee, fullDayHours, state.redDays]);
+  }, [markedDays, selectedEmployee, fullDayHours, redDays]);
 
   const workedByDay = useMemo(() => {
     const map = new Map();
@@ -463,10 +466,11 @@ export default function ArbeidScreen({
         employeeId,
         date: day.key,
         flexCountsAsPay: timeSettings.flexCountsAsPay,
+        types: absenceTypes,
       }));
     }
     return map;
-  }, [markedDays, state.timeEntries, state.absences, employeeId, timeSettings.flexCountsAsPay]);
+  }, [markedDays, state.timeEntries, state.absences, employeeId, timeSettings.flexCountsAsPay, absenceTypes]);
 
   const carriedKey = employeeId ? `${employeeId}:${year}:${monthIndex}` : '';
   const historyReady = !!carriedKey && carriedHours.key === carriedKey && !carriedHours.failed;
@@ -503,10 +507,10 @@ export default function ArbeidScreen({
     const schedule = scheduledHours(selectedEmployee, date, fullDayHours);
     return agreedHoursForDate(date, {
       fullDayHours,
-      redDays: state.redDays,
+      redDays,
       scheduleHours: schedule,
     }).hours;
-  }, [selectedEmployee, fullDayHours, state.redDays]);
+  }, [selectedEmployee, fullDayHours, redDays]);
 
   const timebank = useMemo(() => monthTimebank({
     year,
@@ -516,6 +520,7 @@ export default function ArbeidScreen({
     absences: [...(state.absences || []), ...(historyReady ? carriedHours.absences : [])],
     adjustments: state.balanceAdjustments,
     agreedForDate,
+    types: absenceTypes,
   }), [
     year,
     monthIndex,
@@ -526,6 +531,7 @@ export default function ArbeidScreen({
     state.absences,
     state.balanceAdjustments,
     agreedForDate,
+    absenceTypes,
   ]);
 
   const balanceCells = useMemo(
@@ -1290,6 +1296,7 @@ export default function ArbeidScreen({
         visible={typePicker}
         colors={colors}
         selected={pinnedTypes}
+        types={absenceTypes}
         onClose={() => setTypePicker(false)}
         onSave={savePins}
       />

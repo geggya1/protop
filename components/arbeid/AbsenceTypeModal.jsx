@@ -7,11 +7,12 @@ export default function AbsenceTypeModal({
   visible,
   colors,
   selected = [],
+  types: catalog,
   onClose,
   onSave,
 }) {
   const [picked, setPicked] = useState(selected);
-  const types = absencePickerTypes();
+  const types = absencePickerTypes(catalog);
 
   function toggle(id) {
     setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));

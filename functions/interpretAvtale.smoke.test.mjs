@@ -65,9 +65,10 @@ assert.match(hostingJob, /group: hosting-protop-c189c/);
 assert.match(hostingJob, /cancel-in-progress: true/);
 assert.match(hostingJob, /npx firebase deploy --only hosting/);
 assert.doesNotMatch(hostingJob, /deploy-slim-functions/);
-assert.match(workflow, /needs: hosting/);
+assert.match(workflow, /functions-gate/);
 assert.match(workflow, /group: functions-protop-c189c/);
-assert.match(workflow, /cancel-in-progress: false/);
+assert.match(workflow, /cancel-in-progress: true/);
+assert.match(workflow, /FUNCTION_ENTRIES/);
 
 assert.match(slimFn, /functions:interpretAvtaleHttp/);
 assert.match(slimFn, /functions:friendListHttp/);

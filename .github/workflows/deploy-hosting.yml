@@ -18,9 +18,12 @@ permissions:
 # functions-gate hopper over selve deploy-jobben når functions/ og filene
 # den importerer er uendret. En hoppet jobb tar ikke concurrency-låsen,
 # så web-pusher blir grønne uten å vente på forrige funksjonsdeploy.
+# Gaten kjører parallelt med hosting. En ny funksjonsdeploy avbryter en
+# eldre som fortsatt kjører, så en halvferdig serie-deploy ikke blir stående.
 jobs:
   hosting:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     concurrency:
       group: hosting-protop-c189c
       cancel-in-progress: true
@@ -40,7 +43,9 @@ jobs:
       # intakeScan.test.mjs (verify:web) trenger functions-deps (firebase-functions, msgreader).
       - run: npm ci --prefix functions
 
-      - run: npm run verify:web
+      - name: Verify web
+        timeout-minutes: 8
+        run: npm run verify:web
 
       - run: npm run build:web
         env:
@@ -77,10 +82,11 @@ jobs:
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive
 
   functions-gate:
-    needs: hosting
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       deploy: ${{ steps.functions_src.outputs.deploy }}
+      entries: ${{ steps.functions_src.outputs.entries }}
     steps:
       - uses: actions/checkout@v4
 
@@ -90,18 +96,19 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "entries=all" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           node scripts/functions-deploy-needed.mjs --check "${{ github.event.before }}" "$GITHUB_SHA" | tee -a "$GITHUB_OUTPUT"
 
   functions:
-    needs: [hosting, functions-gate]
+    needs: functions-gate
     if: needs.functions-gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 20
     concurrency:
       group: functions-protop-c189c
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
@@ -137,4 +144,5 @@ jobs:
         # Tom nøkkel deployer fortsatt funksjonen (ellers 404/CORS).
         env:
           PROTOP_GEMINI_KEY: ${{ secrets.PROTOP_GEMINI_KEY || secrets.WEEKPLAN_GEMINI_KEY }}
+          FUNCTION_ENTRIES: ${{ needs.functions-gate.outputs.entries }}
         run: bash scripts/deploy-slim-functions.sh

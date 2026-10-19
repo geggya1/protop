@@ -17,7 +17,33 @@ const EXTRA_PATHS = [
   'scripts/apply-storage-cors.mjs',
   'scripts/functions-deploy-needed.mjs',
   'firebase.json',
-  '.github/workflows/deploy-hosting.yml',
+  'functions/package.json',
+  'functions/package-lock.json',
+];
+
+/** Samme entries som scripts/deploy-slim-functions.sh. */
+export const DEPLOY_ENTRIES = [
+  'tenderIndex.js',
+  'anbudDigestIndex.js',
+  'anbudFormIndex.js',
+  'agreementIndex.js',
+  'openFeedIndex.js',
+  'interpretAvtaleIndex.js',
+  'anbudIntakeIndex.js',
+  'friendListIndex.js',
+  'friendInviteIndex.js',
+  'indeksIndex.js',
+  'importIndex.js',
+  'employeeInviteIndex.js',
+  'storageIndex.js',
+  'doffinIndex.js',
+  'aiIndex.js',
+  'vegvesenIndex.js',
+  'membershipIndex.js',
+  'authIndex.js',
+  'hospitalityIndex.js',
+  'stravaIndex.js',
+  'pushIndex.js',
 ];
 
 const SPECIFIER_RE = [
@@ -72,9 +98,9 @@ function walkFunctions(root) {
   return out;
 }
 
-export function functionSourceClosure(root = repoRoot) {
+function walkClosure(root, startFiles) {
   const closure = new Set();
-  const queue = walkFunctions(root).filter((path) => /\.(js|mjs|cjs)$/.test(path));
+  const queue = [...startFiles];
   const seen = new Set();
 
   while (queue.length) {
@@ -101,6 +127,31 @@ export function functionSourceClosure(root = repoRoot) {
     }
   }
   return closure;
+}
+
+export function functionSourceClosure(root = repoRoot) {
+  const starts = walkFunctions(root).filter((path) => /\.(js|mjs|cjs)$/.test(path));
+  return walkClosure(root, starts);
+}
+
+export function closureForEntry(entry, root = repoRoot) {
+  return walkClosure(root, [join(root, 'functions', entry)]);
+}
+
+export function entriesForChanges(changed, root = repoRoot) {
+  const paths = [...changed].map((raw) => String(raw || '').split('\\').join('/').replace(/^\.\//, '')).filter(Boolean);
+  if (paths.some((rel) => EXTRA_PATHS.includes(rel))) return [...DEPLOY_ENTRIES];
+  const selected = [];
+  const covered = new Set();
+  for (const entry of DEPLOY_ENTRIES) {
+    const closure = closureForEntry(entry, root);
+    for (const rel of closure) covered.add(rel);
+    if (paths.some((rel) => closure.has(rel))) selected.push(entry);
+  }
+  if (paths.some((rel) => rel.startsWith('functions/') && !isSkippedFunctionsFile(rel) && !covered.has(rel))) {
+    return [...DEPLOY_ENTRIES];
+  }
+  return selected;
 }
 
 export function deployNeededForPaths(changed, closure = functionSourceClosure()) {
@@ -138,16 +189,21 @@ function ensureCommit(root, sha) {
 }
 
 function checkRange(before, head) {
-  if (!before || /^0+$/.test(before)) return true;
-  if (!ensureCommit(repoRoot, before) || !ensureCommit(repoRoot, head)) return true;
-  return deployNeededForPaths(gitDiffNames(repoRoot, before, head));
+  if (!before || /^0+$/.test(before) || !ensureCommit(repoRoot, before) || !ensureCommit(repoRoot, head)) {
+    return { deploy: true, entries: 'all' };
+  }
+  const entries = entriesForChanges(gitDiffNames(repoRoot, before, head));
+  if (!entries.length) return { deploy: false, entries: '' };
+  if (entries.length === DEPLOY_ENTRIES.length) return { deploy: true, entries: 'all' };
+  return { deploy: true, entries: entries.join(',') };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const flag = process.argv[2];
   if (flag === '--check') {
-    const needed = checkRange(process.argv[3], process.argv[4]);
-    process.stdout.write(`deploy=${needed ? 'true' : 'false'}\n`);
+    const result = checkRange(process.argv[3], process.argv[4]);
+    process.stdout.write(`deploy=${result.deploy ? 'true' : 'false'}\n`);
+    process.stdout.write(`entries=${result.entries}\n`);
   } else {
     const closure = functionSourceClosure();
     process.stdout.write(`${closure.size} files in the function deploy closure\n`);

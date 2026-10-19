@@ -12,6 +12,7 @@ const TED_FIELDS = [
   'notice-type',
   'description-proc',
   'place-of-performance-country-lot',
+  'document-url-lot',
 ];
 
 function codesOf(values) {
@@ -100,6 +101,8 @@ export function tedHitToNotice(row) {
     noticeType: langText(row['notice-type']) || 'TED',
     cpvCodes,
     url: `https://ted.europa.eu/no/notice/-/detail/${id}`,
+    competitionDocsUrl: langText(row['document-url-lot']),
+    tedId: id,
   };
 }
 

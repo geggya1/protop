@@ -135,6 +135,41 @@ export async function attachPortalCatalog(dossier) {
   };
 }
 
+/** Leser offentlig filliste, spørsmål/svar og tilgangsstatus fra KGV-adressen. */
+export async function fetchCompetitionGround(url) {
+  const res = await fetch('/api/tender-proxy', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'ground', url }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || 'Kunne ikke lese konkurransegrunnlaget.');
+  }
+  return data;
+}
+
+/** Laster ned én offentlig fil. Innloggede filer returneres uten innhold. */
+export async function downloadGroundFile(file) {
+  const res = await fetch('/api/tender-proxy', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'ground-file',
+      file: {
+        kind: file?.download?.kind || file?.kind || '',
+        procId: file?.download?.procId || file?.procId || '',
+        name: file?.download?.name || file?.name || '',
+        key: file?.download?.key || file?.key || '',
+        url: file?.download?.url || file?.url || '',
+      },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, note: data.error || 'Kunne ikke hente dokumentet.' };
+  return data;
+}
+
 /** Laster ned et offentlig konkurransedokument. Innloggede portalfiler blir stående som lenke. */
 export async function downloadPublicFile(url) {
   const res = await fetch('/api/tender-proxy', {

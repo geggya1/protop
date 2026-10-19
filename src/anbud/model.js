@@ -233,10 +233,18 @@ export function noticeSignature(notice) {
   return `${title}|${buyer}|${published}`;
 }
 
+function tedNoticeKey(row) {
+  const id = text(row?.id);
+  if (id.startsWith('ted-')) return `ted:${id.slice(4)}`;
+  const raw = `${text(row?.tedId)} ${text(row?.dossier?.tedUrl)}`;
+  const match = raw.match(/(\d{4,}-\d{4})/);
+  return match ? `ted:${match[1]}` : '';
+}
+
 function noticeKeys(row) {
   const id = text(row?.id);
   const sig = noticeSignature(row);
-  return [id, sig].filter(Boolean);
+  return [id, sig, tedNoticeKey(row)].filter(Boolean);
 }
 
 function pickReviewedNotice(left, right) {
@@ -1174,6 +1182,8 @@ export function normalizeDoffinHit(hit) {
     noticeType: text(hit?.noticeType) || 'Kunngjøring av konkurranse',
     cpvCodes: asList(hit?.cpvCodes),
     matchedKeywords: normalizeKeywords(hit?.matchedKeywords),
+    tedId: text(hit?.tedId),
+    competitionDocsUrl: text(hit?.competitionDocsUrl),
   };
 }
 

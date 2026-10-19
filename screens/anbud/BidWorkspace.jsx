@@ -419,8 +419,9 @@ export default function BidWorkspace({
       <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
       <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
       <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
-      <View style={[styles.tabs, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        {BID_STEPS.map((item, index) => {
+      <View style={styles.column}>
+      <View style={styles.tabs}>
+        {BID_STEPS.map((item) => {
           const on = step === item.id;
           return (
             <TouchableOpacity
@@ -430,11 +431,13 @@ export default function BidWorkspace({
               accessibilityState={{ selected: on }}
               style={[
                 styles.tab,
-                index < BID_STEPS.length - 1 ? { borderRightWidth: 1, borderRightColor: colors.line } : null,
-                { backgroundColor: on ? colors.brandSoft : 'transparent' },
+                {
+                  borderColor: on ? colors.brand : colors.line,
+                  backgroundColor: on ? colors.brandSoft : colors.card,
+                },
               ]}
             >
-              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500', textAlign: 'center', fontSize: 13 }}>
+              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500', fontSize: 13 }}>
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -528,9 +531,47 @@ export default function BidWorkspace({
             <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
             <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
             {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
-            <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>{busy ? 'Henter dokumenter …' : 'Hent dokumenter på nytt'}</Text>
-            </TouchableOpacity>
+            <View style={styles.row}>
+              <TouchableOpacity
+                onPress={onRefresh}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.btn, { backgroundColor: colors.brand, opacity: busy ? 0.7 : 1 }]}
+              >
+                <Text style={{ color: '#fff' }}>{busy ? 'Henter dokumenter …' : (dossier.ground?.checkedAt ? 'Oppdater dokumenter' : 'Hent anbudsgrunnlag')}</Text>
+              </TouchableOpacity>
+              {dossier.documentsUrl ? (
+                <TouchableOpacity onPress={() => Linking.openURL(dossier.documentsUrl)} accessibilityRole="link" style={[styles.btn, { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }]}>
+                  <Text style={{ color: colors.ink }}>Åpne originalkilde</Text>
+                </TouchableOpacity>
+              ) : null}
+              {dossier.ground?.access === 'interest' && (dossier.interestUrl || dossier.documentsUrl) ? (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(dossier.interestUrl || dossier.documentsUrl)}
+                  accessibilityRole="link"
+                  style={[styles.btn, { borderWidth: 1, borderColor: colors.brand, backgroundColor: colors.card }]}
+                >
+                  <Text style={{ color: colors.brand }}>Meld interesse</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {dossier.ground?.note ? <Text style={{ color: colors.muted }}>{dossier.ground.note}</Text> : null}
+            {dossier.ground?.checkedAt ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Sist kontrollert {String(dossier.ground.checkedAt).slice(0, 16).replace('T', ' ')}
+                {dossier.ground.portal ? ` · ${dossier.ground.portal}` : ''}
+              </Text>
+            ) : null}
+            {Array.isArray(dossier.updates) && dossier.updates.length ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>Oppdateringer</Text>
+                {dossier.updates.slice(-6).reverse().map((row) => (
+                  <Text key={`${row.at}-${row.field}`} style={{ color: colors.muted }}>
+                    {String(row.at || '').slice(0, 16).replace('T', ' ')} · {row.label || row.field}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             <FileList
               files={filesInFolder(bid.files, GROUND_FOLDER_ID)}
               colors={colors}
@@ -593,9 +634,13 @@ export default function BidWorkspace({
               <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
             </TouchableOpacity>
             {dossier.qa?.length ? dossier.qa.map((row) => (
-              <View key={`${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+              <View key={row.id || `${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+                {row.fresh || row.changed ? (
+                  <Text style={{ color: colors.brand, fontWeight: '700' }}>{row.fresh ? 'Nytt' : 'Endret svar'}</Text>
+                ) : null}
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.question}</Text>
                 <Text style={{ color: colors.ink }}>{row.answer || 'Svaret er ikke publisert ennå.'}</Text>
+                {row.published ? <Text style={{ color: colors.muted, fontSize: 12 }}>Publisert {row.published}</Text> : null}
               </View>
             )) : <Text style={{ color: colors.muted }}>Ingen spørsmål og svar er publisert i kunngjøringen ennå.</Text>}
             <FileList
@@ -956,6 +1001,7 @@ export default function BidWorkspace({
           <NotesSection colors={colors} value={notesDraft} onChange={setNotesDraft} onSave={() => commit(saveBidStepNotes(state, bid.id, 'arbeid', notesDraft))} />
         </View>
       ) : null}
+      </View>
     </View>
   );
 }
@@ -1200,6 +1246,10 @@ function StepInfo({ step, bid, dossier, deadline, stage, colors, noticeUrl, sour
         {dossier?.procedure ? <Text style={{ color: colors.ink }}>Prosedyre: {dossier.procedure}</Text> : null}
         <Text style={{ color: colors.muted }}>
           {`${downloaded} dokumenter lastet`}
+          {dossier?.ground?.portal ? ` · ${dossier.ground.portal}` : ''}
+          {dossier?.ground?.access === 'public' ? ' · offentlig tilgang' : ''}
+          {dossier?.ground?.access === 'interest' ? ' · krever at interesse meldes' : ''}
+          {dossier?.ground?.access === 'login' ? ' · krever innlogging' : ''}
           {publishedQa ? ` · ${publishedQa} spørsmål og svar i grunnlaget` : ''}
         </Text>
         {noticeUrl ? (
@@ -1535,8 +1585,9 @@ function Line({ label, value, colors }) {
 const styles = StyleSheet.create({
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  tabs: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
-  tab: { flex: 1, paddingHorizontal: 8, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  column: { width: '100%', maxWidth: 720, alignSelf: 'flex-start', gap: 14 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 8 },
+  tab: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignSelf: 'flex-start' },
   info: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },

@@ -56,6 +56,15 @@ export function mergeCompanyProfile(next, previous) {
       : {}),
     ...(logo ? { logo } : {}),
   };
+  const travelGate = text(previous?.kjoeradresse?.gate || previous?.kjoeradresse?.adresse);
+  if (travelGate) {
+    merged.kjoeradresse = {
+      gate: travelGate,
+      postnummer: text(previous.kjoeradresse.postnummer),
+      poststed: text(previous.kjoeradresse.poststed),
+    };
+    if (text(previous.addressLabel)) merged.addressLabel = text(previous.addressLabel);
+  }
   const previousOrgnr = orgDigits(previous?.organisasjonsnummer);
   const nextOrgnr = orgDigits(next.organisasjonsnummer);
   const keepHovedenhet = previous

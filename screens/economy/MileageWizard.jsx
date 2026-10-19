@@ -30,12 +30,17 @@ import { recordDutyTrip } from '../../src/economy/opsState';
 import { updateProject } from '../../src/project/engine';
 import { upsertEquipment, upsertPersonalVehicle } from '../../src/equipment/state';
 import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
+import { CUSTOMER_COST_KINDS, customerCostTitle, sumCustomerCosts } from '../../src/mileage/customerCosts';
+import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
+import { pickReceipt, uploadImage } from '../../src/utils/media';
+import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 import { firebaseConfig } from '../../firebase';
 import {
   addressFieldsFromPlace,
   automaticPlaceHit,
   companyAddressLabel,
   companyAddressQueries,
+  companyAddressSearchHit,
   mileageProjectOptions,
   mileageRate,
   projectAddressLabel,
@@ -117,7 +122,7 @@ function Chip({ label, active, onPress, colors }) {
   );
 }
 
-function AddressField({ label, value, onChange, onPick, colors, shortcuts, onFocusField }) {
+function AddressField({ label, value, onChange, onPick, colors, shortcuts, onFocusField, matchQuery }) {
   const [hits, setHits] = useState([]);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -140,6 +145,11 @@ function AddressField({ label, value, onChange, onPick, colors, shortcuts, onFoc
     };
   }, [value, open]);
   const suggestions = Array.isArray(shortcuts) ? shortcuts : [];
+  const pinned = typeof matchQuery === 'function' ? matchQuery(value) : null;
+  const shown = [
+    pinned,
+    ...hits.filter((hit) => hit?.label !== pinned?.label),
+  ].filter(Boolean);
   return (
     <View style={styles.field}>
       <Field
@@ -166,14 +176,17 @@ function AddressField({ label, value, onChange, onPick, colors, shortcuts, onFoc
           ))}
         </View>
       ) : null}
-      {open && String(value || '').trim().length >= 3 && !hits.length ? (
+      {open && String(value || '').trim().length >= 3 && !shown.length ? (
         <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>Søker adresser…</Text>
       ) : null}
-      {hits.length ? (
+      {shown.length ? (
         <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          {hits.map((hit) => (
+          {shown.map((hit) => (
             <TouchableOpacity key={hit.placeId || hit.label} onPress={() => { onPick(hit); setHits([]); setOpen(false); }}>
               <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 6 }}>{hit.label}</Text>
+              {hit.source === 'company' ? (
+                <Text style={{ color: colors.muted, fontSize: 12, paddingBottom: 6 }}>Firmaadresse</Text>
+              ) : null}
             </TouchableOpacity>
           ))}
         </View>
@@ -239,6 +252,7 @@ function emptyDraft() {
     vehicleName: '',
     plate: '',
     electric: false,
+    feeClass: 'lett',
     from: '',
     to: '',
     fromPlace: null,
@@ -248,6 +262,7 @@ function emptyDraft() {
     routeSource: '',
     suggestedTo: '',
     routeCharges: [],
+    extraCosts: [],
     tolls: 0,
     ferries: 0,
     visitPurpose: 'befaring',
@@ -277,6 +292,7 @@ function draftFromTrip(trip) {
     vehicleName: trip.vehicleName || '',
     plate: trip.plate || '',
     electric: !!trip.electric,
+    feeClass: trip.feeClass || (trip.electric ? 'elbil' : 'lett'),
     from: trip.from || '',
     to: trip.to || '',
     fromPlace: trip.fromLat ? { label: trip.from, lat: trip.fromLat, lng: trip.fromLng } : null,
@@ -285,6 +301,13 @@ function draftFromTrip(trip) {
     km: Number(trip.km) || 0,
     routeSource: trip.routeSource || 'manuell',
     routeCharges: trip.routeCharges || [],
+    extraCosts: Array.isArray(trip.extraCosts) && trip.extraCosts.length
+      ? trip.extraCosts
+      : [
+        ...(Number(trip.parking) > 0 ? [{ id: 'parking', kind: 'parking', amount: Number(trip.parking), label: '', receiptUri: '', receiptName: '' }] : []),
+        ...(Number(trip.charging) > 0 ? [{ id: 'charging', kind: 'charging', amount: Number(trip.charging), label: '', receiptUri: '', receiptName: '' }] : []),
+        ...(Number(trip.otherCosts) > 0 ? [{ id: 'other', kind: 'other', amount: Number(trip.otherCosts), label: '', receiptUri: '', receiptName: '' }] : []),
+      ],
     tolls: Number(trip.tolls) || 0,
     ferries: Number(trip.ferries) || 0,
     visitPurpose: trip.visitPurpose || 'befaring',
@@ -327,6 +350,9 @@ export default function MileageWizard({
   const [newPlate, setNewPlate] = useState('');
   const [newName, setNewName] = useState('');
   const [newScope, setNewScope] = useState('private');
+  const [newFeeClass, setNewFeeClass] = useState('lett');
+  const [newFeeSource, setNewFeeSource] = useState('manual');
+  const [receiptBusy, setReceiptBusy] = useState('');
   const routeEditedRef = useRef(!!editingTrip);
   const routeGen = useRef(0);
   const [draft, setDraft] = useState(() => draftFromTrip(editingTrip));
@@ -390,7 +416,9 @@ export default function MileageWizard({
       vehicleId: car.id,
       vehicleName: vehicleTitle(car),
       plate: car.plate,
-      electric: !!car.electric,
+      electric: feeClassFromSignals(car) === 'elbil',
+      feeClass: feeClassFromSignals(car),
+      routeEdited: false,
     });
     setError('');
   }
@@ -401,7 +429,9 @@ export default function MileageWizard({
       vehicleId: car.id,
       vehicleName: vehicleTitle(car),
       plate: car.plate,
-      electric: !!car.electric,
+      electric: feeClassFromSignals(car) === 'elbil',
+      feeClass: feeClassFromSignals(car),
+      routeEdited: false,
     });
     setError('');
   }
@@ -418,7 +448,30 @@ export default function MileageWizard({
     setNewScope('private');
     setNewPlate('');
     setNewName('');
+    setNewFeeClass('lett');
+    setNewFeeSource('manual');
     setError('');
+  }
+
+  async function lookupNewPlate() {
+    setError('');
+    try {
+      const hit = await lookupVehicleByReg(newPlate);
+      const feeClass = feeClassFromSignals({
+        electric: hit.fuelType === 'electric',
+        fuel: hit.fuelLabel,
+        fuelType: hit.fuelType,
+        vehicleType: hit.vehicleType,
+        tekniskKode: hit.tekniskKode,
+        totalWeight: hit.totalWeight,
+      });
+      setNewFeeClass(feeClass);
+      setNewFeeSource('vegvesen');
+      if (!newName.trim() && hit.title) setNewName(hit.title);
+      setError('');
+    } catch (err) {
+      setError(err?.message || 'Klarte ikke slå opp skiltnummeret.');
+    }
   }
 
   function saveNewVehicle() {
@@ -439,6 +492,9 @@ export default function MileageWizard({
         category: 'poolbil',
         group: 'kjoretoy',
         scope: 'company',
+        feeClass: newFeeClass,
+        feeSource: newFeeSource,
+        electric: newFeeClass === 'elbil',
       }));
       if (!result?.ok) {
         setError(result?.error || 'Kunne ikke lagre kjøretøyet.');
@@ -451,6 +507,9 @@ export default function MileageWizard({
         employeeName,
         plate,
         nickname: name,
+        feeClass: newFeeClass,
+        feeSource: newFeeSource,
+        electric: newFeeClass === 'elbil',
       }));
       if (!result?.ok) {
         setError(result?.error || 'Kunne ikke lagre kjøretøyet.');
@@ -579,6 +638,7 @@ export default function MileageWizard({
         const route = await suggestDriving(fromPlace, toPlace, {
           apiKey: firebaseConfig?.apiKey || '',
           roundTrip: true,
+          feeClass: draftRef.current.feeClass || 'lett',
         });
         if (!live || gen !== routeGen.current || routeEditedRef.current || !route) {
           if (live && gen === routeGen.current) setRouting(false);
@@ -604,7 +664,7 @@ export default function MileageWizard({
       live = false;
       clearTimeout(timer);
     };
-  }, [step, draft.from, draft.to, draft.routeEdited, draft.fromPlace?.lat, draft.toPlace?.lat, company, addressSources, routeNonce]);
+  }, [step, draft.from, draft.to, draft.feeClass, draft.routeEdited, draft.fromPlace?.lat, draft.toPlace?.lat, company, addressSources, routeNonce]);
 
   async function useHere(side = 'from') {
     setLocating(true);
@@ -660,6 +720,7 @@ export default function MileageWizard({
     const route = await suggestDriving(fromPlace, toPlace, {
       apiKey: firebaseConfig?.apiKey || '',
       roundTrip: true,
+      feeClass: current.feeClass || 'lett',
     });
     if (!route?.oneWayKm) return { from, to, km: 0, fromPlace, toPlace };
     const charges = route.charges || [];
@@ -677,6 +738,44 @@ export default function MileageWizard({
     return { from, to, km: nextKm };
   }
 
+  function addCustomerCost() {
+    const id = `kost-${Date.now().toString(36)}`;
+    setDraft((row) => ({
+      ...row,
+      extraCosts: [...(row.extraCosts || []), { id, kind: 'parking', label: '', amount: 0, receiptUri: '', receiptName: '' }],
+    }));
+  }
+
+  function updateCustomerCost(id, partial) {
+    setDraft((row) => ({
+      ...row,
+      extraCosts: (row.extraCosts || []).map((item) => (item.id === id ? { ...item, ...partial } : item)),
+    }));
+  }
+
+  function removeCustomerCost(id) {
+    setDraft((row) => ({
+      ...row,
+      extraCosts: (row.extraCosts || []).filter((item) => item.id !== id),
+    }));
+  }
+
+  async function attachReceipt(row) {
+    setError('');
+    try {
+      const picked = await pickReceipt();
+      if (!picked) return;
+      setReceiptBusy(row.id);
+      const safe = String(picked.name || 'bilag').replace(/[^\w.\-æøåÆØÅ]+/g, '-').slice(0, 80);
+      const url = await uploadImage(`families/${familyId || 'personal'}/mileage/${Date.now()}-${safe}`, picked);
+      updateCustomerCost(row.id, { receiptUri: url, receiptName: picked.name || 'Bilag' });
+    } catch (err) {
+      setError(err?.message || 'Kunne ikke legge ved bilaget.');
+    } finally {
+      setReceiptBusy('');
+    }
+  }
+
   function updateCharge(id, amount) {
     const routeCharges = draft.routeCharges.map((row) => (
       row.id === id ? { ...row, amount: Number(String(amount).replace(',', '.')) || 0, source: 'manuell' } : row
@@ -689,11 +788,17 @@ export default function MileageWizard({
     });
   }
 
+  const parkingSum = sumCustomerCosts(draft.extraCosts, 'parking');
+  const chargingSum = sumCustomerCosts(draft.extraCosts, 'charging');
+  const otherSum = sumCustomerCosts(draft.extraCosts, 'other');
   const cost = tripCost({
     km: draft.km,
     rate: rateInfo.rate,
     tolls: draft.tolls,
     ferries: draft.ferries,
+    parking: parkingSum,
+    charging: chargingSum,
+    other: otherSum,
   });
   const purpose = visitPurposeLabel(draft.visitPurpose, draft.visitCustom);
   const fullProject = draft.project?.id
@@ -728,6 +833,11 @@ export default function MileageWizard({
       roundTrip: true,
       tolls: draft.tolls,
       ferries: draft.ferries,
+      parking: parkingSum,
+      charging: chargingSum,
+      otherCosts: otherSum,
+      extraCosts: draft.extraCosts,
+      feeClass: draft.feeClass,
       routeCharges: draft.routeCharges,
       routeSource: draft.routeSource,
       fromLat: draft.fromPlace?.lat,
@@ -1010,6 +1120,11 @@ export default function MileageWizard({
             </View>
             <Ionicons name={vehicleMenu ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
           </TouchableOpacity>
+          {draft.vehicleId ? (
+            <Text style={{ color: colors.ink, fontSize: 13 }}>
+              {`Gebyrgruppe: ${feeClassLabel(draft.feeClass) || 'Lett kjøretøy'}. Brukes på bom og ferje.`}
+            </Text>
+          ) : null}
           {odometer ? (
             <Text style={{ color: colors.ink, fontSize: 13 }}>
               Kilometerstand nå: {odometer.current} km
@@ -1029,6 +1144,7 @@ export default function MileageWizard({
                     style={[styles.menuRow, { borderColor: colors.line }]}
                   >
                     <Text style={{ color: colors.ink, fontSize: 16 }}>{vehicleTitle(car)}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{feeClassLabel(feeClassFromSignals(car)) || 'Lett kjøretøy'}</Text>
                   </TouchableOpacity>
                 ))}
                 {mine.length ? <Text style={[styles.menuLabel, { color: colors.muted }]}>Privat</Text> : null}
@@ -1042,6 +1158,7 @@ export default function MileageWizard({
                     style={[styles.menuRow, { borderColor: colors.line }]}
                   >
                     <Text style={{ color: colors.ink, fontSize: 16 }}>{vehicleTitle(car)}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{feeClassLabel(feeClassFromSignals(car)) || 'Lett kjøretøy'}</Text>
                   </TouchableOpacity>
                 ))}
                 {!cars.length && !mine.length ? (
@@ -1063,6 +1180,26 @@ export default function MileageWizard({
           {addingVehicle ? (
             <View style={styles.stack}>
               <Field label="Skiltnummer" value={newPlate} onChange={setNewPlate} colors={colors} placeholder="EL12345" />
+              <TouchableOpacity onPress={lookupNewPlate} accessibilityRole="button" accessibilityLabel="Hent fra Vegvesenet" style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Hent fra Vegvesenet</Text>
+              </TouchableOpacity>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Gebyrgruppe for bom og ferje. Importen foreslår gruppen, og du kan velge selv.
+              </Text>
+              <View style={styles.row}>
+                {VEHICLE_FEE_CLASSES.map((row) => (
+                  <Chip
+                    key={row.id}
+                    label={row.label}
+                    colors={colors}
+                    active={newFeeClass === row.id}
+                    onPress={() => { setNewFeeClass(row.id); setNewFeeSource('manual'); }}
+                  />
+                ))}
+              </View>
+              {newFeeSource === 'vegvesen' ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Gruppen er hentet fra Vegvesenet.</Text>
+              ) : null}
               <Field label="Navn" value={newName} onChange={setNewName} colors={colors} placeholder="Valgfritt" />
               {canCompany ? (
                 <View style={styles.row}>
@@ -1107,6 +1244,7 @@ export default function MileageWizard({
             colors={colors}
             onFocusField={() => setFocusField('from')}
             shortcuts={focusField === 'from' ? endpointShortcuts('from') : null}
+            matchQuery={(query) => companyAddressSearchHit(company, query)}
             onChange={(value) => patch({ from: value, fromPlace: null, routeEdited: false })}
             onPick={(hit) => { setFocusField(''); patch({ from: hit.label, fromPlace: hit, routeEdited: false }); }}
           />
@@ -1116,6 +1254,7 @@ export default function MileageWizard({
             colors={colors}
             onFocusField={() => setFocusField('to')}
             shortcuts={focusField === 'to' ? endpointShortcuts('to') : null}
+            matchQuery={(query) => companyAddressSearchHit(company, query)}
             onChange={(value) => patch({ to: value, toPlace: null, routeEdited: false })}
             onPick={(hit) => { setFocusField(''); patch({ to: hit.label, toPlace: hit, routeEdited: false }); }}
           />
@@ -1160,13 +1299,18 @@ export default function MileageWizard({
           </Text>
           {draft.routeCharges.some((row) => row.source === 'nvdb') ? (
             <Text style={[styles.hint, { color: colors.muted }]}>
-              Bompasseringene er AutoPASS-stasjonene ruta krysser. Beløpet er takst for liten bil og kan endres.
+              {`Bompasseringene er AutoPASS-stasjonene ruta krysser. Beløpet er takst for ${feeClassLabel(draft.feeClass) || 'lett kjøretøy'} og kan endres.`}
+            </Text>
+          ) : null}
+          {draft.routeCharges.some((row) => row.tariff && row.tariff !== 'lett' && row.tariffExact === false) ? (
+            <Text style={[styles.hint, { color: colors.muted }]}>
+              Noen stasjoner har ikke egen takst for denne gebyrgruppen. Der brukes takst for lett kjøretøy, og beløpet kan endres.
             </Text>
           ) : null}
           {draft.routeCharges.map((row) => (
             <View key={row.id} style={styles.charge}>
               <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }} numberOfLines={2}>
-                {row.kind === 'ferry' ? 'Ferje' : 'Bom'} · {row.name} · {row.passes === 1 ? '1 passering' : `${row.passes} passeringer`}
+                {`${row.kind === 'ferry' ? 'Ferje' : 'Bom'} · ${row.name}${row.tariff ? ` · ${feeClassLabel(row.tariff)}` : ''} · ${row.passes === 1 ? '1 passering' : `${row.passes} passeringer`}`}
               </Text>
               <TextInput
                 value={String(row.amount ?? '')}
@@ -1200,6 +1344,63 @@ export default function MileageWizard({
               onChange={(value) => patch({ ferries: Number(String(value).replace(',', '.')) || 0, routeEdited: true })}
             />
           </View>
+          <Text style={[styles.hint, { color: colors.muted }]}>
+            Andre kostnader kunden skal betale. Hver linje kan få et bilag.
+          </Text>
+          {(draft.extraCosts || []).map((row) => (
+            <View key={row.id} style={[styles.prompt, { borderColor: colors.line }]}>
+              <View style={styles.row}>
+                {CUSTOMER_COST_KINDS.map((kind) => (
+                  <Chip
+                    key={kind.id}
+                    label={kind.label}
+                    colors={colors}
+                    active={row.kind === kind.id}
+                    onPress={() => updateCustomerCost(row.id, { kind: kind.id })}
+                  />
+                ))}
+              </View>
+              {row.kind === 'other' ? (
+                <Field
+                  label="Hva gjelder det"
+                  value={row.label || ''}
+                  colors={colors}
+                  placeholder="For eksempel bompenger kontant"
+                  onChange={(value) => updateCustomerCost(row.id, { label: value })}
+                />
+              ) : null}
+              <Field
+                label="Beløp, kr"
+                value={row.amount ? String(row.amount) : ''}
+                colors={colors}
+                keyboardType="decimal-pad"
+                onChange={(value) => updateCustomerCost(row.id, { amount: Number(String(value).replace(',', '.')) || 0 })}
+              />
+              <View style={styles.row}>
+                <TouchableOpacity
+                  onPress={() => attachReceipt(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Legg ved bilag"
+                  style={[styles.btn, styles.btnGhost, { borderColor: colors.line }]}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>
+                    {receiptBusy === row.id ? 'Laster opp…' : (row.receiptName || (row.receiptUri ? 'Bilag lagt ved' : 'Legg ved bilag'))}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => removeCustomerCost(row.id)} accessibilityRole="button" accessibilityLabel="Fjern kostnad">
+                  <Text style={{ color: colors.muted, fontWeight: '600' }}>Fjern</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity
+            onPress={addCustomerCost}
+            accessibilityRole="button"
+            accessibilityLabel="Legg til kostnad"
+            style={[styles.btn, styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}
+          >
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Legg til kostnad</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -1233,6 +1434,10 @@ export default function MileageWizard({
             <View style={styles.calcRow}>
               <Text style={{ color: colors.muted, fontSize: 13 }}>Kjøretøy</Text>
               <Text style={{ color: colors.ink, fontSize: 14, flex: 1, textAlign: 'right' }} numberOfLines={1}>{draft.vehicleName || '—'}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Gebyrgruppe</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{feeClassLabel(draft.feeClass) || 'Lett kjøretøy'}</Text>
             </View>
           </View>
           {odometer ? (
@@ -1305,6 +1510,14 @@ export default function MileageWizard({
               <Text style={{ color: colors.muted, fontSize: 13 }}>Ferje</Text>
               <Text style={{ color: colors.ink, fontSize: 14 }}>{formatMoney(draft.ferries || 0)}</Text>
             </View>
+            {(draft.extraCosts || []).filter((row) => row.amount > 0 || row.receiptUri).map((row) => (
+              <View key={row.id} style={styles.calcRow}>
+                <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }} numberOfLines={2}>
+                  {`${customerCostTitle(row)}${row.receiptName || row.receiptUri ? ' · bilag' : ''}`}
+                </Text>
+                <Text style={{ color: colors.ink, fontSize: 14 }}>{formatMoney(row.amount || 0)}</Text>
+              </View>
+            ))}
             <View style={[styles.calcRow, { marginTop: 4 }]}>
               <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Til sammen</Text>
               <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{formatMoney(cost.amount)}</Text>

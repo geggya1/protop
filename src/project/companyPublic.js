@@ -233,11 +233,20 @@ export function registerRows(company) {
   return rows.filter(Boolean);
 }
 
+function stripFloorPhrase(value) {
+  return text(value)
+    .replace(/(?:^|[,\s]+)\d{0,2}\.?\s*etasje\b/gi, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[,\s]+|[,\s]+$/g, '')
+    .trim();
+}
+
 /** Gate og sted som kan geokodes. Etasje-linjer er ikke en adresse. */
 export function weatherQuery(company) {
   const addr = company?.forretning;
   if (!addr) return '';
-  const street = (addr.lines || []).filter((line) => !/etasje/i.test(line)).join(' ');
+  const street = (addr.lines || []).map((line) => stripFloorPhrase(line)).filter(Boolean).join(' ');
   return [street, addr.postnummer, addr.poststed].filter(Boolean).join(' ');
 }
 

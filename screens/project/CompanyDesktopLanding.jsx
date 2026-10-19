@@ -15,6 +15,7 @@ import {
   storedCompanyProfile,
   weatherQuery,
 } from '../../src/project/companyPublic';
+import { companyAddressParts } from '../../src/mileage/flow';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import { groupOverview } from '../../src/project/companyUnits';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
@@ -89,6 +90,11 @@ export default function CompanyDesktopLanding({
   const [forecast, setForecast] = useState(null);
   const [placeName, setPlaceName] = useState('');
   const profile = live?.company || storedCompanyProfile(stored);
+  const travel = companyAddressParts(stored?.kjoeradresse?.gate ? stored : {
+    forretning: profile?.forretning,
+    addressLabel: stored?.addressLabel || profile?.forretning?.label,
+  });
+  const shownAddress = travel?.label || profile?.forretning?.label || '';
   const logo = companyLogoOf(stored);
   const orgnr = stored?.organisasjonsnummer || '';
 
@@ -115,7 +121,9 @@ export default function CompanyDesktopLanding({
     return () => { alive = false; };
   }, [orgnr]);
 
-  const query = weatherQuery(profile);
+  const query = travel
+    ? [travel.street, travel.postnummer, travel.poststed].filter(Boolean).join(' ')
+    : weatherQuery(profile);
   useEffect(() => {
     if (!query) return undefined;
     let alive = true;
@@ -344,7 +352,7 @@ export default function CompanyDesktopLanding({
 
           <Card colors={colors}>
             <SectionTitle colors={colors}>Kontakt og adresse</SectionTitle>
-            <Fact label="Forretningsadresse" value={profile?.forretning?.label} colors={colors} />
+            <Fact label="Forretningsadresse" value={shownAddress} colors={colors} />
             <Fact label="Kommune" value={[profile?.forretning?.kommune, profile?.forretning?.kommunenummer].filter(Boolean).join(' · ')} colors={colors} />
             <Fact label="Postadresse" value={profile?.post?.label} colors={colors} />
             <Fact label="Telefon" value={profile?.telefon || stored?.telefon} colors={colors} />

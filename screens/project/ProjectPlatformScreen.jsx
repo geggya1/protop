@@ -12,6 +12,7 @@ import { normalizeCpvCode } from '../../src/anbud/model';
 import { searchBrregCompanies, selectBrregHitForStoredOrg } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
+import { companyAddressLabel, companyAddressParts } from '../../src/mileage/flow';
 import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
@@ -70,6 +71,9 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const [error, setError] = useState('');
   const [phone, setPhone] = useState(company?.telefon || '');
   const [email, setEmail] = useState(company?.epostadresse || '');
+  const [gate, setGate] = useState('');
+  const [postal, setPostal] = useState('');
+  const [place, setPlace] = useState('');
   const [cpvQuery, setCpvQuery] = useState('');
   const [customCpv, setCustomCpv] = useState('');
   const [selectedCpv, setSelectedCpv] = useState(() => new Set());
@@ -78,6 +82,14 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
 
   const savedCpvKey = (family?.cpvCodes || []).map((row) => row.code).filter(Boolean).join(',');
   const savedTradesKey = (company?.egneNaeringskoder || []).join('|');
+  const addressKey = [
+    company?.organisasjonsnummer,
+    company?.kjoeradresse?.gate,
+    company?.kjoeradresse?.postnummer,
+    company?.kjoeradresse?.poststed,
+    company?.addressLabel,
+    company?.forretning?.label,
+  ].join('|');
   useEffect(() => {
     setPage(initialCompanyPage(startPage));
   }, [startPage]);
@@ -85,9 +97,13 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   useEffect(() => {
     setPhone(company?.telefon || '');
     setEmail(company?.epostadresse || '');
+    const parts = companyAddressParts(company);
+    setGate(parts?.street || '');
+    setPostal(parts?.postnummer || '');
+    setPlace(parts?.poststed || '');
     setSelectedCpv(new Set(savedCpvKey ? savedCpvKey.split(',') : []));
     setOwnTrades(savedTradesKey ? savedTradesKey.split('|') : []);
-  }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, savedCpvKey, savedTradesKey]);
+  }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, savedCpvKey, savedTradesKey, addressKey]);
 
   async function savePatch(id, patch) {
     await updateGroup(id, patch);
@@ -103,15 +119,27 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         const known = CPV_CODES.find((row) => row.code === code);
         return { code, label: known?.label || `CPV ${code}`, source: 'bedrift' };
       });
+      const nextCompany = {
+        ...company,
+        telefon: phone.trim(),
+        epostadresse: email.trim(),
+        egneNaeringskoder: ownTrades,
+      };
+      const street = gate.trim();
+      if (street) {
+        nextCompany.kjoeradresse = {
+          gate: street,
+          postnummer: postal.trim(),
+          poststed: place.trim(),
+        };
+        nextCompany.addressLabel = companyAddressLabel({ kjoeradresse: nextCompany.kjoeradresse }) || street;
+      } else {
+        delete nextCompany.kjoeradresse;
+      }
       await savePatch(familyId, {
         cpvCodes,
         cpvSource: cpvCodes.length ? 'bedrift' : '',
-        company: {
-          ...company,
-          telefon: phone.trim(),
-          epostadresse: email.trim(),
-          egneNaeringskoder: ownTrades,
-        },
+        company: nextCompany,
       });
       requestShellTab?.('selskap');
     } catch (e) {
@@ -327,6 +355,18 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={[styles.label, { color: colors.muted }]}>Kjøreadresse</Text>
+          <Text style={[styles.lead, { color: colors.muted }]}>
+            Gate og nummer brukes i kjøreboken og kommer opp som søketreff. Etasje tas ikke med, for det er ikke en kartadresse.
+          </Text>
+          {company.addressLabel && company.addressLabel !== companyAddressLabel({ kjoeradresse: { gate, postnummer: postal, poststed: place } }) ? (
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              {`Registeret har «${company.addressLabel}».`}
+            </Text>
+          ) : null}
+          <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
+          <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
+          <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
           <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
           <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
           <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>

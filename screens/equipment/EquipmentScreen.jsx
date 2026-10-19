@@ -40,6 +40,7 @@ import { employeeLevelIds } from '../../src/access/companyAccess';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
+import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
 
 const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
@@ -128,7 +129,7 @@ function dateKey(year, monthIndex, day) {
 
 const EMPTY_GEAR = {
   name: '', group: 'utstyr', category: 'annet', scope: 'company', plate: '', serial: '',
-  make: '', model: '', year: '', fuel: '', electric: false, location: '',
+  make: '', model: '', year: '', fuel: '', electric: false, feeClass: 'lett', feeSource: 'manual', location: '',
   status: 'available', purchasedAt: '', warrantyUntil: '', warrantyVendor: '', warrantyNote: '', warrantyUri: '', notes: '',
   vegvesenSummary: '', ownerEmployeeId: '', ownerName: '',
   trackOdometer: false, odometerStart: '', odometerSince: '',
@@ -262,7 +263,16 @@ export default function EquipmentScreen() {
         model: hit.model || row.model,
         year: hit.year || row.year,
         fuel: hit.fuelLabel || row.fuel,
-        electric: hit.fuelType === 'electric' || /el/i.test(hit.fuelLabel || ''),
+        feeClass: feeClassFromSignals({
+          electric: hit.fuelType === 'electric',
+          fuel: hit.fuelLabel,
+          fuelType: hit.fuelType,
+          vehicleType: hit.vehicleType,
+          tekniskKode: hit.tekniskKode,
+          totalWeight: hit.totalWeight,
+        }),
+        feeSource: 'vegvesen',
+        electric: hit.fuelType === 'electric',
         vegvesenSummary: hit.summaryLine || '',
         notes: row.notes || hit.summaryLine || '',
       }));
@@ -297,6 +307,8 @@ export default function EquipmentScreen() {
         year: saved.year,
         fuel: saved.fuel,
         electric: saved.electric,
+        feeClass: saved.feeClass,
+        feeSource: saved.feeSource,
         vegvesenSummary: saved.vegvesenSummary || saved.notes,
         trackOdometer: saved.trackOdometer,
         odometerStart: saved.odometerStart,
@@ -359,6 +371,7 @@ export default function EquipmentScreen() {
           {row.plate ? ` · ${row.plate}` : ''}
           {row.serial ? ` · ${row.serial}` : ''}
           {row.location ? ` · ${row.location}` : ''}
+          {row.group === 'kjoretoy' && feeClassLabel(feeClassFromSignals(row)) ? ` · ${feeClassLabel(feeClassFromSignals(row))}` : ''}
           {row.scope !== 'private' ? ` · ${EQUIPMENT_STATUSES.find((status) => status.id === row.status)?.label || row.status}` : ''}
         </Text>
         {row.warrantyUntil ? (
@@ -442,6 +455,28 @@ export default function EquipmentScreen() {
                 </TouchableOpacity>
               </View>
               {lookupNote ? <Text style={{ color: colors.brand, fontSize: 12 }}>{lookupNote}</Text> : null}
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Gebyrgruppe for bom og ferje. Hent fra Vegvesenet, eller velg selv.
+              </Text>
+              <View style={styles.row}>
+                {VEHICLE_FEE_CLASSES.map((row) => (
+                  <Chip
+                    key={row.id}
+                    label={row.label}
+                    active={feeClassFromSignals(gear) === row.id}
+                    onPress={() => setGear((current) => ({
+                      ...current,
+                      feeClass: row.id,
+                      feeSource: 'manual',
+                      electric: row.id === 'elbil',
+                    }))}
+                    colors={colors}
+                  />
+                ))}
+              </View>
+              {gear.feeSource === 'vegvesen' ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Gruppen er hentet fra Vegvesenet. Du kan endre den.</Text>
+              ) : null}
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {[gear.make, gear.model, gear.year].filter(Boolean).join(' ') || 'Skiltnummeret fyller inn merke og modell.'}
               </Text>

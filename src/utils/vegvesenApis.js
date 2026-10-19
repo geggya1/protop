@@ -121,6 +121,20 @@ function dateKeyOnly(iso) {
   return m ? m[1] : '';
 }
 
+function kilos(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return kilos(value.verdi ?? value.verdiKg ?? value.kg);
+  const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function totalWeightKg(tekniskeData = {}) {
+  const vekter = tekniskeData.vekter || tekniskeData.vekt || {};
+  return kilos(vekter.tillattTotalvekt)
+    || kilos(vekter.tillattTotalVekt)
+    || kilos(tekniskeData.tillattTotalvekt);
+}
+
 function pickFuelLabel(tekniskeData = {}) {
   const groups = tekniskeData?.miljodata?.miljoOgdrivstoffGruppe;
   const list = Array.isArray(groups) ? groups : groups ? [groups] : [];
@@ -169,6 +183,7 @@ export function normalizeKjoretoydata(raw = {}) {
   const tekniskKode = kodeNavn(klass.tekniskKode) || asText(klass.tekniskKode?.kodeVerdi)
     || kodeNavn(generelt.tekniskKode);
   const vehicleType = mapVehicleType(tekniskKode || klass.tekniskKode?.kodeVerdi, klass.beskrivelse);
+  const totalWeight = totalWeightKg(tekniskeData);
   const euControlKey = dateKeyOnly(pkk.kontrollfrist);
   const lastEuKey = dateKeyOnly(pkk.sistGodkjent);
   const title = [make, model].filter(Boolean).join(' ') || formatRegNumber(regNumber);
@@ -185,6 +200,7 @@ export function normalizeKjoretoydata(raw = {}) {
     fuelType,
     fuelLabel,
     vehicleType,
+    totalWeight,
     tekniskKode: asText(tekniskKode || klass.tekniskKode?.kodeVerdi),
     klasseBeskrivelse: asText(klass.beskrivelse),
     euControlKey: euControlKey || null,

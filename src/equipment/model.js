@@ -6,6 +6,7 @@
 import { addDays, dateKey, parseDateKey } from '../utils/dates.js';
 import { eventOccursOnDate } from '../utils/events.js';
 import { equipmentCategory, equipmentGroup } from './catalog.js';
+import { normalizeFeeClass } from '../mileage/vehicleFee.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -62,7 +63,11 @@ export function normalizeEquipment(input = {}) {
     model: text(row.model),
     year: text(row.year),
     fuel: text(row.fuel),
-    electric: !!row.electric,
+    electric: normalizeFeeClass(row.feeClass)
+      ? normalizeFeeClass(row.feeClass) === 'elbil'
+      : (!!row.electric || /elektr|elbil/i.test(text(row.fuel))),
+    feeClass: normalizeFeeClass(row.feeClass) || ((row.electric || /elektr|elbil/i.test(text(row.fuel))) ? 'elbil' : ''),
+    feeSource: row.feeSource === 'vegvesen' ? 'vegvesen' : (normalizeFeeClass(row.feeClass) ? 'manual' : ''),
     location: text(row.location),
     status,
     bookable: row.bookable !== false && status === 'available',
@@ -226,7 +231,11 @@ export function normalizePersonalVehicle(input = {}) {
     model: text(row.model),
     year: text(row.year),
     fuel: text(row.fuel),
-    electric: !!row.electric || /el|elektr/i.test(text(row.fuel)),
+    electric: normalizeFeeClass(row.feeClass)
+      ? normalizeFeeClass(row.feeClass) === 'elbil'
+      : (!!row.electric || /elektr|elbil/i.test(text(row.fuel))),
+    feeClass: normalizeFeeClass(row.feeClass) || ((row.electric || /elektr|elbil/i.test(text(row.fuel))) ? 'elbil' : ''),
+    feeSource: row.feeSource === 'vegvesen' ? 'vegvesen' : (normalizeFeeClass(row.feeClass) ? 'manual' : ''),
     vegvesenSummary: text(row.vegvesenSummary),
     trackOdometer: !!row.trackOdometer,
     odometerStart: Math.max(0, Number(row.odometerStart) || 0),
@@ -290,6 +299,8 @@ export function employeeVehicles(personalVehicles = [], equipment = [], employee
       year: row.year,
       fuel: row.fuel,
       electric: row.electric,
+      feeClass: row.feeClass,
+      feeSource: row.feeSource,
       vegvesenSummary: row.vegvesenSummary,
       trackOdometer: row.trackOdometer,
       odometerStart: row.odometerStart,

@@ -114,6 +114,7 @@ function loadJsx(rel) {
     if (id.endsWith('/firebase') || id.endsWith('/firebase.js') || id === '../../firebase') {
       return { firebaseConfig: { apiKey: '' } };
     }
+    if (id.includes('utils/media')) return { pickReceipt: async () => null, uploadImage: async () => '' };
     if (id.includes('utils/location')) {
       return {
         searchPlaces: async () => [],
@@ -318,6 +319,7 @@ assert.deepEqual(sheetStyle(getTree()), expected, 'kjøretøylisten endrer ikke 
 pressLabel(getTree(), 'Pool');
 press(getTree(), 'mileage-wizard-next');
 assert.ok(texts(getTree()).includes('Én vei, km'));
+assert.ok(texts(getTree()).includes('Legg til kostnad'));
 assert.deepEqual(sheetStyle(getTree()), expected, 'rute-trinnet har samme popup');
 
 const fieldValues = [];
@@ -355,6 +357,7 @@ setImmediate(() => {
     assert.ok(texts(getTree()).includes('Tur/retur'));
     assert.ok(texts(getTree()).includes('10 km'));
     assert.ok(texts(getTree()).includes('Til sammen'));
+    assert.ok(texts(getTree()).includes('Gebyrgruppe'));
     assert.ok(texts(getTree()).includes('Vil du registrere dette som fast prosjektadresse på prosjektet?'));
     assert.equal(texts(getTree()).includes('Lagret i kjøreboken'), false);
     pressLabel(getTree(), 'Nei, ikke lagre prosjektadresse');

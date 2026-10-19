@@ -6,6 +6,7 @@
 
 import { haversineKm } from './routePlan.js';
 import { roundMoney } from '../economy/vat.js';
+import { normalizeFeeClass, tariffIsExact, tollPriceForClass } from './vehicleFee.js';
 
 const NVDB = 'https://nvdbapiles-v3.atlas.vegvesen.no/vegobjekter/45';
 /** Portal står i kjørebanen. Bredere treff tar med parallell veg. */
@@ -39,12 +40,16 @@ export function normalizeTollStation(raw) {
   const name = text(prop(raw, 'Navn bomstasjon'));
   if (!point || !name) return null;
   const price = Number(prop(raw, 'Takst liten bil'));
+  const priceElectric = Number(prop(raw, 'Takst liten elbil'));
+  const priceHeavy = Number(prop(raw, 'Takst stor bil'));
   return {
     id: String(raw.id || name),
     name,
     lat: point.lat,
     lng: point.lng,
-    price: Number.isFinite(price) && price > 0 ? price : 0,
+    price: Number.isFinite(price) && price >= 0 ? price : 0,
+    priceElectric: Number.isFinite(priceElectric) && priceElectric >= 0 ? priceElectric : null,
+    priceHeavy: Number.isFinite(priceHeavy) && priceHeavy >= 0 ? priceHeavy : null,
     direction: text(prop(raw, 'Innkrevningsretning')),
   };
 }
@@ -123,9 +128,13 @@ function nearestOnRoute(points, spot) {
 
 /**
  * Én rad per portal ruta faktisk kjører gjennom.
- * Tur/retur teller to passeringer. Taksten er NVDB sin pris for liten bil.
+ * Tur/retur teller to passeringer. Taksten følger bilens gebyrgruppe.
  */
-export function tollPassagesForRoute(points, stations, { roundTrip = true, maxMeters = TOLL_PASS_METERS } = {}) {
+export function tollPassagesForRoute(points, stations, {
+  roundTrip = true,
+  maxMeters = TOLL_PASS_METERS,
+  feeClass = 'lett',
+} = {}) {
   const path = (points || []).filter((point) => Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng)));
   if (path.length < 2) return [];
   const hits = [];
@@ -142,19 +151,26 @@ export function tollPassagesForRoute(points, stations, { roundTrip = true, maxMe
   }
   kept.sort((a, b) => a.index - b.index);
   const passes = roundTrip ? 2 : 1;
-  return kept.map((station) => ({
-    id: `nvdb-${station.id}`,
-    name: station.name,
-    kind: 'toll',
-    passes,
-    unitPrice: station.price,
-    amount: roundMoney(station.price * passes),
-    source: 'nvdb',
-  }));
+  const tariff = normalizeFeeClass(feeClass) || 'lett';
+  return kept.map((station) => {
+    const unitPrice = tollPriceForClass(station, tariff);
+    return {
+      id: `nvdb-${station.id}`,
+      name: station.name,
+      kind: 'toll',
+      passes,
+      unitPrice,
+      amount: roundMoney(unitPrice * passes),
+      source: 'nvdb',
+      tariff,
+      tariffExact: tariffIsExact(station, tariff),
+    };
+  });
 }
 
-export function ferryPassages(ferries, { roundTrip = true } = {}) {
+export function ferryPassages(ferries, { roundTrip = true, feeClass = 'lett' } = {}) {
   const passes = roundTrip ? 2 : 1;
+  const tariff = normalizeFeeClass(feeClass) || 'lett';
   const seen = new Set();
   const rows = [];
   for (const ferry of ferries || []) {
@@ -162,15 +178,22 @@ export function ferryPassages(ferries, { roundTrip = true } = {}) {
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    const price = Number(ferry?.price) || 0;
+    const unitPrice = tollPriceForClass({
+      price: ferry?.price,
+      priceElectric: ferry?.priceElectric,
+      priceHeavy: ferry?.priceHeavy,
+      priceMotorcycle: ferry?.priceMotorcycle,
+    }, tariff);
     rows.push({
       id: `ferry-${key.replace(/[^a-z0-9æøå]+/gi, '-').replace(/^-|-$/g, '') || rows.length}`,
       name,
       kind: 'ferry',
       passes,
-      unitPrice: price,
-      amount: roundMoney(price * passes),
+      unitPrice,
+      amount: roundMoney(unitPrice * passes),
       source: text(ferry?.source) || 'rute',
+      tariff,
+      tariffExact: tariffIsExact(ferry, tariff),
     });
   }
   return rows;

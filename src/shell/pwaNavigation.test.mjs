@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   applyBootNavigation,
   bootNavigationKind,
@@ -6,6 +9,13 @@ import {
   shouldBounceApexToWww,
   urlOnCurrentHost,
 } from './pwaNavigation.js';
+
+const appSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../App.jsx'), 'utf8');
+assert.doesNotMatch(
+  appSource,
+  /\blaunchRev\b/,
+  'a bare launchRev is erased by the minifier and crashes Safari',
+);
 
 assert.equal(isProtopAppHost('protop.no'), true);
 assert.equal(isProtopAppHost('www.protop.no'), true);

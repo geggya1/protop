@@ -80,6 +80,16 @@ const refreshed = mergeCompanyProfile(
 assert.equal(refreshed.organisasjonsnummer, '916538804');
 assert.equal(refreshed.telefon, '11223344');
 assert.equal(refreshed.subUnits.length, 1);
+const withTravel = mergeCompanyProfile(
+  { navn: 'CONSULT1 AS', organisasjonsnummer: '916538804', addressLabel: '2 Etasje Svanholmen 7, 4313 SANDNES' },
+  {
+    ...hovedenhet,
+    kjoeradresse: { gate: 'Svanholmen 7', postnummer: '4313', poststed: 'Sandnes' },
+    addressLabel: 'Svanholmen 7, 4313 Sandnes',
+  },
+);
+assert.equal(withTravel.kjoeradresse.gate, 'Svanholmen 7');
+assert.equal(withTravel.addressLabel, 'Svanholmen 7, 4313 Sandnes');
 
 const shown = presentCompanyLogo({ dataUrl: TINY });
 assert.equal(shown.width, 12);

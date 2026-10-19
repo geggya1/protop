@@ -385,6 +385,14 @@ function pickFromFileInput({ camera = false, multiple = false, accept = 'image/*
   });
 }
 
+/** Bilde eller PDF som bilag. På nett åpnes filvelgeren, ellers bildebiblioteket. */
+export async function pickReceipt() {
+  if (Platform.OS === 'web') {
+    return pickFromFileInput({ accept: 'image/*,application/pdf,.pdf' });
+  }
+  return pickImage({ camera: false, edit: false });
+}
+
 export async function pickImage({ camera = false, edit = true, aspect = [1, 1] } = {}) {
   if (Platform.OS === 'web') {
     return pickFromFileInput({ camera });

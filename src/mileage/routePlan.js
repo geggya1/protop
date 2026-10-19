@@ -5,6 +5,7 @@
  */
 
 import { roundMoney } from '../economy/vat.js';
+import { normalizeFeeClass, tariffIsExact, tollPriceForClass } from './vehicleFee.js';
 
 /** Én passering, personbil. Oppdateres av driften ved å endre beløpet på turen. */
 export const ROUTE_CHARGES = [
@@ -128,20 +129,24 @@ function ferryHit(points, station) {
  * Tur/retur teller to passeringer når ruten treffer stasjonen én vei.
  * Beløpet kan overstyres på den enkelte turen.
  */
-export function chargesForRoute(points, { roundTrip = true, catalog = ROUTE_CHARGES } = {}) {
+export function chargesForRoute(points, { roundTrip = true, catalog = ROUTE_CHARGES, feeClass = 'lett' } = {}) {
   const passes = roundTrip ? 2 : 1;
+  const tariff = normalizeFeeClass(feeClass) || 'lett';
   const hits = [];
   for (const station of catalog || []) {
     const hit = station.kind === 'ferry' ? ferryHit(points, station) : zoneHit(points, station);
     if (!hit) continue;
+    const unitPrice = tollPriceForClass(station, tariff);
     hits.push({
       id: station.id,
       name: station.name,
       kind: station.kind,
       passes,
-      unitPrice: station.price,
-      amount: roundMoney(station.price * passes),
+      unitPrice,
+      amount: roundMoney(unitPrice * passes),
       source: 'katalog',
+      tariff,
+      tariffExact: tariffIsExact(station, tariff),
     });
   }
   return hits;

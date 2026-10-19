@@ -5,6 +5,8 @@
 
 import { calcLineVat, roundMoney } from './vat.js';
 import { text } from './invoices.js';
+import { normalizeCustomerCosts, sumCustomerCosts } from '../mileage/customerCosts.js';
+import { normalizeFeeClass } from '../mileage/vehicleFee.js';
 
 /** Skattefri km-godtgjørelse 2026 (privat bil, også el). */
 export const MILEAGE_RATE_TAX_FREE = 3.5;
@@ -70,6 +72,10 @@ export function emptyTrip(overrides = {}) {
     roundTrip: true,
     routeSource: '',
     routeCharges: [],
+    extraCosts: [],
+    charging: 0,
+    otherCosts: 0,
+    feeClass: '',
     expenseId: '',
     fromLat: null,
     fromLng: null,
@@ -90,6 +96,8 @@ function chargeRows(input) {
     unitPrice: roundMoney(Math.max(0, Number(row?.unitPrice) || 0)),
     amount: roundMoney(Math.max(0, Number(row?.amount) || 0)),
     source: text(row?.source),
+    tariff: normalizeFeeClass(row?.tariff),
+    tariffExact: row?.tariffExact === true,
   })).filter((row) => row.name);
 }
 
@@ -119,12 +127,22 @@ export function normalizeTrip(input = {}) {
   const tolls = row.tolls == null || row.tolls === ''
     ? tollFromCharges
     : Math.max(0, Number(row.tolls) || 0);
-  const parking = Math.max(0, Number(row.parking) || 0);
+  const listedCosts = Array.isArray(row.extraCosts);
+  const extraCosts = normalizeCustomerCosts(row.extraCosts);
+  const parking = listedCosts
+    ? sumCustomerCosts(extraCosts, 'parking')
+    : Math.max(0, Number(row.parking) || 0);
+  const charging = listedCosts
+    ? sumCustomerCosts(extraCosts, 'charging')
+    : Math.max(0, Number(row.charging) || 0);
+  const otherCosts = listedCosts
+    ? sumCustomerCosts(extraCosts, 'other')
+    : Math.max(0, Number(row.otherCosts) || 0);
   const ferries = row.ferries == null || row.ferries === ''
     ? ferryFromCharges
     : Math.max(0, Number(row.ferries) || 0);
   const allowance = roundMoney(distance * rate + passengers * PASSENGER_RATE * distance);
-  const extras = roundMoney(tolls + parking + ferries);
+  const extras = roundMoney(tolls + parking + charging + otherCosts + ferries);
   const status = TRIP_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
   return {
     id: text(row.id),
@@ -144,7 +162,11 @@ export function normalizeTrip(input = {}) {
     passengers,
     tolls: roundMoney(tolls),
     parking: roundMoney(parking),
+    charging: roundMoney(charging),
+    otherCosts: roundMoney(otherCosts),
+    extraCosts,
     ferries: roundMoney(ferries),
+    feeClass: normalizeFeeClass(row.feeClass),
     rate,
     allowance,
     extras,
@@ -210,9 +232,18 @@ export function tripInvoiceLine(trip, { vatCode = 'HIGH' } = {}) {
     ...calc,
   }];
   if (row.extras > 0) {
+    const parts = [];
+    if (row.tolls > 0) parts.push('bom');
+    if (row.ferries > 0) parts.push('ferje');
+    if (row.parking > 0) parts.push('parkering');
+    if (row.charging > 0) parts.push('lading');
+    if (row.otherCosts > 0) parts.push('andre kostnader');
+    const description = parts.length
+      ? `${parts[0].charAt(0).toUpperCase()}${parts[0].slice(1)}${parts.length > 1 ? `, ${parts.slice(1).join(', ')}` : ''}`
+      : 'Bom / parkering';
     lines.push({
       id: `trip_${row.id || 'x'}_bom`,
-      description: 'Bom / parkering',
+      description,
       quantity: 1,
       unit: 'stk',
       unitPrice: row.extras,

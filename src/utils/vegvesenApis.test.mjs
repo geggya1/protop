@@ -80,6 +80,11 @@ assert.equal(vehicle.model, 'Golf');
 assert.equal(vehicle.year, '2019');
 assert.equal(vehicle.fuelType, 'electric');
 assert.equal(vehicle.vehicleType, 'car');
+assert.equal(vehicle.totalWeight, null);
+assert.equal(normalizeKjoretoydata({
+  kjoretoyId: { kjennemerke: 'AB12345' },
+  godkjenning: { tekniskGodkjenning: { tekniskeData: { vekter: { tillattTotalvekt: '7 500' } } } },
+}).totalWeight, 7500);
 assert.equal(vehicle.euControlKey, '2026-04-30');
 assert.equal(vehicle.understellsnummer, 'WVWZZZ1KZAW123456');
 assert.match(vehicle.summaryLine, /Volkswagen/);

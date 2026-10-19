@@ -335,7 +335,7 @@ export default function App() {
   const [childData, setChildData] = useState(null);
   const [childFamilyId, setChildFamilyId] = useState(null);
   const [childResolving, setChildResolving] = useState(false);
-  const [launchRev, setLaunchRev] = useState(0);
+  const [, setLaunchRev] = useState(0);
 
   useEffect(() => {
     // On web, font loading can fail/corrupt due to cached assets.
@@ -853,7 +853,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   const pendingMarketingRedirect = (() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
     if (user || justRegisteredEmail) return false;
-    void launchRev;
     try {
       const p = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       return p === '/hjem' || p === '/start';

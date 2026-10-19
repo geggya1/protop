@@ -36,6 +36,17 @@ function joinAddress(street, postalCode, placeName) {
   return [streetText, tail].filter(Boolean).join(', ');
 }
 
+/** «2 Etasje» og «2. etasje» er ikke en gate. Etasjeveien blir stående. */
+export function stripFloorPhrase(value) {
+  return text(value)
+    .replace(/(?:^|[,\s]+)\d{0,2}\.?\s*etasje\b/gi, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,+/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[,\s]+|[,\s]+$/g, '')
+    .trim();
+}
+
 function agreementForProject(project, contracts) {
   const list = (Array.isArray(contracts) ? contracts : []).filter((row) => row && !row.deletedAt);
   const byId = text(project?.contractId)
@@ -115,28 +126,57 @@ export function projectDestinationSuggestion(project, sources = {}) {
  */
 export function companyAddressParts(company) {
   if (!company) return null;
+  const travel = company.kjoeradresse && typeof company.kjoeradresse === 'object' ? company.kjoeradresse : {};
   const business = company.forretning && typeof company.forretning === 'object' ? company.forretning : {};
-  const lines = (Array.isArray(business.lines) ? business.lines : [])
-    .map(text)
-    .filter((line) => line && !/etasje/i.test(line));
-  let street = lines.join(', ') || text(company.adresse);
-  let postnummer = text(business.postnummer) || text(company.postnummer);
-  let poststed = text(business.poststed) || text(company.poststed);
-  const stored = text(company.addressLabel) || text(business.label);
-  if (stored && (!street || !postnummer)) {
+  let street = stripFloorPhrase(travel.gate || travel.adresse || '');
+  let postnummer = text(travel.postnummer);
+  let poststed = text(travel.poststed);
+  const overridden = !!street;
+  if (!street) {
+    const lines = (Array.isArray(business.lines) ? business.lines : [])
+      .map((line) => stripFloorPhrase(line))
+      .filter(Boolean);
+    street = lines.join(', ') || stripFloorPhrase(company.adresse);
+    if (!postnummer) postnummer = text(business.postnummer) || text(company.postnummer);
+    if (!poststed) poststed = text(business.poststed) || text(company.poststed);
+  }
+  const stored = stripFloorPhrase(text(company.addressLabel) || text(business.label));
+  if (!overridden && stored && (!street || !postnummer)) {
     const parsed = parseNorwegianAddressQuery(stored);
     if (!street && parsed.adressenavn) {
       const number = parsed.nummer != null ? `${parsed.nummer}${parsed.bokstav || ''}` : '';
-      street = [parsed.adressenavn, number].filter(Boolean).join(' ');
+      street = stripFloorPhrase([parsed.adressenavn, number].filter(Boolean).join(' '));
     }
     if (!postnummer) postnummer = parsed.postnummer;
     if (!poststed) poststed = parsed.sted;
   }
+  street = stripFloorPhrase(street);
   const label = street && (postnummer || poststed)
     ? joinAddress(street, postnummer, poststed)
     : (stored || [street, postnummer, poststed].filter(Boolean).join(' '));
   if (!label) return null;
   return { street, postnummer, poststed, label };
+}
+
+/**
+ * Firmaadressen som søketreff når teksten treffer gate, postnummer eller sted.
+ * Treffet geokodes når det velges, slik at etasje-tekst ikke blir stående i feltet.
+ */
+export function companyAddressSearchHit(company, query) {
+  const parts = companyAddressParts(company);
+  if (!parts?.label) return null;
+  const q = text(query).toLowerCase();
+  if (q.length < 3) return null;
+  const blob = `${parts.street} ${parts.postnummer} ${parts.poststed} ${parts.label}`.toLowerCase();
+  if (!blob.includes(q)) return null;
+  return {
+    placeId: 'company-address',
+    label: parts.label,
+    adressetekst: parts.street,
+    postnummer: parts.postnummer,
+    poststed: parts.poststed,
+    source: 'company',
+  };
 }
 
 export function companyAddressLabel(company) {
@@ -272,11 +312,19 @@ export function roundTripKm(oneWayKm) {
   return roundMoney(one * 2);
 }
 
-export function tripCost({ km = 0, rate = 0, tolls = 0, ferries = 0, parking = 0 } = {}) {
+export function tripCost({
+  km = 0, rate = 0, tolls = 0, ferries = 0, parking = 0, charging = 0, other = 0,
+} = {}) {
   const distance = Math.max(0, Number(km) || 0);
   const kroner = Math.max(0, Number(rate) || 0);
   const allowance = roundMoney(distance * kroner);
-  const extras = roundMoney((Number(tolls) || 0) + (Number(ferries) || 0) + (Number(parking) || 0));
+  const extras = roundMoney(
+    (Number(tolls) || 0)
+    + (Number(ferries) || 0)
+    + (Number(parking) || 0)
+    + (Number(charging) || 0)
+    + (Number(other) || 0),
+  );
   return {
     allowance,
     extras,

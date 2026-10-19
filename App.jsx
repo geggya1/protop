@@ -165,7 +165,8 @@ import {
   shouldReloadForRemoteBuild,
   shouldSkipWebBuildRefresh,
 } from './src/utils/webBuildRefresh';
-import { markPreferApp, clearPreferApp } from './src/utils/preferApp';
+import { markPreferApp, clearPreferApp, isStandaloneDisplay } from './src/utils/preferApp';
+import { applyBootNavigation } from './src/shell/pwaNavigation';
 import { shouldHoldFamilyBootSpinner, shouldRedirectStartUrlToMarketing } from './src/utils/authBootGate';
 import {
   ensurePersonalShellForUser,
@@ -183,7 +184,7 @@ if (Platform.OS === 'web') {
     navigator.serviceWorker.getRegistrations().then((regs) => {
       regs.forEach((r) => {
         const url = r.active?.scriptURL || r.waiting?.scriptURL || r.installing?.scriptURL || '';
-        if (url.includes('push-sw.js') || url.includes('firebase-messaging-sw')) return;
+        if (!url || url.includes('push-sw.js')) return;
         r.unregister();
       });
     });
@@ -334,6 +335,7 @@ export default function App() {
   const [childData, setChildData] = useState(null);
   const [childFamilyId, setChildFamilyId] = useState(null);
   const [childResolving, setChildResolving] = useState(false);
+  const [launchRev, setLaunchRev] = useState(0);
 
   useEffect(() => {
     // On web, font loading can fail/corrupt due to cached assets.
@@ -445,11 +447,17 @@ export default function App() {
         const pending = peekPendingAddFriend() || capturePendingAddFriendFromLocation(window.location.href);
         if (pending) {
           persistPendingAddFriend(pending);
-          window.location.replace(`/signup?addFriend=${encodeURIComponent(pending)}`);
+          const nav = applyBootNavigation(
+            window,
+            `/signup?addFriend=${encodeURIComponent(pending)}`,
+            { standalone: isStandaloneDisplay() },
+          );
+          if (nav.kind === 'replaceState') setLaunchRev((n) => n + 1);
           return;
         }
         clearPreferApp();
-        window.location.replace('/');
+        const nav = applyBootNavigation(window, '/', { standalone: isStandaloneDisplay() });
+        if (nav.kind === 'replaceState') setLaunchRev((n) => n + 1);
       }
     } catch { /* ignore */ }
   }, [isWeb, user, justRegisteredEmail, authBootstrapped, loading]);
@@ -845,6 +853,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   const pendingMarketingRedirect = (() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
     if (user || justRegisteredEmail) return false;
+    void launchRev;
     try {
       const p = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       return p === '/hjem' || p === '/start';

@@ -78,13 +78,13 @@ const pwaMeta = [
 ];
 const standaloneBoot = `  <style data-protop-standalone>
     @media (display-mode: standalone), (display-mode: fullscreen) {
-      html, body, #root { height: 100lvh !important; min-height: 100lvh !important; }
+      html, body, #root { height: 100dvh !important; min-height: 100dvh !important; max-height: 100dvh !important; }
     }
     html[data-standalone="1"], html[data-standalone="1"] body, html[data-standalone="1"] #root {
-      height: 100lvh !important; min-height: 100lvh !important;
+      height: 100dvh !important; min-height: 100dvh !important; max-height: 100dvh !important;
     }
   </style>
-  <script data-protop-standalone>(function(){try{var n=navigator;var m=window.matchMedia;var s=n.standalone===true||(!!m&&(m('(display-mode: standalone)').matches||m('(display-mode: fullscreen)').matches));if(s)document.documentElement.setAttribute('data-standalone','1');}catch(e){}})();</script>`;
+  <script data-protop-standalone>(function(){try{var n=navigator;var m=window.matchMedia;var s=n.standalone===true||(!!m&&(m('(display-mode: standalone)').matches||m('(display-mode: fullscreen)').matches));if(s)document.documentElement.setAttribute('data-standalone','1');var link=document.querySelector('link[rel="manifest"]');console.info('[protop-pwa]',{href:location.href,origin:location.origin,manifest:link&&link.href,standalone:s,navigatorStandalone:n.standalone===true});if(n.serviceWorker&&n.serviceWorker.getRegistrations){n.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){var url=(r.active&&r.active.scriptURL)||(r.waiting&&r.waiting.scriptURL)||(r.installing&&r.installing.scriptURL)||'';if(url&&url.indexOf('push-sw.js')===-1)r.unregister();});});}}catch(e){}})();</script>`;
 const vvBoot = `  <script data-protop-vv>(function(){function f(){try{var vv=window.visualViewport;var ih=window.innerHeight||0;var raw=vv&&Number(vv.height);var h=Math.max(0,Math.round(isFinite(raw)&&raw>0?raw:ih));var t=Math.max(0,Math.round((vv&&Number(vv.offsetTop))||0));var b=Math.max(0,Math.round(ih)-h-t);var r=document.documentElement.style;r.setProperty('--protop-vv-top',t+'px');r.setProperty('--protop-vv-height',h+'px');r.setProperty('--protop-vv-bottom',b+'px');}catch(e){}}f();try{var vv=window.visualViewport;if(vv){vv.addEventListener('resize',f);vv.addEventListener('scroll',f);}window.addEventListener('resize',f);}catch(e){}})();</script>`;
 if (!/data-protop-vv/.test(html)) {
   html = html.replace('</head>', `${vvBoot}\n  </head>`);

@@ -28,6 +28,8 @@ import {
   mergeExternalEvents,
 } from './externalCalendarMerge';
 import { assertClientCallableBudget, dedupeInflight } from './costGuards';
+import { shouldBounceApexToWww } from '../shell/pwaNavigation';
+import { isStandaloneDisplay } from './preferApp';
 
 const OAUTH_REDIRECT_PATH = 'oauth/calendar';
 const OAUTH_STORAGE_KEY = 'weekplan.calendar.oauth';
@@ -748,7 +750,10 @@ export async function beginMicrosoftAccountSignIn() {
   }
   // Prefer www so redirect URI matches the Azure Web registration used by Outlook.
   try {
-    if (typeof window !== 'undefined' && window.location.hostname === 'protop.no') {
+    if (typeof window !== 'undefined' && shouldBounceApexToWww({
+      hostname: window.location.hostname,
+      standalone: isStandaloneDisplay(),
+    })) {
       const url = new URL(window.location.href);
       url.hostname = 'www.protop.no';
       window.location.replace(url.toString());

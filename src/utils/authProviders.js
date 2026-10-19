@@ -11,6 +11,8 @@ import { auth, firebaseConfig } from '../../firebase';
 import { isLocalWebHost } from './webBuildRefresh';
 import { shouldUseFirebaseGoogleOnLocal } from './googleLocalAuth';
 import { isCalendarOauthReturn } from './calendarOAuthCapture';
+import { shouldBounceApexToWww } from '../shell/pwaNavigation';
+import { isStandaloneDisplay } from './preferApp';
 
 /**
  * ProTop web client (protop-c189c). Google only accepts JavaScript origins and
@@ -85,7 +87,10 @@ function getOauthPending() {
 function bounceToWwwIfApex() {
   if (typeof window === 'undefined') return false;
   try {
-    if (window.location.hostname !== 'protop.no') return false;
+    if (!shouldBounceApexToWww({
+      hostname: window.location.hostname,
+      standalone: isStandaloneDisplay(),
+    })) return false;
     const url = new URL(window.location.href);
     url.hostname = 'www.protop.no';
     window.location.replace(url.toString());

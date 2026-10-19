@@ -1,8 +1,9 @@
 /**
  * Installed Safari web app (Add to Home Screen).
- * iOS sizes 100dvh to the screen minus the status-bar inset, so a shell
- * that uses it stops short and the system keeps a bar at the top and bottom.
- * 100lvh is the full screen. See app.web.css.
+ * The shell uses the dynamic viewport (100dvh). A large viewport (100lvh)
+ * is taller than the window iOS shows, and the bottom menu then sits
+ * below the visible edge. Status bar and home indicator are padded
+ * inside the header and the bottom menu. See app.web.css.
  */
 
 export function isStandaloneWeb() {

@@ -2,6 +2,7 @@
   "name": "ProTop",
   "short_name": "ProTop",
   "description": "ProTop. Digitale l\u00f8sninger for bygg og anlegg.",
+  "id": "/",
   "start_url": "/hjem",
   "scope": "/",
   "display": "standalone",

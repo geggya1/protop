@@ -184,6 +184,34 @@ assert.equal(smallFit.notices[0].dossier.portalFiles[0].name, 'Krav.pdf');
 assert.equal(smallFit.notices[0].dossier.portalFiles[0].dataUrl, undefined);
 assert.equal(smallFit.agreementCases[0].id, 'sak_1');
 
+const longFileUrl = `https://firebasestorage.googleapis.com/v0/b/protop-c189c.firebasestorage.app/o/${'families%2Ffam%2Fanbud%2Fcontracts%2F'}fil.pdf?alt=media&token=${'a'.repeat(36)}`;
+const mergedFiles = mergeAnbudStates({
+  contracts: [{
+    id: 'kon_1',
+    title: 'Breitorget · Prosjektleder',
+    documents: [{
+      id: 'dok-1',
+      name: '251219 Oppdragsavtale Consult1 AS-sign.pdf',
+      url: longFileUrl,
+      storagePath: 'families/fam/anbud/contracts/fil.pdf',
+    }],
+  }],
+}, {
+  contracts: [{
+    id: 'kon_1',
+    title: 'Breitorget · Prosjektleder',
+    documents: [{
+      id: 'dok-1',
+      name: '251219 Oppdragsavtale Consult1 AS-sign.pdf',
+      uri: 'blob:https://protop.no/dead',
+      url: '',
+    }],
+  }],
+});
+assert.equal(mergedFiles.contracts[0].documents[0].url, longFileUrl);
+assert.equal(mergedFiles.contracts[0].documents[0].storagePath, 'families/fam/anbud/contracts/fil.pdf');
+assert.equal(mergedFiles.contracts[0].documents[0].uri, '');
+
 const circular = emptyAnbudState();
 circular.notices = [{ id: '2026-9', title: 'Sirkel', decision: 'ubestemt', description: 'Tekst' }];
 circular.notices[0].self = circular.notices[0];

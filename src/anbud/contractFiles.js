@@ -14,6 +14,64 @@ export function agreementFilePath(companyId, fileName, salt = '') {
   return `families/${id}/anbud/contracts/${unique}-${safeAgreementFileName(fileName)}`;
 }
 
+function href(value) {
+  return String(value || '').trim();
+}
+
+/** Varig fil: https-adresse og lagringssti. blob:- og data:-URLer dør med fanen. */
+export function agreementFileIsDurable(file) {
+  const url = href(file?.url);
+  const storagePath = href(file?.storagePath);
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (!storagePath || storagePath.includes('..')) return false;
+  if (/^https?:/i.test(storagePath) || storagePath.startsWith('blob:') || storagePath.startsWith('data:')) return false;
+  return true;
+}
+
+/** Filen har innhold som må opp i Storage før avtalen kan lagres. */
+export function agreementFileNeedsUpload(file) {
+  if (!file || agreementFileIsDurable(file)) return false;
+  return !!(file.blob || href(file.uri) || href(file.dataUrl));
+}
+
+/**
+ * Sørger for at originalfilen ligger i Storage.
+ * En lokal blob- eller data-URL er bare til forhåndsvisning i denne fanen.
+ */
+export async function ensureAgreementOriginal(companyId, file, options = {}) {
+  if (!file) return file;
+  if (agreementFileIsDurable(file)) {
+    return {
+      ...file,
+      uri: href(file.uri).startsWith('blob:') ? '' : href(file.uri),
+      dataUrl: '',
+    };
+  }
+  if (!agreementFileNeedsUpload(file)) {
+    return {
+      ...file,
+      uri: href(file.uri).startsWith('blob:') ? '' : href(file.uri),
+    };
+  }
+  const uploaded = await uploadAgreementFile(companyId, {
+    blob: file.blob || null,
+    uri: href(file.uri),
+    name: href(file.name) || 'Avtale.pdf',
+    mimeType: href(file.mimeType) || 'application/pdf',
+    size: Number(file.size) || 0,
+  }, options);
+  return {
+    ...file,
+    url: uploaded.url,
+    storagePath: uploaded.storagePath,
+    name: uploaded.name || file.name,
+    mimeType: uploaded.mimeType || file.mimeType,
+    size: uploaded.size || file.size || 0,
+    uri: '',
+    dataUrl: '',
+  };
+}
+
 /** Laster opp én avtale-fil og returnerer varig nedlastings-URL. */
 export async function uploadAgreementFile(companyId, picked, options = {}) {
   const name = text(picked?.name) || 'avtale.pdf';

@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { agreementFilePath, safeAgreementFileName } from './contractFiles.js';
+import {
+  agreementFileIsDurable,
+  agreementFileNeedsUpload,
+  agreementFilePath,
+  safeAgreementFileName,
+} from './contractFiles.js';
 
 assert.equal(safeAgreementFileName('C1-H-03-001 Oppdragsavtale NS8403.pdf'), 'C1-H-03-001 Oppdragsavtale NS8403.pdf');
 assert.match(safeAgreementFileName('weird/name?.pdf'), /weird_name_\.pdf|weird_name/);
@@ -8,5 +13,18 @@ assert.equal(path, 'families/fam1/anbud/contracts/1-a-avtale.pdf');
 const a = agreementFilePath('fam1', 'a.pdf', 'batch-0');
 const b = agreementFilePath('fam1', 'b.pdf', 'batch-1');
 assert.notEqual(a, b);
+
+const stored = {
+  name: '251219 Oppdragsavtale Consult1 AS-sign.pdf',
+  url: 'https://firebasestorage.googleapis.com/v0/b/protop.appspot.com/o/families%2Ffam%2Fanbud%2Fcontracts%2Ffil.pdf?alt=media&token=abc',
+  storagePath: 'families/fam/anbud/contracts/fil.pdf',
+  uri: 'blob:https://protop.no/03e14055-bc3a-431f-9d74-b64f9ba98574',
+};
+assert.equal(agreementFileIsDurable(stored), true);
+assert.equal(agreementFileNeedsUpload(stored), false);
+assert.equal(agreementFileIsDurable({ ...stored, url: '', uri: stored.uri }), false);
+assert.equal(agreementFileNeedsUpload({ name: 'avtale.pdf', uri: stored.uri, blob: { size: 10 } }), true);
+assert.equal(agreementFileNeedsUpload({ name: 'notat.txt', text: 'bare tekst' }), false);
+assert.equal(agreementFileIsDurable({ ...stored, storagePath: 'families/fam/../secret' }), false);
 
 console.log('contractFiles ok');

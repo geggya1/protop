@@ -49,8 +49,19 @@ export function documentLooksBinary(doc) {
   return /\.(pdf|docx?|xlsx?|pptx?)$/i.test(name);
 }
 
+function keptFileHref(value) {
+  const href = String(value || '').trim();
+  if (!href || href.startsWith('blob:')) return '';
+  return href;
+}
+
 export function documentHasOriginalFile(doc) {
-  return !!(doc?.dataUrl || doc?.url || doc?.uri || String(doc?.storagePath || '').trim());
+  return !!(
+    keptFileHref(doc?.dataUrl)
+    || keptFileHref(doc?.url)
+    || keptFileHref(doc?.uri)
+    || String(doc?.storagePath || '').trim()
+  );
 }
 
 export function documentIsOpenable(doc) {
@@ -60,7 +71,7 @@ export function documentIsOpenable(doc) {
 }
 
 export function documentFileHref(doc) {
-  return doc?.dataUrl || doc?.url || doc?.uri || '';
+  return keptFileHref(doc?.dataUrl) || keptFileHref(doc?.url) || keptFileHref(doc?.uri) || '';
 }
 
 /** Forhåndsvisningsmodus for avtaledokumenter. */

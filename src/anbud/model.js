@@ -334,12 +334,42 @@ function pickWatch(left, right) {
   };
 }
 
+function httpUrl(value) {
+  const href = String(value || '').trim();
+  return /^https?:\/\//i.test(href) ? href : '';
+}
+
+function fileKeepScore(doc) {
+  if (!doc) return -1;
+  let score = 0;
+  if (httpUrl(doc.url)) score += 4;
+  if (String(doc.storagePath || '').trim()) score += 2;
+  if (String(doc.dataUrl || '').startsWith('data:')) score += 1;
+  return score;
+}
+
+function preferKeptFile(current, next) {
+  if (!current) return next;
+  if (!next) return current;
+  return fileKeepScore(next) >= fileKeepScore(current) ? next : current;
+}
+
+function preferHttpUrl(left, right) {
+  const a = httpUrl(left);
+  const b = httpUrl(right);
+  if (a.length >= b.length) return a || b;
+  return b || a;
+}
+
 function mergeContractFiles(left, right) {
   const merged = mergeById(left, right);
   const kept = new Map();
   for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
     for (const doc of row?.documents || []) {
-      if (doc?.id && (doc.dataUrl || doc.uri || doc.url)) kept.set(`${row.id}:${doc.id}`, doc);
+      if (!doc?.id) continue;
+      if (!httpUrl(doc.url) && !String(doc.storagePath || '').trim() && !doc.dataUrl && !doc.uri) continue;
+      const key = `${row.id}:${doc.id}`;
+      kept.set(key, preferKeptFile(kept.get(key), doc));
     }
   }
   return merged.map((row) => ({
@@ -347,11 +377,15 @@ function mergeContractFiles(left, right) {
     documents: (row.documents || []).map((doc) => {
       const extra = kept.get(`${row.id}:${doc.id}`);
       if (!extra) return doc;
+      const uri = String(doc.uri || '').startsWith('blob:')
+        ? (String(extra.uri || '').startsWith('blob:') ? '' : (extra.uri || ''))
+        : (doc.uri || extra.uri || '');
       return {
         ...doc,
         dataUrl: doc.dataUrl || extra.dataUrl || '',
-        uri: doc.uri || extra.uri || '',
-        url: doc.url || extra.url || '',
+        uri: String(uri).startsWith('blob:') ? '' : uri,
+        url: preferHttpUrl(doc.url, extra.url),
+        storagePath: String(doc.storagePath || extra.storagePath || '').trim(),
       };
     }),
   }));
@@ -649,10 +683,11 @@ function stripSecondary(state) {
       documents: (row.documents || []).slice(0, 20).map((doc) => ({
         id: doc.id,
         name: String(doc.name || doc.title || '').slice(0, 180),
-        url: String(doc.url || '').slice(0, 300),
-        storagePath: String(doc.storagePath || '').slice(0, 300),
+        url: String(doc.url || '').slice(0, 2000),
+        storagePath: String(doc.storagePath || '').slice(0, 500),
         mimeType: doc.mimeType || '',
         role: doc.role || '',
+        size: Number(doc.size) || 0,
       })),
       regulations: (row.regulations || []).slice(0, 8).map((item) => ({
         id: item.id,

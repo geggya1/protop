@@ -156,6 +156,8 @@ export function normalizeSale(input = {}) {
     purchaseVatAmount: optionalMoney(row.purchaseVatAmount),
     purchaseAmountInclVat: optionalMoney(row.purchaseAmountInclVat),
     importFingerprint: text(row.importFingerprint),
+    externalStore: row.externalStore === true || row.storage === 'productSales',
+    storage: row.externalStore === true || row.storage === 'productSales' ? 'productSales' : '',
     lockAmounts,
     source: row.source && typeof row.source === 'object' ? row.source : null,
     amountExVat: explicitEx != null ? explicitEx : calc.amountExVat,

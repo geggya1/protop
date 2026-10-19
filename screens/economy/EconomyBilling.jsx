@@ -20,6 +20,13 @@ import {
   saveProjectExpenses,
   withoutExternalExpenses,
 } from '../../src/economy/expenseStorage.js';
+import {
+  isExternalSale,
+  loadProductSales,
+  mergeSaleLists,
+  saveProductSales,
+  withoutExternalSales,
+} from '../../src/economy/productSalesStorage.js';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 import { createCreditNoteFromInvoice } from '../../src/economy/billingFromHours.js';
 import {
@@ -73,15 +80,17 @@ export default function EconomyBilling() {
       loadProjectState(familyId),
       invoiceStorage.loadInvoices(familyId),
       loadProjectExpenses(familyId).catch(() => []),
+      loadProductSales(familyId).catch(() => []),
       loadAnbudState(familyId).catch(() => null),
       loadCases().catch(() => []),
       loadIndexCache().catch(() => null),
       loadRemoteIndexSnapshot().catch(() => null),
-    ]).then(([projects, inv, remoteExpenses, anbud, cases, cache, remote]) => {
+    ]).then(([projects, inv, remoteExpenses, remoteSales, anbud, cases, cache, remote]) => {
       if (!live) return;
       setProjectState({
         ...projects,
         expenses: mergeExpenseLists(remoteExpenses, projects?.expenses || []),
+        sales: mergeSaleLists(remoteSales, projects?.sales || []),
       });
       setInvoices(inv);
       const contracts = anbud?.contracts || [];
@@ -170,9 +179,14 @@ export default function EconomyBilling() {
         isExternalExpense(row) && (proposal.expenses || []).some((item) => item.id === row.id)
       ));
       if (touched.length) await saveProjectExpenses(familyId, touched);
+      const touchedSales = (nextState.sales || []).filter((row) => (
+        isExternalSale(row) && (proposal.sales || []).some((item) => item.id === row.id)
+      ));
+      if (touchedSales.length) await saveProductSales(familyId, touchedSales);
       await saveProjectState({
         ...nextState,
         expenses: withoutExternalExpenses(nextState.expenses),
+        sales: withoutExternalSales(nextState.sales),
       }, familyId);
       setProjectState(nextState);
       setInvoices(await invoiceStorage.loadInvoices(familyId));

@@ -7,6 +7,7 @@ import { text } from './invoices.js';
 import { releaseTimeEntriesFromInvoice } from './timeEntryStorage.js';
 import { clearOperationsInvoice } from './opsState.js';
 import { patchProjectOperations } from '../project/storage.js';
+import { isExternalSale, loadProductSales, saveProductSales } from './productSalesStorage.js';
 
 export function invoiceTimeEntryIds(invoice) {
   const ids = [];
@@ -32,4 +33,13 @@ export async function releaseInvoicedWork(companyId, invoice) {
       sales: next.sales,
     };
   });
+  const external = await loadProductSales(id).catch(() => []);
+  const released = clearOperationsInvoice({ sales: external }, invoiceId);
+  if (released.sales !== external) {
+    const beforeById = new Map(external.map((row) => [row.id, row]));
+    const touched = released.sales.filter((row) => (
+      isExternalSale(row) && beforeById.get(row.id)?.invoiceId === invoiceId
+    ));
+    if (touched.length) await saveProductSales(id, touched);
+  }
 }

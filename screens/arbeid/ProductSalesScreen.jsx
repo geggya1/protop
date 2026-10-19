@@ -19,7 +19,16 @@ import {
   toggleProductSaleReviewRow,
 } from '../../src/economy/productSalesImport.js';
 import { filterProductSales, productSalesForViewer } from '../../src/economy/productSalesView.js';
+import {
+  loadProductSales,
+  mergeRowsById,
+  mergeSaleLists,
+  productSalesToStore,
+  saveProductSales,
+  withoutExternalSales,
+} from '../../src/economy/productSalesStorage.js';
 import { displayName } from '../../src/employees/model.js';
+import { patchProjectOperations } from '../../src/project/storage.js';
 import { importResult } from '../../src/imports/review';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { pickDocument } from '../../src/utils/media';
@@ -91,6 +100,8 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
+  const [remoteSales, setRemoteSales] = useState([]);
+  const [remoteReady, setRemoteReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -104,9 +115,28 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
     return () => { live = false; };
   }, [workspace.workspaceId]);
 
+  useEffect(() => {
+    let live = true;
+    setRemoteReady(false);
+    loadProductSales(workspace.workspaceId).then((rows) => {
+      if (!live) return;
+      setRemoteSales(rows);
+      setRemoteReady(true);
+    }).catch((cause) => {
+      if (!live) return;
+      setRemoteReady(true);
+      setError(String(cause?.message || '') || 'Kunne ikke laste produktsalg.');
+    });
+    return () => { live = false; };
+  }, [workspace.workspaceId]);
+
+  const knownSales = useMemo(
+    () => mergeSaleLists(remoteSales, withoutExternalSales(workspace.state?.sales)),
+    [remoteSales, workspace.state?.sales],
+  );
   const owned = useMemo(
-    () => productSalesForViewer(workspace.state?.sales),
-    [workspace.state?.sales],
+    () => productSalesForViewer(knownSales),
+    [knownSales],
   );
   const rows = useMemo(() => filterProductSales(owned, query, status), [owned, query, status]);
   const review = useMemo(
@@ -123,7 +153,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
       const bytes = await bytesFromFile(file);
       const table = await readProductSalesTable(bytes, file.name);
       const plan = planProductSalesImport(
-        workspace.state?.sales || [],
+        knownSales,
         workspace.employees || [],
         customers,
         workspace.state?.projects || [],
@@ -143,7 +173,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
     }
   }
 
-  function confirmImport() {
+  async function confirmImport() {
     if (!importPlan || busy) return;
     const chosen = [];
     const leftOut = [];
@@ -167,22 +197,48 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
       setError('Ingen produktsalg er valgt for import.');
       return;
     }
-    const result = importProductSales(workspace.state, chosen);
-    workspace.setState(result.state);
-    const report = importResult(
-      [{ name: `${result.added.length} produktsalg`, issues: [] }],
-      leftOut,
-    );
-    report.saved = result.added.length;
-    report.total = chosen.length + leftOut.length;
-    report.complete = !leftOut.length;
-    setImportReport(report);
-    setImportPlan(null);
-    setDropped(new Set());
-    setView('list');
-    const productNote = result.productsAdded.length ? ` ${result.productsAdded.length} produkter er lagt i katalogen.` : '';
-    setNote(`${result.added.length} produktsalg er lagret.${productNote}`);
-    showSaveToast(`${result.added.length} produktsalg er lagret.`);
+    setBusy(true);
+    setError('');
+    try {
+      const result = importProductSales({ ...workspace.state, sales: knownSales }, chosen);
+      const stored = productSalesToStore(result.added);
+      if (!stored.length) {
+        setError('Ingen produktsalg kunne lagres.');
+        return;
+      }
+      await saveProductSales(workspace.workspaceId, stored);
+      const beforeMemberIds = new Set((workspace.state?.members || []).map((row) => row.id));
+      const newMembers = (result.state.members || []).filter((row) => row?.id && !beforeMemberIds.has(row.id));
+      let catalogNote = '';
+      if (result.productsAdded.length || newMembers.length) {
+        const patched = await patchProjectOperations(workspace.workspaceId, (remote) => ({
+          products: mergeRowsById(remote.products, result.productsAdded),
+          members: mergeRowsById(remote.members, newMembers),
+        }));
+        if (!patched?.ok) catalogNote = ' Katalogen ble ikke oppdatert.';
+      }
+      setRemoteSales((current) => mergeSaleLists(current, stored));
+      const report = importResult(
+        [{ name: `${result.added.length} produktsalg`, issues: [] }],
+        leftOut,
+      );
+      report.saved = result.added.length;
+      report.total = chosen.length + leftOut.length;
+      report.complete = !leftOut.length;
+      setImportReport(report);
+      setImportPlan(null);
+      setDropped(new Set());
+      setView('list');
+      const productNote = result.productsAdded.length && !catalogNote
+        ? ` ${result.productsAdded.length} produkter er lagt i katalogen.`
+        : '';
+      setNote(`${stored.length} produktsalg er lagret.${productNote}${catalogNote}`);
+      showSaveToast(`${stored.length} produktsalg er lagret.`);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke lagre produktsalget.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (view === 'import' && importPlan && review) {
@@ -236,11 +292,11 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
       )}
       <TouchableOpacity
         onPress={importFile}
-        disabled={busy || !workspace.ready}
+        disabled={busy || !workspace.ready || !remoteReady}
         accessibilityRole="button"
         accessibilityLabel="Importer produktsalg"
         nativeID="produktsalg-import-button"
-        style={[styles.importBtn, { backgroundColor: colors.brand, opacity: busy || !workspace.ready ? 0.6 : 1 }]}
+        style={[styles.importBtn, { backgroundColor: colors.brand, opacity: busy || !workspace.ready || !remoteReady ? 0.6 : 1 }]}
       >
         <Text style={{ color: '#fff', fontWeight: '700' }}>{busy ? 'Leser…' : 'Importer'}</Text>
       </TouchableOpacity>
@@ -249,7 +305,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
       <ProductSalesList
         colors={colors}
-        ready={workspace.ready}
+        ready={workspace.ready && remoteReady}
         rows={rows}
         totalCount={owned.length}
         query={query}

@@ -1118,6 +1118,7 @@ export function PlannedAbsenceDesktop({
   lockedEmployeeId = '',
   focusEmployeeId = '',
   loading = false,
+  header = null,
 }) {
   const audience = useAudience(employees);
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? (focusEmployeeId || '') : lockedEmployeeId);
@@ -1202,6 +1203,7 @@ export function PlannedAbsenceDesktop({
           </TouchableOpacity>
         ) : null}
       </View>
+      {header}
       {loading && !plannedRows.length ? (
         <View style={styles.card} nativeID="planlagt-fravaer">
           <Text style={styles.empty}>Laster fravær…</Text>

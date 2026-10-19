@@ -198,9 +198,13 @@ STRAVA="functions:getStravaAppStatus,functions:saveStravaAppConfig,functions:str
 queue_entry stravaIndex.js "$STRAVA"
 open_for stravaIndex.js "$STRAVA"
 
+queue_entry vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
+open_for vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
+
 deploy_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
+deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

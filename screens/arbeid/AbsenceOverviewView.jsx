@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
-import DateField from '../../components/DateField';
+import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
 import { useApp } from '../../src/context/AppContext';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import {
@@ -19,8 +19,16 @@ import { employeeActivityTab } from '../../src/employees/model.js';
 import { setAbsenceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { addAbsence } from '../../src/project/engine';
-import { dateKey } from '../../src/utils/dates';
 import { isOrganizationType } from '../../src/utils/groupTypes';
+import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage.js';
+import { sweepVacationPlan } from '../../src/arbeid/vacationPlanClient.js';
+import {
+  formatPlanDate,
+  normalizeVacationPlan,
+  planningPhaseLabel,
+  planningWindow,
+  vacationQuota,
+} from '../../src/arbeid/vacationPlan.js';
 import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
@@ -98,8 +106,22 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   const [typeId, setTypeId] = useState('');
   const [category, setCategory] = useState('ferie');
   const [opening, setOpening] = useState('');
+  const [vacationPlan, setVacationPlan] = useState(null);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const today = toDateKey(new Date());
+  useEffect(() => {
+    let stop = false;
+    if (!familyId) return undefined;
+    loadVacationPlan(familyId).then((loaded) => {
+      if (stop) return;
+      setVacationPlan(loaded);
+      if (!loaded?.announcedAt) return;
+      sweepVacationPlan(familyId).then((result) => {
+        if (!stop && result?.plan) setVacationPlan(normalizeVacationPlan(result.plan));
+      }).catch(() => {});
+    });
+    return () => { stop = true; };
+  }, [familyId]);
   const locked = !!workspace.lockedId;
   const canChooseEmployee = !!workspace.manager && !locked;
   const people = useMemo(
@@ -190,6 +212,9 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
       workspace.setError('Velg minst én virkedag.');
       return false;
     }
+    const phase = planningWindow(vacationPlan || {}, today);
+    const registeringVacation = (typeId || 'ferie') === 'ferie';
+    const extraordinary = registeringVacation && !!vacationPlan?.announcedAt && phase.locked && !workspace.manager;
     let state = workspace.state;
     const name = names[personId] || '';
     for (const date of days) {
@@ -200,6 +225,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         hours: fullDay,
         type: typeId || 'ferie',
         description: note,
+        extraordinary,
         createdByUid: workspace.uid,
       });
       if (!result.ok) {
@@ -212,6 +238,25 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     workspace.setError('');
     return true;
   }
+
+  const planEmployee = (workspace.employees || []).find((row) => row.id === employeeId);
+  const planPhase = planningWindow(vacationPlan || {}, today);
+  const planQuota = vacationPlan?.announcedAt && planEmployee
+    ? vacationQuota(planEmployee, vacationPlan, {
+      absences: workspace.state.absences,
+      today,
+      dayHours: fullDay,
+    })
+    : null;
+  const planInfo = planQuota ? {
+    year: vacationPlan.year,
+    phaseLabel: planningPhaseLabel(planPhase.phase),
+    deadline: formatPlanDate(planPhase.effectiveDeadline),
+    remaining: planQuota.remaining,
+    planned: planQuota.planned,
+    total: planQuota.total,
+    locked: planPhase.locked && !workspace.manager,
+  } : null;
 
   if (companyMode && isDesktop) {
     return (
@@ -274,6 +319,8 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
       canEditOpening={!!employeeId}
       onRegister={register}
       onBack={onBack}
+      registrationLocked={!!vacationPlan?.announcedAt && planningWindow(vacationPlan, today).locked && !workspace.manager}
+      planInfo={planInfo}
     />
   );
 }
@@ -298,6 +345,8 @@ export function AbsenceOverviewView({
   canEditOpening = false,
   onRegister,
   onBack = null,
+  registrationLocked = false,
+  planInfo = null,
 }) {
   const { width } = useLayout();
   const hostedHero = useModuleHeroHosted();
@@ -462,6 +511,11 @@ export function AbsenceOverviewView({
             <Text style={styles.trackLabel}>{formatCount(dashboard.summary.used)} dager brukt</Text>
             <Text style={styles.trackLabel}>{formatCount(dashboard.allowance)} dager tilgjengelig</Text>
           </View>
+          {planInfo ? (
+            <Text style={styles.planNote} nativeID="ferieplan-status">
+              {`Ferieplan ${planInfo.year}: ${formatCount(planInfo.planned)} planlagt · ${formatCount(Math.max(0, planInfo.remaining))} igjen av ${formatCount(planInfo.total)}. ${planInfo.phaseLabel}${planInfo.deadline ? ` ${planInfo.deadline}` : ''}.`}
+            </Text>
+          ) : null}
         </View>
 
         <View style={[styles.beachCard, wide && styles.columnSide]}>
@@ -548,12 +602,14 @@ export function AbsenceOverviewView({
   );
 
   const modal = (
-    <RegisterModal
+    <RegisterVacationModal
       visible={registerOpen}
       title={dashboard.balanceType === 'ferie' ? 'Registrer ferie' : `Registrer ${dashboard.balanceTitle.toLowerCase()}`}
       employees={employees}
       employeeId={employeeId}
       requireEmployee={!employeeId}
+      locked={registrationLocked && dashboard.balanceType === 'ferie'}
+      vacation={dashboard.balanceType === 'ferie'}
       onClose={() => setRegisterOpen(false)}
       onSave={(payload) => {
         const ok = onRegister?.(payload);
@@ -728,84 +784,6 @@ function ChoiceList({ options, selected, onPick }) {
   );
 }
 
-function RegisterModal({ visible, title, employees, employeeId, requireEmployee, onClose, onSave }) {
-  const today = toDateKey(new Date());
-  const [personId, setPersonId] = useState(employeeId || '');
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
-  const [note, setNote] = useState('');
-  const [localError, setLocalError] = useState('');
-  React.useEffect(() => {
-    if (!visible) return;
-    setPersonId(employeeId || '');
-    setLocalError('');
-  }, [visible, employeeId]);
-
-  function save() {
-    const id = requireEmployee ? personId : (employeeId || personId);
-    if (!id) {
-      setLocalError('Velg ansatt.');
-      return;
-    }
-    if (!from || !to) {
-      setLocalError('Velg fra- og til-dato.');
-      return;
-    }
-    setLocalError('');
-    onSave?.({ personId: id, from, to, note: note.trim() });
-  }
-
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalBg} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.sheetTitle}>{title}</Text>
-          <Text style={styles.sheetLead}>Virkedager i perioden registreres som hele dager.</Text>
-          {requireEmployee ? (
-            <View style={styles.sheetField}>
-              <Text style={styles.sheetLabel}>Ansatt</Text>
-              <ScrollView style={{ maxHeight: 140 }}>
-                {employees.map((row) => (
-                  <TouchableOpacity key={row.id} onPress={() => setPersonId(row.id)} style={styles.choice}>
-                    <Text style={[styles.choiceText, row.id === personId && styles.choiceOn]}>{row.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          ) : null}
-          <View style={styles.sheetField}>
-            <Text style={styles.sheetLabel}>Fra</Text>
-            <DateField value={from} onChange={(value) => setFrom(value ? dateKey(value) : '')} placeholder="Velg dato" />
-          </View>
-          <View style={styles.sheetField}>
-            <Text style={styles.sheetLabel}>Til</Text>
-            <DateField value={to} onChange={(value) => setTo(value ? dateKey(value) : '')} placeholder="Velg dato" min={from} />
-          </View>
-          <View style={styles.sheetField}>
-            <Text style={styles.sheetLabel}>Merknad</Text>
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Valgfritt"
-              placeholderTextColor={ui.faint}
-              style={styles.openingInput}
-            />
-          </View>
-          {localError ? <Text style={styles.error}>{localError}</Text> : null}
-          <View style={styles.sheetActions}>
-            <TouchableOpacity onPress={onClose} style={styles.sheetGhost}>
-              <Text style={styles.sheetGhostText}>Avbryt</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={save} style={styles.cta}>
-              <Text style={styles.ctaText}>Lagre</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
 const cardShadow = Platform.select({
   web: { boxShadow: '0 10px 30px rgba(20, 36, 64, 0.06)' },
   default: {
@@ -936,6 +914,7 @@ const styles = StyleSheet.create({
   trackFill: { height: 8, borderRadius: 99, backgroundColor: ui.sand },
   trackLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
   trackLabel: { color: ui.muted, fontSize: 12 },
+  planNote: { color: '#3E5470', fontSize: 13, lineHeight: 18 },
   beachCard: {
     backgroundColor: ui.blueSoft,
     borderRadius: 22,

@@ -23,6 +23,16 @@ const textOnlyPdf = {
   text: 'Oppdragsbekreftelse Consult1 AS Madlalia',
 };
 assert.equal(documentHasOriginalFile(textOnlyPdf), false);
+assert.equal(documentHasOriginalFile({
+  name: '251219 Oppdragsavtale Consult1 AS-sign.pdf',
+  mimeType: 'application/pdf',
+  uri: 'blob:https://protop.no/03e14055-bc3a-431f-9d74-b64f9ba98574',
+}), false);
+assert.equal(documentFileHref({
+  name: 'avtale.pdf',
+  uri: 'blob:https://protop.no/dead',
+  url: 'https://example.com/avtale.pdf',
+}), 'https://example.com/avtale.pdf');
 assert.equal(documentIsOpenable(textOnlyPdf), false);
 assert.equal(documentFileHref(textOnlyPdf), '');
 

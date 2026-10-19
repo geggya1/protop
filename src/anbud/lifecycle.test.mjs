@@ -164,6 +164,23 @@ assert.equal(direct.state.contracts[0].fields.standard, 'NS 8403');
 assert.equal(direct.state.contracts[0].systemId, '1');
 assert.equal(direct.state.contracts[0].oppdragId, '1');
 assert.equal(direct.state.contracts[0].documents[0].name, 'C1-H-03-001.pdf');
+const sessionBlob = registerDirectContract(emptyAnbudState(), {
+  title: 'Breitorget · Prosjektleder',
+  buyer: 'Breitorget AS',
+  documents: [{
+    id: 'dok-blob',
+    name: '251219 Oppdragsavtale Consult1 AS-sign.pdf',
+    mimeType: 'application/pdf',
+    uri: 'blob:https://protop.no/03e14055-bc3a-431f-9d74-b64f9ba98574',
+    url: 'https://firebasestorage.googleapis.com/v0/b/protop.appspot.com/o/families%2Fx%2Fanbud%2Fcontracts%2Ffil.pdf?alt=media&token=abc',
+    storagePath: 'families/x/anbud/contracts/fil.pdf',
+    text: 'Oppdragsavtale',
+  }],
+});
+assert.equal(sessionBlob.ok, true, sessionBlob.error);
+assert.equal(sessionBlob.state.contracts[0].documents[0].uri, '');
+assert.match(sessionBlob.state.contracts[0].documents[0].url, /^https:\/\/firebasestorage/);
+assert.equal(sessionBlob.state.contracts[0].documents[0].storagePath, 'families/x/anbud/contracts/fil.pdf');
 assert.match(direct.state.contracts[0].documents[0].dataUrl, /^data:application\/pdf/);
 assert.equal(direct.state.contracts[0].milestones.find((row) => row.key === 'signert').status, 'utfort');
 assert.equal(contractAlerts(direct.state.contracts, new Date(2026, 9, 5)).filter((row) => /signert|Oppstart/.test(row.title)).length, 0);

@@ -318,6 +318,7 @@ function normalizeDocuments(input) {
     const body = text(row?.text).slice(0, 20000);
     const dataUrl = text(row?.dataUrl);
     const stored = dataUrl.startsWith('data:') && dataUrl.length <= 700000 ? dataUrl : '';
+    const rawUri = text(row?.uri);
     return {
       id: text(row?.id) || `dok_${index + 1}`,
       name,
@@ -327,7 +328,7 @@ function normalizeDocuments(input) {
       interpreted: row?.interpreted === true || !!body,
       dataUrl: stored,
       url: text(row?.url).slice(0, 2000),
-      uri: text(row?.uri).slice(0, 2000),
+      uri: rawUri.startsWith('blob:') ? '' : rawUri.slice(0, 2000),
       storagePath: text(row?.storagePath).slice(0, 500),
       size: Number(row?.size) || 0,
     };

@@ -32,7 +32,7 @@ import {
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
 import { nextOppdragId, nextSystemId } from '../../src/anbud/numbering';
 import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFlags } from '../../src/anbud/fieldReview';
-import { uploadAgreementFile } from '../../src/anbud/contractFiles';
+import { ensureAgreementOriginal } from '../../src/anbud/contractFiles';
 import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
@@ -649,15 +649,15 @@ export default function DirectAgreementForm({
   }
 
   async function storeOriginal(file, attached = {}, salt = '') {
-    if (!companyId) return { url: '', storagePath: '', size: attached.size || file.size || 0 };
-    const uploaded = await uploadAgreementFile(companyId, {
+    return ensureAgreementOriginal(companyId, {
       blob: file.blob || attached.blob || null,
       uri: attached.uri || file.uri || '',
       name: attached.name || file.name || 'Avtale.pdf',
       mimeType: attached.mimeType || file.mimeType || 'application/pdf',
       size: attached.size || file.size || 0,
+      url: '',
+      storagePath: '',
     }, { salt });
-    return uploaded;
   }
 
   function documentRow(existing, attached, file, text, original = {}, index = 0, extracted = null) {
@@ -668,10 +668,11 @@ export default function DirectAgreementForm({
       role: (existing.length + index) ? 'vedlegg' : 'hoved',
       mimeType: attached.mimeType || file.mimeType || 'application/pdf',
       interpreted: String(text || '').trim().length >= 20 || Boolean(extracted),
-      dataUrl: original.url ? '' : (attached.dataUrl || ''),
+      dataUrl: '',
       url: original.url || '',
       storagePath: original.storagePath || '',
-      uri: original.url ? '' : (attached.uri || file.uri || ''),
+      uri: '',
+      blob: file.blob || null,
       size: original.size || attached.size || file.size || 0,
       ...(extracted ? { extracted } : {}),
     };
@@ -689,11 +690,9 @@ export default function DirectAgreementForm({
       dataUrl: '',
       uri: file.uri || '',
     }));
-    let original = { url: '', storagePath: '', size: attached.size || file.size || 0 };
-    try {
-      original = await storeOriginal(file, attached, `${Date.now()}-${index}`);
-    } catch (cause) {
-      if (!attached.dataUrl) throw cause;
+    const original = await storeOriginal(file, attached, `${Date.now()}-${index}`);
+    if (!original?.url || !original?.storagePath) {
+      throw new Error(`Kunne ikke lagre originalfilen ${attached.name || file.name || ''}.`.trim());
     }
     setReadJob((current) => ({ ...current, step: 'read' }));
     setStatus(`Leser dokumentet${label}…`);
@@ -887,7 +886,26 @@ export default function DirectAgreementForm({
     applyCustomerRow(customer, create);
   }
 
+  async function durableDocuments() {
+    const stored = [];
+    for (let index = 0; index < files.length; index += 1) {
+      const row = files[index];
+      stored.push(await ensureAgreementOriginal(companyId, row, { salt: `${row.id || index}-lagre` }));
+    }
+    setFiles(stored);
+    return stored.map((row) => ({ ...row, blob: undefined, uri: '', dataUrl: '' }));
+  }
+
   async function submit() {
+    if (reading) return;
+    setError('');
+    let documents = files;
+    try {
+      documents = await durableDocuments();
+    } catch (cause) {
+      setError(cause?.message || 'Originalfilen ble ikke lagret. Last den opp på nytt før du registrerer.');
+      return;
+    }
     const title = String(form.title || '').trim();
     const buyer = String(form.buyer || '').trim();
     const projectName = String(form.projectName || '').trim() || title;
@@ -939,7 +957,7 @@ export default function DirectAgreementForm({
       oppdragId: form.oppdragId,
       ownerUid: form.ownerUid,
       ownerName: form.ownerName,
-      documents: files,
+      documents,
       options: (form.options || []).filter((row) => String(row.title || '').trim()),
       renewal: {
         type: form.renewalType || 'ingen',
@@ -1367,7 +1385,7 @@ export default function DirectAgreementForm({
         </TouchableOpacity>
       </Drawer>
 
-      <TouchableOpacity onPress={submit} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand }]}>
+      <TouchableOpacity onPress={submit} disabled={reading} accessibilityRole="button" style={[styles.save, { backgroundColor: colors.brand, opacity: reading ? 0.6 : 1 }]}>
         <Text style={{ color: '#fff' }}>Registrer avtale</Text>
       </TouchableOpacity>
     </View>

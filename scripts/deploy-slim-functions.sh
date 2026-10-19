@@ -22,16 +22,32 @@ restore_src() {
 }
 trap restore_src EXIT
 
-deploy_entry() {
+# Tom eller "all" deployer alt. Ellers komma-separerte entry-filer fra CI-gaten.
+selected_entry() {
   local entry="$1"
-  local only="$2"
+  local list="${FUNCTION_ENTRIES-}"
+  if [ -z "$list" ] || [ "$list" = "all" ]; then
+    return 0
+  fi
+  case ",${list}," in
+    *,"${entry}",*) return 0 ;;
+  esac
+  echo "Hopper over $entry"
+  return 1
+}
+
+set_functions_main() {
   node --input-type=module -e "
   import { readFileSync, writeFileSync } from 'node:fs';
   const path = 'functions/package.json';
   const pkg = JSON.parse(readFileSync(path, 'utf8'));
   pkg.main = process.argv[1];
   writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
-  " "$entry"
+  " "$1"
+}
+
+firebase_deploy_only() {
+  local only="$1"
   # Ett hengende firebase-kall skal ikke holde concurrency-gruppen i timevis.
   local deploy_status=0
   if command -v timeout >/dev/null 2>&1; then
@@ -51,6 +67,74 @@ deploy_entry() {
   return 0
 }
 
+deploy_entry() {
+  local entry="$1"
+  local only="$2"
+  selected_entry "$entry" || return 0
+  set_functions_main "$entry"
+  firebase_deploy_only "$only"
+}
+
+# Scheduler- og Firestore-triggere feiler på deploy-kontoen og må ikke
+# ligge i samme firebase-kall som de andre. Resten går i én kodebase,
+# i puljer, så vi ikke starter et nytt CLI-kall per funksjon.
+BATCH_ENTRIES=()
+BATCH_ONLYS=()
+
+queue_entry() {
+  local entry="$1"
+  local only="$2"
+  selected_entry "$entry" || return 0
+  BATCH_ENTRIES+=("$entry")
+  BATCH_ONLYS+=("$only")
+}
+
+deploy_queued() {
+  [ "${#BATCH_ENTRIES[@]}" -gt 0 ] || return 0
+  node --input-type=module - "${BATCH_ENTRIES[@]}" <<'JS'
+import { writeFileSync } from 'node:fs';
+const entries = process.argv.slice(2).filter((entry) => entry !== '-');
+const lines = [
+  'import "./setRegion.js";',
+  ...entries.map((entry) => `export * from "./${entry}";`),
+];
+writeFileSync('functions/ciSlimIndex.js', `${lines.join('\n')}\n`);
+JS
+  set_functions_main ciSlimIndex.js
+  local -a names=()
+  local spec part
+  for spec in "${BATCH_ONLYS[@]}"; do
+    IFS=',' read -ra parts <<< "$spec"
+    for part in "${parts[@]}"; do
+      [ -n "$part" ] && names+=("$part")
+    done
+  done
+  local -a chunk=()
+  local name csv
+  for name in "${names[@]}"; do
+    chunk+=("$name")
+    if [ "${#chunk[@]}" -ge 20 ]; then
+      csv=$(IFS=,; echo "${chunk[*]}")
+      firebase_deploy_only "$csv"
+      chunk=()
+    fi
+  done
+  if [ "${#chunk[@]}" -gt 0 ]; then
+    csv=$(IFS=,; echo "${chunk[*]}")
+    firebase_deploy_only "$csv"
+  fi
+  rm -f functions/ciSlimIndex.js
+  BATCH_ENTRIES=()
+  BATCH_ONLYS=()
+}
+
+open_for() {
+  local entry="$1"
+  local names="$2"
+  selected_entry "$entry" || return 0
+  open_invokers "$names"
+}
+
 open_invokers() {
   local name service
   local names="${1//functions:/}"
@@ -63,68 +147,58 @@ open_invokers() {
   done
 }
 
-deploy_entry tenderIndex.js functions:tenderProxy
+queue_entry tenderIndex.js functions:tenderProxy
 deploy_entry anbudDigestIndex.js functions:anbudDigestDaily
-deploy_entry anbudFormIndex.js functions:generateCompanyForm
-deploy_entry agreementIndex.js functions:agreementTreatment
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 agreementtreatment \
-  || echo "::warning::Klarte ikke å åpne agreementTreatment for innloggede kall"
-deploy_entry openFeedIndex.js functions:fetchOpenFeedHttp
-deploy_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
-deploy_entry anbudIntakeIndex.js functions:scanAnbudDocumentHttp
-deploy_entry friendListIndex.js functions:friendListHttp
+queue_entry anbudFormIndex.js functions:generateCompanyForm
+queue_entry agreementIndex.js functions:agreementTreatment
+open_for agreementIndex.js functions:agreementTreatment
+queue_entry openFeedIndex.js functions:fetchOpenFeedHttp
+queue_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
+queue_entry anbudIntakeIndex.js functions:scanAnbudDocumentHttp
+queue_entry friendListIndex.js functions:friendListHttp
 FRIENDS="functions:lookupFriendProfile,functions:sendFriendInviteV2,functions:sendFriendInviteSmsV2,functions:listMyFriends,functions:listFriendsForUid,functions:listFriendRequests,functions:listOutgoingFriendRequests,functions:createFriendRequestAdmin,functions:respondFriendRequestAdmin,functions:withdrawFriendRequestAdmin,functions:dismissOutgoingFriendRequestAdmin,functions:resendFriendRequestAdmin,functions:removeFriendAdmin,functions:sendFriendChatAdmin,functions:listFriendChatMessagesAdmin,functions:createPendingFriendInviteAdmin,functions:claimFriendInviteAdmin,functions:shareWithFriendsAdmin,functions:listSharedAlbumsAdmin,functions:listSharedWishlistsAdmin,functions:respondFriendGameInviteAdmin,functions:notifyFriendGameInvitesAdmin"
-deploy_entry friendInviteIndex.js "$FRIENDS"
-open_invokers "$FRIENDS"
-deploy_entry indeksIndex.js functions:interpretIndeksAvtale
-deploy_entry importIndex.js functions:interpretImport
-deploy_entry employeeInviteIndex.js functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 claimemployeeinvite \
-  || echo "::warning::Klarte ikke å åpne claimEmployeeInvite for innloggede kall"
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 recordusage \
-  || echo "::warning::Klarte ikke å åpne recordUsage for innloggede kall"
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 listemployeeusage \
-  || echo "::warning::Klarte ikke å åpne listEmployeeUsage for innloggede kall"
+queue_entry friendInviteIndex.js "$FRIENDS"
+open_for friendInviteIndex.js "$FRIENDS"
+queue_entry indeksIndex.js functions:interpretIndeksAvtale
+queue_entry importIndex.js functions:interpretImport
+queue_entry employeeInviteIndex.js functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
+open_for employeeInviteIndex.js functions:claimEmployeeInvite,functions:recordUsage,functions:listEmployeeUsage
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 interpretimport \
-  || echo "::warning::Klarte ikke åpne interpretImport for innloggede kall"
+open_for importIndex.js functions:interpretImport
 
 # Web CV/bilde-opplasting og PDF-nedlasting omgår Storage CORS via Admin SDK.
-deploy_entry storageIndex.js functions:uploadStorageFile,functions:downloadStorageFile,functions:applyStorageCors
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 uploadstoragefile \
-  || echo "::warning::Klarte ikke åpne uploadStorageFile for innloggede kall"
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 downloadstoragefile \
-  || echo "::warning::Klarte ikke åpne downloadStorageFile for innloggede kall"
-NODE_PATH="$ROOT/functions/node_modules" node scripts/open-callable-invoker.mjs protop-c189c europe-west1 applystoragecors \
-  || echo "::warning::Klarte ikke åpne applyStorageCors for innloggede kall"
+queue_entry storageIndex.js functions:uploadStorageFile,functions:downloadStorageFile,functions:applyStorageCors
+open_for storageIndex.js functions:uploadStorageFile,functions:downloadStorageFile,functions:applyStorageCors
 
 # Kall som appen bruker, men som aldri lå i slim-listen og derfor svarer 404.
 DOFFIN="functions:searchDoffin,functions:searchTed,functions:lookupCompany,functions:fetchDossier,functions:sendTenderAlert,functions:sendAnbudRequest,functions:scanAnbudDocument"
-deploy_entry doffinIndex.js "$DOFFIN"
-open_invokers "$DOFFIN"
+queue_entry doffinIndex.js "$DOFFIN"
+open_for doffinIndex.js "$DOFFIN"
 
 AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIngredients,functions:aiRecipeImport,functions:aiReceiptOcr,functions:aiClassListOcr,functions:aiMatcoachWeekPlan,functions:aiMatcoachFridgeScan,functions:aiMatcoachLunchBoxes,functions:aiMatcoachSwapMeal,functions:aiImportPlan,functions:applyAiImport,functions:discardAiImport,functions:uploadDocumentFile,functions:createAlbumUploadUrl,functions:uploadAlbumFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
-deploy_entry aiIndex.js "$AI"
-open_invokers "$AI"
+queue_entry aiIndex.js "$AI"
+open_for aiIndex.js "$AI"
 
-deploy_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
-open_invokers functions:lookupVehicleByReg
+queue_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
+open_for vegvesenIndex.js functions:lookupVehicleByReg
 
 MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"
-deploy_entry membershipIndex.js "$MEMBERSHIP"
-open_invokers "$MEMBERSHIP"
+queue_entry membershipIndex.js "$MEMBERSHIP"
+open_for membershipIndex.js "$MEMBERSHIP"
 
 AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile"
-deploy_entry authIndex.js "$AUTH"
-open_invokers "$AUTH"
+queue_entry authIndex.js "$AUTH"
+open_for authIndex.js "$AUTH"
 
 HOSP="functions:hospSaveNukiToken,functions:hospGetNukiStatus,functions:hospDisconnectNuki,functions:hospSyncNukiLocks,functions:hospProvisionLockCode,functions:hospRevokeLockCode,functions:hospSyncChannelIcal,functions:hospConnectIcal,functions:hospSyncAllChannels,functions:hospProcessAutomessages,functions:hospGenerateReplyDraft,functions:hospLoginChecklist,functions:hospGetChannelStatus,functions:hospSavePartnerCredentials,functions:hospAirbnbExchangeToken,functions:hospBookingConnectProperty,functions:hospSyncChannelOAuth,functions:hospDisconnectChannel"
-deploy_entry hospitalityIndex.js "$HOSP"
-open_invokers "$HOSP"
+queue_entry hospitalityIndex.js "$HOSP"
+open_for hospitalityIndex.js "$HOSP"
 
 STRAVA="functions:getStravaAppStatus,functions:saveStravaAppConfig,functions:stravaExchangeToken,functions:stravaSyncActivities,functions:stravaDisconnect,functions:stravaWebhook,functions:registerStravaWebhook"
-deploy_entry stravaIndex.js "$STRAVA"
-open_invokers "$STRAVA"
+queue_entry stravaIndex.js "$STRAVA"
+open_for stravaIndex.js "$STRAVA"
+
+deploy_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
 

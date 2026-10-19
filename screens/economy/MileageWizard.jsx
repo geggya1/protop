@@ -33,7 +33,9 @@ import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle }
 import { firebaseConfig } from '../../firebase';
 import {
   addressFieldsFromPlace,
+  automaticPlaceHit,
   companyAddressLabel,
+  companyAddressQueries,
   mileageProjectOptions,
   mileageRate,
   projectAddressLabel,
@@ -115,7 +117,7 @@ function Chip({ label, active, onPress, colors }) {
   );
 }
 
-function AddressField({ label, value, onChange, onPick, colors, accessory }) {
+function AddressField({ label, value, onChange, onPick, colors, shortcuts, onFocusField }) {
   const [hits, setHits] = useState([]);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -137,6 +139,7 @@ function AddressField({ label, value, onChange, onPick, colors, accessory }) {
       clearTimeout(timer);
     };
   }, [value, open]);
+  const suggestions = Array.isArray(shortcuts) ? shortcuts : [];
   return (
     <View style={styles.field}>
       <Field
@@ -144,10 +147,25 @@ function AddressField({ label, value, onChange, onPick, colors, accessory }) {
         value={value}
         colors={colors}
         placeholder="Søk adresse"
-        accessory={accessory}
-        onFocus={() => setOpen(true)}
-        onChange={(next) => { setOpen(true); onChange(next); }}
+        onFocus={() => { setOpen(true); onFocusField?.(); }}
+        onChange={(next) => { setOpen(true); onFocusField?.(); onChange(next); }}
       />
+      {suggestions.length ? (
+        <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          {suggestions.map((row) => (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => { setOpen(false); row.onPress(); }}
+              accessibilityRole="button"
+              accessibilityLabel={row.label}
+              style={styles.shortcut}
+            >
+              <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '600' }}>{row.label}</Text>
+              {row.detail ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.detail}</Text> : null}
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
       {open && String(value || '').trim().length >= 3 && !hits.length ? (
         <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>Søker adresser…</Text>
       ) : null}
@@ -162,6 +180,41 @@ function AddressField({ label, value, onChange, onPick, colors, accessory }) {
       ) : null}
     </View>
   );
+}
+
+const placeCache = new Map();
+
+function hasCoords(place) {
+  return Number.isFinite(Number(place?.lat)) && Number.isFinite(Number(place?.lng));
+}
+
+function sameText(left, right) {
+  return String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+}
+
+async function resolveMappablePlace(label, { companyLabel = '', companyQueries = [] } = {}) {
+  const typed = String(label || '').trim();
+  if (!typed) return null;
+  const cached = placeCache.get(typed);
+  if (hasCoords(cached)) return cached;
+  const queries = companyLabel && sameText(typed, companyLabel) && companyQueries.length
+    ? companyQueries
+    : [typed];
+  for (const query of queries) {
+    const known = placeCache.get(query);
+    if (hasCoords(known)) {
+      placeCache.set(typed, known);
+      return known;
+    }
+    const hits = await searchPlaces(query, 'nb').catch(() => []);
+    const hit = automaticPlaceHit(query, hits);
+    if (hasCoords(hit)) {
+      placeCache.set(query, hit);
+      placeCache.set(typed, hit);
+      return hit;
+    }
+  }
+  return null;
 }
 
 function readingAfterDraft(odometer, draft, trips) {
@@ -244,7 +297,6 @@ export default function MileageWizard({
   state,
   onApply,
   company,
-  onOpenBilling,
   customers = [],
   contracts = [],
   launch = true,
@@ -265,13 +317,16 @@ export default function MileageWizard({
   const [routing, setRouting] = useState(false);
   const [locating, setLocating] = useState(false);
   const [pinAddress, setPinAddress] = useState(false);
+  const [addressAsk, setAddressAsk] = useState(true);
+  const [focusField, setFocusField] = useState('');
+  const [routeNonce, setRouteNonce] = useState(0);
   const [vehicleMenu, setVehicleMenu] = useState(false);
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [newPlate, setNewPlate] = useState('');
   const [newName, setNewName] = useState('');
   const [newScope, setNewScope] = useState('private');
-  const [saved, setSaved] = useState(null);
   const routeEditedRef = useRef(!!editingTrip);
+  const routeGen = useRef(0);
   const [draft, setDraft] = useState(() => draftFromTrip(editingTrip));
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -304,6 +359,7 @@ export default function MileageWizard({
     if (Object.prototype.hasOwnProperty.call(partial, 'routeEdited')) {
       routeEditedRef.current = !!partial.routeEdited;
     }
+    if (Object.prototype.hasOwnProperty.call(partial, 'to')) setAddressAsk(true);
     setDraft((row) => ({ ...row, ...partial }));
   }
 
@@ -411,14 +467,55 @@ export default function MileageWizard({
       return;
     }
     const destination = draft.to || projectDestinationSuggestion(draft.project, addressSources);
+    const office = companyAddressLabel(company);
+    const cachedOffice = office ? placeCache.get(office) : null;
     patch({
-      from: draft.from || companyAddressLabel(company),
+      from: draft.from || office,
+      fromPlace: draft.from ? draft.fromPlace : (hasCoords(cachedOffice) ? cachedOffice : null),
       to: destination,
+      toPlace: draft.to ? draft.toPlace : null,
       suggestedTo: projectDestinationSuggestion(draft.project, addressSources),
       routeEdited: false,
     });
+    setFocusField('');
     setError('');
     setStep('rute');
+  }
+
+  function applyEndpoint(side, label, place) {
+    setFocusField('');
+    setRouteNonce((n) => n + 1);
+    if (side === 'to') patch({ to: label, toPlace: place, routeEdited: false });
+    else patch({ from: label, fromPlace: place, routeEdited: false });
+  }
+
+  function applyCompany(side) {
+    const office = companyAddressLabel(company);
+    if (!office) {
+      setError('Firmaet har ingen adresse.');
+      return;
+    }
+    const cached = placeCache.get(office);
+    applyEndpoint(side, office, hasCoords(cached) ? cached : null);
+    setError('');
+  }
+
+  function endpointShortcuts(side) {
+    const rows = [];
+    if (companyAddressLabel(company)) {
+      rows.push({
+        id: 'company',
+        label: 'Bruk firmaadressen',
+        detail: companyAddressLabel(company),
+        onPress: () => applyCompany(side),
+      });
+    }
+    rows.push({
+      id: 'here',
+      label: 'Bruk hvor jeg er nå',
+      onPress: () => useHere(side),
+    });
+    return rows;
   }
 
   useEffect(() => {
@@ -432,75 +529,103 @@ export default function MileageWizard({
   }, [step, draft.project, draft.to, draft.suggestedTo, draft.routeEdited, addressSources]);
 
   useEffect(() => {
+    const office = companyAddressLabel(company);
+    if (!open || !office || hasCoords(placeCache.get(office))) return undefined;
+    resolveMappablePlace(office, {
+      companyLabel: office,
+      companyQueries: companyAddressQueries(company),
+    }).catch(() => null);
+    return undefined;
+  }, [open, company]);
+
+  useEffect(() => {
     if (step !== 'rute' || draft.routeEdited) return undefined;
-    const fromLabel = draft.from;
-    const toLabel = draft.to;
+    const fromLabel = String(draft.from || '').trim();
+    const toLabel = String(draft.to || '').trim();
     if (!fromLabel || !toLabel) return undefined;
+    const gen = routeGen.current + 1;
+    routeGen.current = gen;
     let live = true;
     const timer = setTimeout(() => {
-    setRouting(true);
-    (async () => {
-      let fromPlace = draft.fromPlace?.label === fromLabel ? draft.fromPlace : null;
-      let toPlace = draft.toPlace?.label === toLabel ? draft.toPlace : null;
-      if (!fromPlace?.lat) {
-        const hits = await searchPlaces(fromLabel, 'nb').catch(() => []);
-        fromPlace = hits?.[0] || null;
-      }
-      if (!toPlace?.lat) {
-        const hits = await searchPlaces(toLabel, 'nb').catch(() => []);
-        toPlace = hits?.[0] || null;
-      }
-      if (!live || routeEditedRef.current) {
+      setRouting(true);
+      (async () => {
+        const office = companyAddressLabel(company);
+        let fromPlace = hasCoords(draft.fromPlace) ? draft.fromPlace : null;
+        let toPlace = hasCoords(draft.toPlace) ? draft.toPlace : null;
+        if (!fromPlace) {
+          fromPlace = await resolveMappablePlace(fromLabel, {
+            companyLabel: office,
+            companyQueries: companyAddressQueries(company),
+          });
+        }
+        const bareName = sameText(toLabel, draft.project?.name) && !projectAddressLabel(draft.project, addressSources);
+        if (!toPlace && !bareName) {
+          toPlace = await resolveMappablePlace(toLabel, {
+            companyLabel: office,
+            companyQueries: companyAddressQueries(company),
+          });
+        }
+        if (!live || gen !== routeGen.current || routeEditedRef.current) {
+          if (live && gen === routeGen.current) setRouting(false);
+          return;
+        }
+        if (!hasCoords(fromPlace) || !hasCoords(toPlace)) {
+          patch({ fromPlace: fromPlace || null, toPlace: toPlace || null });
+          setRouting(false);
+          return;
+        }
+        const route = await suggestDriving(fromPlace, toPlace, {
+          apiKey: firebaseConfig?.apiKey || '',
+          roundTrip: true,
+        });
+        if (!live || gen !== routeGen.current || routeEditedRef.current || !route) {
+          if (live && gen === routeGen.current) setRouting(false);
+          return;
+        }
+        const charges = route.charges || [];
+        patch({
+          fromPlace,
+          toPlace,
+          oneWayKm: route.oneWayKm,
+          km: roundTripKm(route.oneWayKm),
+          routeSource: route.source,
+          routeCharges: charges,
+          tolls: sumCharges(charges, 'toll'),
+          ferries: sumCharges(charges, 'ferry'),
+        });
         setRouting(false);
-        return;
-      }
-      if (!fromPlace?.lat || !toPlace?.lat) {
-        setRouting(false);
-        patch({ fromPlace, toPlace });
-        return;
-      }
-      const route = await suggestDriving(fromPlace, toPlace, {
-        apiKey: firebaseConfig?.apiKey || '',
-        roundTrip: true,
+      })().catch(() => {
+        if (live && gen === routeGen.current) setRouting(false);
       });
-      if (!live || routeEditedRef.current || !route) {
-        setRouting(false);
-        return;
-      }
-      const charges = route.charges || [];
-      patch({
-        fromPlace,
-        toPlace,
-        oneWayKm: route.oneWayKm,
-        km: roundTripKm(route.oneWayKm),
-        routeSource: route.source,
-        routeCharges: charges,
-        tolls: sumCharges(charges, 'toll'),
-        ferries: sumCharges(charges, 'ferry'),
-      });
-      setRouting(false);
-    })().catch(() => {
-      if (live) setRouting(false);
-    });
-    }, 600);
+    }, 400);
     return () => {
       live = false;
       clearTimeout(timer);
     };
-  }, [step, draft.from, draft.to, draft.routeEdited]);
+  }, [step, draft.from, draft.to, draft.routeEdited, draft.fromPlace?.lat, draft.toPlace?.lat, company, addressSources, routeNonce]);
 
-  async function useHere() {
+  async function useHere(side = 'from') {
     setLocating(true);
     setError('');
+    const gen = routeGen.current + 1;
+    routeGen.current = gen;
     try {
       const pos = await getDeviceLocation();
+      if (gen !== routeGen.current) return;
       const place = await reverseGeocode(pos.lat, pos.lng, 'nb');
-      patch({ from: place.label, fromPlace: place, routeEdited: false });
+      if (gen !== routeGen.current) return;
+      const label = place?.label || `${Number(pos.lat).toFixed(5)}, ${Number(pos.lng).toFixed(5)}`;
+      applyEndpoint(side, label, {
+        ...place,
+        label,
+        lat: Number(pos.lat),
+        lng: Number(pos.lng),
+      });
     } catch (err) {
       const code = err?.message;
       setError(code === 'denied'
         ? 'Posisjon er ikke tillatt i nettleseren.'
-        : 'Fant ikke posisjonen. Skriv adressen i Fra.');
+        : 'Fant ikke posisjonen. Skriv adressen, eller prøv igjen.');
     } finally {
       setLocating(false);
     }
@@ -513,11 +638,23 @@ export default function MileageWizard({
     const oneWay = Number(current.oneWayKm) || 0;
     if (!(km > 0) && oneWay > 0) km = roundTripKm(oneWay);
     if (!from || !to || km > 0) return { from, to, km };
-    let fromPlace = current.fromPlace?.lat ? current.fromPlace : null;
-    let toPlace = current.toPlace?.lat ? current.toPlace : null;
-    if (!fromPlace) fromPlace = (await searchPlaces(from, 'nb').catch(() => []))[0] || null;
-    if (!toPlace) toPlace = (await searchPlaces(to, 'nb').catch(() => []))[0] || null;
-    if (!fromPlace?.lat || !toPlace?.lat) return { from, to, km: 0, fromPlace, toPlace };
+    const office = companyAddressLabel(company);
+    const bareName = sameText(to, current.project?.name) && !projectAddressLabel(current.project, addressSources);
+    let fromPlace = hasCoords(current.fromPlace) ? current.fromPlace : null;
+    let toPlace = hasCoords(current.toPlace) ? current.toPlace : null;
+    if (!fromPlace) {
+      fromPlace = await resolveMappablePlace(from, {
+        companyLabel: office,
+        companyQueries: companyAddressQueries(company),
+      });
+    }
+    if (!toPlace && !bareName) {
+      toPlace = await resolveMappablePlace(to, {
+        companyLabel: office,
+        companyQueries: companyAddressQueries(company),
+      });
+    }
+    if (!hasCoords(fromPlace) || !hasCoords(toPlace)) return { from, to, km: 0, fromPlace, toPlace };
     const route = await suggestDriving(fromPlace, toPlace, {
       apiKey: firebaseConfig?.apiKey || '',
       roundTrip: true,
@@ -608,28 +745,36 @@ export default function MileageWizard({
       setError(result?.error || 'Kunne ikke lagre turen.');
       return;
     }
-    if (pinAddress && needsAddress && fullProject) {
+    if (pinAddress && needsAddress && addressAsk && fullProject) {
       const addressed = onApply(updateProject(
         result.state,
         fullProject.id,
         addressFieldsFromPlace(draft.toPlace, draft.to),
       ));
       if (!addressed?.ok) {
+        patch({ id: result.trip?.id || draft.id, expenseId: result.expense?.id || draft.expenseId });
         setError(addressed?.error || 'Turen er lagret, men prosjektadressen ble ikke oppdatert.');
+        return;
       }
     }
-    setSaved({ trip: result.trip, expense: result.expense, cost, rateInfo, purpose });
-    setStep('ferdig');
     setError('');
+    setOpen(false);
+    if (editing) {
+      onDismiss?.();
+      return;
+    }
+    reset();
   }
 
   function reset() {
-    setSaved(null);
     setPinAddress(false);
+    setAddressAsk(true);
+    setFocusField('');
     setDraft(emptyDraft());
     routeEditedRef.current = false;
     setQuery('');
     setStep('prosjekt');
+    setError('');
   }
 
   function closeModal() {
@@ -638,13 +783,14 @@ export default function MileageWizard({
       onDismiss?.();
       return;
     }
-    if (step === 'ferdig') reset();
+    reset();
   }
 
   function goBack() {
     const index = STEPS.findIndex((item) => item.id === step);
     setError('');
-    if (step === 'ferdig' || index <= 0) {
+    setFocusField('');
+    if (index <= 0) {
       closeModal();
       return;
     }
@@ -652,14 +798,6 @@ export default function MileageWizard({
   }
 
   async function goNext() {
-    if (step === 'ferdig') {
-      if (editing) {
-        closeModal();
-        return;
-      }
-      reset();
-      return;
-    }
     const current = draftRef.current;
     if (step === 'prosjekt') {
       if (!current.project) {
@@ -708,9 +846,8 @@ export default function MileageWizard({
   }
 
   const stepIndex = STEPS.findIndex((item) => item.id === step);
-  const done = step === 'ferdig';
-  const backLabel = done ? 'Lukk' : stepIndex <= 0 ? 'Avbryt' : 'Tilbake';
-  const nextLabel = done ? 'Ny tur' : step === 'seover' ? 'Lagre' : 'Neste';
+  const backLabel = stepIndex <= 0 ? 'Avbryt' : 'Tilbake';
+  const nextLabel = step === 'seover' ? 'Lagre' : 'Neste';
 
   const bodyMax = Math.max(160, frame.maxHeight - 132);
 
@@ -758,13 +895,13 @@ export default function MileageWizard({
               </View>
               <View style={styles.steps}>
                 {STEPS.map((item, index) => {
-                  const active = item.id === step || (done && index === STEPS.length - 1);
-                  const reached = done || (stepIndex >= 0 && index <= stepIndex);
+                  const active = item.id === step;
+                  const reached = stepIndex >= 0 && index <= stepIndex;
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      disabled={!reached || done}
-                      onPress={() => { setError(''); setStep(item.id); }}
+                      disabled={!reached}
+                      onPress={() => { setError(''); setFocusField(''); setStep(item.id); }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       style={styles.stepHit}
@@ -797,43 +934,59 @@ export default function MileageWizard({
           />
           <Text style={[styles.hint, { color: colors.muted }]}>
             {query
-              ? 'Treff i hele prosjektregisteret. Dine aktive prosjekt står først.'
-              : 'Aktive prosjekt på deg. Søk for å finne andre.'}
+              ? 'Treff i hele prosjektregisteret. Prosjekt med timer de to siste månedene står først.'
+              : 'Prosjekt du har ført timer på de to siste månedene. Søk for å finne andre.'}
           </Text>
-          {draft.project ? (
-            <Text style={{ color: colors.ink, fontSize: 13 }}>
-              Valgt: {[draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ')}
-            </Text>
-          ) : null}
-          <ScrollView
-            style={styles.vehicleScroll}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-          >
-            {projects.options.map((option) => {
-              const active = draft.project?.id === option.project.id;
-              const detail = [option.project.client, option.address].filter(Boolean).join(' · ');
-              return (
-                <TouchableOpacity
-                  key={option.project.id}
-                  onPress={() => chooseProject(option)}
-                  accessibilityRole="button"
-                  accessibilityLabel={option.label}
-                  accessibilityState={{ selected: active }}
-                  nativeID="mileage-project-picker"
-                  style={[styles.menuRow, { borderColor: colors.line, backgroundColor: active ? `${colors.brand}14` : colors.card }]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 15 }} numberOfLines={1}>{option.label}</Text>
-                  {detail ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{detail}</Text> : null}
-                </TouchableOpacity>
-              );
-            })}
-            {!projects.options.length ? (
-              <Text style={{ color: colors.muted, fontSize: 14, paddingVertical: 8 }}>
-                {query ? 'Ingen prosjekt matcher søket.' : 'Ingen aktive prosjekt på deg. Søk i registeret.'}
+          {draft.project && !query ? (
+            <View
+              nativeID="mileage-project-picker"
+              style={[styles.selectedCard, { borderColor: colors.brand, backgroundColor: `${colors.brand}18` }]}
+            >
+              <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Valgt prosjekt</Text>
+              <Text style={{ color: colors.ink, fontSize: 17, fontWeight: '700' }}>
+                {[draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ')}
               </Text>
-            ) : null}
-          </ScrollView>
+              {[draft.project.client, projectAddressLabel(draft.project, addressSources)].filter(Boolean).length ? (
+                <Text style={{ color: colors.muted, fontSize: 13 }}>
+                  {[draft.project.client, projectAddressLabel(draft.project, addressSources)].filter(Boolean).join(' · ')}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.vehicleScroll}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
+              {projects.options.map((option) => {
+                const active = draft.project?.id === option.project.id;
+                const detail = [option.project.client, option.address].filter(Boolean).join(' · ');
+                return (
+                  <TouchableOpacity
+                    key={option.project.id}
+                    onPress={() => chooseProject(option)}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.label}
+                    accessibilityState={{ selected: active }}
+                    nativeID="mileage-project-picker"
+                    style={[styles.menuRow, {
+                      borderColor: active ? colors.brand : colors.line,
+                      backgroundColor: active ? `${colors.brand}18` : colors.card,
+                      borderWidth: active ? 2 : 0,
+                    }]}
+                  >
+                    <Text style={{ color: colors.ink, fontSize: 15, fontWeight: active ? '700' : '400' }} numberOfLines={1}>{option.label}</Text>
+                    {detail ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{detail}</Text> : null}
+                  </TouchableOpacity>
+                );
+              })}
+              {!projects.options.length ? (
+                <Text style={{ color: colors.muted, fontSize: 14, paddingVertical: 8 }}>
+                  {query ? 'Ingen prosjekt matcher søket.' : 'Ingen prosjekt med timer de to siste månedene. Søk i registeret.'}
+                </Text>
+              ) : null}
+            </ScrollView>
+          )}
         </View>
       ) : null}
 
@@ -950,28 +1103,21 @@ export default function MileageWizard({
             label="Fra"
             value={draft.from}
             colors={colors}
-            accessory={(
-              <TouchableOpacity
-                onPress={useHere}
-                disabled={locating}
-                accessibilityRole="button"
-                accessibilityLabel="Bruk hvor jeg er nå"
-              >
-                <Text style={{ color: colors.brand, fontSize: 12, fontWeight: '600' }}>
-                  {locating ? 'Henter posisjon…' : 'Bruk hvor jeg er nå'}
-                </Text>
-              </TouchableOpacity>
-            )}
+            onFocusField={() => setFocusField('from')}
+            shortcuts={focusField === 'from' ? endpointShortcuts('from') : null}
             onChange={(value) => patch({ from: value, fromPlace: null, routeEdited: false })}
-            onPick={(hit) => patch({ from: hit.label, fromPlace: hit, routeEdited: false })}
+            onPick={(hit) => { setFocusField(''); patch({ from: hit.label, fromPlace: hit, routeEdited: false }); }}
           />
           <AddressField
             label="Til"
             value={draft.to}
             colors={colors}
+            onFocusField={() => setFocusField('to')}
+            shortcuts={focusField === 'to' ? endpointShortcuts('to') : null}
             onChange={(value) => patch({ to: value, toPlace: null, routeEdited: false })}
-            onPick={(hit) => patch({ to: hit.label, toPlace: hit, routeEdited: false })}
+            onPick={(hit) => { setFocusField(''); patch({ to: hit.label, toPlace: hit, routeEdited: false }); }}
           />
+          {locating ? <Text style={{ color: colors.muted, fontSize: 12 }}>Henter posisjon…</Text> : null}
           {routing ? <ActivityIndicator /> : null}
           <View style={styles.pair}>
             <Field
@@ -1057,20 +1203,42 @@ export default function MileageWizard({
 
       {step === 'seover' ? (
         <View style={styles.stack}>
-          <Text style={{ color: colors.ink }}>
-            {draft.from} → {draft.to} · {draft.km} km tur/retur
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {draft.date} · {employeeName}
-            {draft.project ? ` · #${draft.project.number || ''} ${draft.project.name}` : ''}
-            {draft.vehicleName ? ` · ${draft.vehicleName}` : ''}
-          </Text>
+          <View style={[styles.reviewBlock, { borderColor: colors.line }]}>
+            <View style={styles.reviewLine}>
+              <Text style={[styles.reviewKey, { color: colors.muted }]}>Fra</Text>
+              <Text style={[styles.reviewValue, { color: colors.ink }]}>{draft.from || '—'}</Text>
+            </View>
+            <View style={styles.reviewLine}>
+              <Text style={[styles.reviewKey, { color: colors.muted }]}>Til</Text>
+              <Text style={[styles.reviewValue, { color: colors.ink }]}>{draft.to || '—'}</Text>
+            </View>
+          </View>
+          <View style={[styles.reviewBlock, { borderColor: colors.line }]}>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Dato</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{draft.date}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Person</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{employeeName}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Prosjekt</Text>
+              <Text style={{ color: colors.ink, fontSize: 14, flex: 1, textAlign: 'right' }} numberOfLines={2}>
+                {draft.project ? [draft.project.number ? `#${draft.project.number}` : '', draft.project.name].filter(Boolean).join(' ') : '—'}
+              </Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Kjøretøy</Text>
+              <Text style={{ color: colors.ink, fontSize: 14, flex: 1, textAlign: 'right' }} numberOfLines={1}>{draft.vehicleName || '—'}</Text>
+            </View>
+          </View>
           {odometer ? (
             <Text style={{ color: colors.ink, fontSize: 13 }}>
               Kilometerstand etter denne turen: {readingAfterDraft(odometer, draft, state.mileageTrips)} km
             </Text>
           ) : null}
-          {needsAddress ? (
+          {needsAddress && addressAsk ? (
             <View style={[styles.prompt, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, fontSize: 14 }}>
                 Vil du registrere dette som fast prosjektadresse på prosjektet?
@@ -1085,17 +1253,16 @@ export default function MileageWizard({
                   <Text style={{ color: pinAddress ? '#fff' : colors.brand, fontWeight: '600' }}>Ja</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => setPinAddress(false)}
+                  onPress={() => { setPinAddress(false); setAddressAsk(false); }}
                   accessibilityRole="button"
                   accessibilityLabel="Nei, ikke lagre prosjektadresse"
-                  style={[styles.btn, { borderColor: colors.line, borderWidth: 1, backgroundColor: pinAddress ? 'transparent' : colors.card }]}
+                  style={[styles.btn, { borderColor: colors.line, borderWidth: 1, backgroundColor: colors.card }]}
                 >
                   <Text style={{ color: colors.ink, fontWeight: '600' }}>Nei</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : null}
-          <Field label="Dato" value={draft.date} onChange={(value) => patch({ date: value })} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>Hensikt med turen</Text>
           <View style={styles.row}>
             {VISIT_PURPOSES.map((row) => (
@@ -1111,32 +1278,39 @@ export default function MileageWizard({
           {draft.visitPurpose === 'annet' ? (
             <Field label="Egen hensikt" value={draft.visitCustom} onChange={(value) => patch({ visitCustom: value })} colors={colors} />
           ) : null}
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            {formatMoney(cost.amount)} · {draft.km} km × {rateInfo.rate.toFixed(2)} + bom/ferje {formatMoney(cost.extras)}
-          </Text>
-        </View>
-      ) : null}
-
-      {step === 'ferdig' && saved ? (
-        <View style={styles.stack}>
-          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{formatMoney(saved.trip.amount)}</Text>
-          <Text style={{ color: colors.muted }}>
-            {saved.rateInfo.label} {saved.rateInfo.rate.toFixed(2)} kr/km · {saved.purpose}
-          </Text>
-          <Text style={{ color: colors.ink }}>
-            {saved.trip.from} → {saved.trip.to} · {saved.trip.km} km tur/retur
-          </Text>
-          <Text style={{ color: colors.ink }}>
-            {saved.trip.projectName || 'Prosjekt'} · {saved.trip.employeeName} · {saved.trip.vehicleName}
-          </Text>
-          {saved.trip.tolls ? <Text style={{ color: colors.ink }}>Bom {formatMoney(saved.trip.tolls)}</Text> : null}
-          {saved.trip.ferries ? <Text style={{ color: colors.ink }}>Ferje {formatMoney(saved.trip.ferries)}</Text> : null}
+          <View style={[styles.reviewBlock, { borderColor: colors.line }]}>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Én vei</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{draft.oneWayKm ? `${draft.oneWayKm} km` : '—'}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Tur/retur</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{draft.km ? `${draft.km} km` : '—'}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>{rateInfo.label}</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{draft.km} km × {rateInfo.rate.toFixed(2)} kr</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Kjøregodtgjørelse</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{formatMoney(cost.allowance)}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Bom</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{formatMoney(draft.tolls || 0)}</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Ferje</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{formatMoney(draft.ferries || 0)}</Text>
+            </View>
+            <View style={[styles.calcRow, { marginTop: 4 }]}>
+              <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Til sammen</Text>
+              <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{formatMoney(cost.amount)}</Text>
+            </View>
+          </View>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Lagret i kjøreboken og som utlegg på prosjektet. Fakturagrunnlaget bruker kjøreturen, så beløpet ikke faktureres dobbelt.
+            Ingenting lagres før du trykker Lagre. Da lukkes registreringen.
           </Text>
-          <TouchableOpacity onPress={onOpenBilling} style={[styles.footBtn, styles.linkBtn, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '600' }}>Fakturagrunnlag</Text>
-          </TouchableOpacity>
         </View>
       ) : null}
             </ScrollView>
@@ -1257,4 +1431,11 @@ const styles = StyleSheet.create({
   },
   btnGhost: { borderWidth: 1, backgroundColor: 'transparent' },
   menu: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, marginTop: 2 },
+  shortcut: { paddingVertical: 6 },
+  selectedCard: { borderWidth: 2, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
+  reviewBlock: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 6 },
+  reviewLine: { gap: 1 },
+  reviewKey: { fontSize: 11, fontWeight: '600' },
+  reviewValue: { fontSize: 16, fontWeight: '700' },
+  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
 });

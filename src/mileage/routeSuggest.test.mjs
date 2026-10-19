@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { projectAddressLabel, projectDestinationSuggestion } from './flow.js';
+import {
+  automaticPlaceHit,
+  companyAddressLabel,
+  companyAddressQueries,
+  projectAddressLabel,
+  projectDestinationSuggestion,
+} from './flow.js';
 import { decodePolyline, planDrivingRoute, tollEstimateNok } from './drivingRoute.js';
 import { ferryPassages, parseNvdbPoint, tollPassagesForRoute } from './tollPassages.js';
 import { TOLL_STATIONS } from './tollStations.js';
@@ -33,6 +39,34 @@ const viaCustomer = projectAddressLabel(
   { customers: [{ id: 'k1', address: 'Havnegata 4', postalCode: '4313', place: 'Sandnes' }] },
 );
 assert.equal(viaCustomer, 'Havnegata 4, 4313 Sandnes');
+
+const consult = {
+  navn: 'Consult1',
+  forretning: {
+    lines: ['Svanholmen 7'],
+    postnummer: '4313',
+    poststed: 'SANDNES',
+    label: 'Svanholmen 7, 4313 SANDNES',
+  },
+};
+assert.equal(companyAddressLabel(consult), 'Svanholmen 7, 4313 SANDNES');
+assert.equal(companyAddressQueries(consult)[0], 'Svanholmen 7, 4313 SANDNES');
+assert.equal(companyAddressLabel({
+  adresse: 'Storgata 1',
+  postnummer: '4000',
+  poststed: 'Stavanger',
+}), 'Storgata 1, 4000 Stavanger');
+assert.equal(companyAddressLabel({ addressLabel: 'Svanholmen 7, 4313 SANDNES' }), 'Svanholmen 7, 4313 SANDNES');
+
+const sandnes = { label: 'Svanholmen 7, 4313 SANDNES', adressetekst: 'Svanholmen 7', lat: 58.89, lng: 5.7, postnummer: '4313' };
+const vestre = { label: 'Vestre Svanholmen 7, 4313 SANDNES', adressetekst: 'Vestre Svanholmen 7', lat: 58.88, lng: 5.7, postnummer: '4313' };
+assert.equal(automaticPlaceHit('Svanholmen 7, 4313 SANDNES', [vestre, sandnes]).label, sandnes.label);
+assert.equal(automaticPlaceHit('Myklebust CB6-12-13 (1882)', [
+  { label: 'Myklebust 100, 6082 GURSKEN', adressetekst: 'Myklebust 100', lat: 62.1, lng: 5.6, postnummer: '6082' },
+]), null);
+assert.equal(automaticPlaceHit('Kvitsøy skole', [
+  { label: 'Kvitsøy skole', lat: 59.06, lng: 5.4 },
+]), null);
 
 assert.equal(tollEstimateNok(null), null);
 assert.equal(tollEstimateNok({}), 0);

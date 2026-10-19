@@ -256,7 +256,10 @@ function texts(node) {
 const today = new Date();
 const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 const state = {
-  projects: [{ id: 'p1', number: '10563', name: 'Kvitsøy skole', client: 'Kvitsøy Kommune', status: 'aktiv' }],
+  projects: [
+    { id: 'p1', number: '10563', name: 'Kvitsøy skole', client: 'Kvitsøy Kommune', status: 'aktiv' },
+    { id: 'p2', number: '10001', name: 'Myklebust', client: 'Sola Kommune', status: 'aktiv' },
+  ],
   timeEntries: [{ employeeId: 'e1', hours: 2, date, projectId: 'p1' }],
   members: [],
   equipment: [],
@@ -284,12 +287,24 @@ assert.deepEqual(sheetStyle(getTree()), expected);
 assert.ok(texts(getTree()).includes('Neste'));
 assert.ok(texts(getTree()).includes('Prosjekt'));
 assert.ok(texts(getTree()).includes('#10563 Kvitsøy skole'), 'prosjektlisten er åpen med en gang');
+assert.equal(texts(getTree()).includes('Myklebust'), false, 'prosjekt uten timer siste to måneder vises ikke');
 
 press(getTree(), 'mileage-wizard-next');
 assert.ok(texts(getTree()).includes('Velg prosjekt før du går videre.'));
 assert.deepEqual(sheetStyle(getTree()), expected);
 
 pressLabel(getTree(), '#10563 Kvitsøy skole');
+assert.ok(texts(getTree()).includes('Valgt prosjekt'));
+assert.ok(texts(getTree()).includes('#10563 Kvitsøy skole'));
+assert.equal(texts(getTree()).includes('Myklebust'), false, 'andre prosjekt skjules når ett er valgt');
+let search = null;
+walk(getTree(), (element) => {
+  if (element.props && element.props.placeholder === 'Nummer, navn eller kunde') search = element.props.onChangeText;
+});
+assert.equal(typeof search, 'function', 'søkefeltet blir stående');
+search('Mykle');
+assert.ok(texts(getTree()).some((row) => row.includes('Myklebust')), 'søk finner andre prosjekt');
+search('');
 press(getTree(), 'mileage-wizard-next');
 assert.equal(texts(getTree()).includes('Hent fra Vegvesenet'), false);
 assert.equal(texts(getTree()).includes('Legg til ny'), false);
@@ -310,8 +325,49 @@ walk(getTree(), (element) => {
   const placeholder = element.props && element.props.placeholder;
   if (placeholder === 'Søk adresse') fieldValues.push(element.props.value);
 });
-assert.ok(fieldValues.includes('Storgata 1 4000 Stavanger'), 'fra er selskapets adresse');
+assert.ok(fieldValues.includes('Storgata 1, 4000 Stavanger'), 'fra er selskapets adresse');
 assert.ok(fieldValues.includes('Kvitsøy skole'), 'til foreslår prosjektet når gateadresse mangler');
 assert.ok(texts(getTree()).includes('Til er foreslått fra prosjektnavnet. Rett adressen om stedet er et annet.'));
 
-console.log('mileageWizardModal.test.cjs: ok');
+let focused = 0;
+walk(getTree(), (element) => {
+  if (element.props && element.props.placeholder === 'Søk adresse' && element.props.onFocus && focused === 0) {
+    focused += 1;
+    element.props.onFocus();
+  }
+});
+assert.ok(texts(getTree()).includes('Bruk firmaadressen'));
+assert.ok(texts(getTree()).includes('Bruk hvor jeg er nå'));
+
+const kmInputs = [];
+walk(getTree(), (element) => {
+  if (element.props && element.props.keyboardType === 'decimal-pad' && element.props.onChangeText) {
+    kmInputs.push(element.props.onChangeText);
+  }
+});
+assert.ok(kmInputs.length >= 2, 'kilometerfelt');
+kmInputs[1]('10');
+press(getTree(), 'mileage-wizard-next');
+setImmediate(() => {
+  try {
+    assert.ok(texts(getTree()).includes('Storgata 1, 4000 Stavanger'));
+    assert.ok(texts(getTree()).includes('Kvitsøy skole'));
+    assert.ok(texts(getTree()).includes('Tur/retur'));
+    assert.ok(texts(getTree()).includes('10 km'));
+    assert.ok(texts(getTree()).includes('Til sammen'));
+    assert.ok(texts(getTree()).includes('Vil du registrere dette som fast prosjektadresse på prosjektet?'));
+    assert.equal(texts(getTree()).includes('Lagret i kjøreboken'), false);
+    pressLabel(getTree(), 'Nei, ikke lagre prosjektadresse');
+    assert.equal(texts(getTree()).includes('Vil du registrere dette som fast prosjektadresse på prosjektet?'), false);
+    press(getTree(), 'mileage-wizard-next');
+    let stillOpen = false;
+    walk(getTree(), (element) => {
+      if (element.props && element.props.nativeID === 'mileage-wizard-modal') stillOpen = true;
+    });
+    assert.equal(stillOpen, false, 'Lagre lukker registreringen');
+    console.log('mileageWizardModal.test.cjs: ok');
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
+  }
+});

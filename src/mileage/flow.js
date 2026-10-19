@@ -1,11 +1,12 @@
 /**
- * Kjørebokflyt: prosjekt siste to måneder, sats, hensikt og tur/retur-kostnad.
+ * Kjørebokflyt: prosjekt med timer siste to måneder, firmadresse, sats og tur/retur.
  */
 
 import { timesheetActivityRange } from '../arbeid/timesheetProjects.js';
 import { parseHours } from '../arbeid/hours.js';
 import { MILEAGE_RATE_TAX_FREE } from '../economy/mileage.js';
 import { roundMoney } from '../economy/vat.js';
+import { parseNorwegianAddressQuery } from '../utils/boligmappaApis.js';
 
 export const VISIT_PURPOSES = [
   { id: 'befaring', label: 'Befaring' },
@@ -108,40 +109,109 @@ export function projectDestinationSuggestion(project, sources = {}) {
   return projectAddressLabel(project, sources) || text(project?.name);
 }
 
+/**
+ * Gate, postnummer og poststed fra bedriften.
+ * `forretning` (Brreg) brukes når den finnes, ellers addressLabel eller flate felt.
+ */
+export function companyAddressParts(company) {
+  if (!company) return null;
+  const business = company.forretning && typeof company.forretning === 'object' ? company.forretning : {};
+  const lines = (Array.isArray(business.lines) ? business.lines : [])
+    .map(text)
+    .filter((line) => line && !/etasje/i.test(line));
+  let street = lines.join(', ') || text(company.adresse);
+  let postnummer = text(business.postnummer) || text(company.postnummer);
+  let poststed = text(business.poststed) || text(company.poststed);
+  const stored = text(company.addressLabel) || text(business.label);
+  if (stored && (!street || !postnummer)) {
+    const parsed = parseNorwegianAddressQuery(stored);
+    if (!street && parsed.adressenavn) {
+      const number = parsed.nummer != null ? `${parsed.nummer}${parsed.bokstav || ''}` : '';
+      street = [parsed.adressenavn, number].filter(Boolean).join(' ');
+    }
+    if (!postnummer) postnummer = parsed.postnummer;
+    if (!poststed) poststed = parsed.sted;
+  }
+  const label = street && (postnummer || poststed)
+    ? joinAddress(street, postnummer, poststed)
+    : (stored || [street, postnummer, poststed].filter(Boolean).join(' '));
+  if (!label) return null;
+  return { street, postnummer, poststed, label };
+}
+
 export function companyAddressLabel(company) {
-  if (!company) return '';
-  return text(company.addressLabel)
-    || text(company.forretning?.label)
-    || [text(company.adresse), text(company.postnummer), text(company.poststed)].filter(Boolean).join(' ');
+  return companyAddressParts(company)?.label || '';
+}
+
+/** Søketekster som Kartverket kan treffe, mest presise først. */
+export function companyAddressQueries(company) {
+  const parts = companyAddressParts(company);
+  if (!parts) return [];
+  const tail = [parts.postnummer, parts.poststed].filter(Boolean).join(' ');
+  const queries = [
+    parts.street && tail ? `${parts.street}, ${tail}` : '',
+    parts.street && parts.postnummer ? `${parts.street} ${parts.postnummer}` : '',
+    parts.label,
+    parts.street && parts.poststed ? `${parts.street} ${parts.poststed}` : '',
+  ];
+  const seen = new Set();
+  const out = [];
+  for (const query of queries) {
+    const clean = text(query).replace(/\s+/g, ' ');
+    const key = clean.toLowerCase();
+    if (clean.length < 3 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
 }
 
 /**
- * Uten søk vises prosjekt som er aktive på den ansatte: medlemskap og timer
- * siste to måneder. Søk treffer alle aktive prosjekt, med egne først.
+ * Automatisk karttreff bare når søket er en gateadresse og treffet har samme postnummer.
+ * Prosjektnavn og stedsnavn uten postnummer brukes ikke som første treff.
+ */
+export function automaticPlaceHit(query, hits) {
+  const parsed = parseNorwegianAddressQuery(text(query));
+  const mappable = (parsed.nummer != null && parsed.adressenavn) || !!parsed.postnummer;
+  if (!mappable) return null;
+  const rows = (hits || []).filter((hit) => (
+    Number.isFinite(Number(hit?.lat)) && Number.isFinite(Number(hit?.lng))
+  ));
+  if (parsed.postnummer) {
+    const same = rows.filter((hit) => text(hit.postnummer) === parsed.postnummer);
+    if (!same.length) return null;
+    if (parsed.adressenavn) {
+      const street = parsed.adressenavn.toLowerCase();
+      const exact = same.find((hit) => text(hit.adressetekst || hit.label).toLowerCase().startsWith(`${street} `));
+      if (exact) return exact;
+      const loose = same.find((hit) => text(hit.adressetekst || hit.label).toLowerCase().includes(street));
+      if (loose) return loose;
+    }
+    return same[0];
+  }
+  const street = parsed.adressenavn.toLowerCase();
+  return rows.find((hit) => text(hit.adressetekst || hit.label).toLowerCase().includes(street)) || null;
+}
+
+/**
+ * Uten søk vises prosjekt der den ansatte har ført timer i samme vindu som timelisten.
+ * Medlemskap alene er ikke nok. Søk treffer alle ikke-arkiverte prosjekt, med timeprosjekt først.
  */
 export function mileageProjectOptions(state, employeeId, { query = '', today = new Date(), customers, contracts } = {}) {
   const q = text(query).toLowerCase();
   const projects = (state?.projects || []).filter((row) => row?.status !== 'arkivert' && row?.id);
   const range = timesheetActivityRange(today);
   const recent = new Set();
-  const mine = new Set();
   for (const row of state?.timeEntries || []) {
     if (text(row.employeeId) !== text(employeeId)) continue;
     if (parseHours(row.hours) <= 0) continue;
     const date = text(row.date);
     if (!date || date < range.fromDate || date > range.toDate) continue;
     recent.add(text(row.projectId));
-    mine.add(text(row.projectId));
-  }
-  for (const member of state?.members || []) {
-    if (text(member.employeeId) !== text(employeeId)) continue;
-    if (member.active === false) continue;
-    mine.add(text(member.projectId));
   }
   const ranked = projects.map((project) => ({
     project,
     recent: recent.has(project.id),
-    mine: mine.has(project.id),
     address: projectAddressLabel(project, {
       customers: customers || state?.customers,
       contracts: [...(contracts || []), ...(state?.contracts || [])],
@@ -150,10 +220,9 @@ export function mileageProjectOptions(state, employeeId, { query = '', today = n
   }));
   const pool = q
     ? ranked.filter((row) => `${row.label} ${row.project.client || ''} ${row.address}`.toLowerCase().includes(q))
-    : ranked.filter((row) => row.mine);
+    : ranked.filter((row) => row.recent);
   pool.sort((a, b) => (
-    Number(b.mine) - Number(a.mine)
-    || Number(b.recent) - Number(a.recent)
+    Number(b.recent) - Number(a.recent)
     || a.label.localeCompare(b.label, 'nb')
   ));
   return { range, options: pool };

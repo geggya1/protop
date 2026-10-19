@@ -53,5 +53,6 @@ assert.match(auth, /resolveMailApiKey/);
 assert.match(aiIndex, /scanTimesheetReview/);
 assert.doesNotMatch(aiIndex, /aiCleanupScheduled/);
 assert.doesNotMatch(hosp, /hospScheduledSync/);
+assert.match(script, /timeout --signal=TERM --kill-after=20s 480/);
 
 console.log('functions/slimDeploy.test.mjs: ok');

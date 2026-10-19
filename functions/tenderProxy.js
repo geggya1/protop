@@ -7,6 +7,7 @@ import { searchDoffinNotices } from './anbud/doffinQuery.js';
 import { searchTedNotices } from './anbud/tedQuery.js';
 import { lookupCompanyCpv } from './anbud/companyLookup.js';
 import { allowedDownloadUrl, readPortalCatalog } from './anbud/portalCatalog.js';
+import { downloadGroundFile, readCompetitionGround } from './anbud/kgvSource.js';
 
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
@@ -67,6 +68,26 @@ export const tenderProxy = onRequest(
       if (action === 'lookup') {
         const data = await lookupCompanyCpv(body.orgnr);
         res.json(data);
+        return;
+      }
+      if (action === 'ground') {
+        try {
+          const data = await readCompetitionGround(body.url);
+          res.json(data);
+        } catch (err) {
+          const status = err?.code === 'invalid-argument' ? 400 : 502;
+          res.status(status).json({ ok: false, error: err?.message || 'Kunne ikke lese konkurransegrunnlaget.' });
+        }
+        return;
+      }
+      if (action === 'ground-file') {
+        try {
+          const data = await downloadGroundFile(body.file || {});
+          res.json(data);
+        } catch (err) {
+          const status = err?.code === 'invalid-argument' ? 400 : 502;
+          res.status(status).json({ ok: false, error: err?.message || 'Kunne ikke hente dokumentet.' });
+        }
         return;
       }
       if (action === 'catalog') {
@@ -224,7 +245,21 @@ export const tenderProxy = onRequest(
           errors.push(err?.message || 'TED feilet.');
         }
       }
-      res.json({ ok: hits.length > 0 || errors.length === 0, hits, errors, fetchedAt: new Date().toISOString() });
+      const seen = new Set();
+      const unique = [];
+      for (const hit of hits) {
+        const id = String(hit?.id || '');
+        const ted = String(hit?.tedId || '');
+        const keys = [
+          id,
+          ted ? `ted:${ted}` : '',
+          id.startsWith('ted-') ? `ted:${id.slice(4)}` : '',
+        ].filter(Boolean);
+        if (keys.some((key) => seen.has(key))) continue;
+        keys.forEach((key) => seen.add(key));
+        unique.push(hit);
+      }
+      res.json({ ok: unique.length > 0 || errors.length === 0, hits: unique, errors, fetchedAt: new Date().toISOString() });
     } catch (err) {
       logger.warn('tenderProxy failed', { message: err?.message });
       res.status(500).json({ ok: false, error: 'Kunne ikke hente kunngjøringer.' });

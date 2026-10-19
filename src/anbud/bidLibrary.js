@@ -232,16 +232,24 @@ export function competitionDocuments(dossier) {
     if (!name || seen.has(key)) continue;
     seen.add(key);
     const downloaded = text(file?.dataUrl) || text(file?.text);
+    const sha256 = text(file?.sha256);
+    const sourceId = text(file?.sourceId);
+    const stored = !!(downloaded || text(file?.storagePath));
     docs.push({
       name,
       mimeType: text(file?.mimeType),
       text: text(file?.text),
       dataUrl: text(file?.dataUrl),
-      url: text(file?.url || dossier?.documentsUrl),
+      url: text(file?.url || (stored ? '' : dossier?.documentsUrl)),
+      storagePath: text(file?.storagePath),
       size: Number(file?.size) || 0,
       sizeLabel: text(file?.sizeLabel || (typeof file?.size === 'string' ? file.size : '')),
       source: 'portal',
-      status: downloaded ? 'lastet' : 'portal',
+      sourceId,
+      sha256,
+      version: Number(file?.version) || 1,
+      publishedAt: text(file?.publishedAt),
+      status: stored ? 'lastet' : (file?.status === 'for-stor' ? 'for-stor' : 'portal'),
     });
   }
   for (const doc of Array.isArray(dossier?.documents) ? dossier.documents : []) {
@@ -286,7 +294,8 @@ function normalizeFile(raw, folderIds) {
   const dataUrl = cleanDataUrl(raw?.dataUrl);
   const fileText = text(raw?.text).slice(0, 200000);
   const url = text(raw?.url).slice(0, 500);
-  const loaded = !!(dataUrl || fileText || url);
+  const storagePath = text(raw?.storagePath).slice(0, 500);
+  const hasBody = !!(dataUrl || fileText || storagePath);
   return {
     id,
     folderId,
@@ -295,11 +304,15 @@ function normalizeFile(raw, folderIds) {
     text: fileText,
     dataUrl,
     url,
-    storagePath: text(raw?.storagePath).slice(0, 500),
+    storagePath,
     size: Number(raw?.size) || 0,
     sizeLabel: text(raw?.sizeLabel).slice(0, 40),
     source: text(raw?.source).slice(0, 40) || 'egen',
-    status: loaded ? 'lastet' : status,
+    sourceId: text(raw?.sourceId).slice(0, 240),
+    sha256: /^[a-f0-9]{64}$/i.test(text(raw?.sha256)) ? text(raw.sha256).toLowerCase() : '',
+    version: Math.max(1, Number(raw?.version) || 1),
+    publishedAt: text(raw?.publishedAt).slice(0, 40),
+    status: hasBody ? 'lastet' : status,
     kind: raw?.kind === 'egen' ? 'egen' : 'grunnlag',
     checkId: text(raw?.checkId).slice(0, 80),
     createdAt: text(raw?.createdAt),
@@ -514,20 +527,29 @@ export function normalizeBidWork(raw) {
   const stored = (Array.isArray(bid.files) ? bid.files : []).map((row) => normalizeFile(row, folderIds)).filter(Boolean);
   const incoming = competitionDocuments(bid.dossier).map((row) => {
     const qa = row.source === 'qa';
+    const slug = text(row.sha256 || row.sourceId || row.name)
+      .toLocaleLowerCase('nb-NO')
+      .replace(/[^a-z0-9æøå]+/gi, '_')
+      .slice(0, 48);
     return {
       ...row,
-      id: `${qa ? 'qa' : 'grunnlag'}_${row.name.toLocaleLowerCase('nb-NO').replace(/[^a-z0-9æøå]+/gi, '_').slice(0, 40)}`,
+      id: `${qa ? 'qa' : 'grunnlag'}_${slug || 'dokument'}`,
       folderId: qa ? QA_FOLDER_ID : GROUND_FOLDER_ID,
       kind: 'grunnlag',
       createdAt: '',
     };
   });
-  const previous = new Map(stored.filter((row) => (
+  const official = stored.filter((row) => (
     row.folderId === GROUND_FOLDER_ID || row.folderId === QA_FOLDER_ID
-  )).map((row) => [`${row.folderId}:${row.name.toLocaleLowerCase('nb-NO')}`, row]));
+  ));
+  const previousByName = new Map(official.map((row) => [`${row.folderId}:${row.name.toLocaleLowerCase('nb-NO')}`, row]));
+  const usedIds = new Set();
   const published = incoming.map((row) => {
-    const prev = previous.get(`${row.folderId}:${row.name.toLocaleLowerCase('nb-NO')}`);
-    if (!prev) return row;
+    const prev = previousByName.get(`${row.folderId}:${row.name.toLocaleLowerCase('nb-NO')}`);
+    const sameBody = prev && (!row.sha256 || !prev.sha256 || prev.sha256 === row.sha256);
+    if (!prev || !sameBody) return row;
+    usedIds.add(prev.id);
+    const hasBody = !!(row.text || row.dataUrl || row.storagePath || prev.text || prev.dataUrl || prev.storagePath);
     return {
       ...row,
       id: prev.id,
@@ -535,11 +557,14 @@ export function normalizeBidWork(raw) {
       dataUrl: row.dataUrl || prev.dataUrl,
       url: row.url || prev.url,
       storagePath: row.storagePath || prev.storagePath,
-      status: row.text || row.dataUrl || row.url || prev.text || prev.dataUrl || prev.url ? 'lastet' : row.status,
+      sha256: row.sha256 || prev.sha256,
+      sourceId: row.sourceId || prev.sourceId,
+      status: hasBody ? 'lastet' : row.status,
       size: row.size || prev.size,
       sizeLabel: row.sizeLabel || prev.sizeLabel,
     };
   });
+  const versions = official.filter((row) => !usedIds.has(row.id) && (row.sha256 || row.storagePath || row.dataUrl || row.text));
   const own = stored.filter((row) => row.kind === 'egen' && row.folderId !== GROUND_FOLDER_ID && row.folderId !== QA_FOLDER_ID);
   const parked = bid.parked === 'vurdering' || bid.parked === 'uaktuell' ? bid.parked : '';
   return {
@@ -553,7 +578,7 @@ export function normalizeBidWork(raw) {
     workItems: (Array.isArray(bid.workItems) ? bid.workItems : []).map(normalizeWorkItem).filter(Boolean).slice(0, 40),
     pendingWorkItems: (Array.isArray(bid.pendingWorkItems) ? bid.pendingWorkItems : []).map(normalizeWorkItem).filter(Boolean).slice(0, 40),
     folders: uniqueFolders.slice(0, 60),
-    files: [...published, ...own].slice(0, 120),
+    files: [...published, ...versions, ...own].slice(0, 120),
     forms: (Array.isArray(bid.forms) ? bid.forms : []).map(normalizeForm).filter(Boolean).slice(0, 30),
     questions: (Array.isArray(bid.questions) ? bid.questions : []).map(normalizeQuestion).filter(Boolean).slice(0, 40),
   };

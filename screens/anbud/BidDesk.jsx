@@ -22,7 +22,8 @@ import { assignmentFromChoice, assignmentGap, assignmentHint, processStepsForBid
 import { departmentsOf } from '../../src/project/companyUnits';
 import ProcessTrail from './ProcessTrail';
 import { BidDeskActions } from './BidSymbolButton';
-import { attachPortalCatalog, fetchCompetitionFile, storeReachableFiles } from '../../src/anbud/doffinClient';
+import { downloadGroundFile, fetchCompetitionFile, fetchCompetitionGround } from '../../src/anbud/doffinClient';
+import { uploadBidFile } from '../../src/anbud/bidFiles';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -91,6 +92,20 @@ export default function BidDesk({
     onFocusHandled?.();
   }, [focusBidId]);
 
+  const autoGround = useRef('');
+  useEffect(() => {
+    if (!openId || !state) return;
+    const bid = (state.bids || []).find((row) => row.id === openId);
+    const url = bid?.dossier?.documentsUrl || bid?.dossier?.documents?.[0]?.url || '';
+    const noticeId = /^\d{4}-\d+$/.test(String(bid?.noticeId || ''));
+    if (!bid || (!url && !noticeId)) return;
+    const checked = Date.parse(bid.dossier?.ground?.checkedAt || '') || 0;
+    if (checked && Date.now() - checked < 6 * 60 * 60 * 1000) return;
+    if (autoGround.current === bid.id) return;
+    autoGround.current = bid.id;
+    refreshFiles(bid);
+  }, [openId, state]);
+
   async function commit(result) {
     if (!result?.ok) {
       setNote(result?.error || 'Kunne ikke lagre.');
@@ -103,17 +118,124 @@ export default function BidDesk({
     return result;
   }
 
+  function bytesToBlob(base64, mimeType) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+  }
+
+  function mergePublishedQa(previous, incoming) {
+    const prev = new Map((previous || []).map((row) => [row.id || row.question, row]));
+    return (incoming || []).map((row) => {
+      const old = prev.get(row.id || row.question);
+      return {
+        ...row,
+        fresh: !old,
+        changed: !!(old && String(old.answer || '') !== String(row.answer || '')),
+      };
+    });
+  }
+
   async function refreshFiles(bid) {
     setBusyId(bid.id);
     setNote('');
     let dossier = bid.dossier || {};
+    let ground = null;
     try {
       if (/^\d{4}-\d+$/.test(String(bid.noticeId || ''))) {
         const file = await fetchCompetitionFile(bid.noticeId);
-        dossier = file?.dossier ? { ...dossier, ...file.dossier } : dossier;
+        dossier = file?.dossier ? { ...dossier, ...file.dossier, ground: dossier.ground, portalFiles: dossier.portalFiles, updates: dossier.updates } : dossier;
       }
-      dossier = await attachPortalCatalog(dossier);
-      dossier = await storeReachableFiles(dossier);
+      const documentsUrl = dossier.documentsUrl || dossier.documents?.[0]?.url || '';
+      if (!documentsUrl) {
+        dossier = {
+          ...dossier,
+          ground: {
+            ...(dossier.ground || {}),
+            checkedAt: new Date().toISOString(),
+            syncOk: false,
+            note: 'Kunngjøringen har ingen lenke til konkurransegrunnlaget.',
+          },
+        };
+      } else {
+        ground = await fetchCompetitionGround(documentsUrl);
+        const files = [];
+        for (const file of (ground.files || []).slice(0, 12)) {
+          if (!file?.download) {
+            files.push({ ...file, status: 'portal' });
+            continue;
+          }
+          try {
+            const got = await downloadGroundFile(file);
+            if (got?.ok && got.base64) {
+              let stored = {
+                ...file,
+                status: 'lastet',
+                mimeType: got.mimeType,
+                size: got.size,
+                sha256: got.sha256 || '',
+                sourceId: got.sourceId || file.sourceId || '',
+              };
+              if (company?.id) {
+                try {
+                  const uploaded = await uploadBidFile(company.id, bid.id, {
+                    name: file.name,
+                    mimeType: got.mimeType,
+                    size: got.size,
+                    blob: bytesToBlob(got.base64, got.mimeType),
+                  }, { salt: String(got.sha256 || '').slice(0, 12) });
+                  stored = { ...stored, ...uploaded, status: 'lastet' };
+                } catch {
+                  if (got.size <= 450000) stored.dataUrl = `data:${got.mimeType};base64,${got.base64}`;
+                  else stored = { ...stored, status: 'for-stor', dataUrl: '' };
+                }
+              } else if (got.size <= 450000) {
+                stored.dataUrl = `data:${got.mimeType};base64,${got.base64}`;
+              } else {
+                stored = { ...stored, status: 'for-stor', dataUrl: '' };
+              }
+              files.push(stored);
+              continue;
+            }
+            files.push({
+              ...file,
+              status: got?.tooLarge ? 'for-stor' : 'portal',
+              size: got?.size || file.size || 0,
+            });
+          } catch {
+            files.push({ ...file, status: 'portal' });
+          }
+        }
+        const qa = ground.qa?.length ? mergePublishedQa(dossier.qa, ground.qa) : (dossier.qa || []);
+        const updates = Array.isArray(dossier.updates) ? [...dossier.updates] : [];
+        const changedQa = qa.filter((row) => row.fresh || row.changed).length;
+        if (changedQa) {
+          updates.push({
+            at: new Date().toISOString(),
+            field: 'qa',
+            label: `${changedQa} nye eller endrede spørsmål og svar`,
+          });
+        }
+        dossier = {
+          ...dossier,
+          interestUrl: ground.interestUrl || dossier.interestUrl || '',
+          portalFiles: files,
+          qa,
+          updates: updates.slice(-30),
+          ground: {
+            portal: ground.source?.name || '',
+            portalId: ground.source?.id || '',
+            access: ground.access || 'unknown',
+            note: ground.note || '',
+            checkedAt: ground.checkedAt || new Date().toISOString(),
+            documentCount: files.length,
+            downloadedCount: files.filter((row) => row.status === 'lastet').length,
+            qaCount: qa.length,
+            syncOk: true,
+          },
+        };
+      }
     } catch (err) {
       setNote(err?.message || 'Kunne ikke hente grunnlaget.');
       setBusyId('');
@@ -133,9 +255,11 @@ export default function BidDesk({
     setState(next);
     onSnapshot?.(next);
     const stored = next.bids.find((row) => row.id === bid.id);
-    const downloaded = (stored?.files || []).filter((row) => row.status === 'lastet').length;
+    const downloaded = (stored?.files || []).filter((row) => row.status === 'lastet' && row.source === 'portal').length;
+    const waiting = (stored?.files || []).filter((row) => row.status === 'portal' || row.status === 'for-stor').length;
     const answers = stored?.dossier?.qa?.length || 0;
-    setNote(`${downloaded} dokumenter er lagret i tilbudet. ${answers ? `${answers} spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}.`);
+    const accessNote = stored?.dossier?.ground?.note || '';
+    setNote(`${downloaded} dokumenter er lagret i tilbudet.${waiting ? ` ${waiting} er ikke lastet ned.` : ''} ${answers ? `${answers} spørsmål og svar.` : 'Ingen spørsmål og svar er publisert ennå.'}${accessNote ? ` ${accessNote}` : ''}`);
     showSaveToast(`${downloaded} dokumenter er lagret i tilbudet.`);
     setBusyId('');
   }

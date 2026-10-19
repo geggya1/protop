@@ -23,6 +23,7 @@ export const FILES = [
   'src/anbud/intake.test.mjs',
   'src/anbud/bidSymbolButton.test.cjs',
   'src/anbud/documentFile.test.mjs',
+  'src/anbud/kgvSource.test.mjs',
   'src/anbud/openDocument.test.mjs',
   'functions/interpretAvtale.smoke.test.mjs',
   'functions/anbudForm.smoke.test.mjs',

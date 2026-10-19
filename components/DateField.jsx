@@ -72,11 +72,14 @@ export default function DateField({
           type="date"
           value={key}
           min={minKey || undefined}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
+            e.stopPropagation();
             const v = e.target.value;
             onChange(v ? new Date(`${v}T12:00:00`) : null);
           }}
-          style={OVERLAY_INPUT_STYLE}
+          style={{ ...OVERLAY_INPUT_STYLE, zIndex: 2, opacity: 0.02 }}
           aria-label={prefix ? prefix.replace(/:\s*$/, '') : placeholder}
         />
       </View>
@@ -117,7 +120,7 @@ export default function DateField({
 const styles = StyleSheet.create({
   row: {
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'visible',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

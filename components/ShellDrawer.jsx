@@ -11,7 +11,16 @@ import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
-import { buildShellModules, drawerHasSubmenuToggle, drawerSubmenuOpen, isNavItemActive } from '../src/navigation/shellModules';
+import {
+  buildShellModules,
+  drawerGroupOpen,
+  drawerHasSubmenuToggle,
+  drawerSubmenuOpen,
+  groupCompanyDrawerItems,
+  isNavItemActive,
+  releaseClosedActiveGroups,
+  releaseClosedActiveSubmenus,
+} from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
 import { useAiPlanImport } from '../src/hooks/useAiPlanImport';
@@ -141,6 +150,7 @@ export default function ShellDrawer({
   const companyAccess = useCompanyAccess();
   const [open, setOpen] = useState(DEFAULT_OPEN);
   const [submenuOpen, setSubmenuOpen] = useState({});
+  const [groupOpen, setGroupOpen] = useState({});
 
   const activeKids = useMemo(
     () => (kids || []).filter((k) => k.active !== false),
@@ -240,6 +250,16 @@ export default function ShellDrawer({
   const isItemActive = useCallback((item) => (
     isNavItemActive(item, activeTab, activeSubView)
   ), [activeTab, activeSubView]);
+
+  const companyItems = useMemo(
+    () => sections.find((section) => section.id === 'company')?.items || [],
+    [sections],
+  );
+
+  useEffect(() => {
+    setGroupOpen((prev) => releaseClosedActiveGroups(prev, companyItems, activeTab, activeSubView));
+    setSubmenuOpen((prev) => releaseClosedActiveSubmenus(prev, companyItems, activeTab, activeSubView));
+  }, [activeTab, activeSubView, companyItems]);
 
   const sectionHasActive = useCallback((section) => (
     (section.items || []).some((item) => isItemActive(item))
@@ -429,7 +449,10 @@ export default function ShellDrawer({
                     ) : (
                       <Text style={styles.sectionTitle}>{section.title}</Text>
                     )}
-                    {expanded ? section.items.map((item) => {
+                    {expanded ? (section.id === 'company'
+                      ? groupCompanyDrawerItems(section.items)
+                      : section.items
+                    ).map((item, index) => {
                       const renderNavBranch = (row, depth = 0) => {
                         const kids = row.children || [];
                         const expandable = drawerHasSubmenuToggle(row);
@@ -461,7 +484,45 @@ export default function ShellDrawer({
                           </View>
                         );
                       };
-                      return renderNavBranch(item);
+                      if (!item.group) return renderNavBranch(item);
+                      const groupExpanded = drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
+                      const containsActive = (item.children || []).some((child) => isItemActive(child));
+                      return (
+                        <View
+                          key={item.id}
+                          style={[styles.groupBlock, index === 0 && styles.groupBlockFirst]}
+                        >
+                          <TouchableOpacity
+                            style={[styles.groupHead, containsActive && styles.groupHeadActive]}
+                            onPress={() => setGroupOpen((prev) => ({
+                              ...prev,
+                              [item.id]: !drawerGroupOpen(item, activeTab, prev, activeSubView),
+                            }))}
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded: groupExpanded }}
+                            accessibilityLabel={`${item.label}, ${groupExpanded ? 'åpen' : 'lukket'}`}
+                            nativeID={`module-nav-${item.id}`}
+                            id={`module-nav-${item.id}`}
+                          >
+                            <Text
+                              style={[styles.groupTitle, containsActive && styles.groupTitleActive]}
+                              numberOfLines={2}
+                            >
+                              {item.label}
+                            </Text>
+                            <Ionicons
+                              name={groupExpanded ? 'chevron-down' : 'chevron-forward'}
+                              size={16}
+                              color={containsActive ? colors.brand : colors.muted}
+                            />
+                          </TouchableOpacity>
+                          {groupExpanded ? (
+                            <View style={styles.groupBody}>
+                              {(item.children || []).map((child) => renderNavBranch(child))}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
                     }) : null}
                   </View>
                 );
@@ -570,6 +631,37 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.4,
     marginBottom: 2, marginLeft: 6, marginTop: 2,
   },
+  groupBlock: {
+    marginTop: 8,
+    paddingTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
+  groupBlockFirst: {
+    marginTop: 2,
+    paddingTop: 0,
+    borderTopWidth: 0,
+  },
+  groupHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 34,
+    paddingVertical: 4,
+    paddingLeft: 6,
+    paddingRight: 4,
+    borderRadius: 8,
+  },
+  groupHeadActive: { backgroundColor: colors.sunken },
+  groupTitle: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: colors.ink,
+  },
+  groupTitleActive: { color: colors.brand },
+  groupBody: { paddingLeft: 10 },
   appSectionTitle: {
     marginBottom: 0,
     marginLeft: 2,

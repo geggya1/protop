@@ -39,6 +39,8 @@ export function anbudMenuTitle(subView) {
  * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
  * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  * Ansatte er et eget register: ansettelsen følger selskapet, CV-en følger personen.
+ * Hamburgermeny og desktop-rail viser punktene i COMPANY_DRAWER_GROUPS.
+ * Denne listen er fortsatt kilden for ruter, ikoner og tilgang.
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
@@ -337,6 +339,107 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
   }
   if (item.forceOpen) return true;
   return isNavItemActive(item, activeTab, activeSubView);
+}
+
+/**
+ * Hovedgrupper i hamburgermeny og desktop-rail.
+ * companyNavItems() er uendret kilde for ruter, ikoner og tilgang.
+ * Fravær løftes ut av Selskap kun i denne presentasjonen.
+ * Punkter som ikke er nevnt i gruppene, legges etterpå og skal ikke skjules.
+ */
+export const COMPANY_DRAWER_GROUPS = [
+  { id: 'company-org', label: 'Selskap og organisasjon', itemIds: ['selskap', 'hr', 'fravaer'] },
+  { id: 'company-customers', label: 'Kunder, anbud og avtaler', itemIds: ['kunder', 'anbud', 'kontrakt'] },
+  { id: 'company-delivery', label: 'Prosjekt og tjenesteleveranser', itemIds: ['projects', 'arbeid'] },
+  { id: 'company-resources', label: 'Produkter og driftsressurser', itemIds: ['produkt', 'utstyr', 'kjorebok'] },
+  { id: 'company-finance', label: 'Økonomi og fakturering', itemIds: ['okonomi'] },
+  { id: 'company-quality', label: 'Kvalitet og styringssystem', itemIds: ['iso'] },
+];
+
+export function groupCompanyDrawerItems(items) {
+  const pool = new Map();
+  for (const item of items || []) {
+    if (!item) continue;
+    if (item.id === 'selskap') {
+      const children = item.children || [];
+      const fravaer = children.find((child) => child.id === 'fravaer') || null;
+      const rest = children.filter((child) => child.id !== 'fravaer');
+      const next = { ...item };
+      if (rest.length) next.children = rest;
+      else delete next.children;
+      pool.set('selskap', next);
+      if (fravaer) pool.set('fravaer', fravaer);
+      continue;
+    }
+    pool.set(item.id, item);
+  }
+
+  const used = new Set();
+  const grouped = [];
+  for (const def of COMPANY_DRAWER_GROUPS) {
+    const children = [];
+    for (const id of def.itemIds) {
+      if (!pool.has(id) || used.has(id)) continue;
+      children.push(pool.get(id));
+      used.add(id);
+    }
+    if (!children.length) continue;
+    grouped.push({
+      id: def.id,
+      label: def.label,
+      group: true,
+      children,
+    });
+  }
+
+  for (const [id, item] of pool) {
+    if (!used.has(id)) grouped.push(item);
+  }
+  return grouped;
+}
+
+export function drawerGroupOpen(group, activeTab, overrides = {}, activeSubView = null) {
+  if (!group?.group) return false;
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, group.id)) {
+    return !!overrides[group.id];
+  }
+  return (group.children || []).some((child) => isNavItemActive(child, activeTab, activeSubView));
+}
+
+/** Etter navigering skal gruppen som inneholder aktiv side være utvidet igjen. */
+export function releaseClosedActiveGroups(overrides, items, activeTab, activeSubView) {
+  let changed = false;
+  const next = { ...(overrides || {}) };
+  for (const group of groupCompanyDrawerItems(items)) {
+    if (!group.group) continue;
+    const active = (group.children || []).some((child) => isNavItemActive(child, activeTab, activeSubView));
+    if (active && next[group.id] === false) {
+      delete next[group.id];
+      changed = true;
+    }
+  }
+  return changed ? next : (overrides || {});
+}
+
+/** Etter navigering skal modulen som inneholder aktiv side være utvidet igjen. */
+export function releaseClosedActiveSubmenus(overrides, items, activeTab, activeSubView) {
+  let changed = false;
+  const next = { ...(overrides || {}) };
+  const walk = (list) => {
+    for (const item of list || []) {
+      if (item.group) {
+        walk(item.children);
+        continue;
+      }
+      if (next[item.id] === false && isNavItemActive(item, activeTab, activeSubView)) {
+        delete next[item.id];
+        changed = true;
+      }
+      walk(item.children);
+    }
+  };
+  walk(items);
+  return changed ? next : (overrides || {});
 }
 
 function collectNavIds(item, ids) {

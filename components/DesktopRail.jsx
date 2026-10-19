@@ -11,9 +11,13 @@ import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
 import {
   buildShellModules,
+  drawerGroupOpen,
   drawerHasSubmenuToggle,
   drawerSubmenuOpen,
+  groupCompanyDrawerItems,
   isNavItemActive,
+  releaseClosedActiveGroups,
+  releaseClosedActiveSubmenus,
 } from '../src/navigation/shellModules';
 import { isParentAppSection } from '../src/navigation/parentAppGroups';
 import { isChildAppSection } from '../src/navigation/childAppGroups';
@@ -119,6 +123,7 @@ export default function DesktopRail({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(DEFAULT_OPEN);
   const [submenuOpen, setSubmenuOpen] = useState({});
+  const [groupOpen, setGroupOpen] = useState({});
   const {
     isParent, isChild, isActingAsChild, isAdmin, isSuperAdmin, isGrandparent,
     family, familyId, kids, meChild, meParent, activeChild,
@@ -206,21 +211,32 @@ export default function DesktopRail({
 
   const isItemActive = (item) => isNavItemActive(item, activeTab, activeSubView);
 
+  const companyItems = useMemo(
+    () => sections.find((section) => section.id === 'company')?.items || [],
+    [sections],
+  );
+
+  useEffect(() => {
+    setGroupOpen((prev) => releaseClosedActiveGroups(prev, companyItems, activeTab, activeSubView));
+    setSubmenuOpen((prev) => releaseClosedActiveSubmenus(prev, companyItems, activeTab, activeSubView));
+  }, [activeTab, activeSubView, companyItems]);
+
   const q = query.trim().toLowerCase();
   const filteredSections = useMemo(() => {
-    if (!q) return sections;
     const match = (item) => String(item.label || '').toLowerCase().includes(q);
+    const narrow = (list) => (list || []).map((item) => {
+      const kids = (item.children || []).filter(match);
+      if (!q || match(item)) return item;
+      if (kids.length) return { ...item, children: kids, forceOpen: true };
+      return null;
+    }).filter(Boolean);
     return sections
-      .map((section) => ({
-        ...section,
-        items: (section.items || []).map((item) => {
-          const kids = (item.children || []).filter(match);
-          if (match(item)) return item;
-          if (kids.length) return { ...item, children: kids, forceOpen: true };
-          return null;
-        }).filter(Boolean),
-      }))
-      .filter((section) => section.items.length > 0);
+      .map((section) => {
+        const items = q ? narrow(section.items) : (section.items || []);
+        if (section.id !== 'company') return q ? { ...section, items } : section;
+        return { ...section, items: groupCompanyDrawerItems(items) };
+      })
+      .filter((section) => (section.items || []).length > 0);
   }, [sections, q]);
 
   const sectionHasActive = useCallback((section) => (
@@ -240,7 +256,9 @@ export default function DesktopRail({
 
   if (collapsed) {
     const mainItems = sections.find((s) => s.id === 'main')?.items || [];
-    const companyItems = sections.find((s) => s.id === 'company')?.items || [];
+    const companyItems = groupCompanyDrawerItems(
+      sections.find((s) => s.id === 'company')?.items || [],
+    ).flatMap((item) => (item.group ? item.children || [] : [item]));
     return (
       <HelpTarget id="rail" style={styles.collapsedWrap}>
         <BrandLogo variant="mark" height={36} style={styles.brandMarkImg} />
@@ -334,7 +352,7 @@ export default function DesktopRail({
                   color={appFolder ? colors.ink : colors.muted}
                 />
               </TouchableOpacity>
-              {expanded ? section.items.map((item) => {
+              {expanded ? section.items.map((item, index) => {
                 const renderNavBranch = (row, depth = 0) => {
                   const kids = row.children || [];
                   const expandable = drawerHasSubmenuToggle(row);
@@ -359,7 +377,41 @@ export default function DesktopRail({
                     </View>
                   );
                 };
-                return renderNavBranch(item);
+                if (!item.group) return renderNavBranch(item);
+                const groupExpanded = !!q || drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
+                const containsActive = (item.children || []).some((child) => isItemActive(child));
+                return (
+                  <View key={item.id} style={[styles.groupBlock, index === 0 && styles.groupBlockFirst]}>
+                    <TouchableOpacity
+                      style={[styles.groupHead, containsActive && styles.groupHeadActive]}
+                      onPress={() => setGroupOpen((prev) => ({
+                        ...prev,
+                        [item.id]: !drawerGroupOpen(item, activeTab, prev, activeSubView),
+                      }))}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: groupExpanded }}
+                      accessibilityLabel={`${item.label}, ${groupExpanded ? 'åpen' : 'lukket'}`}
+                      nativeID={`module-nav-${item.id}`}
+                    >
+                      <Text
+                        style={[styles.groupTitle, containsActive && styles.groupTitleActive]}
+                        numberOfLines={2}
+                      >
+                        {item.label}
+                      </Text>
+                      <Ionicons
+                        name={groupExpanded ? 'chevron-down' : 'chevron-forward'}
+                        size={14}
+                        color={containsActive ? colors.brand : colors.muted}
+                      />
+                    </TouchableOpacity>
+                    {groupExpanded ? (
+                      <View style={styles.groupBody}>
+                        {(item.children || []).map((child) => renderNavBranch(child))}
+                      </View>
+                    ) : null}
+                  </View>
+                );
               }) : null}
             </View>
           );
@@ -444,6 +496,37 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.45,
   },
+  groupBlock: {
+    marginTop: 6,
+    paddingTop: 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
+  groupBlockFirst: {
+    marginTop: 0,
+    paddingTop: 0,
+    borderTopWidth: 0,
+  },
+  groupHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 28,
+    paddingVertical: 3,
+    paddingLeft: 8,
+    paddingRight: 4,
+    borderRadius: 5,
+  },
+  groupHeadActive: { backgroundColor: colors.sunken },
+  groupTitle: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: colors.ink,
+  },
+  groupTitleActive: { color: colors.brand },
+  groupBody: { paddingLeft: 8 },
   appSectionTitle: {
     fontSize: 12, fontWeight: '400', color: colors.ink,
     textTransform: 'none', letterSpacing: 0,

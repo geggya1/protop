@@ -32,11 +32,22 @@ deploy_entry() {
   pkg.main = process.argv[1];
   writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
   " "$entry"
-  if npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive; then
+  # Ett hengende firebase-kall skal ikke holde concurrency-gruppen i timevis.
+  local deploy_status=0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --signal=TERM --kill-after=20s 480 npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive || deploy_status=$?
+  else
+    npx firebase deploy --only "$only" --config firebase.functions.json --project protop-c189c --non-interactive || deploy_status=$?
+  fi
+  if [ "$deploy_status" -eq 0 ]; then
     echo "OK $only"
     return 0
   fi
-  echo "::warning::Failed to deploy $only"
+  if [ "$deploy_status" -eq 124 ]; then
+    echo "::warning::Timed out deploying $only"
+  else
+    echo "::warning::Failed to deploy $only"
+  fi
   return 0
 }
 

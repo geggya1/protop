@@ -15,6 +15,9 @@ permissions:
 # push skal avbryte web-bygget som ennå ikke er live. Funksjonsdeployen
 # fullfører den som allerede kjører; eldre ventende funksjonsjobber
 # avbrytes av GitHub når en nyere kommer i samme gruppe.
+# functions-gate hopper over selve deploy-jobben når functions/ og filene
+# den importerer er uendret. En hoppet jobb tar ikke concurrency-låsen,
+# så web-pusher blir grønne uten å vente på forrige funksjonsdeploy.
 jobs:
   hosting:
     runs-on: ubuntu-latest
@@ -73,9 +76,29 @@ jobs:
 
       - run: npx firebase deploy --only hosting --project protop-c189c --non-interactive
 
-  functions:
+  functions-gate:
     needs: hosting
     runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.functions_src.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: See if Cloud Functions must deploy
+        id: functions_src
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/functions-deploy-needed.mjs --check "${{ github.event.before }}" "$GITHUB_SHA" | tee -a "$GITHUB_OUTPUT"
+
+  functions:
+    needs: [hosting, functions-gate]
+    if: needs.functions-gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
     concurrency:
       group: functions-protop-c189c
       cancel-in-progress: false

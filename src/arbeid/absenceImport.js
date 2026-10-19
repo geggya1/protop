@@ -79,6 +79,7 @@ const TYPE_ALIASES = new Map([
   [fold('Mammadag'), 'foreldre'],
   [fold('Foreldrepenger'), 'foreldre'],
   [fold('Annet'), 'annet'],
+  [fold('Reisetid - Frøya (Ikke til lønn) (Annet fravær)'), 'reise_uten_lonn'],
 ]);
 
 function isNoiseHoursHeader(key) {

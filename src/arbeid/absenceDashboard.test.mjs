@@ -101,7 +101,7 @@ const employees = [
     today: '2026-06-01',
     absences: [
       { id: '1', employeeId: 'e1', type: 'ferie', date: '2026-06-01', hours: 7.5 },
-      { id: '2', employeeId: 'e2', type: 'annet_uten', date: '2026-06-01', hours: 7.5 },
+      { id: '2', employeeId: 'e2', type: 'permittert', date: '2026-06-01', hours: 7.5 },
     ],
   });
   assert.equal(all.allowance, 50);

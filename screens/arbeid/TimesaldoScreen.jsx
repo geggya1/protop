@@ -22,7 +22,8 @@ import {
   needsTimesheetPersonStep,
 } from '../../src/arbeid/timesheetIdentity.js';
 import { buildTimesaldo } from '../../src/arbeid/balance.js';
-import { agreedHoursForDate } from '../../src/arbeid/holidays.js';
+import { agreedHoursForDate, resolveRedDays } from '../../src/arbeid/holidays.js';
+import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { setBalanceAdjustment } from '../../src/arbeid/timesheetState.js';
@@ -111,13 +112,14 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
       absences: workspace.state.absences,
       adjustments: workspace.state.balanceAdjustments,
       flexCountsAsPay: settings.flexCountsAsPay,
+      types: resolveAbsenceTypes(workspace.state),
       agreedForDate: (dateKey) => {
         const [yy, mm, dd] = String(dateKey).split('-').map(Number);
         const date = new Date(yy, (mm || 1) - 1, dd || 1);
         const schedule = scheduledHours(employee, date, fullDay);
         return agreedHoursForDate(date, {
           fullDayHours: fullDay,
-          redDays: workspace.state.redDays,
+          redDays: resolveRedDays(workspace.state, [yy || year]),
           scheduleHours: schedule,
         }).hours;
       },

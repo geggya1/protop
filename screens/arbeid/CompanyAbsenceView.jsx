@@ -5,8 +5,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
-import { ACTIVE_STAFF_LABEL } from '../../src/arbeid/absenceDashboard.js';
-import { absenceCategory } from '../../src/arbeid/absenceDashboard.js';
+import { ACTIVE_STAFF_LABEL, absenceCategory } from '../../src/arbeid/absenceDashboard.js';
 import { absenceWidgetDestination, monthKeyEnd } from '../../src/arbeid/absenceWidgetNav.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero.js';
@@ -54,13 +53,13 @@ function formatPercent(value, total) {
   return `${Math.round(((Number(value) || 0) / Number(total)) * 100)}%`;
 }
 
-function moreTypes() {
+function moreTypes(catalog) {
   const covered = new Set(['ferie']);
   return [
     { id: 'annet', label: 'Annet fravær' },
-    ...absencePickerTypes().filter((row) => {
+    ...absencePickerTypes(catalog).filter((row) => {
       if (covered.has(row.id)) return false;
-      const category = absenceCategory(row.id);
+      const category = absenceCategory(row.id, catalog);
       return category !== 'ferie' && category !== 'sykdom' && category !== 'permisjon';
     }).map((row) => ({ id: row.id, label: row.label })),
   ];
@@ -96,6 +95,7 @@ export function CompanyAbsenceView({
   dashboard,
   error = '',
   onOpenSource,
+  types: catalog,
 }) {
   const { width, isDesktop } = useLayout();
   const hosted = useModuleHeroHosted();
@@ -411,7 +411,7 @@ function AbsenceHeading({
       ) : null}
       {menu === 'more' ? (
         <ChoiceList
-          options={moreTypes()}
+          options={moreTypes(catalog)}
           selected={category}
           onPick={onPickCategory}
         />

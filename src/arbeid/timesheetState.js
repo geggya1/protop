@@ -3,7 +3,7 @@
  * Ren state inn / state ut, så timelisten kan lagre via prosjektstate.
  */
 
-import { norwegianHolidays } from './holidays.js';
+import { norwegianHolidays, resolveRedDays } from './holidays.js';
 import { isDateLocked, lockRowFor, lockThroughDate } from './locks.js';
 
 function text(value) {
@@ -34,22 +34,25 @@ export function importHolidayYear(state, year) {
   const y = Number(year);
   if (!y) return fail(state, 'Velg et år.');
   const incoming = norwegianHolidays(y);
-  const current = list(state, 'redDays');
+  const current = list(state, 'redDays').filter((row) => {
+    if (row?.suppressed && String(row.date || '').startsWith(`${y}-`)) return false;
+    return true;
+  });
   const byDate = new Map(current.map((row) => [row.date, row]));
-  let added = 0;
   for (const row of incoming) {
     const prev = byDate.get(row.date);
-    if (prev?.kind === 'holiday') continue;
-    if (prev && prev.kind !== 'holiday') continue;
+    if (prev?.edited) continue;
+    if (prev && prev.kind !== 'holiday' && prev.source === 'company') continue;
     byDate.set(row.date, {
-      id: prev?.id || createId('rod'),
+      id: prev?.id && !prev.suppressed ? prev.id : `holiday_${row.date}`,
       date: row.date,
       name: row.name,
       kind: 'holiday',
       portion: 'full',
+      source: 'system',
       year: y,
+      updatedAt: stamp(),
     });
-    if (!prev) added += 1;
   }
   return ok({
     ...state,
@@ -61,31 +64,68 @@ export function upsertRedDay(state, input = {}) {
   const date = text(input.date);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(state, 'Dato må være ÅÅÅÅ-MM-DD.');
   const portion = input.portion === 'half' ? 'half' : 'full';
-  const kind = input.kind === 'holiday' ? 'holiday' : 'dayoff';
-  const name = text(input.name) || (portion === 'half' ? 'Halv dag' : (kind === 'holiday' ? 'Rød dag' : 'Hel dag'));
-  const current = list(state, 'redDays');
-  const existing = current.find((row) => row.id === input.id) || current.find((row) => row.date === date);
+  const year = Number(date.slice(0, 4));
+  const visible = resolveRedDays(state, [year]);
+  const existing = visible.find((row) => row.id === input.id) || visible.find((row) => row.date === date);
+  const name = text(input.name) || existing?.name || (portion === 'half' ? 'Halv dag' : 'Fridag');
+  const source = existing?.source === 'system' && existing.date === date ? 'system' : 'company';
   const row = {
-    id: existing?.id || createId('rod'),
+    id: source === 'system' ? (existing.id || `holiday_${date}`) : (existing?.source === 'company' ? existing.id : createId('rod')),
     date,
     name,
-    kind,
+    kind: source === 'system' ? 'holiday' : 'dayoff',
     portion,
-    year: Number(date.slice(0, 4)),
+    source,
+    edited: true,
+    year,
+    updatedAt: stamp(),
   };
-  const redDays = existing
-    ? current.map((item) => (item.id === existing.id ? row : item))
-    : [...current, row];
+  const current = list(state, 'redDays').filter((item) => (
+    item.date !== date && item.date !== existing?.date && item.id !== row.id && item.id !== existing?.id
+  ));
+  if (existing?.source === 'system' && existing.date !== date) {
+    current.push({
+      id: existing.id || `holiday_${existing.date}`,
+      date: existing.date,
+      name: existing.name,
+      kind: 'holiday',
+      portion: 'full',
+      source: 'system',
+      suppressed: true,
+      year: Number(String(existing.date).slice(0, 4)),
+      updatedAt: stamp(),
+    });
+  }
   return ok({
     ...state,
-    redDays: redDays.sort((a, b) => String(a.date).localeCompare(String(b.date))),
+    redDays: [...current, row].sort((a, b) => String(a.date).localeCompare(String(b.date))),
   });
 }
 
 export function deleteRedDay(state, id) {
-  const current = list(state, 'redDays');
-  if (!current.some((row) => row.id === id)) return fail(state, 'Dagen finnes ikke.');
-  return ok({ ...state, redDays: current.filter((row) => row.id !== id) });
+  const key = text(id);
+  const years = [Number(String(key).slice(0, 4)), Number(String(key).replace('holiday_', '').slice(0, 4)), new Date().getFullYear()];
+  const visible = resolveRedDays(state, years.filter((year) => year > 1900));
+  const row = visible.find((item) => item.id === key || item.date === key);
+  if (!row) return fail(state, 'Dagen finnes ikke.');
+  const current = list(state, 'redDays').filter((item) => item.date !== row.date && item.id !== row.id);
+  if (row.source === 'system') {
+    current.push({
+      id: row.id || `holiday_${row.date}`,
+      date: row.date,
+      name: row.name,
+      kind: 'holiday',
+      portion: row.portion || 'full',
+      source: 'system',
+      suppressed: true,
+      year: Number(String(row.date).slice(0, 4)),
+      updatedAt: stamp(),
+    });
+  }
+  return ok({
+    ...state,
+    redDays: current.sort((a, b) => String(a.date).localeCompare(String(b.date))),
+  });
 }
 
 export function setFullDayHours(state, hours) {

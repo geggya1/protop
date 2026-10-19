@@ -125,7 +125,11 @@ export default function TimesheetGrid({
               key={day.key}
               style={[styles.dayHead, { width: dayW, borderColor: colors.line, backgroundColor: cellBg(day) }]}
             >
-              <TouchableOpacity onPress={() => onSelectDay?.(day.key)} accessibilityRole="button">
+              <TouchableOpacity
+                onPress={() => onSelectDay?.(day.key)}
+                accessibilityRole="button"
+                accessibilityLabel={[day.weekday, day.day, day.name, day.red && !day.half ? 'fridag' : ''].filter(Boolean).join(' ')}
+              >
                 <Text style={{ color: dayHeadColor(day, colors), fontSize: 10, textAlign: 'center' }}>{day.weekday}</Text>
                 <Text style={{ color: dayHeadColor(day, colors), fontSize: 13, fontWeight: '700', textAlign: 'center' }} dataSet={{ ts: 'strong' }}>{day.day}</Text>
               </TouchableOpacity>

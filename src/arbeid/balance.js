@@ -54,6 +54,7 @@ export function buildTimesaldo({
   adjustments = [],
   agreedForDate,
   flexCountsAsPay = true,
+  types,
 } = {}) {
   const y = Number(year);
   const end = String(throughDate || `${y}-12-31`);
@@ -98,10 +99,13 @@ export function buildTimesaldo({
     }
     const actual = sumWhere(mineEntries, from, to);
     const paidAbsence = sumWhere(mineAbsences, from, to, (row) => {
-      const type = absenceTypeById(row.type);
+      const type = absenceTypeById(row.type, types);
       return type.paid && !type.flex;
     });
-    const unpaidAbsence = sumWhere(mineAbsences, from, to, (row) => !absenceTypeById(row.type).paid && !absenceTypeById(row.type).flex);
+    const unpaidAbsence = sumWhere(mineAbsences, from, to, (row) => {
+      const type = absenceTypeById(row.type, types);
+      return !type.paid && !type.flex;
+    });
     const overtime = sumWhere(mineEntries, from, to, (row) => isOvertime(row.timeType));
     const payrollWork = flexCountsAsPay ? actual : roundHours(actual - overtime);
     const payrollIncl = roundHours(payrollWork + paidAbsence);
@@ -171,13 +175,14 @@ export function monthTimebank({
   absences = [],
   adjustments = [],
   agreedForDate,
+  types,
 } = {}) {
   const y = Number(year);
   const month = Number(monthIndex);
   const registered = new Map();
   const seen = new Set();
   addRegisteredHours(registered, seen, 'e', entries, employeeId);
-  addRegisteredHours(registered, seen, 'a', absences, employeeId, (row) => !absenceTypeById(row.type).flex);
+  addRegisteredHours(registered, seen, 'a', absences, employeeId, (row) => !absenceTypeById(row.type, types).flex);
 
   let incoming = adjustmentHours(adjustments, employeeId, 'opening');
   for (let index = 0; index < month; index += 1) {
@@ -212,6 +217,7 @@ export function payrollHoursOnDate({
   employeeId,
   date,
   flexCountsAsPay = true,
+  types,
 } = {}) {
   let work = 0;
   let overtime = 0;
@@ -224,7 +230,7 @@ export function payrollHoursOnDate({
   let paidLeave = 0;
   for (const row of absences) {
     if (row.employeeId !== employeeId || row.date !== date) continue;
-    const type = absenceTypeById(row.type);
+    const type = absenceTypeById(row.type, types);
     if (!type.salary) continue;
     paidLeave += parseHours(row.hours);
   }

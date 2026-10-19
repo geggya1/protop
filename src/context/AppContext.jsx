@@ -838,8 +838,12 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+export function useOptionalApp() {
+  return useContext(Ctx);
+}
+
 export function useApp() {
-  const ctx = useContext(Ctx);
+  const ctx = useOptionalApp();
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
 }

@@ -18,7 +18,25 @@ import CompanyStructureSettings from '../../components/project/CompanyStructureS
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import CompanyCalendarSettings from '../../components/arbeid/CompanyCalendarSettings';
+import AbsenceTypeSettings from '../../components/company/AbsenceTypeSettings';
+import ChartOfAccountsSettings from '../../components/company/ChartOfAccountsSettings';
+import StandardAccountSettings from '../../components/company/StandardAccountSettings';
+import HolidaySettings from '../../components/company/HolidaySettings';
+
+const COMPANY_SETUP_PAGES = ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'];
+
+const COMPANY_SETUP_LINKS = [
+  { id: 'fravaerstyper', label: 'Fraværstyper', hint: 'Lønn, timebalanse og fakturerbart arbeid' },
+  { id: 'kontoplan', label: 'Kontoplan', hint: 'Salgs- og kjøpskontoer med MVA' },
+  { id: 'regnskapskontoer', label: 'Standard regnskapskontoer', hint: 'Konto på honorar, timer, utlegg og avrunding' },
+  { id: 'fridager', label: 'Fridager', hint: 'Helligdager og egne fridager i timelisten' },
+];
+
+function initialCompanyPage(startPage) {
+  if (startPage === 'tilgang') return 'tilgang';
+  if (COMPANY_SETUP_PAGES.includes(startPage)) return startPage;
+  return 'innstillinger';
+}
 
 function Field({ label, value, onChangeText, placeholder, colors, keyboardType, editable = true }) {
   return (
@@ -47,7 +65,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
   const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'read'));
   const contextLabel = companyContextLabel(family);
-  const [page, setPage] = useState(startPage === 'tilgang' ? 'tilgang' : 'innstillinger');
+  const [page, setPage] = useState(initialCompanyPage(startPage));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState(company?.telefon || '');
@@ -61,7 +79,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const savedCpvKey = (family?.cpvCodes || []).map((row) => row.code).filter(Boolean).join(',');
   const savedTradesKey = (company?.egneNaeringskoder || []).join('|');
   useEffect(() => {
-    if (startPage === 'tilgang') setPage('tilgang');
+    setPage(initialCompanyPage(startPage));
   }, [startPage]);
 
   useEffect(() => {
@@ -215,6 +233,22 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         )
       ) : null}
 
+      {COMPANY_SETUP_PAGES.includes(page) ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : !canOpenSettings ? (
+          <CompanyAccessDenied colors={colors} />
+        ) : page === 'fravaerstyper' ? (
+          <AbsenceTypeSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+        ) : page === 'kontoplan' ? (
+          <ChartOfAccountsSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+        ) : page === 'regnskapskontoer' ? (
+          <StandardAccountSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+        ) : (
+          <HolidaySettings familyId={familyId} colors={colors} canEdit={canEdit} />
+        )
+      ) : null}
+
       {page === 'innstillinger' ? (
         !access.ready && !owner ? (
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
@@ -279,7 +313,20 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               requestShellTab?.('selskap');
             }}
           />
-          <CompanyCalendarSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+          <View style={styles.setupLinks}>
+            {COMPANY_SETUP_LINKS.map((link) => (
+              <TouchableOpacity
+                key={link.id}
+                onPress={() => requestShellTab?.('selskap', link.id)}
+                accessibilityRole="button"
+                accessibilityLabel={link.label}
+                style={[styles.setupLink, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{link.label}</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{link.hint}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
           <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
           <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>
@@ -388,4 +435,6 @@ const styles = StyleSheet.create({
   pick: { marginTop: 6, fontWeight: '400' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  setupLinks: { gap: 8 },
+  setupLink: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
 });

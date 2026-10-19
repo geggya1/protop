@@ -6,7 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import DateField from '../../components/DateField';
 import { useApp } from '../../src/context/AppContext';
-import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { absencePickerTypes, absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import {
   ABSENCE_DAY_HOURS,
   ACTIVE_STAFF_LABEL,
@@ -133,6 +133,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   const phoneEmployeeId = phoneRoster.some((row) => row.id === employeeId) ? employeeId : '';
 
   const companyMode = !locked;
+  const absenceTypes = useMemo(() => resolveAbsenceTypes(workspace.state), [workspace.state.absenceTypes, workspace.state.absenceTypesCustom]);
   const dashboard = useMemo(() => buildAbsenceDashboard({
     employees: companyMode ? phoneRoster : visiblePeople,
     employeeId: companyMode ? phoneEmployeeId : employeeId,
@@ -143,10 +144,11 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
     fullDayHours: companyMode ? ABSENCE_DAY_HOURS : fullDay,
     today,
     names,
+    types: absenceTypes,
   }), [
     phoneRoster, visiblePeople, employeeId, phoneEmployeeId, typeId, category, companyMode,
     workspace.state.absences, workspace.state.absenceAdjustments,
-    fullDay, today, names,
+    fullDay, today, names, absenceTypes,
   ]);
 
   const orgs = (liveFamilies || families || []).filter((row) => isOrganizationType(row?.type));
@@ -233,6 +235,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         onSaveOpening={saveOpening}
         peopleLoading={!workspace.employeesReady}
         absenceLoading={!workspace.absencesReady}
+        types={absenceTypes}
       />
     );
   }
@@ -248,6 +251,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
         onSelectCategory={setCategory}
         dashboard={dashboard}
         error={workspace.error}
+        types={absenceTypes}
         onOpenSource={(dest) => requestShellTab?.(dest.tab, dest.subView, dest.intent)}
       />
     );
@@ -267,6 +271,7 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
       typeId={typeId}
       onSelectType={setTypeId}
       dashboard={dashboard}
+      types={absenceTypes}
       error={workspace.error}
       opening={opening}
       onOpeningChange={setOpening}
@@ -298,6 +303,7 @@ export function AbsenceOverviewView({
   canEditOpening = false,
   onRegister,
   onBack = null,
+  types: catalog,
 }) {
   const { width } = useLayout();
   const hostedHero = useModuleHeroHosted();
@@ -307,9 +313,9 @@ export function AbsenceOverviewView({
   const [editingOpening, setEditingOpening] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [chartWidth, setChartWidth] = useState(280);
-  const types = absencePickerTypes();
+  const types = absencePickerTypes(catalog);
   const employeeName = employees.find((row) => row.id === employeeId)?.name || '';
-  const typeName = typeId ? absenceTypeById(typeId).label : '';
+  const typeName = typeId ? absenceTypeById(typeId, catalog).label : '';
   const visiblePeriods = showAll ? dashboard.periods : dashboard.periods.slice(0, 5);
   const spotlight = dashboard.periods.find((row) => (
     row.type === dashboard.balanceType && (row.status === 'pagar' || row.status === 'planlagt')

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { absenceRoster, absencesForRoster } from '../../src/arbeid/absenceDashboard.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
@@ -408,6 +408,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       dayRows={openPeriod ? dayRowsForPeriod(openPeriod) : []}
       fullDayHours={fullDay}
       canManage={!!workspace.manager}
+      types={resolveAbsenceTypes(workspace.state)}
       colors={colors}
       onClose={() => setOpenPeriod(null)}
       onApprove={async () => {

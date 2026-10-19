@@ -631,6 +631,9 @@ function AppShellInner() {
     if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
+    if (tab === 'selskap' && ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'].includes(moreSubView)) {
+      return <ProjectPlatformScreen startPage={moreSubView} />;
+    }
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'selskap') return <CompanyLanding />;

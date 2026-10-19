@@ -33,6 +33,7 @@ export default function AbsencePeriodModal({
   onReopen,
   onSaveDay,
   onDeletePeriod,
+  types: catalog,
 }) {
   const [editingId, setEditingId] = useState('');
   const [draft, setDraft] = useState({ hours: '', description: '', type: '' });
@@ -48,7 +49,7 @@ export default function AbsencePeriodModal({
 
   if (!visible || !period) return null;
 
-  const typeMeta = absenceTypeById(period.type);
+  const typeMeta = absenceTypeById(period.type, catalog);
   const range = period.start === period.end
     ? formatNbDate(period.start)
     : `${formatNbDate(period.start)} – ${formatNbDate(period.end)}`;
@@ -143,7 +144,7 @@ export default function AbsencePeriodModal({
                         style={[styles.input, { borderColor: colors.line, color: colors.ink }]}
                       />
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                        {absencePickerTypes().map((type) => (
+                        {absencePickerTypes(catalog).map((type) => (
                           <TouchableOpacity
                             key={type.id}
                             onPress={() => setDraft((current) => ({ ...current, type: type.id }))}
@@ -181,7 +182,7 @@ export default function AbsencePeriodModal({
                       accessibilityRole="button"
                     >
                       <Text style={{ color: colors.ink, fontWeight: '600' }}>
-                        {formatNbDate(row.date)} · {absenceTypeById(row.type).label}
+                        {formatNbDate(row.date)} · {absenceTypeById(row.type, catalog).label}
                       </Text>
                       <Text style={{ color: colors.muted, marginTop: 2 }}>
                         {formatHours(row.hours)} · {STATUS_LABEL[row.status] || 'Registrert'}

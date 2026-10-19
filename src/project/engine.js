@@ -72,6 +72,11 @@ export function emptyProjectState() {
     balanceAdjustments: [],
     absenceAdjustments: [],
     redDays: [],
+    absenceTypes: [],
+    absenceTypesCustom: false,
+    companyAccounts: [],
+    companyAccountsCustom: false,
+    standardAccounts: [],
     timesheetPins: [],
     hiddenTimesheetProjects: [],
     fullDayHours: 8,
@@ -256,7 +261,14 @@ export function normalizeProjectState(raw) {
     syncedAt: text(src.syncedAt),
   };
   for (const key of Object.keys(base)) {
-    if (key === 'activeProjectId' || key === 'syncedAt' || key === 'fullDayHours' || key === 'fullDayHoursCustom') continue;
+    if (
+      key === 'activeProjectId'
+      || key === 'syncedAt'
+      || key === 'fullDayHours'
+      || key === 'fullDayHoursCustom'
+      || key === 'absenceTypesCustom'
+      || key === 'companyAccountsCustom'
+    ) continue;
     if (!Array.isArray(next[key])) next[key] = [];
   }
   const fullDay = Number(String(next.fullDayHours ?? '').replace(',', '.'));
@@ -268,6 +280,8 @@ export function normalizeProjectState(raw) {
   if (!customDay && dayHours === 7.5) dayHours = 8;
   next.fullDayHours = dayHours;
   next.fullDayHoursCustom = customDay;
+  next.absenceTypesCustom = next.absenceTypesCustom === true;
+  next.companyAccountsCustom = next.companyAccountsCustom === true;
   next.deletedProjects = next.deletedProjects.map(normalizeDeletedProject).filter(Boolean);
   const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
   next.projects = next.projects.filter((row) => row?.id && !deletedIds.has(row.id));
@@ -2098,6 +2112,8 @@ export function mergeProjectStates(left, right) {
     && key !== 'deletedProjects'
     && key !== 'fullDayHours'
     && key !== 'fullDayHoursCustom'
+    && key !== 'absenceTypesCustom'
+    && key !== 'companyAccountsCustom'
   ));
   const next = emptyProjectState();
   for (const key of keys) {
@@ -2115,6 +2131,8 @@ export function mergeProjectStates(left, right) {
   const daySource = bSync >= aSync ? b : a;
   next.fullDayHours = daySource.fullDayHours || a.fullDayHours || b.fullDayHours || 8;
   next.fullDayHoursCustom = daySource.fullDayHoursCustom === true;
+  next.absenceTypesCustom = a.absenceTypesCustom === true || b.absenceTypesCustom === true;
+  next.companyAccountsCustom = a.companyAccountsCustom === true || b.companyAccountsCustom === true;
   next.procedures = (bSync >= aSync ? (b.procedures?.length ? b.procedures : a.procedures) : (a.procedures?.length ? a.procedures : b.procedures));
   next.syncedAt = aSync >= bSync ? (a.syncedAt || b.syncedAt) : (b.syncedAt || a.syncedAt);
   next.activeProjectId = (bSync >= aSync ? b.activeProjectId : a.activeProjectId)

@@ -227,6 +227,9 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
+    if (tab === 'selskap' && ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'].includes(route.params?.subView)) {
+      return <ProjectPlatformScreen startPage={route.params.subView} />;
+    }
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
     if (tab === 'selskap') return <CompanyLanding />;
     if (tab === 'okonomi') return <EconomyScreen subView={route.params?.subView} />;

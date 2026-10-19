@@ -154,11 +154,11 @@ function nameMatches(name, query) {
 function useBoard(props) {
   const {
     employees = [], names = {}, employeeId = '', absences = [], adjustments = [],
-    fullDayHours = 7.5, today = '', year = '',
+    fullDayHours = 7.5, today = '', year = '', types,
   } = props;
   return useMemo(() => buildAbsenceWebBoard({
-    employees, employeeId, absences, adjustments, fullDayHours, today, names, year,
-  }), [employees, employeeId, absences, adjustments, fullDayHours, today, names, year]);
+    employees, employeeId, absences, adjustments, fullDayHours, today, names, year, types,
+  }), [employees, employeeId, absences, adjustments, fullDayHours, today, names, year, types]);
 }
 
 export function CompanyAbsenceDesktop({
@@ -177,6 +177,7 @@ export function CompanyAbsenceDesktop({
   onSaveOpening,
   peopleLoading = false,
   absenceLoading = false,
+  types,
 }) {
   const { requestShellTab } = useApp();
   const audience = useAudience(employees);
@@ -197,7 +198,7 @@ export function CompanyAbsenceDesktop({
     ? yearChoice
     : (dataYears.includes(weekYear) ? weekYear : (dataYears[dataYears.length - 1] || weekYear));
   const board = useBoard({
-    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today, year: boardYear,
+    employees: roster, names, employeeId: '', absences, adjustments, fullDayHours, today, year: boardYear, types,
   });
   const grid = useMemo(() => buildAbsencePeriodGrid({
     employees: roster,
@@ -206,7 +207,8 @@ export function CompanyAbsenceDesktop({
     start: period.start,
     end: period.end,
     fullDayHours,
-  }), [roster, absences, names, period.start, period.end, fullDayHours]);
+    types,
+  }), [roster, absences, names, period.start, period.end, fullDayHours, types]);
   const spanSummary = useMemo(() => summarizeAbsenceSpan({
     absences,
     employees: roster,
@@ -216,7 +218,8 @@ export function CompanyAbsenceDesktop({
     end: period.end,
     today,
     fullDayHours,
-  }), [absences, roster, names, period.start, period.end, today, fullDayHours]);
+    types,
+  }), [absences, roster, names, period.start, period.end, today, fullDayHours, types]);
   const earned = board.staff.reduce((sum, person) => sum + (Number(person.earned) || 0), 0);
   const yearUsed = Number(board.yearTotals?.ferie) || 0;
   const remaining = board.staff.reduce((sum, person) => sum + (person.earned ? Number(person.remaining) || 0 : 0), 0);

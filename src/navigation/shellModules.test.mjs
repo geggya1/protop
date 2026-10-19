@@ -6,12 +6,17 @@ import {
   buildChildDashboardApps,
   companyNavItems,
   defaultOkonomiSubView,
+  drawerGroupOpen,
   drawerHasSubmenuToggle,
   drawerSubmenuOpen,
+  groupCompanyDrawerItems,
   isNavItemActive,
+  releaseClosedActiveGroups,
+  releaseClosedActiveSubmenus,
   normalizeShellSelection,
   okonomiMenuTitle,
 } from './shellModules.js';
+import { filterCompanyNav, standardGrants } from '../access/companyAccess.js';
 import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
 import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
 
@@ -448,11 +453,13 @@ assert.match(moreHubSrc, /drawerSubmenuOpen/);
 assert.match(moreHubSrc, /module-nav-expand-/);
 const drawerSrc = readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8');
 assert.match(drawerSrc, /drawerSubmenuOpen/);
+assert.match(drawerSrc, /groupCompanyDrawerItems/);
 assert.match(drawerSrc, /module-nav-expand-/);
 assert.match(drawerSrc, /onToggle=\{expandable/);
 const railSrc = readFileSync(new URL('../../components/DesktopRail.jsx', import.meta.url), 'utf8');
 assert.match(railSrc, /drawerHasSubmenuToggle/);
 assert.match(railSrc, /drawerSubmenuOpen/);
+assert.match(railSrc, /groupCompanyDrawerItems/);
 assert.match(railSrc, /module-nav-expand-/);
 {
   const items = companyNavItems();
@@ -558,5 +565,108 @@ assert.match(customerScreen, /CustomerPhoneRow/);
 assert.equal(customerScreen.includes('Adresse ${address}'), false);
 const projectScreen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
 assert.equal(projectScreen.includes("['indeks', 'Indeksregulering']"), false);
+
+function collectPresented(items, acc = []) {
+  for (const item of items || []) {
+    if (item.group) {
+      collectPresented(item.children, acc);
+      continue;
+    }
+    acc.push({
+      id: item.id,
+      label: item.label,
+      icon: item.icon || null,
+      tab: item.action?.tab || null,
+      subView: item.action?.subView ?? null,
+    });
+    collectPresented(item.children, acc);
+  }
+  return acc;
+}
+
+{
+  const source = companyNavItems();
+  const presented = groupCompanyDrawerItems(source);
+  assert.deepEqual(
+    presented.filter((item) => item.group).map((item) => item.label),
+    [
+      'Selskap og organisasjon',
+      'Kunder, anbud og avtaler',
+      'Prosjekt og tjenesteleveranser',
+      'Produkter og driftsressurser',
+      'Økonomi og fakturering',
+      'Kvalitet og styringssystem',
+    ],
+  );
+  assert.deepEqual(
+    presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
+    [
+      ['selskap', 'hr', 'fravaer'],
+      ['kunder', 'anbud', 'kontrakt'],
+      ['projects', 'arbeid'],
+      ['produkt', 'utstyr', 'kjorebok'],
+      ['okonomi'],
+      ['iso'],
+    ],
+  );
+  const selskap = presented[0].children.find((item) => item.id === 'selskap');
+  assert.deepEqual(selskap.children.map((item) => item.id), ['underenheter', 'ansatte']);
+  assert.equal(selskap.icon, 'briefcase');
+  assert.equal(selskap.action.tab, 'selskap');
+  const fravaer = presented[0].children.find((item) => item.id === 'fravaer');
+  assert.equal(fravaer.icon, 'sunny');
+  assert.deepEqual(fravaer.children.map((item) => item.label), ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær']);
+  assert.equal(fravaer.children[0].action.tab, 'arbeid');
+  assert.equal(fravaer.children[0].action.subView, 'fravaer');
+  const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
+  assert.deepEqual(byId(collectPresented(presented)), byId(collectPresented(source)));
+  assert.equal(presented.some((item) => !item.group), false);
+
+  const withExtra = groupCompanyDrawerItems([
+    ...source,
+    { id: 'ekstra', icon: 'star', label: 'Ekstra', action: { type: 'tab', tab: 'ekstra' } },
+  ]);
+  assert.equal(withExtra.at(-1).id, 'ekstra');
+  assert.equal(withExtra.at(-1).label, 'Ekstra');
+  assert.equal(withExtra.filter((item) => item.group).length, 6);
+
+  const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
+  const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produkt', 'utstyr', 'okonomi']);
+  assert.equal(innleie[0].children.find((item) => item.id === 'selskap').children, undefined);
+  assert.equal(innleie[0].children.find((item) => item.id === 'fravaer').children.length, 3);
+
+  const org = presented.find((item) => item.id === 'company-org');
+  const delivery = presented.find((item) => item.id === 'company-delivery');
+  assert.equal(drawerGroupOpen(org, 'home', {}, null), false);
+  assert.equal(drawerGroupOpen(org, 'hr', {}, 'personell'), true);
+  assert.equal(drawerGroupOpen(org, 'arbeid', {}, 'fravaer'), true);
+  assert.equal(drawerGroupOpen(org, 'arbeid', { 'company-org': false }, 'fravaer'), false);
+  assert.equal(drawerGroupOpen(delivery, 'timeliste', {}, null), false);
+  assert.equal(drawerGroupOpen(delivery, 'arbeid', {}, 'timeliste'), true);
+  assert.equal(drawerGroupOpen(delivery, 'projects', {}, null), true);
+  assert.deepEqual(
+    releaseClosedActiveGroups({ 'company-org': false, 'company-finance': false }, source, 'hr', 'oversikt'),
+    { 'company-finance': false },
+  );
+  assert.deepEqual(
+    releaseClosedActiveSubmenus({ fravaer: false, okonomi: false }, source, 'arbeid', 'fravaer'),
+    { okonomi: false },
+  );
+
+  const personal = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'F', family: { type: 'organization', name: 'ProTop AS' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+  });
+  assert.deepEqual(
+    personal.find((section) => section.id === 'main').items.map((item) => item.id),
+    ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes', 'timeliste'],
+  );
+  assert.deepEqual(
+    personal.find((section) => section.id === 'account').items.map((item) => item.id).slice(0, 2),
+    ['tilgang', 'skjema'],
+  );
+}
 
 console.log('shellModules.test.mjs: ok');

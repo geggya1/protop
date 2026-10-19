@@ -432,8 +432,8 @@ export default function ProjectDetail({
     showSaveToast('Lagret.');
   }
 
-  function removeTrip(id) {
-    if (pendingDelete !== id) {
+  function removeTrip(id, confirmed = false) {
+    if (!confirmed && pendingDelete !== id) {
       setPendingDelete(id);
       return;
     }
@@ -633,23 +633,30 @@ export default function ProjectDetail({
               {!projectTrips.length ? (
                 <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen kjøreturer er registrert på prosjektet.</Text>
               ) : projectTrips.map((row) => (
-                <View key={row.id} style={[styles.tableRow, { borderBottomColor: colors.line }]}>
-                  <TouchableOpacity onPress={() => setEditingTrip(row)} style={{ flex: 1 }} accessibilityRole="button">
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>
+                <View key={row.id} style={[styles.tripRow, { borderBottomColor: colors.line }]}>
+                  <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
+                    <Text style={{ color: colors.ink, fontSize: 14 }}>
                       {row.date} · {row.from} → {row.to} · {row.km} km
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {row.employeeName || 'Ansatt'} · {row.vehicleName || 'Kjøretøy'} · {formatMoney(row.amount)}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
-                    <Text style={{ color: colors.brand, fontWeight: '600' }}>Rediger</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeTrip(row.id)} accessibilityRole="button" accessibilityLabel="Slett tur">
-                    <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>
-                      {pendingDelete === row.id ? 'Bekreft' : 'Slett'}
+                  <View style={styles.tripActions}>
+                    <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
+                      <Text style={{ color: colors.brand, fontWeight: '700' }}>Rediger</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => removeTrip(row.id)} accessibilityRole="button" accessibilityLabel="Slett tur">
+                      <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
+                        {pendingDelete === row.id ? 'Slett nå' : 'Slett'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {pendingDelete === row.id ? (
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>
+                      Trykk «Slett nå» for å fjerne kjøreturen fra prosjektet, kjøreboken og utlegget.
                     </Text>
-                  </TouchableOpacity>
+                  ) : null}
                 </View>
               ))}
 
@@ -1015,6 +1022,7 @@ export default function ProjectDetail({
           launch={false}
           editingTrip={editingTrip}
           onDismiss={() => setEditingTrip(null)}
+          onDelete={() => removeTrip(editingTrip.id, true)}
           onApply={(result) => {
             if (result?.ok && result.state) onChangeState(result.state);
             return result;
@@ -1103,6 +1111,8 @@ const styles = StyleSheet.create({
   barFill: { height: 8 },
   tableHead: { flexDirection: 'row', borderBottomWidth: 1, paddingBottom: 8, gap: 8 },
   tableRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10, gap: 8, alignItems: 'center' },
+  tripRow: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10, gap: 6 },
+  tripActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
   th: { flex: 1, fontSize: 11 },
   td: { flex: 1, fontSize: 12 },
   teamRow: {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { emptyProjectState, normalizeProjectState } from '../project/engine.js';
+import { emptyProjectState, mergeProjectStates, normalizeProjectState } from '../project/engine.js';
 import {
   bookingsOnDate,
   canAddCompanyVehicle,
@@ -175,6 +175,14 @@ const removed = deleteTrip(saved.state, saved.trip.id);
 assert.equal(removed.ok, true);
 assert.equal(removed.state.mileageTrips.length, 0);
 assert.equal((removed.state.expenses || []).some((row) => row.tripId === saved.trip.id), false);
+assert.equal(removed.state.deletedMileageTrips[0].id, saved.trip.id);
+const kept = mergeProjectStates(
+  { ...saved.state, syncedAt: '2026-10-16T10:00:00.000Z' },
+  { ...removed.state, syncedAt: '2026-10-16T11:00:00.000Z' },
+);
+assert.equal(kept.mileageTrips.length, 0);
+assert.equal(kept.expenses.some((row) => row.tripId === saved.trip.id), false);
+assert.equal(kept.deletedMileageTrips[0].id, saved.trip.id);
 const invoiced = deleteTrip({
   ...saved.state,
   mileageTrips: [{ ...saved.trip, status: 'invoiced' }],

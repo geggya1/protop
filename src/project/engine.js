@@ -53,6 +53,8 @@ export function emptyProjectState() {
     activeProjectId: null,
     /** Tombstones slik at slettede prosjekt ikke gjenoppstår ved merge. */
     deletedProjects: [],
+    /** Tombstones slik at slettede kjøreturer og utlegget deres ikke gjenoppstår ved merge. */
+    deletedMileageTrips: [],
     activities: [],
     members: [],
     timeEntries: [],
@@ -101,6 +103,32 @@ function normalizeDeletedProject(row) {
     id,
     number: text(row.number),
     deletedAt: text(row.deletedAt) || '',
+  };
+}
+
+function normalizeDeletedMileageTrip(row) {
+  if (!row || typeof row !== 'object') return null;
+  const id = text(row.id);
+  if (!id) return null;
+  return {
+    id,
+    expenseId: text(row.expenseId),
+    deletedAt: text(row.deletedAt) || '',
+  };
+}
+
+function withoutDeletedMileage(state) {
+  const tombstones = (state.deletedMileageTrips || []).map(normalizeDeletedMileageTrip).filter(Boolean);
+  const tripIds = new Set(tombstones.map((row) => row.id));
+  const expenseIds = new Set(tombstones.map((row) => row.expenseId).filter(Boolean));
+  return {
+    deletedMileageTrips: tombstones,
+    mileageTrips: (state.mileageTrips || []).filter((row) => row?.id && !tripIds.has(row.id)),
+    expenses: (state.expenses || []).filter((row) => (
+      row && typeof row === 'object'
+      && !expenseIds.has(row.id)
+      && !(row.tripId && tripIds.has(row.tripId))
+    )),
   };
 }
 
@@ -256,8 +284,10 @@ export function normalizeProjectState(raw) {
   next.members = next.members.map((row) => normalizeMemberRow(row)).filter(Boolean);
   next.timeEntries = next.timeEntries.map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
   next.absences = next.absences.map((row) => normalizeAbsenceRow(row)).filter(Boolean);
-  next.expenses = (next.expenses || []).filter((row) => row && typeof row === 'object');
-  next.mileageTrips = (next.mileageTrips || []).filter((row) => row && typeof row === 'object');
+  const mileage = withoutDeletedMileage(next);
+  next.deletedMileageTrips = mileage.deletedMileageTrips;
+  next.expenses = mileage.expenses;
+  next.mileageTrips = mileage.mileageTrips;
   next.equipment = (next.equipment || []).filter((row) => row && typeof row === 'object');
   next.equipmentBookings = (next.equipmentBookings || []).filter((row) => row && typeof row === 'object');
   next.personalVehicles = (next.personalVehicles || []).filter((row) => row && typeof row === 'object');

@@ -114,10 +114,19 @@ export function deleteTrip(state, id) {
   const current = (state.mileageTrips || []).find((row) => row.id === id);
   if (!current) return fail(state, 'Turen finnes ikke.');
   if (current.status === 'invoiced') return fail(state, 'Fakturert tur kan ikke slettes.');
+  const tombstone = {
+    id: current.id,
+    expenseId: current.expenseId || '',
+    deletedAt: stamp(),
+  };
   return ok({
     ...state,
     mileageTrips: (state.mileageTrips || []).filter((row) => row.id !== id),
     expenses: (state.expenses || []).filter((row) => row.id !== current.expenseId && row.tripId !== id),
+    deletedMileageTrips: [
+      ...(state.deletedMileageTrips || []).filter((row) => row?.id !== id),
+      tombstone,
+    ],
   }, { trip: current });
 }
 

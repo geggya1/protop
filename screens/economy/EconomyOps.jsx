@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,12 +63,42 @@ const TRIP_COLUMNS = [
   { key: 'amount', label: 'Beløp', width: 88, numeric: true, money: true },
 ];
 
+function TripActions({ row, colors, pending, onOpen, onDelete, onApprove, children }) {
+  return (
+    <View style={{ gap: 4, paddingTop: 4 }}>
+      {children || null}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
+          <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '700' }}>Rediger</Text>
+        </TouchableOpacity>
+        {row.status !== 'approved' && row.status !== 'invoiced' ? (
+          <TouchableOpacity onPress={() => onApprove?.(row)} accessibilityRole="button">
+            <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '600' }}>Godkjenn</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity onPress={() => onDelete(row)} accessibilityRole="button" accessibilityLabel="Slett tur">
+          <Text style={{ color: colors.danger || '#b42318', fontSize: 14, fontWeight: '700' }}>
+            {pending ? 'Slett nå' : 'Slett'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {pending ? (
+        <Text style={{ color: colors.ink, fontSize: 13 }}>
+          Trykk «Slett nå» for å fjerne kjøreturen fra kjøreboken, utlegget og prosjektet.
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function tripSortValue(row, key) {
   if (['km', 'tolls', 'ferries', 'amount'].includes(key)) return Number(row?.[key]) || 0;
   return String(row?.[key] || '').toLowerCase();
 }
 
 function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
+  const { width } = useWindowDimensions();
+  const narrow = width < 760;
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: 'date', dir: 'desc' });
   const needle = query.trim().toLowerCase();
@@ -103,52 +134,70 @@ function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
         placeholderTextColor={colors.muted}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg, alignSelf: 'stretch' }]}
       />
-      <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View>
-          <View style={[styles.tableHead, { borderBottomColor: colors.line }]}>
-            {TRIP_COLUMNS.map((col) => {
-              const mark = sort.key === col.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
-              return (
-                <TouchableOpacity key={col.key} onPress={() => toggleSort(col.key)} style={{ width: col.width }}>
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>{col.label}{mark}</Text>
-                </TouchableOpacity>
-              );
-            })}
-            <View style={{ width: 168 }} />
-          </View>
+      {narrow ? (
+        <View style={{ gap: 8 }}>
           {rows.map((row) => (
-            <View key={row.id} style={[styles.tableRow, { borderBottomColor: colors.line }]}>
-              {TRIP_COLUMNS.map((col) => (
-                <TouchableOpacity key={col.key} onPress={() => onOpen(row)} style={{ width: col.width }} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
-                  <Text style={{ color: colors.ink, fontSize: 13 }} numberOfLines={2}>
-                    {col.money ? formatMoney(row.amount) : col.numeric ? String(row[col.key] ?? 0) : (row[col.key] || '—')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <View style={{ width: 168, flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
-                  <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Rediger</Text>
-                </TouchableOpacity>
-                {row.status !== 'approved' && row.status !== 'invoiced' ? (
-                  <TouchableOpacity onPress={() => onApprove?.(row)} accessibilityRole="button">
-                    <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Godkjenn</Text>
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity onPress={() => onDelete(row)} accessibilityRole="button" accessibilityLabel="Slett tur">
-                  <Text style={{ color: colors.danger || '#b42318', fontSize: 13, fontWeight: '600' }}>
-                    {pendingId === row.id ? 'Bekreft' : 'Slett'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TripActions
+              key={row.id}
+              row={row}
+              colors={colors}
+              pending={pendingId === row.id}
+              onOpen={onOpen}
+              onDelete={onDelete}
+              onApprove={onApprove}
+            >
+              <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
+                <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{row.date} · {formatMoney(row.amount)}</Text>
+                <Text style={{ color: colors.ink, fontSize: 13 }}>{row.from || '—'} → {row.to || '—'}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {[row.employeeName, row.vehicleName, `${row.km || 0} km`].filter(Boolean).join(' · ')}
+                </Text>
+              </TouchableOpacity>
+            </TripActions>
           ))}
-          {!rows.length ? (
-            <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 10 }}>
-              {needle ? 'Ingen turer matcher filteret.' : 'Ingen kjøreturer er registrert.'}
-            </Text>
-          ) : null}
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          <View>
+            <View style={[styles.tableHead, { borderBottomColor: colors.line }]}>
+              {TRIP_COLUMNS.map((col) => {
+                const mark = sort.key === col.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+                return (
+                  <TouchableOpacity key={col.key} onPress={() => toggleSort(col.key)} style={{ width: col.width }}>
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>{col.label}{mark}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {rows.map((row) => (
+              <View key={row.id} style={[styles.tableRow, { borderBottomColor: colors.line, flexDirection: 'column', alignItems: 'stretch' }]}>
+                <View style={{ flexDirection: 'row' }}>
+                  {TRIP_COLUMNS.map((col) => (
+                    <TouchableOpacity key={col.key} onPress={() => onOpen(row)} style={{ width: col.width }} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
+                      <Text style={{ color: colors.ink, fontSize: 13 }} numberOfLines={2}>
+                        {col.money ? formatMoney(row.amount) : col.numeric ? String(row[col.key] ?? 0) : (row[col.key] || '—')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TripActions
+                  row={row}
+                  colors={colors}
+                  pending={pendingId === row.id}
+                  onOpen={onOpen}
+                  onDelete={onDelete}
+                  onApprove={onApprove}
+                />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+      {!rows.length ? (
+        <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 10 }}>
+          {needle ? 'Ingen turer matcher filteret.' : 'Ingen kjøreturer er registrert.'}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -260,8 +309,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     setEditingTrip(trip);
   }
 
-  function removeTrip(trip) {
-    if (pendingDelete !== trip.id) {
+  function removeTrip(trip, confirmed = false) {
+    if (!confirmed && pendingDelete !== trip.id) {
       setPendingDelete(trip.id);
       return;
     }
@@ -379,6 +428,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           launch={false}
           editingTrip={editingTrip}
           onDismiss={() => setEditingTrip(null)}
+          onDelete={() => removeTrip(editingTrip, true)}
           onApply={apply}
           onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />
@@ -459,9 +509,14 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
                   <TouchableOpacity onPress={() => openTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
                     <Text style={{ color: colors.ink }}>Rediger tur</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
-                    <Text style={{ color: colors.ink }}>{pendingDelete === trip.id ? 'Bekreft sletting' : 'Slett tur'}</Text>
+                  <TouchableOpacity onPress={() => removeTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]} accessibilityRole="button" accessibilityLabel="Slett tur">
+                    <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>{pendingDelete === trip.id ? 'Slett nå' : 'Slett tur'}</Text>
                   </TouchableOpacity>
+                  {pendingDelete === trip.id ? (
+                    <Text style={{ color: colors.ink, fontSize: 13, flexBasis: '100%' }}>
+                      Trykk «Slett nå» for å fjerne kjøreturen fra utlegg, kjørebok og prosjekt.
+                    </Text>
+                  ) : null}
                 </>
               ) : null}
               {!trip && row.status !== 'approved' && row.status !== 'invoiced' ? (

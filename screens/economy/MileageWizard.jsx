@@ -302,6 +302,7 @@ export default function MileageWizard({
   launch = true,
   editingTrip = null,
   onDismiss,
+  onDelete,
 }) {
   const { familyId, user, uid, activeProfile } = useApp();
   const access = useCompanyAccess();
@@ -319,6 +320,7 @@ export default function MileageWizard({
   const [pinAddress, setPinAddress] = useState(false);
   const [addressAsk, setAddressAsk] = useState(true);
   const [focusField, setFocusField] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [routeNonce, setRouteNonce] = useState(0);
   const [vehicleMenu, setVehicleMenu] = useState(false);
   const [addingVehicle, setAddingVehicle] = useState(false);
@@ -1314,7 +1316,30 @@ export default function MileageWizard({
         </View>
       ) : null}
             </ScrollView>
+            {editing && confirmDelete ? (
+              <Text style={{ color: colors.ink, fontSize: 13, paddingHorizontal: 16, paddingTop: 8 }}>
+                Trykk «Slett nå» for å fjerne kjøreturen fra kjøreboken, utlegget og prosjektet.
+              </Text>
+            ) : null}
             <View style={[styles.foot, { borderTopColor: colors.line }]}>
+              {editing && onDelete ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!confirmDelete) {
+                      setConfirmDelete(true);
+                      return;
+                    }
+                    onDelete(editingTrip);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Slett kjøretur"
+                  style={[styles.footBtn, styles.footSecondary, { borderColor: colors.danger || '#b42318', backgroundColor: colors.card, marginRight: 'auto' }]}
+                >
+                  <Text style={{ color: colors.danger || '#b42318', fontSize: 16, fontWeight: '700' }}>
+                    {confirmDelete ? 'Slett nå' : 'Slett'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={goBack}
                 accessibilityRole="button"

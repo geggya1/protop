@@ -342,7 +342,7 @@ function normalizeIndexDraft(raw) {
 
 function normalizeRegulations(input) {
   if (!Array.isArray(input)) return [];
-  return input.slice(0, 40).map((row) => ({
+  return input.slice(0, 400).map((row) => ({
     id: text(row?.id).slice(0, 80),
     savedAt: text(row?.savedAt).slice(0, 10),
     before: Number(row?.before) || 0,
@@ -364,6 +364,45 @@ function normalizeRegulations(input) {
     sentAt: text(row?.sentAt).slice(0, 10),
     sentTo: text(row?.sentTo).slice(0, 120),
   })).filter((row) => row.id);
+}
+
+function normalizeIndexCases(input) {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 500).map((row) => {
+    if (!row || typeof row !== 'object' || !text(row.id)) return null;
+    const documents = Array.isArray(row.documents) ? row.documents.slice(-30) : [];
+    const audit = Array.isArray(row.audit) ? row.audit.slice(-80) : [];
+    return {
+      ...row,
+      id: text(row.id).slice(0, 80),
+      number: text(row.number).slice(0, 24),
+      status: text(row.status).slice(0, 40),
+      letterPlain: text(row.letterPlain).slice(0, 20000),
+      freeText: text(row.freeText).slice(0, 2000),
+      documents,
+      audit,
+    };
+  }).filter(Boolean);
+}
+
+function normalizePriceVersions(input) {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 500).map((row) => {
+    if (!row || !text(row.id)) return null;
+    const validFrom = isoDate(row.validFrom);
+    if (!validFrom) return null;
+    return {
+      id: text(row.id).slice(0, 80),
+      caseId: text(row.caseId).slice(0, 80),
+      caseNumber: text(row.caseNumber).slice(0, 24),
+      validFrom,
+      validTo: isoDate(row.validTo),
+      rateExVat: Number(row.rateExVat) || 0,
+      previousRateExVat: Number(row.previousRateExVat) || 0,
+      indexPeriod: text(row.indexPeriod).slice(0, 20),
+      indexValue: Number(row.indexValue) || 0,
+    };
+  }).filter(Boolean);
 }
 
 function normalizeContract(raw) {
@@ -402,6 +441,8 @@ function normalizeContract(raw) {
     documents: normalizeDocuments(raw.documents),
     indexDraft: normalizeIndexDraft(raw.indexDraft),
     regulations: normalizeRegulations(raw.regulations),
+    indexCases: normalizeIndexCases(raw.indexCases),
+    priceVersions: normalizePriceVersions(raw.priceVersions),
     indeksCaseId: text(raw.indeksCaseId),
     renewal: normalizeRenewal(raw.renewal),
     options: normalizeOptions(raw.options),
@@ -997,6 +1038,8 @@ export function updateContractDetails(state, contractId, input) {
     documents: input?.documents != null ? normalizeDocuments(input.documents) : contract.documents,
     indexDraft: input?.indexDraft !== undefined ? normalizeIndexDraft(input.indexDraft) : contract.indexDraft,
     regulations: input?.regulations != null ? normalizeRegulations(input.regulations) : (contract.regulations || []),
+    indexCases: input?.indexCases != null ? normalizeIndexCases(input.indexCases) : normalizeIndexCases(contract.indexCases),
+    priceVersions: input?.priceVersions != null ? normalizePriceVersions(input.priceVersions) : normalizePriceVersions(contract.priceVersions),
     indeksCaseId: input?.indeksCaseId != null ? text(input.indeksCaseId) : contract.indeksCaseId,
     renewal: input?.renewal != null || input?.renewalType != null
       ? normalizeRenewal(input?.renewal || {

@@ -27,6 +27,10 @@ export const sendIndeksLetter = onCall(
     const to = String(request.data?.to || '').trim();
     if (!isValidEmail(to)) throw new HttpsError('invalid-argument', 'E-postadressen er ikke gyldig.');
     const subject = String(request.data?.subject || 'Varsel om indeksregulering').slice(0, 180);
+    const cc = (Array.isArray(request.data?.cc) ? request.data.cc : [])
+      .map((row) => String(row || '').trim())
+      .filter((row) => isValidEmail(row))
+      .slice(0, 5);
     const text = String(request.data?.text || '').trim().slice(0, 20000);
     if (text.length < 20) throw new HttpsError('invalid-argument', 'Brevet er for kort til å sendes.');
     const name = String(request.data?.name || '').slice(0, 120);
@@ -34,10 +38,10 @@ export const sendIndeksLetter = onCall(
     if (!key) throw new HttpsError('failed-precondition', 'E-post er ikke satt opp på serveren.');
     const html = `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
     try {
-      await sendMail(key, { to, name, subject, text, html });
+      const sent = await sendMail(key, { to, cc, name, subject, text, html });
+      return { ok: true, providerId: String(sent?.id || sent?.messageId || '') };
     } catch (error) {
       throw new HttpsError('internal', friendlyMailError(error));
     }
-    return { ok: true };
   },
 );

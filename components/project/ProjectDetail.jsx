@@ -43,6 +43,7 @@ import ProjectExpensesTab from './ProjectExpensesTab';
 import ProjectSalesTab from './ProjectSalesTab';
 import ProjectBillingTab from './ProjectBillingTab';
 import ProjectBillingReadyTab from './ProjectBillingReadyTab';
+import ProjectIndexArchive from './ProjectIndexArchive';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
@@ -54,6 +55,7 @@ const TABS = [
   { id: 'produktsalg', label: 'Produktsalg' },
   { id: 'til_fakturering', label: 'Til fakturering' },
   { id: 'fakturaer', label: 'Fakturaer' },
+  { id: 'indeks', label: 'Indeksregulering' },
 ];
 
 function ProgressBar({ left, right, leftColor, rightColor, colors }) {
@@ -473,6 +475,15 @@ export default function ProjectDetail({
               <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen fakturaer er koblet til prosjektet.</Text>
             ) : null}
           </View>
+        ) : null}
+
+        {tab === 'indeks' ? (
+          <ProjectIndexArchive
+            project={project}
+            contracts={contracts}
+            colors={colors}
+            onOpenIndex={onOpenIndex}
+          />
         ) : null}
 
         {tab === 'aktiviteter' ? (

@@ -160,12 +160,12 @@ test('e-postvarslet inneholder brevet', () => {
   assert.match(message.text, /Consult1 AS/);
 });
 
-test('siden viser avtale først og holder skuffen åpen', () => {
+test('siden viser avtaleliste og forhåndsvisning', () => {
   const desk = readFileSync(new URL('../../screens/economy/EconomyDesk.jsx', import.meta.url), 'utf8');
-  assert.ok(desk.indexOf('index-group-with-agreement') < desk.indexOf('index-group-without-agreement'));
-  assert.match(desk, /const \[openWith, setOpenWith\] = useState\(true\)/);
-  assert.match(desk, /const \[openWithout, setOpenWithout\] = useState\(false\)/);
-  assert.match(desk, /Ny indeks/);
+  assert.match(desk, /index-contract-list/);
+  assert.match(desk, /index-preview/);
+  assert.match(desk, /index-status-/);
+  assert.match(desk, /Start indeksregulering/);
   const screen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
   assert.match(screen, /timeEntries=\{state\.timeEntries/);
   assert.match(screen, /page === 'indekser'/);

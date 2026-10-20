@@ -3,6 +3,7 @@
 export const REGULATION_FREQUENCIES = [
   { id: 'month', label: 'Hver måned' },
   { id: 'quarter', label: 'Hvert kvartal' },
+  { id: 'half', label: 'Hvert halvår' },
   { id: 'year', label: 'Én gang i året' },
   { id: 'once', label: 'Bare én gang' },
 ];

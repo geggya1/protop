@@ -7,13 +7,49 @@ import { rateWithOvertime, timeTypeById } from '../arbeid/overtime.js';
 import { calcLineVat, defaultVatCode, invoiceVatTotals, roundMoney } from './vat.js';
 import { buildKid } from './kid.js';
 import { incomeAccountForHours } from './accountsChart.js';
-import { emptyInvoice, newInvoiceId, parseDate, text } from './invoices.js';
+import { emptyInvoice, isInvoiceSent, newInvoiceId, parseDate, text } from './invoices.js';
+import { rateOnDate } from '../indeksregulering/cases.js';
 
-function projectHourlyRate(project) {
+function versionsForProject(project, contracts) {
+  return (Array.isArray(contracts) ? contracts : []).flatMap((row) => {
+    if (!row) return [];
+    const linked = (project?.id && row.projectId === project.id)
+      || (project?.contractId && row.id === project.contractId);
+    if (!linked) return [];
+    return Array.isArray(row.priceVersions) ? row.priceVersions : [];
+  });
+}
+
+function projectHourlyRate(project, date = '', contracts = []) {
+  const indexed = rateOnDate(versionsForProject(project, contracts), date);
+  if (indexed != null && indexed > 0) return indexed;
   const settings = project?.pricingSettings || {};
   const rate = Number(settings.hourlyRate ?? settings.ensTimepris ?? settings.rate);
   if (Number.isFinite(rate) && rate > 0) return rate;
   return 1000; // fallback slik at utkast kan opprettes og redigeres
+}
+
+/** Utkast som bruker en annen timepris enn gjeldende prisversjon. Bokførte fakturaer røres ikke. */
+export function draftPriceWarnings(invoices, contracts) {
+  const notes = [];
+  (Array.isArray(invoices) ? invoices : []).forEach((invoice) => {
+    if (!invoice || isInvoiceSent(invoice)) return;
+    if (invoice.status === 'paid' || invoice.status === 'credited' || invoice.status === 'written_off') return;
+    const project = { id: invoice.projectId, contractId: invoice.contractId };
+    const day = invoice.invoiceDate || invoice.date || invoice.issueDate || '';
+    (invoice.lines || []).forEach((line) => {
+      if (!/^(t|time|timer)$/i.test(String(line?.unit || ''))) return;
+      const expected = rateOnDate(versionsForProject(project, contracts), day);
+      const actual = Number(line.unitPrice);
+      if (expected == null || !Number.isFinite(actual)) return;
+      if (Math.abs(actual - expected) < 0.01) return;
+      notes.push({
+        invoiceId: invoice.id || '',
+        message: `Fakturautkast ${invoice.invoiceNumber || invoice.id || ''} har timepris ${actual}, mens prisversjonen som gjelder ${day || 'perioden'} er ${expected}. Utkastet endres ikke automatisk. Bokført eller sendt faktura beholdes.`,
+      });
+    });
+  });
+  return notes;
 }
 
 function entryBillable(row) {
@@ -34,6 +70,7 @@ export function buildBillingProposals(state, {
   onlyApproved = true,
   customerId = '',
   projectId = '',
+  contracts = [],
 } = {}) {
   const projects = new Map((state.projects || []).map((p) => [p.id, p]));
   const rows = (state.timeEntries || []).filter((row) => {
@@ -70,7 +107,7 @@ export function buildBillingProposals(state, {
     }
     const group = groups.get(key);
     const hours = roundHours(row.billableHours != null ? row.billableHours : row.hours);
-    const rate = rateWithOvertime(projectHourlyRate(project), row.timeType || 'ordinary');
+    const rate = rateWithOvertime(projectHourlyRate(project, row.date, contracts), row.timeType || 'ordinary');
     group.entries.push({ ...row, _rate: rate, _hours: hours });
     group.hours = roundHours(group.hours + hours);
     group.amountExVat = roundMoney(group.amountExVat + hours * rate);

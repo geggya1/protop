@@ -6,10 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import IsoDateField from './IsoDateField';
 import {
   FIXED_EXTRA_TEMPLATES,
+  approvedVacationRequests,
   employeePlanName,
+  firstWorkingDayBalanceReminder,
   formatPlanDate,
   isPlanningEmployee,
+  isUpcomingVacationPlanYear,
   normalizeVacationPlan,
+  openingBalanceYearLabel,
   pendingVacationRequests,
   planningPhaseLabel,
   planningWindow,
@@ -48,6 +52,12 @@ function NumberField({ label, value, onChange, nativeID, hint }) {
   );
 }
 
+/**
+ * variant:
+ * - settings: Fravær → Innstillinger (startsaldo, regler, ansatte)
+ * - board: Planlagt fravær for HR (godkjenning, godkjent, dager igjen)
+ * Employee-visning brukes automatisk når canManage er false.
+ */
 export default function VacationPlanPanel({
   plan,
   employees = [],
@@ -56,6 +66,7 @@ export default function VacationPlanPanel({
   dayHours = 8,
   today = '',
   canManage = false,
+  variant = 'board',
   focusEmployeeId = '',
   companyName = '',
   busy = false,
@@ -86,7 +97,19 @@ export default function VacationPlanPanel({
       names,
     }) : []
   ), [absences, canManage, current.year, current.approvalDays, today, dayHours, names]);
+  const approved = useMemo(() => (
+    canManage ? approvedVacationRequests(absences, {
+      year: current.year,
+      today,
+      approvalDays: current.approvalDays,
+      dayHours,
+      names,
+    }) : []
+  ), [absences, canManage, current.year, current.approvalDays, today, dayHours, names]);
   const sample = vacationQuota({ id: '_sample', person: {}, company: { status: 'active' } }, { ...current, grants: {} }, { today, dayHours });
+  const upcomingYear = isUpcomingVacationPlanYear(current.year, today);
+  const balanceTitle = openingBalanceYearLabel(current.year, today);
+  const yearReminder = firstWorkingDayBalanceReminder(current.year);
 
   function patch(partial) {
     onChange?.(normalizeVacationPlan({ ...current, ...partial }));
@@ -147,6 +170,98 @@ export default function VacationPlanPanel({
     );
   }
 
+  if (variant === 'board') {
+    const remainingPeople = people.map((person) => ({
+      person,
+      quota: vacationQuota(person, current, { absences, today, dayHours }),
+    }));
+    return (
+      <View style={styles.wrap} nativeID="ferieplan-panel">
+        <View style={styles.card} nativeID="ferieplan-statuskort">
+          <View style={styles.head}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.title}>{`Ferieplan ${current.year}`}</Text>
+              <Text style={styles.lead}>
+                {announced
+                  ? `${planningPhaseLabel(window.phase)}${window.effectiveDeadline ? `. Frist ${formatPlanDate(window.effectiveDeadline)}` : ''}.`
+                  : 'Ferieplanen er ikke sendt ut ennå. Startsaldo settes under Fravær → Innstillinger.'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onRegister} style={styles.primary} nativeID="registrer-ferie-hr">
+              <Text style={styles.primaryText}>Registrer ferie</Text>
+            </TouchableOpacity>
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+        </View>
+
+        <View style={styles.card} nativeID="ferieplan-godkjenninger">
+          <Text style={styles.title}>Skal godkjennes</Text>
+          <Text style={styles.lead}>
+            {`Innmeldt ferie som venter. HR skal ta stilling innen ${current.approvalDays} dager.`}
+          </Text>
+          {pending.length ? pending.map((row) => (
+            <View key={row.ids[0] || row.start} style={styles.person} nativeID={`ferieplan-venter-${row.ids[0]}`}>
+              <View style={{ flex: 1, minWidth: 180 }}>
+                <Text style={styles.personName}>{row.employeeName}</Text>
+                <Text style={styles.hint}>
+                  {`${formatPlanDate(row.start)} – ${formatPlanDate(row.end)} · ${daysLabel(row.days)} dager`}
+                  {row.extraordinary ? ' · særskilt behandling' : ''}
+                  {row.overdue ? ` · frist ${formatPlanDate(row.due)} er passert` : ` · frist ${formatPlanDate(row.due)}`}
+                  {row.shortNotice ? ' · starter innen to måneder' : ''}
+                </Text>
+                <View style={styles.badgeRow}>
+                  <Text style={styles.badgePending}>Venter på godkjenning</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => onApprove?.(row.ids)} style={styles.secondary} nativeID={`ferieplan-godkjenn-${row.ids[0]}`}>
+                <Text style={styles.secondaryText}>Godkjenn</Text>
+              </TouchableOpacity>
+            </View>
+          )) : <Text style={styles.hint}>Ingen ferie venter på godkjenning.</Text>}
+        </View>
+
+        <View style={styles.card} nativeID="ferieplan-godkjent">
+          <Text style={styles.title}>Godkjent</Text>
+          <Text style={styles.lead}>{`Godkjent ferie i ${current.year}.`}</Text>
+          {approved.length ? approved.map((row) => (
+            <View key={row.ids[0] || row.start} style={styles.person} nativeID={`ferieplan-godkjent-${row.ids[0]}`}>
+              <View style={{ flex: 1, minWidth: 180 }}>
+                <Text style={styles.personName}>{row.employeeName}</Text>
+                <Text style={styles.hint}>
+                  {`${formatPlanDate(row.start)} – ${formatPlanDate(row.end)} · ${daysLabel(row.days)} dager`}
+                </Text>
+                <View style={styles.badgeRow}>
+                  <Text style={styles.badgeApproved}>Godkjent</Text>
+                </View>
+              </View>
+            </View>
+          )) : <Text style={styles.hint}>Ingen godkjent ferie ennå for dette året.</Text>}
+        </View>
+
+        <View style={styles.card} nativeID="ferieplan-dager-igjen">
+          <Text style={styles.title}>Dager igjen</Text>
+          <Text style={styles.lead}>
+            Aktive interne ansatte og hvor mange feriedager de har igjen å planlegge i {current.year}.
+          </Text>
+          {remainingPeople.length ? remainingPeople.map(({ person, quota }) => (
+            <View key={person.id} style={styles.person} nativeID={`ferieplan-igjen-${person.id}`}>
+              <View style={{ flex: 1, minWidth: 180, gap: 2 }}>
+                <Text style={styles.personName}>{names[person.id] || employeePlanName(person)}</Text>
+                <Text style={styles.hint}>
+                  {`Saldo ${daysLabel(quota.total)} · planlagt ${daysLabel(quota.planned)} · tatt ut ${daysLabel(quota.taken)}`}
+                </Text>
+              </View>
+              <Text style={styles.sum}>{`${daysLabel(Math.max(0, quota.remaining))} d igjen`}</Text>
+            </View>
+          )) : (
+            <Text style={styles.hint}>Ingen aktive interne ansatte å vise.</Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   const visiblePeople = showAll ? people : people.slice(0, 8);
   return (
     <View style={styles.wrap} nativeID="ferieplan-panel">
@@ -155,7 +270,7 @@ export default function VacationPlanPanel({
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.title}>Innstillinger for ferieplan</Text>
             <Text style={styles.lead}>
-              Startsaldo, senioruke, overføring og faste ekstra dager. Summen er det hver ansatt skal planlegge.
+              {`${balanceTitle}. Gjelder bare aktive interne ansatte. Summen er det hver ansatt skal planlegge.`}
             </Text>
           </View>
           <View style={styles.yearRow}>
@@ -168,6 +283,20 @@ export default function VacationPlanPanel({
             </TouchableOpacity>
           </View>
         </View>
+
+        <View style={styles.reminder} nativeID="ferieplan-paaminnelse">
+          <Ionicons name="alarm-outline" size={18} color="#9A6700" />
+          <Text style={styles.warn}>{yearReminder}</Text>
+        </View>
+
+        {upcomingYear ? (
+          <View style={styles.sumBox} nativeID="ferieplan-inngaende-merke">
+            <Text style={styles.strong}>{balanceTitle}</Text>
+            <Text style={styles.hint}>
+              {`${current.year} er neste år som er i vente. Tallene under er inngående feriedagssaldo som skal gjelde fra 1. januar ${current.year}.`}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.grid}>
           <NumberField label="Ordinær ferie" value={current.ordinaryDays} onChange={(ordinaryDays) => patch({ ordinaryDays })} nativeID="ferieplan-ordinar" hint="Fem uker mandag–fredag. Ferielovens 25 virkedager inkluderer lørdag." />
@@ -264,7 +393,7 @@ export default function VacationPlanPanel({
         </View>
 
         <View style={styles.sumBox} nativeID="ferieplan-sum">
-          <Text style={styles.label}>Sum feriedager til planlegging</Text>
+          <Text style={styles.label}>{balanceTitle}</Text>
           {sample.lines.map((row) => (
             <Line key={row.key} label={row.label} value={`+ ${daysLabel(row.days)}`} />
           ))}
@@ -273,9 +402,6 @@ export default function VacationPlanPanel({
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity onPress={onRegister} disabled={busy} style={styles.secondary} nativeID="registrer-ferie-hr">
-            <Text style={styles.secondaryText}>Registrer ferie</Text>
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => onSave?.(current)} disabled={busy} style={styles.secondary} nativeID="ferieplan-lagre">
             <Text style={styles.secondaryText}>{busy ? 'Lagrer…' : 'Lagre'}</Text>
           </TouchableOpacity>
@@ -284,7 +410,7 @@ export default function VacationPlanPanel({
           </TouchableOpacity>
         </View>
         <Text style={styles.hint}>
-          Utsending oppdaterer startsaldo til summen og sender melding i ProTop og på e-post, med saldoen og memoet.
+          Utsending oppdaterer startsaldo til summen for aktive interne ansatte og sender melding i ProTop og på e-post, med saldoen og memoet.
         </Text>
         {announced ? <Text style={styles.notice}>{`Sist sendt ${formatPlanDate(current.announcedAt.slice(0, 10)) || 'tidligere'}. ${planningPhaseLabel(window.phase)}.`}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -292,8 +418,10 @@ export default function VacationPlanPanel({
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Ansatte</Text>
-        <Text style={styles.lead}>Overføring fra i fjor legges inn for dem som har fått den innvilget, innenfor maksantallet.</Text>
+        <Text style={styles.title}>Aktive interne ansatte</Text>
+        <Text style={styles.lead}>
+          Overføring fra i fjor legges inn for dem som har fått den innvilget, innenfor maksantallet. Bare ansatte med status aktiv og uten ekstern markering.
+        </Text>
         {visiblePeople.map((person) => {
           const quota = vacationQuota(person, current, { absences, today, dayHours });
           const grant = current.grants[person.id] || {};
@@ -349,27 +477,9 @@ export default function VacationPlanPanel({
             <Text style={styles.link}>{showAll ? 'Vis færre' : `Vis alle ${people.length}`}</Text>
           </TouchableOpacity>
         ) : null}
-      </View>
-
-      <View style={styles.card} nativeID="ferieplan-godkjenninger">
-        <Text style={styles.title}>Til godkjenning</Text>
-        <Text style={styles.lead}>{`HR skal ta stilling innen ${current.approvalDays} dager. Ferien bør være avklart senest to måneder før den starter.`}</Text>
-        {pending.length ? pending.map((row) => (
-          <View key={row.ids[0] || row.start} style={styles.person}>
-            <View style={{ flex: 1, minWidth: 180 }}>
-              <Text style={styles.personName}>{row.employeeName}</Text>
-              <Text style={styles.hint}>
-                {`${formatPlanDate(row.start)} – ${formatPlanDate(row.end)} · ${daysLabel(row.days)} dager`}
-                {row.extraordinary ? ' · særskilt behandling' : ''}
-                {row.overdue ? ` · frist ${formatPlanDate(row.due)} er passert` : ` · frist ${formatPlanDate(row.due)}`}
-                {row.shortNotice ? ' · starter innen to måneder' : ''}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => onApprove?.(row.ids)} style={styles.secondary} nativeID={`ferieplan-godkjenn-${row.ids[0]}`}>
-              <Text style={styles.secondaryText}>Godkjenn</Text>
-            </TouchableOpacity>
-          </View>
-        )) : <Text style={styles.hint}>Ingen ferie venter på godkjenning.</Text>}
+        {!people.length ? (
+          <Text style={styles.hint}>Ingen aktive interne ansatte i selskapet.</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -422,6 +532,16 @@ const styles = StyleSheet.create({
   chipText: { color: '#152033', fontSize: 13 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sumBox: { gap: 4, padding: 12, borderRadius: 12, backgroundColor: '#E7F3FB' },
+  reminder: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FFF8E8',
+    borderWidth: 1,
+    borderColor: '#F5E6B8',
+  },
   line: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   strong: { color: '#152033', fontWeight: '700' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -431,9 +551,30 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#152033', fontWeight: '700' },
   error: { color: '#B42318', fontSize: 13 },
   notice: { color: '#047857', fontSize: 13 },
-  warn: { color: '#9A6700', fontSize: 13, lineHeight: 18 },
+  warn: { color: '#9A6700', fontSize: 13, lineHeight: 18, flex: 1 },
   person: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E6EBF2' },
   personName: { color: '#152033', fontSize: 15, fontWeight: '700' },
   sum: { color: '#152033', fontSize: 16, fontWeight: '700', minWidth: 48 },
   link: { color: '#1E6FEA', fontSize: 14 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  badgePending: {
+    color: '#9A6700',
+    backgroundColor: '#FFF8E8',
+    overflow: 'hidden',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  badgeApproved: {
+    color: '#047857',
+    backgroundColor: '#ECFDF5',
+    overflow: 'hidden',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });

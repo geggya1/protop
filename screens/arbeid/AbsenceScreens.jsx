@@ -41,10 +41,8 @@ import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { AbsenceReportDesktop, PlannedAbsenceDesktop } from './CompanyAbsenceDesktop';
 import VacationPlanPanel from '../../components/arbeid/VacationPlanPanel';
 import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
-import { saveProjectState } from '../../src/project/storage';
-import { applyVacationPlan } from '../../src/arbeid/vacationPlanApply.js';
-import { loadVacationPlan, saveVacationPlan } from '../../src/arbeid/vacationPlanStorage.js';
-import { publishVacationPlanNotice, sweepVacationPlan } from '../../src/arbeid/vacationPlanClient.js';
+import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage.js';
+import { sweepVacationPlan } from '../../src/arbeid/vacationPlanClient.js';
 import {
   normalizeVacationPlan,
   planningWindow,
@@ -500,7 +498,6 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
   const [plan, setPlan] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [planError, setPlanError] = useState('');
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -538,44 +535,6 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const companyName = String(family?.company?.navn || family?.name || '').trim();
   const window = planningWindow(plan || {}, today);
   const registrationLocked = !!plan?.announcedAt && window.locked && !workspace.manager;
-
-  async function persist(draft, { announce }) {
-    if (announce && !draft?.planDeadline) {
-      setPlanError('Sett en frist for planleggingen før du sender meldingen.');
-      return;
-    }
-    setBusy(true);
-    setPlanError('');
-    setNotice('');
-    try {
-      let next = normalizeVacationPlan(draft);
-      if (announce) next = normalizeVacationPlan({ ...next, announcedAt: new Date().toISOString() });
-      next = await saveVacationPlan(familyId, next);
-      if (announce || next.announcedAt) {
-        const applied = applyVacationPlan(workspace.state, next, people, {
-          today,
-          dayHours: fullDay,
-          assignDates: announce,
-        });
-        if (!applied.ok) throw new Error(applied.error || 'Kunne ikke oppdatere startsaldo.');
-        await saveProjectState(applied.state, familyId);
-        workspace.setState(applied.state);
-      }
-      setPlan(next);
-      if (!announce) {
-        setNotice(next.announcedAt ? 'Ferieplanen er lagret og startsaldone er oppdatert.' : 'Ferieplanen er lagret.');
-        return;
-      }
-      const sent = await publishVacationPlanNotice(familyId);
-      if (!sent?.ok) throw new Error(sent?.error || 'Meldingen ble ikke sendt.');
-      const mailNote = sent.mailConfigured === false ? ' E-post er ikke satt opp, så bare varslet i ProTop gikk ut.' : '';
-      setNotice(`Melding sendt. ${sent.sent || 0} e-poster, ${sent.notified || 0} varsler i ProTop.${mailNote}`);
-    } catch (err) {
-      setPlanError(err?.message || 'Kunne ikke lagre ferieplanen.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function register({ personId, from, to, note, extraordinary }) {
     const days = eachWeekday(from, to);
@@ -632,14 +591,11 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
       dayHours={fullDay}
       today={today}
       canManage={canChooseEmployee}
+      variant="board"
       focusEmployeeId={canChooseEmployee ? '' : activeId}
       companyName={companyName}
-      busy={busy}
       notice={notice}
       error={planError}
-      onChange={setPlan}
-      onSave={(draft) => persist(draft, { announce: false })}
-      onSend={(draft) => persist(draft, { announce: true })}
       onApprove={approve}
       onRegister={() => setRegisterOpen(true)}
     />

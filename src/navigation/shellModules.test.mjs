@@ -467,9 +467,23 @@ assert.match(shellSrc, /AbsenceSettingsScreen/);
 assert.match(shellSrc, /EconomySettingsScreen/);
 assert.match(shellSrc, /CompanyLanding/);
 assert.match(shellSrc, /CompanyUnitsScreen/);
+const absenceSettingsSrc = readFileSync(new URL('../../screens/arbeid/AbsenceSettingsScreen.jsx', import.meta.url), 'utf8');
+assert.match(absenceSettingsSrc, /Fraværsinnstillinger/);
+assert.match(absenceSettingsSrc, /id: 'ferieplan'/);
+assert.match(absenceSettingsSrc, /VacationPlanPanel/);
+assert.match(absenceSettingsSrc, /variant="settings"/);
 assert.match(
-  readFileSync(new URL('../../screens/arbeid/AbsenceSettingsScreen.jsx', import.meta.url), 'utf8'),
-  /Fraværsinnstillinger/,
+  readFileSync(new URL('../../screens/arbeid/AbsenceScreens.jsx', import.meta.url), 'utf8'),
+  /variant="board"/,
+);
+const vacationPanelSrc = readFileSync(new URL('../../components/arbeid/VacationPlanPanel.jsx', import.meta.url), 'utf8');
+assert.match(vacationPanelSrc, /Skal godkjennes/);
+assert.match(vacationPanelSrc, /openingBalanceYearLabel/);
+assert.match(vacationPanelSrc, /firstWorkingDayBalanceReminder/);
+assert.match(vacationPanelSrc, /Dager igjen/);
+assert.match(
+  readFileSync(new URL('../../src/arbeid/vacationPlan.js', import.meta.url), 'utf8'),
+  /Inngående feriedagssaldo til/,
 );
 assert.match(
   readFileSync(new URL('../../screens/economy/EconomySettingsScreen.jsx', import.meta.url), 'utf8'),

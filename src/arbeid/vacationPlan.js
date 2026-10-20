@@ -110,15 +110,49 @@ export function osloToday(now = new Date()) {
   }
 }
 
-function defaultYear(now = new Date()) {
+/** Fra oktober foreslås neste kalenderår som planleggingsår. */
+export function defaultVacationPlanYear(now = new Date()) {
   const key = osloToday(now);
   const year = Number(key.slice(0, 4));
   const month = Number(key.slice(5, 7));
   return month >= 10 ? year + 1 : year;
 }
 
+function defaultYear(now = new Date()) {
+  return defaultVacationPlanYear(now);
+}
+
 export function emptyVacationPlan(year = defaultYear()) {
   return normalizeVacationPlan({ year });
+}
+
+/**
+ * Er planåret det neste kalenderåret som allerede er i vente?
+ * Brukes for å merke inngående feriedagssaldo tydelig (f.eks. «til 2027»).
+ */
+export function isUpcomingVacationPlanYear(planYear, today = '') {
+  const year = Number(planYear) || 0;
+  const key = isIsoDate(today) ? today : osloToday();
+  const current = Number(key.slice(0, 4));
+  return year === current + 1;
+}
+
+/** Kort forklaring av hva saldoen gjelder for et gitt planår. */
+export function openingBalanceYearLabel(planYear, today = '') {
+  const year = Number(planYear) || defaultYear();
+  if (isUpcomingVacationPlanYear(year, today)) {
+    return `Inngående feriedagssaldo til ${year}`;
+  }
+  return `Inngående feriedagssaldo for ${year}`;
+}
+
+/**
+ * Påminnelse om å fastsette startsaldo første virkedag i planåret.
+ * Når man setter opp neste års plan, er det første virkedag i det året.
+ */
+export function firstWorkingDayBalanceReminder(planYear) {
+  const year = Number(planYear) || defaultYear();
+  return `Husk: første virkedag i ${year} bør du fastsette start fraværssaldo til alle aktive interne ansatte, og sende ferieplanen.`;
 }
 
 function normalizeGrant(raw) {
@@ -250,10 +284,11 @@ export function vacationPlanForYear(plan, year) {
   });
 }
 
+/** Aktive interne ansatte — ekstern/innleid-utenfor og avsluttet status telles ikke. */
 export function isPlanningEmployee(employee) {
   const company = employee?.company || {};
-  const status = text(company.status);
-  if (status === 'former' || status === 'deleted' || status === 'inactive') return false;
+  const status = text(company.status) || 'active';
+  if (status !== 'active') return false;
   if (company.personnelKind === 'external' || company.external === true) return false;
   return !!text(employee?.id);
 }
@@ -576,11 +611,18 @@ function continues(prev, next) {
   return cursor === next;
 }
 
-export function pendingVacationRequests(absences, { year, today, approvalDays = 14, dayHours = 8, names = {} } = {}) {
+function vacationStatusBucket(status) {
+  const key = text(status) || 'registrert';
+  if (key === 'godkjent' || key === 'låst') return 'approved';
+  if (key === 'registrert') return 'pending';
+  return '';
+}
+
+function groupVacationPeriods(absences, { year, bucket } = {}) {
   const y = String(year || '');
-  const day = Number(dayHours) > 0 ? Number(dayHours) : 8;
   const rows = (absences || [])
-    .filter((row) => row && (row.type || 'ferie') === 'ferie' && (row.status || 'registrert') === 'registrert')
+    .filter((row) => row && (row.type || 'ferie') === 'ferie')
+    .filter((row) => vacationStatusBucket(row.status) === bucket)
     .filter((row) => text(row.date).startsWith(y))
     .map((row) => ({ ...row, date: text(row.date).slice(0, 10) }))
     .sort((a, b) => text(a.employeeId).localeCompare(text(b.employeeId)) || a.date.localeCompare(b.date));
@@ -604,8 +646,14 @@ export function pendingVacationRequests(absences, { year, today, approvalDays = 
       ids: [row.id].filter(Boolean),
       extraordinary: row.extraordinary === true,
       created: isIsoDate(text(row.createdAt).slice(0, 10)) ? text(row.createdAt).slice(0, 10) : '',
+      status: vacationStatusBucket(row.status),
     });
   }
+  return periods;
+}
+
+function decorateVacationPeriods(periods, { today, approvalDays = 14, dayHours = 8, names = {} } = {}) {
+  const day = Number(dayHours) > 0 ? Number(dayHours) : 8;
   return periods.map((period) => {
     const due = addIsoDays(period.created || today, approvalDays);
     return {
@@ -617,4 +665,18 @@ export function pendingVacationRequests(absences, { year, today, approvalDays = 
       shortNotice: !!(today && period.start <= addIsoDays(today, 60)),
     };
   });
+}
+
+export function pendingVacationRequests(absences, opts = {}) {
+  return decorateVacationPeriods(
+    groupVacationPeriods(absences, { year: opts.year, bucket: 'pending' }),
+    opts,
+  );
+}
+
+export function approvedVacationRequests(absences, opts = {}) {
+  return decorateVacationPeriods(
+    groupVacationPeriods(absences, { year: opts.year, bucket: 'approved' }),
+    opts,
+  );
 }

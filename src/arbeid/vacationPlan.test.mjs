@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import {
   addIsoDays,
+  approvedVacationRequests,
   buildAnnouncement,
+  defaultVacationPlanYear,
   emptyVacationPlan,
+  firstWorkingDayBalanceReminder,
+  isPlanningEmployee,
+  isUpcomingVacationPlanYear,
   monthGrid,
   normalizeVacationPlan,
+  openingBalanceYearLabel,
   pendingVacationRequests,
   planSweep,
   planningWindow,
@@ -183,17 +189,47 @@ const young = {
 }
 
 {
-  const pending = pendingVacationRequests([
+  const rows = [
     { id: 'a', employeeId: 'e2', type: 'ferie', status: 'registrert', date: '2026-07-06', hours: 8, createdAt: '2026-03-01', extraordinary: true },
     { id: 'b', employeeId: 'e2', type: 'ferie', status: 'registrert', date: '2026-07-07', hours: 8, createdAt: '2026-03-01' },
     { id: 'c', employeeId: 'e2', type: 'ferie', status: 'godkjent', date: '2026-07-08', hours: 8 },
-  ], { year: 2026, today: '2026-03-20', approvalDays: 14, names: { e2: 'Bo Li' } });
+    { id: 'd', employeeId: 'e2', type: 'ferie', status: 'låst', date: '2026-08-03', hours: 8 },
+  ];
+  const pending = pendingVacationRequests(rows, {
+    year: 2026, today: '2026-03-20', approvalDays: 14, names: { e2: 'Bo Li' },
+  });
   assert.equal(pending.length, 1);
   assert.equal(pending[0].days, 2);
   assert.equal(pending[0].due, '2026-03-15');
   assert.equal(pending[0].overdue, true);
   assert.equal(pending[0].extraordinary, true);
   assert.equal(pending[0].employeeName, 'Bo Li');
+  const approved = approvedVacationRequests(rows, {
+    year: 2026, today: '2026-03-20', approvalDays: 14, names: { e2: 'Bo Li' },
+  });
+  assert.equal(approved.length, 2);
+  assert.equal(approved[0].days, 1);
+  assert.equal(approved[1].days, 1);
+}
+
+{
+  assert.equal(isPlanningEmployee(ada), true);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'inactive' } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'former' } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', personnelKind: 'external' } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', external: true } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', personnelKind: 'staff' } }), true);
+}
+
+{
+  assert.equal(defaultVacationPlanYear(new Date('2026-09-15T12:00:00+02:00')), 2026);
+  assert.equal(defaultVacationPlanYear(new Date('2026-10-01T12:00:00+02:00')), 2027);
+  assert.equal(isUpcomingVacationPlanYear(2027, '2026-10-20'), true);
+  assert.equal(isUpcomingVacationPlanYear(2026, '2026-10-20'), false);
+  assert.match(openingBalanceYearLabel(2027, '2026-10-20'), /Inngående feriedagssaldo til 2027/);
+  assert.match(openingBalanceYearLabel(2026, '2026-03-01'), /Inngående feriedagssaldo for 2026/);
+  assert.match(firstWorkingDayBalanceReminder(2027), /første virkedag i 2027/);
+  assert.match(firstWorkingDayBalanceReminder(2027), /start fraværssaldo/);
 }
 
 console.log('vacationPlan.test.mjs: ok');

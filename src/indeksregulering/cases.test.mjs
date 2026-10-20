@@ -20,6 +20,7 @@ import {
   withdrawCase,
   workspaceHref,
 } from './cases.js';
+import { indexLinkFromPath } from './indexLink.js';
 
 function series(points, frequency = 'quarter') {
   const rows = points.map(([period, value]) => ({ period, value }));
@@ -311,27 +312,45 @@ test('utkast, godkjenning, sending og feil er adskilt', () => {
 
 test('arbeidsvindu kan åpnes direkte via URL', () => {
   const href = workspaceHref('https://protop.no/okonomi', 'breitorget', 'ir1', 'historikk');
-  const query = readWorkspaceQuery(new URL(href).search);
+  const url = new URL(href);
+  assert.equal(url.pathname, '/hjem');
+  const query = readWorkspaceQuery(url.search);
   assert.equal(query.contractId, 'breitorget');
   assert.equal(query.caseId, 'ir1');
   assert.equal(query.view, 'historikk');
+  const link = indexLinkFromPath(url.pathname + url.search);
+  assert.equal(link.tab, 'okonomi');
+  assert.equal(link.subView, 'indeks');
+  assert.equal(link.intent.contractId, 'breitorget');
+  assert.equal(link.intent.view, 'historikk');
+  assert.equal(link.intent.workspaceCaseId, 'ir1');
+  assert.equal(indexLinkFromPath('/hjem'), null);
 });
 
 test('prosjekter uten avtale deles i aktiv og deaktivert', () => {
   const projects = [
     { id: 'p1', name: 'Aktivt', number: '100', status: 'aktiv' },
     { id: 'p2', name: 'Parkert', number: '200', status: 'arkivert' },
+    { id: 'p4', name: 'Stille', number: '400', status: 'aktiv' },
     { id: 'p3', name: 'Har avtale', number: '300', status: 'aktiv' },
   ];
   const contracts = [{ ...breitorget(), projectId: 'p3' }];
-  const rows = projectsWithoutAgreement(projects, contracts);
-  assert.deepEqual(rows.map((row) => row.project.id), ['p1', 'p2']);
-  assert.equal(rows[0].group, 'aktiv');
-  assert.equal(rows[1].group, 'deaktivert');
-  const counts = deskCounts(contracts, published, '2026-10-20', projects);
-  assert.equal(counts.oppmerksomhet, 2);
+  const timeEntries = [
+    { projectId: 'p1', date: '2026-09-15', hours: 4 },
+    { projectId: 'p2', date: '2026-10-01', hours: 8 },
+    { projectId: 'p4', date: '2026-05-01', hours: 6 },
+    { projectNumber: '100', date: '2026-10-01', hours: 1 },
+  ];
+  const rows = projectsWithoutAgreement(projects, contracts, { timeEntries, today: '2026-10-20' });
+  const group = Object.fromEntries(rows.map((row) => [row.project.id, row.group]));
+  assert.equal(group.p1, 'aktiv');
+  assert.equal(group.p2, 'deaktivert');
+  assert.equal(group.p4, 'deaktivert');
+  assert.equal(group.p3, undefined);
+  const counts = deskCounts(contracts, published, '2026-10-20', projects, timeEntries);
+  assert.equal(counts.oppmerksomhet, 3);
   assert.equal(counts.aktiv, 1);
-  assert.equal(counts.deaktivert, 1);
+  assert.equal(counts.deaktivert, 2);
   assert.equal(counts.kan_reguleres, 1);
 });
 

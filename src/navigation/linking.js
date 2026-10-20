@@ -10,6 +10,7 @@ import { gameInviteNavParams } from '../utils/gameInviteNav';
 import { formatWebDocumentTitle } from './webDocumentTitle';
 import { linkingPrefixes } from '../utils/hostingChannel';
 import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/agreementLink';
+import { indexLinkFromPath } from '../indeksregulering/indexLink';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -118,6 +119,15 @@ export const linking = {
   },
   getStateFromPath(path, options) {
     try { captureAgreementLinkFromLocation(path); } catch { /* ignore */ }
+    const indexLink = indexLinkFromPath(path);
+    if (indexLink) {
+      return {
+        routes: [{
+          name: 'Home',
+          params: { openShell: indexLink },
+        }],
+      };
+    }
     const invite = parseFamilyInviteFromPath(path);
     if (invite) {
       return {

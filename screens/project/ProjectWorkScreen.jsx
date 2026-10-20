@@ -2028,7 +2028,12 @@ export default function ProjectWorkScreen() {
           onOpenAgreement={openAgreement}
           onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
           onOpenInvoice={openInvoice}
-          onOpenIndex={(contract) => requestShellTab?.('okonomi', 'indeks', openIndexIntentFromContract(contract))}
+          onOpenIndex={(contract, caseId = '', view = '') => requestShellTab?.('okonomi', 'indeks', {
+            ...openIndexIntentFromContract(contract),
+            projectId: contract?.projectId || '',
+            workspaceCaseId: caseId,
+            view,
+          })}
           onOpenEconomySettings={() => requestShellTab?.('okonomi', 'innstillinger')}
           onOpenEconomyBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
           hoursLoading={projectHoursLoading}

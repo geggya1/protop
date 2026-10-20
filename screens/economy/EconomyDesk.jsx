@@ -66,6 +66,7 @@ export default function EconomyDesk({
   onOpenContract,
   onOpenHistory,
   onOpenProject,
+  timeEntries = [],
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -77,8 +78,8 @@ export default function EconomyDesk({
   const [mobileDetail, setMobileDetail] = useState(false);
   const [closed, setClosed] = useState({});
   const counts = useMemo(
-    () => deskCounts(contracts, series, '', projects),
-    [contracts, series, projects],
+    () => deskCounts(contracts, series, '', projects, timeEntries),
+    [contracts, series, projects, timeEntries],
   );
   const rows = useMemo(
     () => queueContracts({ contracts, projects, customers, series, query, band: 'alle' }),
@@ -86,11 +87,11 @@ export default function EconomyDesk({
   );
   const loose = useMemo(() => {
     const q = String(query || '').trim().toLowerCase();
-    return projectsWithoutAgreement(projects, contracts).filter((row) => {
+    return projectsWithoutAgreement(projects, contracts, { timeEntries }).filter((row) => {
       if (!q) return true;
       return [row.project.number, row.project.name, row.project.client].join(' ').toLowerCase().includes(q);
     });
-  }, [projects, contracts, query]);
+  }, [projects, contracts, query, timeEntries]);
   const visible = band === 'oppmerksomhet' ? [] : rows.filter((row) => filterIdForBand(row.status.band) === band);
   const selected = visible.find((row) => row.contract.id === selectedId) || visible[0] || null;
   const selectedProject = loose.find((row) => row.project.id === selectedId) || (band === 'oppmerksomhet' ? loose[0] : null);

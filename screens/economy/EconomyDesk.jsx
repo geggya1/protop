@@ -52,17 +52,13 @@ function Field({ label, value, colors }) {
   );
 }
 
-function showNode(id) {
-  if (typeof document === 'undefined') return;
-  document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-}
-
 export default function EconomyDesk({
   contracts = [],
   projects = [],
   customers = [],
   series = null,
   onOpenIndex,
+  onOpenTerms,
   onOpenContract,
   onOpenHistory,
   onOpenProject,
@@ -229,6 +225,7 @@ export default function EconomyDesk({
             colors={colors}
             onBack={!wide ? () => setMobileDetail(false) : null}
             onOpenIndex={() => onOpenIndex?.(selected.contract)}
+            onOpenTerms={() => onOpenTerms?.(selected.contract)}
             onOpenContract={() => onOpenContract?.(selected.contract.id)}
             onOpenHistory={() => onOpenHistory?.(selected.contract)}
           />
@@ -321,7 +318,7 @@ function ProjectPreview({ row, colors, onBack, onOpenProject }) {
   );
 }
 
-function Preview({ row, series, colors, onBack, onOpenIndex, onOpenContract, onOpenHistory }) {
+function Preview({ row, series, colors, onBack, onOpenIndex, onOpenTerms, onOpenContract, onOpenHistory }) {
   const { contract, project, status } = row;
   const draft = status.draft;
   const chain = status.chain;
@@ -336,7 +333,6 @@ function Preview({ row, series, colors, onBack, onOpenIndex, onOpenContract, onO
   }, [draft, series, contract, status.band]);
   const standard = standardById(draft?.standard);
   const history = historyRows(contract);
-  const ready = math?.ok && !math.provisional && (status.band === 'kan_reguleres' || status.band === 'ma_vurderes');
 
   return (
     <ScrollView nativeID="index-preview" style={styles.preview} contentContainerStyle={[styles.previewInner, { backgroundColor: colors.bg }]}>
@@ -349,6 +345,26 @@ function Preview({ row, series, colors, onBack, onOpenIndex, onOpenContract, onO
         <View style={styles.itemTop}>
           <Text style={[styles.h, { color: colors.ink, flex: 1 }]}>{contract.title || 'Avtale'}</Text>
           <Pill label={status.label} tone={QUEUE_BANDS.find((item) => item.id === status.band)?.tone || 'muted'} colors={colors} />
+        </View>
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={onOpenContract} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne avtale</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onOpenTerms} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis reguleringsvilkår</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onOpenHistory} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis historikk</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            nativeID="economy-open-index"
+            onPress={onOpenIndex}
+            disabled={status.band === 'ikke_aktuell'}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: colors.brand, opacity: status.band === 'ikke_aktuell' ? 0.45 : 1 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Start indeksregulering</Text>
+          </TouchableOpacity>
         </View>
         <Text style={{ color: colors.muted }}>{status.reason}</Text>
         <View style={styles.grid}>
@@ -413,26 +429,6 @@ function Preview({ row, series, colors, onBack, onOpenIndex, onOpenContract, onO
           </ScrollView>
         ) : null}
       </View>
-
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={onOpenContract} style={[styles.ghost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne avtale</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => showNode('index-terms')} style={[styles.ghost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis reguleringsvilkår</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onOpenHistory} style={[styles.ghost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis historikk</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          nativeID="economy-open-index"
-          onPress={onOpenIndex}
-          disabled={!ready && status.band === 'ikke_aktuell'}
-          style={[styles.primary, { backgroundColor: colors.brand, opacity: status.band === 'ikke_aktuell' ? 0.45 : 1 }]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Start indeksregulering</Text>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
   );
 }
@@ -495,9 +491,9 @@ const styles = StyleSheet.create({
   field: { width: 180, flexGrow: 1, gap: 2 },
   fieldLabel: { fontSize: 12 },
   fieldValue: { fontSize: 14 },
-  tr: { flexDirection: 'row', minWidth: 640 },
-  th: { width: 110, fontSize: 12, paddingVertical: 6, paddingRight: 8 },
-  td: { width: 110, fontSize: 13, paddingVertical: 8, paddingRight: 8 },
+  tr: { flexDirection: 'row', flexWrap: 'wrap' },
+  th: { width: 96, fontSize: 12, paddingVertical: 6, paddingRight: 8 },
+  td: { width: 96, fontSize: 13, paddingVertical: 8, paddingRight: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   ghost: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },

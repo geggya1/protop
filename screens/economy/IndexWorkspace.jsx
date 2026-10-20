@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -31,7 +32,7 @@ import {
   withdrawCase,
 } from '../../src/indeksregulering/cases';
 import { periodLabel } from '../../src/indeksregulering/engine';
-import { buildLetter, formatIndex, formatPercent } from '../../src/indeksregulering/letter';
+import { buildLetter, formatIndex, formatPercent, letterFromRecord } from '../../src/indeksregulering/letter';
 import { indexLetterMessage } from '../../src/indeksregulering/mail';
 import { sendIndexLetter } from '../../src/indeksregulering/mailClient';
 import { downloadBytes, exportFiles } from '../../src/indeksregulering/office';
@@ -39,12 +40,16 @@ import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { frequencyLabel } from '../../src/indeksregulering/settings';
 import { osloDate } from '../../src/indeksregulering/watch';
 
-const SCREENS = [
+const NAV = [
   { id: 'oversikt', label: 'Oversikt' },
-  { id: 'beregning', label: 'Beregning og periode' },
-  { id: 'brev', label: 'Forhåndsvisning av varsel' },
-  { id: 'historikk', label: 'Reguleringshistorikk' },
+  { id: 'beregning', label: 'Beregning' },
+  { id: 'brev', label: 'Varselbrev' },
+  { id: 'historikk', label: 'Historikk' },
 ];
+
+function screenFromView(view) {
+  return NAV.some((item) => item.id === view) ? view : 'oversikt';
+}
 
 function Field({ label, value, colors, onChange, placeholder }) {
   return (
@@ -83,7 +88,7 @@ export default function IndexWorkspace({
   const wide = width >= 980;
   const cases = contract?.indexCases || [];
   const existing = cases.find((row) => row.id === caseId) || null;
-  const [screen, setScreen] = useState(initialView === 'historikk' ? 'historikk' : 'oversikt');
+  const [screen, setScreen] = useState(screenFromView(initialView));
   const [bundle, setBundle] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -105,7 +110,7 @@ export default function IndexWorkspace({
   }));
   const sending = useRef(false);
   useEffect(() => {
-    setScreen(initialView === 'historikk' ? 'historikk' : 'oversikt');
+    setScreen(screenFromView(initialView));
   }, [contract?.id, initialView]);
 
   useEffect(() => {
@@ -151,10 +156,18 @@ export default function IndexWorkspace({
     period: selectedPeriod,
   }), [activeDraft, bundle, cases, contract?.regulations, selectedPeriod]);
 
-  const letter = useMemo(
-    () => (math?.ok ? buildLetter(activeDraft, math, { logo, includeLogo: useLogo }) : null),
-    [math, activeDraft, logo, useLogo],
-  );
+  const letterPack = useMemo(() => {
+    const options = { logo, includeLogo: useLogo };
+    if (math?.ok) {
+      return { letter: buildLetter(activeDraft, math, options), result: math, stored: false };
+    }
+    const stored = letterFromRecord(activeDraft || {}, recordForLetter(contract, entry), options);
+    return stored
+      ? { letter: stored.letter, result: stored.result, stored: true }
+      : { letter: null, result: null, stored: false };
+  }, [math, activeDraft, logo, useLogo, contract, entry]);
+  const letter = letterPack.letter;
+  const letterResult = letterPack.result;
 
   const checks = entry
     ? validateCase({ ...entry, letterPlain: letter?.plain || entry.letterPlain, provisional: math?.provisional }, cases, { forApproval: true })
@@ -305,11 +318,11 @@ export default function IndexWorkspace({
   }
 
   function download(kind) {
-    if (!letter || !math?.ok) {
+    if (!letter || !letterResult) {
       setError(math?.error || 'Brevet er ikke klart.');
       return;
     }
-    const file = exportFiles(activeDraft, math, letter, [seriesById(draft.indexId)].filter(Boolean)).find((item) => item.kind === kind);
+    const file = exportFiles(activeDraft, letterResult, letter, [seriesById(draft?.indexId)].filter(Boolean)).find((item) => item.kind === kind);
     if (!file) return;
     downloadBytes(file.filename, file.bytes, file.mime);
     setNote(`${file.filename} er lastet ned.`);
@@ -338,31 +351,65 @@ export default function IndexWorkspace({
     series: bundle?.series || null,
   }), [contract, bundle]);
   const history = historyRows(cases, contract?.regulations || []);
+  const savedPlain = savedLetterText(contract, draft, company);
   const shared = {
     contract, project, draft, customer, company, colors, wide, chain, math, queue, history,
     dates, patchDate, points, selectedPeriod, setSelectedPeriod, freeText, setFreeText,
     to, setTo, cc, setCc, subject, setSubject, useLogo, setUseLogo, logo, letter, entry,
     checks, working, cases, onOpenProject, setScreen, storeDraft, approve, download, correct,
+    savedPlain, screen, letterCaption: letterPack.stored
+      ? 'Ny indeks for neste regulering er ikke publisert. Forhåndsvisningen viser siste lagrede varsel.'
+      : '',
   };
 
   return (
-    <ScrollView nativeID="index-workspace" contentContainerStyle={styles.page}>
-      <View style={styles.top}>
-        <TouchableOpacity onPress={onClose} accessibilityRole="button">
-          <Text style={{ color: colors.brand, fontWeight: '700' }}>Tilbake til oversikten</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-          Indeksregulering / {contract?.title || 'Avtale'}
-        </Text>
+    <View nativeID="index-workspace" style={styles.frame}>
+      <View style={[styles.locked, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
+        <View style={styles.top}>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '700' }}>Tilbake til oversikten</Text>
+          </TouchableOpacity>
+          <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+            {contract?.title || 'Avtale'}
+          </Text>
+        </View>
+        <View nativeID="index-workspace-nav" style={styles.nav}>
+          {NAV.map((item) => {
+            const on = screen === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => setScreen(item.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                style={[styles.navItem, { borderBottomColor: on ? colors.brand : 'transparent', backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent' }]}
+              >
+                <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500' }}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
-      {error ? <Text style={{ color: colors.danger || '#dc2626' }}>{error}</Text> : null}
-      {note ? <Text style={{ color: colors.ink }}>{note}</Text> : null}
-      {screen === 'oversikt' ? <Overview {...shared} /> : null}
-      {screen === 'beregning' ? <Calculation {...shared} /> : null}
-      {screen === 'brev' ? <LetterScreen {...shared} /> : null}
-      {screen === 'historikk' ? <HistoryScreen {...shared} onOpenCase={(row) => { setEntry(row); setScreen('brev'); }} /> : null}
-    </ScrollView>
+      <ScrollView style={styles.body} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        {error ? <Text style={{ color: colors.danger || '#dc2626' }}>{error}</Text> : null}
+        {note ? <Text style={{ color: colors.ink }}>{note}</Text> : null}
+        {screen === 'oversikt' ? <Overview {...shared} /> : null}
+        {screen === 'beregning' ? <Calculation {...shared} /> : null}
+        {screen === 'brev' ? <LetterScreen {...shared} /> : null}
+        {screen === 'historikk' ? <HistoryScreen {...shared} onOpenCase={(row) => { setEntry(row); setScreen('brev'); }} /> : null}
+      </ScrollView>
+    </View>
   );
+}
+
+function recordForLetter(contract, entry) {
+  const priced = (row) => Number(row?.newPrice || row?.after) > 0;
+  if (priced(entry)) return entry;
+  const fromCases = [...(contract?.indexCases || [])].reverse().find((row) => priced(row) || row?.letterPlain);
+  if (fromCases && (priced(fromCases) || !entry?.letterPlain)) return fromCases;
+  const legacy = [...(contract?.regulations || [])].reverse().find((row) => priced(row) || row?.letterPlain);
+  if (entry?.letterPlain) return entry;
+  return legacy || fromCases || null;
 }
 
 function pretty(iso) {
@@ -408,7 +455,9 @@ function Pill({ label, colors, tone }) {
 }
 
 function Overview(props) {
-  const { contract, project, draft, colors, wide, chain, math, queue, onOpenProject, setScreen } = props;
+  const {
+    contract, project, draft, colors, wide, chain, math, queue, onOpenProject, setScreen, letter, letterCaption, savedPlain,
+  } = props;
   const checks = [
     [!!draft?.indexId, 'Avtalen inneholder indeksbestemmelse', chain?.table ? `SSB ${chain.table}` : 'Indeksserie mangler'],
     [!!chain?.original, 'Indeksgrunnlaget er registrert', chain?.original ? `${chain.original.label} · ${formatIndex(chain.original.value)}` : 'Opprinnelig indeks mangler'],
@@ -437,14 +486,6 @@ function Overview(props) {
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.tabs}>
-        <TouchableOpacity onPress={() => setScreen('oversikt')} style={[styles.tabOn, { borderBottomColor: colors.brand }]}>
-          <Text style={{ color: colors.brand, fontWeight: '700' }}>Oversikt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setScreen('historikk')} style={styles.tab}>
-          <Text style={{ color: colors.muted }}>Reguleringshistorikk</Text>
-        </TouchableOpacity>
-      </View>
       <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
         <View style={{ flex: 1.4, gap: 12 }}>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -464,25 +505,30 @@ function Overview(props) {
             <Field label="Neste tillatte dato" value={pretty(queue?.allowed)} colors={colors} />
           </View>
         </View>
-        <View style={{ flex: 1, gap: 12 }}>
+        <View style={{ flex: 1.2, gap: 12, minWidth: wide ? 360 : 0 }}>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.h, { color: colors.ink }]}>Reguleringsstatus</Text>
             <Text style={{ color: colors.muted }}>{queue?.reason}</Text>
-            <Field label="Utgangindeks" value={chain?.original ? `${formatIndex(chain.original.value)} · ${chain.original.label}` : '–'} colors={colors} />
-            <Field label="Ny indeks" value={chain?.next ? `${formatIndex(chain.next.value)} · ${chain.next.label}` : 'Ikke publisert'} colors={colors} />
-            <Field label="Beregnet ny pris" value={math?.ok ? formatKr(math.regulated) : '–'} colors={colors} />
-            <TouchableOpacity onPress={() => setScreen('beregning')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Start ny indeksregulering</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.h, { color: colors.ink }]}>Kontroller før regulering</Text>
+            <View style={styles.grid}>
+              <Field label="Utgangindeks" value={chain?.original ? `${formatIndex(chain.original.value)} · ${chain.original.label}` : '–'} colors={colors} />
+              <Field label="Ny indeks" value={chain?.next ? `${formatIndex(chain.next.value)} · ${chain.next.label}` : 'Ikke publisert'} colors={colors} />
+              <Field label="Beregnet ny pris" value={math?.ok ? formatKr(math.regulated) : '–'} colors={colors} />
+            </View>
+            <View style={styles.actions}>
+              <TouchableOpacity onPress={() => setScreen('beregning')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Start ny indeksregulering</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setScreen('brev')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink, fontWeight: '700' }}>Forhåndsvis brevet</Text>
+              </TouchableOpacity>
+            </View>
             {checks.map(([ok, title, detail]) => (
               <Text key={title} style={{ color: ok ? (colors.success || '#16a34a') : (colors.warn || '#d97706') }}>
                 {ok ? '●' : '▲'} {title}. {detail}
               </Text>
             ))}
           </View>
+          <LetterDocument letter={letter} plain={savedPlain} colors={colors} caption={letter || savedPlain ? letterCaption : ''} />
         </View>
       </View>
     </View>
@@ -504,7 +550,6 @@ function Calculation(props) {
   } = props;
   return (
     <View style={{ gap: 12 }}>
-      <StepBar current="beregning" colors={colors} onStep={setScreen} />
       <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
         <View style={{ flex: 1.4, gap: 12 }}>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -551,22 +596,45 @@ function Calculation(props) {
   );
 }
 
-function StepBar({ current, colors, onStep }) {
-  const steps = [
-    ['beregning', '1  Beregning og periode'],
-    ['brev', '2  Forhåndsvisning av varsel'],
-    ['brev', '3  Lagre og sende'],
-  ];
+function savedLetterText(contract, draft, company) {
+  const rows = [...(contract?.indexCases || []), ...(contract?.regulations || [])];
+  const stored = [...rows].reverse().find((row) => row?.letterPlain);
+  if (stored?.letterPlain) return stored.letterPlain;
+  const row = [...(contract?.indexCases || [])].reverse().find((item) => item?.newPrice)
+    || [...(contract?.regulations || [])].reverse().find((item) => item?.after || item?.letterPlain);
+  if (!row) return '';
+  const price = row.newPrice || row.after;
+  const before = row.previousPrice || row.before;
+  return [
+    company?.navn || draft?.supplier || '',
+    'Varsel om indeksregulering av avtalte priser',
+    contract?.title || draft?.title || '',
+    contract?.buyer ? `Til ${contract.buyer}` : '',
+    [periodLabel(row.previousPeriod || row.basisPeriod || row.fromPeriod), periodLabel(row.newPeriod || row.toPeriod)].filter(Boolean).join(' – '),
+    before ? `Tidligere pris ${formatKr(before)} eks. mva` : '',
+    price ? `Ny pris ${formatKr(price)} eks. mva` : '',
+    row.effectiveFrom ? `Gjelder fra ${row.effectiveFrom}` : '',
+    Number.isFinite(Number(row.changePercent)) ? `Endring ${formatPercent(row.changePercent)}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function LetterDocument({ letter, plain, colors, caption }) {
+  const text = String(plain || '').trim();
+  if (!letter?.notice && !text) {
+    return <Text style={{ color: colors.muted }}>Ingen brev er lagret, og ny indeks er ikke klar for et nytt varsel.</Text>;
+  }
   return (
-    <View style={styles.steps}>
-      {steps.map(([id, label], index) => {
-        const on = current === id && (index < 2 || current === 'brev');
-        return (
-          <TouchableOpacity key={label} onPress={() => onStep(id)} accessibilityRole="button">
-            <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '700' : '400' }}>{label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={{ gap: 8, flex: 1, minWidth: 0 }}>
+      {caption ? <Text style={{ color: colors.muted }}>{caption}</Text> : null}
+      {letter?.notice ? <LetterPreview letter={letter} colors={colors} /> : (
+        <View nativeID="index-letter-preview" style={[styles.letter, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+          {text.split('\n').map((line, index) => (
+            <Text key={`${index}-${line.slice(0, 12)}`} style={{ color: colors.ink, fontWeight: index < 2 ? '700' : '400', lineHeight: 22 }}>
+              {line || ' '}
+            </Text>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -575,10 +643,10 @@ function LetterScreen(props) {
   const {
     colors, wide, letter, math, freeText, setFreeText, useLogo, setUseLogo, logo,
     to, setTo, cc, setCc, subject, setSubject, entry, working, download, storeDraft, approve, correct,
+    savedPlain, letterCaption,
   } = props;
   return (
     <View style={{ gap: 12 }}>
-      <StepBar current="brev" colors={colors} onStep={props.setScreen} />
       <View style={styles.actions}>
         <TouchableOpacity onPress={() => download('pdf')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>PDF</Text>
@@ -591,7 +659,8 @@ function LetterScreen(props) {
         <View style={{ flex: 1.3, gap: 12 }}>
           <CompanyLogoChoice value={useLogo} onChange={setUseLogo} logo={logo} colors={colors} subject="indeksbrevet" />
           <Field label="Fritekst i brevet" value={freeText} colors={colors} onChange={setFreeText} placeholder="Valgfri presisering" />
-          {letter ? <LetterPreview letter={letter} colors={colors} /> : <Text style={{ color: colors.muted }}>{math?.error || 'Brevet kan ikke vises ennå.'}</Text>}
+          <LetterDocument letter={letter} plain={entry?.letterPlain || savedPlain} colors={colors} caption={letterCaption} />
+          {!letter && math?.error ? <Text style={{ color: colors.muted }}>{math.error} Lagret brev vises over.</Text> : null}
         </View>
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1 }]}>
           <Text style={[styles.h, { color: colors.ink }]}>Varsel og utsending</Text>
@@ -726,27 +795,47 @@ function CalcTable({ math, colors }) {
 function LetterPreview({ letter, colors }) {
   const notice = letter.notice;
   return (
-    <View style={[styles.letter, { borderColor: colors.line, backgroundColor: '#fff' }]}>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{notice.logo ? '' : notice.brand}</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{notice.meta}</Text>
+    <View nativeID="index-letter-preview" style={[styles.letter, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+      {notice.logo?.dataUrl ? (
+        <Image
+          source={{ uri: notice.logo.dataUrl }}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Bedriftens logo"
+        />
+      ) : (
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{notice.brand}</Text>
+      )}
       <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{notice.title}</Text>
-      <Text style={{ color: colors.ink, lineHeight: 20 }}>{notice.intro}</Text>
-      {notice.sections.slice(0, 4).map((section) => (
-        <View key={section.heading} style={{ gap: 4 }}>
+      <Text selectable style={{ color: colors.ink, lineHeight: 20 }}>{notice.intro}</Text>
+      {notice.sections.map((section, sectionIndex) => (
+        <View key={`${section.heading}-${sectionIndex}`} style={{ gap: 4 }}>
           <Text style={{ color: colors.brand, fontWeight: '700' }}>{section.heading}</Text>
-          {section.rows.slice(0, 8).map((row, index) => (
-            <Text key={`${section.heading}-${index}`} style={{ color: colors.ink }}>
+          {section.lead ? <Text style={{ color: colors.ink }}>{section.lead}</Text> : null}
+          {section.rows.map((row, index) => (
+            <Text key={`${section.heading}-${index}`} style={{ color: colors.ink, lineHeight: 20 }}>
               {row.map((cell) => cell.text).filter(Boolean).join(' · ')}
             </Text>
           ))}
         </View>
       ))}
+      {(notice.notes || []).map((line) => <Text key={line} style={{ color: colors.ink }}>{line}</Text>)}
+      <Text style={{ color: colors.ink, fontWeight: '700' }}>Med vennlig hilsen</Text>
+      {notice.signoff?.place ? <Text style={{ color: colors.ink }}>Sted: {notice.signoff.place}</Text> : null}
+      <Text style={{ color: colors.ink }}>Dato: {notice.signoff?.date}</Text>
+      {notice.signoff?.name ? <Text style={{ color: colors.ink }}>{notice.signoff.name}</Text> : null}
+      <Text style={{ color: colors.ink }}>{notice.signoff?.company}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { gap: 12, paddingBottom: 40 },
+  frame: { flex: 1, width: '100%', minHeight: 0, gap: 8 },
+  locked: { gap: 8, borderBottomWidth: 1, paddingBottom: 0, zIndex: 2 },
+  nav: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  navItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 2, borderRadius: 8 },
+  body: { flex: 1, width: '100%', minHeight: 0 },
+  page: { gap: 12, paddingTop: 4, paddingBottom: 32, width: '100%' },
   top: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' },
   title: { fontSize: 24, fontWeight: '700' },
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
@@ -758,7 +847,7 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { borderRadius: 12, padding: 12, minWidth: 140, flexGrow: 1, gap: 4 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  grid: { flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { minWidth: 160, flexGrow: 1, gap: 4 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -770,6 +859,7 @@ const styles = StyleSheet.create({
   th: { width: 140, fontSize: 12, paddingVertical: 6 },
   td: { width: 140, fontSize: 14, paddingVertical: 6 },
   calc: { flexDirection: 'row', gap: 12, paddingVertical: 4 },
-  letter: { borderWidth: 1, borderRadius: 4, padding: 20, gap: 8, maxWidth: 720 },
+  letter: { borderWidth: 1, borderRadius: 4, padding: 20, gap: 8, width: '100%' },
+  logo: { width: 180, height: 52, alignSelf: 'flex-start' },
   hist: { flexDirection: 'row', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, alignItems: 'center' },
 });

@@ -7,6 +7,7 @@ import {
   collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { rememberInvoicedStatement } from './invoicedStatementStorage.js';
 import {
   invoiceListSource,
   isInvoiceCacheQuotaError,
@@ -97,6 +98,7 @@ export async function loadInvoices(companyId) {
     const snap = await getDocs(invoicesCol(companyId));
     const rows = sortInvoices(snap.docs.map((item) => toInvoiceCacheRow(invoiceListSource(item.data(), item.id))));
     await writeLocal(companyId, rows).catch(() => {});
+    rememberInvoicedStatement(companyId, rows);
     return rows;
   } catch {
     return readLocal(companyId);
@@ -110,12 +112,13 @@ export function watchInvoices(companyId, onData, onError) {
   }
   let stop = false;
   readLocal(companyId).then((rows) => {
-    if (!stop) onData(rows);
+    if (!stop) onData(rows, { source: 'cache' });
   }).catch(() => {});
   const unsub = onSnapshot(invoicesCol(companyId), (snap) => {
     const rows = sortInvoices(snap.docs.map((item) => toInvoiceCacheRow(invoiceListSource(item.data(), item.id))));
     writeLocal(companyId, rows).catch(() => {});
-    onData(rows);
+    rememberInvoicedStatement(companyId, rows);
+    onData(rows, { source: 'remote' });
   }, (error) => {
     onError?.(error);
   });

@@ -27,7 +27,15 @@ async function readJson(res) {
   }
 }
 
-async function sendWithBrevo(apiKey, { to, name, subject, text, html }) {
+function copyRows(cc) {
+  return (Array.isArray(cc) ? cc : [])
+    .map((row) => String(row || '').trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((email) => ({ email }));
+}
+
+async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -38,6 +46,7 @@ async function sendWithBrevo(apiKey, { to, name, subject, text, html }) {
     body: JSON.stringify({
       sender: { name: FROM_NAME, email: FROM_EMAIL },
       to: [{ email: to, ...(name ? { name } : {}) }],
+      ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
       replyTo: { email: REPLY_TO, name: FROM_NAME },
       subject,
       htmlContent: html,
@@ -63,7 +72,7 @@ async function sendWithBrevo(apiKey, { to, name, subject, text, html }) {
   return body;
 }
 
-async function sendWithResend(apiKey, { to, subject, text, html }) {
+async function sendWithResend(apiKey, { to, cc, subject, text, html }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -73,6 +82,7 @@ async function sendWithResend(apiKey, { to, subject, text, html }) {
     body: JSON.stringify({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to: [to],
+      ...(copyRows(cc).length ? { cc: copyRows(cc).map((row) => row.email) } : {}),
       reply_to: REPLY_TO,
       subject,
       html,
@@ -90,7 +100,7 @@ async function sendWithResend(apiKey, { to, subject, text, html }) {
   return body;
 }
 
-async function sendWithSendGrid(apiKey, { to, name, subject, text, html }) {
+async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html }) {
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -98,7 +108,10 @@ async function sendWithSendGrid(apiKey, { to, name, subject, text, html }) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to, ...(name ? { name } : {}) }] }],
+      personalizations: [{
+        to: [{ email: to, ...(name ? { name } : {}) }],
+        ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
+      }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
       reply_to: { email: REPLY_TO, name: FROM_NAME },
       subject,

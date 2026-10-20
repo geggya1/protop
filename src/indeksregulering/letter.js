@@ -196,6 +196,7 @@ export function buildLetter(draft, result, options = {}) {
     notes: [
       ...termNotes(draft),
       ...(model.id === 'engang' ? [] : [`${model.label}. ${model.formula}.`]),
+      ...(draft.freeText ? [String(draft.freeText).trim()] : []),
       ...(result.warnings || []),
       draft.model === 'husleie'
         ? 'Dette er skriftlig varsel etter husleieloven § 4-2. Endringen kan ikke settes høyere enn KPI, og kan tidligst virke ett år etter siste leiefastsetting og én måned etter at varselet er kommet fram.'

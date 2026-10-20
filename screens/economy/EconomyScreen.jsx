@@ -7,16 +7,24 @@ import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { updateContractDetails } from '../../src/anbud/lifecycle';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { rememberRegulation } from '../../src/indeksregulering/regulationLog';
+import {
+  mergeRegulationList,
+  readWorkspaceQuery,
+  upsertCase,
+  workspaceHref,
+} from '../../src/indeksregulering/cases';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
 import { dueByContractId } from '../../src/indeksregulering/watch';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { matchCustomer } from '../../src/economy/desk';
+import { draftFromRegisteredContract } from '../../src/economy/fromContract';
 import EconomyContracts from './EconomyContracts';
 import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
+import IndexWorkspace from './IndexWorkspace';
 import EconomyIndices from './EconomyIndices';
 import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
@@ -28,7 +36,7 @@ import { supplierFromCompany } from '../../src/economy/ehf.js';
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin,
+    family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin, user,
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
@@ -36,6 +44,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const [anbud, setAnbud] = useState(null);
   const [chosen, setChosen] = useState(null);
   const [indexOpen, setIndexOpen] = useState(false);
+  const [workspaceCaseId, setWorkspaceCaseId] = useState('');
+  const [workspaceView, setWorkspaceView] = useState('');
   const [cases, setCases] = useState([]);
   const [series, setSeries] = useState(null);
   const saveChain = useRef(Promise.resolve());
@@ -84,6 +94,16 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   }, [page, chosen?.id]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const query = readWorkspaceQuery(window.location.search);
+    if (!query.contractId) return;
+    setWorkspaceCaseId(query.caseId);
+    setWorkspaceView(query.view);
+    setChosen({ id: query.contractId });
+    setIndexOpen(true);
+  }, []);
+
+  useEffect(() => {
     if (shellIntent?.type !== 'openIndexDraft') return;
     setChosen({
       id: shellIntent.contractId || shellIntent.caseId || '',
@@ -105,27 +125,92 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     [contracts, cases, series],
   );
 
-  function openIndex(contract) {
-    const extras = {
+  const actor = {
+    uid: user?.uid || '',
+    name: user?.displayName || user?.email || '',
+  };
+
+  async function persistIndexCase(nextCase, { priceVersions } = {}) {
+    const loaded = await loadAnbudState(familyId, { force: true });
+    const current = (loaded?.contracts || []).find((row) => row.id === nextCase.contractId);
+    if (!current) return { ok: false, error: 'Avtalen finnes ikke.' };
+    const applied = ['godkjent', 'klar_til_utsending', 'sending', 'sendt', 'sendefeil'].includes(nextCase.status);
+    const storedCase = (current.indexCases || []).find((row) => row.id === nextCase.id);
+    const merged = upsertCase(current.indexCases, nextCase, storedCase ? nextCase.revision : null);
+    if (!merged.ok) return merged;
+    const result = updateContractDetails(loaded, current.id, {
+      indexCases: merged.cases,
+      priceVersions: priceVersions || current.priceVersions || [],
+      regulations: applied ? mergeRegulationList(current.regulations, merged.case) : current.regulations,
+    });
+    if (!result?.ok) return result;
+    const stored = await saveAnbudState(result.state, familyId);
+    setAnbud(stored);
+    const saved = (stored?.contracts || []).find((row) => row.id === current.id);
+    const fresh = (saved?.indexCases || []).find((row) => row.id === nextCase.id) || nextCase;
+    return { ok: true, case: fresh };
+  }
+
+  function openWorkspace(contract, caseId = '', view = '') {
+    if (!contract?.id) return;
+    const href = typeof window !== 'undefined'
+      ? workspaceHref(window.location.href, contract.id, caseId, view)
+      : '';
+    const here = typeof window !== 'undefined' && readWorkspaceQuery(window.location.search).contractId === contract.id;
+    if (!here && href && typeof window !== 'undefined' && typeof window.open === 'function') {
+      const popup = window.open(href, `protop-indeks-${contract.id}`);
+      if (popup) return;
+    }
+    if (href && typeof window !== 'undefined') window.history.replaceState({}, '', href);
+    setChosen(contract);
+    setWorkspaceCaseId(caseId);
+    setWorkspaceView(view);
+    setIndexOpen(true);
+  }
+
+  function openIndex(contract, caseId = '', view = '') {
+    const href = typeof window !== 'undefined'
+      ? workspaceHref(window.location.href, contract?.id || '', caseId, view)
+      : '';
+    const here = typeof window !== 'undefined' && readWorkspaceQuery(window.location.search).contractId === contract?.id;
+    if (!here && href && typeof window !== 'undefined' && typeof window.open === 'function') {
+      const popup = window.open(href, `protop-indeks-${contract.id}`);
+      if (popup) return;
+    }
+    const intent = openIndexIntentFromContract(contract, {
       supplier: company?.navn || '',
       supplierOrgnr: company?.organisasjonsnummer || '',
       website: company?.hjemmeside || '',
       customer: matchCustomer(customers, contract),
       company,
-    };
-    const intent = openIndexIntentFromContract(contract, extras);
-    setChosen(contract);
-    setIndexOpen(true);
+    });
     requestShellTab?.('okonomi', 'indeks', {
       ...intent,
       projectId: contract.projectId || '',
     });
+    openWorkspace(contract, caseId, view);
   }
 
   function backToDesk() {
     setIndexOpen(false);
+    setWorkspaceCaseId('');
+    setWorkspaceView('');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      ['indeksAvtale', 'indeksSak', 'indeksVis'].forEach((key) => url.searchParams.delete(key));
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
     requestShellTab?.('okonomi', 'indeks');
   }
+
+  const workspaceDraft = showIndex && selectedContract?.id
+    ? draftFromRegisteredContract(selectedContract, {
+      customer: matchCustomer(customers, selectedContract),
+      company,
+      projectNumber: projects.find((row) => row.id === selectedContract.projectId)?.number || '',
+      contracts,
+    })
+    : null;
 
   if (showIndex) {
     return (
@@ -134,15 +219,30 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
       >
-        <EconomyIndex
-          contract={selectedContract}
-          customer={matchCustomer(customers, selectedContract)}
-          company={company}
-          project={projects.find((row) => row.id === selectedContract?.projectId) || null}
-          contracts={contracts}
-          onClose={backToDesk}
-          onSaveRegulations={saveRegulations}
-        />
+        {selectedContract?.id ? (
+          <IndexWorkspace
+            contract={selectedContract}
+            customer={matchCustomer(customers, selectedContract)}
+            company={company}
+            project={projects.find((row) => row.id === selectedContract?.projectId) || null}
+            draft={workspaceDraft}
+            actor={actor}
+            caseId={workspaceCaseId}
+            initialView={workspaceView}
+            onClose={backToDesk}
+            onSave={persistIndexCase}
+          />
+        ) : (
+          <EconomyIndex
+            contract={selectedContract}
+            customer={matchCustomer(customers, selectedContract)}
+            company={company}
+            project={projects.find((row) => row.id === selectedContract?.projectId) || null}
+            contracts={contracts}
+            onClose={backToDesk}
+            onSaveRegulations={saveRegulations}
+          />
+        )}
       </ScrollView>
     );
   }
@@ -171,13 +271,11 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           contracts={contracts}
           projects={projects}
           timeEntries={state.timeEntries || []}
+          series={series}
           dueById={dueById}
-          chosenContractId={chosen?.id || ''}
-          title=""
-          lead=""
-          searchPlaceholder="Søk i prosjekt, avtaler og rammeavtaler"
-          onChooseContract={setChosen}
-          onOpenIndex={openIndex}
+          onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
+          onOpenIndex={(contract) => openIndex(contract)}
+          onOpenHistory={(contract) => openIndex(contract, '', 'historikk')}
         />
       </ScrollView>
     );

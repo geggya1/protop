@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mergeAnbudStates } from './model.js';
+
+test('to brukere mister ikke hverandres reguleringssaker', () => {
+  const left = {
+    contracts: [{
+      id: 'c1',
+      title: 'Breitorget',
+      indexCases: [{ id: 'a', number: 'IR-001', status: 'sendt', revision: 2, letterPlain: 'sendt brev', newPrice: 1388.41 }],
+      regulations: [{ id: 'a', letterPlain: 'sendt brev', sentAt: '2026-10-20', sentTo: 'victor@breitorget.no' }],
+      priceVersions: [{ id: 'pv', validFrom: '2026-04-01', rateExVat: 1388.41 }],
+    }],
+  };
+  const right = {
+    contracts: [{
+      id: 'c1',
+      title: 'Breitorget',
+      indexCases: [{ id: 'b', number: 'IR-002', status: 'utkast', revision: 0, letterPlain: 'utkast' }],
+      regulations: [],
+      priceVersions: [],
+    }],
+  };
+  const merged = mergeAnbudStates(left, right);
+  const contract = merged.contracts.find((row) => row.id === 'c1');
+  const ids = contract.indexCases.map((row) => row.id).sort();
+  assert.deepEqual(ids, ['a', 'b']);
+  assert.equal(contract.indexCases.find((row) => row.id === 'a').status, 'sendt');
+  assert.equal(contract.regulations.find((row) => row.id === 'a').sentTo, 'victor@breitorget.no');
+  assert.equal(contract.priceVersions[0].rateExVat, 1388.41);
+});

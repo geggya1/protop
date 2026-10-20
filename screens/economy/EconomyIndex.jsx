@@ -197,23 +197,24 @@ export default function EconomyIndex({
     if (draft.indexId) loadIndex();
   }, [draft.indexId]);
 
-  useEffect(() => {
-    if (!entry || !contract?.id || ownerId !== contract.id || !onSaveRegulations) return undefined;
-    const existing = contract.regulations || [];
-    if (existing.some((row) => row.id === entry.id)) return undefined;
-    let liveSave = true;
-    setSaveNote('Brevet og beregningen er lagret på avtalen.');
-    onSaveRegulations(contract.id, entry).then((result) => {
-      if (!liveSave) return;
+  async function saveDraftLetter() {
+    if (!entry || !contract?.id || !onSaveRegulations) {
+      setError('Brevet er ikke klart til lagring.');
+      return;
+    }
+    setSaveNote('Lagrer utkast på avtalen…');
+    try {
+      const result = await onSaveRegulations(contract.id, entry);
       if (result && result.ok === false) {
         setSaveNote('');
         setError(result.error || 'Kunne ikke lagre brevet.');
+        return;
       }
-    }).catch((cause) => {
-      if (liveSave) setError(cause?.message || 'Kunne ikke lagre brevet.');
-    });
-    return () => { liveSave = false; };
-  }, [entry, contract?.id, contract?.regulations, ownerId, onSaveRegulations]);
+      setSaveNote('Utkastet er lagret. Ingenting er sendt.');
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke lagre brevet.');
+    }
+  }
 
   async function sendLetter() {
     const to = customer?.email || draft.email;
@@ -357,6 +358,9 @@ export default function EconomyIndex({
           </Text>
           {saveNote ? <Text style={{ color: colors.ink }}>{saveNote}</Text> : null}
           <View style={styles.row}>
+            <TouchableOpacity onPress={saveDraftLetter} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
+              <Text style={{ color: '#fff' }}>Lagre utkast</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => exportKind('pdf')} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
               <Text style={{ color: '#fff' }}>PDF</Text>
             </TouchableOpacity>

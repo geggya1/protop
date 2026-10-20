@@ -46,6 +46,8 @@ function loadLocal(full) {
         TextInput: host('TextInput'),
         TouchableOpacity: host('TouchableOpacity'),
         StyleSheet: { create: (styles) => styles },
+        useWindowDimensions: () => ({ width: 1280, height: 800 }),
+        ScrollView: host('ScrollView'),
       };
     }
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
@@ -121,22 +123,48 @@ const tree = withHooks(() => React.createElement(Desk, {
       projectId: 'p1',
       buyer: 'Oslo kommune',
       kind: 'oppdrag',
-      value: 1000,
-      start: '2024-01-01',
-      fields: { indexId: 'ppi-byggeteknisk', contractDate: '2024-01-01' },
+      value: 1350,
+      start: '2025-12-19',
+      fields: {
+        indexId: 'ppi-byggeteknisk',
+        contractDate: '2025-12-19',
+        standard: 'NS 8403',
+        model: 'engang',
+        regulationFrequency: 'quarter',
+      },
+      indexDraft: {
+        indexId: 'ppi-byggeteknisk',
+        model: 'engang',
+        standard: 'NS 8403',
+        contractDate: '2025-12-19',
+        lines: [{ text: 'Timepris', unit: 'time', rate: '1350', quantity: '1', included: true }],
+        terms: { frequency: 'quarter' },
+      },
     },
   ],
   timeEntries: [{ projectId: 'p1', date: new Date().toISOString().slice(0, 10), hours: 8 }],
-  dueById: {
-    k1: { due: true, reason: 'Ny indeks er publisert siden forrige regulering.', indexId: 'ppi-byggeteknisk', table: '14335' },
+  series: {
+    'ppi-byggeteknisk': {
+      id: 'ppi-byggeteknisk',
+      name: 'Byggeteknisk konsulentvirksomhet',
+      table: '14335',
+      frequency: 'quarter',
+      points: [
+        { period: '2025K4', value: 119.5 },
+        { period: '2026K2', value: 122.9 },
+      ],
+      latest: { period: '2026K2', value: 122.9 },
+    },
   },
 }));
 const lines = texts(tree);
 const joined = lines.join('\n');
-assert.ok(joined.indexOf('#index-group-with-agreement') < joined.indexOf('#index-group-without-agreement'));
-assert.match(joined, /Prosjekter med avtale/);
-assert.match(joined, /Aktivt oppdrag/);
-assert.match(joined, /Ny indeks er publisert/);
-assert.match(joined, /Prosjekter uten avtale/);
+assert.match(joined, /#index-contract-list/);
+assert.match(joined, /#index-preview/);
+assert.match(joined, /Indeksregulering/);
+assert.match(joined, /Må vurderes/);
+assert.match(joined, /NS 8403/);
 assert.equal(joined.includes('Løst prosjekt'), false);
+assert.match(joined, /Start indeksregulering/);
+assert.match(joined, /1 388,41 kr/);
 console.log('index desk render ok');

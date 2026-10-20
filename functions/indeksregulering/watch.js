@@ -58,11 +58,14 @@ export function periodBucket(period, frequency) {
   const month = /^(\d{4})M(\d{2})$/.exec(period || '');
   if (month) {
     if (frequency === 'year') return month[1];
+    if (frequency === 'half') return `${month[1]}H${Number(month[2]) <= 6 ? 1 : 2}`;
     if (frequency === 'quarter') return `${month[1]}K${Math.ceil(Number(month[2]) / 3)}`;
     return period;
   }
   const quarter = /^(\d{4})K([1-4])$/.exec(period || '');
-  if (quarter) return frequency === 'year' ? quarter[1] : period;
+  if (quarter && frequency === 'year') return quarter[1];
+  if (quarter && frequency === 'half') return `${quarter[1]}H${Number(quarter[2]) <= 2 ? 1 : 2}`;
+  if (quarter) return period;
   return period || '';
 }
 
@@ -72,6 +75,10 @@ function nextPeriodStart(iso, frequency) {
   const year = Number(match[1]);
   const month = Number(match[2]);
   if (frequency === 'year') return `${year + 1}-${match[2]}-01`;
+  if (frequency === 'half') {
+    if (month <= 6) return `${year}-07-01`;
+    return `${year + 1}-01-01`;
+  }
   if (frequency === 'quarter') {
     const nextMonth = Math.floor((month - 1) / 3) * 3 + 4;
     if (nextMonth > 12) return `${year + 1}-01-01`;

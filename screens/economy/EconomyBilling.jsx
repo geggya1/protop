@@ -35,6 +35,7 @@ import {
   markProposalInvoiced,
   proposalSummary,
 } from '../../src/economy/billingFromOperations.js';
+import { draftPriceWarnings } from '../../src/economy/billingFromHours.js';
 import {
   attachVoucherSnapshot,
   creditVoucherFromInvoice,
@@ -105,8 +106,12 @@ export default function EconomyBilling() {
   }, [familyId]);
 
   const proposals = useMemo(
-    () => buildOperationsProposals(projectState, { onlyApproved }),
-    [projectState, onlyApproved],
+    () => buildOperationsProposals(projectState, { onlyApproved, contracts: watch?.contracts || [] }),
+    [projectState, onlyApproved, watch?.contracts],
+  );
+  const priceNotes = useMemo(
+    () => draftPriceWarnings(invoices, watch?.contracts || []),
+    [invoices, watch?.contracts],
   );
 
   const supplier = useMemo(
@@ -308,6 +313,9 @@ export default function EconomyBilling() {
         ))}
       </View>
 
+      {priceNotes.slice(0, 3).map((row) => (
+        <Text key={row.invoiceId + row.message} style={{ color: colors.warn || '#d97706' }}>{row.message}</Text>
+      ))}
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       <IndexWarning

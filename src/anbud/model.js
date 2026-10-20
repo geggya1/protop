@@ -369,8 +369,65 @@ function preferHttpUrl(left, right) {
   return b || a;
 }
 
+function unionRows(groups, id, key, row, prefer) {
+  if (!row?.id) return;
+  const bucket = groups.get(id) || {};
+  const list = bucket[key] || [];
+  const index = list.findIndex((item) => item?.id === row.id);
+  if (index === -1) list.push(row);
+  else list[index] = prefer(list[index], row);
+  bucket[key] = list;
+  groups.set(id, bucket);
+}
+
+function preferNewerCase(left, right) {
+  const lRev = Number(left?.revision) || 0;
+  const rRev = Number(right?.revision) || 0;
+  const sent = left?.status === 'sendt' ? left : (right?.status === 'sendt' ? right : null);
+  const winner = rRev >= lRev ? right : left;
+  const other = winner === right ? left : right;
+  if (sent) {
+    return {
+      ...other,
+      ...sent,
+      revision: Math.max(lRev, rRev),
+      letterPlain: sent.letterPlain || other?.letterPlain || '',
+      documents: (sent.documents || []).length >= (other?.documents || []).length ? sent.documents : other.documents,
+    };
+  }
+  return {
+    ...other,
+    ...winner,
+    revision: Math.max(lRev, rRev),
+    letterPlain: (winner?.letterPlain || '').length >= (other?.letterPlain || '').length ? winner.letterPlain : other.letterPlain,
+  };
+}
+
+function preferRegulation(left, right) {
+  const richer = String(right?.letterPlain || '').length >= String(left?.letterPlain || '').length ? { ...left, ...right } : { ...right, ...left };
+  const sent = left?.sentAt ? left : (right?.sentAt ? right : null);
+  if (!sent) return richer;
+  return { ...richer, sentAt: sent.sentAt, sentTo: sent.sentTo || richer.sentTo || '' };
+}
+
+function preferPrice(left, right) {
+  return {
+    ...left,
+    ...right,
+    validTo: right?.validTo || left?.validTo || '',
+    rateExVat: Number(right?.rateExVat) || Number(left?.rateExVat) || 0,
+  };
+}
+
 function mergeContractFiles(left, right) {
   const merged = mergeById(left, right);
+  const groups = new Map();
+  for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
+    if (!row?.id) continue;
+    (row.indexCases || []).forEach((item) => unionRows(groups, row.id, 'cases', item, preferNewerCase));
+    (row.priceVersions || []).forEach((item) => unionRows(groups, row.id, 'prices', item, preferPrice));
+    (row.regulations || []).forEach((item) => unionRows(groups, row.id, 'regs', item, preferRegulation));
+  }
   const kept = new Map();
   for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
     for (const doc of row?.documents || []) {
@@ -382,6 +439,9 @@ function mergeContractFiles(left, right) {
   }
   return merged.map((row) => ({
     ...row,
+    indexCases: groups.get(row.id)?.cases || row.indexCases || [],
+    priceVersions: groups.get(row.id)?.prices || row.priceVersions || [],
+    regulations: groups.get(row.id)?.regs || row.regulations || [],
     documents: (row.documents || []).map((doc) => {
       const extra = kept.get(`${row.id}:${doc.id}`);
       if (!extra) return doc;

@@ -273,16 +273,21 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
     assert.match(workspaceText, /Sist regulert/);
     assert.match(workspaceText, /Tidligere brev/);
     assert.match(workspaceText, /18\.10\.2026/);
+    assert.match(workspaceText, /1 350,00 kr → 1 388,41 kr/);
+    assert.match(workspaceText, /Generert/);
     assert.equal(workspaceText.includes('#index-letter-preview'), false);
   }
   if (view === 'beregning') {
     assert.match(workspaceText, /Foreta en ny beregning/);
-    assert.match(workspaceText, /Se over og godkjenn/);
+    assert.match(workspaceText, /Status etter beregning/);
+    assert.match(workspaceText, /Ny pris eks. mva/);
     assert.match(workspaceText, /1\. Indeks og beregningsgrunnlag/);
   }
   if (view === 'brev') {
     assert.match(workspaceText, /Varsel og utsending/);
-    assert.match(workspaceText, /Innstillinger/);
+    assert.match(workspaceText, /Endre/);
+    assert.match(workspaceText, /Se over og godkjenn/);
+    assert.match(workspaceText, /Utfylte felt/);
     assert.match(workspaceText, /Ingenting er opprettet|Lagret som utkast|Sendt/);
     assert.match(workspaceText, /post@consult1\.no/);
     assert.match(workspaceText, /Victor Husebø/);

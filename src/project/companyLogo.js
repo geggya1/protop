@@ -56,6 +56,9 @@ export function mergeCompanyProfile(next, previous) {
       : {}),
     ...(logo ? { logo } : {}),
   };
+  if (previous?.publicPage && next.publicPage == null) {
+    merged.publicPage = previous.publicPage;
+  }
   const travelGate = text(previous?.kjoeradresse?.gate || previous?.kjoeradresse?.adresse);
   if (travelGate) {
     merged.kjoeradresse = {

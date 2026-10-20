@@ -16,6 +16,7 @@ import {
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
+import { canDeleteCase } from '../../src/indeksregulering/cases';
 import { dueByContractId } from '../../src/indeksregulering/watch';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { matchCustomer } from '../../src/economy/desk';
@@ -163,6 +164,24 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return { ok: true, case: fresh };
   }
 
+  async function deleteIndexCase(contractId, caseId) {
+    const loaded = await loadAnbudState(familyId, { force: true });
+    const current = (loaded?.contracts || []).find((row) => row.id === contractId);
+    if (!current) return { ok: false, error: 'Avtalen finnes ikke.' };
+    const target = (current.indexCases || []).find((row) => row.id === caseId);
+    if (!target) return { ok: true };
+    if (!canDeleteCase(target)) return { ok: false, error: 'Ferdigstilte brev kan ikke slettes.' };
+    const deletedIndexCaseIds = [...new Set([...(current.deletedIndexCaseIds || []), caseId])].slice(-200);
+    const result = updateContractDetails(loaded, current.id, {
+      indexCases: (current.indexCases || []).filter((row) => row.id !== caseId),
+      deletedIndexCaseIds,
+    });
+    if (!result?.ok) return result;
+    const stored = await saveAnbudState(result.state, familyId);
+    setAnbud(stored);
+    return { ok: true };
+  }
+
   function rememberIndexUrl(contractId, caseId = '', view = '') {
     if (typeof window === 'undefined' || !contractId) return;
     const href = workspaceHref(window.location.href, contractId, caseId, view);
@@ -227,8 +246,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
             caseId={workspaceCaseId}
             initialView={workspaceView}
             series={series}
+            contracts={contracts}
             onClose={backToDesk}
             onSave={persistIndexCase}
+            onDelete={(caseId) => deleteIndexCase(selectedContract.id, caseId)}
             onOpenProject={() => requestShellTab?.('projects', null, { type: 'openProject', projectId: selectedContract?.projectId || '' })}
           />
         ) : (

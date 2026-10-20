@@ -356,6 +356,15 @@ function pushField(rows, seen, label, value) {
   ]);
 }
 
+/** Lange brevfelter skal ha hele bredden. Korte felt deler raden. */
+export function letterFieldWide(label, value) {
+  const name = String(label || '').replace(/\s+\d+$/, '').trim();
+  if (name === 'Innledning' || name === 'Regulering av pris' || name === 'Avtalt honorar' || name === 'Gjeldende fra' || name === 'Merknad') {
+    return true;
+  }
+  return String(value || '').trim().length > 48;
+}
+
 /** Alle felt som brevet faktisk omtaler, i samme rekkefølge som PDF-en. */
 export function letterFieldRows(letter, { filled = true } = {}) {
   const notice = letter?.notice;

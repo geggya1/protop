@@ -17,6 +17,7 @@ import {
   saveDraft,
   upsertCase,
   validateCase,
+  canDeleteCase,
   withdrawCase,
   workspaceHref,
 } from './cases.js';
@@ -370,4 +371,14 @@ test('kjeden blander ikke original indeks inn i neste grunnlag', () => {
   assert.equal(chain.previous.period, '2025K4');
   assert.equal(chain.next.period, '2026K2');
   assert.equal(chain.mode, 'forrige');
+});
+
+test('ufullførte utkast kan slettes, ferdige brev kan ikke', () => {
+  assert.equal(canDeleteCase({ id: 'a', status: 'utkast' }), true);
+  assert.equal(canDeleteCase({ id: 'b', status: 'trukket' }), true);
+  assert.equal(canDeleteCase({ id: 'c', status: 'godkjent' }), false);
+  assert.equal(canDeleteCase({ id: 'd', status: 'sendt' }), false);
+  assert.equal(canDeleteCase({ id: 'e', status: 'sendefeil' }), false);
+  assert.equal(canDeleteCase({ id: 'f', status: 'utkast', mailStatus: 'sendt' }), false);
+  assert.equal(canDeleteCase({ id: 'g' }), false);
 });

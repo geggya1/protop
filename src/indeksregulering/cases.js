@@ -156,6 +156,14 @@ export function caseIsLocked(entry) {
   return LOCKED.has(entry?.status);
 }
 
+/** Utkast og andre brev som ikke er godkjent eller sendt kan slettes. */
+export function canDeleteCase(entry) {
+  if (!entry?.id) return false;
+  if (caseIsLocked(entry)) return false;
+  if (entry.status === 'sendt' || entry.mailStatus === 'sendt' || entry.sentAt) return false;
+  return entry.status === 'utkast' || entry.status === 'trukket';
+}
+
 export function basisMode(draft) {
   const explicit = text(draft?.terms?.basisMode);
   if (explicit === 'opprinnelig' || explicit === 'forrige') return explicit;

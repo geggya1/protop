@@ -18,6 +18,7 @@ import {
   approveCase,
   attachLetter,
   beginSend,
+  canDeleteCase,
   caseFromCalculation,
   classifyContract,
   computeRegulation,
@@ -30,19 +31,21 @@ import {
   withdrawCase,
 } from '../../src/indeksregulering/cases';
 import { periodLabel } from '../../src/indeksregulering/engine';
-import { buildLetter, formatIndex, formatPercent, letterFieldRows, letterFromRecord } from '../../src/indeksregulering/letter';
+import { buildLetter, formatIndex, formatPercent, letterFieldRows, letterFieldWide, letterFromRecord } from '../../src/indeksregulering/letter';
 import { indexLetterMessage, pdfAttachmentFromBytes } from '../../src/indeksregulering/mail';
 import { sendIndexLetter } from '../../src/indeksregulering/mailClient';
 import { buildPdf, downloadBytes } from '../../src/indeksregulering/office';
 import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { frequencyLabel } from '../../src/indeksregulering/settings';
 import { osloDate } from '../../src/indeksregulering/watch';
+import EconomyIndices from './EconomyIndices';
 
 const NAV = [
   { id: 'oversikt', label: 'Oversikt' },
   { id: 'beregning', label: 'Beregning' },
   { id: 'brev', label: 'Varselbrev' },
   { id: 'historikk', label: 'Historikk' },
+  { id: 'indekser', label: 'Indekser' },
 ];
 
 function screenFromView(view) {
@@ -78,8 +81,10 @@ export default function IndexWorkspace({
   caseId = '',
   initialView = '',
   series = null,
+  contracts = [],
   onClose,
   onSave,
+  onDelete,
   onOpenProject,
 }) {
   const colors = useColors();
@@ -454,11 +459,37 @@ export default function IndexWorkspace({
         price: formatKr(math.regulated),
         fromPrice: formatKr(math.baseSum),
         period: [periodLabel(math.basisPoint?.period), periodLabel(math.regulationPoint?.period)].filter(Boolean).join('–'),
-        status: 'Generert',
+        status: stored.status || 'utkast',
       });
       setOpenLetterId(stored.id);
       setScreen('brev');
       setNote(`Utkast ${stored.number} er generert. Ingenting er sendt.`);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function removeLetter(row) {
+    if (!canDeleteCase(row)) {
+      setError('Ferdigstilte brev kan ikke slettes.');
+      return;
+    }
+    setWorking(true);
+    setError('');
+    try {
+      if (cases.some((item) => item.id === row.id)) {
+        const result = await onDelete?.(row.id);
+        if (!result?.ok) {
+          setError(result?.error || 'Kunne ikke slette utkastet.');
+          return;
+        }
+      }
+      if (entry?.id === row.id) setEntry(null);
+      if (frozen?.id === row.id) setFrozen(null);
+      if (openLetterId === row.id) setOpenLetterId('');
+      setSendPdf(null);
+      pdfStamp.current = '';
+      setNote('Utkastet er slettet.');
     } finally {
       setWorking(false);
     }
@@ -471,6 +502,7 @@ export default function IndexWorkspace({
     checks, working, cases, onOpenProject, setScreen, storeDraft, approve, correct,
     screen, frozen, openLetterId, setOpenLetterId, setEntry, reviewCalculation, savedCase,
     calculated, runCalculation, producePdf, sendPdf, reviewOpen, setReviewOpen, pdfFileFor,
+    removeLetter,
   };
 
   return (
@@ -508,6 +540,7 @@ export default function IndexWorkspace({
         {screen === 'beregning' ? <Calculation {...shared} /> : null}
         {screen === 'brev' ? <LetterScreen {...shared} /> : null}
         {screen === 'historikk' ? <HistoryScreen {...shared} onOpenCase={(row) => { setEntry(row); setScreen('brev'); }} /> : null}
+        {screen === 'indekser' ? <EconomyIndices contracts={contracts.length ? contracts : [contract].filter(Boolean)} /> : null}
       </ScrollView>
     </View>
   );
@@ -675,13 +708,16 @@ function Overview(props) {
                     <Field label="Endring" value={row.change} colors={colors} compact />
                     <Field label="Mottaker" value={row.mail?.to || row.sentTo || ''} colors={colors} compact />
                     {row.letterPlain ? <Text style={{ color: colors.ink }} numberOfLines={4}>{row.letterPlain}</Text> : null}
-                    <TouchableOpacity
-                      onPress={() => { setEntry(row); setOpenLetterId(row.id); setScreen('brev'); }}
-                      accessibilityRole="button"
-                      style={[styles.ghost, { borderColor: colors.line }]}
-                    >
-                      <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne brev</Text>
-                    </TouchableOpacity>
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        onPress={() => { setEntry(row); setOpenLetterId(row.id); setScreen('brev'); }}
+                        accessibilityRole="button"
+                        style={[styles.ghost, { borderColor: colors.line }]}
+                      >
+                        <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne brev</Text>
+                      </TouchableOpacity>
+                      <DeleteDraftButton row={row} onPress={props.removeLetter} colors={colors} />
+                    </View>
                   </View>
                 ) : null}
               </View>
@@ -709,14 +745,26 @@ function priceChanged(math) {
 
 function FactTable({ rows, colors }) {
   return (
-    <View nativeID="index-letter-facts" style={{ gap: 2, width: '100%' }}>
-      {rows.map(([label, value]) => (
-        <View key={label} style={styles.calc}>
-          <Text style={{ color: colors.muted, width: 148, flexShrink: 0 }}>{label}</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{value || '–'}</Text>
-        </View>
-      ))}
+    <View nativeID="index-letter-facts" style={styles.factGrid}>
+      {rows.map(([label, value]) => {
+        const wide = letterFieldWide(label, value);
+        return (
+          <View key={label} style={[styles.factCell, wide ? styles.factCellWide : styles.factCellHalf]}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>{value || '–'}</Text>
+          </View>
+        );
+      })}
     </View>
+  );
+}
+
+function DeleteDraftButton({ row, onPress, colors }) {
+  if (!canDeleteCase(row)) return null;
+  return (
+    <TouchableOpacity onPress={() => onPress?.(row)} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+      <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>Slett utkast</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -893,6 +941,7 @@ function LetterScreen(props) {
     entry, working, storeDraft, approve, correct,
     history, frozen, openLetterId, setOpenLetterId, savedCase, draft,
     contract, dates, patchDate, calculated, producePdf, sendPdf, reviewOpen, setReviewOpen, pdfFileFor,
+    removeLetter,
   } = props;
   const [editing, setEditing] = useState(false);
   const [pickedPdf, setPickedPdf] = useState(null);
@@ -954,11 +1003,14 @@ function LetterScreen(props) {
       {rows.map((row) => {
         const on = openLetterId === row.id;
         return (
-          <TouchableOpacity key={row.id} onPress={() => chooseRow(row)} accessibilityRole="button" style={[styles.hist, { backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent' }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700', width: 96 }}>{row.date}</Text>
-            <Text style={{ color: colors.ink, flex: 1 }}>{`${row.fromPrice || '–'} → ${row.price || '–'}`}</Text>
-            <Text style={{ color: colors.brand, fontWeight: '700' }}>{row.statusLabel}</Text>
-          </TouchableOpacity>
+          <View key={row.id} style={[styles.hist, { backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent' }]}>
+            <TouchableOpacity onPress={() => chooseRow(row)} accessibilityRole="button" style={{ flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Text style={{ color: colors.ink, fontWeight: '700', width: 96 }}>{row.date}</Text>
+              <Text style={{ color: colors.ink, flex: 1 }}>{`${row.fromPrice || '–'} → ${row.price || '–'}`}</Text>
+              <Text style={{ color: colors.brand, fontWeight: '700' }}>{row.statusLabel}</Text>
+            </TouchableOpacity>
+            <DeleteDraftButton row={row} onPress={removeLetter} colors={colors} />
+          </View>
         );
       })}
       <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
@@ -1044,7 +1096,7 @@ function LetterScreen(props) {
   );
 }
 
-function HistoryScreen({ history, colors, wide, onOpenCase, contract }) {
+function HistoryScreen({ history, colors, wide, onOpenCase, contract, removeLetter }) {
   const [selectedId, setSelectedId] = useState(history[0]?.id || '');
   const selected = history.find((row) => row.id === selectedId) || history[0] || null;
   const sent = history.filter((row) => row.mailStatus === 'sendt' || row.status === 'sendt').length;
@@ -1078,6 +1130,7 @@ function HistoryScreen({ history, colors, wide, onOpenCase, contract }) {
             <Field label="Ny pris" value={selected.price} colors={colors} />
             <Field label="Status" value={selected.statusLabel} colors={colors} />
             <Field label="Mottaker" value={selected.mail?.to || selected.sentTo || ''} colors={colors} />
+            <DeleteDraftButton row={selected} onPress={removeLetter} colors={colors} />
             <TouchableOpacity onPress={() => onOpenCase(selected)} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Åpne sak og brev</Text>
             </TouchableOpacity>
@@ -1225,6 +1278,10 @@ const styles = StyleSheet.create({
   bannerTitle: { fontSize: 22, fontWeight: '700' },
   fieldCompact: { flexGrow: 0, minWidth: 0, width: '100%' },
   factCard: { flexGrow: 1, flexShrink: 1, flexBasis: 460, minWidth: 340, alignSelf: 'flex-start' },
+  factGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', width: '100%', gap: 8 },
+  factCell: { gap: 2, paddingVertical: 4 },
+  factCellHalf: { width: '48%', flexGrow: 1, flexBasis: '48%' },
+  factCellWide: { width: '100%', flexBasis: '100%' },
   modalBackdrop: {
     position: 'fixed',
     top: 0,

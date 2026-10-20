@@ -4,7 +4,7 @@ import { extractContractText, MAX_LOCAL_PDF_BYTES } from './extractText.js';
 import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
-import { buildLetter, formatMoney, letterFieldRows, letterFromRecord } from './letter.js';
+import { buildLetter, formatMoney, letterFieldRows, letterFieldWide, letterFromRecord } from './letter.js';
 import { honorarPrice } from './priceText.js';
 import { regulationCells, regulationEntry, rememberRegulation } from './regulationLog.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
@@ -539,6 +539,9 @@ test('varsel om timepris følger eksempelet', () => {
     assert.equal(fields.some((row) => row[0] === label && row[1]), true, label);
   });
   assert.equal(fields.find((row) => row[0] === 'Oppdragsgiver')[1], 'Byggherre AS');
+  assert.equal(letterFieldWide('Innledning', 'kort'), true);
+  assert.equal(letterFieldWide('Oppdragsgiver', 'Byggherre AS'), false);
+  assert.equal(letterFieldWide('Merknad 2', 'x'), true);
   assert.ok(letterFieldRows(letter, { filled: false }).every((row) => row[1] === ''));
 });
 

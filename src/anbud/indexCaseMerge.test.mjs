@@ -29,3 +29,29 @@ test('to brukere mister ikke hverandres reguleringssaker', () => {
   assert.equal(contract.regulations.find((row) => row.id === 'a').sentTo, 'victor@breitorget.no');
   assert.equal(contract.priceVersions[0].rateExVat, 1388.41);
 });
+
+test('slettet utkast kommer ikke tilbake, sendt brev blir igjen', () => {
+  const left = {
+    contracts: [{
+      id: 'c1',
+      title: 'Breitorget',
+      indexCases: [
+        { id: 'a', status: 'sendt', revision: 2, letterPlain: 'sendt brev' },
+        { id: 'b', status: 'utkast', revision: 1, letterPlain: 'utkast' },
+      ],
+    }],
+  };
+  const right = {
+    contracts: [{
+      id: 'c1',
+      title: 'Breitorget',
+      indexCases: [
+        { id: 'a', status: 'sendt', revision: 2, letterPlain: 'sendt brev' },
+      ],
+      deletedIndexCaseIds: ['b', 'a'],
+    }],
+  };
+  const contract = mergeAnbudStates(left, right).contracts.find((row) => row.id === 'c1');
+  assert.deepEqual(contract.indexCases.map((row) => row.id), ['a']);
+  assert.deepEqual(contract.deletedIndexCaseIds, ['b']);
+});

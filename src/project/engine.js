@@ -16,6 +16,7 @@ import {
   projectNumberKey,
   scrubProjectState,
 } from './projectFields.js';
+import { normalizeProjectInvoiceSettings } from './invoiceSettings.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { isDateLocked, lockThroughDate } from '../arbeid/locks.js';
@@ -766,6 +767,7 @@ export function createProject(state, input) {
     status: text(input.status) === 'arkivert' ? 'arkivert' : 'aktiv',
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
     workSettings: defaultWorkSettings(input.workSettings),
+    invoiceSettings: normalizeProjectInvoiceSettings(input.invoiceSettings),
   };
   return ok({
     ...state,
@@ -818,6 +820,9 @@ export function updateProject(state, projectId, patch) {
     workSettings: patch.workSettings !== undefined
       ? defaultWorkSettings(patch.workSettings)
       : defaultWorkSettings(p.workSettings),
+    invoiceSettings: patch.invoiceSettings !== undefined
+      ? normalizeProjectInvoiceSettings(patch.invoiceSettings)
+      : normalizeProjectInvoiceSettings(p.invoiceSettings),
   } : p));
   return ok({ ...state, projects });
 }

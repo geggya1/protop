@@ -16,10 +16,13 @@ import {
 import {
   deleteAbsenceType,
   deleteCompanyAccount,
+  saveCompanyInvoiceDefaults,
   saveStandardAccounts,
   upsertAbsenceType,
   upsertCompanyAccount,
 } from './setupState.js';
+import { resolveCompanyInvoiceDefaults } from '../economy/companyInvoiceDefaults.js';
+import { resolveProjectInvoiceSettings } from '../project/invoiceSettings.js';
 
 {
   const rows = resolveAbsenceTypes(emptyProjectState());
@@ -103,6 +106,11 @@ import {
   state = saveStandardAccounts(state, { domestic: { hours: '3050' }, rounding: '7771' }).state;
   assert.equal(resolveStandardAccounts(state).domestic.hours, '3050');
   assert.equal(resolveStandardAccounts(state).domestic.fees, '3000');
+  state = saveCompanyInvoiceDefaults(state, { creditDays: 35, markupExpenseHourly: 12 }).state;
+  assert.equal(resolveCompanyInvoiceDefaults(state).creditDays, 35);
+  const inherited = resolveProjectInvoiceSettings(state, { id: 'p1', invoiceSettings: {} });
+  assert.equal(inherited.effective.creditDays, 35);
+  assert.equal(inherited.inheritsAll, true);
 }
 
 {

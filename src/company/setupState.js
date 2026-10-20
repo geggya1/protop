@@ -10,6 +10,7 @@ import {
   resolveStandardAccounts,
   standardAccountRows,
 } from '../economy/companyChart.js';
+import { normalizeCompanyInvoiceDefaults } from '../economy/companyInvoiceDefaults.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -120,5 +121,14 @@ export function saveStandardAccounts(state, draft) {
   return ok({
     ...state,
     standardAccounts: standardAccountRows(next).map((row) => ({ ...row, updatedAt: now })),
+  });
+}
+
+/** Lagre selskapets faktura-/økonomistandarder som prosjekter arver. */
+export function saveCompanyInvoiceDefaults(state, draft = {}) {
+  const next = normalizeCompanyInvoiceDefaults(draft);
+  return ok({
+    ...state,
+    companyInvoiceDefaults: { ...next, updatedAt: stamp() },
   });
 }

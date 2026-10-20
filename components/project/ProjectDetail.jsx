@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -15,11 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
   addActivity,
-  addProjectMember,
-  removeProjectMember,
   updateActivity,
   updateProject,
-  updateProjectMember,
   projectTimeSummary,
   projectEconomy,
   activityTimeSummary,
@@ -27,9 +23,9 @@ import {
   ensureMainActivity,
 } from '../../src/project/engine';
 import { projectCrossView } from '../../src/project/projectCrossView.js';
-import { defaultWorkSettings, PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
+import { defaultWorkSettings } from '../../src/arbeid/roles.js';
 import { formatHours } from '../../src/arbeid/hours.js';
-import { pricingModelLabel, PRICING_MODELS } from '../../src/project/projectFields.js';
+import { pricingModelLabel } from '../../src/project/projectFields.js';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 import { deleteTrip } from '../../src/economy/opsState';
 import { addressFieldsFromPlace, projectAddressLabel } from '../../src/mileage/flow';
@@ -41,14 +37,23 @@ import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
+import ProjectOverviewTab from './ProjectOverviewTab';
+import ProjectTeamTab from './ProjectTeamTab';
+import ProjectExpensesTab from './ProjectExpensesTab';
+import ProjectSalesTab from './ProjectSalesTab';
+import ProjectBillingTab from './ProjectBillingTab';
+import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
   { id: 'aktiviteter', label: 'Aktiviteter' },
   { id: 'fakturering', label: 'Faktureringsvalg' },
-  { id: 'fakturaer', label: 'Fakturaer' },
-  { id: 'timerapport', label: 'Timerapport' },
   { id: 'team', label: 'Team' },
+  { id: 'timerapport', label: 'Timerapport' },
+  { id: 'utlegg', label: 'Prosjektutlegg' },
+  { id: 'produktsalg', label: 'Produktsalg' },
+  { id: 'til_fakturering', label: 'Til fakturering' },
+  { id: 'fakturaer', label: 'Fakturaer' },
 ];
 
 function ProgressBar({ left, right, leftColor, rightColor, colors }) {
@@ -61,24 +66,6 @@ function ProgressBar({ left, right, leftColor, rightColor, colors }) {
         <View style={[styles.barFill, { width: `${100 - leftPct}%`, backgroundColor: rightColor || '#f97316', opacity: 0.7 }]} />
       ) : null}
     </View>
-  );
-}
-
-function CheckRow({ label, value, onChange, colors }) {
-  return (
-    <TouchableOpacity
-      onPress={() => onChange(!value)}
-      style={styles.checkRow}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: value }}
-    >
-      <Ionicons
-        name={value ? 'checkbox' : 'square-outline'}
-        size={20}
-        color={value ? colors.brand : colors.muted}
-      />
-      <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -124,237 +111,9 @@ function ProjectIndexNote({ project, contracts, timeEntries, colors }) {
   );
 }
 
-function AgreementPanel({
-  cross,
-  colors,
-  onOpenAgreement,
-  onOpenCustomer,
-  onOpenInvoice,
-  onOpenIndex,
-  customerId,
-  project,
-  contracts,
-  timeEntries,
-}) {
-  const contract = cross.contract;
-  const feeLabel = cross.honorarText
-    || (cross.honorarAmount != null ? formatMoney(cross.honorarAmount) : '—');
-  return (
-    <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginBottom: 12 }]}>
-      <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Avtale, honorar og faktura</Text>
-      <TouchableOpacity
-        nativeID="project-agreement-open"
-        onPress={() => contract && onOpenAgreement?.(contract.id)}
-        disabled={!contract}
-        accessibilityRole="button"
-        accessibilityLabel={contract ? `Åpne avtalen ${contract.title}` : 'Ingen avtale koblet'}
-        style={[styles.agreementBtn, { borderColor: contract ? colors.brand : (colors.danger || '#b42318') }]}
-      >
-        <Ionicons name={contract ? 'document-text' : 'warning'} size={18} color={contract ? colors.brand : (colors.danger || '#b42318')} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Avtale</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
-            {contract ? contract.title : 'Ingen avtale er koblet til prosjektet'}
-          </Text>
-        </View>
-        {contract ? <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne</Text> : null}
-      </TouchableOpacity>
-
-      <View style={styles.kpiGrid}>
-        <View nativeID="project-agreement-fee" style={styles.kpiCell}>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>Honorar avtale</Text>
-          <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{feeLabel}</Text>
-        </View>
-        <Kpi label="Kontraktssum" value={contract ? formatMoney(cross.contractValue) : '—'} colors={colors} />
-        <View nativeID="project-invoiced-amount" style={styles.kpiCell}>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>Fakturert eks. mva</Text>
-          <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>{formatMoney(cross.totals.amountExVat)}</Text>
-        </View>
-        <Kpi label="Utestående" value={formatMoney(cross.totals.outstanding)} colors={colors} />
-      </View>
-
-      {cross.facts.length ? (
-        <View style={[styles.infoGrid, { marginTop: 8 }]}>
-          {cross.facts.map((row) => (
-            <Info key={row.label} label={row.label} value={row.value} colors={colors} />
-          ))}
-        </View>
-      ) : null}
-
-      <View style={styles.rowWrap}>
-        {customerId ? (
-          <TouchableOpacity onPress={() => onOpenCustomer?.(customerId)} accessibilityRole="button">
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne kunde</Text>
-          </TouchableOpacity>
-        ) : null}
-        {contract ? (
-          <TouchableOpacity onPress={() => onOpenIndex?.(contract)} accessibilityRole="button">
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne indeksregulering</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <ProjectIndexNote project={project} contracts={contracts} timeEntries={timeEntries} colors={colors} />
-
-      <View style={{ marginTop: 16 }}>
-        <IndexLetterTable
-          rows={lettersForProject(project, contracts)}
-          colors={colors}
-          title="Indeksreguleringer på prosjektet"
-          empty="Ingen indeksreguleringer er registrert på prosjektet."
-        />
-      </View>
-
-      {cross.documents.length ? (
-        <>
-          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Dokumenter</Text>
-          {cross.documents.map((doc) => (
-            <TouchableOpacity
-              key={doc.id}
-              onPress={() => openExternal(doc.url)}
-              disabled={!doc.url}
-              accessibilityRole="button"
-              style={styles.docLine}
-            >
-              <Ionicons name="document-outline" size={16} color={colors.muted} />
-              <Text style={{ color: doc.url ? colors.brand : colors.ink, flex: 1 }} numberOfLines={2}>
-                {doc.name}{doc.source === 'avtale' ? ' · avtale' : doc.source === 'tilbud' ? ' · tilbud' : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </>
-      ) : null}
-
-      {cross.milestones.length ? (
-        <>
-          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Milepæler og leveranser</Text>
-          {cross.milestones.map((row) => (
-            <Text key={row.id || row.title} style={{ color: colors.ink, fontSize: 13, marginBottom: 4 }}>
-              {row.kind}: {row.title}{row.due ? ` · ${formatDate(row.due)}` : ''}
-            </Text>
-          ))}
-        </>
-      ) : null}
-
-      {cross.options.length ? (
-        <>
-          <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 16, marginBottom: 8 }]}>Opsjoner</Text>
-          {cross.options.map((row) => (
-            <Text key={row.id || row.title} style={{ color: colors.ink, fontSize: 13, marginBottom: 4 }}>
-              {row.title}{row.exercised ? ' · utløst' : ''}
-            </Text>
-          ))}
-        </>
-      ) : null}
-    </View>
-  );
-}
-
-function ProjectAddressEditor({ project, colors, onSave }) {
-  const [query, setQuery] = useState('');
-  const [hits, setHits] = useState([]);
-  const [street, setStreet] = useState(project.street || '');
-  const [postalCode, setPostalCode] = useState(project.postalCode || '');
-  const [placeName, setPlaceName] = useState(project.placeName || '');
-  useEffect(() => {
-    setStreet(project.street || '');
-    setPostalCode(project.postalCode || '');
-    setPlaceName(project.placeName || '');
-  }, [project.id, project.street, project.postalCode, project.placeName]);
-  useEffect(() => {
-    const q = String(query || '').trim();
-    if (q.length < 3) {
-      setHits([]);
-      return undefined;
-    }
-    let live = true;
-    const timer = setTimeout(() => {
-      searchPlaces(q, 'nb').then((rows) => {
-        if (live) setHits((rows || []).slice(0, 5));
-      }).catch(() => {
-        if (live) setHits([]);
-      });
-    }, 280);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  function applyHit(hit) {
-    const fields = addressFieldsFromPlace(hit, hit.label);
-    setStreet(fields.street);
-    setPostalCode(fields.postalCode);
-    setPlaceName(fields.placeName);
-    setQuery('');
-    setHits([]);
-    onSave(fields);
-  }
-
-  const current = projectAddressLabel({ street, postalCode, placeName, place: project.place });
-  return (
-    <View style={{ marginTop: 16, gap: 6 }}>
-      <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektadresse</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>
-        {current || 'Ingen egen adresse. Søk og lagre, så kjøreboken bruker den som destinasjon.'}
-      </Text>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Søk adresse, minst tre bokstaver"
-        placeholderTextColor={colors.muted}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-      />
-      {query.trim().length >= 3 && !hits.length ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Søker adresser…</Text>
-      ) : null}
-      {hits.map((hit) => (
-        <TouchableOpacity key={hit.placeId || hit.label} onPress={() => applyHit(hit)} accessibilityRole="button">
-          <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 4 }}>{hit.label}</Text>
-        </TouchableOpacity>
-      ))}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <TextInput
-          value={street}
-          onChangeText={setStreet}
-          placeholder="Gate"
-          placeholderTextColor={colors.muted}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 140 }]}
-        />
-        <TextInput
-          value={postalCode}
-          onChangeText={setPostalCode}
-          placeholder="Postnr"
-          placeholderTextColor={colors.muted}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]}
-        />
-        <TextInput
-          value={placeName}
-          onChangeText={setPlaceName}
-          placeholder="Poststed"
-          placeholderTextColor={colors.muted}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 120 }]}
-        />
-      </View>
-      <TouchableOpacity
-        onPress={() => onSave({
-          street,
-          postalCode,
-          placeName,
-          place: [street, [postalCode, placeName].filter(Boolean).join(' ')].filter(Boolean).join(', '),
-        })}
-        accessibilityRole="button"
-        accessibilityLabel="Lagre prosjektadresse"
-        style={[styles.primaryBtn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
-      >
-        <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre adresse</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 /**
- * Oppgradert prosjektvisning med faner (Moment-inspirert).
- * onChangeState(nextState) / onEditForm() for å hoppe til klassisk redigering.
+ * Oppdatert prosjektvisning med landingsside og faner.
+ * Faktureringsvalg arver selskapets Økonomi-innstillinger.
  */
 export default function ProjectDetail({
   state,
@@ -373,13 +132,12 @@ export default function ProjectDetail({
   onOpenCustomer,
   onOpenInvoice,
   onOpenIndex,
+  onOpenEconomySettings,
+  onOpenEconomyBilling,
 }) {
   const [tab, setTab] = useState('hovedside');
-  const [memberOpen, setMemberOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityName, setActivityName] = useState('');
-  const [memberRole, setMemberRole] = useState('Prosjektmedlem');
-  const [pickEmployeeId, setPickEmployeeId] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [editingTrip, setEditingTrip] = useState(null);
@@ -420,18 +178,6 @@ export default function ProjectDetail({
     [state.mileageTrips, project.id],
   );
 
-  function saveAddress(patch) {
-    const result = updateProject(state, project.id, patch);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onChangeState(result.state);
-    setError('');
-    setNote('Prosjektadressen er lagret.');
-    showSaveToast('Lagret.');
-  }
-
   function removeTrip(id, confirmed = false) {
     if (!confirmed && pendingDelete !== id) {
       setPendingDelete(id);
@@ -450,11 +196,6 @@ export default function ProjectDetail({
     showSaveToast('Turen er slettet.');
   }
 
-  const availableEmployees = employees.filter((row) => (
-    row.company?.status !== 'former'
-    && !members.some((mem) => mem.employeeId === row.id)
-  ));
-
   function patchSettings(key, value) {
     const result = updateProject(state, project.id, {
       workSettings: { ...settings, [key]: value },
@@ -466,46 +207,12 @@ export default function ProjectDetail({
     } else setError(result.error);
   }
 
-  function addMember() {
-    const emp = employees.find((row) => row.id === pickEmployeeId);
-    if (!emp) {
-      setError('Velg medarbeider.');
-      return;
-    }
-    const result = addProjectMember(state, {
-      projectId: project.id,
-      employeeId: emp.id,
-      employeeName: employeeDisplayName(emp),
-      photoUrl: emp.person?.photoUrl,
-      role: memberRole,
-      addedByUid: uid,
-    });
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onChangeState(result.state);
-    setMemberOpen(false);
-    setPickEmployeeId('');
-    setNote(`${employeeDisplayName(emp)} lagt til som ${memberRole}.`);
-    showSaveToast(`${employeeDisplayName(emp)} lagt til som ${memberRole}.`);
-  }
-
-  function dropMember(memberId) {
-    const result = removeProjectMember(state, memberId);
+  function saveEndDate(value) {
+    const result = updateProject(state, project.id, { end: value });
     if (result.ok) {
       onChangeState(result.state);
-      setNote('Deltaker fjernet.');
-      showSaveToast('Deltaker fjernet.');
+      showSaveToast('Sluttdato lagret.');
     } else setError(result.error);
-  }
-
-  function changeRole(memberId, role) {
-    const result = updateProjectMember(state, memberId, { role });
-    if (result.ok) {
-      onChangeState(result.state);
-      showSaveToast('Rollen er oppdatert.');
-    }
   }
 
   function createActivity() {
@@ -538,17 +245,6 @@ export default function ProjectDetail({
     }
   }
 
-  const membersByRole = useMemo(() => {
-    const groups = {};
-    for (const role of PROJECT_ROLES) groups[role] = [];
-    for (const row of members) {
-      const role = PROJECT_ROLES.includes(row.role) ? row.role : 'Annet';
-      if (!groups[role]) groups[role] = [];
-      groups[role].push(row);
-    }
-    return groups;
-  }, [members]);
-
   return (
     <View style={styles.wrap} nativeID="project-detail">
       <View style={styles.headRow}>
@@ -562,16 +258,24 @@ export default function ProjectDetail({
             style={[styles.editBtn, { borderColor: colors.line }]}
           >
             <Ionicons name="create-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink }}>Rediger</Text>
+            <Text style={{ color: colors.ink }}>Rediger prosjekt</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      <Text style={[styles.crumb, { color: colors.muted }]}>Prosjekter / Oversikt</Text>
-      <Text style={[styles.title, { color: colors.ink }]}>
-        #{project.number} {project.name}
-        {project.client ? ` (${project.client})` : ''}
-      </Text>
+      <Text style={[styles.crumb, { color: colors.muted }]}>Prosjekter / #{project.number}</Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, { color: colors.ink }]}>
+          #{project.number} {project.name}
+          {project.client ? ` (${project.client})` : ''}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
+          <View style={[styles.statusDot, { backgroundColor: '#16a34a' }]} />
+          <Text style={{ color: '#166534', fontWeight: '600', fontSize: 12 }}>
+            {project.projectStatus || project.phase || 'Under arbeid'}
+          </Text>
+        </View>
+      </View>
 
       <View style={[styles.tabs, { borderBottomColor: colors.line }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsInner}>
@@ -582,6 +286,9 @@ export default function ProjectDetail({
                 key={row.id}
                 onPress={() => setTab(row.id)}
                 style={[styles.tab, on && { borderBottomColor: colors.brand }]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                nativeID={`project-tab-${row.id}`}
               >
                 <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '600' : '400', fontSize: 13 }}>
                   {row.label}
@@ -597,153 +304,149 @@ export default function ProjectDetail({
 
       <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
         {tab === 'hovedside' ? (
-          <AgreementPanel
-            cross={cross}
-            colors={colors}
-            customerId={customer?.id || project.customerId}
-            project={project}
-            contracts={contracts}
-            timeEntries={state.timeEntries || []}
-            onOpenAgreement={onOpenAgreement}
-            onOpenCustomer={onOpenCustomer}
-            onOpenInvoice={onOpenInvoice}
-            onOpenIndex={onOpenIndex}
-          />
-        ) : null}
-        {tab === 'hovedside' ? (
-          <View style={styles.columns}>
-            <View style={[styles.mainCol, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <View style={styles.blockHead}>
-                <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektinformasjon</Text>
-              </View>
-              <View style={styles.infoGrid}>
-                <Info label="Prosjektnummer" value={project.number} colors={colors} />
-                <Info label="Kunde" value={project.client || '—'} colors={colors} />
-                <Info label="Valuta" value="NOK" colors={colors} />
-                <Info label="Oppstartsdato" value={formatDate(project.start)} colors={colors} />
-                <Info label="Sluttdato" value={formatDate(project.end)} colors={colors} />
-                <Info label="Status" value={project.projectStatus || project.phase || 'Under arbeid'} colors={colors} />
-                <Info label="Prosjektleder" value={project.manager || '—'} colors={colors} wide />
-              </View>
-              {project.description ? (
-                <Text style={{ color: colors.muted, marginTop: 12, lineHeight: 20 }}>{project.description}</Text>
-              ) : null}
-              <ProjectAddressEditor project={project} colors={colors} onSave={saveAddress} />
+          <>
+            <ProjectOverviewTab
+              state={state}
+              project={project}
+              cross={cross}
+              summary={summary}
+              members={members}
+              timeEntries={timeEntries}
+              colors={colors}
+              onOpenTab={setTab}
+              onOpenCustomer={onOpenCustomer}
+              onEditForm={onEditForm}
+              onSaveEndDate={saveEndDate}
+            />
+            <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginTop: 12 }]}>
+              <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Avtale og indeks</Text>
+              <TouchableOpacity
+                nativeID="project-agreement-open"
+                onPress={() => cross.contract && onOpenAgreement?.(cross.contract.id)}
+                disabled={!cross.contract}
+                style={[styles.agreementBtn, { borderColor: cross.contract ? colors.brand : (colors.danger || '#b42318') }]}
+              >
+                <Ionicons name={cross.contract ? 'document-text' : 'warning'} size={18} color={cross.contract ? colors.brand : (colors.danger || '#b42318')} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Avtale</Text>
+                  <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
+                    {cross.contract ? cross.contract.title : 'Ingen avtale er koblet til prosjektet'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <ProjectIndexNote project={project} contracts={contracts} timeEntries={state.timeEntries || []} colors={colors} />
+              <IndexLetterTable
+                rows={lettersForProject(project, contracts)}
+                colors={colors}
+                title="Indeksreguleringer på prosjektet"
+                empty="Ingen indeksreguleringer er registrert på prosjektet."
+              />
+              <ProjectAddressEditor
+                project={project}
+                colors={colors}
+                onSave={(patch) => {
+                  const result = updateProject(state, project.id, patch);
+                  if (!result.ok) {
+                    setError(result.error);
+                    return;
+                  }
+                  onChangeState(result.state);
+                  showSaveToast('Lagret.');
+                }}
+              />
               <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Kjøreturer</Text>
               {!projectTrips.length ? (
                 <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen kjøreturer er registrert på prosjektet.</Text>
               ) : projectTrips.map((row) => (
                 <View key={row.id} style={[styles.tripRow, { borderBottomColor: colors.line }]}>
-                  <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
+                  <TouchableOpacity onPress={() => setEditingTrip(row)}>
                     <Text style={{ color: colors.ink, fontSize: 14 }}>
                       {row.date} · {row.from} → {row.to} · {row.km} km
                     </Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {row.employeeName || 'Ansatt'} · {row.vehicleName || 'Kjøretøy'} · {formatMoney(row.amount)}
-                    </Text>
                   </TouchableOpacity>
                   <View style={styles.tripActions}>
-                    <TouchableOpacity onPress={() => setEditingTrip(row)} accessibilityRole="button" accessibilityLabel="Rediger tur">
+                    <TouchableOpacity onPress={() => setEditingTrip(row)}>
                       <Text style={{ color: colors.brand, fontWeight: '700' }}>Rediger</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeTrip(row.id)} accessibilityRole="button" accessibilityLabel="Slett tur">
+                    <TouchableOpacity onPress={() => removeTrip(row.id)}>
                       <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
                         {pendingDelete === row.id ? 'Slett nå' : 'Slett'}
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  {pendingDelete === row.id ? (
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>
-                      Trykk «Slett nå» for å fjerne kjøreturen fra prosjektet, kjøreboken og utlegget.
-                    </Text>
-                  ) : null}
                 </View>
               ))}
-
               <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Innstillinger for timeføring</Text>
-              <View style={styles.settingsGrid}>
-                <CheckRow
-                  label="Vis prosjekt i alles timelister"
-                  value={settings.showInAllTimesheets}
-                  onChange={(v) => patchSettings('showInAllTimesheets', v)}
-                  colors={colors}
-                />
-                <CheckRow
-                  label="Ansatte kan legge seg selv inn på prosjektet"
-                  value={settings.allowSelfJoin}
-                  onChange={(v) => patchSettings('allowSelfJoin', v)}
-                  colors={colors}
-                />
-                <CheckRow
-                  label="Beskrivelse på timeføring er påkrevd"
-                  value={settings.requireDescription}
-                  onChange={(v) => patchSettings('requireDescription', v)}
-                  colors={colors}
-                />
-                <CheckRow
-                  label="Vis estimerte og planlagte timer i timelisten"
-                  value={settings.showEstimatedHours}
-                  onChange={(v) => patchSettings('showEstimatedHours', v)}
-                  colors={colors}
-                />
-                <CheckRow
-                  label="Varsle prosjektleder på e-post ved overskridelse"
-                  value={settings.notifyOnOverrun}
-                  onChange={(v) => patchSettings('notifyOnOverrun', v)}
-                  colors={colors}
-                />
-              </View>
+              {[
+                ['showInAllTimesheets', 'Vis prosjekt i alles timelister'],
+                ['allowSelfJoin', 'Ansatte kan legge seg selv inn på prosjektet'],
+                ['requireDescription', 'Beskrivelse på timeføring er påkrevd'],
+                ['showEstimatedHours', 'Vis estimerte og planlagte timer i timelisten'],
+                ['notifyOnOverrun', 'Varsle prosjektleder på e-post ved overskridelse'],
+              ].map(([key, label]) => (
+                <TouchableOpacity key={key} onPress={() => patchSettings(key, !settings[key])} style={styles.checkRow}>
+                  <Ionicons name={settings[key] ? 'checkbox' : 'square-outline'} size={20} color={settings[key] ? colors.brand : colors.muted} />
+                  <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
+          </>
+        ) : null}
 
-            <View style={styles.sideCol}>
-              <View style={[styles.sideCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <View style={styles.blockHead}>
-                  <Text style={[styles.blockTitle, { color: colors.ink }]}>Team</Text>
-                  {isAdmin ? (
-                    <TouchableOpacity onPress={() => setMemberOpen(true)}>
-                      <Text style={{ color: colors.brand, fontSize: 13 }}>+ Legg til</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                {PROJECT_ROLES.map((role) => {
-                  const rows = membersByRole[role] || [];
-                  if (!rows.length) return null;
-                  return (
-                    <View key={role} style={{ marginBottom: 12 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 6 }}>{role}</Text>
-                      {rows.map((row) => (
-                        <View key={row.id} style={styles.memberRow}>
-                          {row.photoUrl ? (
-                            <Image source={{ uri: row.photoUrl }} style={styles.avatar} />
-                          ) : (
-                            <View style={[styles.avatar, { backgroundColor: `${colors.brand}22` }]}>
-                              <Ionicons name="person" size={14} color={colors.brand} />
-                            </View>
-                          )}
-                          <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }} numberOfLines={1}>
-                            {row.employeeName}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  );
-                })}
-                {!members.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen deltakere ennå.</Text>
-                ) : null}
-              </View>
+        {tab === 'fakturering' ? (
+          <ProjectBillingTab
+            state={state}
+            project={project}
+            activities={state.activities}
+            colors={colors}
+            isAdmin={isAdmin}
+            onChangeState={onChangeState}
+            onOpenEconomySettings={onOpenEconomySettings}
+          />
+        ) : null}
 
-              <View style={[styles.sideCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Nøkkeltall</Text>
-                <View style={styles.kpiGrid}>
-                  <Kpi label="Timer jobbet" value={formatHours(summary.hours)} colors={colors} />
-                  <Kpi label="Fakturerbare" value={formatHours(summary.billable)} colors={colors} />
-                  <Kpi label="Ikke-fakturerbart" value={formatHours(summary.nonBillable)} colors={colors} />
-                  <Kpi label="Føringer" value={String(summary.count)} colors={colors} />
-                </View>
-              </View>
-            </View>
-          </View>
+        {tab === 'team' ? (
+          <ProjectTeamTab
+            state={state}
+            project={project}
+            members={members}
+            employees={employees}
+            timeEntries={timeEntries}
+            colors={colors}
+            isAdmin={isAdmin}
+            uid={uid}
+            onChangeState={onChangeState}
+          />
+        ) : null}
+
+        {tab === 'utlegg' ? (
+          <ProjectExpensesTab
+            state={state}
+            project={project}
+            colors={colors}
+            isAdmin={isAdmin}
+            onChangeState={onChangeState}
+          />
+        ) : null}
+
+        {tab === 'produktsalg' ? (
+          <ProjectSalesTab
+            state={state}
+            project={project}
+            colors={colors}
+            isAdmin={isAdmin}
+            onChangeState={onChangeState}
+          />
+        ) : null}
+
+        {tab === 'til_fakturering' ? (
+          <ProjectBillingReadyTab
+            state={state}
+            project={project}
+            colors={colors}
+            onOpenEconomyBilling={onOpenEconomyBilling}
+            onOpenTab={setTab}
+          />
         ) : null}
 
         {tab === 'fakturaer' ? (
@@ -758,7 +461,6 @@ export default function ProjectDetail({
               <TouchableOpacity
                 key={row.id}
                 onPress={() => onOpenInvoice?.(row.id)}
-                accessibilityRole="button"
                 style={[styles.invoiceRow, { borderColor: colors.line }]}
               >
                 <Text style={{ color: colors.ink, fontWeight: '600', width: 88 }}>{row.invoiceNumber}</Text>
@@ -826,27 +528,6 @@ export default function ProjectDetail({
           </View>
         ) : null}
 
-        {tab === 'fakturering' ? (
-          <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.blockTitle, { color: colors.ink }]}>Prismodell</Text>
-            <Info label="Navn" value={project.name} colors={colors} />
-            <Info label="Prismodell" value={pricingModelLabel(project.pricingModel) || 'Ikke satt'} colors={colors} />
-            <Info label="Kunde" value={project.client || '—'} colors={colors} />
-            {project.pricingModel === 'hourly' ? (
-              <Info
-                label="Ens timepris"
-                value={project.pricingSettings?.hourlyRate != null
-                  ? String(project.pricingSettings.hourlyRate)
-                  : '—'}
-                colors={colors}
-              />
-            ) : null}
-            <Text style={{ color: colors.muted, marginTop: 12, fontSize: 13 }}>
-              Velg blant: {PRICING_MODELS.map((row) => row.label).join(' · ')}. Endre prismodell under Rediger.
-            </Text>
-          </View>
-        ) : null}
-
         {tab === 'timerapport' ? (
           <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>Timerapport</Text>
@@ -881,114 +562,7 @@ export default function ProjectDetail({
             ) : null}
           </View>
         ) : null}
-
-        {tab === 'team' ? (
-          <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <View style={styles.blockHead}>
-              <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektdeltakere</Text>
-              {isAdmin ? (
-                <TouchableOpacity
-                  onPress={() => setMemberOpen(true)}
-                  style={[styles.primaryBtn, { backgroundColor: colors.brand }]}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>+ Legg til medlemskap</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            {members.map((row) => (
-              <View key={row.id} style={[styles.teamRow, { borderColor: colors.line }]}>
-                {row.photoUrl ? (
-                  <Image source={{ uri: row.photoUrl }} style={styles.avatarLg} />
-                ) : (
-                  <View style={[styles.avatarLg, { backgroundColor: `${colors.brand}22` }]}>
-                    <Ionicons name="person" size={18} color={colors.brand} />
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.employeeName}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {PROJECT_ROLES.map((role) => (
-                      <TouchableOpacity
-                        key={role}
-                        onPress={() => changeRole(row.id, role)}
-                        style={[
-                          styles.roleChip,
-                          {
-                            borderColor: row.role === role ? colors.brand : colors.line,
-                            backgroundColor: row.role === role ? `${colors.brand}14` : 'transparent',
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: colors.ink, fontSize: 12 }}>{role}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-                {isAdmin ? (
-                  <TouchableOpacity onPress={() => dropMember(row.id)} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ))}
-            {!members.length ? (
-              <Text style={{ color: colors.muted }}>
-                Legg til medarbeidere som deltakere — da får de prosjektet i Arbeid-modulen og kan føre timer.
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
       </ScrollView>
-
-      <Modal transparent visible={memberOpen} animationType="fade" onRequestClose={() => setMemberOpen(false)}>
-        <Pressable style={styles.modalBg} onPress={() => setMemberOpen(false)}>
-          <Pressable style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Legg til medlemskap</Text>
-            <ScrollView style={{ maxHeight: 240 }}>
-              {availableEmployees.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  onPress={() => setPickEmployeeId(row.id)}
-                  style={[styles.sheetRow, { borderColor: colors.line }]}
-                >
-                  <Text style={{ color: colors.ink, fontWeight: pickEmployeeId === row.id ? '700' : '400' }}>
-                    {employeeDisplayName(row)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              {!availableEmployees.length ? (
-                <Text style={{ color: colors.muted }}>Alle ansatte er allerede deltakere, eller ingen ansatte er registrert.</Text>
-              ) : null}
-            </ScrollView>
-            <Text style={{ color: colors.muted, marginTop: 10, marginBottom: 6 }}>Rolle</Text>
-            <View style={styles.chipRow}>
-              {PROJECT_ROLES.map((role) => (
-                <TouchableOpacity
-                  key={role}
-                  onPress={() => setMemberRole(role)}
-                  style={[
-                    styles.roleChip,
-                    {
-                      borderColor: memberRole === role ? colors.brand : colors.line,
-                      backgroundColor: memberRole === role ? `${colors.brand}14` : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 12 }}>{role}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <TouchableOpacity onPress={() => setMemberOpen(false)} style={[styles.ghostBtn, { borderColor: colors.line, flex: 1 }]}>
-                <Text style={{ color: colors.ink }}>Avbryt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={addMember} style={[styles.primaryBtn, { backgroundColor: colors.brand, flex: 1, justifyItems: 'center' }]}>
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Legg til</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       <Modal transparent visible={activityOpen} animationType="fade" onRequestClose={() => setActivityOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setActivityOpen(false)}>
@@ -1003,7 +577,7 @@ export default function ProjectDetail({
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setActivityOpen(false)} style={[styles.ghostBtn, { borderColor: colors.line, flex: 1 }]}>
-                <Text style={{ color: colors.ink }}>Avbryt</Text>
+                <Text style={{ color: colors.ink, textAlign: 'center' }}>Avbryt</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={createActivity} style={[styles.primaryBtn, { backgroundColor: colors.brand, flex: 1, alignItems: 'center' }]}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Opprett</Text>
@@ -1033,20 +607,82 @@ export default function ProjectDetail({
   );
 }
 
-function Info({ label, value, colors, wide = false }) {
-  return (
-    <View style={[styles.infoCell, wide && styles.infoCellWide]}>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '500' }}>{value}</Text>
-    </View>
-  );
-}
+function ProjectAddressEditor({ project, colors, onSave }) {
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState([]);
+  const [street, setStreet] = useState(project.street || '');
+  const [postalCode, setPostalCode] = useState(project.postalCode || '');
+  const [placeName, setPlaceName] = useState(project.placeName || '');
+  useEffect(() => {
+    setStreet(project.street || '');
+    setPostalCode(project.postalCode || '');
+    setPlaceName(project.placeName || '');
+  }, [project.id, project.street, project.postalCode, project.placeName]);
+  useEffect(() => {
+    const q = String(query || '').trim();
+    if (q.length < 3) {
+      setHits([]);
+      return undefined;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      searchPlaces(q, 'nb').then((rows) => {
+        if (live) setHits((rows || []).slice(0, 5));
+      }).catch(() => {
+        if (live) setHits([]);
+      });
+    }, 280);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
 
-function Kpi({ label, value, colors }) {
+  function applyHit(hit) {
+    const fields = addressFieldsFromPlace(hit, hit.label);
+    setStreet(fields.street);
+    setPostalCode(fields.postalCode);
+    setPlaceName(fields.placeName);
+    setQuery('');
+    setHits([]);
+    onSave(fields);
+  }
+
+  const current = projectAddressLabel({ street, postalCode, placeName, place: project.place });
   return (
-    <View style={styles.kpiCell}>
-      <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{value}</Text>
+    <View style={{ marginTop: 16, gap: 6 }}>
+      <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektadresse</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>
+        {current || 'Ingen egen adresse. Søk og lagre, så kjøreboken bruker den som destinasjon.'}
+      </Text>
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Søk adresse, minst tre bokstaver"
+        placeholderTextColor={colors.muted}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      />
+      {hits.map((hit) => (
+        <TouchableOpacity key={hit.placeId || hit.label} onPress={() => applyHit(hit)}>
+          <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 4 }}>{hit.label}</Text>
+        </TouchableOpacity>
+      ))}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <TextInput value={street} onChangeText={setStreet} placeholder="Gate" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 140 }]} />
+        <TextInput value={postalCode} onChangeText={setPostalCode} placeholder="Postnr" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]} />
+        <TextInput value={placeName} onChangeText={setPlaceName} placeholder="Poststed" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 120 }]} />
+      </View>
+      <TouchableOpacity
+        onPress={() => onSave({
+          street,
+          postalCode,
+          placeName,
+          place: [street, [postalCode, placeName].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+        })}
+        style={[styles.primaryBtn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
+      >
+        <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre adresse</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1065,7 +701,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   crumb: { fontSize: 12, marginBottom: 4 },
-  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 8 },
+  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, flexShrink: 1 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
   tabs: {
     flexGrow: 0,
     flexShrink: 0,
@@ -1083,23 +730,10 @@ const styles = StyleSheet.create({
   },
   bodyScroll: { flex: 1, minHeight: 0 },
   bodyContent: { paddingBottom: 40, flexGrow: 0 },
-  columns: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' },
-  mainCol: { flex: 1.6, minWidth: 300, borderWidth: 1, borderRadius: 10, padding: 16 },
-  sideCol: { flex: 1, minWidth: 260, maxWidth: 420, gap: 12 },
-  sideCard: { borderWidth: 1, borderRadius: 10, padding: 14 },
   panel: { borderWidth: 1, borderRadius: 10, padding: 16 },
   blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   blockTitle: { fontSize: 15, fontWeight: '700' },
-  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  infoCell: { width: '48%', minWidth: 140, paddingVertical: 8, paddingRight: 8, gap: 2 },
-  infoCellWide: { width: '100%' },
-  settingsGrid: { gap: 2 },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  kpiCell: { width: '47%', minWidth: 100, gap: 2, paddingVertical: 6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  avatarLg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1115,21 +749,6 @@ const styles = StyleSheet.create({
   tripActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
   th: { flex: 1, fontSize: 11 },
   td: { flex: 1, fontSize: 12 },
-  teamRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
-  },
-  roleChip: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginRight: 6,
-    marginTop: 6,
-  },
   agreementBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1147,8 +766,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingVertical: 8,
   },
-  docLine: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   primaryBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   ghostBtn: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   modalBg: {
@@ -1160,7 +777,5 @@ const styles = StyleSheet.create({
   },
   sheet: { width: '100%', maxWidth: 440, borderWidth: 1, borderRadius: 12, padding: 16 },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
-  sheetRow: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
 });

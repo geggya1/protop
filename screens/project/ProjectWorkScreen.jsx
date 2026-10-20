@@ -1999,6 +1999,8 @@ export default function ProjectWorkScreen() {
           onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
           onOpenInvoice={openInvoice}
           onOpenIndex={(contract) => requestShellTab?.('okonomi', 'indeks', openIndexIntentFromContract(contract))}
+          onOpenEconomySettings={() => requestShellTab?.('okonomi', 'innstillinger')}
+          onOpenEconomyBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />
       </View>
     );

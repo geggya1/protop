@@ -9,6 +9,8 @@ import {
   classifyContract,
   computeRegulation,
   finishSend,
+  deskCounts,
+  projectsWithoutAgreement,
   queueCounts,
   rateOnDate,
   readWorkspaceQuery,
@@ -313,6 +315,24 @@ test('arbeidsvindu kan åpnes direkte via URL', () => {
   assert.equal(query.contractId, 'breitorget');
   assert.equal(query.caseId, 'ir1');
   assert.equal(query.view, 'historikk');
+});
+
+test('prosjekter uten avtale deles i aktiv og deaktivert', () => {
+  const projects = [
+    { id: 'p1', name: 'Aktivt', number: '100', status: 'aktiv' },
+    { id: 'p2', name: 'Parkert', number: '200', status: 'arkivert' },
+    { id: 'p3', name: 'Har avtale', number: '300', status: 'aktiv' },
+  ];
+  const contracts = [{ ...breitorget(), projectId: 'p3' }];
+  const rows = projectsWithoutAgreement(projects, contracts);
+  assert.deepEqual(rows.map((row) => row.project.id), ['p1', 'p2']);
+  assert.equal(rows[0].group, 'aktiv');
+  assert.equal(rows[1].group, 'deaktivert');
+  const counts = deskCounts(contracts, published, '2026-10-20', projects);
+  assert.equal(counts.oppmerksomhet, 2);
+  assert.equal(counts.aktiv, 1);
+  assert.equal(counts.deaktivert, 1);
+  assert.equal(counts.kan_reguleres, 1);
 });
 
 test('kjeden blander ikke original indeks inn i neste grunnlag', () => {

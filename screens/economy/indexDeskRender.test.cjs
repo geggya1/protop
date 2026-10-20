@@ -22,6 +22,7 @@ function host(name) {
 }
 
 const cache = new Map();
+let viewport = { width: 1280, height: 800 };
 
 function loadLocal(full) {
   if (cache.has(full)) return cache.get(full).exports;
@@ -46,7 +47,7 @@ function loadLocal(full) {
         TextInput: host('TextInput'),
         TouchableOpacity: host('TouchableOpacity'),
         StyleSheet: { create: (styles) => styles },
-        useWindowDimensions: () => ({ width: 1280, height: 800 }),
+        useWindowDimensions: () => viewport,
         ScrollView: host('ScrollView'),
       };
     }
@@ -161,10 +162,48 @@ const lines = texts(tree);
 const joined = lines.join('\n');
 assert.match(joined, /#index-contract-list/);
 assert.match(joined, /#index-preview/);
+assert.match(joined, /#index-filters/);
 assert.match(joined, /Indeksregulering/);
-assert.match(joined, /Må vurderes/);
+assert.match(joined, /Kan reguleres/);
+assert.match(joined, /Venter på ny indeks/);
+assert.match(joined, /Krever oppmerksomhet/);
+assert.match(joined, /Regulert/);
 assert.match(joined, /NS 8403/);
 assert.equal(joined.includes('Løst prosjekt'), false);
 assert.match(joined, /Start indeksregulering/);
 assert.match(joined, /1 388,41 kr/);
+
+function styleWidth(node, id) {
+  let found = null;
+  walk(node, (element) => {
+    if (element.props && element.props.nativeID === id) {
+      const style = element.props.style;
+      const flat = Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
+      found = flat;
+    }
+  });
+  return found;
+}
+
+const wideFilter = styleWidth(tree, 'index-status-kan_reguleres');
+assert.equal(wideFilter.borderRadius, 8);
+assert.equal(wideFilter.width, undefined);
+
+viewport = { width: 390, height: 800 };
+cache.clear();
+const phone = withHooks(() => React.createElement(Desk, {
+  projects: [
+    { id: 'p1', name: 'Aktivt oppdrag', number: '100', status: 'aktiv' },
+    { id: 'p2', name: 'Løst prosjekt', status: 'aktiv' },
+  ],
+  contracts: [],
+  series: {},
+}));
+const phoneFilter = styleWidth(phone, 'index-status-oppmerksomhet');
+assert.equal(phoneFilter.width, '48%');
+assert.equal(phoneFilter.borderRadius, 8);
+const phoneText = texts(phone).join('\n');
+assert.match(phoneText, /Venter på ny indeks/);
+assert.match(phoneText, /Krever oppmerksomhet/);
+assert.doesNotMatch(phoneText, /Må vurderes/);
 console.log('index desk render ok');

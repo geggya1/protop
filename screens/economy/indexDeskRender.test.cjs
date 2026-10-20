@@ -267,7 +267,7 @@ const workspaceProps = {
   onClose: () => {},
   onSave: async () => ({ ok: true }),
 };
-for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
+for (const view of ['oversikt', 'beregning', 'brev', 'historikk', 'indekser']) {
   const workspace = withHooks(() => React.createElement(Workspace, { ...workspaceProps, initialView: view }));
   const workspaceText = texts(workspace).join('\n');
   assert.match(workspaceText, /#index-workspace-nav/);
@@ -275,6 +275,7 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
   assert.match(workspaceText, /Beregning/);
   assert.match(workspaceText, /Varselbrev/);
   assert.match(workspaceText, /Historikk/);
+  assert.match(workspaceText, /Indekser/);
   if (view === 'oversikt') {
     assert.match(workspaceText, /#index-landing-status/);
     assert.match(workspaceText, /Kan ikke reguleres på nytt nå|Venter på ny indeks|Kan reguleres på nytt|Må vurderes/);
@@ -298,6 +299,8 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
     assert.equal(propOf(workspace, 'index-generate-draft', 'disabled'), true);
     assert.equal(styleWidth(workspace, 'index-generate-draft').backgroundColor, '#E6EBF2');
     assert.equal(styleWidth(workspace, 'index-calc-status').minWidth, 340);
+    assert.equal(styleWidth(workspace, 'index-letter-facts').flexDirection, 'row');
+    assert.equal(styleWidth(workspace, 'index-letter-facts').flexWrap, 'wrap');
   }
   if (view === 'brev') {
     assert.match(workspaceText, /Varsel og utsending/);
@@ -320,7 +323,46 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
   if (view === 'historikk') {
     assert.match(workspaceText, /Hendelseslogg/);
   }
+  if (view === 'indekser') {
+    assert.match(workspaceText, /#economy-indices/);
+    assert.match(workspaceText, /Siste 3 år/);
+    assert.match(workspaceText, /Siste 10 år/);
+  }
   const navStyle = styleWidth(workspace, 'index-workspace-nav');
   assert.equal(navStyle.flexDirection, 'row');
 }
+const draftLetter = withHooks(() => React.createElement(Workspace, {
+  ...workspaceProps,
+  initialView: 'brev',
+  contract: {
+    ...workspaceProps.contract,
+    indexCases: [{
+      id: 'sak1',
+      number: 'IR-001',
+      status: 'utkast',
+      previousPrice: 1350,
+      newPrice: 1400,
+      effectiveFrom: '2026-10-18',
+      letterPlain: 'Utkast til varsel',
+    }],
+  },
+}));
+assert.match(texts(draftLetter).join('\n'), /Slett utkast/);
+const draftHistory = withHooks(() => React.createElement(Workspace, {
+  ...workspaceProps,
+  initialView: 'historikk',
+  contract: {
+    ...workspaceProps.contract,
+    indexCases: [{
+      id: 'sak1',
+      number: 'IR-001',
+      status: 'utkast',
+      previousPrice: 1350,
+      newPrice: 1400,
+      effectiveFrom: '2026-10-18',
+      letterPlain: 'Utkast til varsel',
+    }],
+  },
+}));
+assert.match(texts(draftHistory).join('\n'), /Slett utkast/);
 console.log('index desk render ok');

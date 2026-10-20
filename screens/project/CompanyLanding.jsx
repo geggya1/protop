@@ -46,7 +46,7 @@ export default function CompanyLanding() {
       nativeID="company-landing"
       id="company-landing"
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={[styles.body, { padding: pad, maxWidth: 1180, width: '100%', alignSelf: 'center' }]}
+      contentContainerStyle={[styles.body, { padding: pad, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' }]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >

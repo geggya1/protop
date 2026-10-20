@@ -13,12 +13,15 @@ import { useColors } from '../../src/context/ThemeContext';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { standardById } from '../../src/indeksregulering/catalog';
 import {
+  DESK_FILTERS,
   QUEUE_BANDS,
   computeRegulation,
+  deskCounts,
+  filterIdForBand,
   formatKr,
   formatPercentExact,
+  projectsWithoutAgreement,
   queueContracts,
-  queueCounts,
 } from '../../src/indeksregulering/cases';
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex, formatPercent } from '../../src/indeksregulering/letter';
@@ -62,29 +65,44 @@ export default function EconomyDesk({
   onOpenIndex,
   onOpenContract,
   onOpenHistory,
+  onOpenProject,
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
   const wide = width >= 980;
+  const narrow = width < 720;
   const [query, setQuery] = useState('');
-  const [band, setBand] = useState('alle');
+  const [band, setBand] = useState('kan_reguleres');
   const [selectedId, setSelectedId] = useState('');
   const [mobileDetail, setMobileDetail] = useState(false);
   const [closed, setClosed] = useState({});
   const counts = useMemo(
-    () => queueCounts(contracts, series),
-    [contracts, series],
+    () => deskCounts(contracts, series, '', projects),
+    [contracts, series, projects],
   );
   const rows = useMemo(
     () => queueContracts({ contracts, projects, customers, series, query, band: 'alle' }),
     [contracts, projects, customers, series, query],
   );
-  const visible = band === 'alle' ? rows : rows.filter((row) => row.status.band === band);
-  const selected = visible.find((row) => row.contract.id === selectedId) || rows.find((row) => row.contract.id === selectedId) || visible[0] || null;
-  const followUp = counts.ma_vurderes;
+  const loose = useMemo(() => {
+    const q = String(query || '').trim().toLowerCase();
+    return projectsWithoutAgreement(projects, contracts).filter((row) => {
+      if (!q) return true;
+      return [row.project.number, row.project.name, row.project.client].join(' ').toLowerCase().includes(q);
+    });
+  }, [projects, contracts, query]);
+  const visible = band === 'oppmerksomhet' ? [] : rows.filter((row) => filterIdForBand(row.status.band) === band);
+  const selected = visible.find((row) => row.contract.id === selectedId) || visible[0] || null;
+  const selectedProject = loose.find((row) => row.project.id === selectedId) || (band === 'oppmerksomhet' ? loose[0] : null);
+  const followUp = counts.kan_reguleres;
 
   function choose(row) {
     setSelectedId(row.contract.id);
+    if (!wide) setMobileDetail(true);
+  }
+
+  function chooseProject(row) {
+    setSelectedId(row.project.id);
     if (!wide) setMobileDetail(true);
   }
 
@@ -104,8 +122,8 @@ export default function EconomyDesk({
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {QUEUE_BANDS.map((item) => {
+      <View nativeID="index-filters" style={styles.filters}>
+        {DESK_FILTERS.map((item) => {
           const on = band === item.id;
           const count = counts[item.id] || 0;
           return (
@@ -113,18 +131,19 @@ export default function EconomyDesk({
               key={item.id}
               nativeID={`index-status-${item.id}`}
               onPress={() => { setBand(item.id); setMobileDetail(false); }}
-              style={[styles.filter, {
+              accessibilityRole="button"
+              style={[styles.filter, narrow && styles.filterNarrow, {
                 borderColor: on ? colors.brand : colors.line,
                 backgroundColor: on ? colors.brandSoft || '#E8F6FE' : colors.card,
               }]}
             >
-              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '700', fontSize: 13 }}>
-                {item.label} {count}
+              <Text style={[styles.filterText, { color: on ? colors.brand : colors.ink, textAlign: narrow ? 'center' : 'left' }]}>
+                {`${item.label} ${count}`}
               </Text>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
         {showList ? (
@@ -137,61 +156,72 @@ export default function EconomyDesk({
               style={[styles.search, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
             />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
+              {band === 'oppmerksomhet' ? (
+                <AttentionList
+                  rows={loose}
+                  colors={colors}
+                  selectedId={selectedProject?.project.id}
+                  closed={closed}
+                  setClosed={setClosed}
+                  onChoose={chooseProject}
+                />
+              ) : (
+                <>
               {!visible.length ? (
                 <Text style={{ color: colors.muted, padding: 12 }}>Ingen avtaler i dette utvalget.</Text>
               ) : null}
-              {groupRows(visible, band).map((group) => {
-                const open = closed[group.id] !== true;
+              {visible.map((row) => {
+                const on = selected?.contract.id === row.contract.id;
+                const meta = QUEUE_BANDS.find((item) => item.id === row.status.band);
                 return (
-                  <View key={group.id}>
-                    <TouchableOpacity
-                      onPress={() => setClosed((current) => ({ ...current, [group.id]: open }))}
-                      style={styles.groupHead}
-                    >
-                      <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
-                      <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{group.label}</Text>
-                      <Text style={{ color: colors.muted }}>{group.rows.length}</Text>
-                    </TouchableOpacity>
-                    {open ? group.rows.map((row) => {
-                      const on = selected?.contract.id === row.contract.id;
-                      const meta = QUEUE_BANDS.find((item) => item.id === row.status.band);
-                      return (
-                        <TouchableOpacity
-                          key={row.contract.id}
-                          onPress={() => choose(row)}
-                          style={[styles.item, {
-                            borderColor: on ? colors.brand : 'transparent',
-                            backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent',
-                          }]}
-                        >
-                          <View style={styles.itemTop}>
-                            <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                              {[row.project?.number || row.contract.oppdragId, row.contract.title].filter(Boolean).join(' · ')}
-                            </Text>
-                            {row.status.attention ? (
-                              <Ionicons name="alert-circle" size={16} color={toneColor(meta?.tone, colors)} />
-                            ) : null}
-                          </View>
-                          <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                            {[row.contract.buyer, kindLabel(row.contract.kind) || row.status.draft?.standard].filter(Boolean).join(' · ')}
-                          </Text>
-                          <View style={styles.itemTop}>
-                            <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
-                              {row.status.allowed ? `Neste ${row.status.allowed.split('-').reverse().join('.')}` : 'Dato ikke fastsatt'}
-                            </Text>
-                            <Pill label={row.status.label} tone={meta?.tone || 'muted'} colors={colors} />
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }) : null}
-                  </View>
+                  <TouchableOpacity
+                    key={row.contract.id}
+                    onPress={() => choose(row)}
+                    style={[styles.item, {
+                      borderColor: on ? colors.brand : 'transparent',
+                      backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent',
+                    }]}
+                  >
+                    <View style={styles.itemTop}>
+                      <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                        {[row.project?.number || row.contract.oppdragId, row.contract.title].filter(Boolean).join(' · ')}
+                      </Text>
+                      {row.status.attention ? (
+                        <Ionicons name="alert-circle" size={16} color={toneColor(meta?.tone, colors)} />
+                      ) : null}
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                      {[row.contract.buyer, kindLabel(row.contract.kind) || row.status.draft?.standard].filter(Boolean).join(' · ')}
+                    </Text>
+                    <View style={styles.itemTop}>
+                      <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
+                        {row.status.allowed ? `Neste ${row.status.allowed.split('-').reverse().join('.')}` : 'Dato ikke fastsatt'}
+                      </Text>
+                      <Pill label={row.status.label} tone={meta?.tone || 'muted'} colors={colors} />
+                    </View>
+                  </TouchableOpacity>
                 );
               })}
+                </>
+              )}
             </ScrollView>
           </View>
         ) : null}
 
-        {showPreview && selected ? (
+        {showPreview && band === 'oppmerksomhet' && !selectedProject ? (
+          <View nativeID="index-preview" style={[styles.preview, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text style={{ color: colors.muted }}>Ingen prosjekter uten avtale.</Text>
+          </View>
+        ) : null}
+        {showPreview && band === 'oppmerksomhet' && selectedProject ? (
+          <ProjectPreview
+            row={selectedProject}
+            colors={colors}
+            onBack={!wide ? () => setMobileDetail(false) : null}
+            onOpenProject={() => onOpenProject?.(selectedProject.project.id)}
+          />
+        ) : null}
+        {showPreview && band !== 'oppmerksomhet' && selected ? (
           <Preview
             row={selected}
             series={series}
@@ -202,7 +232,7 @@ export default function EconomyDesk({
             onOpenHistory={() => onOpenHistory?.(selected.contract)}
           />
         ) : null}
-        {showPreview && !selected ? (
+        {showPreview && band !== 'oppmerksomhet' && !selected ? (
           <View nativeID="index-preview" style={[styles.preview, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.muted }}>Velg en avtale i listen.</Text>
           </View>
@@ -212,17 +242,82 @@ export default function EconomyDesk({
   );
 }
 
-function groupRows(rows, band) {
-  if (band !== 'alle') {
-    const meta = QUEUE_BANDS.find((item) => item.id === band);
-    return [{ id: band, label: meta?.label || 'Avtaler', rows }];
-  }
-  const order = [...QUEUE_BANDS.map((item) => item.id), 'ikke_aktuell'];
-  return order.map((id) => ({
-    id,
-    label: QUEUE_BANDS.find((item) => item.id === id)?.label || 'Ikke aktuell',
-    rows: rows.filter((row) => row.status.band === id),
-  })).filter((group) => group.rows.length);
+function AttentionList({ rows, colors, selectedId, closed, setClosed, onChoose }) {
+  const groups = [
+    { id: 'aktiv', label: 'Aktiv', rows: rows.filter((row) => row.group === 'aktiv') },
+    { id: 'deaktivert', label: 'Deaktivert', rows: rows.filter((row) => row.group === 'deaktivert') },
+  ];
+  return (
+    <>
+      {!rows.length ? (
+        <Text style={{ color: colors.muted, padding: 12 }}>Ingen prosjekter uten avtale.</Text>
+      ) : null}
+      {groups.map((group) => {
+        const open = closed[group.id] !== true;
+        return (
+          <View key={group.id}>
+            <TouchableOpacity
+              onPress={() => setClosed((current) => ({ ...current, [group.id]: open }))}
+              style={styles.groupHead}
+            >
+              <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
+              <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{group.label}</Text>
+              <Text style={{ color: colors.muted }}>{group.rows.length}</Text>
+            </TouchableOpacity>
+            {open ? group.rows.map((row) => {
+              const on = selectedId === row.project.id;
+              return (
+                <TouchableOpacity
+                  key={row.project.id}
+                  onPress={() => onChoose(row)}
+                  style={[styles.item, {
+                    borderColor: on ? colors.brand : 'transparent',
+                    backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent',
+                  }]}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={1}>
+                    {[row.project.number, row.project.name].filter(Boolean).join(' · ') || 'Prosjekt'}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                    {row.project.client || 'Ingen oppdragsgiver'} · Ingen avtale
+                  </Text>
+                </TouchableOpacity>
+              );
+            }) : null}
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
+function ProjectPreview({ row, colors, onBack, onOpenProject }) {
+  const { project, group } = row;
+  return (
+    <ScrollView nativeID="index-preview" style={styles.preview} contentContainerStyle={[styles.previewInner, { backgroundColor: colors.bg }]}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} accessibilityRole="button">
+          <Text style={{ color: colors.brand, fontWeight: '700' }}>Tilbake til listen</Text>
+        </TouchableOpacity>
+      ) : null}
+      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={[styles.h, { color: colors.ink }]}>{project.name || 'Prosjekt'}</Text>
+        <Text style={{ color: colors.muted }}>
+          Prosjektet har ingen avtale. Indeksregulering kan ikke startes før en avtale er registrert.
+        </Text>
+        <View style={styles.grid}>
+          <Field label="Prosjektnummer" value={project.number} colors={colors} />
+          <Field label="Oppdragsgiver" value={project.client} colors={colors} />
+          <Field label="Status" value={group === 'deaktivert' ? 'Deaktivert' : 'Aktiv'} colors={colors} />
+        </View>
+      </View>
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={onOpenProject} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Åpne prosjekt</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
 }
 
 function Preview({ row, series, colors, onBack, onOpenIndex, onOpenContract, onOpenHistory }) {
@@ -380,10 +475,12 @@ const styles = StyleSheet.create({
   page: { gap: 12, flex: 1 },
   head: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   title: { fontSize: 22, fontWeight: '700' },
-  filters: { gap: 8, paddingBottom: 2 },
-  filter: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
+  filter: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, flexGrow: 0, alignSelf: 'flex-start' },
+  filterNarrow: { width: '48%', flexGrow: 1, flexBasis: '46%', alignItems: 'center', paddingHorizontal: 8 },
+  filterText: { fontWeight: '600', fontSize: 14 },
   split: { gap: 12, alignItems: 'stretch', flex: 1 },
-  listCol: { borderWidth: 1, borderRadius: 16, maxHeight: 760, minHeight: 420 },
+  listCol: { borderWidth: 1, borderRadius: 16, maxHeight: 760, minHeight: 280 },
   search: { margin: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
   item: { marginHorizontal: 8, marginBottom: 6, borderWidth: 1, borderRadius: 12, padding: 10, gap: 3 },

@@ -276,6 +276,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
           onOpenIndex={(contract) => openIndex(contract)}
           onOpenHistory={(contract) => openIndex(contract, '', 'historikk')}
+          onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
         />
       </ScrollView>
     );

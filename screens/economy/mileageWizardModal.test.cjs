@@ -108,6 +108,7 @@ function loadJsx(rel) {
         },
       };
     }
+    if (id.includes('MileageRouteMap')) return { default: function MileageRouteMap() { return null; } };
     if (id.includes('mileage/drivingRoute')) return { planDrivingRoute: async () => null };
     if (id.includes('mileage/suggestRoute')) return { suggestDriving: async () => null };
     if (id.includes('mileage/routePlan')) return { chargesForRoute: () => [] };

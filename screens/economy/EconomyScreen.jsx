@@ -215,11 +215,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 
   if (showIndex) {
     return (
-      <ScrollView
-        style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.inner}
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={[styles.screen, styles.work, { backgroundColor: colors.bg, padding: 16, paddingBottom: 24, minHeight: 0 }]}>
         {selectedContract?.id ? (
           <IndexWorkspace
             contract={selectedContract}
@@ -245,7 +241,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
             onSaveRegulations={saveRegulations}
           />
         )}
-      </ScrollView>
+      </View>
     );
   }
 
@@ -265,7 +261,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return (
       <ScrollView
         style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.inner}
+        contentContainerStyle={[styles.inner, styles.work]}
         keyboardShouldPersistTaps="handled"
       >
         <EconomyDesk
@@ -276,7 +272,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           series={series}
           dueById={dueById}
           onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
-          onOpenIndex={(contract) => openIndex(contract)}
+          onOpenIndex={(contract) => openIndex(contract, '', 'beregning')}
+          onOpenTerms={(contract) => openIndex(contract, '', 'oversikt')}
           onOpenHistory={(contract) => openIndex(contract, '', 'historikk')}
           onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
         />
@@ -360,5 +357,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 980, width: '100%', alignSelf: 'flex-start', gap: 20 },
+  work: { maxWidth: '100%', width: '100%', alignSelf: 'stretch' },
   wide: { maxWidth: 1280 },
 });

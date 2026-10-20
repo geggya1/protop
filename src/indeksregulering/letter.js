@@ -1,4 +1,4 @@
-import { METHOD_NOTES, modelById } from './catalog.js';
+import { METHOD_NOTES, modelById, seriesById, standardById } from './catalog.js';
 import { presentCompanyLogo } from '../project/companyLogo.js';
 import { honorarPrice } from './priceText.js';
 
@@ -244,6 +244,68 @@ export function buildLetter(draft, result, options = {}) {
     notice,
     plain: paragraphs.map((part) => [part.heading, ...part.lines].filter(Boolean).join('\n')).join('\n\n'),
   };
+}
+
+/** Bygger samme brev som en ny beregning, ut fra en lagret sak eller eldre regulering. */
+export function letterFromRecord(draft, record, options = {}) {
+  if (!record) return null;
+  const nextValue = Number(record.newIndex ?? record.toIndex);
+  const newPrice = Number(record.newPrice ?? record.after);
+  if (!Number.isFinite(nextValue) || !Number.isFinite(newPrice) || !newPrice) return null;
+  const basisValue = Number(record.basisIndex ?? record.fromIndex ?? record.previousIndex);
+  const basis = Number.isFinite(basisValue) ? basisValue : nextValue;
+  const previousPrice = Number(record.previousPrice ?? record.before);
+  const price = Number.isFinite(previousPrice) && previousPrice ? previousPrice : newPrice;
+  const storedAddition = Number(record.addition ?? record.increase);
+  const addition = Number.isFinite(storedAddition) ? storedAddition : Math.round((newPrice - price) * 100) / 100;
+  const series = seriesById(draft?.indexId || record.indexId) || {};
+  const model = modelById(draft?.model) || { id: draft?.model || '', label: '', formula: '' };
+  const standard = standardById(draft?.standard) || { id: '', label: draft?.standard || '' };
+  const basisPeriod = record.basisPeriod || record.fromPeriod || record.previousPeriod || '';
+  const nextPeriod = record.newPeriod || record.toPeriod || '';
+  const hourly = /time/i.test(`${draft?.lines?.[0]?.unit || ''} ${draft?.lines?.[0]?.text || ''} ${draft?.honorar || ''}`);
+  const result = {
+    ok: true,
+    warnings: [],
+    model,
+    standard,
+    regulationDate: record.effectiveFrom || record.savedAt || '',
+    share: 1,
+    vatPercent: 0,
+    vat: 0,
+    payable: addition,
+    baseSum: price,
+    addition,
+    regulated: newPrice,
+    series: {
+      id: series.id || draft?.indexId || record.indexId || '',
+      name: record.seriesName || series.name || '',
+      table: record.table || series.table || '',
+      codes: series.codes || [],
+    },
+    basisPoint: { period: basisPeriod, value: basis },
+    regulationPoint: { period: nextPeriod, value: nextValue },
+    rows: [{
+      text: hourly ? 'Timepris' : 'Pris',
+      unit: hourly ? 'time' : 'RS',
+      rate: price,
+      quantity: 1,
+      period: nextPeriod,
+      index: nextValue,
+      basisValue: basis,
+      basisPeriod,
+      change: price ? addition / price : 0,
+      addition,
+      regulated: newPrice,
+      newRate: newPrice,
+    }],
+  };
+  const letter = buildLetter({
+    ...draft,
+    effectiveDate: record.effectiveFrom || draft?.effectiveDate || '',
+    freeText: record.freeText || draft?.freeText || '',
+  }, result, options);
+  return { letter, result };
 }
 
 function fileBase(draft, result) {

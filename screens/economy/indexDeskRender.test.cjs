@@ -49,12 +49,24 @@ function loadLocal(full) {
         StyleSheet: { create: (styles) => styles },
         useWindowDimensions: () => viewport,
         ScrollView: host('ScrollView'),
+        Image: host('Image'),
       };
     }
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
+    if (id === 'firebase/functions') return { httpsCallable: () => async () => ({ data: {} }) };
     if (id.startsWith('.')) {
-      const resolved = require.resolve(id, { paths: [path.dirname(full)] });
+      const fromDir = path.dirname(full);
+      let resolved;
+      try {
+        resolved = require.resolve(id, { paths: [fromDir] });
+      } catch (error) {
+        const candidate = path.resolve(fromDir, id);
+        const hit = ['.jsx', '.js'].map((ext) => candidate + ext).find((file) => fs.existsSync(file));
+        if (!hit) throw error;
+        resolved = hit;
+      }
+      if (resolved.endsWith(`${path.sep}firebase.js`)) return { functions: {} };
       if (resolved.includes(`${path.sep}src${path.sep}`) || resolved.includes(`${path.sep}screens${path.sep}`) || resolved.includes(`${path.sep}components${path.sep}`)) {
         return loadLocal(resolved);
       }
@@ -171,6 +183,10 @@ assert.match(joined, /Regulert/);
 assert.match(joined, /NS 8403/);
 assert.equal(joined.includes('Løst prosjekt'), false);
 assert.match(joined, /Start indeksregulering/);
+assert.match(joined, /Åpne avtale/);
+assert.match(joined, /Vis reguleringsvilkår/);
+assert.match(joined, /Vis historikk/);
+assert.ok(joined.indexOf('Start indeksregulering') < joined.indexOf('Reguleringshistorikk'));
 assert.match(joined, /1 388,41 kr/);
 
 function styleWidth(node, id) {
@@ -206,4 +222,53 @@ const phoneText = texts(phone).join('\n');
 assert.match(phoneText, /Venter på ny indeks/);
 assert.match(phoneText, /Krever oppmerksomhet/);
 assert.doesNotMatch(phoneText, /Må vurderes/);
+
+viewport = { width: 1280, height: 800 };
+const Workspace = loadLocal(path.join(ROOT, 'screens/economy/IndexWorkspace.jsx')).default;
+const workspaceProps = {
+  contract: {
+    id: 'k1',
+    title: 'Breitorget · Prosjektleder',
+    buyer: 'Breitorget AS',
+    regulations: [{
+      id: 'r1',
+      before: 1350,
+      after: 1388.41,
+      increase: 38.41,
+      fromPeriod: '2025K4',
+      fromIndex: 119.5,
+      toPeriod: '2026K2',
+      toIndex: 122.9,
+      effectiveFrom: '2026-10-18',
+      letterPlain: 'Varsel om indeksregulering av timepriser\nNy pris 1 388,41 kr eks. mva',
+    }],
+  },
+  draft: {
+    supplier: 'Consult1 AS',
+    buyer: 'Breitorget AS',
+    title: 'Breitorget · Prosjektleder',
+    standard: 'NS 8403',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    contractDate: '2025-12-19',
+    lines: [{ text: 'Timepris', unit: 'time', rate: '1350', quantity: '1' }],
+  },
+  onClose: () => {},
+  onSave: async () => ({ ok: true }),
+};
+for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
+  const workspace = withHooks(() => React.createElement(Workspace, { ...workspaceProps, initialView: view }));
+  const workspaceText = texts(workspace).join('\n');
+  assert.match(workspaceText, /#index-workspace-nav/);
+  assert.match(workspaceText, /Oversikt/);
+  assert.match(workspaceText, /Beregning/);
+  assert.match(workspaceText, /Varselbrev/);
+  assert.match(workspaceText, /Historikk/);
+  if (view === 'brev' || view === 'oversikt') {
+    assert.match(workspaceText, /#index-letter-preview/);
+    assert.match(workspaceText, /1388,41|1 388,41/);
+  }
+  const navStyle = styleWidth(workspace, 'index-workspace-nav');
+  assert.equal(navStyle.flexDirection, 'row');
+}
 console.log('index desk render ok');

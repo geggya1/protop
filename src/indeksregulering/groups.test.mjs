@@ -258,7 +258,17 @@ test('siden viser avtaleliste og forhåndsvisning', () => {
   assert.match(desk, /index-preview/);
   assert.match(desk, /index-status-/);
   assert.match(desk, /Start indeksregulering/);
+  assert.ok(desk.indexOf('Åpne avtale') < desk.indexOf('Reguleringshistorikk'));
   const screen = readFileSync(new URL('../../screens/economy/EconomyScreen.jsx', import.meta.url), 'utf8');
+  assert.match(screen, /openIndex\(contract, '', 'beregning'\)/);
+  assert.match(screen, /openIndex\(contract, '', 'oversikt'\)/);
+  assert.match(screen, /openIndex\(contract, '', 'historikk'\)/);
+  assert.match(screen, /styles\.work/);
+  const workspace = readFileSync(new URL('../../screens/economy/IndexWorkspace.jsx', import.meta.url), 'utf8');
+  assert.match(workspace, /index-workspace-nav/);
+  assert.match(workspace, /letterFromRecord/);
+  assert.match(workspace, /Forhåndsvis brevet/);
+  assert.match(workspace, /'Varselbrev'/);
   assert.match(screen, /timeEntries=\{state\.timeEntries/);
   assert.match(screen, /page === 'indekser'/);
   const billing = readFileSync(new URL('../../screens/economy/EconomyBilling.jsx', import.meta.url), 'utf8');

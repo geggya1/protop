@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { normalizeWallLinkUrl } from '../utils/familyWall';
+import { clipWallTitle, normalizeWallCategory } from './companyPage';
 
 function normalizePostImageUrls(imageUrls, imageUrl) {
   const list = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
@@ -28,17 +29,20 @@ export function listenCompanyWall(companyId, cb) {
 }
 
 export async function createCompanyWallPost({
-  companyId, authorUid, authorName, body, imageUrl, imageUrls, linkUrl,
+  companyId, authorUid, authorName, body, imageUrl, imageUrls, linkUrl, title, category,
 }) {
   if (!companyId) throw new Error('Mangler selskap');
   const urls = normalizePostImageUrls(imageUrls, imageUrl);
   const text = String(body || '').trim();
   const link = normalizeWallLinkUrl(linkUrl);
-  if (!text && urls.length === 0 && !link) {
-    throw new Error('Skriv noe, legg ved bilde, eller legg til en lenke.');
+  const headline = clipWallTitle(title);
+  if (!text && urls.length === 0 && !link && !headline) {
+    throw new Error('Skriv en overskrift eller tekst, legg ved bilde, eller legg til en lenke.');
   }
   const ref = await addDoc(companyWallPostsCol(companyId), {
     body: text,
+    title: headline,
+    category: normalizeWallCategory(category) || null,
     imageUrl: urls[0] || null,
     imageUrls: urls,
     linkUrl: link,
@@ -54,7 +58,7 @@ export async function createCompanyWallPost({
 }
 
 export async function updateCompanyWallPost(companyId, postId, {
-  body, imageUrl, imageUrls, linkUrl, editorUid, isAdmin = false,
+  body, imageUrl, imageUrls, linkUrl, title, category, editorUid, isAdmin = false,
 }) {
   if (!companyId || !postId) throw new Error('Mangler innlegg');
   const ref = doc(db, 'families', companyId, 'companyWallPosts', postId);
@@ -73,11 +77,17 @@ export async function updateCompanyWallPost(companyId, postId, {
   const link = linkUrl !== undefined
     ? normalizeWallLinkUrl(linkUrl)
     : normalizeWallLinkUrl(data.linkUrl);
-  if (!text && urls.length === 0 && !link) {
-    throw new Error('Skriv noe, legg ved bilde, eller legg til en lenke.');
+  const nextTitle = title !== undefined ? clipWallTitle(title) : clipWallTitle(data.title);
+  if (!text && urls.length === 0 && !link && !nextTitle) {
+    throw new Error('Skriv en overskrift eller tekst, legg ved bilde, eller legg til en lenke.');
   }
+  const nextCategory = category !== undefined
+    ? (normalizeWallCategory(category) || null)
+    : (normalizeWallCategory(data.category) || null);
   await updateDoc(ref, {
     body: text,
+    title: nextTitle,
+    category: nextCategory,
     imageUrl: urls[0] || null,
     imageUrls: urls,
     linkUrl: link,

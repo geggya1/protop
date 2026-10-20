@@ -37,6 +37,7 @@ const merged = mergeCompanyProfile(
     egneNaeringskoder: ['elektro'],
     subUnits: [{ id: 'd1', kind: 'avdeling', name: 'Drift' }],
     logo,
+    publicPage: { tagline: 'Eiendom og investering', coverUrl: 'https://cdn.example/hero.jpg' },
   },
 );
 assert.equal(merged.telefon, '22334455');
@@ -44,6 +45,8 @@ assert.equal(merged.epostadresse, 'ny@bedrift.no');
 assert.deepEqual(merged.egneNaeringskoder, ['elektro']);
 assert.equal(merged.subUnits[0].name, 'Drift');
 assert.equal(merged.logo.dataUrl, TINY);
+assert.equal(merged.publicPage.tagline, 'Eiendom og investering');
+assert.equal(merged.publicPage.coverUrl, 'https://cdn.example/hero.jpg');
 assert.equal(mergeCompanyProfile({ navn: 'Uten' }, {}).logo, undefined);
 assert.equal(mergeCompanyProfile({ navn: 'Uten' }, {}).subUnits, undefined);
 

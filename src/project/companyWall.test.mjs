@@ -12,6 +12,10 @@ const wallUi = readFileSync(new URL('../../components/project/CompanyNewsWall.js
 assert.match(wallUi, /company-news-wall/);
 assert.match(wallUi, /Publiser/);
 assert.match(wallUi, /companyProfile/);
+assert.match(wallUi, /useCroppedUpload/);
+assert.match(wallUi, /Beskjær nyhetsbilde/);
+assert.match(src, /clipWallTitle/);
+assert.match(src, /normalizeWallCategory/);
 
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
 assert.match(landing, /requestShellTab\?\.\('selskap', 'innstillinger'\)/);

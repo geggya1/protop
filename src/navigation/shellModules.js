@@ -118,12 +118,11 @@ export const PRODUKT_MENU = [
 ];
 
 /**
- * Undermeny når Økonomi er valgt.
+ * Sider under Økonomi og fakturering.
  * Kundesummer / Avtalesummer er økonomiske utsnitt — fulle registre ligger
  * som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
- * I mobilskuffen har hver rad med undermeny en ekspander, så valgene kan
- * åpnes uten å velge raden. Økonomi er lukket til modulen er valgt eller
- * ekspanderen trykkes, så Kunder ikke blandes med Kundesummer.
+ * I hamburgermeny og desktop-rail løftes sidene rett under gruppen, så
+ * «Økonomi» ikke blir et ekstra nivå mellom gruppen og sidene.
  * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
  * Kjørebok er et eget punkt i bedriftsmenyen. Siden åpnes fortsatt via økonomi-fanen.
  */
@@ -433,6 +432,8 @@ export const COMPANY_DRAWER_GROUPS = [
     label: 'Økonomi og fakturering',
     icon: 'wallet',
     itemIds: ['okonomi'],
+    // Gruppen er nivå 1. Sidene løftes opp så «Økonomi» ikke blir et tredje nivå.
+    hoistChildren: true,
   },
   {
     id: 'company-quality',
@@ -452,11 +453,20 @@ export function groupCompanyDrawerItems(items) {
   const used = new Set();
   const grouped = [];
   for (const def of COMPANY_DRAWER_GROUPS) {
+    const modules = [];
     const children = [];
+    let hoisted = false;
     for (const id of def.itemIds) {
       if (!pool.has(id) || used.has(id)) continue;
-      children.push(pool.get(id));
+      const item = pool.get(id);
       used.add(id);
+      modules.push(item);
+      if (def.hoistChildren && (item.children || []).length) {
+        children.push(...item.children);
+        hoisted = true;
+      } else {
+        children.push(item);
+      }
     }
     if (!children.length) continue;
     grouped.push({
@@ -466,6 +476,8 @@ export function groupCompanyDrawerItems(items) {
       processOrder: !!def.processOrder,
       group: true,
       children,
+      // Sammenfoldet rail viser fortsatt ett ikon per modul, ikke hver side.
+      ...(hoisted ? { collapsedItems: modules } : null),
     });
   }
 

@@ -258,7 +258,10 @@ export default function DesktopRail({
     const mainItems = sections.find((s) => s.id === 'main')?.items || [];
     const companyItems = groupCompanyDrawerItems(
       sections.find((s) => s.id === 'company')?.items || [],
-    ).flatMap((item) => (item.group ? item.children || [] : [item]));
+    ).flatMap((item) => {
+      if (!item.group) return [item];
+      return item.collapsedItems || item.children || [];
+    });
     return (
       <HelpTarget id="rail" style={styles.collapsedWrap}>
         <BrandLogo variant="mark" height={36} style={styles.brandMarkImg} />

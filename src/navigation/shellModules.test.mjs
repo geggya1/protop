@@ -658,7 +658,18 @@ function collectPresented(items, acc = []) {
       ['kunder', 'anbud', 'kontrakt', 'projects'],
       ['produktivitet'],
       ['produkt', 'utstyr', 'kjorebok'],
-      ['okonomi'],
+      [
+        'okonomi-oversikt',
+        'okonomi-kunder',
+        'okonomi-avtaler',
+        'okonomi-faktura',
+        'okonomi-fakturagrunnlag',
+        'okonomi-utlegg',
+        'okonomi-prosjektutlegg',
+        'okonomi-indeks',
+        'okonomi-indekser',
+        'okonomi-innstillinger',
+      ],
       ['iso'],
     ],
   );
@@ -688,8 +699,19 @@ function collectPresented(items, acc = []) {
   assert.equal(fravaer.children[0].action.subView, 'fravaer');
   assert.equal(customers.processOrder, true);
   assert.equal(people.children.find((item) => item.id === 'arbeid').children.some((c) => c.label === 'Produktivitet'), false);
+  const finance = presented.find((item) => item.id === 'company-finance');
+  assert.equal(finance.children.some((child) => child.id === 'okonomi' || child.label === 'Økonomi'), false);
+  assert.equal(finance.children.every((child) => !(child.children || []).length), true);
+  assert.deepEqual(finance.collapsedItems.map((item) => item.id), ['okonomi']);
+  assert.equal(people.collapsedItems, undefined);
+  assert.equal(drawerGroupOpen(finance, 'okonomi', {}, 'faktura'), true);
+  assert.equal(drawerGroupOpen(finance, 'okonomi', { 'company-finance': false }, 'faktura'), false);
+  assert.equal(drawerGroupOpen(finance, 'home', {}, null), false);
   const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
-  assert.deepEqual(byId(collectPresented(presented)), byId(collectPresented(source)));
+  assert.deepEqual(
+    byId(collectPresented(presented)),
+    byId(collectPresented(source).filter((row) => row.id !== 'okonomi')),
+  );
   assert.equal(presented.some((item) => !item.group), false);
 
   const withExtra = groupCompanyDrawerItems([
@@ -702,7 +724,11 @@ function collectPresented(items, acc = []) {
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi-prosjektutlegg']);
+  assert.deepEqual(
+    innleie.find((item) => item.id === 'company-finance').collapsedItems.map((item) => item.id),
+    ['okonomi'],
+  );
   assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').children.length, 3);
 
   assert.equal(drawerGroupOpen(org, 'home', {}, null), false);

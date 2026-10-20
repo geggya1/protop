@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {
   expenseSummaryForProject,
   hoursByMonth,
+  hoursChartForOverview,
   projectDashboardKpis,
+  projectPeriodProgress,
   salesSummaryForProject,
 } from './projectDashboard.js';
 
@@ -48,6 +50,24 @@ import {
   assert.equal(kpis.invoicedPct, 40);
   assert.equal(kpis.hoursPct, 50);
   assert.equal(kpis.memberCount, 2);
+}
+
+{
+  const empty = projectPeriodProgress('', '2025-12-01');
+  assert.equal(empty.ready, false);
+  const mid = projectPeriodProgress('2025-01-01', '2025-12-31', new Date('2025-07-01'));
+  assert.equal(mid.ready, true);
+  assert.ok(mid.pct >= 45 && mid.pct <= 55);
+}
+
+{
+  const chart = hoursChartForOverview([
+    { date: '2024-03-01', hours: 8 },
+    { date: '2024-06-01', hours: 4 },
+  ], new Date('2025-04-01'));
+  assert.equal(chart.fallback, true);
+  assert.equal(chart.titleYear, 2024);
+  assert.equal(chart.total, 12);
 }
 
 console.log('projectDashboard.test.mjs: ok');

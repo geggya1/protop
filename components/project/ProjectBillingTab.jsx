@@ -46,6 +46,16 @@ const MENU_CARDS = [
 /**
  * Faktureringsvalg: prismodell + prosjektinnstillinger som arver fra Økonomi.
  */
+const PROJECT_SETTING_BUTTONS = [
+  { id: 'prismodell', icon: 'cash-outline', title: 'Prismodell' },
+  { id: 'tekster', icon: 'document-text-outline', title: 'Fakturatekster' },
+  { id: 'generelt', icon: 'options-outline', title: 'Generelle valg' },
+  { id: 'linjer', icon: 'list-outline', title: 'Fakturalinjer' },
+  { id: 'paslag', icon: 'trending-up-outline', title: 'Påslag & rabatter' },
+  { id: 'kontoer', icon: 'wallet-outline', title: 'Kontoer' },
+  { id: 'ehf', icon: 'send-outline', title: 'EHF' },
+];
+
 export default function ProjectBillingTab({
   state,
   project,
@@ -55,7 +65,8 @@ export default function ProjectBillingTab({
   onChangeState,
   onOpenEconomySettings,
 }) {
-  const [sub, setSub] = useState('meny'); // meny | prismodell | innstillinger | section id
+  const [scope, setScope] = useState('project'); // project | company
+  const [sub, setSub] = useState('oversikt'); // oversikt | prismodell | section ids
   const resolved = useMemo(() => resolveProjectInvoiceSettings(state, project), [state, project]);
   const [pricingDraft, setPricingDraft] = useState(() => ({
     pricingModel: project.pricingModel || 'hourly',
@@ -70,6 +81,12 @@ export default function ProjectBillingTab({
       pricingSettings: normalizePricingSettings(project.pricingSettings, project.pricingModel),
     });
     setInvoiceDraft(resolveProjectInvoiceSettings(state, project).project);
+  }
+
+  function openProjectSection(id) {
+    setScope('project');
+    setSub(id);
+    reloadDrafts();
   }
 
   function savePricing() {
@@ -119,86 +136,179 @@ export default function ProjectBillingTab({
   }
 
   const projectActivities = activities.filter((row) => row.projectId === project.id);
+  const overrideCount = resolved.overridden.length;
+  const pricing = normalizePricingSettings(project.pricingSettings, project.pricingModel);
 
   return (
     <View style={styles.wrap} nativeID="project-billing-tab">
-      <View style={styles.subTabs}>
+      <View style={styles.scopeTabs}>
         {[
-          { id: 'meny', label: 'Oversikt' },
-          { id: 'prismodell', label: 'Prismodeller' },
-          { id: 'innstillinger', label: 'Fakturainnstillinger' },
+          { id: 'project', label: 'Prosjektspesifikk', hint: 'Her retter du prosjektet' },
+          { id: 'company', label: 'Selskapsspesifikk', hint: 'Leses fra Økonomi — ikke her' },
         ].map((row) => {
-          const on = sub === row.id || (sub !== 'meny' && sub !== 'prismodell' && sub !== 'innstillinger' && row.id === 'innstillinger');
+          const on = scope === row.id;
           return (
             <TouchableOpacity
               key={row.id}
-              onPress={() => { setSub(row.id); reloadDrafts(); }}
-              style={[styles.subTab, on && { borderBottomColor: colors.brand }]}
+              onPress={() => { setScope(row.id); setSub('oversikt'); reloadDrafts(); }}
+              style={[
+                styles.scopeTab,
+                {
+                  borderColor: on ? colors.brand : colors.line,
+                  backgroundColor: on ? colors.brandSoft : colors.card,
+                },
+              ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              nativeID={`project-billing-scope-${row.id}`}
             >
-              <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '700' : '400' }}>{row.label}</Text>
+              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '700', fontSize: 13 }}>{row.label}</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>{row.hint}</Text>
             </TouchableOpacity>
           );
         })}
-        {isAdmin ? (
-          <TouchableOpacity onPress={restoreDefaults} style={[styles.restoreBtn, { borderColor: colors.line }]}>
-            <Ionicons name="refresh" size={14} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontSize: 12 }}>Gjenopprett standard</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
 
-      <View
-        nativeID="project-billing-inherit-banner"
-        style={[styles.banner, { backgroundColor: colors.brandSoft || '#e8f1ff', borderColor: colors.brand }]}
-      >
-        <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>
-          Sett fakturainnstillinger for prosjekt <Text style={{ fontWeight: '700' }}>{project.name}</Text>.
-          Dette overstyrer innstillinger på kunde- eller globalt nivå. Tomme felt arver fra{' '}
-          <Text style={{ color: colors.brand, fontWeight: '700' }} onPress={onOpenEconomySettings}>
-            Økonomi → Innstillinger
+      {scope === 'project' ? (
+        <View
+          nativeID="project-billing-inherit-banner"
+          style={[styles.banner, { backgroundColor: colors.brandSoft || '#e8f1ff', borderColor: colors.brand }]}
+        >
+          <Text style={{ color: colors.ink, fontSize: 12, lineHeight: 18 }}>
+            Prosjekt <Text style={{ fontWeight: '700' }}>{project.name}</Text> overstyrer selskapstandard der felt er fylt ut.
+            Tomme felt arver fra Økonomi. {resolved.sourceLabel}.
           </Text>
-          . {resolved.sourceLabel}. Endringer påvirker kun nye fakturaer.
-        </Text>
-      </View>
+        </View>
+      ) : (
+        <View
+          style={[styles.banner, { backgroundColor: colors.sunken || '#f1f5f9', borderColor: colors.line }]}
+          nativeID="project-billing-company-banner"
+        >
+          <Text style={{ color: colors.ink, fontSize: 12, lineHeight: 18 }}>
+            Dette er selskapets standardverdier fra{' '}
+            <Text style={{ color: colors.brand, fontWeight: '700' }} onPress={onOpenEconomySettings}>
+              Økonomi → Innstillinger
+            </Text>
+            . Endre dem der — ikke under prosjektet — med mindre du vil overstyre i Prosjektspesifikk.
+          </Text>
+        </View>
+      )}
 
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
-      {sub === 'meny' ? (
-        <View style={styles.cardGrid}>
-          <TouchableOpacity
-            onPress={() => setSub('prismodell')}
-            style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.line }]}
-          >
-            <Ionicons name="cash-outline" size={22} color={colors.brand} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Prismodell</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {pricingModelLabel(project.pricingModel) || 'Ikke satt'}
-                {project.pricingSettings?.hourlyRate != null ? ` · ${project.pricingSettings.hourlyRate} kr` : ''}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.brand} />
-          </TouchableOpacity>
-          {MENU_CARDS.map((card) => (
-            <TouchableOpacity
-              key={card.id}
-              onPress={() => { setSub(card.id); reloadDrafts(); }}
-              style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.line }]}
-              accessibilityRole="button"
-              accessibilityLabel={card.title}
-            >
-              <Ionicons name={card.icon} size={22} color={colors.brand} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.ink, fontWeight: '700' }}>{card.title}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{card.sub}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.brand} />
+      {scope === 'company' ? (
+        <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="project-billing-company-panel">
+          <View style={styles.companyHead}>
+            <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 14 }}>Selskapsspesifikke verdier</Text>
+            <TouchableOpacity onPress={onOpenEconomySettings} style={[styles.openEco, { borderColor: colors.brand }]}>
+              <Ionicons name="open-outline" size={14} color={colors.brand} />
+              <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 12 }}>Åpne Økonomi</Text>
             </TouchableOpacity>
+          </View>
+          {[
+            ['Kredittid', `${resolved.company.creditDays} dager`],
+            ['Fakturaspråk', labelForDefault('invoiceLanguage', resolved.company.invoiceLanguage)],
+            ['Forfall', labelForDefault('dueDateMode', resolved.company.dueDateMode)],
+            ['Påslag utlegg (timepris)', `${resolved.company.markupExpenseHourly}%`],
+            ['Påslag timer', `${resolved.company.markupHourly}%`],
+            ['Rabatt timer', `${resolved.company.discountHours}%`],
+            ['EHF + e-post', resolved.company.ehfAlsoEmail ? 'Ja' : 'Nei'],
+            ['Konto timer', resolved.accountLabels.accountHours],
+            ['Konto utlegg', resolved.accountLabels.accountExpenses],
+            ['Konto produkter', resolved.accountLabels.accountProducts],
+          ].map(([label, value]) => (
+            <View key={label} style={[styles.kv, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.muted, fontSize: 12, width: 160 }}>{label}</Text>
+              <Text style={{ color: colors.ink, fontSize: 12, flex: 1, fontWeight: '600' }}>{value}</Text>
+            </View>
           ))}
+          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8 }}>
+            Disse verdiene er lagret på selskapet og hentes hit for oversikt. Ikke rediger her.
+          </Text>
         </View>
       ) : null}
 
-      {sub === 'prismodell' ? (
+      {scope === 'project' && sub === 'oversikt' ? (
+        <View style={{ gap: 10 }}>
+          <View style={styles.btnRow}>
+            {PROJECT_SETTING_BUTTONS.map((btn) => (
+              <TouchableOpacity
+                key={btn.id}
+                onPress={() => openProjectSection(btn.id)}
+                style={[styles.setBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+              >
+                <Ionicons name={btn.icon} size={16} color={colors.brand} />
+                <Text style={{ color: colors.ink, fontSize: 12, fontWeight: '600' }}>{btn.title}</Text>
+              </TouchableOpacity>
+            ))}
+            {isAdmin ? (
+              <TouchableOpacity onPress={restoreDefaults} style={[styles.setBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                <Ionicons name="refresh" size={16} color={colors.ink} />
+                <Text style={{ color: colors.ink, fontSize: 12, fontWeight: '600' }}>Gjenopprett standard</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="project-billing-project-overview">
+            <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 14, marginBottom: 8 }}>
+              Prosjektspesifikk oversikt
+            </Text>
+            <View style={[styles.kv, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.muted, fontSize: 12, width: 160 }}>Prismodell</Text>
+              <Text style={{ color: colors.ink, fontSize: 12, flex: 1, fontWeight: '600' }}>
+                {pricingModelLabel(project.pricingModel) || 'Ikke satt'}
+                {pricing.hourlyRate != null ? ` · ${pricing.hourlyRate} kr` : ''}
+              </Text>
+            </View>
+            <View style={[styles.kv, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.muted, fontSize: 12, width: 160 }}>Overstyringer</Text>
+              <Text style={{ color: colors.ink, fontSize: 12, flex: 1, fontWeight: '600' }}>
+                {overrideCount ? `${overrideCount} felt overstyrt` : 'Ingen — arver hele selskapstandarden'}
+              </Text>
+            </View>
+            {[
+              ['Kredittid', resolved.project.creditDays == null ? `Arver (${resolved.company.creditDays} d)` : `${resolved.project.creditDays} d`],
+              ['Påslag utlegg', pricing.markupExpenses == null ? `Arver (${resolved.company.markupExpenseHourly}%)` : `${pricing.markupExpenses}%`],
+              ['Deres referanse', resolved.project.theirReference || '—'],
+              ['Innledning', resolved.project.introText == null ? 'Arver selskapstekst' : (resolved.project.introText || '(tom overstyring)')],
+            ].map(([label, value]) => (
+              <View key={label} style={[styles.kv, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.muted, fontSize: 12, width: 160 }}>{label}</Text>
+                <Text style={{ color: colors.ink, fontSize: 12, flex: 1 }} numberOfLines={2}>{value}</Text>
+              </View>
+            ))}
+            <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8 }}>
+              Bruk knappene over for å endre prosjektverdier. Se «Selskapsspesifikk» for det som ikke skal endres her.
+            </Text>
+          </View>
+
+          <View style={styles.cardGrid}>
+            {MENU_CARDS.map((card) => (
+              <TouchableOpacity
+                key={card.id}
+                onPress={() => openProjectSection(card.id)}
+                style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+              >
+                <Ionicons name={card.icon} size={18} color={colors.brand} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>{card.title}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{card.sub}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.brand} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {scope === 'project' && sub !== 'oversikt' ? (
+        <TouchableOpacity onPress={() => setSub('oversikt')} style={styles.backLink}>
+          <Ionicons name="arrow-back" size={14} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 12 }}>Tilbake til prosjektspesifikk oversikt</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {scope === 'project' && sub === 'prismodell' ? (
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <FormRow label="Navn">
             <Text style={{ color: colors.ink }}>{project.name}</Text>
@@ -363,7 +473,7 @@ export default function ProjectBillingTab({
         </View>
       ) : null}
 
-      {sub !== 'meny' && sub !== 'prismodell' ? (
+      {scope === 'project' && sub !== 'oversikt' && sub !== 'prismodell' ? (
         <InvoiceSettingsForm
           section={sub === 'innstillinger' ? 'all' : sub}
           colors={colors}
@@ -692,23 +802,50 @@ function Check({ colors, label, value, onChange, disabled }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  subTabs: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e2e8f0' },
-  subTab: { paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  restoreBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  banner: { borderWidth: 1, borderRadius: 10, padding: 12 },
-  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  menuCard: {
+  wrap: { gap: 10 },
+  scopeTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  scopeTab: {
     flexGrow: 1,
-    flexBasis: 280,
+    flexBasis: 200,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  banner: { borderWidth: 1, borderRadius: 10, padding: 10 },
+  btnRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  setBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 16 },
+  kv: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 7,
+  },
+  companyHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' },
+  openEco: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  backLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  menuCard: {
+    flexGrow: 1,
+    flexBasis: 240,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  panel: { borderWidth: 1, borderRadius: 12, padding: 14 },
   section: { fontSize: 16, fontWeight: '700', marginTop: 8, marginBottom: 10 },
   formRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 14, alignItems: 'flex-start' },
   formLabel: { width: 220, maxWidth: '100%' },

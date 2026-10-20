@@ -1986,6 +1986,7 @@ export default function ProjectWorkScreen() {
           colors={colors}
           isAdmin={isAdmin}
           uid={uid}
+          familyId={familyId}
           onChangeState={(next) => {
             setState(next);
             setNote('');

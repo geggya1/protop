@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -15,7 +14,6 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import {
   addActivity,
   updateActivity,
-  updateProject,
   projectTimeSummary,
   projectEconomy,
   activityTimeSummary,
@@ -23,14 +21,9 @@ import {
   ensureMainActivity,
 } from '../../src/project/engine';
 import { projectCrossView } from '../../src/project/projectCrossView.js';
-import { defaultWorkSettings } from '../../src/arbeid/roles.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel } from '../../src/project/projectFields.js';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
-import { deleteTrip } from '../../src/economy/opsState';
-import { addressFieldsFromPlace, projectAddressLabel } from '../../src/mileage/flow';
-import { searchPlaces } from '../../src/utils/location';
-import MileageWizard from '../../screens/economy/MileageWizard';
 import IndexLetterTable from '../economy/IndexLetterTable';
 import { lettersForProject, projectNeedsIndexAttention } from '../../src/indeksregulering/groups';
 import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
@@ -38,6 +31,7 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import ProjectOverviewTab from './ProjectOverviewTab';
+import ProjectSettingsTab from './ProjectSettingsTab';
 import ProjectTeamTab from './ProjectTeamTab';
 import ProjectExpensesTab from './ProjectExpensesTab';
 import ProjectSalesTab from './ProjectSalesTab';
@@ -54,6 +48,7 @@ const TABS = [
   { id: 'produktsalg', label: 'Produktsalg' },
   { id: 'til_fakturering', label: 'Til fakturering' },
   { id: 'fakturaer', label: 'Fakturaer' },
+  { id: 'innstillinger', label: 'Innstillinger' },
 ];
 
 function ProgressBar({ left, right, leftColor, rightColor, colors }) {
@@ -125,6 +120,7 @@ export default function ProjectDetail({
   colors,
   isAdmin,
   uid,
+  familyId,
   onChangeState,
   onEditForm,
   onBack,
@@ -140,8 +136,6 @@ export default function ProjectDetail({
   const [activityName, setActivityName] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const [editingTrip, setEditingTrip] = useState(null);
-  const [pendingDelete, setPendingDelete] = useState('');
 
   const members = useMemo(
     () => state.members.filter((row) => row.projectId === project.id && row.active !== false),
@@ -170,50 +164,6 @@ export default function ProjectDetail({
     economy: projectEconomy(state, project.id),
     time: summary,
   }), [project, contracts, customer, invoices, state, summary]);
-  const settings = defaultWorkSettings(project.workSettings);
-  const projectTrips = useMemo(
-    () => (state.mileageTrips || [])
-      .filter((row) => row.projectId === project.id)
-      .sort((a, b) => String(b.date).localeCompare(String(a.date))),
-    [state.mileageTrips, project.id],
-  );
-
-  function removeTrip(id, confirmed = false) {
-    if (!confirmed && pendingDelete !== id) {
-      setPendingDelete(id);
-      return;
-    }
-    const result = deleteTrip(state, id);
-    setPendingDelete('');
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onChangeState(result.state);
-    if (editingTrip?.id === id) setEditingTrip(null);
-    setError('');
-    setNote('Turen er slettet.');
-    showSaveToast('Turen er slettet.');
-  }
-
-  function patchSettings(key, value) {
-    const result = updateProject(state, project.id, {
-      workSettings: { ...settings, [key]: value },
-    });
-    if (result.ok) {
-      onChangeState(result.state);
-      setNote('Innstilling lagret.');
-      showSaveToast('Innstilling lagret.');
-    } else setError(result.error);
-  }
-
-  function saveEndDate(value) {
-    const result = updateProject(state, project.id, { end: value });
-    if (result.ok) {
-      onChangeState(result.state);
-      showSaveToast('Sluttdato lagret.');
-    } else setError(result.error);
-  }
 
   function createActivity() {
     const name = activityName.trim() || 'Ny aktivitet';
@@ -252,15 +202,15 @@ export default function ProjectDetail({
           <Ionicons name="arrow-back" size={18} color={colors.ink} />
           <Text style={{ color: colors.ink }}>Tilbake til listen</Text>
         </TouchableOpacity>
-        {onEditForm ? (
-          <TouchableOpacity
-            onPress={onEditForm}
-            style={[styles.editBtn, { borderColor: colors.line }]}
-          >
-            <Ionicons name="create-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink }}>Rediger prosjekt</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity
+          onPress={() => setTab('innstillinger')}
+          style={[styles.editBtn, { borderColor: colors.line }]}
+          accessibilityRole="button"
+          accessibilityLabel="Prosjektinnstillinger"
+        >
+          <Ionicons name="settings-outline" size={16} color={colors.ink} />
+          <Text style={{ color: colors.ink }}>Innstillinger</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.crumb, { color: colors.muted }]}>Prosjekter / #{project.number}</Text>
@@ -313,84 +263,38 @@ export default function ProjectDetail({
               members={members}
               timeEntries={timeEntries}
               colors={colors}
+              isAdmin={isAdmin}
+              familyId={familyId}
+              onChangeState={onChangeState}
               onOpenTab={setTab}
               onOpenCustomer={onOpenCustomer}
-              onEditForm={onEditForm}
-              onSaveEndDate={saveEndDate}
+              onOpenAgreement={onOpenAgreement}
             />
-            <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginTop: 12 }]}>
-              <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 8 }]}>Avtale og indeks</Text>
-              <TouchableOpacity
-                nativeID="project-agreement-open"
-                onPress={() => cross.contract && onOpenAgreement?.(cross.contract.id)}
-                disabled={!cross.contract}
-                style={[styles.agreementBtn, { borderColor: cross.contract ? colors.brand : (colors.danger || '#b42318') }]}
-              >
-                <Ionicons name={cross.contract ? 'document-text' : 'warning'} size={18} color={cross.contract ? colors.brand : (colors.danger || '#b42318')} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Avtale</Text>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
-                    {cross.contract ? cross.contract.title : 'Ingen avtale er koblet til prosjektet'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginTop: 8, padding: 10 }]}>
               <ProjectIndexNote project={project} contracts={contracts} timeEntries={state.timeEntries || []} colors={colors} />
               <IndexLetterTable
                 rows={lettersForProject(project, contracts)}
                 colors={colors}
-                title="Indeksreguleringer på prosjektet"
-                empty="Ingen indeksreguleringer er registrert på prosjektet."
+                title="Indeksreguleringer"
+                empty="Ingen indeksreguleringer på prosjektet."
               />
-              <ProjectAddressEditor
-                project={project}
-                colors={colors}
-                onSave={(patch) => {
-                  const result = updateProject(state, project.id, patch);
-                  if (!result.ok) {
-                    setError(result.error);
-                    return;
-                  }
-                  onChangeState(result.state);
-                  showSaveToast('Lagret.');
-                }}
-              />
-              <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Kjøreturer</Text>
-              {!projectTrips.length ? (
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen kjøreturer er registrert på prosjektet.</Text>
-              ) : projectTrips.map((row) => (
-                <View key={row.id} style={[styles.tripRow, { borderBottomColor: colors.line }]}>
-                  <TouchableOpacity onPress={() => setEditingTrip(row)}>
-                    <Text style={{ color: colors.ink, fontSize: 14 }}>
-                      {row.date} · {row.from} → {row.to} · {row.km} km
-                    </Text>
-                  </TouchableOpacity>
-                  <View style={styles.tripActions}>
-                    <TouchableOpacity onPress={() => setEditingTrip(row)}>
-                      <Text style={{ color: colors.brand, fontWeight: '700' }}>Rediger</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeTrip(row.id)}>
-                      <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
-                        {pendingDelete === row.id ? 'Slett nå' : 'Slett'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-              <Text style={[styles.blockTitle, { color: colors.ink, marginTop: 20 }]}>Innstillinger for timeføring</Text>
-              {[
-                ['showInAllTimesheets', 'Vis prosjekt i alles timelister'],
-                ['allowSelfJoin', 'Ansatte kan legge seg selv inn på prosjektet'],
-                ['requireDescription', 'Beskrivelse på timeføring er påkrevd'],
-                ['showEstimatedHours', 'Vis estimerte og planlagte timer i timelisten'],
-                ['notifyOnOverrun', 'Varsle prosjektleder på e-post ved overskridelse'],
-              ].map(([key, label]) => (
-                <TouchableOpacity key={key} onPress={() => patchSettings(key, !settings[key])} style={styles.checkRow}>
-                  <Ionicons name={settings[key] ? 'checkbox' : 'square-outline'} size={20} color={settings[key] ? colors.brand : colors.muted} />
-                  <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{label}</Text>
-                </TouchableOpacity>
-              ))}
             </View>
           </>
+        ) : null}
+
+        {tab === 'innstillinger' ? (
+          <ProjectSettingsTab
+            state={state}
+            project={project}
+            customers={customers}
+            contracts={contracts}
+            colors={colors}
+            isAdmin={isAdmin}
+            familyId={familyId}
+            onChangeState={onChangeState}
+            onEditForm={onEditForm}
+            onOpenAgreement={onOpenAgreement}
+          />
         ) : null}
 
         {tab === 'fakturering' ? (
@@ -586,103 +490,6 @@ export default function ProjectDetail({
           </Pressable>
         </Pressable>
       </Modal>
-      {editingTrip ? (
-        <MileageWizard
-          key={editingTrip.id}
-          colors={colors}
-          state={state}
-          customers={customers}
-          contracts={contracts}
-          launch={false}
-          editingTrip={editingTrip}
-          onDismiss={() => setEditingTrip(null)}
-          onDelete={() => removeTrip(editingTrip.id, true)}
-          onApply={(result) => {
-            if (result?.ok && result.state) onChangeState(result.state);
-            return result;
-          }}
-        />
-      ) : null}
-    </View>
-  );
-}
-
-function ProjectAddressEditor({ project, colors, onSave }) {
-  const [query, setQuery] = useState('');
-  const [hits, setHits] = useState([]);
-  const [street, setStreet] = useState(project.street || '');
-  const [postalCode, setPostalCode] = useState(project.postalCode || '');
-  const [placeName, setPlaceName] = useState(project.placeName || '');
-  useEffect(() => {
-    setStreet(project.street || '');
-    setPostalCode(project.postalCode || '');
-    setPlaceName(project.placeName || '');
-  }, [project.id, project.street, project.postalCode, project.placeName]);
-  useEffect(() => {
-    const q = String(query || '').trim();
-    if (q.length < 3) {
-      setHits([]);
-      return undefined;
-    }
-    let live = true;
-    const timer = setTimeout(() => {
-      searchPlaces(q, 'nb').then((rows) => {
-        if (live) setHits((rows || []).slice(0, 5));
-      }).catch(() => {
-        if (live) setHits([]);
-      });
-    }, 280);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  function applyHit(hit) {
-    const fields = addressFieldsFromPlace(hit, hit.label);
-    setStreet(fields.street);
-    setPostalCode(fields.postalCode);
-    setPlaceName(fields.placeName);
-    setQuery('');
-    setHits([]);
-    onSave(fields);
-  }
-
-  const current = projectAddressLabel({ street, postalCode, placeName, place: project.place });
-  return (
-    <View style={{ marginTop: 16, gap: 6 }}>
-      <Text style={[styles.blockTitle, { color: colors.ink }]}>Prosjektadresse</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>
-        {current || 'Ingen egen adresse. Søk og lagre, så kjøreboken bruker den som destinasjon.'}
-      </Text>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Søk adresse, minst tre bokstaver"
-        placeholderTextColor={colors.muted}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-      />
-      {hits.map((hit) => (
-        <TouchableOpacity key={hit.placeId || hit.label} onPress={() => applyHit(hit)}>
-          <Text style={{ color: colors.ink, fontSize: 13, paddingVertical: 4 }}>{hit.label}</Text>
-        </TouchableOpacity>
-      ))}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <TextInput value={street} onChangeText={setStreet} placeholder="Gate" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 140 }]} />
-        <TextInput value={postalCode} onChangeText={setPostalCode} placeholder="Postnr" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]} />
-        <TextInput value={placeName} onChangeText={setPlaceName} placeholder="Poststed" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flexGrow: 1, minWidth: 120 }]} />
-      </View>
-      <TouchableOpacity
-        onPress={() => onSave({
-          street,
-          postalCode,
-          placeName,
-          place: [street, [postalCode, placeName].filter(Boolean).join(' ')].filter(Boolean).join(', '),
-        })}
-        style={[styles.primaryBtn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}
-      >
-        <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre adresse</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -702,31 +509,31 @@ const styles = StyleSheet.create({
   },
   crumb: { fontSize: 12, marginBottom: 4 },
   titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, flexShrink: 1 },
+  title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3, flexShrink: 1 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   tabs: {
     flexGrow: 0,
     flexShrink: 0,
-    marginBottom: 12,
+    marginBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    maxHeight: 44,
+    maxHeight: 40,
   },
   tabsInner: { flexDirection: 'row', alignItems: 'center' },
   tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
-    marginRight: 4,
+    marginRight: 2,
   },
   bodyScroll: { flex: 1, minHeight: 0 },
   bodyContent: { paddingBottom: 40, flexGrow: 0 },

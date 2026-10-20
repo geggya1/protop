@@ -768,6 +768,7 @@ export function createProject(state, input) {
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
     workSettings: defaultWorkSettings(input.workSettings),
     invoiceSettings: normalizeProjectInvoiceSettings(input.invoiceSettings),
+    imageUrl: text(input.imageUrl),
   };
   return ok({
     ...state,
@@ -823,6 +824,7 @@ export function updateProject(state, projectId, patch) {
     invoiceSettings: patch.invoiceSettings !== undefined
       ? normalizeProjectInvoiceSettings(patch.invoiceSettings)
       : normalizeProjectInvoiceSettings(p.invoiceSettings),
+    imageUrl: patch.imageUrl !== undefined ? text(patch.imageUrl) : text(p.imageUrl),
   } : p));
   return ok({ ...state, projects });
 }

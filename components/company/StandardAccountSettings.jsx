@@ -44,8 +44,8 @@ export default function StandardAccountSettings({ familyId, colors, canEdit }) {
       colors={colors}
       nativeID="company-standard-accounts"
       crumbs={[
-        { label: 'Selskap', page: '' },
-        { label: 'Innstillinger', page: 'innstillinger' },
+        { label: 'Økonomi', tab: 'okonomi', page: 'oversikt' },
+        { label: 'Innstillinger', tab: 'okonomi', page: 'innstillinger' },
         { label: 'Standard regnskapskontoer' },
       ]}
       title="Standard regnskapskontoer"

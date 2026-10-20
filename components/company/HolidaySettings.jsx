@@ -75,7 +75,8 @@ export default function HolidaySettings({ familyId, colors, canEdit }) {
       colors={colors}
       nativeID="company-holidays"
       crumbs={[
-        { label: 'Selskap', page: '' },
+        { label: 'Fravær', tab: 'arbeid', page: 'fravaer' },
+        { label: 'Innstillinger', tab: 'arbeid', page: 'fravaer-innstillinger' },
         { label: 'Fridager' },
       ]}
       title="Fridager"

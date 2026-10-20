@@ -222,7 +222,7 @@ export default function HrDashboard({
       </HrCard>
 
       <HrCard colors={colors}>
-        <HrSectionTitle colors={colors} title="Produktivitet" subtitle="Belegg og kapasitet ligger under Arbeid" />
+        <HrSectionTitle colors={colors} title="Produktivitet" subtitle="Belegg og kapasitet ligger under Produktivitet i bedriftsmenyen" />
         <RowLink colors={colors} title="Åpne produktivitet" onPress={onOpenProductivity} />
       </HrCard>
 

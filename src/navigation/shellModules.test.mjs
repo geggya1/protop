@@ -91,21 +91,22 @@ function idsIn(sections) {
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
-    ['selskap', 'hr', 'arbeid', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'iso', 'kjorebok', 'okonomi'],
+    [
+      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet',
+      'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+    ],
   );
   assert.equal(companyItems[0].label, 'Selskap');
   assert.equal(companyItems[0].action.tab, 'selskap');
-  assert.equal(companyItems[0].forceOpen, true);
-  const selskapKids = companyItems.find((i) => i.id === 'selskap').children;
-  assert.deepEqual(
-    selskapKids.map((i) => i.label),
-    ['Underenheter', 'Ansatte', 'Fravær'],
-  );
+  assert.equal(companyItems[0].children, undefined);
+  assert.equal(companyItems[0].forceOpen, undefined);
+  const settings = companyItems.find((i) => i.id === 'selskapsinnstillinger');
+  assert.equal(settings.label, 'Selskapsinnstillinger');
+  assert.equal(settings.action.subView, 'innstillinger');
+  assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
   assert.equal(hr.children.length, 7);
-  assert.equal(selskapKids[0].action.subView, 'underenheter');
-  assert.equal(selskapKids.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud'],
@@ -117,15 +118,19 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').forceOpen, undefined);
   const arbeid = companyItems.find((i) => i.id === 'arbeid');
-  const fravaer = selskapKids.find((i) => i.id === 'fravaer');
+  const fravaer = companyItems.find((i) => i.id === 'fravaer');
+  const produktivitet = companyItems.find((i) => i.id === 'produktivitet');
   assert.deepEqual(
     arbeid.children.map((i) => i.label),
-    ['Timeliste', 'Timerapport', 'Timesaldo', 'Godkjenninger', 'Produktivitet'],
+    ['Timeliste', 'Timerapport', 'Timesaldo', 'Godkjenninger'],
   );
   assert.deepEqual(
     fravaer.children.map((i) => i.label),
-    ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær'],
+    ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær', 'Innstillinger'],
   );
+  assert.equal(fravaer.children.find((i) => i.id === 'fravaer-innstillinger').action.subView, 'fravaer-innstillinger');
+  assert.equal(produktivitet.action.tab, 'arbeid');
+  assert.equal(produktivitet.action.subView, 'produktivitet');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'produkt').children.map((i) => i.label),
     ['Produktsalg', 'Produkt'],
@@ -142,11 +147,11 @@ function idsIn(sections) {
   assert.equal(kjorebok.action.tab, 'okonomi');
   assert.equal(kjorebok.action.subView, 'kjorebok');
   assert.equal(kjorebok.children, undefined);
-  assert.ok(companyItems.findIndex((i) => i.id === 'iso') < companyItems.findIndex((i) => i.id === 'kjorebok'));
   assert.ok(companyItems.findIndex((i) => i.id === 'kjorebok') < companyItems.findIndex((i) => i.id === 'okonomi'));
+  assert.ok(companyItems.findIndex((i) => i.id === 'okonomi') < companyItems.findIndex((i) => i.id === 'iso'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser'],
+    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
@@ -210,10 +215,12 @@ function idsIn(sections) {
   assert.equal(defaultOkonomiSubView('kjorebok'), 'kjorebok');
   assert.equal(okonomiMenuTitle('kjorebok'), 'Kjørebok');
   const selskap = items.find((item) => item.id === 'selskap');
-  const units = selskap.children.find((item) => item.id === 'underenheter');
-  assert.equal(isNavItemActive(units, 'selskap', 'underenheter'), true);
-  assert.equal(isNavItemActive(units, 'selskap', null), false);
-  assert.equal(isNavItemActive(selskap, 'selskap', 'underenheter'), true);
+  const settings = items.find((item) => item.id === 'selskapsinnstillinger');
+  assert.equal(isNavItemActive(selskap, 'selskap', null), true);
+  assert.equal(isNavItemActive(selskap, 'selskap', 'innstillinger'), false);
+  assert.equal(isNavItemActive(settings, 'selskap', 'innstillinger'), true);
+  assert.equal(isNavItemActive(settings, 'selskap', 'underenheter'), true);
+  assert.equal(isNavItemActive(settings, 'selskap', null), false);
   assert.deepEqual(normalizeShellSelection('friends'), { tab: 'more', subView: 'friends' });
   assert.deepEqual(normalizeShellSelection('friends', 'ignored'), { tab: 'more', subView: 'friends' });
   assert.deepEqual(normalizeShellSelection('anbud', 'tilbud'), { tab: 'anbud', subView: 'tilbud' });
@@ -283,6 +290,9 @@ assert.match(company, /CompanyStructureSettings/);
 assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
 assert.match(company, /requestShellTab\?\.\('selskap', 'underenheter'\)/);
+assert.match(company, /Selskapsinnstillinger/);
+assert.equal(company.includes('Fraværstyper'), false);
+assert.equal(company.includes('Kontoplan'), false);
 assert.equal(company.includes('GroupSettings'), false);
 
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
@@ -438,8 +448,18 @@ assert.match(shellSrc, /CustomersScreen/);
 assert.match(shellSrc, /tab === 'selskap'/);
 assert.match(shellSrc, /moreSubView === 'underenheter'/);
 assert.match(shellSrc, /moreSubView === 'innstillinger'/);
+assert.match(shellSrc, /AbsenceSettingsScreen/);
+assert.match(shellSrc, /EconomySettingsScreen/);
 assert.match(shellSrc, /CompanyLanding/);
 assert.match(shellSrc, /CompanyUnitsScreen/);
+assert.match(
+  readFileSync(new URL('../../screens/arbeid/AbsenceSettingsScreen.jsx', import.meta.url), 'utf8'),
+  /Fraværsinnstillinger/,
+);
+assert.match(
+  readFileSync(new URL('../../screens/economy/EconomySettingsScreen.jsx', import.meta.url), 'utf8'),
+  /Økonomiinnstillinger/,
+);
 assert.equal(shellSrc.includes("tab === 'home'\n      && !isChild"), false);
 assert.equal(/isOrganizationType\(family\?\.type\)\s*\n\s*&& tab === 'home'/.test(shellSrc), false);
 assert.match(shellSrc, /tab === 'okonomi'/);
@@ -467,22 +487,21 @@ assert.match(railSrc, /module-nav-expand-/);
   const okonomi = items.find((item) => item.id === 'okonomi');
   const anbud = items.find((item) => item.id === 'anbud');
   const arbeid = items.find((item) => item.id === 'arbeid');
-  const fravaer = selskap.children.find((item) => item.id === 'fravaer');
+  const fravaer = items.find((item) => item.id === 'fravaer');
   const produkt = items.find((item) => item.id === 'produkt');
   const kunder = items.find((item) => item.id === 'kunder');
-  assert.equal(drawerHasSubmenuToggle(selskap), true);
+  assert.equal(drawerHasSubmenuToggle(selskap), false);
   assert.equal(drawerHasSubmenuToggle(okonomi), true);
   assert.equal(drawerHasSubmenuToggle(anbud), true);
   assert.equal(drawerHasSubmenuToggle(arbeid), true);
   assert.equal(drawerHasSubmenuToggle(fravaer), true);
   assert.equal(drawerHasSubmenuToggle(produkt), true);
   assert.equal(drawerHasSubmenuToggle(kunder), false);
-  assert.equal(drawerSubmenuOpen(selskap, 'home'), true);
+  assert.equal(drawerSubmenuOpen(selskap, 'home'), false);
   assert.equal(drawerSubmenuOpen(okonomi, 'home'), false);
   assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', {}, 'oversikt'), true);
   assert.equal(drawerSubmenuOpen(okonomi, 'home', { okonomi: true }), true);
   assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', { okonomi: false }, 'oversikt'), false);
-  assert.equal(drawerSubmenuOpen(selskap, 'selskap', { selskap: false }), false);
   assert.equal(drawerSubmenuOpen(anbud, 'home'), false);
   assert.equal(drawerSubmenuOpen(anbud, 'anbud', {}, 'varsling'), true);
   assert.equal(drawerSubmenuOpen(anbud, 'home', { anbud: true }), true);
@@ -491,7 +510,6 @@ assert.match(railSrc, /module-nav-expand-/);
   assert.equal(drawerSubmenuOpen(arbeid, 'arbeid', {}, 'fravaer'), false);
   assert.equal(drawerSubmenuOpen(fravaer, 'arbeid', {}, 'fravaer'), true);
   assert.equal(drawerSubmenuOpen(fravaer, 'arbeid', {}, 'timeliste'), false);
-  assert.equal(drawerSubmenuOpen(selskap, 'arbeid', {}, 'timeliste'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'salg'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'okonomi', {}, 'produkter'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'timeliste'), false);
@@ -591,8 +609,9 @@ function collectPresented(items, acc = []) {
     presented.filter((item) => item.group).map((item) => item.label),
     [
       'Selskap og organisasjon',
-      'Kunder, anbud og avtaler',
-      'Prosjekt og tjenesteleveranser',
+      'Ansatte og arbeidstid',
+      'Kunder og oppdrag',
+      'Produktivitet',
       'Produkter og driftsressurser',
       'Økonomi og fakturering',
       'Kvalitet og styringssystem',
@@ -601,23 +620,35 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
     [
-      ['selskap', 'hr', 'fravaer'],
-      ['kunder', 'anbud', 'kontrakt'],
-      ['projects', 'arbeid'],
+      ['selskap', 'selskapsinnstillinger'],
+      ['ansatte', 'hr', 'fravaer', 'arbeid'],
+      ['kunder', 'anbud', 'kontrakt', 'projects'],
+      ['produktivitet'],
       ['produkt', 'utstyr', 'kjorebok'],
       ['okonomi'],
       ['iso'],
     ],
   );
-  const selskap = presented[0].children.find((item) => item.id === 'selskap');
-  assert.deepEqual(selskap.children.map((item) => item.id), ['underenheter', 'ansatte']);
-  assert.equal(selskap.icon, 'briefcase');
-  assert.equal(selskap.action.tab, 'selskap');
-  const fravaer = presented[0].children.find((item) => item.id === 'fravaer');
+  assert.deepEqual(
+    presented.filter((item) => item.group).map((item) => item.icon),
+    ['business', 'people', 'briefcase', 'stats-chart', 'cube', 'wallet', 'shield-checkmark'],
+  );
+  const org = presented.find((item) => item.id === 'company-org');
+  const people = presented.find((item) => item.id === 'company-people');
+  const customers = presented.find((item) => item.id === 'company-customers');
+  assert.equal(org.children.find((item) => item.id === 'selskap').children, undefined);
+  assert.equal(org.children.find((item) => item.id === 'selskap').icon, 'business');
+  assert.equal(org.children.find((item) => item.id === 'selskapsinnstillinger').action.subView, 'innstillinger');
+  const fravaer = people.children.find((item) => item.id === 'fravaer');
   assert.equal(fravaer.icon, 'sunny');
-  assert.deepEqual(fravaer.children.map((item) => item.label), ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær']);
+  assert.deepEqual(
+    fravaer.children.map((item) => item.label),
+    ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær', 'Innstillinger'],
+  );
   assert.equal(fravaer.children[0].action.tab, 'arbeid');
   assert.equal(fravaer.children[0].action.subView, 'fravaer');
+  assert.equal(customers.processOrder, true);
+  assert.equal(people.children.find((item) => item.id === 'arbeid').children.some((c) => c.label === 'Produktivitet'), false);
   const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(byId(collectPresented(presented)), byId(collectPresented(source)));
   assert.equal(presented.some((item) => !item.group), false);
@@ -628,25 +659,22 @@ function collectPresented(items, acc = []) {
   ]);
   assert.equal(withExtra.at(-1).id, 'ekstra');
   assert.equal(withExtra.at(-1).label, 'Ekstra');
-  assert.equal(withExtra.filter((item) => item.group).length, 6);
+  assert.equal(withExtra.filter((item) => item.group).length, 7);
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produkt', 'utstyr', 'okonomi']);
-  assert.equal(innleie[0].children.find((item) => item.id === 'selskap').children, undefined);
-  assert.equal(innleie[0].children.find((item) => item.id === 'fravaer').children.length, 3);
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
+  assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').children.length, 3);
 
-  const org = presented.find((item) => item.id === 'company-org');
-  const delivery = presented.find((item) => item.id === 'company-delivery');
   assert.equal(drawerGroupOpen(org, 'home', {}, null), false);
-  assert.equal(drawerGroupOpen(org, 'hr', {}, 'personell'), true);
-  assert.equal(drawerGroupOpen(org, 'arbeid', {}, 'fravaer'), true);
-  assert.equal(drawerGroupOpen(org, 'arbeid', { 'company-org': false }, 'fravaer'), false);
-  assert.equal(drawerGroupOpen(delivery, 'timeliste', {}, null), false);
-  assert.equal(drawerGroupOpen(delivery, 'arbeid', {}, 'timeliste'), true);
-  assert.equal(drawerGroupOpen(delivery, 'projects', {}, null), true);
+  assert.equal(drawerGroupOpen(org, 'selskap', {}, 'innstillinger'), true);
+  assert.equal(drawerGroupOpen(people, 'hr', {}, 'personell'), true);
+  assert.equal(drawerGroupOpen(people, 'arbeid', {}, 'fravaer'), true);
+  assert.equal(drawerGroupOpen(people, 'arbeid', { 'company-people': false }, 'fravaer'), false);
+  assert.equal(drawerGroupOpen(customers, 'projects', {}, null), true);
+  assert.equal(drawerGroupOpen(customers, 'kunder', {}, null), true);
   assert.deepEqual(
-    releaseClosedActiveGroups({ 'company-org': false, 'company-finance': false }, source, 'hr', 'oversikt'),
+    releaseClosedActiveGroups({ 'company-people': false, 'company-finance': false }, source, 'hr', 'oversikt'),
     { 'company-finance': false },
   );
   assert.deepEqual(

@@ -19,12 +19,18 @@ export function SetupFrame({
         {crumbs.map((crumb, index) => {
           const last = index === crumbs.length - 1;
           const label = `${index ? ' / ' : ''}${crumb.label}`;
-          if (last || !crumb.page) return <Text key={crumb.label}>{label}</Text>;
+          if (last) return <Text key={`${crumb.label}-${index}`}>{label}</Text>;
+          const canNavigate = crumb.tab || crumb.page != null;
+          if (!canNavigate) return <Text key={`${crumb.label}-${index}`}>{label}</Text>;
           return (
-            <Text key={crumb.label}>
+            <Text key={`${crumb.label}-${index}`}>
               {index ? ' / ' : ''}
               <Text
-                onPress={() => (crumb.page ? requestShellTab?.('selskap', crumb.page) : requestShellTab?.('selskap'))}
+                onPress={() => {
+                  const tab = crumb.tab || 'selskap';
+                  if (crumb.page === '' || crumb.page == null) requestShellTab?.(tab);
+                  else requestShellTab?.(tab, crumb.page);
+                }}
                 style={{ color: colors.brand }}
                 accessibilityRole="link"
               >

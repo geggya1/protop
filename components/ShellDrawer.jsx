@@ -487,6 +487,7 @@ export default function ShellDrawer({
                       if (!item.group) return renderNavBranch(item);
                       const groupExpanded = drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
                       const containsActive = (item.children || []).some((child) => isItemActive(child));
+                      const groupIcon = item.icon || 'folder-outline';
                       return (
                         <View
                           key={item.id}
@@ -504,6 +505,15 @@ export default function ShellDrawer({
                             nativeID={`module-nav-${item.id}`}
                             id={`module-nav-${item.id}`}
                           >
+                            <View style={[styles.groupIconWrap, containsActive && styles.groupIconWrapActive]}>
+                              <Ionicons
+                                name={containsActive ? groupIcon.replace(/-outline$/, '') : (
+                                  groupIcon.endsWith('-outline') ? groupIcon : `${groupIcon}-outline`
+                                )}
+                                size={16}
+                                color={containsActive ? colors.brand : colors.ink}
+                              />
+                            </View>
                             <Text
                               style={[styles.groupTitle, containsActive && styles.groupTitleActive]}
                               numberOfLines={2}
@@ -517,8 +527,15 @@ export default function ShellDrawer({
                             />
                           </TouchableOpacity>
                           {groupExpanded ? (
-                            <View style={styles.groupBody}>
-                              {(item.children || []).map((child) => renderNavBranch(child))}
+                            <View style={[styles.groupBody, item.processOrder && styles.groupBodyProcess]}>
+                              {(item.children || []).map((child, childIndex) => (
+                                <View key={child.id}>
+                                  {item.processOrder && childIndex > 0 ? (
+                                    <View style={[styles.processRail, { backgroundColor: colors.line }]} />
+                                  ) : null}
+                                  {renderNavBranch(child)}
+                                </View>
+                              ))}
                             </View>
                           ) : null}
                         </View>
@@ -645,23 +662,41 @@ const styles = StyleSheet.create({
   groupHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    minHeight: 34,
-    paddingVertical: 4,
+    gap: 8,
+    minHeight: 40,
+    paddingVertical: 6,
     paddingLeft: 6,
     paddingRight: 4,
     borderRadius: 8,
   },
-  groupHeadActive: { backgroundColor: colors.sunken },
+  groupHeadActive: { backgroundColor: colors.brandSoft },
+  groupIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  groupIconWrapActive: { backgroundColor: colors.card },
   groupTitle: {
     flex: 1,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '500',
     color: colors.ink,
   },
   groupTitleActive: { color: colors.brand },
-  groupBody: { paddingLeft: 10 },
+  groupBody: { paddingLeft: 10, paddingTop: 2, gap: 1 },
+  groupBodyProcess: { paddingLeft: 12 },
+  processRail: {
+    height: 8,
+    width: 2,
+    marginLeft: 20,
+    marginVertical: 1,
+    borderRadius: 1,
+  },
   appSectionTitle: {
     marginBottom: 0,
     marginLeft: 2,

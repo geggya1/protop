@@ -33,12 +33,14 @@ import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
+import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
 import EquipmentScreen from '../screens/equipment/EquipmentScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
 import UsageRecorder from './UsageRecorder';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
+import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
@@ -631,8 +633,11 @@ function AppShellInner() {
     if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
-    if (tab === 'selskap' && ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'].includes(moreSubView)) {
-      return <ProjectPlatformScreen startPage={moreSubView} />;
+    if (tab === 'selskap' && (moreSubView === 'fravaerstyper' || moreSubView === 'fridager')) {
+      return <AbsenceSettingsScreen startTab={moreSubView} />;
+    }
+    if (tab === 'selskap' && (moreSubView === 'kontoplan' || moreSubView === 'regnskapskontoer')) {
+      return <EconomySettingsScreen startTab={moreSubView} />;
     }
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;

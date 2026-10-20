@@ -45,7 +45,10 @@ for (const item of HR_MENU) {
   assert.ok(hr);
   assert.equal(hr.children.length, 7);
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(selskap.children.some((child) => child.id === 'hr'), false);
+  assert.equal(selskap.children, undefined);
+  assert.ok(adminNav.some((item) => item.id === 'hr'));
+  assert.ok(adminNav.some((item) => item.id === 'ansatte'));
+  assert.ok(adminNav.some((item) => item.id === 'selskapsinnstillinger'));
 }
 
 {

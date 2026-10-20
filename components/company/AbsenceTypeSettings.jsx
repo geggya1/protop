@@ -63,8 +63,8 @@ export default function AbsenceTypeSettings({ familyId, colors, canEdit }) {
       colors={colors}
       nativeID="company-absence-types"
       crumbs={[
-        { label: 'Selskap', page: '' },
-        { label: 'Innstillinger', page: 'innstillinger' },
+        { label: 'Fravær', tab: 'arbeid', page: 'fravaer' },
+        { label: 'Innstillinger', tab: 'arbeid', page: 'fravaer-innstillinger' },
         { label: 'Fraværstyper' },
       ]}
       title="Fraværstyper"

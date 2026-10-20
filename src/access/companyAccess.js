@@ -682,6 +682,7 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'anbud') {
     if (subView === 'avtale' || subView === 'avrop') return allows(grants, 'offers', 'see') || allows(grants, 'tenders', 'see') || allows(grants, 'contracts', 'see');
     if (subView === 'tilbud' || subView === 'pipeline') return allows(grants, 'offers', 'see');
+    if (subView === 'innstillinger') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
     if (subView === 'varsling' || subView === 'foresporsel' || subView === 'vurdering') {
       return allows(grants, 'tenders', 'see');
     }
@@ -697,7 +698,11 @@ function hoursAllowed(grants) {
 }
 
 function navItemAllowed(id, grants) {
-  if (id === 'tilgang' || id === 'selskapsinnstillinger') return allows(grants, 'companyProfile', 'read');
+  if (id === 'tilgang' || id === 'selskapsinnstillinger' || id === 'selskapsinnstillinger-tilgang') {
+    return allows(grants, 'companyProfile', 'read');
+  }
+  if (id === 'selskapsinnstillinger-underenheter') return allows(grants, 'units', 'see');
+  if (id === 'anbud-innstillinger') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   if (id === 'arbeid' || String(id).startsWith('arbeid-')) return hoursAllowed(grants);
   if (id === 'produktivitet') return hoursAllowed(grants);
   if (id === 'fravaer-innstillinger') return allows(grants, 'companyProfile', 'read');

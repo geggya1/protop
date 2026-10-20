@@ -21,7 +21,10 @@ export const ANBUD_MENU = [
   { id: 'tilbud', icon: 'document-text', label: '3. Tilbud' },
 ];
 
-export const ANBUD_SUBVIEW_IDS = ANBUD_MENU.map((item) => item.id);
+/** Prosess-steg i anbudsflaten. Innstillinger ligger utenfor nummereringen. */
+export const ANBUD_PROCESS_IDS = ANBUD_MENU.map((item) => item.id);
+
+export const ANBUD_SUBVIEW_IDS = [...ANBUD_PROCESS_IDS, 'innstillinger'];
 
 export function defaultAnbudSubView(subView) {
   return ANBUD_SUBVIEW_IDS.includes(subView) ? subView : 'varsling';
@@ -29,6 +32,7 @@ export function defaultAnbudSubView(subView) {
 
 export function anbudMenuTitle(subView) {
   if (subView === 'pipeline') return '3. Tilbud';
+  if (subView === 'innstillinger') return 'Innstillinger';
   const row = ANBUD_MENU.find((item) => item.id === subView);
   return row?.label || 'Anbud';
 }
@@ -44,7 +48,7 @@ export function anbudMenuTitle(subView) {
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
-  if (subView === 'tilgang') return 'Tilgang';
+  if (subView === 'tilgang') return 'Tilgangsstyring';
   if (subView === 'innstillinger') return 'Selskapsinnstillinger';
   if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
@@ -263,7 +267,21 @@ export function companyNavItems() {
       icon: 'settings-outline',
       label: 'Selskapsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
-      activeSubViews: ['innstillinger', 'underenheter'],
+      activeSubViews: ['innstillinger', 'tilgang', 'underenheter'],
+      children: [
+        {
+          id: 'selskapsinnstillinger-tilgang',
+          icon: 'key',
+          label: 'Tilgangsstyring',
+          action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
+        },
+        {
+          id: 'selskapsinnstillinger-underenheter',
+          icon: 'git-network',
+          label: 'Underenheter',
+          action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
+        },
+      ],
     },
     { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
     hrNavItem(),
@@ -281,12 +299,20 @@ export function companyNavItems() {
       icon: 'megaphone',
       label: 'Anbud',
       action: { type: 'tab', tab: 'anbud', subView: 'varsling' },
-      children: ANBUD_MENU.map((item) => ({
-        id: `anbud-${item.id}`,
-        icon: item.icon,
-        label: item.label,
-        action: { type: 'tab', tab: 'anbud', subView: item.id },
-      })),
+      children: [
+        ...ANBUD_MENU.map((item) => ({
+          id: `anbud-${item.id}`,
+          icon: item.icon,
+          label: item.label,
+          action: { type: 'tab', tab: 'anbud', subView: item.id },
+        })),
+        {
+          id: 'anbud-innstillinger',
+          icon: 'settings-outline',
+          label: 'Innstillinger',
+          action: { type: 'tab', tab: 'anbud', subView: 'innstillinger' },
+        },
+      ],
     },
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },

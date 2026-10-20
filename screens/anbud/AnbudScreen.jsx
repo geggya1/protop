@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { ANBUD_MENU, defaultAnbudSubView } from '../../src/navigation/shellModules';
+import { ANBUD_MENU, ANBUD_PROCESS_IDS, defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useLayout } from '../../src/theme';
@@ -55,6 +55,16 @@ function PhoneStepFilter({ step, bids, reviewCount, colors, onChange }) {
               </TouchableOpacity>
             );
           })}
+          <TouchableOpacity
+            onPress={() => { onChange('innstillinger'); setOpen(false); }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: step === 'innstillinger' }}
+            style={[styles.step, { borderColor: step === 'innstillinger' ? colors.brand : colors.line, backgroundColor: step === 'innstillinger' ? colors.brandSoft : colors.card }]}
+          >
+            <Text style={{ color: step === 'innstillinger' ? colors.brand : colors.ink, fontWeight: step === 'innstillinger' ? '600' : '400' }}>
+              Innstillinger
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollSheet>
     </>
@@ -71,10 +81,10 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const [bids, setBids] = useState([]);
   const [aktuellCount, setAktuellCount] = useState(0);
   const [focusBidId, setFocusBidId] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
   const reviewCount = aktuellCount + directQueueItems({ inquiries, inbox }).length;
+  const processStep = ANBUD_PROCESS_IDS.includes(step);
 
   useEffect(() => {
     if (subView === 'avtale' || subView === 'avrop') {
@@ -122,9 +132,9 @@ export default function AnbudScreen({ company, subView, members = [], units = []
       ]}
       contentContainerStyle={[styles.inner, isPhone && styles.innerPhone]}
     >
-      {isPhone && step !== 'varsling' ? (
+      {isPhone && step !== 'varsling' && processStep ? (
         <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
-      ) : isPhone ? null : (
+      ) : isPhone ? null : processStep ? (
         <View style={styles.row}>
           {ANBUD_MENU.map((item) => {
             const on = step === item.id;
@@ -140,7 +150,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
             );
           })}
         </View>
-      )}
+      ) : null}
       {step === 'varsling' ? (
         <TenderAlert
           company={company}
@@ -148,7 +158,7 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           units={units}
           onBids={setBids}
           onReviewCount={setAktuellCount}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => go('innstillinger')}
           onOpenReview={() => go('vurdering')}
           stepFilter={isPhone ? (
             <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
@@ -178,25 +188,21 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           units={units}
           companies={companies}
           onFocusHandled={() => setFocusBidId('')}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => go('innstillinger')}
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
           onSnapshot={(next) => setBids((next?.bids || []).filter((bid) => bidListedOnDesk(bid)))}
         />
       ) : null}
-      <ScrollSheet
-        visible={settingsOpen}
-        title="Innstillinger"
-        onClose={() => setSettingsOpen(false)}
-      >
+      {step === 'innstillinger' ? (
         <WatchSettings
           company={company}
           colors={colors}
           units={units}
-          onOpenWork={() => { setSettingsOpen(false); go('tilbud'); }}
+          onOpenWork={() => go('tilbud')}
         />
-      </ScrollSheet>
+      ) : null}
     </ScrollView>
   );
 }

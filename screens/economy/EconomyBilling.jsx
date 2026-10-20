@@ -52,6 +52,7 @@ import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import IndexWarning from './IndexWarning';
 import { VAT_CODES as VAT_TABLE } from '../../src/economy/vat.js';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { effectiveCreditDays } from '../../src/project/invoiceSettings.js';
 
 /**
  * Økonomi · Fakturagrunnlag — godkjente timer → faktura → bilag → EHF.
@@ -136,11 +137,13 @@ export default function EconomyBilling() {
     setError('');
     setNote('');
     try {
+      const project = (projectState.projects || []).find((row) => row.id === proposal.projectId) || null;
       const created = createInvoiceFromOperations(proposal, {
         existingInvoices: invoices,
         vatCode,
         groupBy: 'activity',
         bankAccount: supplier.bankAccount,
+        creditDays: effectiveCreditDays(projectState, project, 14),
       });
       if (!created.ok) {
         setError(created.error);

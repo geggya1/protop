@@ -52,6 +52,10 @@ export default function StandardAccountSettings({ familyId, colors, canEdit }) {
       note={project.note}
       error={project.error}
     >
+      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 12 }}>
+        Disse kontoene er selskapets standard og arves av alle prosjekter under Faktureringsvalg
+        (Regnskapskontoer og MVA). Prosjektet kan overstyre enkeltkontoer.
+      </Text>
       <Text accessibilityRole="header" style={[styles.section, { color: colors.ink, marginTop: 0 }]}>
         Standard regnskapskontoer for kunder i samme land som egen bedrift
       </Text>

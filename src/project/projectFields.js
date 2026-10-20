@@ -113,6 +113,18 @@ export function emptyPricingSettings() {
     unitPrice: null,
     unitLabel: '',
     note: '',
+    probability: 100,
+    rateBasis: 'single',
+    estimatedTotalFee: null,
+    showBillableExpenses: true,
+    showBillableSales: true,
+    markupHours: 0,
+    markupExpenses: null,
+    productPriceListId: '',
+    newEntriesBillable: true,
+    separateBilling: false,
+    importedExpensesBillable: 'standard',
+    activityIds: [],
   };
 }
 
@@ -124,6 +136,11 @@ export function normalizePricingSettings(raw = {}, pricingModel = '') {
     const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
     return Number.isFinite(n) ? n : null;
   };
+  const imported = text(src.importedExpensesBillable).toLowerCase();
+  const importedMode = ['yes', 'no', 'standard'].includes(imported) ? imported : 'standard';
+  const activityIds = Array.isArray(src.activityIds)
+    ? src.activityIds.map((id) => text(id)).filter(Boolean)
+    : [];
   const next = {
     ...emptyPricingSettings(),
     hourlyRate: num(src.hourlyRate),
@@ -132,6 +149,18 @@ export function normalizePricingSettings(raw = {}, pricingModel = '') {
     unitPrice: num(src.unitPrice),
     unitLabel: text(src.unitLabel).slice(0, 80),
     note: text(src.note).slice(0, 500),
+    probability: num(src.probability) ?? 100,
+    rateBasis: text(src.rateBasis) || 'single',
+    estimatedTotalFee: num(src.estimatedTotalFee),
+    showBillableExpenses: src.showBillableExpenses !== false,
+    showBillableSales: src.showBillableSales !== false,
+    markupHours: num(src.markupHours) ?? 0,
+    markupExpenses: num(src.markupExpenses),
+    productPriceListId: text(src.productPriceListId).slice(0, 80),
+    newEntriesBillable: src.newEntriesBillable !== false,
+    separateBilling: !!src.separateBilling,
+    importedExpensesBillable: importedMode,
+    activityIds,
   };
   if (model === 'hourly' && next.hourlyRate == null && num(src.feeEstimate) != null) {
     next.hourlyRate = num(src.feeEstimate);

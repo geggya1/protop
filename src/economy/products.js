@@ -19,6 +19,10 @@ export const SALE_STATUSES = [
   { id: 'invoiced', label: 'Fakturert' },
 ];
 
+export function saleStatusLabel(status) {
+  return SALE_STATUSES.find((row) => row.id === status)?.label || text(status) || 'Utkast';
+}
+
 export function productKind(id) {
   return PRODUCT_KINDS.find((row) => row.id === id) || PRODUCT_KINDS[0];
 }

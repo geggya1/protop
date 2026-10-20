@@ -48,6 +48,16 @@ export function setExpenseStatus(state, id, status) {
   return ok({ ...state, expenses: replaceById(state.expenses, row) }, { expense: row });
 }
 
+export function deleteExpense(state, id) {
+  const current = (state.expenses || []).find((row) => row.id === id);
+  if (!current) return fail(state, 'Utlegget finnes ikke.');
+  if (current.status === 'invoiced') return fail(state, 'Fakturert utlegg kan ikke slettes.');
+  return ok({
+    ...state,
+    expenses: (state.expenses || []).filter((row) => row.id !== id),
+  }, { expense: current });
+}
+
 export function upsertTrip(state, input) {
   const check = validateTrip(input);
   if (!check.ok) return fail(state, check.error);
@@ -180,6 +190,16 @@ export function setSaleStatus(state, id, status) {
   if (!current) return fail(state, 'Salgslinjen finnes ikke.');
   const row = normalizeSale({ ...current, status, updatedAt: stamp() });
   return ok({ ...state, sales: replaceById(state.sales, row) }, { sale: row });
+}
+
+export function deleteSale(state, id) {
+  const current = (state.sales || []).find((row) => row.id === id);
+  if (!current) return fail(state, 'Salgslinjen finnes ikke.');
+  if (current.status === 'invoiced') return fail(state, 'Fakturert salg kan ikke slettes.');
+  return ok({
+    ...state,
+    sales: (state.sales || []).filter((row) => row.id !== id),
+  }, { sale: current });
 }
 
 export function markOperationsInvoiced(state, {

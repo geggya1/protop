@@ -51,9 +51,9 @@ function screenFromView(view) {
   return NAV.some((item) => item.id === view) ? view : 'oversikt';
 }
 
-function Field({ label, value, colors, onChange, placeholder }) {
+function Field({ label, value, colors, onChange, placeholder, compact }) {
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, compact && styles.fieldCompact]}>
       <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
       {onChange ? (
         <TextInput
@@ -79,6 +79,7 @@ export default function IndexWorkspace({
   actor = null,
   caseId = '',
   initialView = '',
+  series = null,
   onClose,
   onSave,
   onOpenProject,
@@ -98,7 +99,10 @@ export default function IndexWorkspace({
   const [seriesConfirmed, setSeriesConfirmed] = useState(false);
   const [freeText, setFreeText] = useState(existing?.freeText || '');
   const [to, setTo] = useState(customer?.email || draft?.email || '');
+  const [recipientName, setRecipientName] = useState(customer?.contactName || draft?.contactName || '');
   const [cc, setCc] = useState('');
+  const [frozen, setFrozen] = useState(null);
+  const [openLetterId, setOpenLetterId] = useState('');
   const [subject, setSubject] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [dates, setDates] = useState(() => ({
@@ -112,6 +116,13 @@ export default function IndexWorkspace({
   useEffect(() => {
     setScreen(screenFromView(initialView));
   }, [contract?.id, initialView]);
+
+  useEffect(() => {
+    const email = customer?.email || draft?.email || '';
+    const name = customer?.contactName || draft?.contactName || customer?.name || '';
+    if (email) setTo((current) => current || email);
+    if (name) setRecipientName((current) => current || name);
+  }, [customer?.email, customer?.contactName, customer?.name, draft?.email, draft?.contactName]);
 
   useEffect(() => {
     if (dates.effectiveFrom || !draft) return;
@@ -148,13 +159,14 @@ export default function IndexWorkspace({
     seriesConfirmed,
   }), [draft, dates, freeText, seriesConfirmed]);
 
+  const liveSeries = bundle?.series || series;
   const math = useMemo(() => computeRegulation({
     draft: activeDraft,
-    series: bundle?.series || null,
+    series: liveSeries,
     cases,
     regulations: contract?.regulations || [],
     period: selectedPeriod,
-  }), [activeDraft, bundle, cases, contract?.regulations, selectedPeriod]);
+  }), [activeDraft, liveSeries, cases, contract?.regulations, selectedPeriod]);
 
   const letterPack = useMemo(() => {
     const options = { logo, includeLogo: useLogo };
@@ -212,7 +224,7 @@ export default function IndexWorkspace({
       return null;
     }
     setEntry(result.case || next);
-    setNote(`${result.case?.number || next.number} er lagret.`);
+    setNote(`Utkast ${result.case?.number || next.number} er lagret. Ingenting er sendt.`);
     return result.case || next;
   }
 
@@ -289,7 +301,7 @@ export default function IndexWorkspace({
       const message = indexLetterMessage({
         to,
         cc: cc.split(/[;,]/),
-        name: customer?.contactName || draft?.contactName || customer?.name || '',
+        name: recipientName || customer?.contactName || draft?.contactName || customer?.name || '',
         companyName: company?.navn || draft?.supplier || '',
         letterPlain: current.letterPlain,
         period: periodLabel(current.newPeriod),
@@ -348,16 +360,45 @@ export default function IndexWorkspace({
   const points = bundle?.series?.[draft?.indexId]?.points || [];
   const queue = useMemo(() => classifyContract({
     contract,
-    series: bundle?.series || null,
-  }), [contract, bundle]);
+    series: liveSeries,
+  }), [contract, liveSeries]);
   const history = historyRows(cases, contract?.regulations || []);
   const savedPlain = savedLetterText(contract, draft, company);
+  const savedCase = !!(entry && cases.some((row) => row.id === entry.id));
+
+  function reviewCalculation() {
+    if (!math?.ok || letterPack.stored || !letter) {
+      setError(math?.error || 'Ny indeks er ikke publisert, så en ny beregning kan ikke låses.');
+      return;
+    }
+    const base = ensureEntry();
+    if (!base) {
+      setError('Beregningen er ikke klar.');
+      return;
+    }
+    const current = withLetter(datePatch(base));
+    setEntry(current);
+    setFrozen({
+      id: current.id,
+      at: dates.noticeDate || osloDate(),
+      title: letter.title,
+      plain: letter.plain,
+      letter,
+      price: formatKr(math.regulated),
+      period: [periodLabel(math.basisPoint?.period), periodLabel(math.regulationPoint?.period)].filter(Boolean).join('–'),
+    });
+    setOpenLetterId(current.id);
+    setNote('Beregningen er låst for gjennomgang. Ingenting er lagret eller sendt.');
+    setScreen('brev');
+  }
+
   const shared = {
     contract, project, draft, customer, company, colors, wide, chain, math, queue, history,
     dates, patchDate, points, selectedPeriod, setSelectedPeriod, freeText, setFreeText,
-    to, setTo, cc, setCc, subject, setSubject, useLogo, setUseLogo, logo, letter, entry,
+    to, setTo, recipientName, setRecipientName, cc, setCc, subject, setSubject, useLogo, setUseLogo, logo, letter, entry,
     checks, working, cases, onOpenProject, setScreen, storeDraft, approve, download, correct,
-    savedPlain, screen, letterCaption: letterPack.stored
+    savedPlain, screen, frozen, openLetterId, setOpenLetterId, setEntry, reviewCalculation, savedCase,
+    letterCaption: letterPack.stored
       ? 'Ny indeks for neste regulering er ikke publisert. Forhåndsvisningen viser siste lagrede varsel.'
       : '',
   };
@@ -436,7 +477,7 @@ function historyRows(cases, regulations) {
     number: row.id,
     title: 'Tidligere varsel',
     period: [periodLabel(row.fromPeriod), periodLabel(row.toPeriod)].filter(Boolean).join('–'),
-    from: pretty(row.savedAt),
+    from: pretty(row.effectiveFrom || row.savedAt) || 'Ikke fastsatt',
     change: formatPercent(row.changePercent),
     price: formatKr(row.after),
     statusLabel: row.sentAt ? 'Sendt' : 'Lagret',
@@ -454,81 +495,104 @@ function Pill({ label, colors, tone }) {
   );
 }
 
+function landingStatus(queue, history) {
+  const last = (history || []).find((row) => row.from && row.from !== 'Ikke fastsatt');
+  const when = last?.from ? `Sist regulert ${last.from}.` : '';
+  const band = queue?.band;
+  if (band === 'kan_reguleres') {
+    return { title: 'Kan reguleres på nytt', detail: queue.reason || '', tone: 'go' };
+  }
+  if (band === 'regulert') {
+    return {
+      title: 'Kan ikke reguleres på nytt nå',
+      detail: [when, 'Venter på ny indeks.', queue?.reason].filter(Boolean).join(' '),
+      tone: 'done',
+    };
+  }
+  if (band === 'venter_indeks') {
+    return { title: 'Venter på ny indeks', detail: [when, queue?.reason].filter(Boolean).join(' '), tone: 'wait' };
+  }
+  if (band === 'kommende') {
+    return { title: 'Kan ikke reguleres ennå', detail: queue?.reason || '', tone: 'wait' };
+  }
+  if (band === 'ikke_aktuell') {
+    return { title: 'Kan ikke reguleres', detail: queue?.reason || '', tone: 'stop' };
+  }
+  return { title: queue?.label || 'Må vurderes', detail: [when, queue?.reason].filter(Boolean).join(' '), tone: 'wait' };
+}
+
+function statusTone(tone, colors) {
+  if (tone === 'go') return { bg: '#ecfdf3', border: colors.success || '#16a34a', ink: '#166534' };
+  if (tone === 'done') return { bg: colors.brandSoft || '#E8F6FE', border: colors.brand, ink: colors.ink };
+  if (tone === 'stop') return { bg: '#fef2f2', border: colors.danger || '#dc2626', ink: colors.danger || '#dc2626' };
+  return { bg: '#fffbeb', border: colors.warn || '#d97706', ink: '#92400e' };
+}
+
 function Overview(props) {
   const {
-    contract, project, draft, colors, wide, chain, math, queue, onOpenProject, setScreen, letter, letterCaption, savedPlain,
+    contract, project, draft, colors, wide, chain, queue, setScreen, history, setEntry, setOpenLetterId,
   } = props;
-  const checks = [
-    [!!draft?.indexId, 'Avtalen inneholder indeksbestemmelse', chain?.table ? `SSB ${chain.table}` : 'Indeksserie mangler'],
-    [!!chain?.original, 'Indeksgrunnlaget er registrert', chain?.original ? `${chain.original.label} · ${formatIndex(chain.original.value)}` : 'Opprinnelig indeks mangler'],
-    [!!math?.ok && !math?.provisional, 'Ny indeks kan brukes', math?.ok ? (math.provisional ? 'Indeksen er ikke endelig' : formatKr(math.regulated)) : (math?.error || 'Venter på indeks')],
-    [!(contract?.indexCases || []).some((row) => row.status === 'sendefeil'), 'Tidligere varsler', 'Ingen utsendelse står med feil'],
-  ];
+  const status = landingStatus(queue, history);
+  const tone = statusTone(status.tone, colors);
+  const [openId, setOpenId] = useState('');
+  const letters = (history || []).filter((row) => row.letterPlain || row.newPrice || row.after || row.price);
   return (
     <View style={{ gap: 12 }}>
-      <View style={styles.top}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>AVTALE / REGULERING</Text>
-          <View style={styles.row}>
-            <Text style={[styles.title, { color: colors.ink, flexShrink: 1 }]}>{contract?.title || 'Avtale'}</Text>
-            <Pill label={queue?.label || 'Status'} colors={colors} tone={queue?.attention ? 'wait' : 'ok'} />
-          </View>
+      <View nativeID="index-landing-status" style={[styles.banner, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+        <Text style={[styles.bannerTitle, { color: tone.ink }]}>{status.title}</Text>
+        <Text style={{ color: colors.ink }}>{status.detail}</Text>
+        {status.tone === 'go' ? (
+          <TouchableOpacity onPress={() => setScreen('beregning')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Gå til beregning</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1.2 }]}>
+          <Text style={[styles.h, { color: colors.ink }]}>{contract?.title || 'Avtale'}</Text>
           <Text style={{ color: colors.muted }}>
             {[contract?.oppdragId, contract?.buyer, draft?.standard].filter(Boolean).join(' · ')}
           </Text>
-        </View>
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={onOpenProject} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne prosjekt</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen('beregning')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Ny reguleringssak</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={{ flex: 1.4, gap: 12 }}>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.h, { color: colors.ink }]}>Inngått avtale og indeksgrunnlag</Text>
-            <View style={styles.stats}>
-              <Stat label="Avtalt pris eks. mva" value={chain?.originalPrice ? formatKr(chain.originalPrice) : '–'} colors={colors} />
-              <Stat label="Avtaledato" value={pretty(draft?.contractDate) || '–'} colors={colors} />
-              <Stat label="Avtalt frekvens" value={frequencyLabel(draft?.terms?.frequency) || '–'} colors={colors} />
-            </View>
-            <IndexTable chain={chain} math={math} colors={colors} />
-          </View>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.h, { color: colors.ink }]}>Avtaleopplysninger</Text>
+          <View style={styles.grid}>
+            <Field label="Avtalt pris eks. mva" value={chain?.originalPrice ? formatKr(chain.originalPrice) : ''} colors={colors} />
+            <Field label="Gjeldende pris" value={chain?.previousPrice ? formatKr(chain.previousPrice) : ''} colors={colors} />
+            <Field label="Avtaledato" value={pretty(draft?.contractDate)} colors={colors} />
+            <Field label="Frekvens" value={frequencyLabel(draft?.terms?.frequency)} colors={colors} />
             <Field label="Prosjekt" value={[project?.number, project?.name].filter(Boolean).join(' · ')} colors={colors} />
             <Field label="Oppdragsgiver" value={contract?.buyer} colors={colors} />
             <Field label="Kontakt" value={[draft?.contactName, draft?.email].filter(Boolean).join(' · ')} colors={colors} />
-            <Field label="Neste tillatte dato" value={pretty(queue?.allowed)} colors={colors} />
+            <Field label="Sist benyttet indeks" value={chain?.previous ? `${chain.previous.label} · ${formatIndex(chain.previous.value)}` : ''} colors={colors} />
           </View>
         </View>
-        <View style={{ flex: 1.2, gap: 12, minWidth: wide ? 360 : 0 }}>
-          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.h, { color: colors.ink }]}>Reguleringsstatus</Text>
-            <Text style={{ color: colors.muted }}>{queue?.reason}</Text>
-            <View style={styles.grid}>
-              <Field label="Utgangindeks" value={chain?.original ? `${formatIndex(chain.original.value)} · ${chain.original.label}` : '–'} colors={colors} />
-              <Field label="Ny indeks" value={chain?.next ? `${formatIndex(chain.next.value)} · ${chain.next.label}` : 'Ikke publisert'} colors={colors} />
-              <Field label="Beregnet ny pris" value={math?.ok ? formatKr(math.regulated) : '–'} colors={colors} />
-            </View>
-            <View style={styles.actions}>
-              <TouchableOpacity onPress={() => setScreen('beregning')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Start ny indeksregulering</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setScreen('brev')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink, fontWeight: '700' }}>Forhåndsvis brevet</Text>
-              </TouchableOpacity>
-            </View>
-            {checks.map(([ok, title, detail]) => (
-              <Text key={title} style={{ color: ok ? (colors.success || '#16a34a') : (colors.warn || '#d97706') }}>
-                {ok ? '●' : '▲'} {title}. {detail}
-              </Text>
-            ))}
-          </View>
-          <LetterDocument letter={letter} plain={savedPlain} colors={colors} caption={letter || savedPlain ? letterCaption : ''} />
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1 }]}>
+          <Text style={[styles.h, { color: colors.ink }]}>Tidligere brev</Text>
+          {!letters.length ? <Text style={{ color: colors.muted }}>Ingen brev er lagret eller sendt.</Text> : null}
+          {letters.map((row) => {
+            const open = openId === row.id;
+            return (
+              <View key={row.id} style={{ gap: 6 }}>
+                <TouchableOpacity onPress={() => setOpenId(open ? '' : row.id)} accessibilityRole="button" style={styles.hist}>
+                  <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{row.from || row.number}</Text>
+                  <Text style={{ color: colors.muted }}>{row.statusLabel}</Text>
+                </TouchableOpacity>
+                {open ? (
+                  <View nativeID="index-letter-drawer" style={{ gap: 6, paddingLeft: 8 }}>
+                    <Field label="Periode" value={row.period} colors={colors} compact />
+                    <Field label="Ny pris" value={row.price} colors={colors} compact />
+                    <Field label="Endring" value={row.change} colors={colors} compact />
+                    {row.letterPlain ? <Text style={{ color: colors.ink }} numberOfLines={4}>{row.letterPlain}</Text> : null}
+                    <TouchableOpacity
+                      onPress={() => { setEntry(row); setOpenLetterId(row.id); setScreen('brev'); }}
+                      accessibilityRole="button"
+                      style={[styles.ghost, { borderColor: colors.line }]}
+                    >
+                      <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne brev</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       </View>
     </View>
@@ -546,16 +610,18 @@ function Stat({ label, value, colors }) {
 
 function Calculation(props) {
   const {
-    colors, wide, chain, math, dates, patchDate, points, selectedPeriod, setSelectedPeriod, setScreen,
+    colors, wide, chain, math, dates, patchDate, points, selectedPeriod, setSelectedPeriod,
+    contract, draft, reviewCalculation,
   } = props;
+  const [showCalc, setShowCalc] = useState(false);
+  const ready = !!math?.ok;
   return (
     <View style={{ gap: 12 }}>
-      <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={{ flex: 1.4, gap: 12 }}>
+      <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
+        <View style={{ flex: 1.15, gap: 12, minWidth: 0 }}>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.h, { color: colors.ink }]}>1. Indeks og beregningsgrunnlag</Text>
             <IndexTable chain={chain} math={math} colors={colors} />
-            <CalcTable math={math} colors={colors} />
             <Text style={{ color: colors.muted, fontSize: 12 }}>Velg indeksperiode. Serien byttes ikke selv om en nyere tabell finnes.</Text>
             <View style={styles.row}>
               {points.slice(-6).map((point) => (
@@ -567,7 +633,7 @@ function Calculation(props) {
           </View>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.h, { color: colors.ink }]}>2. Reguleringsperiode og virkning</Text>
-            <View style={[styles.grid, { flexDirection: wide ? 'row' : 'column' }]}>
+            <View style={styles.grid}>
               <Field label="Referanseperiode fra" value={periodLabel(chain?.previous?.period)} colors={colors} />
               <Field label="Referanseperiode til" value={periodLabel(math?.regulationPoint?.period)} colors={colors} />
               <Field label="Reguleringsdato" value={dates.regulationDate} colors={colors} onChange={(value) => patchDate('regulationDate', value)} placeholder="ÅÅÅÅ-MM-DD" />
@@ -577,18 +643,52 @@ function Calculation(props) {
             </View>
             {(math?.warnings || []).map((line) => <Text key={line} style={{ color: colors.muted }}>{line}</Text>)}
           </View>
+          <TouchableOpacity
+            onPress={() => ready && setShowCalc(true)}
+            disabled={!ready}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: ready ? colors.brand : colors.line, opacity: ready ? 1 : 0.7 }]}
+          >
+            <Text style={{ color: ready ? '#fff' : colors.ink, fontWeight: '700' }}>Foreta en ny beregning</Text>
+          </TouchableOpacity>
+          {!ready ? <Text style={{ color: colors.muted }}>{math?.error || 'Ny indeks er ikke publisert.'}</Text> : null}
+          {showCalc && ready ? (
+            <View nativeID="index-calc-summary" style={[styles.banner, { backgroundColor: colors.brandSoft || '#E8F6FE', borderColor: colors.brand }]}>
+              <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
+              <Text style={{ color: colors.ink, fontSize: 28, fontWeight: '700' }}>{formatKr(math.regulated)}</Text>
+              <Text style={{ color: colors.ink }}>
+                Fra {formatKr(math.baseSum)} · {math.addition >= 0 ? '+' : ''}{formatKr(math.addition)} ({formatPercent(math.changePercent)}) eks. mva
+              </Text>
+            </View>
+          ) : null}
         </View>
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1 }]}>
-          <Text style={[styles.h, { color: colors.ink }]}>Oppsummering</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Ny pris eks. mva</Text>
-          <Text style={{ color: colors.ink, fontSize: 28, fontWeight: '700' }}>{math?.ok ? formatKr(math.regulated) : '–'}</Text>
-          {math?.ok ? (
-            <Text style={{ color: colors.muted }}>
-              Fra {formatKr(math.baseSum)} · {math.addition >= 0 ? '+' : ''}{formatKr(math.addition)} ({formatPercent(math.changePercent)})
-            </Text>
-          ) : <Text style={{ color: colors.muted }}>{math?.error || 'Beregningen er ikke klar.'}</Text>}
-          <TouchableOpacity onPress={() => setScreen('brev')} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Forhåndsvis reguleringsbrev</Text>
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1, alignSelf: 'flex-start', width: wide ? undefined : '100%' }]}>
+          <Text style={[styles.h, { color: colors.ink }]}>Status etter beregning</Text>
+          {showCalc && ready ? (
+            <View style={styles.grid}>
+              <Field label="Avtale" value={contract?.title || draft?.title} colors={colors} />
+              <Field label="Oppdragsgiver" value={contract?.buyer || draft?.buyer} colors={colors} />
+              <Field label="Kontakt" value={draft?.contactName} colors={colors} />
+              <Field label="E-post" value={draft?.email} colors={colors} />
+              <Field label="Periode" value={[periodLabel(math.basisPoint?.period), periodLabel(math.regulationPoint?.period)].filter(Boolean).join(' – ')} colors={colors} />
+              <Field label="Startindeks" value={formatIndex(math.basisPoint?.value)} colors={colors} />
+              <Field label="Ny indeks" value={formatIndex(math.regulationPoint?.value)} colors={colors} />
+              <Field label="Indeksendring" value={formatPercentExact(math.changePercent)} colors={colors} />
+              <Field label="Gjeldende pris eks. mva" value={formatKr(math.baseSum)} colors={colors} />
+              <Field label="Regulering" value={`${math.addition >= 0 ? '+' : ''}${formatKr(math.addition)}`} colors={colors} />
+              <Field label="Ny pris eks. mva" value={formatKr(math.regulated)} colors={colors} />
+              <Field label="Gjelder fra" value={pretty(dates.effectiveFrom)} colors={colors} />
+            </View>
+          ) : (
+            <Text style={{ color: colors.muted }}>Feltene fylles når en ny beregning er kjørt.</Text>
+          )}
+          <TouchableOpacity
+            onPress={reviewCalculation}
+            disabled={!showCalc || !ready}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: colors.brand, opacity: showCalc && ready ? 1 : 0.45 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Se over og godkjenn</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -639,63 +739,120 @@ function LetterDocument({ letter, plain, colors, caption }) {
   );
 }
 
+function sendOutcome({ entry, savedCase, frozen }) {
+  if (entry?.mailStatus === 'sendt' || entry?.status === 'sendt') {
+    return {
+      title: 'Sendt',
+      detail: `Varslet er sendt ${entry.mail?.sentAt || ''} til ${entry.mail?.to || ''}.`.replace(/\s+/g, ' ').trim(),
+      tone: 'go',
+    };
+  }
+  if (entry?.status === 'sendefeil' || entry?.mail?.error) {
+    return { title: 'Ikke sendt', detail: entry.mail?.error || 'Utsendingen feilet. Ingenting er markert som sendt.', tone: 'stop' };
+  }
+  if (savedCase) {
+    return { title: 'Lagret som utkast', detail: 'Saken er opprettet og ligger i historikken. Ingenting er sendt.', tone: 'wait' };
+  }
+  if (frozen) {
+    return { title: 'Opprettet til gjennomgang', detail: 'Beregningen er låst i listen. Den er verken lagret eller sendt.', tone: 'wait' };
+  }
+  return { title: 'Ingenting er opprettet', detail: 'Kjør beregning og velg Se over og godkjenn før noe lagres eller sendes.', tone: 'done' };
+}
+
 function LetterScreen(props) {
   const {
-    colors, wide, letter, math, freeText, setFreeText, useLogo, setUseLogo, logo,
-    to, setTo, cc, setCc, subject, setSubject, entry, working, download, storeDraft, approve, correct,
-    savedPlain, letterCaption,
+    colors, wide, letter, freeText, setFreeText, useLogo, setUseLogo, logo,
+    to, setTo, recipientName, setRecipientName, cc, setCc, subject, setSubject,
+    entry, working, download, storeDraft, approve, correct,
+    savedPlain, history, frozen, openLetterId, setOpenLetterId, savedCase, draft,
   } = props;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const outcome = sendOutcome({ entry, savedCase, frozen });
+  const tone = statusTone(outcome.tone, colors);
+  const rows = [
+    ...(frozen ? [{
+      id: frozen.id,
+      date: pretty(frozen.at) || frozen.at,
+      title: frozen.title || 'Nytt varsel',
+      status: 'Klar til gjennomgang',
+      letter: frozen.letter,
+      plain: frozen.plain,
+    }] : []),
+    ...(history || []).filter((row) => row.id !== frozen?.id).map((row) => ({
+      id: row.id,
+      date: row.from || pretty(row.createdAt) || row.number,
+      title: row.title || row.number,
+      status: row.statusLabel,
+      letter: null,
+      plain: row.letterPlain || '',
+    })),
+  ];
+  const selected = rows.find((row) => row.id === openLetterId) || null;
+  const previewLetter = selected?.letter
+    || (selected && letter && selected.id === entry?.id ? letter : null)
+    || (selected ? letterFromRecord(draft || {}, selected, { logo, includeLogo: useLogo })?.letter : null);
+  const previewPlain = selected?.plain || (!selected ? '' : (entry?.letterPlain || savedPlain));
   return (
-    <View style={{ gap: 12 }}>
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={() => download('pdf')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>PDF</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => download('docx')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Word</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={[styles.split, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={{ flex: 1.3, gap: 12 }}>
-          <CompanyLogoChoice value={useLogo} onChange={setUseLogo} logo={logo} colors={colors} subject="indeksbrevet" />
-          <Field label="Fritekst i brevet" value={freeText} colors={colors} onChange={setFreeText} placeholder="Valgfri presisering" />
-          <LetterDocument letter={letter} plain={entry?.letterPlain || savedPlain} colors={colors} caption={letterCaption} />
-          {!letter && math?.error ? <Text style={{ color: colors.muted }}>{math.error} Lagret brev vises over.</Text> : null}
+    <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
+      <View style={{ flex: 1.3, gap: 8, minWidth: 0 }}>
+        <View style={styles.toolbar}>
+          <Text style={[styles.h, { color: colors.ink }]}>Låst beregning</Text>
+          <TouchableOpacity onPress={() => setSettingsOpen((open) => !open)} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>{settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}</Text>
+          </TouchableOpacity>
         </View>
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1 }]}>
-          <Text style={[styles.h, { color: colors.ink }]}>Varsel og utsending</Text>
-          <Field label="Mottaker" value={to} colors={colors} onChange={setTo} />
-          <Field label="Kopi" value={cc} colors={colors} onChange={setCc} placeholder="flere adresser skilles med komma" />
-          <Field label="Emne" value={subject} colors={colors} onChange={setSubject} placeholder="Settes fra perioden hvis feltet er tomt" />
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Ingenting sendes før du trykker send. Feil fra leverandøren setter sendefeil.</Text>
-          <View style={styles.actions}>
-            <TouchableOpacity onPress={storeDraft} disabled={working} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Lagre som utkast</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => approve(false)} disabled={working} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Godkjenn uten utsending</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => approve(true)} disabled={working} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand, opacity: working ? 0.6 : 1 }]}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{working ? 'Jobber…' : 'Godkjenn og send'}</Text>
-            </TouchableOpacity>
+        {settingsOpen ? (
+          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <CompanyLogoChoice value={useLogo} onChange={setUseLogo} logo={logo} colors={colors} subject="indeksbrevet" />
+            <Field label="Fritekst i brevet" value={freeText} colors={colors} onChange={setFreeText} placeholder="Valgfri presisering" compact />
           </View>
-          {entry ? (
-            <Text style={{ color: colors.ink }}>
-              {entry.number} · {CASE_STATUS_LABEL[entry.status] || entry.status} · e-post {entry.mailStatus || 'ikke sendt'}
-            </Text>
-          ) : null}
-          {entry?.mail?.sentAt ? (
-            <Text style={{ color: colors.ink }}>
-              Sendt {entry.mail.sentAt} av {entry.mail.sentBy || '–'} til {entry.mail.to}.
-            </Text>
-          ) : null}
-          {entry?.mail?.error ? <Text style={{ color: colors.danger || '#dc2626' }}>{entry.mail.error}</Text> : null}
-          {entry ? (
-            <TouchableOpacity onPress={correct} accessibilityRole="button">
-              <Text style={{ color: colors.brand, fontWeight: '700' }}>Ny korrigering</Text>
-            </TouchableOpacity>
-          ) : null}
+        ) : null}
+        {!rows.length ? <Text style={{ color: colors.muted }}>Ingen brev er generert ennå.</Text> : null}
+        {rows.map((row) => (
+          <TouchableOpacity key={row.id} onPress={() => setOpenLetterId(openLetterId === row.id ? '' : row.id)} accessibilityRole="button" style={styles.hist}>
+            <Text style={{ color: colors.ink, fontWeight: '700', width: 110 }}>{row.date}</Text>
+            <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={1}>{row.title}</Text>
+            <Text style={{ color: colors.muted }}>{row.status}</Text>
+          </TouchableOpacity>
+        ))}
+        {selected ? (
+          <View style={{ gap: 8 }}>
+            <View style={styles.actions}>
+              <TouchableOpacity onPress={() => download('pdf')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink, fontWeight: '700' }}>PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => download('docx')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+                <Text style={{ color: colors.ink, fontWeight: '700' }}>Word</Text>
+              </TouchableOpacity>
+            </View>
+            <LetterDocument letter={previewLetter} plain={previewPlain} colors={colors} />
+          </View>
+        ) : null}
+      </View>
+      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, width: wide ? 340 : '100%', flexGrow: 0, alignSelf: 'flex-start', gap: 8 }]}>
+        <Text style={[styles.h, { color: colors.ink }]}>Varsel og utsending</Text>
+        <View nativeID="index-send-status" style={[styles.banner, { backgroundColor: tone.bg, borderColor: tone.border, padding: 10 }]}>
+          <Text style={{ color: tone.ink, fontWeight: '700' }}>{outcome.title}</Text>
+          <Text style={{ color: colors.ink }}>{outcome.detail}</Text>
         </View>
+        <Field label="Kontakt" value={recipientName} colors={colors} onChange={setRecipientName} compact />
+        <Field label="Mottaker" value={to} colors={colors} onChange={setTo} compact />
+        <Field label="Kopi" value={cc} colors={colors} onChange={setCc} placeholder="flere adresser skilles med komma" compact />
+        <Field label="Emne" value={subject} colors={colors} onChange={setSubject} placeholder="Settes fra perioden hvis feltet er tomt" compact />
+        <TouchableOpacity onPress={storeDraft} disabled={working} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Lagre som utkast</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => approve(false)} disabled={working} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Godkjenn uten utsending</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => approve(true)} disabled={working} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand, opacity: working ? 0.6 : 1 }]}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>{working ? 'Jobber…' : 'Godkjenn og send'}</Text>
+        </TouchableOpacity>
+        {entry ? (
+          <TouchableOpacity onPress={correct} accessibilityRole="button">
+            <Text style={{ color: colors.brand, fontWeight: '700' }}>Ny korrigering</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -738,16 +895,38 @@ function HistoryScreen({ history, colors, wide, onOpenCase, contract }) {
             <TouchableOpacity onPress={() => onOpenCase(selected)} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand }]}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Åpne sak og brev</Text>
             </TouchableOpacity>
-            {(selected.audit || []).slice(-6).map((row, index) => (
+            {(selected.audit || []).slice(-8).map((row, index) => (
               <Text key={`${row.at}-${index}`} style={{ color: colors.muted, fontSize: 12 }}>
-                {row.at} · {row.action} · {row.by}
+                {row.at} · {row.action} · {row.by} {row.detail || ''}
               </Text>
             ))}
           </View>
         ) : null}
       </View>
+      <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={[styles.h, { color: colors.ink }]}>Hendelseslogg</Text>
+        <EventLog history={history} colors={colors} />
+      </View>
     </View>
   );
+}
+
+function EventLog({ history, colors }) {
+  const lines = (history || []).flatMap((row) => {
+    const audit = Array.isArray(row.audit) ? row.audit : [];
+    if (audit.length) {
+      return audit.map((item) => ({
+        key: `${row.id}-${item.at}-${item.action}`,
+        text: `${item.at} · ${row.number} · ${item.action}${item.detail ? ` · ${item.detail}` : ''}${item.by ? ` · ${item.by}` : ''}`,
+      }));
+    }
+    return [{
+      key: `${row.id}-status`,
+      text: `${row.from || 'Uten dato'} · ${row.number} · ${row.statusLabel} · ${row.price || ''}`.trim(),
+    }];
+  });
+  if (!lines.length) return <Text style={{ color: colors.muted }}>Ingen hendelser er logget.</Text>;
+  return lines.map((line) => <Text key={line.key} style={{ color: colors.ink }}>{line.text}</Text>);
 }
 
 function IndexTable({ chain, math, colors }) {
@@ -855,6 +1034,11 @@ const styles = StyleSheet.create({
   primary: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   ghost: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   split: { gap: 12, alignItems: 'stretch' },
+  splitStart: { alignItems: 'flex-start' },
+  banner: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
+  bannerTitle: { fontSize: 22, fontWeight: '700' },
+  fieldCompact: { flexGrow: 0, minWidth: 0, width: '100%' },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   tr: { flexDirection: 'row', minWidth: 560 },
   th: { width: 140, fontSize: 12, paddingVertical: 6 },
   td: { width: 140, fontSize: 14, paddingVertical: 6 },

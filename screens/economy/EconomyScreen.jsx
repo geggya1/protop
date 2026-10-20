@@ -151,7 +151,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return (
       <ScrollView
         style={[styles.screen, { backgroundColor: colors.bg }]}
-        contentContainerStyle={styles.inner}
+        contentContainerStyle={[styles.inner, styles.wide]}
         keyboardShouldPersistTaps="handled"
       >
         <EconomyIndices contracts={contracts} />
@@ -259,4 +259,5 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 980, width: '100%', alignSelf: 'flex-start', gap: 20 },
+  wide: { maxWidth: 1280 },
 });

@@ -4,136 +4,204 @@ import { useColors } from '../../src/context/ThemeContext';
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex } from '../../src/indeksregulering/letter';
 import {
+  INDEX_TIME_WINDOWS,
+  agreementCountByIndex,
   appendIndexHistory,
-  indexTableRows,
+  indexColumnIds,
+  indexTimeSections,
   mergeIndexSnapshot,
-  usedIndexIds,
 } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { fetchAllIndices } from '../../src/indeksregulering/ssb';
 import { loadIndexCache, saveIndexCache } from '../../src/indeksregulering/storage';
-import { indexNews, latestMap, osloDate } from '../../src/indeksregulering/watch';
+import { indexNews, latestMap, osloDate, shouldCheckToday } from '../../src/indeksregulering/watch';
 
 function showValue(value) {
-  if (value === '' || value == null) return '—';
+  if (value == null || value === '') return '—';
   return formatIndex(value);
+}
+
+function stamp(value) {
+  return String(value || '').slice(0, 16).replace('T', ' ');
 }
 
 export default function EconomyIndices({ contracts = [] }) {
   const colors = useColors();
   const [series, setSeries] = useState(null);
-  const [history, setHistory] = useState([]);
   const [checkedAt, setCheckedAt] = useState('');
-  const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState(true);
+  const [years, setYears] = useState(3);
+
+  const columnIds = useMemo(() => indexColumnIds(contracts), [contracts]);
+  const columnKey = columnIds.join('|');
+  const counts = useMemo(() => agreementCountByIndex(contracts), [contracts]);
+  const sections = useMemo(
+    () => indexTimeSections({ series, ids: columnIds, years }),
+    [series, columnIds, years],
+  );
 
   useEffect(() => {
     let live = true;
-    Promise.all([
-      loadIndexCache(),
-      loadRemoteIndexSnapshot().catch(() => null),
-    ]).then(([cache, remote]) => {
+    const ids = columnKey ? columnKey.split('|') : [];
+    (async () => {
+      let cache = null;
+      let remote = null;
+      try {
+        [cache, remote] = await Promise.all([
+          loadIndexCache(),
+          loadRemoteIndexSnapshot().catch(() => null),
+        ]);
+      } catch {
+        cache = null;
+      }
       if (!live) return;
-      setSeries(mergeIndexSnapshot(cache?.series, remote));
+      const merged = mergeIndexSnapshot(cache?.series, remote);
       const remoteHistory = Array.isArray(remote?.history) ? remote.history : [];
       const localHistory = Array.isArray(cache?.history) ? cache.history : [];
-      setHistory(remoteHistory.length >= localHistory.length ? remoteHistory : localHistory);
+      const initialHistory = remoteHistory.length >= localHistory.length ? remoteHistory : localHistory;
+      setSeries(merged);
       setCheckedAt(remote?.checkedAt || cache?.fetchedAt || '');
-    }).catch(() => {});
+      const ready = ids.every((id) => merged?.[id]?.points?.length);
+      if (ready && !shouldCheckToday(cache?.checkedOn)) {
+        setWorking(false);
+        return;
+      }
+      setWorking(true);
+      setError('');
+      try {
+        const bundle = await fetchAllIndices({ ids });
+        if (!live) return;
+        const nextSeries = { ...merged, ...bundle.series };
+        const news = indexNews(latestMap(merged), latestMap(nextSeries));
+        const nextHistory = appendIndexHistory(initialHistory, news, bundle.fetchedAt);
+        await saveIndexCache({
+          ...bundle,
+          series: nextSeries,
+          news,
+          history: nextHistory,
+          checkedOn: bundle.errors?.length ? (cache?.checkedOn || '') : osloDate(),
+        });
+        if (!live) return;
+        setSeries(nextSeries);
+        setCheckedAt(bundle.fetchedAt);
+        setError(bundle.errors?.[0] || '');
+      } catch (cause) {
+        if (!live) return;
+        setError(cause?.message || 'Kunne ikke hente indeksene fra SSB.');
+      } finally {
+        if (live) setWorking(false);
+      }
+    })();
     return () => { live = false; };
-  }, []);
-
-  const rows = useMemo(
-    () => indexTableRows({ contracts, series, history }),
-    [contracts, series, history],
-  );
-  const used = usedIndexIds(contracts);
-
-  async function refresh() {
-    if (!used.length || working) return;
-    setWorking(true);
-    setError('');
-    setNote('Henter benyttede indekser fra SSB…');
-    try {
-      const previous = latestMap(series);
-      const bundle = await fetchAllIndices({ ids: used });
-      const news = indexNews(previous, latestMap(bundle.series));
-      const nextHistory = appendIndexHistory(history, news, bundle.fetchedAt);
-      await saveIndexCache({ ...bundle, news, history: nextHistory, checkedOn: osloDate() });
-      setSeries(bundle.series);
-      setHistory(nextHistory);
-      setCheckedAt(bundle.fetchedAt);
-      setNote(news.length
-        ? `${news.length} indeks${news.length === 1 ? '' : 'er'} har et nytt punkt.`
-        : 'Indeksene er hentet. Ingen nye punkt siden forrige registrering.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke hente indeksene.');
-      setNote('');
-    } finally {
-      setWorking(false);
-    }
-  }
+  }, [columnKey]);
 
   return (
     <View nativeID="economy-indices" style={styles.stack}>
       <Text style={{ color: colors.muted, lineHeight: 20 }}>
-        Systemet spør SSB én gang i døgnet om indeksene som er navngitt i inngåtte avtaler.
-        Nye punkt registreres her, én rad per indeks.
+        Én kolonne per indeks. Perioden går nedover, og tidsskalaen avgrenses med filtrene.
+        Tallene hentes fra SSB av seg selv.
       </Text>
-      {checkedAt ? (
-        <Text style={{ color: colors.muted }}>Sist registrert {checkedAt.slice(0, 16).replace('T', ' ')}</Text>
-      ) : (
-        <Text style={{ color: colors.muted }}>Ingen SSB-registrering er lagret ennå.</Text>
-      )}
-      {note ? <Text style={{ color: colors.ink }}>{note}</Text> : null}
+      {working ? (
+        <Text style={{ color: colors.muted }}>Henter tall fra SSB…</Text>
+      ) : checkedAt ? (
+        <Text style={{ color: colors.muted }}>Sist oppdatert {stamp(checkedAt)}</Text>
+      ) : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
-      <TouchableOpacity
-        onPress={refresh}
-        disabled={working || !used.length}
-        accessibilityRole="button"
-        style={[styles.btn, { backgroundColor: colors.brand, opacity: working || !used.length ? 0.55 : 1 }]}
-      >
-        <Text style={{ color: '#fff' }}>{working ? 'Henter…' : 'Hent benyttede indekser nå'}</Text>
-      </TouchableOpacity>
-      {!used.length ? (
-        <Text style={{ color: colors.muted }}>Ingen avtaler har en registrert indeks ennå.</Text>
-      ) : (
-        <ScrollView horizontal style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <View>
-            <View style={[styles.tr, styles.head, { borderBottomColor: colors.line }]}>
-              {['Indeks', 'SSB-tabell', 'Siste periode', 'Verdi', 'Forrige', 'Avtaler', ''].map((label) => (
-                <Text key={label || 'flag'} style={[styles.th, { color: colors.muted }]}>{label}</Text>
-              ))}
-            </View>
-            {rows.map((row) => (
-              <View key={row.id} style={[styles.tr, { borderBottomColor: colors.line }]}>
-                <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]}>{row.name}</Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{row.table || '—'}</Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{row.period ? periodLabel(row.period) : '—'}</Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{showValue(row.value)}</Text>
-                <Text style={[styles.td, { color: colors.muted }]}>
-                  {row.previousPeriod ? `${periodLabel(row.previousPeriod)} · ${showValue(row.previousValue)}` : '—'}
-                </Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{row.agreements}</Text>
-                <Text style={[styles.td, { color: row.changed ? (colors.danger || '#b45309') : colors.muted }]}>
-                  {row.changed ? 'Ny indeks' : ''}
-                </Text>
+      <View nativeID="economy-index-filters" style={styles.filters}>
+        {INDEX_TIME_WINDOWS.map((item) => {
+          const on = years === item.id;
+          return (
+            <TouchableOpacity
+              key={item.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              onPress={() => setYears(item.id)}
+              style={[styles.chip, {
+                borderColor: on ? colors.brand : colors.line,
+                backgroundColor: on ? colors.brand : colors.card,
+              }]}
+            >
+              <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 14 }}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {sections.map((section) => (
+        <View key={section.frequency} nativeID={`economy-index-${section.frequency}`} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
+          <ScrollView
+            horizontal
+            style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]}
+          >
+            <View>
+              <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.card }]}>
+                <Text style={[styles.period, styles.th, { color: colors.muted }]}>Periode</Text>
+                {section.columns.map((column) => (
+                  <View key={column.id} style={styles.col}>
+                    <Text style={[styles.colName, { color: colors.ink }]}>{column.name}</Text>
+                    <Text style={[styles.colMeta, { color: colors.muted }]}>
+                      {[column.basis, column.table ? `tabell ${column.table}` : ''].filter(Boolean).join(' · ')}
+                    </Text>
+                    {counts[column.id] ? (
+                      <Text style={[styles.colMeta, { color: colors.muted }]}>
+                        {counts[column.id] === 1 ? '1 avtale' : `${counts[column.id]} avtaler`}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        </ScrollView>
-      )}
+              {section.rows.map((row, index) => {
+                const latest = index === section.rows.length - 1;
+                return (
+                  <View key={row.period} style={[styles.tr, { borderBottomColor: colors.line }]}>
+                    <Text style={[styles.period, { color: colors.ink, fontWeight: latest ? '700' : '400' }]}>
+                      {periodLabel(row.period)}
+                    </Text>
+                    {section.columns.map((column) => (
+                      <Text
+                        key={column.id}
+                        style={[styles.value, { color: colors.ink, fontWeight: latest ? '700' : '400' }]}
+                      >
+                        {showValue(row.values[column.id])}
+                      </Text>
+                    ))}
+                  </View>
+                );
+              })}
+              {!section.rows.length ? (
+                <Text style={[styles.empty, { color: colors.muted }]}>
+                  {working ? 'Henter tall fra SSB…' : 'Ingen publiserte punkt i perioden.'}
+                </Text>
+              ) : null}
+            </View>
+          </ScrollView>
+        </View>
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: 12 },
-  btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
+  stack: { gap: 14 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  section: { gap: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
   table: { borderWidth: 1, borderRadius: 12 },
-  tr: { flexDirection: 'row', minWidth: 860, borderBottomWidth: 1, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
-  head: { paddingVertical: 8 },
-  th: { width: 140, fontSize: 12 },
-  td: { width: 140, fontSize: 14, paddingRight: 8 },
+  tr: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  head: { alignItems: 'flex-start', paddingVertical: 10 },
+  period: { width: 168, fontSize: 14, paddingRight: 12 },
+  th: { fontSize: 12 },
+  col: { width: 176, paddingRight: 12, gap: 2 },
+  colName: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  colMeta: { fontSize: 11, lineHeight: 14 },
+  value: { width: 176, fontSize: 14, paddingRight: 12, fontVariant: ['tabular-nums'] },
+  empty: { padding: 12 },
 });

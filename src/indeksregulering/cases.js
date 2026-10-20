@@ -29,6 +29,43 @@ export const QUEUE_BANDS = [
   { id: 'alle', label: 'Alle avtaler', tone: 'ink' },
 ];
 
+export const DESK_FILTERS = [
+  { id: 'kan_reguleres', label: 'Kan reguleres', tone: 'warn' },
+  { id: 'venter_indeks', label: 'Venter på ny indeks', tone: 'muted' },
+  { id: 'oppmerksomhet', label: 'Krever oppmerksomhet', tone: 'danger' },
+  { id: 'regulert', label: 'Regulert', tone: 'success' },
+];
+
+const FILTER_BANDS = {
+  kan_reguleres: ['kan_reguleres', 'ma_vurderes'],
+  venter_indeks: ['venter_indeks', 'kommende'],
+  regulert: ['regulert'],
+};
+
+export function filterIdForBand(band) {
+  return Object.keys(FILTER_BANDS).find((id) => FILTER_BANDS[id].includes(band)) || '';
+}
+
+export function projectDeactivated(project) {
+  const status = text(project?.status).toLowerCase();
+  return status === 'arkivert' || status === 'deaktivert' || project?.active === false;
+}
+
+export function projectsWithoutAgreement(projects = [], contracts = []) {
+  const linked = new Set();
+  (contracts || []).forEach((contract) => {
+    if (!contract?.id || contract.deletedAt || !contract.projectId) return;
+    linked.add(contract.projectId);
+  });
+  return (projects || [])
+    .filter((project) => project?.id && !project.deletedAt && !linked.has(project.id))
+    .map((project) => ({
+      project,
+      group: projectDeactivated(project) ? 'deaktivert' : 'aktiv',
+    }))
+    .sort((a, b) => text(a.project.number || a.project.name).localeCompare(text(b.project.number || b.project.name), 'nb'));
+}
+
 export const CASE_STATUS_LABEL = {
   utkast: 'Utkast',
   klar_til_kontroll: 'Klar til kontroll',
@@ -597,6 +634,19 @@ export function queueCounts(contracts, series, today) {
     if (counts[status.band] != null) counts[status.band] += 1;
   });
   return counts;
+}
+
+export function deskCounts(contracts, series, today, projects) {
+  const base = queueCounts(contracts, series, today);
+  const loose = projectsWithoutAgreement(projects, contracts);
+  return {
+    kan_reguleres: base.kan_reguleres + base.ma_vurderes,
+    venter_indeks: base.venter_indeks + base.kommende,
+    oppmerksomhet: loose.length,
+    regulert: base.regulert,
+    aktiv: loose.filter((row) => row.group === 'aktiv').length,
+    deaktivert: loose.filter((row) => row.group === 'deaktivert').length,
+  };
 }
 
 export function nextCaseNumber(cases) {

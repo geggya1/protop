@@ -56,6 +56,7 @@ import {
 import { suggestDriving } from '../../src/mileage/suggestRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { getDeviceLocation, reverseGeocode, searchPlaces } from '../../src/utils/location';
+import MileageRouteMap from '../../components/mileage/MileageRouteMap';
 
 const STEPS = [
   { id: 'prosjekt', label: 'Prosjekt' },
@@ -260,6 +261,7 @@ function emptyDraft() {
     oneWayKm: 0,
     km: 0,
     routeSource: '',
+    routePoints: [],
     suggestedTo: '',
     routeCharges: [],
     extraCosts: [],
@@ -400,6 +402,7 @@ export default function MileageWizard({
       oneWayKm: 0,
       km: 0,
       routeSource: '',
+      routePoints: [],
       routeCharges: [],
       tolls: 0,
       ferries: 0,
@@ -546,8 +549,8 @@ export default function MileageWizard({
   function applyEndpoint(side, label, place) {
     setFocusField('');
     setRouteNonce((n) => n + 1);
-    if (side === 'to') patch({ to: label, toPlace: place, routeEdited: false });
-    else patch({ from: label, fromPlace: place, routeEdited: false });
+    if (side === 'to') patch({ to: label, toPlace: place, routeEdited: false, routePoints: [] });
+    else patch({ from: label, fromPlace: place, routeEdited: false, routePoints: [] });
   }
 
   function applyCompany(side) {
@@ -651,6 +654,7 @@ export default function MileageWizard({
           oneWayKm: route.oneWayKm,
           km: roundTripKm(route.oneWayKm),
           routeSource: route.source,
+          routePoints: route.points || [],
           routeCharges: charges,
           tolls: sumCharges(charges, 'toll'),
           ferries: sumCharges(charges, 'ferry'),
@@ -665,6 +669,26 @@ export default function MileageWizard({
       clearTimeout(timer);
     };
   }, [step, draft.from, draft.to, draft.feeClass, draft.routeEdited, draft.fromPlace?.lat, draft.toPlace?.lat, company, addressSources, routeNonce]);
+
+  // Ved redigering av lagret tur mangler polyline — hent geometri til kartet på «Se over».
+  useEffect(() => {
+    if (step !== 'seover') return undefined;
+    if ((draft.routePoints || []).length >= 2) return undefined;
+    if (!hasCoords(draft.fromPlace) || !hasCoords(draft.toPlace)) return undefined;
+    let live = true;
+    const gen = routeGen.current + 1;
+    routeGen.current = gen;
+    (async () => {
+      const route = await suggestDriving(draft.fromPlace, draft.toPlace, {
+        apiKey: firebaseConfig?.apiKey || '',
+        roundTrip: true,
+        feeClass: draft.feeClass || 'lett',
+      });
+      if (!live || gen !== routeGen.current || !route?.points?.length) return;
+      patch({ routePoints: route.points });
+    })().catch(() => {});
+    return () => { live = false; };
+  }, [step, draft.fromPlace?.lat, draft.fromPlace?.lng, draft.toPlace?.lat, draft.toPlace?.lng, draft.feeClass, (draft.routePoints || []).length]);
 
   async function useHere(side = 'from') {
     setLocating(true);
@@ -731,6 +755,7 @@ export default function MileageWizard({
       oneWayKm: route.oneWayKm,
       km: nextKm,
       routeSource: route.source,
+      routePoints: route.points || [],
       routeCharges: charges,
       tolls: sumCharges(charges, 'toll'),
       ferries: sumCharges(charges, 'ferry'),
@@ -1416,6 +1441,15 @@ export default function MileageWizard({
               <Text style={[styles.reviewValue, { color: colors.ink }]}>{draft.to || '—'}</Text>
             </View>
           </View>
+          <MileageRouteMap
+            fromPlace={draft.fromPlace}
+            toPlace={draft.toPlace}
+            points={draft.routePoints}
+            fromLabel={draft.from}
+            toLabel={draft.to}
+            colors={colors}
+            height={220}
+          />
           <View style={[styles.reviewBlock, { borderColor: colors.line }]}>
             <View style={styles.calcRow}>
               <Text style={{ color: colors.muted, fontSize: 13 }}>Dato</Text>

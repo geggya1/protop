@@ -189,6 +189,14 @@ assert.ok(joined.indexOf('Åpne indeksbehandling') < joined.indexOf('Regulerings
 assert.ok(joined.indexOf('Gå til avtalen') < joined.indexOf('Reguleringshistorikk'));
 assert.match(joined, /1 388,41 kr/);
 
+function propOf(node, id, key) {
+  let found;
+  walk(node, (element) => {
+    if (element.props && element.props.nativeID === id) found = element.props[key];
+  });
+  return found;
+}
+
 function styleWidth(node, id) {
   let found = null;
   walk(node, (element) => {
@@ -280,17 +288,33 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
   if (view === 'beregning') {
     assert.match(workspaceText, /Foreta en ny beregning/);
     assert.match(workspaceText, /Status etter beregning/);
-    assert.match(workspaceText, /Ny pris eks. mva/);
+    assert.match(workspaceText, /Generer utkast/);
+    assert.match(workspaceText, /Oppdragsgiver/);
+    assert.match(workspaceText, /Avtalt pris/);
+    assert.match(workspaceText, /Indeks 1/);
     assert.match(workspaceText, /1\. Indeks og beregningsgrunnlag/);
+    assert.equal(propOf(workspace, 'index-run-calculation', 'disabled'), false);
+    assert.equal(styleWidth(workspace, 'index-run-calculation').backgroundColor, '#1099F4');
+    assert.equal(propOf(workspace, 'index-generate-draft', 'disabled'), true);
+    assert.equal(styleWidth(workspace, 'index-generate-draft').backgroundColor, '#E6EBF2');
+    assert.equal(styleWidth(workspace, 'index-calc-status').minWidth, 340);
   }
   if (view === 'brev') {
     assert.match(workspaceText, /Varsel og utsending/);
     assert.match(workspaceText, /Endre/);
-    assert.match(workspaceText, /Se over og godkjenn/);
+    assert.match(workspaceText, /Generer brev \/ PDF/);
     assert.match(workspaceText, /Utfylte felt/);
+    assert.match(workspaceText, /Oppdragsgiver/);
+    assert.match(workspaceText, /Avtalt pris/);
     assert.match(workspaceText, /Ingenting er opprettet|Lagret som utkast|Sendt/);
     assert.match(workspaceText, /post@consult1\.no/);
     assert.match(workspaceText, /Victor Husebø/);
+    assert.match(workspaceText, /PDF vises her etter at brevet er generert/);
+    assert.doesNotMatch(workspaceText, /\bWord\b/);
+    assert.equal(propOf(workspace, 'index-generate-pdf', 'disabled'), true);
+    assert.equal(styleWidth(workspace, 'index-generate-pdf').backgroundColor, '#E6EBF2');
+    assert.equal(propOf(workspace, 'index-send-letter', 'disabled'), true);
+    assert.equal(styleWidth(workspace, 'index-send-letter').backgroundColor, '#E6EBF2');
     assert.equal(workspaceText.includes('#index-letter-preview'), false);
   }
   if (view === 'historikk') {

@@ -308,6 +308,89 @@ export function letterFromRecord(draft, record, options = {}) {
   return { letter, result };
 }
 
+const EMPTY_LETTER_FIELDS = [
+  'Avsender',
+  'Tittel',
+  'Innledning',
+  'Oppdragsgiver',
+  'Organisasjonsnr.',
+  'Kontaktperson',
+  'Telefonnr.',
+  'E-post',
+  'Avtalenavn',
+  'Prosjektnummer',
+  'Eksternt PO-nr.',
+  'Kontraktsdato',
+  'Generelle bestemmelser',
+  'Oppdragssted',
+  'Oppdragstaker',
+  'Avtalt honorar',
+  'Avtalt pris',
+  'Regulering av pris',
+  'Tabell',
+  'Pris justert',
+  'Start indeks',
+  'Reguleringsdato',
+  'Ny timesats',
+  'Indeks 1',
+  'Indeks 2',
+  'Sats',
+  'Indeksendring',
+  'Endring i %',
+  'Gjeldende fra',
+  'Merknad',
+  'Sted',
+  'Dato',
+  'Underskriver',
+  'Selskap',
+];
+
+function pushField(rows, seen, label, value) {
+  const name = String(label || '').replace(/\s+/g, ' ').trim();
+  if (!name) return;
+  const count = (seen.get(name) || 0) + 1;
+  seen.set(name, count);
+  rows.push([
+    count === 1 ? name : `${name} ${count}`,
+    String(value ?? '').replace(/\s+/g, ' ').trim(),
+  ]);
+}
+
+/** Alle felt som brevet faktisk omtaler, i samme rekkefølge som PDF-en. */
+export function letterFieldRows(letter, { filled = true } = {}) {
+  const notice = letter?.notice;
+  if (!notice) return EMPTY_LETTER_FIELDS.map((label) => [label, '']);
+  const rows = [];
+  const seen = new Map();
+  pushField(rows, seen, 'Avsender', notice.brand);
+  pushField(rows, seen, 'Tittel', notice.title);
+  pushField(rows, seen, 'Innledning', notice.intro);
+  (notice.sections || []).forEach((section) => {
+    if (section.lead) pushField(rows, seen, section.heading || 'Tekst', section.lead);
+    (section.rows || []).forEach((row) => {
+      let label = '';
+      const values = [];
+      row.forEach((item) => {
+        if (item?.label) {
+          if (label) pushField(rows, seen, label, values.join(' ').trim());
+          values.length = 0;
+          label = item.text;
+        } else if (item?.text) {
+          values.push(item.text);
+        }
+      });
+      if (label) pushField(rows, seen, label, values.join(' ').trim());
+    });
+  });
+  (notice.notes || []).forEach((line) => pushField(rows, seen, 'Merknad', line));
+  pushField(rows, seen, 'Sted', notice.signoff?.place || '');
+  pushField(rows, seen, 'Dato', notice.signoff?.date || '');
+  pushField(rows, seen, 'Underskriver', notice.signoff?.name || '');
+  pushField(rows, seen, 'Selskap', notice.signoff?.company || '');
+  if (filled) return rows;
+  return rows.map(([label]) => [label, '']);
+}
+
 function fileBase(draft, result) {
   const name = `${draft.reference || draft.title || 'avtale'}-${result.regulationPoint?.period || 'indeks'}`
     .toLowerCase()

@@ -12,7 +12,6 @@ import {
 import { useColors } from '../../src/context/ThemeContext';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 import { companyLogoOf } from '../../src/project/companyLogo';
-import { seriesById } from '../../src/indeksregulering/catalog';
 import {
   allowedFrom,
   applyPriceVersion,
@@ -31,10 +30,10 @@ import {
   withdrawCase,
 } from '../../src/indeksregulering/cases';
 import { periodLabel } from '../../src/indeksregulering/engine';
-import { buildLetter, formatIndex, formatPercent, letterFromRecord } from '../../src/indeksregulering/letter';
-import { indexLetterMessage } from '../../src/indeksregulering/mail';
+import { buildLetter, formatIndex, formatPercent, letterFieldRows, letterFromRecord } from '../../src/indeksregulering/letter';
+import { indexLetterMessage, pdfAttachmentFromBytes } from '../../src/indeksregulering/mail';
 import { sendIndexLetter } from '../../src/indeksregulering/mailClient';
-import { downloadBytes, exportFiles } from '../../src/indeksregulering/office';
+import { buildPdf, downloadBytes } from '../../src/indeksregulering/office';
 import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { frequencyLabel } from '../../src/indeksregulering/settings';
 import { osloDate } from '../../src/indeksregulering/watch';
@@ -102,6 +101,9 @@ export default function IndexWorkspace({
   const [cc, setCc] = useState('');
   const [frozen, setFrozen] = useState(null);
   const [openLetterId, setOpenLetterId] = useState('');
+  const [calculated, setCalculated] = useState(false);
+  const [sendPdf, setSendPdf] = useState(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [dates, setDates] = useState(() => ({
@@ -112,8 +114,13 @@ export default function IndexWorkspace({
     noticeDays: existing?.noticeDays ? String(existing.noticeDays) : '',
   }));
   const sending = useRef(false);
+  const pdfStamp = useRef('');
   useEffect(() => {
     setScreen(screenFromView(initialView));
+    setCalculated(false);
+    setSendPdf(null);
+    setReviewOpen(false);
+    pdfStamp.current = '';
   }, [contract?.id, initialView]);
 
   useEffect(() => {
@@ -179,6 +186,14 @@ export default function IndexWorkspace({
   }, [math, activeDraft, logo, useLogo, contract, entry]);
   const letter = letterPack.letter;
   const letterResult = letterPack.result;
+  useEffect(() => {
+    if (!sendPdf || !pdfStamp.current || !letter?.plain) return;
+    if (pdfStamp.current !== letter.plain) {
+      pdfStamp.current = '';
+      setSendPdf(null);
+      setNote('Brevet er endret. Generer PDF på nytt før utsending.');
+    }
+  }, [letter?.plain, sendPdf]);
 
   const checks = entry
     ? validateCase({ ...entry, letterPlain: letter?.plain || entry.letterPlain, provisional: math?.provisional }, cases, { forApproval: true })
@@ -294,15 +309,53 @@ export default function IndexWorkspace({
     }
   }
 
-  async function registerLetter() {
+  function pdfFileFor(letterDoc) {
+    if (!letterDoc) return null;
+    try {
+      const bytes = buildPdf(letterDoc);
+      if (!bytes?.length) return null;
+      return {
+        kind: 'pdf',
+        filename: `${letterDoc.filenameBase || 'indeksregulering'}.pdf`,
+        mime: 'application/pdf',
+        bytes,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function producePdf() {
+    if (!math?.ok || !letter || !letterResult || !Number.isFinite(Number(math.addition)) || Number(math.addition) === 0) {
+      setError(math?.ok ? 'Indeksen er uendret, så det er ingen ny regulering å lage brev for.' : (math?.error || 'Brevet er ikke klart.'));
+      return null;
+    }
     const ok = await approve(false);
-    if (!ok) return;
-    download('pdf');
-    setNote('PDF er produsert og brevet er registrert. Ingenting er sendt.');
+    if (!ok) return null;
+    try {
+      const file = pdfFileFor(letter);
+      if (!file?.bytes?.length) {
+        setError('PDF ble ikke produsert.');
+        return null;
+      }
+      pdfStamp.current = letter.plain;
+      setSendPdf(file);
+      setReviewOpen(false);
+      setNote('PDF er produsert. Du kan sende den som vedlegg. Ingenting er sendt.');
+      return file;
+    } catch (cause) {
+      setError(cause?.message || 'PDF ble ikke produsert.');
+      return null;
+    }
   }
 
   async function deliver(current) {
     if (sending.current) return;
+    const attachment = pdfAttachmentFromBytes(sendPdf);
+    if (!attachment || (pdfStamp.current && letter?.plain && pdfStamp.current !== letter.plain)) {
+      setError('Generer PDF før brevet sendes.');
+      return;
+    }
     sending.current = true;
     setError('');
     try {
@@ -314,6 +367,7 @@ export default function IndexWorkspace({
         letterPlain: current.letterPlain,
         period: periodLabel(current.newPeriod),
         subject,
+        attachment,
       });
       const started = beginSend(current, message, actor);
       if (!started.ok) {
@@ -337,15 +391,14 @@ export default function IndexWorkspace({
     }
   }
 
-  function download(kind) {
-    if (!letter || !letterResult) {
-      setError(math?.error || 'Brevet er ikke klart.');
+  function runCalculation() {
+    setCalculated(true);
+    setError('');
+    if (!math?.ok) {
+      setError(math?.error || 'Ny indeks er ikke publisert.');
       return;
     }
-    const file = exportFiles(activeDraft, letterResult, letter, [seriesById(draft?.indexId)].filter(Boolean)).find((item) => item.kind === kind);
-    if (!file) return;
-    downloadBytes(file.filename, file.bytes, file.mime);
-    setNote(`${file.filename} er lastet ned.`);
+    setNote('Beregningen er fylt inn til høyre. Ingenting er lagret eller sendt.');
   }
 
   async function correct() {
@@ -371,7 +424,6 @@ export default function IndexWorkspace({
     series: liveSeries,
   }), [contract, liveSeries]);
   const history = historyRows(cases, contract?.regulations || []);
-  const savedPlain = savedLetterText(contract, draft, company);
   const savedCase = !!(entry && cases.some((row) => row.id === entry.id));
 
   async function reviewCalculation() {
@@ -416,11 +468,9 @@ export default function IndexWorkspace({
     contract, project, draft, customer, company, colors, wide, chain, math, queue, history,
     dates, patchDate, points, selectedPeriod, setSelectedPeriod, freeText, setFreeText,
     to, setTo, recipientName, setRecipientName, cc, setCc, subject, setSubject, useLogo, setUseLogo, logo, letter, entry,
-    checks, working, cases, onOpenProject, setScreen, storeDraft, approve, download, correct,
-    savedPlain, screen, frozen, openLetterId, setOpenLetterId, setEntry, reviewCalculation, registerLetter, savedCase,
-    letterCaption: letterPack.stored
-      ? 'Ny indeks for neste regulering er ikke publisert. Forhåndsvisningen viser siste lagrede varsel.'
-      : '',
+    checks, working, cases, onOpenProject, setScreen, storeDraft, approve, correct,
+    screen, frozen, openLetterId, setOpenLetterId, setEntry, reviewCalculation, savedCase,
+    calculated, runCalculation, producePdf, sendPdf, reviewOpen, setReviewOpen, pdfFileFor,
   };
 
   return (
@@ -652,32 +702,18 @@ function Stat({ label, value, colors }) {
   );
 }
 
-function calculationFacts({ math, contract, draft, dates }) {
-  const filled = !!math?.ok;
-  const show = (value) => (filled ? value : '');
-  return [
-    ['Avtale', show(contract?.title || draft?.title || '')],
-    ['Oppdragsgiver', show(contract?.buyer || draft?.buyer || '')],
-    ['Kontakt', show(draft?.contactName || '')],
-    ['E-post', show(draft?.email || '')],
-    ['Periode', show([periodLabel(math?.basisPoint?.period), periodLabel(math?.regulationPoint?.period)].filter(Boolean).join(' – '))],
-    ['Startindeks', show(math?.basisPoint ? formatIndex(math.basisPoint.value) : '')],
-    ['Ny indeks', show(math?.regulationPoint ? formatIndex(math.regulationPoint.value) : '')],
-    ['Indeksendring', show(formatPercentExact(math?.changePercent))],
-    ['Gjeldende pris eks. mva', show(formatKr(math?.baseSum))],
-    ['Regulering', show(`${math?.addition >= 0 ? '+' : ''}${formatKr(math?.addition)}`)],
-    ['Ny pris eks. mva', show(formatKr(math?.regulated))],
-    ['Gjelder fra', show(pretty(dates?.effectiveFrom))],
-  ];
+function priceChanged(math) {
+  const addition = Number(math?.addition);
+  return !!(math?.ok && Number.isFinite(addition) && addition !== 0);
 }
 
 function FactTable({ rows, colors }) {
   return (
-    <View nativeID="index-letter-facts" style={{ gap: 2 }}>
+    <View nativeID="index-letter-facts" style={{ gap: 2, width: '100%' }}>
       {rows.map(([label, value]) => (
         <View key={label} style={styles.calc}>
-          <Text style={{ color: colors.muted, flex: 1 }}>{label}</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{value || '–'}</Text>
+          <Text style={{ color: colors.muted, width: 148, flexShrink: 0 }}>{label}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>{value || '–'}</Text>
         </View>
       ))}
     </View>
@@ -687,14 +723,14 @@ function FactTable({ rows, colors }) {
 function Calculation(props) {
   const {
     colors, wide, chain, math, dates, patchDate, points, selectedPeriod, setSelectedPeriod,
-    contract, draft, reviewCalculation, working,
+    reviewCalculation, runCalculation, working, calculated, letter,
   } = props;
-  const changed = !!(math?.ok && Number(math.addition));
-  const facts = calculationFacts({ math, contract, draft, dates });
+  const changed = calculated && priceChanged(math);
+  const facts = letterFieldRows(math?.ok ? letter : null, { filled: !!(calculated && math?.ok) });
   return (
     <View style={{ gap: 12 }}>
       <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={{ flex: 1.15, gap: 12, minWidth: 0 }}>
+        <View style={{ flex: 1, gap: 12, minWidth: wide ? 280 : 0 }}>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.h, { color: colors.ink }]}>1. Indeks og beregningsgrunnlag</Text>
             <IndexTable chain={chain} math={math} colors={colors} />
@@ -720,67 +756,34 @@ function Calculation(props) {
             {(math?.warnings || []).map((line) => <Text key={line} style={{ color: colors.muted }}>{line}</Text>)}
           </View>
           <TouchableOpacity
+            nativeID="index-run-calculation"
+            onPress={runCalculation}
+            disabled={working}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: colors.brand, opacity: working ? 0.6 : 1 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Foreta en ny beregning</Text>
+          </TouchableOpacity>
+          <Text style={{ color: colors.muted }}>Knappen fyller ut feltene til høyre. Ingenting lagres.</Text>
+        </View>
+        <View nativeID="index-calc-status" style={[styles.card, styles.factCard, { borderColor: colors.line, backgroundColor: colors.card, width: wide ? undefined : '100%' }]}>
+          <Text style={[styles.h, { color: colors.ink }]}>Status etter beregning</Text>
+          {calculated && !math?.ok ? <Text style={{ color: colors.danger || '#b42318' }}>{math?.error || 'Ny indeks er ikke publisert.'}</Text> : null}
+          <FactTable rows={facts} colors={colors} />
+          <TouchableOpacity
+            nativeID="index-generate-draft"
             onPress={reviewCalculation}
             disabled={!changed || working}
             accessibilityRole="button"
             style={[styles.primary, { backgroundColor: changed ? colors.brand : colors.line, opacity: changed && !working ? 1 : 0.55 }]}
           >
-            <Text style={{ color: changed ? '#fff' : colors.ink, fontWeight: '700' }}>Foreta en ny beregning</Text>
+            <Text style={{ color: changed ? '#fff' : colors.ink, fontWeight: '700' }}>Generer utkast</Text>
           </TouchableOpacity>
           <Text style={{ color: colors.muted }}>
-            {changed
-              ? 'Knappen lager et utkast og åpner varselbrevet.'
-              : (math?.ok ? 'Indeksen er uendret. Knappen blir aktiv når prisen endres.' : (math?.error || 'Ny indeks er ikke publisert.'))}
+            {changed ? 'Lager et utkast og åpner varselbrevet.' : 'Knappen er grå til beregningen er kjørt og prisen er endret.'}
           </Text>
         </View>
-        <View nativeID="index-calc-status" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1, alignSelf: 'flex-start', width: wide ? undefined : '100%' }]}>
-          <Text style={[styles.h, { color: colors.ink }]}>Status etter beregning</Text>
-          <FactTable rows={facts} colors={colors} />
-        </View>
       </View>
-    </View>
-  );
-}
-
-function savedLetterText(contract, draft, company) {
-  const rows = [...(contract?.indexCases || []), ...(contract?.regulations || [])];
-  const stored = [...rows].reverse().find((row) => row?.letterPlain);
-  if (stored?.letterPlain) return stored.letterPlain;
-  const row = [...(contract?.indexCases || [])].reverse().find((item) => item?.newPrice)
-    || [...(contract?.regulations || [])].reverse().find((item) => item?.after || item?.letterPlain);
-  if (!row) return '';
-  const price = row.newPrice || row.after;
-  const before = row.previousPrice || row.before;
-  return [
-    company?.navn || draft?.supplier || '',
-    'Varsel om indeksregulering av avtalte priser',
-    contract?.title || draft?.title || '',
-    contract?.buyer ? `Til ${contract.buyer}` : '',
-    [periodLabel(row.previousPeriod || row.basisPeriod || row.fromPeriod), periodLabel(row.newPeriod || row.toPeriod)].filter(Boolean).join(' – '),
-    before ? `Tidligere pris ${formatKr(before)} eks. mva` : '',
-    price ? `Ny pris ${formatKr(price)} eks. mva` : '',
-    row.effectiveFrom ? `Gjelder fra ${row.effectiveFrom}` : '',
-    Number.isFinite(Number(row.changePercent)) ? `Endring ${formatPercent(row.changePercent)}` : '',
-  ].filter(Boolean).join('\n');
-}
-
-function LetterDocument({ letter, plain, colors, caption }) {
-  const text = String(plain || '').trim();
-  if (!letter?.notice && !text) {
-    return <Text style={{ color: colors.muted }}>Ingen brev er lagret, og ny indeks er ikke klar for et nytt varsel.</Text>;
-  }
-  return (
-    <View style={{ gap: 8, flex: 1, minWidth: 0 }}>
-      {caption ? <Text style={{ color: colors.muted }}>{caption}</Text> : null}
-      {letter?.notice ? <LetterPreview letter={letter} colors={colors} /> : (
-        <View nativeID="index-letter-preview" style={[styles.letter, { borderColor: colors.line, backgroundColor: '#fff' }]}>
-          {text.split('\n').map((line, index) => (
-            <Text key={`${index}-${line.slice(0, 12)}`} style={{ color: colors.ink, fontWeight: index < 2 ? '700' : '400', lineHeight: 22 }}>
-              {line || ' '}
-            </Text>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
@@ -802,7 +805,7 @@ function sendOutcome({ entry, savedCase, frozen }) {
   if (frozen) {
     return { title: 'Opprettet til gjennomgang', detail: 'Beregningen er låst i listen. Den er verken lagret eller sendt.', tone: 'wait' };
   }
-  return { title: 'Ingenting er opprettet', detail: 'Kjør beregning og velg Se over og godkjenn før noe lagres eller sendes.', tone: 'done' };
+  return { title: 'Ingenting er opprettet', detail: 'Kjør beregning og generer PDF før noe sendes.', tone: 'done' };
 }
 
 function recordFacts(row, contract, draft) {
@@ -818,15 +821,82 @@ function recordFacts(row, contract, draft) {
   ];
 }
 
+function letterFactsFor({ selected, previewLetter, letter, math, calculated, contract, draft }) {
+  if (selected && !selected.live) {
+    if (previewLetter) return letterFieldRows(previewLetter, { filled: true });
+    return recordFacts(selected, contract, draft);
+  }
+  const ready = !!(calculated || selected?.live) && !!math?.ok && !!letter;
+  return letterFieldRows(ready ? letter : null, { filled: ready });
+}
+
+function PdfPreview({ file, colors, onDownload }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!file?.bytes || typeof URL === 'undefined' || typeof Blob === 'undefined') {
+      setUrl('');
+      return undefined;
+    }
+    const next = URL.createObjectURL(new Blob([file.bytes], { type: 'application/pdf' }));
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  if (!file) {
+    return <Text style={{ color: colors.muted }}>PDF vises her etter at brevet er generert.</Text>;
+  }
+  return (
+    <View nativeID="index-pdf-preview" style={{ gap: 8, flex: 1, minWidth: 0, width: '100%' }}>
+      <TouchableOpacity onPress={onDownload} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>Last ned PDF</Text>
+      </TouchableOpacity>
+      {url ? React.createElement('iframe', {
+        src: url,
+        title: file.filename || 'Varselbrev',
+        style: { width: '100%', height: 720, border: '1px solid #E6EBF2', borderRadius: 4, backgroundColor: '#fff' },
+      }) : <Text style={{ color: colors.ink }}>{file.filename}</Text>}
+    </View>
+  );
+}
+
+function ReviewModal({ open, letter, colors, working, onClose, onConfirm }) {
+  if (!open || !letter?.notice) return null;
+  return (
+    <View nativeID="index-letter-review" style={styles.modalBackdrop}>
+      <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.line }]}>
+        <Text style={[styles.h, { color: colors.ink }]}>Se over og godkjenn</Text>
+        <ScrollView style={{ maxHeight: 520 }}>
+          <LetterPreview letter={letter} colors={colors} />
+        </ScrollView>
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Avbryt</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            nativeID="index-approve-letter"
+            onPress={onConfirm}
+            disabled={working}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: colors.brand, opacity: working ? 0.6 : 1 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{working ? 'Jobber…' : 'Godkjenn'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function LetterScreen(props) {
   const {
     colors, wide, letter, math, freeText, setFreeText, useLogo, setUseLogo, logo,
     to, setTo, recipientName, setRecipientName, cc, setCc, subject, setSubject,
-    entry, working, download, storeDraft, approve, correct,
-    savedPlain, history, frozen, openLetterId, setOpenLetterId, savedCase, draft,
-    contract, dates, patchDate, registerLetter,
+    entry, working, storeDraft, approve, correct,
+    history, frozen, openLetterId, setOpenLetterId, savedCase, draft,
+    contract, dates, patchDate, calculated, producePdf, sendPdf, reviewOpen, setReviewOpen, pdfFileFor,
   } = props;
   const [editing, setEditing] = useState(false);
+  const [pickedPdf, setPickedPdf] = useState(null);
+  const [showPicked, setShowPicked] = useState(false);
   const outcome = sendOutcome({ entry, savedCase, frozen });
   const tone = statusTone(outcome.tone, colors);
   const rows = [
@@ -852,21 +922,39 @@ function LetterScreen(props) {
     })),
   ];
   const selected = rows.find((row) => row.id === openLetterId) || null;
-  const previewLetter = selected?.letter
-    || (selected?.live && letter ? letter : null)
-    || (selected ? letterFromRecord(draft || {}, selected, { logo, includeLogo: useLogo })?.letter : null);
-  const previewPlain = selected?.plain || selected?.letterPlain || (!selected ? '' : (entry?.letterPlain || savedPlain));
-  const facts = selected?.live
-    ? calculationFacts({ math, contract, draft, dates })
-    : (selected ? recordFacts(selected, contract, draft) : []);
-  const canRegister = !!(selected?.live && math?.ok && Number(math.addition));
+  const storedPack = selected && !selected.live
+    ? letterFromRecord(draft || {}, selected, { logo, includeLogo: useLogo })
+    : null;
+  const previewLetter = selected?.letter || (selected?.live && letter ? letter : null) || storedPack?.letter || null;
+  const facts = letterFactsFor({ selected, previewLetter, letter, math, calculated, contract, draft });
+  const canPdf = priceChanged(math) && !!(calculated || selected?.live) && !!letter?.notice;
+  const shownPdf = showPicked ? pickedPdf : sendPdf;
+  const reviewLetter = letter?.notice ? letter : null;
+
+  function chooseRow(row) {
+    const next = openLetterId === row.id ? '' : row.id;
+    setOpenLetterId(next);
+    if (!next || row.live) {
+      setShowPicked(false);
+      return;
+    }
+    const built = letterFromRecord(draft || {}, row, { logo, includeLogo: useLogo });
+    setPickedPdf(built ? pdfFileFor(built.letter) : null);
+    setShowPicked(true);
+  }
+
+  function downloadShown() {
+    if (!shownPdf?.bytes) return;
+    downloadBytes(shownPdf.filename, shownPdf.bytes, shownPdf.mime || 'application/pdf');
+  }
+
   return (
     <View style={{ gap: 8 }}>
       {!rows.length ? <Text style={{ color: colors.muted }}>Ingen brev er generert ennå.</Text> : null}
       {rows.map((row) => {
         const on = openLetterId === row.id;
         return (
-          <TouchableOpacity key={row.id} onPress={() => setOpenLetterId(on ? '' : row.id)} accessibilityRole="button" style={[styles.hist, { backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent' }]}>
+          <TouchableOpacity key={row.id} onPress={() => chooseRow(row)} accessibilityRole="button" style={[styles.hist, { backgroundColor: on ? (colors.brandSoft || '#E8F6FE') : 'transparent' }]}>
             <Text style={{ color: colors.ink, fontWeight: '700', width: 96 }}>{row.date}</Text>
             <Text style={{ color: colors.ink, flex: 1 }}>{`${row.fromPrice || '–'} → ${row.price || '–'}`}</Text>
             <Text style={{ color: colors.brand, fontWeight: '700' }}>{row.statusLabel}</Text>
@@ -874,7 +962,7 @@ function LetterScreen(props) {
         );
       })}
       <View style={[styles.split, styles.splitStart, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, flex: 1, minWidth: 0 }]}>
+        <View style={[styles.card, styles.factCard, { borderColor: colors.line, backgroundColor: colors.card, width: wide ? undefined : '100%' }]}>
           <View style={styles.toolbar}>
             <Text style={[styles.h, { color: colors.ink }]}>Utfylte felt</Text>
             <View style={styles.actions}>
@@ -882,16 +970,17 @@ function LetterScreen(props) {
                 <Text style={{ color: colors.ink, fontWeight: '700' }}>{editing ? 'Lukk endring' : 'Endre'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={registerLetter}
-                disabled={!canRegister || working}
+                nativeID="index-generate-pdf"
+                onPress={() => setReviewOpen(true)}
+                disabled={!canPdf || working}
                 accessibilityRole="button"
-                style={[styles.primary, { backgroundColor: colors.brand, opacity: canRegister && !working ? 1 : 0.45 }]}
+                style={[styles.primary, { backgroundColor: canPdf ? colors.brand : colors.line, opacity: canPdf && !working ? 1 : 0.55 }]}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Se over og godkjenn</Text>
+                <Text style={{ color: canPdf ? '#fff' : colors.ink, fontWeight: '700' }}>Generer brev / PDF</Text>
               </TouchableOpacity>
             </View>
           </View>
-          {selected ? <FactTable rows={facts} colors={colors} /> : <Text style={{ color: colors.muted }}>Velg et brev for å se feltene.</Text>}
+          <FactTable rows={facts} colors={colors} />
           {editing ? (
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Feltene under brukes i brevet og er ikke regnet ut av indeksen.</Text>
@@ -902,22 +991,8 @@ function LetterScreen(props) {
             </View>
           ) : null}
         </View>
-        <View style={{ flex: 1.15, minWidth: 0 }}>
-          {selected ? (
-            <View style={{ gap: 8 }}>
-              <View style={styles.actions}>
-                <TouchableOpacity onPress={() => download('pdf')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }}>PDF</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => download('docx')} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }}>Word</Text>
-                </TouchableOpacity>
-              </View>
-              <LetterDocument letter={previewLetter} plain={previewPlain} colors={colors} />
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>Forhåndsvisningen av brevet vises her.</Text>
-          )}
+        <View style={{ flex: 1.15, minWidth: wide ? 280 : 0, width: wide ? undefined : '100%' }}>
+          <PdfPreview file={shownPdf} colors={colors} onDownload={downloadShown} />
         </View>
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, width: wide ? 300 : '100%', flexGrow: 0, alignSelf: 'flex-start', gap: 8 }]}>
           <Text style={[styles.h, { color: colors.ink }]}>Varsel og utsending</Text>
@@ -935,9 +1010,18 @@ function LetterScreen(props) {
           <TouchableOpacity onPress={() => approve(false)} disabled={working} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink, fontWeight: '700' }}>Godkjenn uten utsending</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => approve(true)} disabled={working} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.brand, opacity: working ? 0.6 : 1 }]}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>{working ? 'Jobber…' : 'Godkjenn og send'}</Text>
+          <TouchableOpacity
+            nativeID="index-send-letter"
+            onPress={() => approve(true)}
+            disabled={working || !sendPdf}
+            accessibilityRole="button"
+            style={[styles.primary, { backgroundColor: sendPdf ? colors.brand : colors.line, opacity: working || !sendPdf ? 0.55 : 1 }]}
+          >
+            <Text style={{ color: sendPdf ? '#fff' : colors.ink, fontWeight: '700' }}>{working ? 'Jobber…' : 'Godkjenn og send'}</Text>
           </TouchableOpacity>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {sendPdf ? 'PDF-en legges ved e-posten.' : 'Generer PDF før brevet kan sendes med vedlegg.'}
+          </Text>
           {entry ? (
             <TouchableOpacity onPress={correct} accessibilityRole="button">
               <Text style={{ color: colors.brand, fontWeight: '700' }}>Ny korrigering</Text>
@@ -945,6 +1029,17 @@ function LetterScreen(props) {
           ) : null}
         </View>
       </View>
+      <ReviewModal
+        open={reviewOpen}
+        letter={reviewLetter}
+        colors={colors}
+        working={working}
+        onClose={() => setReviewOpen(false)}
+        onConfirm={async () => {
+          const file = await producePdf();
+          if (file) setShowPicked(false);
+        }}
+      />
     </View>
   );
 }
@@ -1129,6 +1224,20 @@ const styles = StyleSheet.create({
   banner: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
   bannerTitle: { fontSize: 22, fontWeight: '700' },
   fieldCompact: { flexGrow: 0, minWidth: 0, width: '100%' },
+  factCard: { flexGrow: 1, flexShrink: 1, flexBasis: 460, minWidth: 340, alignSelf: 'flex-start' },
+  modalBackdrop: {
+    position: 'fixed',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(21, 32, 51, 0.45)',
+    zIndex: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: { width: '100%', maxWidth: 760, maxHeight: '90%', borderWidth: 1, borderRadius: 16, padding: 16, gap: 12 },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   tr: { flexDirection: 'row', minWidth: 560 },
   th: { width: 140, fontSize: 12, paddingVertical: 6 },

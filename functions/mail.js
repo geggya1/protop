@@ -35,7 +35,40 @@ function copyRows(cc) {
     .map((email) => ({ email }));
 }
 
-async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html }) {
+export function normalizePdfAttachment(raw) {
+  if (raw == null || raw === '') return { ok: true, attachment: null };
+  if (typeof raw !== 'object') return { ok: false, error: 'PDF-vedlegget er ikke gyldig.' };
+  const content = String(raw.content || '').replace(/\s/g, '');
+  if (!content) return { ok: true, attachment: null };
+  if (content.length > 2_000_000) return { ok: false, error: 'PDF-vedlegget er for stort.' };
+  if (!/^[A-Za-z0-9+/=]+$/.test(content)) return { ok: false, error: 'PDF-vedlegget er ikke gyldig.' };
+  const cleaned = String(raw.filename || 'indeksregulering.pdf').replace(/[^\w.\- ]+/g, '').slice(0, 120);
+  const filename = (cleaned || 'indeksregulering.pdf').toLowerCase().endsWith('.pdf')
+    ? (cleaned || 'indeksregulering.pdf')
+    : `${cleaned || 'indeksregulering'}.pdf`;
+  return { ok: true, attachment: { filename, contentType: 'application/pdf', content } };
+}
+
+export function providerAttachments(provider, attachments) {
+  const rows = (Array.isArray(attachments) ? attachments : []).filter((row) => row?.content && row?.filename);
+  if (!rows.length) return {};
+  if (provider === 'brevo') {
+    return { attachment: rows.map((row) => ({ content: row.content, name: row.filename })) };
+  }
+  if (provider === 'resend') {
+    return { attachments: rows.map((row) => ({ filename: row.filename, content: row.content })) };
+  }
+  return {
+    attachments: rows.map((row) => ({
+      content: row.content,
+      type: row.contentType || 'application/pdf',
+      filename: row.filename,
+      disposition: 'attachment',
+    })),
+  };
+}
+
+async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attachments }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -51,6 +84,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html }) {
       subject,
       htmlContent: html,
       textContent: text,
+      ...providerAttachments('brevo', attachments),
       tags: ['transactional', 'weekplan'],
       // Avoid rewriting links through the new branded tracker; inbox scanners
       // often hold those messages for 2–3 minutes on a fresh domain.
@@ -72,7 +106,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html }) {
   return body;
 }
 
-async function sendWithResend(apiKey, { to, cc, subject, text, html }) {
+async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -87,6 +121,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html }) {
       subject,
       html,
       text,
+      ...providerAttachments('resend', attachments),
     }),
   });
   const body = await readJson(res);
@@ -100,7 +135,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html }) {
   return body;
 }
 
-async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html }) {
+async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, attachments }) {
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -119,6 +154,7 @@ async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html }) {
         { type: 'text/plain', value: text },
         { type: 'text/html', value: html },
       ],
+      ...providerAttachments('sendgrid', attachments),
     }),
   });
   const body = await readJson(res);

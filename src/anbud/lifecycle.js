@@ -366,6 +366,25 @@ function normalizeRegulations(input) {
   })).filter((row) => row.id);
 }
 
+function caseIsFinished(row) {
+  return ['godkjent', 'klar_til_utsending', 'sending', 'sendt', 'sendefeil'].includes(row?.status)
+    || row?.mailStatus === 'sendt'
+    || !!row?.sentAt;
+}
+
+function normalizeDeletedCaseIds(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const out = [];
+  input.forEach((id) => {
+    const value = text(id).slice(0, 80);
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    out.push(value);
+  });
+  return out.slice(-200);
+}
+
 function normalizeIndexCases(input) {
   if (!Array.isArray(input)) return [];
   return input.slice(0, 500).map((row) => {
@@ -412,6 +431,10 @@ function normalizeContract(raw) {
   if (!id || !title) return null;
   const bidId = text(raw.bidId);
   const value = Number(raw.value);
+  const rawCases = normalizeIndexCases(raw.indexCases);
+  const finishedCases = new Set(rawCases.filter(caseIsFinished).map((row) => row.id));
+  const deletedIndexCaseIds = normalizeDeletedCaseIds(raw.deletedIndexCaseIds).filter((id) => !finishedCases.has(id));
+  const deletedCases = new Set(deletedIndexCaseIds);
   const source = raw.source === 'direkte' || !bidId ? 'direkte' : 'tildeling';
   return {
     id,
@@ -441,7 +464,8 @@ function normalizeContract(raw) {
     documents: normalizeDocuments(raw.documents),
     indexDraft: normalizeIndexDraft(raw.indexDraft),
     regulations: normalizeRegulations(raw.regulations),
-    indexCases: normalizeIndexCases(raw.indexCases),
+    indexCases: rawCases.filter((row) => !deletedCases.has(row.id)),
+    ...(deletedIndexCaseIds.length ? { deletedIndexCaseIds } : {}),
     priceVersions: normalizePriceVersions(raw.priceVersions),
     indeksCaseId: text(raw.indeksCaseId),
     renewal: normalizeRenewal(raw.renewal),
@@ -1019,6 +1043,12 @@ export function updateContractDetails(state, contractId, input) {
   if (parentId && parentId !== contract.id && !contractById(state, parentId)) {
     return fail(state, 'Tilknyttet avtale finnes ikke.');
   }
+  const indexCases = input?.indexCases != null ? normalizeIndexCases(input.indexCases) : normalizeIndexCases(contract.indexCases);
+  const deletedIndexCaseIds = (input?.deletedIndexCaseIds != null
+    ? normalizeDeletedCaseIds(input.deletedIndexCaseIds)
+    : normalizeDeletedCaseIds(contract.deletedIndexCaseIds))
+    .filter((id) => !indexCases.some((row) => row.id === id && caseIsFinished(row)));
+  const deletedCases = new Set(deletedIndexCaseIds);
   const next = {
     ...contract,
     title,
@@ -1038,7 +1068,8 @@ export function updateContractDetails(state, contractId, input) {
     documents: input?.documents != null ? normalizeDocuments(input.documents) : contract.documents,
     indexDraft: input?.indexDraft !== undefined ? normalizeIndexDraft(input.indexDraft) : contract.indexDraft,
     regulations: input?.regulations != null ? normalizeRegulations(input.regulations) : (contract.regulations || []),
-    indexCases: input?.indexCases != null ? normalizeIndexCases(input.indexCases) : normalizeIndexCases(contract.indexCases),
+    indexCases: indexCases.filter((row) => !deletedCases.has(row.id)),
+    deletedIndexCaseIds,
     priceVersions: input?.priceVersions != null ? normalizePriceVersions(input.priceVersions) : normalizePriceVersions(contract.priceVersions),
     indeksCaseId: input?.indeksCaseId != null ? text(input.indeksCaseId) : contract.indeksCaseId,
     renewal: input?.renewal != null || input?.renewalType != null

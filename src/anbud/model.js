@@ -428,6 +428,26 @@ function mergeContractFiles(left, right) {
     (row.priceVersions || []).forEach((item) => unionRows(groups, row.id, 'prices', item, preferPrice));
     (row.regulations || []).forEach((item) => unionRows(groups, row.id, 'regs', item, preferRegulation));
   }
+  const deletedCases = new Map();
+  for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
+    if (!row?.id) continue;
+    const ids = Array.isArray(row.deletedIndexCaseIds) ? row.deletedIndexCaseIds : [];
+    if (!ids.length) continue;
+    const set = deletedCases.get(row.id) || new Set();
+    ids.forEach((id) => {
+      const value = String(id || '').trim();
+      if (value) set.add(value);
+    });
+    deletedCases.set(row.id, set);
+  }
+  for (const [contractId, set] of deletedCases) {
+    (groups.get(contractId)?.cases || []).forEach((item) => {
+      const finished = ['godkjent', 'klar_til_utsending', 'sending', 'sendt', 'sendefeil'].includes(item?.status)
+        || item?.mailStatus === 'sendt'
+        || item?.sentAt;
+      if (finished) set.delete(item?.id);
+    });
+  }
   const kept = new Map();
   for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
     for (const doc of row?.documents || []) {
@@ -439,7 +459,8 @@ function mergeContractFiles(left, right) {
   }
   return merged.map((row) => ({
     ...row,
-    indexCases: groups.get(row.id)?.cases || row.indexCases || [],
+    indexCases: (groups.get(row.id)?.cases || row.indexCases || []).filter((item) => !deletedCases.get(row.id)?.has(item?.id)),
+    deletedIndexCaseIds: [...(deletedCases.get(row.id) || [])].slice(-200),
     priceVersions: groups.get(row.id)?.prices || row.priceVersions || [],
     regulations: groups.get(row.id)?.regs || row.regulations || [],
     documents: (row.documents || []).map((doc) => {

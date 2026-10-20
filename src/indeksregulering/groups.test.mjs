@@ -327,6 +327,8 @@ test('siden viser avtaleliste og forhåndsvisning', () => {
   assert.doesNotMatch(workspace, />Word</);
   assert.match(workspace, /Hendelseslogg/);
   assert.match(workspace, /'Varselbrev'/);
+  assert.match(workspace, /'Indekser'/);
+  assert.match(workspace, /Slett utkast/);
   assert.match(screen, /timeEntries=\{state\.timeEntries/);
   assert.match(screen, /page === 'indekser'/);
   const billing = readFileSync(new URL('../../screens/economy/EconomyBilling.jsx', import.meta.url), 'utf8');

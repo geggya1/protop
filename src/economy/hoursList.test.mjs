@@ -6,9 +6,12 @@ import {
   filterHours,
   groupHours,
   hourFacets,
+  hoursOutsideSelection,
   hydrateHourEntry,
   periodBounds,
   periodLoadRange,
+  projectFromHourFilter,
+  projectsMatchingHourQuery,
   shiftDateKey,
   sortHours,
 } from './hoursList.js';
@@ -153,6 +156,27 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
     periodLoadRange('custom', '01.01.2016', '31.12.2016', now),
     { fromDate: '2016-01-01', toDate: '2016-12-31' },
   );
+}
+
+{
+  const projects = [
+    { id: 'p1', number: '10001', name: 'Myklebust CB6-12-13 (1882)', status: 'aktiv' },
+    { id: 'p2', number: '200', name: 'Annen sak', status: 'arkivert' },
+  ];
+  const hit = projectsMatchingHourQuery(projects, '1882');
+  assert.equal(hit.length, 1);
+  assert.equal(hit[0].id, 'p1');
+  assert.equal(projectsMatchingHourQuery(projects, 'myklebust')[0].id, 'p1');
+  assert.equal(projectFromHourFilter(projects, 'number:10001').id, 'p1');
+  assert.equal(projectFromHourFilter(projects, 'p1').id, 'p1');
+  const entries = [
+    { id: 'a', projectId: 'p1', date: '2026-01-02', hours: 40, billableHours: 40 },
+    { id: 'b', projectId: 'p1', date: '2026-10-12', hours: 8, billableHours: 8 },
+  ];
+  const gap = hoursOutsideSelection(entries, [entries[1]], hit);
+  assert.equal(gap.hours, 48);
+  assert.equal(gap.shown, 8);
+  assert.equal(hoursOutsideSelection(entries, entries, hit), null);
 }
 
 console.log('hoursList.test.mjs: ok');

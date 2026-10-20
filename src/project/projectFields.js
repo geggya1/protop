@@ -28,6 +28,34 @@ export function projectNumberKey(value) {
   return raw;
 }
 
+/** Tall i parentes i prosjektnavnet, f.eks. «Myklebust CB6-12-13 (1882)». */
+export function numbersInProjectName(name) {
+  const found = [];
+  const raw = String(name || '');
+  const re = /\((\d[\d\s]*\d|\d)\)/g;
+  let match = re.exec(raw);
+  while (match) {
+    const key = projectNumberKey(match[1]);
+    if (key && !found.includes(key)) found.push(key);
+    match = re.exec(raw);
+  }
+  return found;
+}
+
+/**
+ * Numre en timeføring kan være lagret på: prosjektets eget nummer og
+ * nummer som bare står i navnet.
+ */
+export function projectLookupNumbers(project) {
+  const found = [];
+  const own = projectNumberKey(project?.number);
+  if (own) found.push(own);
+  for (const alias of numbersInProjectName(project?.name)) {
+    if (!found.includes(alias)) found.push(alias);
+  }
+  return found;
+}
+
 /** Prismodeller i ProTop (ikke Moment-råverdier som "notbillable"). */
 export const PRICING_MODELS = [
   { id: 'not_billable', label: 'Ikke fakturerbar' },

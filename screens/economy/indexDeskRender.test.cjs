@@ -117,6 +117,7 @@ function texts(node) {
   walk(node, (element) => {
     const children = element.props && element.props.children;
     if (typeof children === 'string') out.push(children);
+    if (typeof element.props?.value === 'string' && element.props.value) out.push(element.props.value);
     if (element.props && element.props.nativeID) out.push(`#${element.props.nativeID}`);
     if (element.props && element.props.accessibilityLabel) out.push(`@${element.props.accessibilityLabel}`);
   });
@@ -182,11 +183,10 @@ assert.match(joined, /Krever oppmerksomhet/);
 assert.match(joined, /Regulert/);
 assert.match(joined, /NS 8403/);
 assert.equal(joined.includes('Løst prosjekt'), false);
-assert.match(joined, /Start indeksregulering/);
-assert.match(joined, /Åpne avtale/);
-assert.match(joined, /Vis reguleringsvilkår/);
-assert.match(joined, /Vis historikk/);
-assert.ok(joined.indexOf('Start indeksregulering') < joined.indexOf('Reguleringshistorikk'));
+assert.match(joined, /Åpne indeksbehandling/);
+assert.match(joined, /Gå til avtalen/);
+assert.ok(joined.indexOf('Åpne indeksbehandling') < joined.indexOf('Reguleringshistorikk'));
+assert.ok(joined.indexOf('Gå til avtalen') < joined.indexOf('Reguleringshistorikk'));
 assert.match(joined, /1 388,41 kr/);
 
 function styleWidth(node, id) {
@@ -252,7 +252,10 @@ const workspaceProps = {
     indexId: 'ppi-byggeteknisk',
     contractDate: '2025-12-19',
     lines: [{ text: 'Timepris', unit: 'time', rate: '1350', quantity: '1' }],
+    contactName: 'Victor Husebø',
+    email: 'post@consult1.no',
   },
+  customer: { email: 'post@consult1.no', contactName: 'Victor Husebø' },
   onClose: () => {},
   onSave: async () => ({ ok: true }),
 };
@@ -264,9 +267,29 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk']) {
   assert.match(workspaceText, /Beregning/);
   assert.match(workspaceText, /Varselbrev/);
   assert.match(workspaceText, /Historikk/);
-  if (view === 'brev' || view === 'oversikt') {
-    assert.match(workspaceText, /#index-letter-preview/);
-    assert.match(workspaceText, /1388,41|1 388,41/);
+  if (view === 'oversikt') {
+    assert.match(workspaceText, /#index-landing-status/);
+    assert.match(workspaceText, /Kan ikke reguleres på nytt nå|Venter på ny indeks|Kan reguleres på nytt|Må vurderes/);
+    assert.match(workspaceText, /Sist regulert/);
+    assert.match(workspaceText, /Tidligere brev/);
+    assert.match(workspaceText, /18\.10\.2026/);
+    assert.equal(workspaceText.includes('#index-letter-preview'), false);
+  }
+  if (view === 'beregning') {
+    assert.match(workspaceText, /Foreta en ny beregning/);
+    assert.match(workspaceText, /Se over og godkjenn/);
+    assert.match(workspaceText, /1\. Indeks og beregningsgrunnlag/);
+  }
+  if (view === 'brev') {
+    assert.match(workspaceText, /Varsel og utsending/);
+    assert.match(workspaceText, /Innstillinger/);
+    assert.match(workspaceText, /Ingenting er opprettet|Lagret som utkast|Sendt/);
+    assert.match(workspaceText, /post@consult1\.no/);
+    assert.match(workspaceText, /Victor Husebø/);
+    assert.equal(workspaceText.includes('#index-letter-preview'), false);
+  }
+  if (view === 'historikk') {
+    assert.match(workspaceText, /Hendelseslogg/);
   }
   const navStyle = styleWidth(workspace, 'index-workspace-nav');
   assert.equal(navStyle.flexDirection, 'row');

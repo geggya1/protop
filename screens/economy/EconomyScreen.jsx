@@ -226,6 +226,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
             actor={actor}
             caseId={workspaceCaseId}
             initialView={workspaceView}
+            series={series}
             onClose={backToDesk}
             onSave={persistIndexCase}
             onOpenProject={() => requestShellTab?.('projects', null, { type: 'openProject', projectId: selectedContract?.projectId || '' })}
@@ -272,9 +273,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
           series={series}
           dueById={dueById}
           onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
-          onOpenIndex={(contract) => openIndex(contract, '', 'beregning')}
-          onOpenTerms={(contract) => openIndex(contract, '', 'oversikt')}
-          onOpenHistory={(contract) => openIndex(contract, '', 'historikk')}
+          onOpenIndex={(contract) => openIndex(contract, '', 'oversikt')}
           onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
         />
       </ScrollView>

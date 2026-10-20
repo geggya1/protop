@@ -346,16 +346,7 @@ function Preview({ row, series, colors, onBack, onOpenIndex, onOpenTerms, onOpen
           <Text style={[styles.h, { color: colors.ink, flex: 1 }]}>{contract.title || 'Avtale'}</Text>
           <Pill label={status.label} tone={QUEUE_BANDS.find((item) => item.id === status.band)?.tone || 'muted'} colors={colors} />
         </View>
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={onOpenContract} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Åpne avtale</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onOpenTerms} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis reguleringsvilkår</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onOpenHistory} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Vis historikk</Text>
-          </TouchableOpacity>
+        <View style={styles.toolbar}>
           <TouchableOpacity
             nativeID="economy-open-index"
             onPress={onOpenIndex}
@@ -363,7 +354,10 @@ function Preview({ row, series, colors, onBack, onOpenIndex, onOpenTerms, onOpen
             accessibilityRole="button"
             style={[styles.primary, { backgroundColor: colors.brand, opacity: status.band === 'ikke_aktuell' ? 0.45 : 1 }]}
           >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Start indeksregulering</Text>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Åpne indeksbehandling</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onOpenContract} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Gå til avtalen</Text>
           </TouchableOpacity>
         </View>
         <Text style={{ color: colors.muted }}>{status.reason}</Text>
@@ -495,6 +489,7 @@ const styles = StyleSheet.create({
   th: { width: 96, fontSize: 12, paddingVertical: 6, paddingRight: 8 },
   td: { width: 96, fontSize: 13, paddingVertical: 8, paddingRight: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   ghost: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
 });

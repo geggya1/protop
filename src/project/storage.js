@@ -140,9 +140,23 @@ function noteAbsenceWindow(companyId, opts) {
   });
 }
 
+function projectScopeOf(range) {
+  const id = String(range?.projectId || '').trim();
+  const numbers = (Array.isArray(range?.projectNumbers) ? range.projectNumbers : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .sort()
+    .join(',');
+  return `${id}|${numbers}`;
+}
+
 function noteHoursWindow(companyId, hoursOpts) {
   const key = hoursModeKey(companyId);
   if (!hoursOpts || hoursOpts.hours === false) return;
+  // Prosjektlasting skal ikke snevres slettevinduet inn til «ingen datoer».
+  const projectOnly = projectScopeOf(hoursOpts) !== '|'
+    && !hoursOpts.fromDate && !hoursOpts.toDate && !hoursOpts.employeeId && !hoursOpts.all;
+  if (projectOnly) return;
   if (hoursOpts.all) {
     HOURS_WINDOW.set(key, { all: true });
     return;
@@ -173,6 +187,7 @@ function rangeCovers(have, need) {
   if (!have) return false;
   if (have.all) return true;
   if (need?.all) return false;
+  if (projectScopeOf(have) !== projectScopeOf(need)) return false;
   const haveEmp = String(have.employeeId || '');
   const needEmp = String(need?.employeeId || '');
   if (haveEmp && haveEmp !== needEmp) return false;
@@ -202,8 +217,10 @@ export function noteLoadedHoursRange(companyId, opts = {}) {
     fromDate: String(opts.fromDate || ''),
     toDate: String(opts.toDate || ''),
     employeeId: String(opts.employeeId || ''),
+    projectId: String(opts.projectId || ''),
+    projectNumbers: Array.isArray(opts.projectNumbers) ? opts.projectNumbers : [],
   };
-  if (!next.fromDate && !next.toDate && !next.employeeId) return;
+  if (!next.fromDate && !next.toDate && !next.employeeId && projectScopeOf(next) === '|') return;
   const list = HOURS_COVERED.get(key) || [];
   if (list.some((have) => rangeCovers(have, next))) return;
   const kept = list.filter((have) => !rangeCovers(next, have));
@@ -219,6 +236,8 @@ export function hoursRangeCovered(companyId, range = {}) {
       fromDate: String(range.fromDate || ''),
       toDate: String(range.toDate || ''),
       employeeId: String(range.employeeId || ''),
+      projectId: String(range.projectId || ''),
+      projectNumbers: Array.isArray(range.projectNumbers) ? range.projectNumbers : [],
     };
   const list = HOURS_COVERED.get(memoryKey(companyId)) || [];
   return list.some((have) => rangeCovers(have, need));
@@ -504,10 +523,15 @@ function resolveHoursOpts(hours) {
   if (hours === false || hours === 'none') return { hours: false };
   if (hours === true || hours === 'all') return { all: true };
   if (hours && typeof hours === 'object') {
+    const projectNumbers = [...new Set((Array.isArray(hours.projectNumbers) ? hours.projectNumbers : [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean))];
     return {
       fromDate: String(hours.fromDate || '').trim(),
       toDate: String(hours.toDate || '').trim(),
       employeeId: String(hours.employeeId || '').trim(),
+      projectId: String(hours.projectId || '').trim(),
+      projectNumbers,
       all: false,
     };
   }
@@ -591,7 +615,10 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     loadMeta.set(key, 'ok');
     return MEMORY.get(key);
   }
-  if (!force && MEMORY.has(key) && !hoursOpts.all && (hoursOpts.fromDate || hoursOpts.toDate || hoursOpts.employeeId)) {
+  if (!force && MEMORY.has(key) && !hoursOpts.all && (
+    hoursOpts.fromDate || hoursOpts.toDate || hoursOpts.employeeId
+    || hoursOpts.projectId || (hoursOpts.projectNumbers || []).length
+  )) {
     return ensureProjectHours(companyId, hoursOpts);
   }
   if (!force && inflight.has(key) && hoursOpts.hours === false) return inflight.get(key);
@@ -640,7 +667,7 @@ export async function ensureProjectHours(companyId, range = {}) {
   if (hoursRangeCovered(id, hoursOpts) && MEMORY.has(memoryKey(id))) {
     return MEMORY.get(memoryKey(id));
   }
-  const inflightKey = `${id}:${hoursOpts.fromDate || ''}:${hoursOpts.toDate || ''}:${hoursOpts.employeeId || ''}:${hoursOpts.all ? 'all' : 'w'}`;
+  const inflightKey = `${id}:${hoursOpts.fromDate || ''}:${hoursOpts.toDate || ''}:${hoursOpts.employeeId || ''}:${hoursOpts.projectId || ''}:${(hoursOpts.projectNumbers || []).join(',')}:${hoursOpts.all ? 'all' : 'w'}`;
   if (hoursInflight.has(inflightKey)) return hoursInflight.get(inflightKey);
 
   const pending = (async () => {

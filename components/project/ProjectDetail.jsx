@@ -130,6 +130,7 @@ export default function ProjectDetail({
   onOpenIndex,
   onOpenEconomySettings,
   onOpenEconomyBilling,
+  hoursLoading = false,
 }) {
   const [tab, setTab] = useState('hovedside');
   const [activityOpen, setActivityOpen] = useState(false);
@@ -462,7 +463,9 @@ export default function ProjectDetail({
               </View>
             ))}
             {!timeEntries.length ? (
-              <Text style={{ color: colors.muted, paddingVertical: 16 }}>Ingen timeføringer på prosjektet ennå.</Text>
+              <Text style={{ color: colors.muted, paddingVertical: 16 }}>
+                {hoursLoading ? 'Laster timer…' : 'Ingen timeføringer på prosjektet ennå.'}
+              </Text>
             ) : null}
           </View>
         ) : null}

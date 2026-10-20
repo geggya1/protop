@@ -21,7 +21,8 @@ import {
   usedIndexIds,
   yearWindow,
 } from './indexLedger.js';
-import { indexLetterMessage } from './mail.js';
+import { letterFieldRows } from './letter.js';
+import { indexLetterMessage, pdfAttachmentFromBytes } from './mail.js';
 import { effectiveRegulation } from './settings.js';
 import { fetchAllIndices } from './ssb.js';
 
@@ -250,6 +251,59 @@ test('e-postvarslet inneholder brevet', () => {
   assert.match(message.text, /Hei Ola/);
   assert.match(message.text, /Tillegg 80 kr/);
   assert.match(message.text, /Consult1 AS/);
+  assert.equal(message.attachment, undefined);
+
+  const bytes = new Uint8Array([37, 80, 68, 70]);
+  const file = pdfAttachmentFromBytes({ filename: 'varsel.pdf', bytes });
+  const withFile = indexLetterMessage({
+    to: 'kunde@example.com',
+    name: 'Ola',
+    companyName: 'Consult1 AS',
+    letterPlain: 'Indeksregulering etter avtalen. Tillegg 80 kr.',
+    attachment: file,
+  });
+  assert.equal(withFile.attachment.filename, 'varsel.pdf');
+  assert.equal(withFile.attachment.contentType, 'application/pdf');
+  assert.equal(withFile.attachment.content, Buffer.from(bytes).toString('base64'));
+  assert.doesNotMatch(withFile.text, /JVBERi0/);
+
+  const blank = letterFieldRows(null);
+  assert.equal(blank.find((row) => row[0] === 'Oppdragsgiver')[1], '');
+  assert.ok(blank.some((row) => row[0] === 'Avtalt pris'));
+  assert.ok(blank.some((row) => row[0] === 'Indeks 1'));
+  const filled = letterFieldRows({
+    notice: {
+      brand: 'Consult1 AS',
+      title: 'Varsel om indeksregulering',
+      intro: 'Vi varsler herved.',
+      sections: [{
+        heading: 'Om oppdragsgiver',
+        rows: [[
+          { text: 'Oppdragsgiver', label: true, span: 1 },
+          { text: 'Breitorget AS', label: false, span: 1 },
+          { text: 'Organisasjonsnr.', label: true, span: 1 },
+          { text: '999 404 284', label: false, span: 1 },
+        ]],
+      }],
+      notes: ['Avtalt intervall: kvartalsvis.'],
+      signoff: { place: 'Stavanger', date: '20.10.2026', name: 'Geir', company: 'Consult1 AS' },
+    },
+  });
+  assert.equal(filled.find((row) => row[0] === 'Oppdragsgiver')[1], 'Breitorget AS');
+  assert.equal(filled.find((row) => row[0] === 'Merknad')[1], 'Avtalt intervall: kvartalsvis.');
+  assert.equal(filled.find((row) => row[0] === 'Underskriver')[1], 'Geir');
+  const hidden = letterFieldRows({
+    notice: {
+      brand: 'Consult1 AS',
+      title: 'Varsel',
+      intro: 'Tekst',
+      sections: [],
+      notes: [],
+      signoff: { company: 'Consult1 AS', date: '20.10.2026' },
+    },
+  }, { filled: false });
+  assert.ok(hidden.every((row) => row[1] === ''));
+  assert.equal(hidden.find((row) => row[0] === 'Avsender')[0], 'Avsender');
 });
 
 test('siden viser avtaleliste og forhåndsvisning', () => {
@@ -267,7 +321,10 @@ test('siden viser avtaleliste og forhåndsvisning', () => {
   assert.match(workspace, /index-workspace-nav/);
   assert.match(workspace, /letterFromRecord/);
   assert.match(workspace, /Foreta en ny beregning/);
+  assert.match(workspace, /Generer utkast/);
+  assert.match(workspace, /Generer brev \/ PDF/);
   assert.match(workspace, /Se over og godkjenn/);
+  assert.doesNotMatch(workspace, />Word</);
   assert.match(workspace, /Hendelseslogg/);
   assert.match(workspace, /'Varselbrev'/);
   assert.match(screen, /timeEntries=\{state\.timeEntries/);

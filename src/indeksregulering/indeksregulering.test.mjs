@@ -4,7 +4,7 @@ import { extractContractText, MAX_LOCAL_PDF_BYTES } from './extractText.js';
 import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
-import { buildLetter, formatMoney, letterFromRecord } from './letter.js';
+import { buildLetter, formatMoney, letterFieldRows, letterFromRecord } from './letter.js';
 import { honorarPrice } from './priceText.js';
 import { regulationCells, regulationEntry, rememberRegulation } from './regulationLog.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
@@ -534,6 +534,12 @@ test('varsel om timepris følger eksempelet', () => {
   assert.match(pdf, /1148,56/);
   assert.match(pdf, /Consult1 AS/);
   assert.doesNotMatch(letter.plain, /Avtalt honorarpris/);
+  const fields = letterFieldRows(letter);
+  ['Oppdragsgiver', 'Avtalenavn', 'Avtalt pris', 'Start indeks', 'Indeks 1', 'Indeks 2', 'Ny timesats', 'Gjeldende fra', 'Underskriver'].forEach((label) => {
+    assert.equal(fields.some((row) => row[0] === label && row[1]), true, label);
+  });
+  assert.equal(fields.find((row) => row[0] === 'Oppdragsgiver')[1], 'Byggherre AS');
+  assert.ok(letterFieldRows(letter, { filled: false }).every((row) => row[1] === ''));
 });
 
 test('samme beløp med inklusiv blir én pris, og brevet lagres i tabellen', () => {

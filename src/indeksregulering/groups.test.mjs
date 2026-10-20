@@ -12,7 +12,15 @@ import {
   monthsBefore,
   projectBand,
 } from './groups.js';
-import { appendIndexHistory, indexTableRows, usedIndexIds } from './indexLedger.js';
+import {
+  appendIndexHistory,
+  indexColumnIds,
+  indexTableRows,
+  indexTimeSections,
+  indexTimeTable,
+  usedIndexIds,
+  yearWindow,
+} from './indexLedger.js';
 import { indexLetterMessage } from './mail.js';
 import { effectiveRegulation } from './settings.js';
 import { fetchAllIndices } from './ssb.js';
@@ -144,6 +152,90 @@ test('indekstabell viser én rad per benyttet serie', () => {
   assert.equal(rows[0].table, '14335');
   assert.equal(rows[0].changed, true);
   assert.equal(rows[0].agreements, 1);
+});
+
+test('indekssiden setter én serie per kolonne og tiden nedover', () => {
+  const now = new Date(2026, 9, 20);
+  assert.deepEqual(yearWindow(3, now), { fromYear: 2024, toYear: 2026 });
+  assert.deepEqual(yearWindow(0, now), { fromYear: null, toYear: null });
+  const ids = indexColumnIds([
+    { fields: { indexId: 'kpi' } },
+    { fields: { indexId: 'kpi' } },
+    { fields: { indexId: 'ppi-byggeteknisk' } },
+  ]);
+  assert.equal(ids[0], 'kpi');
+  assert.equal(ids[1], 'ppi-byggeteknisk');
+  assert.ok(ids.includes('bki-boligblokk'));
+  assert.equal(indexColumnIds([])[0], 'bki-boligblokk');
+
+  const points = {
+    'ppi-byggeteknisk': {
+      name: 'Byggeteknisk konsulentvirksomhet',
+      table: '14335',
+      frequency: 'quarter',
+      basis: '2021 = 100',
+      points: [
+        { period: '2024K3', value: 113.3 },
+        { period: '2024K4', value: 115.9 },
+        { period: '2025K1', value: 116.1 },
+        { period: '2025K2', value: 117.7 },
+        { period: '2025K3', value: 118 },
+        { period: '2025K4', value: 119.5 },
+        { period: '2026K1', value: 121.1 },
+        { period: '2026K2', value: 122.9 },
+      ],
+    },
+    'bki-veg': {
+      frequency: 'quarter',
+      points: [
+        { period: '2024K4', value: 100 },
+        { period: '2026K2', value: 104.2 },
+      ],
+    },
+    kpi: {
+      frequency: 'month',
+      points: [
+        { period: '2023M12', value: 99 },
+        { period: '2026M08', value: 102.4 },
+      ],
+    },
+  };
+  const table = indexTimeTable({
+    series: points,
+    ids: ['ppi-byggeteknisk', 'bki-veg', 'kpi'],
+    frequency: 'quarter',
+    fromYear: 2024,
+    toYear: 2026,
+  });
+  assert.deepEqual(table.columns.map((column) => column.id), ['ppi-byggeteknisk', 'bki-veg']);
+  assert.deepEqual(table.rows.map((row) => row.period), [
+    '2024K3', '2024K4', '2025K1', '2025K2', '2025K3', '2025K4', '2026K1', '2026K2',
+  ]);
+  assert.equal(table.rows[0].values['ppi-byggeteknisk'], 113.3);
+  assert.equal(table.rows.at(-1).values['ppi-byggeteknisk'], 122.9);
+  assert.equal(table.rows[0].values['bki-veg'], null);
+  assert.equal(table.rows[1].values['bki-veg'], 100);
+
+  const filtered = indexTimeSections({ series: points, ids: ['ppi-byggeteknisk', 'kpi'], years: 3, now });
+  assert.deepEqual(filtered.map((section) => section.frequency), ['quarter', 'month']);
+  const other = indexTimeSections({
+    series: { 'egen-serie': { name: 'Egen serie', points: [{ period: '2026', value: 10 }] } },
+    ids: ['egen-serie'],
+    years: 3,
+    now,
+  });
+  assert.equal(other.at(-1).title, 'Andre');
+  assert.equal(other.at(-1).rows[0].values['egen-serie'], 10);
+  assert.equal(filtered[0].rows.some((row) => row.period.startsWith('2023')), false);
+  assert.deepEqual(filtered[1].rows.map((row) => row.period), ['2026M08']);
+
+  const screen = readFileSync(new URL('../../screens/economy/EconomyIndices.jsx', import.meta.url), 'utf8');
+  assert.match(screen, /indexTimeSections/);
+  assert.match(screen, /INDEX_TIME_WINDOWS/);
+  assert.match(screen, /economy-index-filters/);
+  assert.match(screen, /fetchAllIndices/);
+  assert.doesNotMatch(screen, /Hent benyttede indekser/);
+  assert.doesNotMatch(screen, /TextInput/);
 });
 
 test('e-postvarslet inneholder brevet', () => {

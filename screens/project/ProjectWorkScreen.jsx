@@ -77,6 +77,8 @@ import {
   visibleColumnsOf,
 } from '../../src/project/listColumns';
 import {
+  adoptLoadedHours,
+  ensureProjectHours,
   loadProjectState,
   peekProjectState,
   persistProjectState,
@@ -84,6 +86,7 @@ import {
   putProjectState,
   saveProjectState,
 } from '../../src/project/storage';
+import { projectLookupNumbers } from '../../src/project/projectFields.js';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
 import { searchPlaces } from '../../src/utils/location';
@@ -353,6 +356,7 @@ export default function ProjectWorkScreen() {
   const [deleting, setDeleting] = useState(false);
   const [docBusy, setDocBusy] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
+  const [projectHoursLoading, setProjectHoursLoading] = useState(false);
   const skipNextSave = useRef(true);
   const allowSave = useRef(false);
   const pendingProjectId = useRef('');
@@ -677,6 +681,31 @@ export default function ProjectWorkScreen() {
   }
 
   const selected = state.projects.find((item) => item.id === selectedId) || null;
+  const selectedHourKey = selected
+    ? `${selected.id}:${projectLookupNumbers(selected).join(',')}`
+    : '';
+
+  useEffect(() => {
+    if (view !== 'detail' || !familyId || !selectedHourKey) {
+      setProjectHoursLoading(false);
+      return undefined;
+    }
+    const project = state.projects.find((row) => row.id === selectedId);
+    if (!project) return undefined;
+    let live = true;
+    setProjectHoursLoading(true);
+    ensureProjectHours(familyId, {
+      projectId: project.id,
+      projectNumbers: projectLookupNumbers(project),
+    }).then((loaded) => {
+      if (!live) return;
+      skipNextSave.current = true;
+      setState((current) => adoptLoadedHours(current, loaded, familyId));
+    }).catch(() => {}).finally(() => {
+      if (live) setProjectHoursLoading(false);
+    });
+    return () => { live = false; };
+  }, [view, familyId, selectedHourKey]);
 
   const customerContracts = useMemo(() => {
     if (!form.customerId) return contracts.filter((row) => row.status !== 'avsluttet' && !row.deletedAt);
@@ -1986,6 +2015,7 @@ export default function ProjectWorkScreen() {
           colors={colors}
           isAdmin={isAdmin}
           uid={uid}
+          familyId={familyId}
           onChangeState={(next) => {
             setState(next);
             setNote('');
@@ -2001,6 +2031,7 @@ export default function ProjectWorkScreen() {
           onOpenIndex={(contract) => requestShellTab?.('okonomi', 'indeks', openIndexIntentFromContract(contract))}
           onOpenEconomySettings={() => requestShellTab?.('okonomi', 'innstillinger')}
           onOpenEconomyBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
+          hoursLoading={projectHoursLoading}
         />
       </View>
     );

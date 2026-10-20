@@ -166,6 +166,28 @@ assert.equal(projectLoadMeta('co1'), 'ok');
   assert.equal(again, peekProjectState('co-hours'), 'dekket vindu skal bruke minnet');
   assert.equal(again.timeEntries[0].id, 't1');
 
+  clearProjectStateMemory('co-project-hours');
+  noteLoadedHoursRange('co-project-hours', { fromDate: '2026-10-01', toDate: '2026-10-07' });
+  assert.equal(
+    hoursRangeCovered('co-project-hours', { projectId: 'p-myklebust', projectNumbers: ['10001', '1882'] }),
+    false,
+    'uke-vindu dekker ikke prosjektets timer',
+  );
+  noteLoadedHoursRange('co-project-hours', {
+    projectId: 'p-myklebust',
+    projectNumbers: ['1882', '10001'],
+  });
+  assert.equal(
+    hoursRangeCovered('co-project-hours', { projectId: 'p-myklebust', projectNumbers: ['10001', '1882'] }),
+    true,
+  );
+  assert.equal(
+    hoursRangeCovered('co-project-hours', { fromDate: '2026-10-01', toDate: '2026-10-07' }),
+    true,
+    'prosjektlasting skal ikke skjule et uke-vindu',
+  );
+  clearProjectStateMemory('co-project-hours');
+
   const edited = adoptLoadedHours(
     {
       ...again,

@@ -13,6 +13,7 @@ import {
   feeEstimateFromSettings,
   normalizePricingModel,
   normalizePricingSettings,
+  numbersInProjectName,
   projectNumberKey,
   scrubProjectState,
 } from './projectFields.js';
@@ -190,6 +191,21 @@ export function healOrphanProjectRefs(state, idRemap = null) {
     const key = projectNumberKey(project.number);
     if (key && !byNumber.has(key)) byNumber.set(key, project);
   }
+  // «(1882)» i navnet er ofte samme sak som prosjektnummer 10001.
+  // Bare når ingen prosjektpost eier 1882 som nummer, og bare ett navn bruker det.
+  const byNameNumber = new Map();
+  for (const project of projects) {
+    if (!project?.id || project.status === 'arkivert') continue;
+    for (const alias of numbersInProjectName(project.name)) {
+      if (!alias || byNumber.has(alias)) continue;
+      if (!byNameNumber.has(alias)) {
+        byNameNumber.set(alias, project);
+        continue;
+      }
+      const prev = byNameNumber.get(alias);
+      if (prev && prev.id !== project.id) byNameNumber.set(alias, null);
+    }
+  }
 
   const resolveId = (projectId, projectNumber) => {
     const id = text(projectId);
@@ -202,6 +218,8 @@ export function healOrphanProjectRefs(state, idRemap = null) {
     if (key) {
       const hit = byNumber.get(key);
       if (hit) return hit.id;
+      const aliasHit = byNameNumber.get(key);
+      if (aliasHit?.id) return aliasHit.id;
     }
     return id;
   };
@@ -215,7 +233,10 @@ export function healOrphanProjectRefs(state, idRemap = null) {
       if (withNumber) {
         const project = byId.get(nextId);
         if (project) {
-          if (!text(patch.projectNumber)) patch.projectNumber = text(project.number);
+          const liveNumber = text(project.number);
+          if (!text(patch.projectNumber) || (liveNumber && projectNumberKey(patch.projectNumber) !== projectNumberKey(liveNumber))) {
+            patch.projectNumber = liveNumber;
+          }
           if (!text(patch.projectName)) patch.projectName = text(project.name);
         }
       }
@@ -768,6 +789,7 @@ export function createProject(state, input) {
     wasteGoal: Number(input.wasteGoal) > 0 ? Number(input.wasteGoal) : 70,
     workSettings: defaultWorkSettings(input.workSettings),
     invoiceSettings: normalizeProjectInvoiceSettings(input.invoiceSettings),
+    imageUrl: text(input.imageUrl),
   };
   return ok({
     ...state,
@@ -823,6 +845,7 @@ export function updateProject(state, projectId, patch) {
     invoiceSettings: patch.invoiceSettings !== undefined
       ? normalizeProjectInvoiceSettings(patch.invoiceSettings)
       : normalizeProjectInvoiceSettings(p.invoiceSettings),
+    imageUrl: patch.imageUrl !== undefined ? text(patch.imageUrl) : text(p.imageUrl),
   } : p));
   return ok({ ...state, projects });
 }

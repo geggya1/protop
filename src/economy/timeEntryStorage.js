@@ -180,11 +180,60 @@ function mergeEntryLists(...lists) {
   return [...byId.values()];
 }
 
-async function queryTimeEntries(bits, companyId, { fromDate = '', toDate = '', employeeId = '' } = {}) {
+function projectNumberList(value) {
+  return [...new Set((Array.isArray(value) ? value : []).map((item) => text(item)).filter(Boolean))].slice(0, 10);
+}
+
+function rowsFromDocs(docs) {
+  const byId = new Map();
+  for (const item of docs || []) {
+    const row = normalizeTimeEntryRow({ ...item.data(), id: item.id });
+    if (row?.id) byId.set(row.id, row);
+  }
+  return [...byId.values()];
+}
+
+async function docsForProjectNumbers(bits, col, numbers) {
+  if (!numbers.length) return [];
+  try {
+    const q = numbers.length === 1
+      ? bits.query(col, bits.where('projectNumber', '==', numbers[0]))
+      : bits.query(col, bits.where('projectNumber', 'in', numbers));
+    const snap = await bits.getDocs(q);
+    return snap.docs;
+  } catch {
+    const docs = [];
+    for (const number of numbers) {
+      const snap = await bits.getDocs(bits.query(col, bits.where('projectNumber', '==', number)));
+      docs.push(...snap.docs);
+    }
+    return docs;
+  }
+}
+
+async function queryTimeEntries(bits, companyId, {
+  fromDate = '',
+  toDate = '',
+  employeeId = '',
+  projectId = '',
+  projectNumbers = [],
+} = {}) {
   const col = entriesCol(bits, companyId);
   const from = text(fromDate);
   const to = text(toDate);
   const emp = text(employeeId);
+  const project = text(projectId);
+  const numbers = projectNumberList(projectNumbers);
+  // Ett felt om gangen. projectId+dato krever sammensatt indeks vi ikke har,
+  // og et prosjekt skal uansett vise timer eldre enn uke-vinduet.
+  if (project || numbers.length) {
+    const jobs = [];
+    if (project) jobs.push(bits.getDocs(bits.query(col, bits.where('projectId', '==', project))));
+    if (numbers.length) jobs.push(docsForProjectNumbers(bits, col, numbers).then((docs) => ({ docs })));
+    const snaps = await Promise.all(jobs);
+    const docs = snaps.flatMap((snap) => snap.docs || []);
+    return filterTimeEntriesByRange(rowsFromDocs(docs), { fromDate: from, toDate: to, employeeId: emp });
+  }
   const clauses = [];
   if (emp) clauses.push(bits.where('employeeId', '==', emp));
   if (from) clauses.push(bits.where('date', '>=', from));
@@ -198,15 +247,18 @@ async function queryTimeEntries(bits, companyId, { fromDate = '', toDate = '', e
 
 /**
  * @param {string} companyId
- * @param {{ fromDate?: string, toDate?: string, employeeId?: string, all?: boolean }} [opts]
+ * @param {{ fromDate?: string, toDate?: string, employeeId?: string, projectId?: string, projectNumbers?: string[], all?: boolean }} [opts]
  */
 export async function loadTimeEntries(companyId, opts = {}) {
   if (!companyId) return [];
   await hydrateDeletedTimeEntries(companyId);
+  const projectId = text(opts.projectId);
+  const projectNumbers = projectNumberList(opts.projectNumbers);
+  const projectScoped = !!(projectId || projectNumbers.length);
   const all = opts.all === true
-    || (!text(opts.fromDate) && !text(opts.toDate) && !text(opts.employeeId) && opts.all !== false);
+    || (!projectScoped && !text(opts.fromDate) && !text(opts.toDate) && !text(opts.employeeId) && opts.all !== false);
   // Explicit all:false without range → empty (caller must pass window).
-  if (!all && !text(opts.fromDate) && !text(opts.toDate) && !text(opts.employeeId)) {
+  if (!all && !projectScoped && !text(opts.fromDate) && !text(opts.toDate) && !text(opts.employeeId)) {
     return [];
   }
 
@@ -214,6 +266,8 @@ export async function loadTimeEntries(companyId, opts = {}) {
     fromDate: text(opts.fromDate),
     toDate: text(opts.toDate),
     employeeId: text(opts.employeeId),
+    projectId,
+    projectNumbers,
   };
 
   try {
@@ -227,7 +281,11 @@ export async function loadTimeEntries(companyId, opts = {}) {
     }
     try {
       const rows = await loadWindowEntries(bits, companyId, range);
-      return finishLoadedEntries(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
+      // Prosjektutvalg skal ikke overskrive uke-cachen med bare disse radene.
+      const persist = projectScoped
+        ? () => {}
+        : (clean) => writeLocalWindow(companyId, clean, range);
+      return finishLoadedEntries(companyId, rows, persist);
     } catch {
       // Ikke last hele samlingen når vindus-spørringen feiler — det låser appen.
       const cached = await readLocalWindow(companyId, range);

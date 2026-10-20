@@ -331,6 +331,63 @@ assert.ok(merged.members.length >= 1);
   });
   assert.equal(byNumberId.timeEntries[0].projectId, 'proj-import');
 
+  // Nummer i navnet (1882) skal treffe prosjektnummer 10001 når 1882 ikke er eget prosjekt.
+  const myklebust = healOrphanProjectRefs({
+    ...emptyProjectState(),
+    projects: [{
+      id: 'proj-myklebust',
+      number: '10001',
+      name: 'Myklebust CB6-12-13 (1882)',
+      status: 'aktiv',
+    }],
+    timeEntries: [{
+      id: 'tid-1882',
+      projectId: '1882',
+      projectNumber: '1882',
+      projectName: 'Myklebust CB6-12-13 (1882)',
+      employeeId: 'emp1',
+      date: '2026-03-02',
+      hours: 7.5,
+      description: 'Produksjon',
+      status: 'registrert',
+    }, {
+      id: 'tid-10001',
+      projectId: '10001',
+      projectNumber: '10001',
+      employeeId: 'emp1',
+      date: '2026-03-03',
+      hours: 8,
+      description: 'Produksjon',
+      status: 'registrert',
+    }],
+  });
+  assert.equal(myklebust.timeEntries[0].projectId, 'proj-myklebust');
+  assert.equal(myklebust.timeEntries[0].projectNumber, '10001');
+  assert.equal(myklebust.timeEntries[1].projectId, 'proj-myklebust');
+  assert.equal(
+    myklebust.timeEntries.reduce((sum, row) => sum + row.hours, 0),
+    15.5,
+  );
+
+  // Et eget prosjekt med nummer 1882 skal beholde timene sine.
+  const separate = healOrphanProjectRefs({
+    ...emptyProjectState(),
+    projects: [
+      { id: 'proj-myklebust', number: '10001', name: 'Myklebust CB6-12-13 (1882)', status: 'aktiv' },
+      { id: 'proj-1882', number: '1882', name: 'Annen sak', status: 'aktiv' },
+    ],
+    timeEntries: [{
+      id: 'tid-own',
+      projectId: '1882',
+      projectNumber: '1882',
+      employeeId: 'emp1',
+      date: '2026-03-04',
+      hours: 4,
+      status: 'registrert',
+    }],
+  });
+  assert.equal(separate.timeEntries[0].projectId, 'proj-1882');
+
   const imported = importTimeEntries(state, [{
     projectId: 'proj-import',
     projectNumber: '30001',

@@ -3,6 +3,7 @@
  */
 import { formatHours, parseHours, roundHours, sumHours } from '../arbeid/hours.js';
 import { displayName } from '../employees/model.js';
+import { projectLookupNumbers, projectNumberKey } from '../project/projectFields.js';
 import { formatDate, fold, parseDate, text } from './invoices.js';
 
 export { formatHours, formatDate, sumHours };
@@ -332,6 +333,55 @@ export function hydrateHourEntry(row, {
     customerNumber,
     projectNumber,
     projectName,
+  };
+}
+
+/** Prosjekt fra filteret i timerapporten (id eller number:10001). */
+export function projectFromHourFilter(projects, filterId) {
+  const id = text(filterId);
+  if (!id || id.startsWith(NAME_FACET_PREFIX)) return null;
+  const list = (Array.isArray(projects) ? projects : []).filter((row) => row?.status !== 'arkivert' && row?.id);
+  const direct = list.find((row) => row.id === id);
+  if (direct) return direct;
+  if (id.startsWith(NUMBER_FACET_PREFIX)) {
+    const key = projectNumberKey(id.slice(NUMBER_FACET_PREFIX.length));
+    if (!key) return null;
+    return list.find((row) => projectLookupNumbers(row).includes(key)) || null;
+  }
+  return null;
+}
+
+/** Prosjekter et søk i timerapporten bør hente timer for, også utenfor uke-vinduet. */
+export function projectsMatchingHourQuery(projects, query, limit = 8) {
+  const q = fold(query);
+  if (q.length < 3) return [];
+  const number = projectNumberKey(query);
+  const list = (Array.isArray(projects) ? projects : []).filter((row) => row?.status !== 'arkivert' && row?.id);
+  const hits = list.filter((project) => {
+    const numbers = projectLookupNumbers(project);
+    if (number && numbers.includes(number)) return true;
+    const hay = fold([project.number, project.name].filter(Boolean).join(' '));
+    return hay.includes(q);
+  });
+  return hits.slice(0, limit);
+}
+
+/**
+ * Timer på prosjektene som er lastet, men skjult av periodefilteret.
+ * @returns {{ hours: number, shown: number, count: number, shownCount: number } | null}
+ */
+export function hoursOutsideSelection(entries, visible, projects) {
+  const ids = new Set((projects || []).map((row) => text(row?.id)).filter(Boolean));
+  if (!ids.size) return null;
+  const inProjects = (rows) => (rows || []).filter((row) => ids.has(text(row.projectId)));
+  const all = hourTotals(inProjects(entries));
+  const shown = hourTotals(inProjects(visible));
+  if (!(all.hours > shown.hours)) return null;
+  return {
+    hours: all.hours,
+    shown: shown.hours,
+    count: all.count,
+    shownCount: shown.count,
   };
 }
 

@@ -43,14 +43,18 @@ import {
   formatHours,
   groupHours,
   hourFacets,
+  hoursOutsideSelection,
   hourTotals,
   hydrateHourEntry,
   periodLoadRange,
+  projectFromHourFilter,
+  projectsMatchingHourQuery,
   sortHours,
 } from '../../src/economy/hoursList.js';
 import { readHourImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { emptyProjectState, importTimeEntries } from '../../src/project/engine';
+import { projectLookupNumbers } from '../../src/project/projectFields.js';
 import {
   applyReportEntryChange,
   applyReportEntryDelete,
@@ -232,6 +236,37 @@ export default function EconomyHours({
   const entries = state.timeEntries || [];
   const customers = customersProp.length ? customersProp : anbudCustomers;
   const projectList = projectsProp.length ? projectsProp : (state.projects || []);
+  const hourLookupProjects = useMemo(() => {
+    const selected = projectFromHourFilter(projectList, projectFilter);
+    const matched = projectsMatchingHourQuery(projectList, query);
+    const map = new Map();
+    for (const project of [selected, ...matched].filter(Boolean)) {
+      if (project?.id) map.set(project.id, project);
+    }
+    return [...map.values()].slice(0, 8);
+  }, [projectList, projectFilter, query]);
+  const hourLookupKey = hourLookupProjects
+    .map((project) => `${project.id}:${projectLookupNumbers(project).join(',')}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!ready || !resolvedFamilyId || !hourLookupProjects.length) return undefined;
+    let live = true;
+    const targets = hourLookupProjects;
+    Promise.all(targets.map((project) => ensureProjectHours(resolvedFamilyId, {
+      projectId: project.id,
+      projectNumbers: projectLookupNumbers(project),
+    }))).then((loadedList) => {
+      if (!live) return;
+      startTransition(() => {
+        setState((current) => loadedList.reduce(
+          (acc, loaded) => adoptLoadedHours(acc, loaded, resolvedFamilyId),
+          current,
+        ));
+      });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [ready, resolvedFamilyId, hourLookupKey]);
 
   const employeesById = useMemo(() => {
     const map = new Map();
@@ -274,6 +309,15 @@ export default function EconomyHours({
   const visible = useMemo(() => sortHours(filterHours(scoped, {
     employeeId: employeeFilter,
   }), sort), [scoped, employeeFilter, sort]);
+  const outsidePeriod = useMemo(() => {
+    if (period === 'all') return null;
+    const gap = hoursOutsideSelection(entries, visible, hourLookupProjects);
+    if (!gap) return null;
+    const label = hourLookupProjects.length === 1
+      ? [hourLookupProjects[0].number, hourLookupProjects[0].name].filter(Boolean).join(' ')
+      : 'Prosjektene i søket';
+    return { ...gap, label };
+  }, [period, entries, visible, hourLookupProjects]);
 
   const groups = useMemo(() => groupHours(visible, groupBy), [visible, groupBy]);
   const pageRows = useMemo(
@@ -577,6 +621,19 @@ export default function EconomyHours({
     );
   }
 
+  const periodHint = outsidePeriod ? (
+    <TouchableOpacity
+      onPress={() => setPeriod('all')}
+      accessibilityRole="button"
+      accessibilityLabel="Vis alle timer på prosjektet"
+      nativeID="hours-outside-period"
+    >
+      <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 18 }}>
+        {outsidePeriod.label} har {formatHours(outsidePeriod.hours)} timer. {formatHours(outsidePeriod.shown)} vises i valgt periode. Vis alle timer.
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
   const busyOverlay = (
     <BrandBusyOverlay
       visible={busy}
@@ -690,7 +747,9 @@ export default function EconomyHours({
       <Text style={{ color: colors.muted }}>
         {hoursLoading
           ? 'Laster timer…'
-          : 'Ingen timer i dette utvalget. Åpne Filtrer for periode, søk eller sortering — eller importer Excel.'}
+          : outsidePeriod
+            ? `${outsidePeriod.label} har ${formatHours(outsidePeriod.hours)} timer, men ingen i valgt periode.`
+            : 'Ingen timer i dette utvalget. Åpne Filtrer for periode, søk eller sortering — eller importer Excel.'}
       </Text>
     </View>
   );
@@ -943,6 +1002,7 @@ export default function EconomyHours({
             {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakt. {formatHours(totals.billable)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
+          {periodHint}
 
           {hideBillable ? (
             <TimesheetDayView
@@ -1013,6 +1073,7 @@ export default function EconomyHours({
             {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
+          {periodHint}
 
           {table}
         </View>

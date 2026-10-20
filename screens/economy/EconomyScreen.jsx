@@ -67,7 +67,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 
   useEffect(() => {
     let live = true;
-    loadProjectState(familyId).then((loaded) => {
+    const from = new Date();
+    from.setMonth(from.getMonth() - 2);
+    const fromDate = from.toISOString().slice(0, 10);
+    loadProjectState(familyId, { hours: { fromDate } }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setReady(true);
@@ -106,11 +109,20 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   useEffect(() => {
     if (shellIntent?.type !== 'openIndexDraft') return;
     setChosen({
-      id: shellIntent.contractId || shellIntent.caseId || '',
+      id: shellIntent.contractId || '',
       title: shellIntent.draft?.title || '',
       projectId: shellIntent.projectId || '',
     });
+    setWorkspaceCaseId(shellIntent.workspaceCaseId || '');
+    setWorkspaceView(shellIntent.view || '');
     setIndexOpen(true);
+    if (typeof window !== 'undefined' && shellIntent.contractId) {
+      const href = workspaceHref(window.location.href, shellIntent.contractId, shellIntent.workspaceCaseId || '', shellIntent.view || '');
+      const next = `${new URL(href).pathname}${new URL(href).search}`;
+      if (`${window.location.pathname}${window.location.search}` !== next) {
+        window.history.replaceState(window.history.state || {}, '', next);
+      }
+    }
   }, [shellIntent]);
 
   const customers = anbud?.customers || [];
@@ -151,32 +163,15 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return { ok: true, case: fresh };
   }
 
-  function openWorkspace(contract, caseId = '', view = '') {
-    if (!contract?.id) return;
-    const href = typeof window !== 'undefined'
-      ? workspaceHref(window.location.href, contract.id, caseId, view)
-      : '';
-    const here = typeof window !== 'undefined' && readWorkspaceQuery(window.location.search).contractId === contract.id;
-    if (!here && href && typeof window !== 'undefined' && typeof window.open === 'function') {
-      const popup = window.open(href, `protop-indeks-${contract.id}`);
-      if (popup) return;
-    }
-    if (href && typeof window !== 'undefined') window.history.replaceState({}, '', href);
-    setChosen(contract);
-    setWorkspaceCaseId(caseId);
-    setWorkspaceView(view);
-    setIndexOpen(true);
+  function rememberIndexUrl(contractId, caseId = '', view = '') {
+    if (typeof window === 'undefined' || !contractId) return;
+    const href = workspaceHref(window.location.href, contractId, caseId, view);
+    const next = `${new URL(href).pathname}${new URL(href).search}`;
+    window.history.replaceState(window.history.state || {}, '', next);
   }
 
   function openIndex(contract, caseId = '', view = '') {
-    const href = typeof window !== 'undefined'
-      ? workspaceHref(window.location.href, contract?.id || '', caseId, view)
-      : '';
-    const here = typeof window !== 'undefined' && readWorkspaceQuery(window.location.search).contractId === contract?.id;
-    if (!here && href && typeof window !== 'undefined' && typeof window.open === 'function') {
-      const popup = window.open(href, `protop-indeks-${contract.id}`);
-      if (popup) return;
-    }
+    if (!contract?.id) return;
     const intent = openIndexIntentFromContract(contract, {
       supplier: company?.navn || '',
       supplierOrgnr: company?.organisasjonsnummer || '',
@@ -187,8 +182,14 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     requestShellTab?.('okonomi', 'indeks', {
       ...intent,
       projectId: contract.projectId || '',
+      view,
+      workspaceCaseId: caseId,
     });
-    openWorkspace(contract, caseId, view);
+    rememberIndexUrl(contract.id, caseId, view);
+    setChosen(contract);
+    setWorkspaceCaseId(caseId);
+    setWorkspaceView(view);
+    setIndexOpen(true);
   }
 
   function backToDesk() {
@@ -231,6 +232,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
             initialView={workspaceView}
             onClose={backToDesk}
             onSave={persistIndexCase}
+            onOpenProject={() => requestShellTab?.('projects', null, { type: 'openProject', projectId: selectedContract?.projectId || '' })}
           />
         ) : (
           <EconomyIndex

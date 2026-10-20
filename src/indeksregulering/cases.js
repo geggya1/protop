@@ -3,6 +3,7 @@
  * En sak er et eget objekt. Godkjente og sendte saker endres ikke uten ny versjon.
  */
 
+import { projectNumberKey } from '../project/projectFields.js';
 import { modelById, seriesById, standardById } from './catalog.js';
 import { draftFromRegisteredContract } from '../economy/fromContract.js';
 import {
@@ -51,17 +52,48 @@ export function projectDeactivated(project) {
   return status === 'arkivert' || status === 'deaktivert' || project?.active === false;
 }
 
-export function projectsWithoutAgreement(projects = [], contracts = []) {
+function isoShiftMonths(iso, months) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+export function projectRecentlyActive(project, timeEntries = [], today = '') {
+  const day = text(today).slice(0, 10) || osloDate();
+  const cutoff = isoShiftMonths(day, -2);
+  if (!cutoff) return false;
+  const id = text(project?.id);
+  const number = projectNumberKey(project?.number);
+  return (timeEntries || []).some((row) => {
+    const date = text(row?.date).slice(0, 10);
+    if (!date || date < cutoff || date > day) return false;
+    if (!(Number(row?.hours) > 0) && !(Number(row?.billableHours) > 0)) return false;
+    if (id && text(row.projectId) === id) return true;
+    if (number && projectNumberKey(row.projectNumber) === number) return true;
+    return false;
+  });
+}
+
+export function projectAttentionGroup(project, timeEntries = [], today = '') {
+  if (projectDeactivated(project) || !projectRecentlyActive(project, timeEntries, today)) return 'deaktivert';
+  return 'aktiv';
+}
+
+export function projectsWithoutAgreement(projects = [], contracts = [], options = {}) {
   const linked = new Set();
   (contracts || []).forEach((contract) => {
     if (!contract?.id || contract.deletedAt || !contract.projectId) return;
     linked.add(contract.projectId);
   });
+  const timeEntries = options.timeEntries || [];
+  const today = options.today || '';
   return (projects || [])
     .filter((project) => project?.id && !project.deletedAt && !linked.has(project.id))
     .map((project) => ({
       project,
-      group: projectDeactivated(project) ? 'deaktivert' : 'aktiv',
+      group: projectAttentionGroup(project, timeEntries, today),
     }))
     .sort((a, b) => text(a.project.number || a.project.name).localeCompare(text(b.project.number || b.project.name), 'nb'));
 }
@@ -636,9 +668,9 @@ export function queueCounts(contracts, series, today) {
   return counts;
 }
 
-export function deskCounts(contracts, series, today, projects) {
+export function deskCounts(contracts, series, today, projects, timeEntries) {
   const base = queueCounts(contracts, series, today);
-  const loose = projectsWithoutAgreement(projects, contracts);
+  const loose = projectsWithoutAgreement(projects, contracts, { timeEntries, today });
   return {
     kan_reguleres: base.kan_reguleres + base.ma_vurderes,
     venter_indeks: base.venter_indeks + base.kommende,
@@ -1081,7 +1113,10 @@ export function mergeRegulationList(existing, entry) {
 }
 
 export function workspaceHref(currentHref, contractId, caseId = '', view = '') {
-  const url = new URL(currentHref || 'https://protop.no/', 'https://protop.no');
+  const url = new URL(currentHref || 'https://protop.no/hjem', 'https://protop.no');
+  url.pathname = '/hjem';
+  url.search = '';
+  url.hash = '';
   url.searchParams.set('indeksAvtale', contractId);
   if (caseId) url.searchParams.set('indeksSak', caseId);
   else url.searchParams.delete('indeksSak');

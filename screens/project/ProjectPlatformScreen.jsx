@@ -19,24 +19,27 @@ import CompanyStructureSettings from '../../components/project/CompanyStructureS
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import AbsenceTypeSettings from '../../components/company/AbsenceTypeSettings';
-import ChartOfAccountsSettings from '../../components/company/ChartOfAccountsSettings';
-import StandardAccountSettings from '../../components/company/StandardAccountSettings';
-import HolidaySettings from '../../components/company/HolidaySettings';
-
-const COMPANY_SETUP_PAGES = ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'];
-
-const COMPANY_SETUP_LINKS = [
-  { id: 'fravaerstyper', label: 'Fraværstyper', hint: 'Lønn, timebalanse og fakturerbart arbeid' },
-  { id: 'kontoplan', label: 'Kontoplan', hint: 'Salgs- og kjøpskontoer med MVA' },
-  { id: 'regnskapskontoer', label: 'Standard regnskapskontoer', hint: 'Konto på honorar, timer, utlegg og avrunding' },
-  { id: 'fridager', label: 'Fridager', hint: 'Helligdager og egne fridager i timelisten' },
-];
 
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
-  if (COMPANY_SETUP_PAGES.includes(startPage)) return startPage;
   return 'innstillinger';
+}
+
+function SettingsSection({ icon, title, hint, colors, children }) {
+  return (
+    <View style={[styles.sectionCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={styles.sectionHead}>
+        <View style={[styles.sectionIcon, { backgroundColor: colors.brandSoft }]}>
+          <Ionicons name={icon} size={18} color={colors.brand} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.sectionTitle, { color: colors.ink }]}>{title}</Text>
+          {hint ? <Text style={[styles.sectionHint, { color: colors.muted }]}>{hint}</Text> : null}
+        </View>
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
 }
 
 function Field({ label, value, onChangeText, placeholder, colors, keyboardType, editable = true }) {
@@ -220,19 +223,9 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       contentContainerStyle={styles.body}
       keyboardShouldPersistTaps="handled"
     >
-      {page === 'innstillinger' ? (
-        <>
-          <Text style={[styles.kicker, { color: colors.muted }]}>Du er i</Text>
-          <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>{contextLabel || company.navn}</Text>
-          <Text style={[styles.lead, { color: colors.muted }]}>
-            {company.organisasjonsnummer}
-            {company.organisasjonsform ? ` · ${company.organisasjonsform}` : ''}
-          </Text>
-        </>
-      ) : null}
       {startPage === 'tilgang' ? null : (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityRole="button">
-          <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskap</Text>
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til virksomhetsprofil</Text>
         </TouchableOpacity>
       )}
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
@@ -261,22 +254,6 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         )
       ) : null}
 
-      {COMPANY_SETUP_PAGES.includes(page) ? (
-        !access.ready && !owner ? (
-          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
-        ) : !canOpenSettings ? (
-          <CompanyAccessDenied colors={colors} />
-        ) : page === 'fravaerstyper' ? (
-          <AbsenceTypeSettings familyId={familyId} colors={colors} canEdit={canEdit} />
-        ) : page === 'kontoplan' ? (
-          <ChartOfAccountsSettings familyId={familyId} colors={colors} canEdit={canEdit} />
-        ) : page === 'regnskapskontoer' ? (
-          <StandardAccountSettings familyId={familyId} colors={colors} canEdit={canEdit} />
-        ) : (
-          <HolidaySettings familyId={familyId} colors={colors} canEdit={canEdit} />
-        )
-      ) : null}
-
       {page === 'innstillinger' ? (
         !access.ready && !owner ? (
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
@@ -285,7 +262,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         ) : (
         <View style={styles.column}>
           <View style={styles.settingsHead}>
-            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>Innstillinger</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.kicker, { color: colors.muted }]}>Administrasjon</Text>
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Selskapsinnstillinger
+              </Text>
+              <Text style={[styles.lead, { color: colors.muted }]}>
+                {[contextLabel || company.navn, company.organisasjonsnummer].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityLabel="Lukk innstillinger">
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
@@ -295,145 +280,171 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               Bare administrator kan endre bedriftsprofil og grunninnstillinger.
             </Text>
           ) : null}
-          <TouchableOpacity
-            onPress={() => requestShellTab?.('selskap', 'tilgang')}
-            accessibilityRole="button"
-            accessibilityLabel="Tilgang og rettigheter"
-            style={[styles.btn, { backgroundColor: colors.sunken }]}
-          >
-            <Text style={[styles.btnText, { color: colors.ink }]}>Tilgang og rettigheter</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => requestShellTab?.('selskap', 'underenheter')}
-            accessibilityRole="button"
-            accessibilityLabel="Underenheter"
-            style={[styles.btn, { backgroundColor: colors.sunken }]}
-          >
-            <Text style={[styles.btnText, { color: colors.ink }]}>Underenheter</Text>
-          </TouchableOpacity>
-          <CompanyLogoSettings
-            company={company}
-            canEdit={canEdit}
+
+          <SettingsSection
+            icon="image-outline"
+            title="Bedriftsprofil og grunnopplysninger"
+            hint="Logo, kontakt og registrerte virksomhetsopplysninger"
             colors={colors}
-            busy={busy}
-            onSave={async (logo) => {
-              const next = { ...company };
-              if (logo) next.logo = logo;
-              else delete next.logo;
-              await savePatch(familyId, { company: next });
-            }}
-          />
-          <CompanyStructureSettings
-            company={company}
-            familyId={familyId}
-            families={families || []}
-            canEdit={canEdit}
-            colors={colors}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-            userProfile={userProfile}
-            onSaved={async (next) => {
-              await savePatch(familyId, { company: next });
-            }}
-            onOpenCompany={(id) => {
-              selectFamily?.(id);
-              requestShellTab?.('selskap');
-            }}
-          />
-          <View style={styles.setupLinks}>
-            {COMPANY_SETUP_LINKS.map((link) => (
-              <TouchableOpacity
-                key={link.id}
-                onPress={() => requestShellTab?.('selskap', link.id)}
-                accessibilityRole="button"
-                accessibilityLabel={link.label}
-                style={[styles.setupLink, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>{link.label}</Text>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>{link.hint}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={[styles.label, { color: colors.muted }]}>Kjøreadresse</Text>
-          <Text style={[styles.lead, { color: colors.muted }]}>
-            Gate og nummer brukes i kjøreboken og kommer opp som søketreff. Etasje tas ikke med, for det er ikke en kartadresse.
-          </Text>
-          {company.addressLabel && company.addressLabel !== companyAddressLabel({ kjoeradresse: { gate, postnummer: postal, poststed: place } }) ? (
-            <Text style={[styles.lead, { color: colors.muted }]}>
-              {`Registeret har «${company.addressLabel}».`}
-            </Text>
-          ) : null}
-          <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
-          <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
-          <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
-          <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
-          <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
-          <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>
-          <TextInput
-            value={cpvQuery}
-            onChangeText={setCpvQuery}
-            editable={canEdit}
-            placeholder="Kode eller fag, f.eks. elektro"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
-          <View style={styles.chips}>
-            {visibleCpv.map((row) => {
-              const on = selectedCpv.has(row.code);
-              return (
-                <TouchableOpacity
-                  key={row.code}
-                  disabled={!canEdit}
-                  onPress={() => toggleCpv(row.code)}
-                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-                >
-                  <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{`${row.code.slice(0, 4)} ${row.label}`}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <Field label="Egen CPV-kode" value={customCpv} onChangeText={setCustomCpv} editable={canEdit} placeholder="8 siffer, f.eks. 45233120" colors={colors} />
-          {canEdit ? (
-            <TouchableOpacity
-              onPress={() => {
-                const code = normalizeCpvCode(customCpv);
-                if (!code) return;
-                setSelectedCpv((current) => new Set(current).add(code));
-                setCustomCpv('');
+          >
+            <CompanyLogoSettings
+              company={company}
+              canEdit={canEdit}
+              colors={colors}
+              busy={busy}
+              onSave={async (logo) => {
+                const next = { ...company };
+                if (logo) next.logo = logo;
+                else delete next.logo;
+                await savePatch(familyId, { company: next });
               }}
+            />
+            <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
+            <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
+            {canEdit ? (
+              <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, { backgroundColor: colors.sunken }]} disabled={busy}>
+                <Text style={[styles.btnText, { color: colors.ink }]}>Hent på nytt fra Brønnøysund</Text>
+              </TouchableOpacity>
+            ) : null}
+          </SettingsSection>
+
+          <SettingsSection
+            icon="git-network-outline"
+            title="Konsern, selskaper og underenheter"
+            hint="Tilknyttede selskaper, underenheter og avdelinger"
+            colors={colors}
+          >
+            <CompanyStructureSettings
+              company={company}
+              familyId={familyId}
+              families={families || []}
+              canEdit={canEdit}
+              colors={colors}
+              busy={busy}
+              setBusy={setBusy}
+              setError={setError}
+              userProfile={userProfile}
+              onSaved={async (next) => {
+                await savePatch(familyId, { company: next });
+              }}
+              onOpenCompany={(id) => {
+                selectFamily?.(id);
+                requestShellTab?.('selskap');
+              }}
+            />
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('selskap', 'underenheter')}
+              accessibilityRole="button"
+              accessibilityLabel="Underenheter"
               style={[styles.btn, { backgroundColor: colors.sunken }]}
             >
-              <Text style={[styles.btnText, { color: colors.ink }]}>Legg til kode</Text>
+              <Text style={[styles.btnText, { color: colors.ink }]}>Administrer underenheter og avdelinger</Text>
             </TouchableOpacity>
-          ) : null}
-          <Text style={[styles.label, { color: colors.muted }]}>Egne næringskoder</Text>
-          {ownTrades.map((row) => (
-            <View key={row} style={styles.tradeRow}>
-              <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row}</Text>
-              {canEdit ? (
-                <TouchableOpacity onPress={() => setOwnTrades((current) => current.filter((item) => item !== row))}>
-                  <Text style={{ color: colors.muted, fontWeight: '400' }}>Fjern</Text>
-                </TouchableOpacity>
-              ) : null}
+          </SettingsSection>
+
+          <SettingsSection
+            icon="key-outline"
+            title="Tilgang og rettigheter"
+            hint="Hvem som ser og endrer bedriftsmoduler"
+            colors={colors}
+          >
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('selskap', 'tilgang')}
+              accessibilityRole="button"
+              accessibilityLabel="Tilgang og rettigheter"
+              style={[styles.btn, { backgroundColor: colors.sunken }]}
+            >
+              <Text style={[styles.btnText, { color: colors.ink }]}>Åpne tilgangsstyring</Text>
+            </TouchableOpacity>
+          </SettingsSection>
+
+          <SettingsSection
+            icon="pricetags-outline"
+            title="Virksomhetskoder og fagområder"
+            hint="CPV-koder og egne næringskoder"
+            colors={colors}
+          >
+            <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>
+            <TextInput
+              value={cpvQuery}
+              onChangeText={setCpvQuery}
+              editable={canEdit}
+              placeholder="Kode eller fag, f.eks. elektro"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <View style={styles.chips}>
+              {visibleCpv.map((row) => {
+                const on = selectedCpv.has(row.code);
+                return (
+                  <TouchableOpacity
+                    key={row.code}
+                    disabled={!canEdit}
+                    onPress={() => toggleCpv(row.code)}
+                    style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.bg }]}
+                  >
+                    <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{`${row.code.slice(0, 4)} ${row.label}`}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          ))}
-          {canEdit ? (
-            <Field label="Ny næringskode" value={tradeDraft} onChangeText={setTradeDraft} placeholder="Kode eller beskrivelse" colors={colors} />
-          ) : null}
-          {canEdit ? (
-            <TouchableOpacity onPress={addTrade} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-              <Text style={[styles.btnText, { color: colors.ink }]}>Legg til næringskode</Text>
-            </TouchableOpacity>
-          ) : null}
+            <Field label="Egen CPV-kode" value={customCpv} onChangeText={setCustomCpv} editable={canEdit} placeholder="8 siffer, f.eks. 45233120" colors={colors} />
+            {canEdit ? (
+              <TouchableOpacity
+                onPress={() => {
+                  const code = normalizeCpvCode(customCpv);
+                  if (!code) return;
+                  setSelectedCpv((current) => new Set(current).add(code));
+                  setCustomCpv('');
+                }}
+                style={[styles.btn, { backgroundColor: colors.sunken }]}
+              >
+                <Text style={[styles.btnText, { color: colors.ink }]}>Legg til kode</Text>
+              </TouchableOpacity>
+            ) : null}
+            <Text style={[styles.label, { color: colors.muted }]}>Egne næringskoder</Text>
+            {ownTrades.map((row) => (
+              <View key={row} style={styles.tradeRow}>
+                <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row}</Text>
+                {canEdit ? (
+                  <TouchableOpacity onPress={() => setOwnTrades((current) => current.filter((item) => item !== row))}>
+                    <Text style={{ color: colors.muted, fontWeight: '400' }}>Fjern</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
+            {canEdit ? (
+              <Field label="Ny næringskode" value={tradeDraft} onChangeText={setTradeDraft} placeholder="Kode eller beskrivelse" colors={colors} />
+            ) : null}
+            {canEdit ? (
+              <TouchableOpacity onPress={addTrade} style={[styles.btn, { backgroundColor: colors.sunken }]}>
+                <Text style={[styles.btnText, { color: colors.ink }]}>Legg til næringskode</Text>
+              </TouchableOpacity>
+            ) : null}
+          </SettingsSection>
+
+          <SettingsSection
+            icon="car-outline"
+            title="Kjøreadresse"
+            hint="Oppmøteadresse som brukes i kjøreboken"
+            colors={colors}
+          >
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              Gate og nummer brukes i kjøreboken og kommer opp som søketreff. Etasje tas ikke med, for det er ikke en kartadresse.
+            </Text>
+            {company.addressLabel && company.addressLabel !== companyAddressLabel({ kjoeradresse: { gate, postnummer: postal, poststed: place } }) ? (
+              <Text style={[styles.lead, { color: colors.muted }]}>
+                {`Registeret har «${company.addressLabel}».`}
+              </Text>
+            ) : null}
+            <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
+            <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
+            <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
+          </SettingsSection>
+
           {canEdit ? (
             <TouchableOpacity onPress={saveSettings} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
               <Text style={styles.btnText}>{busy ? 'Lagrer…' : 'Lagre innstillinger'}</Text>
-            </TouchableOpacity>
-          ) : null}
-          {canEdit ? (
-            <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, { backgroundColor: colors.sunken }]} disabled={busy}>
-              <Text style={[styles.btnText, { color: colors.ink }]}>Hent på nytt fra Brønnøysund</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -450,9 +461,9 @@ const styles = StyleSheet.create({
   head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
   column: { alignSelf: 'flex-start', width: '100%', maxWidth: 760, gap: 10 },
-  settingsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  settingsHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   tradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4 },
+  kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4, textTransform: 'uppercase' },
   title: { fontSize: 22, fontWeight: '600' },
   lead: { fontSize: 15, lineHeight: 21, fontWeight: '400' },
   field: { gap: 4 },
@@ -475,6 +486,21 @@ const styles = StyleSheet.create({
   pick: { marginTop: 6, fontWeight: '400' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  setupLinks: { gap: 8 },
-  setupLink: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
+  sectionCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '600' },
+  sectionHint: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  sectionBody: { gap: 10 },
 });

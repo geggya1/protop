@@ -670,6 +670,12 @@ export function companyTabAllowed(tab, subView, grants) {
       || allows(grants, 'assignedProjects', 'see')
       || hoursAllowed(grants);
   }
+  if (tab === 'arbeid' && subView === 'fravaer-innstillinger') {
+    return allows(grants, 'companyProfile', 'read');
+  }
+  if (tab === 'okonomi' && subView === 'innstillinger') {
+    return allows(grants, 'companyProfile', 'read');
+  }
   if (tab === 'arbeid') {
     return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
   }
@@ -691,16 +697,21 @@ function hoursAllowed(grants) {
 }
 
 function navItemAllowed(id, grants) {
-  if (id === 'tilgang') return allows(grants, 'companyProfile', 'read');
+  if (id === 'tilgang' || id === 'selskapsinnstillinger') return allows(grants, 'companyProfile', 'read');
   if (id === 'arbeid' || String(id).startsWith('arbeid-')) return hoursAllowed(grants);
-  if (id === 'fravaer' || String(id).startsWith('fravaer-')) return hoursAllowed(grants);
+  if (id === 'produktivitet') return hoursAllowed(grants);
+  if (id === 'fravaer-innstillinger') return allows(grants, 'companyProfile', 'read');
+  if (id === 'fravaer' || String(id).startsWith('fravaer-')) {
+    return hoursAllowed(grants) || (id === 'fravaer' && allows(grants, 'companyProfile', 'read'));
+  }
   if (id === 'produkt-salg') return hoursAllowed(grants);
   if (id === 'produkt-produkter') return allows(grants, 'economy', 'see');
   if (id === 'produkt') return hoursAllowed(grants) || allows(grants, 'economy', 'see');
   if (id === 'okonomi-prosjektutlegg') return hoursAllowed(grants);
+  if (id === 'okonomi-innstillinger') return allows(grants, 'companyProfile', 'read');
   if (id === 'kjorebok') return allows(grants, 'economy', 'see');
   if (id === 'okonomi') {
-    return allows(grants, 'economy', 'see') || hoursAllowed(grants);
+    return allows(grants, 'economy', 'see') || hoursAllowed(grants) || allows(grants, 'companyProfile', 'read');
   }
   if (id === 'utstyr') {
     return allows(grants, 'projects', 'see')

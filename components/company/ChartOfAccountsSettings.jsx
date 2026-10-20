@@ -63,8 +63,8 @@ export default function ChartOfAccountsSettings({ familyId, colors, canEdit }) {
       colors={colors}
       nativeID="company-chart"
       crumbs={[
-        { label: 'Selskap', page: '' },
-        { label: 'Innstillinger', page: 'innstillinger' },
+        { label: 'Økonomi', tab: 'okonomi', page: 'oversikt' },
+        { label: 'Innstillinger', tab: 'okonomi', page: 'innstillinger' },
         { label: 'Kontoplan' },
       ]}
       title="Kontoplan"

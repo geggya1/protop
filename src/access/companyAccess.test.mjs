@@ -299,10 +299,13 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
 {
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
-  assert.deepEqual(visible, ['selskap', 'arbeid', 'produkt', 'utstyr', 'okonomi']);
+  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
   assert.equal(visible.includes('kjorebok'), false);
+  assert.equal(visible.includes('selskapsinnstillinger'), false);
   const innleieSelskap = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'selskap');
-  assert.deepEqual(innleieSelskap.children.map((child) => child.id), ['fravaer']);
+  assert.equal(innleieSelskap.children, undefined);
+  const innleieFravaer = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'fravaer');
+  assert.deepEqual(innleieFravaer.children.map((child) => child.id), ['fravaer-fravaer', 'fravaer-fravaersrapport', 'fravaer-planlagt']);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
   assert.deepEqual(innleieOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
   assert.equal(innleieOkonomi.action.tab, 'arbeid');
@@ -311,15 +314,21 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.ok(admin.includes('okonomi'));
   assert.ok(admin.includes('kjorebok'));
   assert.ok(admin.includes('selskap'));
+  assert.ok(admin.includes('selskapsinnstillinger'));
+  assert.ok(admin.includes('ansatte'));
   assert.ok(admin.includes('arbeid'));
+  assert.ok(admin.includes('produktivitet'));
   assert.ok(admin.includes('produkt'));
   const selskap = filterCompanyNav(companyNavItems(), standardGrants('administrator'))
     .find((item) => item.id === 'selskap');
-  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  assert.equal(selskap.children, undefined);
   assert.ok(filterCompanyNav(companyNavItems(), standardGrants('administrator')).some((item) => item.id === 'hr'));
-  const ansattNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt'))
-    .find((item) => item.id === 'selskap');
-  assert.deepEqual(ansattNav.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  assert.ok(filterCompanyNav(companyNavItems(), standardGrants('administrator')).some((item) => item.id === 'fravaer'));
+  const ansattFiltered = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).map((item) => item.id);
+  assert.ok(ansattFiltered.includes('selskap'));
+  assert.ok(ansattFiltered.includes('ansatte'));
+  assert.ok(ansattFiltered.includes('fravaer'));
+  assert.equal(ansattFiltered.includes('selskapsinnstillinger'), false);
   const lederHr = standardGrants('leder');
   assert.equal(lederHr.hr, 'delete');
   assert.equal(companyTabAllowed('hr', 'oversikt', lederHr), true);
@@ -328,7 +337,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.equal(avd.hr, 'read');
   const avdNav = filterCompanyNav(companyNavItems(), avd);
   assert.ok(avdNav.some((item) => item.id === 'hr'));
-  assert.equal(avdNav.find((item) => item.id === 'selskap').children.some((child) => child.id === 'hr'), false);
+  assert.equal(avdNav.find((item) => item.id === 'selskap').children, undefined);
   const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
     .find((item) => item.id === 'anbud');
   assert.deepEqual(tilbudNav.children.map((child) => child.id), ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud']);
@@ -341,6 +350,8 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.ok(andreNav.includes('underenheter') === false);
   assert.ok(andreNav.includes('projects'));
   assert.ok(andreNav.includes('arbeid'));
+  assert.ok(andreNav.includes('ansatte'));
+  assert.ok(andreNav.includes('fravaer'));
   assert.equal(andreNav.includes('anbud'), false);
   assert.ok(andreNav.includes('okonomi'));
   assert.equal(andreNav.includes('kjorebok'), false);
@@ -349,7 +360,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.deepEqual(andreOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
   const andreSelskap = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
     .find((item) => item.id === 'selskap');
-  assert.deepEqual(andreSelskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  assert.equal(andreSelskap.children, undefined);
 }
 
 {
@@ -380,12 +391,13 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   const selskap = filterCompanyNav(companyNavItems(), narrowed.grants)
     .find((item) => item.id === 'selskap');
   // companySettings-linse beholder aktørens øvrige rettigheter (inkl. HR for eier/bypass).
-  assert.deepEqual(selskap.children.map((child) => child.id), ['underenheter', 'ansatte', 'fravaer']);
+  assert.equal(selskap.children, undefined);
+  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'ansatte'));
+  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'fravaer'));
   assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'hr'));
   assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'arbeid'));
   assert.equal(
-    filterCompanyNav(companyNavItems(), narrowed.grants).find((item) => item.id === 'selskap')
-      ?.children.some((child) => child.id === 'tilgang'),
+    filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'selskapsinnstillinger'),
     false,
   );
   assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'okonomi'));

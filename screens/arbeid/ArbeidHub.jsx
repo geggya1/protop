@@ -14,6 +14,7 @@ import {
   ProjectExpensesScreen,
 } from './OpsScreens';
 import ProductivityScreen from './ProductivityScreen';
+import AbsenceSettingsScreen from './AbsenceSettingsScreen';
 
 export default function ArbeidHub({ subView } = {}) {
   const page = defaultArbeidSubView(subView);
@@ -22,6 +23,7 @@ export default function ArbeidHub({ subView } = {}) {
   if (page === 'fravaer') return <AbsenceOverviewScreen />;
   if (page === 'fravaersrapport') return <AbsenceReportScreen />;
   if (page === 'planlagt') return <PlannedAbsenceScreen />;
+  if (page === 'fravaer-innstillinger') return <AbsenceSettingsScreen />;
   if (page === 'utlegg') return <ProjectExpensesScreen />;
   if (page === 'salg') return <ProductSalesScreen />;
   if (page === 'godkjenning') return <ApprovalsScreen />;

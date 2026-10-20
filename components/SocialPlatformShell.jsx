@@ -15,9 +15,11 @@ import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
+import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
 import EquipmentScreen from '../screens/equipment/EquipmentScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
+import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
@@ -227,8 +229,11 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'iso') return <IsoScreen />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
-    if (tab === 'selskap' && ['fravaerstyper', 'kontoplan', 'regnskapskontoer', 'fridager'].includes(route.params?.subView)) {
-      return <ProjectPlatformScreen startPage={route.params.subView} />;
+    if (tab === 'selskap' && (route.params?.subView === 'fravaerstyper' || route.params?.subView === 'fridager')) {
+      return <AbsenceSettingsScreen startTab={route.params.subView} />;
+    }
+    if (tab === 'selskap' && (route.params?.subView === 'kontoplan' || route.params?.subView === 'regnskapskontoer')) {
+      return <EconomySettingsScreen startTab={route.params.subView} />;
     }
     if (tab === 'underenheter' || (tab === 'selskap' && route.params?.subView === 'underenheter')) return <CompanyUnitsScreen />;
     if (tab === 'selskap') return <CompanyLanding />;

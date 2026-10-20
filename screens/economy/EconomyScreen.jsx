@@ -22,6 +22,7 @@ import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
 import EconomyWelcome from './EconomyWelcome';
+import EconomySettingsScreen from './EconomySettingsScreen';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 
 export default function EconomyScreen({ subView = 'oversikt' }) {
@@ -212,6 +213,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 
   if (page === 'produkter') {
     return <EconomyOps kind="products" />;
+  }
+
+  if (page === 'innstillinger') {
+    return <EconomySettingsScreen />;
   }
 
   return (

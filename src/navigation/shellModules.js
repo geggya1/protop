@@ -45,6 +45,9 @@ export function anbudMenuTitle(subView) {
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   if (subView === 'tilgang') return 'Tilgang';
+  if (subView === 'innstillinger') return 'Selskapsinnstillinger';
+  if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
+  if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
   return 'Selskap';
 }
 
@@ -53,22 +56,23 @@ export function selskapMenuTitle(subView) {
  * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
  * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
  * Fravær, produktsalg og prosjektutlegg ligger i egne menykategorier.
- * Produktivitet er kapasitetsplanen: belegg per ansatt og uke.
+ * Produktivitet er eget hovedpunkt under Bedrift (samme rute: arbeid/produktivitet).
  */
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
   { id: 'timerapport', icon: 'list', label: 'Timerapport' },
   { id: 'timesaldo', icon: 'hourglass', label: 'Timesaldo' },
   { id: 'godkjenning', icon: 'checkmark-done', label: 'Godkjenninger' },
-  { id: 'produktivitet', icon: 'bar-chart', label: 'Produktivitet' },
 ];
 
 /** Undersider som fortsatt åpnes via Arbeid-fanen, også når menyen ligger annet sted. */
 export const ARBEID_ROUTE_IDS = [
   ...ARBEID_MENU.map((item) => item.id),
+  'produktivitet',
   'fravaer',
   'fravaersrapport',
   'planlagt',
+  'fravaer-innstillinger',
   'utlegg',
   'salg',
 ];
@@ -83,6 +87,8 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'fravaer') return 'Fraværsoversikt';
   if (subView === 'fravaersrapport') return 'Fraværsrapport';
   if (subView === 'planlagt') return 'Planlagt fravær';
+  if (subView === 'fravaer-innstillinger') return 'Fraværsinnstillinger';
+  if (subView === 'produktivitet') return 'Produktivitet';
   if (subView === 'utlegg') return 'Prosjektutlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
@@ -93,6 +99,13 @@ export const FRAVAER_MENU = [
   { id: 'fravaer', icon: 'sunny', label: 'Fraværsoversikt' },
   { id: 'fravaersrapport', icon: 'bar-chart', label: 'Fraværsrapport' },
   { id: 'planlagt', icon: 'calendar-outline', label: 'Planlagt fravær' },
+  {
+    id: 'innstillinger',
+    icon: 'settings-outline',
+    label: 'Innstillinger',
+    tab: 'arbeid',
+    subView: 'fravaer-innstillinger',
+  },
 ];
 
 export const PRODUKT_MENU = [
@@ -120,6 +133,7 @@ export const OKONOMI_MENU = [
   { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
   { id: 'indekser', icon: 'stats-chart', label: 'Indekser' },
+  { id: 'innstillinger', icon: 'settings-outline', label: 'Innstillinger' },
 ];
 
 /** Undersider som åpnes via Økonomi-fanen, også når menyen ligger annet sted. */
@@ -147,6 +161,7 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'utlegg') return 'Utlegg';
   if (subView === 'kjorebok') return 'Kjørebok';
   if (subView === 'produkter') return 'Produkt';
+  if (subView === 'innstillinger') return 'Økonomiinnstillinger';
   return 'Økonomi';
 }
 
@@ -226,7 +241,11 @@ function fravaerNavItem() {
       id: `fravaer-${item.id}`,
       icon: item.icon,
       label: item.label,
-      action: { type: 'tab', tab: 'arbeid', subView: item.id },
+      action: {
+        type: 'tab',
+        tab: item.tab || 'arbeid',
+        subView: item.subView || item.id,
+      },
     })),
   };
 }
@@ -235,23 +254,27 @@ export function companyNavItems() {
   return [
     {
       id: 'selskap',
-      icon: 'briefcase',
+      icon: 'business',
       label: 'Selskap',
       action: { type: 'tab', tab: 'selskap' },
-      forceOpen: true,
-      children: [
-        {
-          id: 'underenheter',
-          icon: 'git-network',
-          label: 'Underenheter',
-          action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
-        },
-        { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
-        fravaerNavItem(),
-      ],
     },
+    {
+      id: 'selskapsinnstillinger',
+      icon: 'settings-outline',
+      label: 'Selskapsinnstillinger',
+      action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
+      activeSubViews: ['innstillinger', 'underenheter'],
+    },
+    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
     hrNavItem(),
+    fravaerNavItem(),
     arbeidNavItem(),
+    {
+      id: 'produktivitet',
+      icon: 'stats-chart',
+      label: 'Produktivitet',
+      action: { type: 'tab', tab: 'arbeid', subView: 'produktivitet' },
+    },
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
@@ -285,7 +308,6 @@ export function companyNavItems() {
       label: 'Utstyr',
       action: { type: 'tab', tab: 'utstyr' },
     },
-    { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
     {
       id: 'kjorebok',
       icon: 'car',
@@ -299,6 +321,7 @@ export function companyNavItems() {
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
       children: OKONOMI_MENU.map(okonomiNavChild),
     },
+    { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
   ];
 }
 
@@ -343,34 +366,60 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
 
 /**
  * Hovedgrupper i hamburgermeny og desktop-rail.
- * companyNavItems() er uendret kilde for ruter, ikoner og tilgang.
- * Fravær løftes ut av Selskap kun i denne presentasjonen.
+ * companyNavItems() er kilden for ruter, ikoner og tilgang.
+ * Ikoner er Ionicons-navn (samme sett som øvrige menypunkter).
  * Punkter som ikke er nevnt i gruppene, legges etterpå og skal ikke skjules.
  */
 export const COMPANY_DRAWER_GROUPS = [
-  { id: 'company-org', label: 'Selskap og organisasjon', itemIds: ['selskap', 'hr', 'fravaer'] },
-  { id: 'company-customers', label: 'Kunder, anbud og avtaler', itemIds: ['kunder', 'anbud', 'kontrakt'] },
-  { id: 'company-delivery', label: 'Prosjekt og tjenesteleveranser', itemIds: ['projects', 'arbeid'] },
-  { id: 'company-resources', label: 'Produkter og driftsressurser', itemIds: ['produkt', 'utstyr', 'kjorebok'] },
-  { id: 'company-finance', label: 'Økonomi og fakturering', itemIds: ['okonomi'] },
-  { id: 'company-quality', label: 'Kvalitet og styringssystem', itemIds: ['iso'] },
+  {
+    id: 'company-org',
+    label: 'Selskap og organisasjon',
+    icon: 'business',
+    itemIds: ['selskap', 'selskapsinnstillinger'],
+  },
+  {
+    id: 'company-people',
+    label: 'Ansatte og arbeidstid',
+    icon: 'people',
+    itemIds: ['ansatte', 'hr', 'fravaer', 'arbeid'],
+  },
+  {
+    id: 'company-customers',
+    label: 'Kunder og oppdrag',
+    icon: 'briefcase',
+    itemIds: ['kunder', 'anbud', 'kontrakt', 'projects'],
+    processOrder: true,
+  },
+  {
+    id: 'company-productivity',
+    label: 'Produktivitet',
+    icon: 'stats-chart',
+    itemIds: ['produktivitet'],
+  },
+  {
+    id: 'company-resources',
+    label: 'Produkter og driftsressurser',
+    icon: 'cube',
+    itemIds: ['produkt', 'utstyr', 'kjorebok'],
+  },
+  {
+    id: 'company-finance',
+    label: 'Økonomi og fakturering',
+    icon: 'wallet',
+    itemIds: ['okonomi'],
+  },
+  {
+    id: 'company-quality',
+    label: 'Kvalitet og styringssystem',
+    icon: 'shield-checkmark',
+    itemIds: ['iso'],
+  },
 ];
 
 export function groupCompanyDrawerItems(items) {
   const pool = new Map();
   for (const item of items || []) {
     if (!item) continue;
-    if (item.id === 'selskap') {
-      const children = item.children || [];
-      const fravaer = children.find((child) => child.id === 'fravaer') || null;
-      const rest = children.filter((child) => child.id !== 'fravaer');
-      const next = { ...item };
-      if (rest.length) next.children = rest;
-      else delete next.children;
-      pool.set('selskap', next);
-      if (fravaer) pool.set('fravaer', fravaer);
-      continue;
-    }
     pool.set(item.id, item);
   }
 
@@ -387,6 +436,8 @@ export function groupCompanyDrawerItems(items) {
     grouped.push({
       id: def.id,
       label: def.label,
+      icon: def.icon,
+      processOrder: !!def.processOrder,
       group: true,
       children,
     });
@@ -470,10 +521,14 @@ export function isNavItemActive(item, activeTab, activeSubView) {
     return true;
   }
   if (action.tab !== activeTab) return false;
+  if (item.activeSubViews?.length) {
+    return item.activeSubViews.includes(activeSubView || null);
+  }
   if (action.tab === 'more' || action.subView) {
     return (action.subView || null) === (activeSubView || null);
   }
-  return true;
+  // Blad uten subView (f.eks. Selskap-profil) skal ikke markeres aktiv på undersider.
+  return !activeSubView;
 }
 
 /**

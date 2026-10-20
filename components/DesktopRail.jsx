@@ -380,6 +380,7 @@ export default function DesktopRail({
                 if (!item.group) return renderNavBranch(item);
                 const groupExpanded = !!q || drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
                 const containsActive = (item.children || []).some((child) => isItemActive(child));
+                const groupIcon = item.icon || 'folder-outline';
                 return (
                   <View key={item.id} style={[styles.groupBlock, index === 0 && styles.groupBlockFirst]}>
                     <TouchableOpacity
@@ -393,6 +394,15 @@ export default function DesktopRail({
                       accessibilityLabel={`${item.label}, ${groupExpanded ? 'åpen' : 'lukket'}`}
                       nativeID={`module-nav-${item.id}`}
                     >
+                      <View style={[styles.groupIconWrap, containsActive && styles.groupIconWrapActive]}>
+                        <Ionicons
+                          name={containsActive ? groupIcon.replace(/-outline$/, '') : (
+                            groupIcon.endsWith('-outline') ? groupIcon : `${groupIcon}-outline`
+                          )}
+                          size={14}
+                          color={containsActive ? colors.brand : colors.ink}
+                        />
+                      </View>
                       <Text
                         style={[styles.groupTitle, containsActive && styles.groupTitleActive]}
                         numberOfLines={2}
@@ -406,8 +416,15 @@ export default function DesktopRail({
                       />
                     </TouchableOpacity>
                     {groupExpanded ? (
-                      <View style={styles.groupBody}>
-                        {(item.children || []).map((child) => renderNavBranch(child))}
+                      <View style={[styles.groupBody, item.processOrder && styles.groupBodyProcess]}>
+                        {(item.children || []).map((child, childIndex) => (
+                          <View key={child.id}>
+                            {item.processOrder && childIndex > 0 ? (
+                              <View style={[styles.processRail, { backgroundColor: colors.line }]} />
+                            ) : null}
+                            {renderNavBranch(child)}
+                          </View>
+                        ))}
                       </View>
                     ) : null}
                   </View>
@@ -510,14 +527,24 @@ const styles = StyleSheet.create({
   groupHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    minHeight: 28,
-    paddingVertical: 3,
-    paddingLeft: 8,
+    gap: 6,
+    minHeight: 32,
+    paddingVertical: 4,
+    paddingLeft: 6,
     paddingRight: 4,
     borderRadius: 5,
   },
-  groupHeadActive: { backgroundColor: colors.sunken },
+  groupHeadActive: { backgroundColor: colors.brandSoft },
+  groupIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  groupIconWrapActive: { backgroundColor: colors.card },
   groupTitle: {
     flex: 1,
     fontSize: 12,
@@ -526,7 +553,15 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   groupTitleActive: { color: colors.brand },
-  groupBody: { paddingLeft: 8 },
+  groupBody: { paddingLeft: 8, paddingTop: 1 },
+  groupBodyProcess: { paddingLeft: 10 },
+  processRail: {
+    height: 6,
+    width: 2,
+    marginLeft: 16,
+    marginVertical: 0,
+    borderRadius: 1,
+  },
   appSectionTitle: {
     fontSize: 12, fontWeight: '400', color: colors.ink,
     textTransform: 'none', letterSpacing: 0,

@@ -274,11 +274,12 @@ export default function CompanyDesktopLanding({
               <TouchableOpacity
                 onPress={onSettings}
                 accessibilityRole="button"
-                accessibilityLabel="Innstillinger for bedriften"
+                accessibilityLabel="Selskapsinnstillinger"
                 nativeID="company-landing-gear"
-                style={[styles.penBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+                style={[styles.settingsCta, { backgroundColor: colors.brand }]}
               >
-                <Ionicons name="settings-outline" size={18} color={colors.ink} />
+                <Ionicons name="settings-outline" size={16} color="#fff" />
+                <Text style={styles.settingsCtaTxt}>Selskapsinnstillinger</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -461,9 +462,16 @@ const styles = StyleSheet.create({
   },
   pillTxt: { fontSize: 12, fontWeight: '400' },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  penBtn: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  settingsCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
   },
+  settingsCtaTxt: { color: '#fff', fontSize: 13, fontWeight: '500' },
   columns: { gap: 12 },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainCol: { flex: 1.4, gap: 12, minWidth: 0 },

@@ -103,13 +103,23 @@ function idsIn(sections) {
   const settings = companyItems.find((i) => i.id === 'selskapsinnstillinger');
   assert.equal(settings.label, 'Selskapsinnstillinger');
   assert.equal(settings.action.subView, 'innstillinger');
+  assert.deepEqual(
+    settings.children.map((i) => i.label),
+    ['Tilgangsstyring', 'Underenheter'],
+  );
+  assert.equal(settings.children[0].action.subView, 'tilgang');
+  assert.equal(settings.children[1].action.subView, 'underenheter');
   assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
   assert.equal(hr.children.length, 7);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
-    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud'],
+    ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', 'Innstillinger'],
+  );
+  assert.equal(
+    companyItems.find((i) => i.id === 'anbud').children.find((i) => i.id === 'anbud-innstillinger').action.subView,
+    'innstillinger',
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
@@ -291,8 +301,11 @@ assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
 assert.match(company, /requestShellTab\?\.\('selskap', 'underenheter'\)/);
 assert.match(company, /Selskapsinnstillinger/);
+assert.match(company, /Tilgangsstyring/);
 assert.equal(company.includes('Fraværstyper'), false);
 assert.equal(company.includes('Kontoplan'), false);
+assert.equal(company.includes('Virksomhetskoder og fagområder'), false);
+assert.equal(company.includes('Søk i CPV'), false);
 assert.equal(company.includes('GroupSettings'), false);
 
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');
@@ -346,7 +359,8 @@ const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', 
 assert.match(anbudScreen, /TenderInquiry/);
 assert.match(anbudScreen, /WatchSettings/);
 assert.match(anbudScreen, /ScrollSheet/);
-assert.equal(anbudScreen.includes("go('innstillinger')"), false);
+assert.match(anbudScreen, /go\('innstillinger'\)/);
+assert.match(anbudScreen, /step === 'innstillinger'/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
 assert.match(anbudScreen, /requestShellTab\?\.\('kontrakt'\)/);
 assert.equal(anbudScreen.includes('Registrer inngått'), false);
@@ -364,6 +378,7 @@ assert.match(contractScreen, /AgreementTreatment/);
 assert.equal(contractScreen.includes('Pipeline'), false);
 
 const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.jsx', import.meta.url), 'utf8');
+assert.match(watchSettings, /Anbudsinnstillinger/);
 assert.match(watchSettings, /CPV fra offentlige tildelinger/);
 assert.match(watchSettings, /Egne koder til anbudsvarsling/);
 assert.match(watchSettings, /PortalSettings/);
@@ -638,7 +653,13 @@ function collectPresented(items, acc = []) {
   const customers = presented.find((item) => item.id === 'company-customers');
   assert.equal(org.children.find((item) => item.id === 'selskap').children, undefined);
   assert.equal(org.children.find((item) => item.id === 'selskap').icon, 'business');
-  assert.equal(org.children.find((item) => item.id === 'selskapsinnstillinger').action.subView, 'innstillinger');
+  const companySettings = org.children.find((item) => item.id === 'selskapsinnstillinger');
+  assert.equal(companySettings.action.subView, 'innstillinger');
+  assert.deepEqual(
+    companySettings.children.map((item) => item.id),
+    ['selskapsinnstillinger-tilgang', 'selskapsinnstillinger-underenheter'],
+  );
+  assert.equal(customers.children.find((item) => item.id === 'anbud').children.some((row) => row.id === 'anbud-innstillinger'), true);
   const fravaer = people.children.find((item) => item.id === 'fravaer');
   assert.equal(fravaer.icon, 'sunny');
   assert.deepEqual(

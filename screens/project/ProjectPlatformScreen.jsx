@@ -7,8 +7,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
-import { CPV_CODES } from '../../src/anbud/catalog';
-import { normalizeCpvCode } from '../../src/anbud/model';
 import { searchBrregCompanies, selectBrregHitForStoredOrg } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
@@ -77,14 +75,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const [gate, setGate] = useState('');
   const [postal, setPostal] = useState('');
   const [place, setPlace] = useState('');
-  const [cpvQuery, setCpvQuery] = useState('');
-  const [customCpv, setCustomCpv] = useState('');
-  const [selectedCpv, setSelectedCpv] = useState(() => new Set());
-  const [ownTrades, setOwnTrades] = useState([]);
-  const [tradeDraft, setTradeDraft] = useState('');
 
-  const savedCpvKey = (family?.cpvCodes || []).map((row) => row.code).filter(Boolean).join(',');
-  const savedTradesKey = (company?.egneNaeringskoder || []).join('|');
   const addressKey = [
     company?.organisasjonsnummer,
     company?.kjoeradresse?.gate,
@@ -104,9 +95,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     setGate(parts?.street || '');
     setPostal(parts?.postnummer || '');
     setPlace(parts?.poststed || '');
-    setSelectedCpv(new Set(savedCpvKey ? savedCpvKey.split(',') : []));
-    setOwnTrades(savedTradesKey ? savedTradesKey.split('|') : []);
-  }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, savedCpvKey, savedTradesKey, addressKey]);
+  }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, addressKey]);
 
   async function savePatch(id, patch) {
     await updateGroup(id, patch);
@@ -118,15 +107,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     setBusy(true);
     setError('');
     try {
-      const cpvCodes = [...selectedCpv].map((code) => {
-        const known = CPV_CODES.find((row) => row.code === code);
-        return { code, label: known?.label || `CPV ${code}`, source: 'bedrift' };
-      });
       const nextCompany = {
         ...company,
         telefon: phone.trim(),
         epostadresse: email.trim(),
-        egneNaeringskoder: ownTrades,
       };
       const street = gate.trim();
       if (street) {
@@ -139,11 +123,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       } else {
         delete nextCompany.kjoeradresse;
       }
-      await savePatch(familyId, {
-        cpvCodes,
-        cpvSource: cpvCodes.length ? 'bedrift' : '',
-        company: nextCompany,
-      });
+      await savePatch(familyId, { company: nextCompany });
       requestShellTab?.('selskap');
     } catch (e) {
       setError(e?.message || 'Kunne ikke lagre innstillingene.');
@@ -195,35 +175,17 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     );
   }
 
-  const visibleCpv = CPV_CODES.filter((row) => {
-    const q = cpvQuery.trim().toLowerCase();
-    if (!q) return true;
-    return `${row.code} ${row.label}`.toLowerCase().includes(q);
-  });
-
-  function toggleCpv(code) {
-    setSelectedCpv((current) => {
-      const next = new Set(current);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  }
-
-  function addTrade() {
-    const value = tradeDraft.trim();
-    if (!value || ownTrades.includes(value)) return;
-    setOwnTrades((current) => [...current, value]);
-    setTradeDraft('');
-  }
-
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
       contentContainerStyle={styles.body}
       keyboardShouldPersistTaps="handled"
     >
-      {startPage === 'tilgang' ? null : (
+      {page === 'tilgang' ? (
+        <TouchableOpacity onPress={() => requestShellTab?.('selskap', 'innstillinger')} accessibilityRole="button">
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskapsinnstillinger</Text>
+        </TouchableOpacity>
+      ) : (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityRole="button">
           <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til virksomhetsprofil</Text>
         </TouchableOpacity>
@@ -234,21 +196,29 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         !access.ready && !owner ? (
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
         ) : canOpenSettings ? (
-          <CompanyAccessSettings
-            company={company}
-            employees={access.employees}
-            canEdit={canEdit}
-            colors={colors}
-            busy={busy}
-            onSavePolicy={async (accessPolicy) => {
-              await savePatch(familyId, { company: { ...company, accessPolicy } });
-            }}
-            onSaveEmployee={(employee) => saveEmployee(familyId, employee)}
-            onOpenEmployee={(employee) => requestShellTab?.('ansatte', null, {
-              type: 'openEmployee',
-              employeeId: employee?.id,
-            })}
-          />
+          <>
+            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+              Tilgangsstyring
+            </Text>
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              Rettigheter for hvem som ser og endrer bedriftsmoduler.
+            </Text>
+            <CompanyAccessSettings
+              company={company}
+              employees={access.employees}
+              canEdit={canEdit}
+              colors={colors}
+              busy={busy}
+              onSavePolicy={async (accessPolicy) => {
+                await savePatch(familyId, { company: { ...company, accessPolicy } });
+              }}
+              onSaveEmployee={(employee) => saveEmployee(familyId, employee)}
+              onOpenEmployee={(employee) => requestShellTab?.('ansatte', null, {
+                type: 'openEmployee',
+                employeeId: employee?.id,
+              })}
+            />
+          </>
         ) : (
           <CompanyAccessDenied colors={colors} />
         )
@@ -343,87 +313,6 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           </SettingsSection>
 
           <SettingsSection
-            icon="key-outline"
-            title="Tilgang og rettigheter"
-            hint="Hvem som ser og endrer bedriftsmoduler"
-            colors={colors}
-          >
-            <TouchableOpacity
-              onPress={() => requestShellTab?.('selskap', 'tilgang')}
-              accessibilityRole="button"
-              accessibilityLabel="Tilgang og rettigheter"
-              style={[styles.btn, { backgroundColor: colors.sunken }]}
-            >
-              <Text style={[styles.btnText, { color: colors.ink }]}>Åpne tilgangsstyring</Text>
-            </TouchableOpacity>
-          </SettingsSection>
-
-          <SettingsSection
-            icon="pricetags-outline"
-            title="Virksomhetskoder og fagområder"
-            hint="CPV-koder og egne næringskoder"
-            colors={colors}
-          >
-            <Text style={[styles.label, { color: colors.muted }]}>Søk i CPV</Text>
-            <TextInput
-              value={cpvQuery}
-              onChangeText={setCpvQuery}
-              editable={canEdit}
-              placeholder="Kode eller fag, f.eks. elektro"
-              placeholderTextColor={colors.placeholder}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-            />
-            <View style={styles.chips}>
-              {visibleCpv.map((row) => {
-                const on = selectedCpv.has(row.code);
-                return (
-                  <TouchableOpacity
-                    key={row.code}
-                    disabled={!canEdit}
-                    onPress={() => toggleCpv(row.code)}
-                    style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.bg }]}
-                  >
-                    <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{`${row.code.slice(0, 4)} ${row.label}`}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Field label="Egen CPV-kode" value={customCpv} onChangeText={setCustomCpv} editable={canEdit} placeholder="8 siffer, f.eks. 45233120" colors={colors} />
-            {canEdit ? (
-              <TouchableOpacity
-                onPress={() => {
-                  const code = normalizeCpvCode(customCpv);
-                  if (!code) return;
-                  setSelectedCpv((current) => new Set(current).add(code));
-                  setCustomCpv('');
-                }}
-                style={[styles.btn, { backgroundColor: colors.sunken }]}
-              >
-                <Text style={[styles.btnText, { color: colors.ink }]}>Legg til kode</Text>
-              </TouchableOpacity>
-            ) : null}
-            <Text style={[styles.label, { color: colors.muted }]}>Egne næringskoder</Text>
-            {ownTrades.map((row) => (
-              <View key={row} style={styles.tradeRow}>
-                <Text style={{ color: colors.ink, fontWeight: '400', flex: 1 }}>{row}</Text>
-                {canEdit ? (
-                  <TouchableOpacity onPress={() => setOwnTrades((current) => current.filter((item) => item !== row))}>
-                    <Text style={{ color: colors.muted, fontWeight: '400' }}>Fjern</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ))}
-            {canEdit ? (
-              <Field label="Ny næringskode" value={tradeDraft} onChangeText={setTradeDraft} placeholder="Kode eller beskrivelse" colors={colors} />
-            ) : null}
-            {canEdit ? (
-              <TouchableOpacity onPress={addTrade} style={[styles.btn, { backgroundColor: colors.sunken }]}>
-                <Text style={[styles.btnText, { color: colors.ink }]}>Legg til næringskode</Text>
-              </TouchableOpacity>
-            ) : null}
-          </SettingsSection>
-
-          <SettingsSection
             icon="car-outline"
             title="Kjøreadresse"
             hint="Oppmøteadresse som brukes i kjøreboken"
@@ -462,7 +351,6 @@ const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
   column: { alignSelf: 'flex-start', width: '100%', maxWidth: 760, gap: 10 },
   settingsHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  tradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4, textTransform: 'uppercase' },
   title: { fontSize: 22, fontWeight: '600' },
   lead: { fontSize: 15, lineHeight: 21, fontWeight: '400' },
@@ -484,8 +372,6 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '400' },
   cardMeta: { fontSize: 13 },
   pick: { marginTop: 6, fontWeight: '400' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   sectionCard: {
     borderWidth: 1,
     borderRadius: 14,

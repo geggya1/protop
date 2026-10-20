@@ -292,7 +292,11 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
   }
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} nativeID="anbud-settings" id="anbud-settings">
+      <Text accessibilityRole="header" style={[styles.h, { color: colors.ink }]}>Anbudsinnstillinger</Text>
+      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>
+        CPV-koder, næringskoder, søkeord og varsling for anbudsvarsling. Verdiene lagres på bedriften og brukes i trefflisten.
+      </Text>
       <Text style={[styles.h, { color: colors.ink }]}>Søkekriterier</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {(state.profiles || []).map((profile) => {

@@ -25,8 +25,8 @@ export default function EconomyEarnings() {
   const { isPhone } = useLayout();
   const { familyId } = useApp();
   const access = useCompanyAccess();
-  const canSee = access.can('economy', 'see');
-  const canEdit = access.can('economy', 'write');
+  const canSee = access.can('economyEarnings', 'see') || access.can('economy', 'see');
+  const canEdit = access.can('economyEarnings', 'write') || access.can('economy', 'write');
   const { settings, ready, update } = useEarningsSettings(canSee ? familyId : '');
   const [employees, setEmployees] = useState([]);
   const [salaries, setSalaries] = useState([]);

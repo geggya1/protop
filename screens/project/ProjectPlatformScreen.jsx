@@ -66,6 +66,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const owner = isSuperAdmin(family, uid);
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
   const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'read'));
+  const canEditAccess = (owner && !access.previewLocks('accessControl'))
+    || (access.ready && access.can('accessControl', 'write'));
+  const canOpenAccess = (owner && !access.previewLocks('accessControl'))
+    || (access.ready && access.can('accessControl', 'read'));
   const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState(initialCompanyPage(startPage));
   const [busy, setBusy] = useState(false);
@@ -195,18 +199,18 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       {page === 'tilgang' ? (
         !access.ready && !owner ? (
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
-        ) : canOpenSettings ? (
+        ) : canOpenAccess ? (
           <>
             <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
               Tilgangsstyring
             </Text>
             <Text style={[styles.lead, { color: colors.muted }]}>
-              Rettigheter for hvem som ser og endrer bedriftsmoduler.
+              Rettigheter for hvem som ser og endrer bedriftsmoduler, undersider og innstillinger.
             </Text>
             <CompanyAccessSettings
               company={company}
               employees={access.employees}
-              canEdit={canEdit}
+              canEdit={canEditAccess}
               colors={colors}
               busy={busy}
               onSavePolicy={async (accessPolicy) => {

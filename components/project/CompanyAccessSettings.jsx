@@ -38,7 +38,7 @@ import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine,
 import { showSaveToast } from '../../src/ui/saveToast';
 
 const ACCESS_LEADS = [
-  'Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer. Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte. Tannhjulet på et nivå setter se, lese, skrive og slette for modulene. Høyere rettighet tar med dem under.',
+  'Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer. Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte. Tannhjulet på et nivå setter se, lese, skrive og slette for alle moduler, undersider og innstillinger i bedriftsmenyen. Høyere rettighet tar med dem under.',
   'Se som bruker, under Visning, er standard for administrator og øverste leder. Se tester bare bedriftsinnstillinger. Lese eller høyere viser alle moduler og applikasjoner. Nivå og personavvik kan gi funksjonen til andre.',
 ];
 

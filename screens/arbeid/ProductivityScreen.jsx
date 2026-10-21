@@ -102,7 +102,8 @@ export default function ProductivityScreen() {
   }, [plan, ready, familyId]);
 
   const seeOthers = !access.active || access.can('hoursOthers', 'see');
-  const canWrite = seeOthers ? access.can('hoursOthers', 'write') : access.can('hours', 'write');
+  const canWrite = access.can('productivity', 'write')
+    || (seeOthers ? access.can('hoursOthers', 'write') : access.can('hours', 'write'));
   const people = useMemo(() => {
     const active = activeEmployees(employees);
     if (seeOthers) return active;
@@ -115,7 +116,13 @@ export default function ProductivityScreen() {
     return <ScrollView style={[styles.scroll, { backgroundColor: colors.bg }]} nativeID="produktivitet-screen" />;
   }
 
-  if (access.active && access.ready && !access.can('hours', 'see') && !access.can('hoursOthers', 'see')) {
+  if (
+    access.active
+    && access.ready
+    && !access.can('productivity', 'see')
+    && !access.can('hours', 'see')
+    && !access.can('hoursOthers', 'see')
+  ) {
     return <CompanyAccessDenied />;
   }
 

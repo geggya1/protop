@@ -31,10 +31,10 @@ export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
   const { family, familyId, uid } = useApp();
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
-  const canEdit = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'write'));
-  const canOpen = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'read'));
+  const canEdit = (owner && !access.previewLocks('economySettings'))
+    || (access.ready && access.can('economySettings', 'write'));
+  const canOpen = (owner && !access.previewLocks('economySettings'))
+    || (access.ready && access.can('economySettings', 'read'));
   const [tab, setTab] = useState(initialTab(startTab));
 
   useEffect(() => {

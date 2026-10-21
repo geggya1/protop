@@ -149,10 +149,10 @@ export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {
   const { family, familyId, uid } = useApp();
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
-  const canEdit = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'write'));
-  const canOpen = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'read'));
+  const canEdit = (owner && !access.previewLocks('absenceSettings'))
+    || (access.ready && access.can('absenceSettings', 'write'));
+  const canOpen = (owner && !access.previewLocks('absenceSettings'))
+    || (access.ready && access.can('absenceSettings', 'read'));
   const [tab, setTab] = useState(initialTab(startTab));
 
   useEffect(() => {

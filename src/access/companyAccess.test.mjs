@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import {
+  ACCESS_GROUPS,
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
+  RESOURCE_IDS,
   accessLevelSections,
   accessSectionTitle,
   accountDeactivated,
   personDropChange,
   alignCompanyEmployment,
   allows,
+  allowsEffective,
+  allowsEconomy,
   applyOverrides,
   companyTabAllowed,
   effectiveViewAsScope,
@@ -39,6 +43,56 @@ import {
 } from './companyAccess.js';
 import { companyNavItems } from '../navigation/shellModules.js';
 import { companyModuleVisibility, hiddenCompanyModules } from './viewAsNav.js';
+
+{
+  const ids = ACCESS_RESOURCES.map((row) => row.id);
+  assert.ok(ids.includes('accessControl'));
+  assert.ok(ids.includes('absence'));
+  assert.ok(ids.includes('absenceSettings'));
+  assert.ok(ids.includes('hoursReport'));
+  assert.ok(ids.includes('productivity'));
+  assert.ok(ids.includes('equipment'));
+  assert.ok(ids.includes('mileage'));
+  assert.ok(ids.includes('productSales'));
+  assert.ok(ids.includes('economyOverview'));
+  assert.ok(ids.includes('economySettings'));
+  assert.ok(ids.includes('tenderRequest'));
+  assert.ok(ids.includes('tenderSettings'));
+  assert.ok(ids.includes('hrPeople'));
+  assert.ok(ids.includes('iso'));
+  assert.equal(ids.length, RESOURCE_IDS.length);
+  assert.ok(ACCESS_GROUPS.some((group) => group.id === 'resources'));
+  assert.ok(ACCESS_GROUPS.some((group) => group.id === 'quality'));
+}
+
+{
+  const legacy = {
+    version: 1,
+    levels: {
+      ansatt: {
+        ...standardGrants('ansatt'),
+        economy: 'read',
+        companyProfile: 'read',
+        tenders: 'write',
+      },
+    },
+  };
+  // Simuler eldre lagring uten nye nøkler.
+  delete legacy.levels.ansatt.economyOverview;
+  delete legacy.levels.ansatt.economySettings;
+  delete legacy.levels.ansatt.accessControl;
+  delete legacy.levels.ansatt.tenderRequest;
+  delete legacy.levels.ansatt.absenceSettings;
+  const migrated = levelGrants(legacy, 'ansatt');
+  assert.equal(migrated.economy, 'read');
+  assert.equal(migrated.economyOverview, 'read');
+  assert.equal(migrated.economySettings, 'read');
+  assert.equal(migrated.accessControl, 'read');
+  assert.equal(migrated.tenderRequest, 'write');
+  assert.equal(migrated.absenceSettings, 'read');
+  assert.equal(allowsEffective(migrated, 'economyEarnings', 'read'), true);
+  assert.equal(allowsEconomy(migrated, 'read'), true);
+}
 
 const ids = ACCESS_LEVELS.map((level) => level.id);
 assert.deepEqual(ids, [
@@ -77,12 +131,19 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(innleie.economy, 'none');
   assert.equal(innleie.employees, 'none');
   assert.equal(hoursOnAssignedOnly(innleie), true);
+  assert.equal(companyTabAllowed('okonomi', 'oversikt', innleie), false);
   assert.equal(companyTabAllowed('okonomi', null, innleie), false);
+  assert.equal(companyTabAllowed('okonomi', 'kjorebok', innleie), false);
+  assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
   assert.equal(companyTabAllowed('projects', null, innleie), false);
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', 'tilgang', innleie), false);
   assert.equal(companyTabAllowed('selskap', 'innstillinger', innleie), false);
+  assert.equal(innleie.economyProjectExpenses, 'write');
+  assert.equal(innleie.productivity, 'write');
+  assert.equal(innleie.equipment, 'see');
+  assert.equal(innleie.absence, 'write');
 }
 
 {
@@ -114,8 +175,16 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(companyTabAllowed('anbud', 'tilbud', tilbud), true);
   assert.equal(companyTabAllowed('anbud', 'varsling', tilbud), true);
   assert.equal(companyTabAllowed('anbud', 'vurdering', tilbud), true);
-  assert.equal(companyTabAllowed('anbud', 'vurdering', { ...tilbud, tenders: 'none' }), false);
-  assert.equal(companyTabAllowed('okonomi', null, tilbud), false);
+  assert.equal(companyTabAllowed('anbud', 'foresporsel', tilbud), true);
+  assert.equal(companyTabAllowed('anbud', 'vurdering', {
+    ...tilbud,
+    tenders: 'none',
+    tenderRequest: 'none',
+    tenderReview: 'none',
+  }), false);
+  assert.equal(companyTabAllowed('okonomi', 'oversikt', tilbud), false);
+  assert.equal(tilbud.tenderRequest, 'read');
+  assert.equal(tilbud.tenderSettings, 'read');
 }
 
 {
@@ -344,7 +413,13 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     tilbudNav.children.map((child) => child.id),
     ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-innstillinger'],
   );
-  const offersOnly = { ...standardGrants('tilbud'), tenders: 'none' };
+  const offersOnly = {
+    ...standardGrants('tilbud'),
+    tenders: 'none',
+    tenderRequest: 'none',
+    tenderReview: 'none',
+    tenderSettings: 'none',
+  };
   const offersNav = filterCompanyNav(companyNavItems(), offersOnly)
     .find((item) => item.id === 'anbud');
   assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud', 'anbud-innstillinger']);

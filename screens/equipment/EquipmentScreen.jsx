@@ -180,7 +180,9 @@ export default function EquipmentScreen() {
 
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
-  const canManage = access.can('projects', 'write') || access.can('economy', 'write');
+  const canManage = access.can('equipment', 'write')
+    || access.can('projects', 'write')
+    || access.can('economy', 'write');
   const canEditAccess = canManageEquipmentAccess(
     access.employee ? employeeLevelIds(access.employee) : [access.levelId],
     { bypass: access.bypass, previewing: access.previewing },

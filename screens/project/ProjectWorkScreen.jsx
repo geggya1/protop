@@ -324,8 +324,8 @@ export default function ProjectWorkScreen() {
   const { isPhone } = useLayout();
   const { familyId, requestShellTab, isAdmin: groupAdmin, uid, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
-  const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.can('projects', 'write'));
-  const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.can('projects', 'delete'));
+  const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canEdit('projects'));
+  const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
   const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());

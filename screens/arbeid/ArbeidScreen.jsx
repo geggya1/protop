@@ -269,7 +269,7 @@ export default function ArbeidScreen({
   const manager = personal
     ? false
     : (access.ready
-      ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.can('hoursOthers', 'write'))
+      ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.canEdit('hoursOthers'))
       : canManageTimesheets({ isAdmin, employee: linked }));
 
   useEffect(() => {

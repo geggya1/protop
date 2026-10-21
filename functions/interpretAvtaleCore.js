@@ -174,24 +174,26 @@ export async function handleInterpretIndeks(data) {
     ? interpretDocuments(documents)
     : interpretDocuments([{ id: 'dok-1', name: String(data?.fileName || 'Avtale').slice(0, 180), text: source || 'Skannet avtale' }]);
   const apiKey = getGeminiKey();
-  // Hosting-rewrite har ~60 s. Rik OCR-tekst → hopp over store sidebilder (spar 20–40 s).
+  // Hosting-rewrite har ~60 s. Send bilde bare når OCR-tekst mangler eller nøkkel felt er tomme.
   const textReady = source.length >= 400 && pdfTextLooksReadable(source);
+  const sparse = !String(local?.buyer || '').trim()
+    || !String(local?.title || '').trim()
+    || !String(local?.description || '').trim();
   const parts = [];
   if (source.length >= 20) parts.push({ text: source.slice(0, 45000) });
   else parts.push({ text: 'Les den skannede avtalen i bildene og fyll ut JSON-feltene. Ikke finn opp verdier som ikke står i dokumentet.' });
   let usedImages = 0;
-  if (!textReady) {
-    for (const image of images.slice(0, 2)) {
-      const raw = image?.buffer || image;
-      if (!Buffer.isBuffer(raw) || raw.length < 40) continue;
-      parts.push({
-        inline_data: {
-          mime_type: image?.mime || 'image/png',
-          data: raw.toString('base64'),
-        },
-      });
-      usedImages += 1;
-    }
+  const imageBudget = (!textReady || sparse) ? (sparse ? 1 : 2) : 0;
+  for (const image of images.slice(0, imageBudget)) {
+    const raw = image?.buffer || image;
+    if (!Buffer.isBuffer(raw) || raw.length < 40) continue;
+    parts.push({
+      inline_data: {
+        mime_type: image?.mime || 'image/png',
+        data: raw.toString('base64'),
+      },
+    });
+    usedImages += 1;
   }
   if (!apiKey) {
     if (!documents.length) reject('invalid-argument', 'Kunne ikke lese teksten i PDF-en. Lim inn teksten, eller prøv igjen.');
@@ -200,9 +202,8 @@ export async function handleInterpretIndeks(data) {
   try {
     const parsed = await callGeminiJson(apiKey, PROMPT, parts, {
       maxOutputTokens: 8192,
-      // Tekst-only rekker raskere; bildesti får litt mer tid men fortsatt under Hosting-taket.
-      perModelTimeoutMs: textReady ? 25000 : 35000,
-      maxModels: textReady ? 2 : 3,
+      perModelTimeoutMs: usedImages ? 35000 : 25000,
+      maxModels: usedImages ? 2 : 2,
     });
     if (Array.isArray(parsed?.weights) && parsed.weights.length >= 2) {
       local.weights = parsed.weights.slice(0, 8).map((row) => ({

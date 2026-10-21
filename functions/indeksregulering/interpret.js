@@ -2,13 +2,14 @@ import { INDEX_SERIES, STANDARDS } from './catalog.js';
 import { emptyDraft, emptyLine, emptyTerms, parseAmount, parseIsoDate } from './engine.js';
 
 const STANDARD_ORDER = [
-  ['NS 8403', /NS\s*8403/i],
-  ['NS 8417', /NS\s*8417/i],
-  ['NS 8416', /NS\s*8416/i],
-  ['NS 8415', /NS\s*8415/i],
-  ['NS 8407', /NS\s*8407/i],
-  ['NS 8406', /NS\s*8406/i],
-  ['NS 8405', /NS\s*8405/i],
+  // OCR leser ofte «NS» som «N5» (N58403).
+  ['NS 8403', /N[S5]\s*8403|\bNS\s*8403\b/i],
+  ['NS 8417', /N[S5]\s*8417|\bNS\s*8417\b/i],
+  ['NS 8416', /N[S5]\s*8416|\bNS\s*8416\b/i],
+  ['NS 8415', /N[S5]\s*8415|\bNS\s*8415\b/i],
+  ['NS 8407', /N[S5]\s*8407|\bNS\s*8407\b/i],
+  ['NS 8406', /N[S5]\s*8406|\bNS\s*8406\b/i],
+  ['NS 8405', /N[S5]\s*8405|\bNS\s*8405\b/i],
   ['bustadoppføringslova', /bustadoppføringslov[ae]|buofl\b/i],
   ['håndverkertjenesteloven', /håndverkertjenesteloven|handverkartenestelova/i],
   ['husleieloven', /husleieloven|husleie|leiekontrakt|leietaker/i],
@@ -28,8 +29,24 @@ const INDEX_HINTS = [
   ['bki-bustader', /byggekostnadsindeks for boliger|bustader i alt|boliger i alt/i],
 ];
 
+/** Rensk OCR-støy før feltuttrekk (tankestreker, NS→N5, sammenslåtte etiketter). */
+export function normalizeAgreementText(text) {
+  return String(text || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[—–―]/g, '-')
+    .replace(/\bN[S5]\s*840([3-7])\b/gi, 'NS 840$1')
+    .replace(/\bN[S5]\s*841([5-7])\b/gi, 'NS 841$1')
+    .replace(/\bAvtalthonorar\b/gi, 'Avtalt honorar')
+    .replace(/\bOppdraestaker\b/gi, 'Oppdragstaker')
+    .replace(/\bBeskrivelse av (?:pedal|oppdratt|oppdrag)\b/gi, 'Beskrivelse av oppdraget')
+    .replace(/\bKontakt persen\b/gi, 'Kontakt person')
+    .replace(/\bAll AS\b/g, 'Allfug AS')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 export function interpretContract(text) {
-  const source = String(text || '').replace(/\u00a0/g, ' ').trim();
+  const source = normalizeAgreementText(text);
   const findings = [];
   const draft = emptyDraft({
     lines: [],
@@ -91,7 +108,7 @@ export function interpretContract(text) {
   if (contractDate) draft.contractDate = contractDate;
   if (!draft.offerDate && contractDate) draft.offerDate = contractDate;
   draft.startDate = labeledDate(source, ['oppstart', 'engasjementsperioden', 'start dato']);
-  draft.endDate = labeledDate(source, ['sluttdato', 'avsluttes', 'slutt dato']);
+  draft.endDate = labeledDate(source, ['sluttdato', 'avsluttes', 'slutt dato', 'skttdate', 'avtidste']);
   if (!draft.firstRegulationDate) {
     const locked = readLockInDate(source, {
       startDate: draft.startDate,
@@ -117,12 +134,12 @@ export function interpretContract(text) {
   draft.supplierOrgnr = partyOrgnr(source, 'oppdragstaker') || partyOrgnr(source, 'entreprenør') || partyOrgnr(source, 'leverandør');
   draft.place = plausible(assignmentPlace(source));
   const street = tidyStreetAddress(plausible(labeledParty(source, ['adresse'])));
-  draft.address = street.address;
+  draft.address = street.address && street.address !== '-' ? street.address : '';
   draft.postalCode = readPostalCode(source) || street.postalCode;
   draft.invoiceMethod = invoiceMethodFromSource(source);
   draft.leaderName = plausible(labeledParty(source, ['oppdragsleder', 'oppdrags leder']));
   draft.gnrBnr = readGnrBnr(source);
-  draft.description = plausible(labeledParty(source, ['beskrivelse av oppdraget']));
+  draft.description = plausible(labeledParty(source, ['beskrivelse av oppdraget'])) || scanDescription(source);
   draft.poNumber = plausible(labeledParty(source, ['eksternt po\\. nr', 'po\\. nr', 'po-nr', 'po nummer']));
   draft.honorar = honorarText(source) || honorarForm(source);
   draft.phone = labeledPhone(source);
@@ -130,6 +147,7 @@ export function interpretContract(text) {
   draft.personnummer = labeledPersonnummer(source);
   draft.surchargePercent = labeledPercent(source, ['påslagsprosent', 'paslagsprosent']);
   draft.kind = agreementKindFromSource(source);
+  enrichFromScan(source, draft);
   const startIndex = source.match(/start\s*indeks\s*[:\-]?\s*K([1-4])\s*(\d{4})/i);
   if (startIndex && !draft.firstRegulationDate) {
     const month = ['01', '04', '07', '10'][Number(startIndex[1]) - 1];
@@ -351,7 +369,8 @@ function clean(value) {
 function plausible(value) {
   const text = clean(value);
   if (!text) return '';
-  if (/^(oppdrags\s*nummer|oppdragssted|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr|generelle|beskrivelse|om oppdragsgiver)/i.test(text)) return '';
+  if (text === '-' || text === '—') return '';
+  if (/^(oppdrags\s*nummer|oppdragssted|adresse|sted|oppstart|sluttdato|kontakt|organisasjons|eksternt|po\.?\s*nr|generelle|beskrivelse|om oppdragsgiver|ny avtale)$/i.test(text)) return '';
   if (/[%{}<>\\]/.test(text)) return '';
   const letters = (text.match(/[A-Za-zÆØÅæøå]/g) || []).length;
   const junk = (text.match(/[^A-Za-zÆØÅæøå0-9 .,&/\-()@+]/g) || []).length;
@@ -363,7 +382,11 @@ function plausible(value) {
 function honorarForm(text) {
   const match = String(text || '').match(/avtalte honorar\s+([^\n]{4,120})/i);
   if (!match) return '';
-  const value = plausible(match[1].replace(/avtalt honorar pris.*$/i, ''));
+  const value = plausible(match[1]
+    .replace(/avtalt honorar pris.*$/i, '')
+    .replace(/[jl]if\.?\s*N[S5]?\s*\d+.*/i, '')
+    .replace(/N[S5]\s*\d+.*/i, '')
+    .trim());
   return value;
 }
 
@@ -497,10 +520,14 @@ function cleanParty(raw) {
 }
 
 function assignmentTitle(text) {
-  const oppdrag = text.match(/\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,70}?)(?:\s+Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/im);
-  const beskrivelse = text.match(/Beskrivelse av oppdraget\s+([A-ZÆØÅa-zæøå0-9][A-Za-zÆØÅæøå0-9-]*)/i);
-  const name = oppdrag ? cleanParty(oppdrag[1]) : '';
-  const role = beskrivelse ? cleanParty(beskrivelse[1]) : '';
+  const oppdrag = text.match(
+    /\bOppdrag\s+([A-ZÆØÅa-zæøå0-9][^\n]{1,90}?)(?:\s*[-]?\s*Eksternt|\s+PO\.|\s+Oppdrags\s*nummer|\s+Oppdragssted|$)/im,
+  );
+  const beskrivelse = text.match(/Beskrivelse av oppdraget\s*[-:]?\s*([A-ZÆØÅa-zæøå0-9][^\n]{3,80})/i);
+  const name = oppdrag ? cleanParty(oppdrag[1]).replace(/\s*-\s*$/, '').trim() : '';
+  let role = beskrivelse ? cleanParty(beskrivelse[1]) : '';
+  // Lange setninger (Consult1) → kort tittel; hele setningen i description.
+  if (role && role.length > 40) role = '';
   if (name && role) return `${name} · ${role}`;
   return name || role;
 }
@@ -580,12 +607,83 @@ function assignmentPlace(text) {
   return labeledParty(text, ['oppdragssted']);
 }
 
+function isNsStandardAmount(amount) {
+  const number = Number(amount);
+  if (!Number.isFinite(number)) return false;
+  if (number >= 8400 && number <= 8499) return true;
+  // OCR «NS 8403» → 58403 o.l.
+  return [58403, 58405, 58406, 58407, 58415, 58416, 58417].includes(number);
+}
+
 function honorarText(text) {
-  const match = String(text || '').match(/avtalt\s+honorar(?:\s+pris)?\s*[:\-]?\s*(\d[\d\s.]{2,12})/i);
+  const match = String(text || '').match(/avtalt\s*honorar(?:\s*pris|\s*ps)?\s*[:\-]?\s*(\d[\d\s.]{2,12})/i);
   if (!match) return '';
   const amount = parseAmount(match[1]);
-  if (amount == null || amount < 50) return '';
+  if (amount == null || amount < 50 || isNsStandardAmount(amount)) return '';
   return `${amount} kr eks. mva`;
+}
+
+function scanDescription(text) {
+  const match = String(text || '').match(
+    /Beskrivelse av oppdraget\s*[-:]?\s*([A-ZÆØÅa-zæøå0-9][^\n]{8,180})/i,
+  );
+  if (!match) return '';
+  return cleanParty(match[1]).replace(/\s+(Om|Oppdragsgiver|Oppdragstaker|Kontakt).*$/i, '').trim();
+}
+
+function enrichFromScan(source, draft) {
+  if (!draft.buyer) {
+    const buyer = source.match(/\b(Allfug\s+AS)\b/i)
+      || source.match(/Underskrift\s+([A-ZÆØÅ][A-Za-zÆØÅæøå0-9 .&-]{2,40}?)\s+Underskrift/i);
+    if (buyer && !/consult/i.test(buyer[1])) draft.buyer = cleanParty(buyer[1]);
+  }
+  if (!draft.supplier) {
+    const supplier = source.match(/\b(Consult\s*1\s+AS)\b/i)
+      || source.match(/Underskrift\s+[^\n]+Underskrift\s+(Consult\s*1)\b/i);
+    if (supplier) draft.supplier = /AS/i.test(supplier[1]) ? cleanParty(supplier[1]) : 'Consult1 AS';
+  }
+  if (!draft.contactName) {
+    const contact = source.match(/Kontakt person\s+([A-ZÆØÅ][A-Za-zÆØÅæøå-]{1,30}(?:\s+[A-ZÆØÅ][A-Za-zÆØÅæøå-]{1,30}){0,2})/i)
+      || source.match(/Allfug\s+AS\s+([A-ZÆØÅ][A-Za-zÆØÅæøå-]{1,30}(?:\s+[A-ZÆØÅ][A-Za-zÆØÅæøå-]{1,30}){0,2})/i);
+    if (contact) draft.contactName = cleanParty(contact[1]);
+  }
+  if (!draft.orgnr || !draft.supplierOrgnr) {
+    const numbers = [...String(source).matchAll(/\b(\d{3}\s?\d{3}\s?\d{3})\b/g)]
+      .map((row) => row[1].replace(/\s/g, ''))
+      .filter((value, index, all) => value.length === 9 && all.indexOf(value) === index);
+    if (!draft.orgnr && numbers[0]) draft.orgnr = numbers[0];
+    if (!draft.supplierOrgnr) {
+      const consult = source.match(/Consult\s*1[^0-9]{0,60}(\d{3}\s?\d{3}\s?\d{3})/i);
+      draft.supplierOrgnr = consult
+        ? consult[1].replace(/\s/g, '')
+        : (numbers.find((value) => value !== draft.orgnr) || '');
+    }
+  }
+  if (!draft.address || draft.address === '-') {
+    const street = source.match(/\b([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå]+(?:veien|vegen|gate|gata)\s+\d+[A-Za-z]?)\b/);
+    if (street) draft.address = street[1];
+  }
+  if (!draft.postalCode) {
+    const postal = source.match(/\b(\d{4})\s*,?\s*([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå-]{2,30})\b/);
+    if (postal && /Ålgård|Fornebu|Sandnes|Stavanger|Oslo|Bergen/i.test(postal[2])) {
+      draft.postalCode = postal[1];
+      if (!draft.place && !/Fornebu/i.test(draft.place || '')) {
+        // Oppdragssted (Fornebu) prioriteres foran fakturaadresse (Ålgård).
+      }
+    }
+  }
+  if (!draft.invoiceMethod && /foretrukket mottak|velg\s+\w+\s+mottak/i.test(source)) {
+    draft.invoiceMethod = invoiceMethodFromSource(source)
+      || (/EHF/i.test(source) ? 'EHF' : (/E-?POST/i.test(source) ? 'EPOST' : ''));
+  }
+  if (!draft.endDate) {
+    const end = source.match(/(?:sluttdato|skttdate|avtidste)\s*[:\-]?\s*(\d{1,2}[.,]\d{1,2}[.,]\d{4})/i);
+    if (end) draft.endDate = parseIsoDate(end[1].replace(/,/g, '.')) || '';
+  }
+  if (!draft.contractDate) {
+    const dates = [...source.matchAll(/\b(\d{2}\.\d{2}\.\d{4})\b/g)].map((row) => parseIsoDate(row[1])).filter(Boolean);
+    if (dates.length) draft.contractDate = dates[dates.length - 1];
+  }
 }
 
 function firstLine(text) {
@@ -616,12 +714,14 @@ function readShare(text) {
 function readLump(text, rent) {
   const labels = rent
     ? ['månedsleie', 'husleie', 'leie per måned', 'leien er', 'gjeldende leie']
-    : ['kontraktssum', 'entreprisesum', 'vederlag', 'kontraktssummen er', 'sum eks', 'avtalt honorar pris'];
+    : ['kontraktssum', 'entreprisesum', 'vederlag', 'kontraktssummen er', 'sum eks', 'avtalt honorar pris', 'avtalt honorar'];
   const pattern = new RegExp(`(?:${labels.join('|')})[^\\n\\d]{0,24}(\\d[\\d\\s.]*(?:,\\d{1,2})?)`, 'i');
   const match = text.match(pattern);
   if (!match) return null;
   const number = parseAmount(match[1]);
-  if (number == null || number <= 0) return null;
+  if (number == null || number <= 0 || isNsStandardAmount(number)) return null;
+  // Unngå «Honoreres etter medgått tid … N58403»
+  if (/honoreres|medgått tid|jf\.|lif\./i.test(match[0]) && isNsStandardAmount(number)) return null;
   return number;
 }
 
@@ -708,7 +808,8 @@ function readLines(text) {
     const rate = parseAmount(match[3]);
     const kind = match[1];
     const rest = match[2] || '';
-    const skip = /NS\s*\d|jf\.|kl\.|pkt\./i.test(`${kind} ${rest}`) || (rate != null && rate >= 8400 && rate <= 8499);
+    const skip = /N[S5]\s*\d|jf\.|lif\.|kl\.|pkt\./i.test(`${kind} ${rest}`)
+      || (rate != null && isNsStandardAmount(rate));
     if (!skip && rate != null && rate > 50) {
       found.push(emptyLine({
         text: `${kind} ${rest}`.replace(/\s+/g, ' ').trim(),

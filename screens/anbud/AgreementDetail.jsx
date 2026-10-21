@@ -757,6 +757,7 @@ export default function AgreementDetail({
                 colors={colors}
                 people={people}
                 ownerUid={form.leaderUid}
+                ownerName={form.leaderName}
                 label="Oppdragsleder"
                 onSelect={(person) => patch({
                   leaderUid: person ? (person.uid || person.id || '') : '',

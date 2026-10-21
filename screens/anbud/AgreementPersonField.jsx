@@ -28,7 +28,9 @@ export default function AgreementPersonField({
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState(false);
   const selected = people.find((person) => personOwnsId(person, ownerUid))
-    || (ownerUid && ownerName ? { uid: ownerUid, id: ownerUid, name: ownerName } : null);
+    || (ownerName || ownerUid
+      ? { uid: ownerUid || 'foreslatt', id: ownerUid || 'foreslatt', name: ownerName || placeholder }
+      : null);
   const listed = useMemo(() => listedPeople(people, query), [people, query]);
   const shown = listed.filter((_, index) => index < BROWSE_LIMIT);
   const total = listed.length;
@@ -38,9 +40,17 @@ export default function AgreementPersonField({
     setQuery('');
   }
 
+  function openSheet() {
+    setSheet(true);
+  }
+
   return (
     <View style={{ gap: 8, flexBasis: '100%' }}>
-      <View
+      <TouchableOpacity
+        nativeID="agreement-person-open"
+        onPress={openSheet}
+        accessibilityRole="button"
+        accessibilityLabel={selected ? `Endre ${label}` : `Velg ${label.toLowerCase()}`}
         style={[styles.compact, {
           borderColor: suggested || (attention && !selected) ? FOCUS_FIELD_BORDER : 'transparent',
           backgroundColor: suggested || (attention && !selected) ? FOCUS_FIELD_BG : 'transparent',
@@ -53,16 +63,10 @@ export default function AgreementPersonField({
             {selected ? selected.name : placeholder}
           </Text>
         </View>
-        <TouchableOpacity
-          nativeID="agreement-person-open"
-          onPress={() => setSheet(true)}
-          accessibilityRole="button"
-          accessibilityLabel={selected ? `Endre ${label}` : `Velg ${label.toLowerCase()}`}
-          style={[styles.pencil, { borderColor: colors.line, backgroundColor: colors.bg }]}
-        >
+        <View style={[styles.pencil, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Ionicons name="pencil" size={18} color={colors.brand} />
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
       <ScrollSheet visible={sheet} title={label} onClose={closeSheet} placement="center">
         <View style={{ gap: 8 }}>
           <TextInput

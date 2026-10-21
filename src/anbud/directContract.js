@@ -79,15 +79,32 @@ export function indexDraftFromInterpretation(draft, extras = {}) {
   });
 }
 
+function isNsStandardAmount(amount) {
+  const number = Number(amount);
+  if (!Number.isFinite(number)) return false;
+  if (number >= 8400 && number <= 8499) return true;
+  return [58403, 58405, 58406, 58407, 58415, 58416, 58417].includes(number);
+}
+
 function amountFromHonorar(honorar) {
   const source = String(honorar || '').replace(/\s+/g, ' ').trim();
   if (!source) return null;
+  // Ren honorarfrase uten beløp («Honoreres etter medgått tid…») skal ikke bli kontraktsum.
+  if (/honoreres|medgått tid/i.test(source) && !/\d[\d\s.]{2,}\s*(?:kr|nok|-)/i.test(source)) {
+    return null;
+  }
+  const preferred = source.match(/(?:pris|honorar)\s*[:\-]?\s*(\d[\d\s.]{2,12})\s*(?:kr|nok|,-)?/i);
+  if (preferred) {
+    const amount = parseAmount(preferred[1]);
+    if (amount != null && amount > 0 && !isNsStandardAmount(amount)) return amount;
+  }
   const direct = parseAmount(source);
-  if (direct != null && direct > 0) return direct;
+  if (direct != null && direct > 0 && !isNsStandardAmount(direct)) return direct;
   const match = source.match(/(\d[\d.]*)(?:,(\d{1,2}))?/);
   if (!match) return null;
   const amount = parseAmount(match[2] != null ? `${match[1]}.${match[2]}` : match[1]);
-  return amount != null && amount > 0 ? amount : null;
+  if (amount == null || amount <= 0 || isNsStandardAmount(amount)) return null;
+  return amount;
 }
 
 export function inputFromInterpretation(draft, extras = {}) {

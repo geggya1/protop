@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
+import InvoicedStatement from '../../components/economy/InvoicedStatement';
 import AccountHistoryCard from '../../components/project/AccountHistoryCard';
 import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
@@ -22,7 +23,7 @@ function Fact({ label, value, colors }) {
   );
 }
 
-export default function EconomyWelcome({ stored }) {
+export default function EconomyWelcome({ stored, familyId }) {
   const colors = useColors();
   const [live, setLive] = useState(null);
   const [history, setHistory] = useState(null);
@@ -95,6 +96,8 @@ export default function EconomyWelcome({ stored }) {
           </View>
         )}
       </View>
+
+      <InvoicedStatement familyId={familyId} />
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.cardTitle, { color: colors.ink }]}>Om bedriften</Text>

@@ -340,10 +340,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.inner}
+      contentContainerStyle={[styles.inner, page === 'oversikt' && styles.overview]}
       keyboardShouldPersistTaps="handled"
     >
-      {page === 'oversikt' ? <EconomyWelcome stored={company} /> : null}
+      {page === 'oversikt' ? <EconomyWelcome stored={company} familyId={familyId} /> : null}
       {page === 'kunder' ? (
         <EconomyCustomers
           customers={customers}
@@ -377,6 +377,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   inner: { padding: 16, paddingBottom: 48, maxWidth: 980, width: '100%', alignSelf: 'flex-start', gap: 20 },
+  overview: { maxWidth: 1180 },
   work: { maxWidth: '100%', width: '100%', alignSelf: 'stretch' },
   wide: { maxWidth: 1280 },
 });

@@ -34,6 +34,8 @@ assert.doesNotMatch(httpSrc, /\.\.\/src\//);
 assert.doesNotMatch(coreSrc, /\.\.\/src\//);
 assert.match(coreSrc, /from '\.\/ocrPdf\.js'/);
 assert.match(ocrSrc, /createWorker/);
+assert.match(ocrSrc, /paintImageMaskXObject/);
+assert.match(ocrSrc, /resolvePageImage/);
 assert.match(httpSrc, /timeoutSeconds:\s*120/);
 
 assert.match(indexSrc, /import '\.\/setRegion\.js'/);

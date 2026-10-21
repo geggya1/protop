@@ -6,8 +6,13 @@
  * Et eksempelark er bare modell for feltene, og tallene derfra brukes ikke.
  */
 
+import { toDateKey } from '../arbeid/calendar.js';
+import { norwegianHolidays } from '../arbeid/holidays.js';
 import { roundHours } from '../arbeid/hours.js';
 import { rateWithOvertime } from '../arbeid/overtime.js';
+import { scheduledHours } from '../arbeid/schedule.js';
+import { emptyVacationPlan, vacationQuota } from '../arbeid/vacationPlan.js';
+import { isDeletedEmployee, personnelKind } from '../employees/model.js';
 import { currentSalaryFor } from '../hr/model.js';
 import { rateOnDate } from '../indeksregulering/cases.js';
 import { roundMoney } from './vat.js';
@@ -19,7 +24,7 @@ export const EARNINGS_GROUPS = [
 ];
 
 export const VARIABLE_FIELDS = [
-  { id: 'grunnbelop', label: 'Grunnbeløp (G)', unit: 'amount' },
+  { id: 'grunnbelop', label: 'Grunnbeløp (G)', unit: 'amount', hidden: true },
   { id: 'feriepengerRate', label: 'Feriepengesats', unit: 'percent' },
   { id: 'feriepengerMonths', label: 'Feriepengegrunnlag, måneder', unit: 'number', hint: '11 trekker fra én termin' },
   { id: 'agaRate', label: 'Arbeidsgiveravgift', unit: 'percent' },
@@ -28,9 +33,10 @@ export const VARIABLE_FIELDS = [
   { id: 'pensionTopG', label: 'Pensjon høy sats til', unit: 'g' },
   { id: 'pensionLowRate', label: 'Pensjon lav sats', unit: 'percent' },
   { id: 'pensionHighRate', label: 'Pensjon høy sats', unit: 'percent' },
-  { id: 'normHours', label: 'Normtimer per år', unit: 'number' },
+  { id: 'normHours', label: 'Normtimer per år', unit: 'number', hidden: true },
   { id: 'defaultBillableRate', label: 'Standard timepris', unit: 'amount' },
-  { id: 'defaultBillablePercent', label: 'Standard faktureringsgrad', unit: 'percent' },
+  { id: 'defaultBillablePercent', label: 'Standard faktureringsgrad', unit: 'percent', hidden: true },
+  { id: 'defaultPurchaseRate', label: 'Standard innkjøpspris', unit: 'amount', hired: true },
 ];
 
 const VARIABLE_IDS = new Set(VARIABLE_FIELDS.map((row) => row.id));
@@ -39,6 +45,9 @@ export function defaultVariables() {
   return {
     // Gjeldende grunnbeløp fra 1. mai 2026. Bedriften kan sette et annet.
     grunnbelop: 136549,
+    grunnbelopFrom: '2026-05-01',
+    grunnbelopTo: '2027-04-30',
+    grunnbelopFetchedAt: '',
     feriepengerRate: 0.12,
     feriepengerMonths: 11,
     agaRate: 0.141,
@@ -50,6 +59,7 @@ export function defaultVariables() {
     normHours: 0,
     defaultBillableRate: 0,
     defaultBillablePercent: 0,
+    defaultPurchaseRate: 0,
   };
 }
 
@@ -168,6 +178,8 @@ function normalizeEmployeeSetup(row) {
     extras,
     billableRate: row?.billableRate == null || row?.billableRate === '' ? null : roundMoney(num(row.billableRate, 0)),
     billablePercent: row?.billablePercent == null || row?.billablePercent === '' ? null : num(row.billablePercent, 0),
+    purchaseRate: row?.purchaseRate == null || row?.purchaseRate === '' ? null : roundMoney(num(row.purchaseRate, 0)),
+    agreedHours: row?.agreedHours == null || row?.agreedHours === '' ? null : roundHours(num(row.agreedHours, 0)),
   };
 }
 
@@ -190,6 +202,11 @@ export function normalizeEarningsSettings(raw) {
       variables[field.id] = num(source.variables[field.id], variables[field.id]);
     }
   }
+  for (const key of ['grunnbelopFrom', 'grunnbelopTo', 'grunnbelopFetchedAt']) {
+    const raw = source.variables?.[key];
+    if (raw == null || raw === '') continue;
+    variables[key] = String(raw).slice(0, 10);
+  }
   const storedLines = new Map((Array.isArray(source.standardLines) ? source.standardLines : []).map((row) => [text(row?.id), row]));
   const standardLines = defaultStandardLines().map((item) => normalizeLine(storedLines.get(item.id) || item, item));
   for (const row of storedLines.values()) {
@@ -209,6 +226,73 @@ export function normalizeEarningsSettings(raw) {
     standardLines,
     employees,
   };
+}
+
+export function earningsAudience(employee) {
+  if (!employee || isDeletedEmployee(employee)) return '';
+  const status = employee.company?.status || 'active';
+  if (status !== 'active') return '';
+  const kind = personnelKind(employee);
+  if (kind === 'innleid' || kind === 'external') return 'innleide';
+  return 'ansatte';
+}
+
+/**
+ * Disponible arbeidstimer i året.
+ * Hverdager etter personens tidsplan, minus helligdager og feriedager.
+ * Stillingsprosenten ligger allerede i tidsplanen, så timene skal ikke ganges en gang til.
+ */
+export function availableYearHours(employee, { year, vacationDays = 0, holidayDates } = {}) {
+  const y = Number(year) || new Date().getFullYear();
+  const rawPercent = String(employee?.company?.workPercent ?? '').replace('%', '').trim();
+  const vacation = Math.max(0, Number(vacationDays) || 0);
+  if (rawPercent === '0') {
+    return { year: y, gross: 0, vacationDays: vacation, vacationHours: 0, hours: 0 };
+  }
+  const off = new Set(
+    holidayDates
+      ? [...holidayDates]
+      : norwegianHolidays(y).map((row) => row.date),
+  );
+  let gross = 0;
+  let sampled = 0;
+  let sampledHours = 0;
+  for (let month = 0; month < 12; month += 1) {
+    const days = new Date(y, month + 1, 0).getDate();
+    for (let day = 1; day <= days; day += 1) {
+      const date = new Date(y, month, day);
+      if (off.has(toDateKey(date))) continue;
+      const hours = scheduledHours(employee, date);
+      gross = roundHours(gross + hours);
+      if (hours > 0) {
+        sampled += 1;
+        sampledHours = roundHours(sampledHours + hours);
+      }
+    }
+  }
+  const typical = sampled ? sampledHours / sampled : 0;
+  const vacationHours = roundHours(vacation * typical);
+  return {
+    year: y,
+    gross,
+    vacationDays: vacation,
+    vacationHours,
+    hours: roundHours(Math.max(0, gross - vacationHours)),
+  };
+}
+
+/** Feriedager fra ferieplanen, deretter disponible timer. */
+export function yearCapacity(employee, plan, { year, today } = {}) {
+  const y = Number(year) || new Date().getFullYear();
+  const quota = vacationQuota(employee, plan || emptyVacationPlan(y), { today: today || `${y}-12-31` });
+  return availableYearHours(employee, { year: y, vacationDays: quota.total });
+}
+
+function hoursFromInput(yearHours) {
+  if (yearHours == null || yearHours === '') return null;
+  if (typeof yearHours === 'number') return roundHours(yearHours);
+  if (typeof yearHours === 'object' && yearHours.hours != null) return roundHours(yearHours.hours);
+  return null;
 }
 
 export function workFraction(employee) {
@@ -288,7 +372,7 @@ function pushLine(rows, group, entry) {
 /**
  * Full kalkyle for én ansatt. Beløp i kroner per år.
  */
-export function calculateEmployee({ employee, salaries, settings } = {}) {
+export function calculateEmployee({ employee, salaries, settings, yearHours } = {}) {
   const setup = normalizeEarningsSettings(settings);
   const person = normalizeEmployeeSetup(setup.employees?.[employee?.id] || {});
   const salaryInfo = salaryForEmployee(employee?.id, salaries);
@@ -343,7 +427,8 @@ export function calculateEmployee({ employee, salaries, settings } = {}) {
     if (!item.enabled || hidden.has(item.id)) continue;
     let amount = 0;
     let source = item.kind;
-    if (Object.prototype.hasOwnProperty.call(person.amounts, item.id)) {
+    const calculated = item.kind === 'formula' || item.kind === 'percent';
+    if (!calculated && Object.prototype.hasOwnProperty.call(person.amounts, item.id)) {
       amount = person.amounts[item.id];
       source = 'override';
     } else if (item.kind === 'formula') {
@@ -364,7 +449,7 @@ export function calculateEmployee({ employee, salaries, settings } = {}) {
       amount,
       source,
       kind: item.kind,
-      editable: item.kind === 'input' || item.kind === 'percent',
+      editable: item.kind === 'input',
       rateLabel: rateLabel(item, variables, source),
     });
   }
@@ -386,7 +471,10 @@ export function calculateEmployee({ employee, salaries, settings } = {}) {
   const overheadSum = sum('overhead');
   const totalCost = roundMoney(directSum + indirectSum + overheadSum);
   const position = workFraction(employee);
-  const hours = roundHours(num(variables.normHours, 0) * position);
+  const knownHours = hoursFromInput(yearHours);
+  const hours = knownHours == null
+    ? roundHours(num(variables.normHours, 0) * position)
+    : knownHours;
   const billablePercent = person.billablePercent == null
     ? num(variables.defaultBillablePercent, 1)
     : num(person.billablePercent, 0);
@@ -397,6 +485,7 @@ export function calculateEmployee({ employee, salaries, settings } = {}) {
   const revenue = roundMoney(rate * billableHours);
   const profit = roundMoney(revenue - totalCost);
   return {
+    kind: 'staff',
     employeeId: employee?.id || '',
     salary: salaryInfo,
     position,
@@ -441,10 +530,68 @@ export function pct(value) {
   return `${new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 1 }).format(Number(value) * 100)} %`;
 }
 
-export function calculateRoster({ employees, salaries, settings } = {}) {
+/** Innleid og eksternt personell kjøpes til avtalt timehonorar. Ingen lønnsformel. */
+export function calculateHired({ employee, settings, yearHours } = {}) {
+  const setup = normalizeEarningsSettings(settings);
+  const person = normalizeEmployeeSetup(setup.employees?.[employee?.id] || {});
+  const variables = setup.variables;
+  const knownHours = hoursFromInput(yearHours);
+  const hours = person.agreedHours == null
+    ? roundHours(knownHours == null ? 0 : knownHours)
+    : roundHours(person.agreedHours);
+  const purchaseRate = person.purchaseRate == null
+    ? roundMoney(num(variables.defaultPurchaseRate, 0))
+    : roundMoney(person.purchaseRate);
+  const billablePercent = person.billablePercent == null
+    ? num(variables.defaultBillablePercent, 0)
+    : num(person.billablePercent, 0);
+  const rate = person.billableRate == null
+    ? roundMoney(num(variables.defaultBillableRate, 0))
+    : roundMoney(person.billableRate);
+  const billableHours = roundHours(hours * billablePercent);
+  const totalCost = roundMoney(purchaseRate * hours);
+  const revenue = roundMoney(rate * billableHours);
+  const profit = roundMoney(revenue - totalCost);
+  return {
+    kind: 'hired',
+    employeeId: employee?.id || '',
+    salary: { amount: 0, missing: false, from: '', currency: 'NOK' },
+    position: workFraction(employee),
+    lines: [],
+    direct: totalCost,
+    indirect: 0,
+    overhead: 0,
+    indirectRatio: null,
+    overheadRatio: null,
+    totalCost,
+    hours,
+    hoursSource: person.agreedHours == null ? 'calendar' : 'override',
+    purchaseRate,
+    purchaseSource: person.purchaseRate == null ? 'standard' : 'override',
+    billablePercent,
+    billableHours,
+    rate,
+    rateSource: person.billableRate == null ? 'standard' : 'override',
+    percentSource: person.billablePercent == null ? 'standard' : 'override',
+    revenue,
+    profit,
+    margin: revenue ? profit / revenue : null,
+    breakEvenRate: billableHours ? roundMoney(totalCost / billableHours) : null,
+  };
+}
+
+export function calculateRoster({ employees, salaries, settings, yearHoursById, audience } = {}) {
   return (employees || [])
-    .filter((row) => (row?.company?.status || 'active') !== 'deleted')
-    .map((employee) => calculateEmployee({ employee, salaries, settings }))
+    .filter((row) => (audience ? earningsAudience(row) === audience : !isDeletedEmployee(row)))
+    .map((employee) => {
+      const known = yearHoursById && Object.prototype.hasOwnProperty.call(yearHoursById, employee.id)
+        ? yearHoursById[employee.id]
+        : undefined;
+      if ((audience || earningsAudience(employee)) === 'innleide') {
+        return calculateHired({ employee, settings, yearHours: known });
+      }
+      return calculateEmployee({ employee, salaries, settings, yearHours: known });
+    })
     .sort((a, b) => String(a.employeeId).localeCompare(String(b.employeeId)));
 }
 
@@ -479,6 +626,7 @@ export function projectEarnings({
   salaries,
   settings,
   contracts = [],
+  yearHoursById,
 } = {}) {
   const byEmployee = new Map();
   for (const row of entries || []) {
@@ -493,7 +641,12 @@ export function projectEarnings({
   const result = [];
   for (const employeeId of ids) {
     const employee = people.get(employeeId) || { id: employeeId, person: { firstName: '' }, company: {} };
-    const annual = calculateEmployee({ employee, salaries, settings });
+    const known = yearHoursById && Object.prototype.hasOwnProperty.call(yearHoursById, employeeId)
+      ? yearHoursById[employeeId]
+      : undefined;
+    const annual = earningsAudience(employee) === 'innleide'
+      ? calculateHired({ employee, settings, yearHours: known })
+      : calculateEmployee({ employee, salaries, settings, yearHours: known });
     let hours = 0;
     let billableHours = 0;
     let revenue = 0;
@@ -510,8 +663,10 @@ export function projectEarnings({
       else exactHours = roundHours(exactHours + billable);
       revenue = roundMoney(revenue + billable * rate);
     }
-    const share = annual.hours > 0 ? hours / annual.hours : null;
-    const cost = share == null ? null : roundMoney(annual.totalCost * share);
+    const share = annual.kind === 'hired' || !(annual.hours > 0) ? null : hours / annual.hours;
+    const cost = annual.kind === 'hired'
+      ? roundMoney(annual.purchaseRate * hours)
+      : (share == null ? null : roundMoney(annual.totalCost * share));
     const profit = cost == null ? null : roundMoney(revenue - cost);
     result.push({
       employeeId,
@@ -547,6 +702,59 @@ function rowName(employee, entry) {
   const person = employee?.person || {};
   const named = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean).join(' ');
   return named || text(entry?.employeeName) || 'Uten navn';
+}
+
+export function portfolioProjects({
+  projects = [],
+  contracts = [],
+  entries = [],
+  employees = [],
+  salaries,
+  settings,
+  yearHoursById,
+} = {}) {
+  return (projects || [])
+    .filter((project) => project && project.status !== 'arkivert' && !project.deletedAt)
+    .map((project) => {
+      const earned = projectEarnings({
+        project,
+        entries,
+        employees,
+        salaries,
+        settings,
+        contracts,
+        yearHoursById,
+      });
+      const related = (contracts || []).filter((row) => row && (
+        (project.id && row.projectId === project.id)
+        || (project.contractId && row.id === project.contractId)
+      ));
+      const contractValue = related.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+      return {
+        id: project.id,
+        name: text(project.name || project.title) || 'Prosjekt uten navn',
+        customer: text(project.customerName || related[0]?.buyer),
+        agreements: related.length,
+        contractValue,
+        hours: earned.totals.hours,
+        revenue: earned.totals.revenue,
+        cost: earned.totals.cost,
+        profit: earned.totals.profit,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+}
+
+export function setGrunnbelop(settings, patch = {}) {
+  const next = normalizeEarningsSettings(settings);
+  next.variables = {
+    ...next.variables,
+    grunnbelop: num(patch.grunnbelop, next.variables.grunnbelop),
+    grunnbelopFrom: text(patch.grunnbelopFrom).slice(0, 10) || next.variables.grunnbelopFrom,
+    grunnbelopTo: text(patch.grunnbelopTo).slice(0, 10) || next.variables.grunnbelopTo,
+    grunnbelopFetchedAt: text(patch.grunnbelopFetchedAt).slice(0, 10),
+  };
+  return next;
 }
 
 export function setVariable(settings, id, value) {

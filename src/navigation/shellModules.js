@@ -120,8 +120,8 @@ export const PRODUKT_MENU = [
 
 /**
  * Sider under Økonomi og fakturering.
- * Kundesummer / Avtalesummer er økonomiske utsnitt — fulle registre ligger
- * som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
+ * Kundesummer, prosjektsummer og avtalesummer ligger som undermeny på Inntjening.
+ * Fulle registre ligger som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
  * I hamburgermeny og desktop-rail løftes sidene rett under gruppen, så
  * «Økonomi» ikke blir et ekstra nivå mellom gruppen og sidene.
  * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
@@ -130,8 +130,6 @@ export const PRODUKT_MENU = [
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'inntjening', icon: 'analytics', label: 'Inntjening' },
-  { id: 'kunder', icon: 'people', label: 'Kundesummer' },
-  { id: 'avtaler', icon: 'cash', label: 'Avtalesummer' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
@@ -146,6 +144,8 @@ export const OKONOMI_ROUTE_IDS = [
   ...OKONOMI_MENU
     .filter((item) => !item.tab || item.tab === 'okonomi')
     .map((item) => item.id),
+  'kunder',
+  'avtaler',
   'produkter',
   'kjorebok',
 ];
@@ -214,12 +214,16 @@ function hrNavItem() {
 function okonomiNavChild(item) {
   const tab = item.tab || 'okonomi';
   const subView = item.subView || item.id;
-  return {
+  const child = {
     id: `okonomi-${item.id}`,
     icon: item.icon,
     label: item.label,
     action: { type: 'tab', tab, subView },
   };
+  if (item.id === 'inntjening') {
+    child.activeSubViews = ['inntjening', 'kunder', 'avtaler'];
+  }
+  return child;
 }
 
 function arbeidNavItem() {

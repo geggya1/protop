@@ -1086,6 +1086,11 @@ function navItemAllowed(id, grants) {
   if (id === 'hr') {
     return allowsHr(grants, 'see');
   }
+  if (id === 'okonomi-inntjening') {
+    return seeResource(grants, 'economyEarnings')
+      || seeResource(grants, 'economyCustomers')
+      || seeResource(grants, 'economyContracts');
+  }
   if (id === 'okonomi') {
     return allowsEconomy(grants, 'see')
       || seeResource(grants, 'mileage')
@@ -1127,6 +1132,14 @@ function filterCompanyNavItem(item, grants) {
       tab: first.action?.tab || item.action.tab,
       subView: first.action?.subView,
     };
+  }
+  if (next.id === 'okonomi-inntjening' && !seeResource(grants, 'economyEarnings')) {
+    const subView = seeResource(grants, 'economyCustomers')
+      ? 'kunder'
+      : seeResource(grants, 'economyContracts')
+        ? 'avtaler'
+        : next.action?.subView;
+    next.action = { ...next.action, subView };
   }
   return next;
 }

@@ -51,7 +51,23 @@ function storedValue(unit, value) {
   return unit === 'percent' ? value / 100 : value;
 }
 
-export default function EarningsSettings({ settings, canEdit = false, onChange, colors }) {
+function formatIso(value) {
+  const key = String(value || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
+  const [year, month, day] = key.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+export default function EarningsSettings({
+  settings,
+  canEdit = false,
+  onChange,
+  colors,
+  audience = 'staff',
+  onRefreshGrunnbelop,
+  grunnbelopBusy = false,
+  grunnbelopError = '',
+}) {
   const [label, setLabel] = useState('');
   const [unit, setUnit] = useState('amount');
   const [value, setValue] = useState('');
@@ -92,15 +108,58 @@ export default function EarningsSettings({ settings, canEdit = false, onChange, 
     setLineAmount('');
   }
 
+  const fields = VARIABLE_FIELDS.filter((field) => {
+    if (field.hidden) return false;
+    if (audience === 'hired') return field.hired || field.id === 'defaultBillableRate';
+    return !field.hired;
+  });
+  const grunnbelop = settings.variables || {};
+  const from = formatIso(grunnbelop.grunnbelopFrom);
+  const to = formatIso(grunnbelop.grunnbelopTo);
+  const fetched = formatIso(grunnbelop.grunnbelopFetchedAt);
+
   return (
     <View nativeID="earnings-settings" style={styles.wrap}>
       <Text style={[styles.title, { color: colors.ink }]}>Variabler</Text>
       <Text style={{ color: colors.muted, lineHeight: 18 }}>
-        Her setter bedriften satser som gjelder alle. Lønn, stilling og timer hentes fra systemet og kan ikke skrives inn her.
+        {audience === 'hired'
+          ? 'Innleide kjøpes til avtalt timepris. Faktureringsgrad settes på personen, ikke her.'
+          : 'Her setter bedriften satser som gjelder alle ansatte. Lønn, timer og faktureringsgrad hentes eller settes på personen.'}
       </Text>
 
+      {audience === 'hired' ? null : (
+        <View nativeID="earnings-grunnbelop" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <View style={styles.line}>
+            <View style={styles.grow}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Grunnbeløp (G)</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {from && to ? `Gjeldende ${from}–${to}` : 'Gjeldende periode mangler'}
+                {fetched ? ` · sist hentet ${fetched}` : ' · ikke hentet ennå'}
+              </Text>
+            </View>
+            <Text nativeID="earnings-grunnbelop-amount" style={{ color: colors.ink, fontVariant: ['tabular-nums'] }}>
+              {formatPlain(grunnbelop.grunnbelop)}
+            </Text>
+            {canEdit ? (
+              <TouchableOpacity
+                nativeID="earnings-grunnbelop-refresh"
+                onPress={onRefreshGrunnbelop}
+                accessibilityRole="button"
+                accessibilityLabel="Oppdater grunnbeløp"
+              >
+                <Text style={{ color: colors.brand }}>{grunnbelopBusy ? 'Henter…' : 'Oppdater'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+            Beløpet hentes fra NAV og oppdateres automatisk når ny periode gjelder, omtrent én gang i året.
+          </Text>
+          {grunnbelopError ? <Text style={{ color: colors.danger || '#b42318' }}>{grunnbelopError}</Text> : null}
+        </View>
+      )}
+
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        {VARIABLE_FIELDS.map((field) => (
+        {fields.map((field) => (
           <View key={field.id} style={styles.line}>
             <View style={styles.grow}>
               <Text style={{ color: colors.ink }}>{field.label}</Text>
@@ -119,6 +178,8 @@ export default function EarningsSettings({ settings, canEdit = false, onChange, 
         ))}
       </View>
 
+      {audience === 'hired' ? null : (
+      <>
       <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={[styles.group, { color: colors.ink }]}>Egne variabler</Text>
         {(settings.customVariables || []).map((row) => (
@@ -251,6 +312,8 @@ export default function EarningsSettings({ settings, canEdit = false, onChange, 
           </View>
         ) : null}
       </View>
+      </>
+      )}
     </View>
   );
 }

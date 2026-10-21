@@ -21,8 +21,6 @@ import { dueByContractId } from '../../src/indeksregulering/watch';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { matchCustomer } from '../../src/economy/desk';
 import { draftFromRegisteredContract } from '../../src/economy/fromContract';
-import EconomyContracts from './EconomyContracts';
-import EconomyCustomers from './EconomyCustomers';
 import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import IndexWorkspace from './IndexWorkspace';
@@ -338,8 +336,24 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return <EconomySettingsScreen />;
   }
 
-  if (page === 'inntjening') {
-    return <EconomyEarnings />;
+  if (page === 'inntjening' || page === 'kunder' || page === 'avtaler') {
+    const earningsSection = page === 'kunder' || page === 'avtaler' ? page : 'ansatte';
+    return (
+      <EconomyEarnings
+        section={earningsSection}
+        customers={customers}
+        contracts={contracts}
+        projects={projects}
+        timeEntries={state.timeEntries || []}
+        people={people}
+        onOpenCustomerRegister={() => requestShellTab?.('kunder')}
+        onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
+        onOpenContractRegister={() => requestShellTab?.('kontrakt')}
+        onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
+        onOpenProject={(projectId) => requestShellTab?.('projects', null, { type: 'openProject', projectId })}
+        onOpenIndex={openIndex}
+      />
+    );
   }
 
   return (
@@ -349,25 +363,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       keyboardShouldPersistTaps="handled"
     >
       {page === 'oversikt' ? <EconomyWelcome stored={company} familyId={familyId} /> : null}
-      {page === 'kunder' ? (
-        <EconomyCustomers
-          customers={customers}
-          contracts={contracts}
-          people={people}
-          onOpenRegister={() => requestShellTab?.('kunder')}
-          onOpenCustomer={(customerId) => requestShellTab?.('kunder', null, { type: 'openCustomer', customerId })}
-        />
-      ) : null}
-      {page === 'avtaler' ? (
-        <EconomyContracts
-          customers={customers}
-          contracts={contracts}
-          people={people}
-          onOpenRegister={() => requestShellTab?.('kontrakt')}
-          onOpenContract={(contractId) => requestShellTab?.('kontrakt', null, { type: 'openContract', contractId })}
-          onOpenIndex={openIndex}
-        />
-      ) : null}
       {page === 'oversikt' && !company?.navn ? (
         <View style={{ paddingTop: 8 }}>
           <Text style={{ color: colors.muted }}>

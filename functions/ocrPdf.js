@@ -14,11 +14,16 @@ import { createWorker } from 'tesseract.js';
 const require = createRequire(import.meta.url);
 const cachePath = path.join(os.tmpdir(), 'protop-tesseract');
 
-/** Tesseract takler tabeller bedre rundt 250–300 dpi; A4 ≈ 2480 px på langside. */
-const MAX_OCR_EDGE = 2800;
+/**
+ * Hosting-rewrite mot Cloud Functions har ~60 s tak.
+ * 1400 px på langside er nok for skarpe 1-bit-masker; side 1 OCR ligger typisk under ~10 s.
+ */
+const MAX_OCR_EDGE = 1400;
 /** Hopp over logoer og små stempler. */
 const MIN_IMAGE_EDGE = 180;
 const MIN_IMAGE_AREA = 80_000;
+/** Nok tekst fra tidlige sider → hopp over resten (unngå 502 timeout). */
+const EARLY_OCR_CHARS = 1200;
 
 let workerPromise = null;
 
@@ -303,7 +308,7 @@ function pageText(content) {
   return chunks.join('').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
 }
 
-export async function ocrPdfPages(buffer, { maxPages = 12 } = {}) {
+export async function ocrPdfPages(buffer, { maxPages = 12, earlyStopChars = EARLY_OCR_CHARS } = {}) {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   const { getDocument, OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await getDocument({
@@ -314,6 +319,7 @@ export async function ocrPdfPages(buffer, { maxPages = 12 } = {}) {
   const worker = await getWorker();
   const texts = [];
   const images = [];
+  let ocrChars = 0;
   try {
     const pages = Math.min(doc.numPages || 0, maxPages);
     for (let pageNo = 1; pageNo <= pages; pageNo += 1) {
@@ -327,11 +333,16 @@ export async function ocrPdfPages(buffer, { maxPages = 12 } = {}) {
         try {
           const recognized = await worker.recognize(png.buffer);
           const text = String(recognized?.data?.text || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-          if (text) texts.push(text);
+          if (text) {
+            texts.push(text);
+            ocrChars += text.length;
+          }
         } catch {
           // Gemini kan fortsatt lese bildet.
         }
       }
+      // Side 1 i oppdragsavtaler har vanligvis partene, honorar og NS — nok til autofyll.
+      if (earlyStopChars > 0 && ocrChars >= earlyStopChars) break;
     }
   } finally {
     await doc.destroy?.();

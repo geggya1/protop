@@ -4,17 +4,22 @@ import {
   addEmployeeExtra,
   addStandardLine,
   calculateEmployee,
+  calculateHired,
   defaultEarningsSettings,
   defaultStandardLines,
   defaultVariables,
+  earningsAudience,
   exactHourlyRate,
   hideEmployeeLine,
   projectEarnings,
   removeStandardLine,
   setEmployeeAmount,
   setEmployeeIncome,
+  setGrunnbelop,
   setVariable,
+  yearCapacity,
 } from './earnings.js';
+import { fetchGrunnbelop, grunnbelopIsStale, grunnbelopPeriod } from './grunnbelop.js';
 
 const photoAmounts = [950000, 50000, 5400, 37970, 85666, 7777, 1944, 833.33, 1150, 1840, 130160];
 
@@ -144,8 +149,9 @@ const holidayOverride = calculateEmployee({
   salaries: salary,
   settings: setEmployeeAmount(exampleSettings(), 'e1', 'feriepenger', 100000),
 });
-assert.equal(holidayOverride.lines.find((row) => row.id === 'feriepenger').amount, 100000);
-assert.equal(holidayOverride.lines.find((row) => row.id === 'aga-ferie').amount, 14100);
+assert.equal(holidayOverride.lines.find((row) => row.id === 'feriepenger').amount, 104500);
+assert.equal(holidayOverride.lines.find((row) => row.id === 'feriepenger').editable, false);
+assert.equal(holidayOverride.lines.find((row) => row.id === 'aga-ferie').amount, 14734.5);
 
 const withExtra = calculateEmployee({
   employee: person(),
@@ -258,5 +264,58 @@ const unallocated = projectEarnings({
 assert.equal(unallocated.rows[0].cost, null);
 assert.equal(unallocated.totals.cost, null);
 assert.equal(unallocated.rows[0].revenue, 16000);
+
+const fromCalendar = calculateEmployee({
+  employee: person(),
+  salaries: salary,
+  settings: defaults,
+  yearHours: 1600,
+});
+assert.equal(fromCalendar.hours, 1600);
+assert.equal(fromCalendar.lines.find((row) => row.id === 'feriepenger').source, 'formula');
+
+const capacity = yearCapacity(person(), null, { year: 2026 });
+assert.equal(capacity.year, 2026);
+assert.equal(capacity.vacationDays, 25);
+assert.ok(capacity.gross > capacity.hours);
+assert.ok(capacity.hours > 1400 && capacity.hours < 1900);
+assert.equal(yearCapacity(person({ company: { workPercent: '0' } }), null, { year: 2026 }).hours, 0);
+
+const hiredPerson = person({
+  id: 'h1',
+  company: { personnelKind: 'innleid', status: 'active', workPercent: '100', title: 'Konsulent' },
+});
+assert.equal(earningsAudience(person()), 'ansatte');
+assert.equal(earningsAudience(person({ company: { status: 'inactive' } })), '');
+assert.equal(earningsAudience(hiredPerson), 'innleide');
+assert.equal(earningsAudience(person({ company: { personnelKind: 'external', status: 'active' } })), 'innleide');
+const hired = calculateHired({
+  employee: hiredPerson,
+  settings: setEmployeeIncome(defaults, 'h1', { purchaseRate: 800, billableRate: 1200, billablePercent: 1 }),
+  yearHours: 100,
+});
+assert.equal(hired.kind, 'hired');
+assert.equal(hired.lines.length, 0);
+assert.equal(hired.totalCost, 80000);
+assert.equal(hired.revenue, 120000);
+assert.equal(hired.profit, 40000);
+assert.equal(hired.purchaseRate, 800);
+
+assert.deepEqual(grunnbelopPeriod('2026-05-01'), { from: '2026-05-01', to: '2027-04-30' });
+assert.equal(grunnbelopIsStale({ grunnbelopFetchedAt: '', grunnbelopTo: '2027-04-30' }, new Date(2026, 9, 21)), true);
+assert.equal(grunnbelopIsStale({ grunnbelopFetchedAt: '2026-05-02', grunnbelopTo: '2027-04-30' }, new Date(2026, 9, 21)), false);
+assert.equal(grunnbelopIsStale({ grunnbelopFetchedAt: '2026-05-02', grunnbelopTo: '2027-04-30' }, new Date(2027, 4, 1)), true);
+const fetched = await fetchGrunnbelop(async () => ({
+  ok: true,
+  json: async () => ({ dato: '2026-05-01', grunnbeloep: 140000 }),
+}), new Date(2026, 9, 21));
+assert.equal(fetched.grunnbelop, 140000);
+assert.equal(fetched.grunnbelopFrom, '2026-05-01');
+assert.equal(fetched.grunnbelopTo, '2027-04-30');
+assert.equal(fetched.grunnbelopFetchedAt, '2026-10-21');
+const stamped = setGrunnbelop(defaults, fetched);
+assert.equal(stamped.variables.grunnbelop, 140000);
+assert.equal(stamped.variables.grunnbelopFetchedAt, '2026-10-21');
+assert.equal(stamped.variables.feriepengerRate, defaults.variables.feriepengerRate);
 
 console.log('earnings.test.mjs: ok');

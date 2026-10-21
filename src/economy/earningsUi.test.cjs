@@ -36,8 +36,22 @@ const rnMock = {
 const employee = {
   id: 'e1',
   person: { firstName: 'Kari', lastName: 'Nordmann' },
-  company: { status: 'active', workPercent: '100', title: 'Rådgiver', employmentType: 'Fast' },
+  company: { status: 'active', workPercent: '100', title: 'Rådgiver', employmentType: 'Fast', personnelKind: 'staff' },
 };
+const people = [
+  employee,
+  {
+    id: 'e2',
+    person: { firstName: 'Per', lastName: 'Innleid' },
+    company: { status: 'active', personnelKind: 'innleid', workPercent: '100', title: 'Konsulent' },
+  },
+  {
+    id: 'e3',
+    person: { firstName: 'Sluttet', lastName: 'Person' },
+    company: { status: 'inactive', personnelKind: 'staff', title: 'Tidligere' },
+  },
+];
+global.fetch = async () => { throw new Error('offline'); };
 const salaries = [{ employeeId: 'e1', kind: 'actual', annualAmount: 950000, effectiveDate: '2026-01-01', currency: 'NOK' }];
 let settings;
 let updates = 0;
@@ -81,7 +95,10 @@ function hookedRequire(orig, id) {
   }
   if (id.endsWith('/firebase') || id.endsWith('/firebase.js')) return { db: {} };
   if (id.includes('employees/storage')) {
-    return { watchEmployees(_id, onData) { onData([employee]); return () => {}; } };
+    return { watchEmployees(_id, onData) { onData(people); return () => {}; } };
+  }
+  if (id.includes('vacationPlanStorage')) {
+    return { loadVacationPlan: async () => null };
   }
   if (id.includes('hr/storage')) return { loadHrState: async () => ({ salaries }) };
   if (id.includes('useEarningsSettings')) {
@@ -252,37 +269,70 @@ async function renderScreen() {
   const tree = await renderScreen();
   const text = collectText(tree).join('\n');
   assert.match(text, /Kari Nordmann/);
+  assert.doesNotMatch(text, /Per Innleid/);
+  assert.doesNotMatch(text, /Sluttet/);
   assert.match(text, /950\s?000/);
   assert.match(text, /lønn/i);
+  assert.match(text, /Ansatte/);
+  assert.match(text, /Innleide/);
+  assert.match(text, /Kunder/);
+  assert.match(text, /Prosjekt/);
+  assert.match(text, /Avtaler/);
+  assert.match(text, /Faktureringsgrad/);
   assert.doesNotMatch(text, /85\s?666/);
   assert.doesNotMatch(text, /37\s?970/);
   assert.doesNotMatch(text, /1\s?150/);
-  assert.match(text, /Variabler og standardfelt/);
+  assert.match(text, /Variabler/);
 
   const open = findPress(tree, 'earnings-open-e1');
   assert.equal(typeof open, 'function');
   open();
-  const person = await renderScreen();
-  const personText = collectText(person).join('\n');
-  assert.match(personText, /Rådgiver/);
-  assert.match(personText, /Fastlønn/);
-  assert.match(personText, /Fra lønn/);
-  assert.match(personText, /Feriepenger/);
-  const holiday = findProp(person, 'earnings-amount-feriepenger');
-  assert.equal(holiday.value, 104500);
+  let person = await renderScreen();
+  assert.match(collectText(person).join('\n'), /Rådgiver/);
+  assert.match(collectText(person).join('\n'), /Faktureringsgrad/);
+  findPress(person, 'earnings-group-direct')();
+  person = await renderScreen();
+  assert.match(collectText(person).join('\n'), /Fastlønn/);
+  assert.match(collectText(person).join('\n'), /Fra lønn/);
   const car = findProp(person, 'earnings-amount-bil');
   assert.equal(car.value, 0);
+  assert.equal(car.editable, true);
+  findPress(person, 'earnings-group-indirect')();
+  person = await renderScreen();
+  const personText = collectText(person).join('\n');
+  assert.match(personText, /Feriepenger/);
+  assert.match(personText, /Beregnet/);
+  assert.match(personText, /104\s?500/);
+  const holiday = findProp(person, 'earnings-amount-feriepenger');
+  assert.equal(holiday.value, 104500);
+  assert.equal(holiday.editable, false);
 
   const variables = findPress(person, 'earnings-open-variables');
   variables();
   const vars = await renderScreen();
   const varText = collectText(vars).join('\n');
   assert.match(varText, /Grunnbeløp/);
-  const grunnbelop = findProp(vars, 'earnings-var-grunnbelop');
-  assert.equal(grunnbelop.value, 136549);
+  assert.match(varText, /136\s?549/);
+  assert.match(varText, /Gjeldende/);
+  assert.equal(findProp(vars, 'earnings-var-grunnbelop'), null);
+  assert.equal(findProp(vars, 'earnings-var-normHours'), null);
+  assert.equal(findProp(vars, 'earnings-var-defaultBillablePercent'), null);
   const bil = findProp(vars, 'earnings-standard-amount-bil');
   assert.equal(bil.value, 0);
   assert.equal(updates, 0);
+
+  findPress(vars, 'earnings-tab-innleide')();
+  const hired = await renderScreen();
+  const hiredText = collectText(hired).join('\n');
+  assert.match(hiredText, /Per Innleid/);
+  assert.doesNotMatch(hiredText, /Kari Nordmann/);
+  assert.doesNotMatch(hiredText, /Feriepenger/);
+  findPress(hired, 'earnings-open-variables')();
+  const hiredVars = await renderScreen();
+  const hiredVarText = collectText(hiredVars).join('\n');
+  assert.match(hiredVarText, /innkj/i);
+  assert.doesNotMatch(hiredVarText, /Grunnbeløp/);
+  assert.doesNotMatch(hiredVarText, /Feriepengesats/);
 
   const ProjectEarningsTab = require(path.join(ROOT, 'components/project/ProjectEarningsTab.jsx')).default;
   const projectTree = callWithHooks(ProjectEarningsTab, {
@@ -297,7 +347,8 @@ async function renderScreen() {
   const projectText = collectText(projectTree).join('\n');
   assert.match(projectText, /Kari Nordmann/);
   assert.match(projectText, /14\s?400/);
-  assert.match(projectText, /Sett normtimer/);
+  assert.match(projectText, /Kostnad/);
+  assert.doesNotMatch(projectText, /Sett normtimer/);
 
   console.log('earningsUi.test.cjs: ok');
 })().catch((error) => {

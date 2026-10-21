@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { displayName } from '../../src/employees/model';
+import { displayName, personnelKind } from '../../src/employees/model';
 import { formatDate, formatMoney } from '../../src/economy/invoices';
 import { loadHrState } from '../../src/hr/storage';
+import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage';
 import {
   EARNINGS_GROUPS,
   addEmployeeExtra,
   calculateEmployee,
+  calculateHired,
   clearEmployeeAmount,
   hideEmployeeLine,
   pct,
@@ -17,6 +19,7 @@ import {
   setEmployeeAmount,
   setEmployeeIncome,
   updateEmployeeExtra,
+  yearCapacity,
 } from '../../src/economy/earnings';
 import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
 
@@ -34,7 +37,7 @@ function AmountInput({ value, onCommit, colors, editable, nativeID, suffix = '' 
   useEffect(() => { setText(formatPlain(value)); }, [value]);
   if (!editable) {
     const shown = suffix ? `${formatPlain(value)}${suffix}` : formatMoney(value);
-    return <Text style={[styles.amountText, { color: colors.ink }]}>{shown}</Text>;
+    return <Text nativeID={nativeID} style={[styles.amountText, { color: colors.ink }]}>{shown}</Text>;
   }
   return (
     <View style={styles.amountWrap}>
@@ -69,6 +72,7 @@ export default function EmployeeEarningsSheet({
   onChange,
   canEdit = false,
   colors,
+  capacity: capacityProp,
 }) {
   const owned = useEarningsSettings(settingsProp ? '' : companyId);
   const settings = settingsProp || owned.settings;
@@ -77,6 +81,9 @@ export default function EmployeeEarningsSheet({
   const [extraLabel, setExtraLabel] = useState('');
   const [extraAmount, setExtraAmount] = useState('');
   const [extraGroup, setExtraGroup] = useState('overhead');
+  const [openGroups, setOpenGroups] = useState({});
+  const [vacationPlan, setVacationPlan] = useState(null);
+  const hired = personnelKind(employee) === 'innleid' || personnelKind(employee) === 'external';
 
   useEffect(() => {
     if (salariesProp) {
@@ -91,9 +98,24 @@ export default function EmployeeEarningsSheet({
     return () => { live = false; };
   }, [companyId, employee?.id, salariesProp]);
 
+  useEffect(() => {
+    if (capacityProp || !companyId) return undefined;
+    let live = true;
+    loadVacationPlan(companyId).then((plan) => {
+      if (live) setVacationPlan(plan);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [capacityProp, companyId]);
+
+  const capacity = useMemo(
+    () => capacityProp || yearCapacity(employee, vacationPlan),
+    [capacityProp, employee, vacationPlan],
+  );
   const result = useMemo(
-    () => calculateEmployee({ employee, salaries, settings }),
-    [employee, salaries, settings],
+    () => (hired
+      ? calculateHired({ employee, settings, yearHours: capacity?.hours })
+      : calculateEmployee({ employee, salaries, settings, yearHours: capacity?.hours })),
+    [hired, employee, salaries, settings, capacity],
   );
   const company = employee?.company || {};
   const hiddenIds = settings.employees?.[employee?.id]?.hidden || [];
@@ -123,87 +145,54 @@ export default function EmployeeEarningsSheet({
     <View nativeID="employee-earnings-sheet" style={styles.wrap}>
       <Text style={[styles.title, { color: colors.ink }]}>{displayName(employee)}</Text>
       <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-        Lønn og stilling hentes fra personen. Andre beløp er satser bedriften har lagret.
+        {hired
+          ? 'Innleid personell kjøpes til avtalt timehonorar. Lønn, arbeidsgiveravgift og pensjon brukes ikke.'
+          : 'Lønn og stilling hentes fra personen. Feriepenger, avgift og pensjon regnes ut fra lønnen.'}
       </Text>
       <View style={styles.facts}>
         <Fact label="Stilling" value={company.title} colors={colors} />
         <Fact label="Stillingsprosent" value={position} colors={colors} />
         <Fact label="Ansettelse" value={company.employmentType} colors={colors} />
-        <Fact label="Lønnsform" value={company.compensationType} colors={colors} />
+        {hired ? null : <Fact label="Lønnsform" value={company.compensationType} colors={colors} />}
         <Fact label="Fra" value={company.periodFrom ? formatDate(company.periodFrom) : ''} colors={colors} />
-        <Fact
-          label="Årslønn"
-          value={result.salary.missing
-            ? 'Ingen lønn er registrert'
-            : `${formatMoney(result.salary.amount, result.salary.currency)}${result.salary.from ? ` fra ${formatDate(result.salary.from)}` : ''}`}
-          colors={colors}
-        />
+        {hired ? null : (
+          <Fact
+            label="Årslønn"
+            value={result.salary.missing
+              ? 'Ingen lønn er registrert'
+              : `${formatMoney(result.salary.amount, result.salary.currency)}${result.salary.from ? ` fra ${formatDate(result.salary.from)}` : ''}`}
+            colors={colors}
+          />
+        )}
       </View>
 
-      {EARNINGS_GROUPS.map((group) => {
-        const rows = result.lines.filter((row) => row.group === group.id);
-        const sum = group.id === 'direct' ? result.direct : group.id === 'indirect' ? result.indirect : result.overhead;
-        const ratio = group.id === 'indirect' ? result.indirectRatio : group.id === 'overhead' ? result.overheadRatio : null;
-        return (
-          <View key={group.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={[styles.groupTitle, { color: colors.ink }]}>{group.label}</Text>
-            {rows.map((row) => (
-              <View key={row.id} nativeID={`earnings-line-${row.id}`} style={[styles.line, { borderBottomColor: colors.line }]}>
-                <View style={styles.lineLabel}>
-                  <Text style={{ color: colors.ink }}>{row.label}</Text>
-                  {row.rateLabel ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.rateLabel}</Text> : null}
-                  {row.source === 'salary' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Fra lønn</Text> : null}
-                  {row.source === 'override' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Individuell</Text> : null}
-                </View>
-                <AmountInput
-                  value={row.amount}
-                  editable={canEdit && row.kind !== 'salary'}
-                  colors={colors}
-                  nativeID={`earnings-amount-${row.id}`}
-                  onCommit={(amount) => commitAmount(row, amount)}
-                />
-                {canEdit && row.source === 'override' ? (
-                  <TouchableOpacity
-                    onPress={() => change(clearEmployeeAmount(settings, employee.id, row.id))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Bruk standard for ${row.label}`}
-                  >
-                    <Text style={{ color: colors.brand, fontSize: 12 }}>Standard</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {canEdit && row.extra ? (
-                  <TouchableOpacity
-                    onPress={() => change(removeEmployeeExtra(settings, employee.id, row.id))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Fjern ${row.label}`}
-                  >
-                    <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Fjern</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {canEdit && !row.extra && row.kind !== 'salary' ? (
-                  <TouchableOpacity
-                    onPress={() => change(hideEmployeeLine(settings, employee.id, row.id))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Skjul ${row.label}`}
-                  >
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>Skjul</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ))}
-            {!rows.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen linjer.</Text> : null}
-            <View style={styles.sumRow}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Sum</Text>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>
-                {formatMoney(sum)}{ratio != null ? ` · ${pct(ratio)}` : ''}
+      <View nativeID="earnings-income" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Text style={[styles.groupTitle, { color: colors.ink }]}>{hired ? 'Avtalt honorar' : 'Forventet inntjening'}</Text>
+        {hired ? (
+          <View style={styles.line}>
+            <View style={styles.lineLabel}>
+              <Text style={{ color: colors.ink }}>Innkjøpspris per time</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {result.purchaseSource === 'override' ? 'Avtalt for personen' : 'Standard for innleide'}
               </Text>
             </View>
+            <AmountInput
+              value={result.purchaseRate}
+              editable={canEdit}
+              colors={colors}
+              nativeID="earnings-purchase-rate"
+              onCommit={(value) => change(setEmployeeIncome(settings, employee.id, { purchaseRate: value }))}
+            />
+            {canEdit && result.purchaseSource === 'override' ? (
+              <TouchableOpacity
+                onPress={() => change(setEmployeeIncome(settings, employee.id, { purchaseRate: null }))}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.brand, fontSize: 12 }}>Standard</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-        );
-      })}
-
-      <View nativeID="earnings-income" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={[styles.groupTitle, { color: colors.ink }]}>Forventet inntjening</Text>
+        ) : null}
         <View style={styles.line}>
           <View style={styles.lineLabel}>
             <Text style={{ color: colors.ink }}>Faktureringsgrad</Text>
@@ -251,8 +240,12 @@ export default function EmployeeEarningsSheet({
             </TouchableOpacity>
           ) : null}
         </View>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Normtimer {formatPlain(result.hours)} · fakturerbare {formatPlain(result.billableHours)}
+        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+          {capacity
+            ? `Disponible timer ${capacity.year}: ${formatPlain(capacity.gross)} timer, minus ${formatPlain(capacity.vacationDays)} feriedager (${formatPlain(capacity.vacationHours)} t) = ${formatPlain(capacity.hours)} t.`
+            : `Timer ${formatPlain(result.hours)}.`}
+          {result.hoursSource === 'override' ? ` Avtalt timetall ${formatPlain(result.hours)} t brukes.` : ''}
+          {` Fakturerbare ${formatPlain(result.billableHours)}.`}
         </Text>
         <View style={styles.sumRow}>
           <Text style={{ color: colors.ink }}>Forventet honorar</Text>
@@ -268,13 +261,84 @@ export default function EmployeeEarningsSheet({
             {formatMoney(result.profit)}{result.margin != null ? ` · ${pct(result.margin)}` : ''}
           </Text>
         </View>
-        <View style={styles.sumRow}>
-          <Text style={{ color: colors.ink }}>Nullpunkt, timepris</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            {result.breakEvenRate == null ? '—' : formatMoney(result.breakEvenRate)}
-          </Text>
-        </View>
+        {hired ? null : (
+          <View style={styles.sumRow}>
+            <Text style={{ color: colors.ink }}>Nullpunkt, timepris</Text>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>
+              {result.breakEvenRate == null ? '—' : formatMoney(result.breakEvenRate)}
+            </Text>
+          </View>
+        )}
       </View>
+
+      {hired ? null : EARNINGS_GROUPS.map((group) => {
+        const rows = result.lines.filter((row) => row.group === group.id);
+        const sum = group.id === 'direct' ? result.direct : group.id === 'indirect' ? result.indirect : result.overhead;
+        const ratio = group.id === 'indirect' ? result.indirectRatio : group.id === 'overhead' ? result.overheadRatio : null;
+        const expanded = !!openGroups[group.id];
+        return (
+          <View key={group.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <TouchableOpacity
+              nativeID={`earnings-group-${group.id}`}
+              onPress={() => setOpenGroups((current) => ({ ...current, [group.id]: !current[group.id] }))}
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              style={styles.sumRow}
+            >
+              <Text style={[styles.groupTitle, { color: colors.ink }]}>{expanded ? '▾' : '▸'} {group.label}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>
+                {formatMoney(sum)}{ratio != null ? ` · ${pct(ratio)}` : ''}
+              </Text>
+            </TouchableOpacity>
+            {expanded ? rows.map((row) => (
+              <View key={row.id} nativeID={`earnings-line-${row.id}`} style={[styles.line, { borderBottomColor: colors.line }]}>
+                <View style={styles.lineLabel}>
+                  <Text style={{ color: colors.ink }}>{row.label}</Text>
+                  {row.rateLabel ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.rateLabel}</Text> : null}
+                  {row.source === 'salary' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Fra lønn</Text> : null}
+                  {row.source === 'formula' || row.source === 'percent' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Beregnet</Text> : null}
+                  {row.source === 'override' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Individuell</Text> : null}
+                </View>
+                <AmountInput
+                  value={row.amount}
+                  editable={canEdit && row.editable}
+                  colors={colors}
+                  nativeID={`earnings-amount-${row.id}`}
+                  onCommit={(amount) => commitAmount(row, amount)}
+                />
+                {canEdit && row.source === 'override' ? (
+                  <TouchableOpacity
+                    onPress={() => change(clearEmployeeAmount(settings, employee.id, row.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Bruk standard for ${row.label}`}
+                  >
+                    <Text style={{ color: colors.brand, fontSize: 12 }}>Standard</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {canEdit && row.extra ? (
+                  <TouchableOpacity
+                    onPress={() => change(removeEmployeeExtra(settings, employee.id, row.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Fjern ${row.label}`}
+                  >
+                    <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Fjern</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {canEdit && !row.extra && row.kind !== 'salary' ? (
+                  <TouchableOpacity
+                    onPress={() => change(hideEmployeeLine(settings, employee.id, row.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Skjul ${row.label}`}
+                  >
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Skjul</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            )) : null}
+            {expanded && !rows.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen linjer.</Text> : null}
+          </View>
+        );
+      })}
 
       {canEdit && hiddenIds.length ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -295,7 +359,7 @@ export default function EmployeeEarningsSheet({
         </View>
       ) : null}
 
-      {canEdit ? (
+      {canEdit && !hired ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={[styles.groupTitle, { color: colors.ink }]}>Egen linje for denne personen</Text>
           <TextInput

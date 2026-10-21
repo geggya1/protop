@@ -111,7 +111,8 @@ export default function EmployeesScreen() {
   const access = useCompanyAccess();
   const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.can('employees', 'write'));
   const canInvite = isAdmin;
-  const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
+  const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
+    || (access.ready && access.can('accessControl', 'write'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = family?.company?.navn || family?.name || '';
   const departments = useMemo(

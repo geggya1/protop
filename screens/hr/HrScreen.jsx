@@ -37,8 +37,17 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   const access = useCompanyAccess();
   const page = defaultHrSubView(subView);
-  const canSee = access.can('hr', 'see');
-  const canWrite = access.can('hr', 'write');
+  const hrResource = ({
+    oversikt: 'hr',
+    personell: 'hrPeople',
+    avtaler: 'hrAgreements',
+    lonn: 'hrPayroll',
+    oppfolging: 'hrFollowup',
+    compliance: 'hrCompliance',
+    rekruttering: 'hrRecruitment',
+  })[page] || 'hr';
+  const canSee = access.can(hrResource, 'see');
+  const canWrite = access.can(hrResource, 'write');
 
   const [employees, setEmployees] = useState([]);
   const [hr, setHr] = useState(emptyHrState());

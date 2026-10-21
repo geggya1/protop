@@ -6,6 +6,8 @@
 
 import {
   allows,
+  allowsEconomy,
+  allowsHr,
   companyTabAllowed,
   COMPANY_TAB_IDS,
   resolveActorAccess,
@@ -459,7 +461,7 @@ export function memberView(world, companyId, uid) {
       grants,
     };
   }
-  const admin = allows(grants, 'hr', 'read') || company.ownerUid === uid;
+  const admin = allowsHr(grants, 'read') || company.ownerUid === uid;
   const rows = allows(grants, 'employees', 'see')
     ? filterEmployees(company.employees, { status: 'active' })
     : [];
@@ -477,7 +479,7 @@ export function memberView(world, companyId, uid) {
   });
   const self = company.employees.find((row) => row.personUid === uid);
   let hr = null;
-  if (allows(grants, 'hr', 'read')) hr = clone(company.hr);
+  if (allowsHr(grants, 'read')) hr = clone(company.hr);
   else if (self) hr = employeeVisibleSlice(company.hr, self.id);
   return {
     inside: true,
@@ -485,11 +487,11 @@ export function memberView(world, companyId, uid) {
     tabs: COMPANY_TAB_IDS.filter((tab) => companyTabAllowed(tab, null, grants)),
     employees,
     nationalIds: employees.map((row) => row.nationalId),
-    books: allows(grants, 'economy', 'read') ? clone(company.books) : null,
+    books: allowsEconomy(grants, 'read') ? clone(company.books) : null,
     hr,
     wall: company.wall.filter((post) => !post.deleted).map((post) => post.body),
     canPublish: company.ownerUid === uid || allows(grants, 'companyProfile', 'write'),
-    settings: allows(grants, 'companyProfile', 'read') || company.ownerUid === uid,
+    settings: allows(grants, 'companyProfile', 'read') || allows(grants, 'accessControl', 'read') || company.ownerUid === uid,
     units: allows(grants, 'units', 'see'),
     grants,
   };

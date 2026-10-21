@@ -18,50 +18,110 @@ export const ACCESS_ACTIONS = [
   { id: 'delete', label: 'Slette' },
 ];
 
+/**
+ * Rettighetskatalog som speiler bedriftsmenyen.
+ * Nye moduler, undersider og innstillinger legges her — da dukker de opp i
+ * tilgangsstyringen og kan styre navigasjon via NAV_RESOURCE / RESOURCE_PARENT.
+ */
 export const ACCESS_GROUPS = [
   {
     id: 'company',
-    label: 'Bedrift',
+    label: 'Selskap og organisasjon',
     resources: [
-      { id: 'companyPublic', label: 'Offentlig bedriftsinfo', hint: 'Navn, org.nr. og adresse.' },
-      { id: 'companyProfile', label: 'Bedriftsprofil og grunninnstillinger', hint: 'Logo, kontakt, næringskoder og denne siden.' },
+      { id: 'companyPublic', label: 'Selskap / offentlig bedriftsinfo', hint: 'Navn, org.nr. og adresse.' },
+      { id: 'companyProfile', label: 'Selskapsinnstillinger', hint: 'Logo, kontakt, næringskoder og bedriftsprofil.' },
+      { id: 'accessControl', label: 'Tilgangsstyring', hint: 'Nivåer, personer og rettighetsmatrise.' },
       { id: 'units', label: 'Underenheter og avdelinger' },
     ],
   },
   {
     id: 'people',
-    label: 'Folk',
+    label: 'Ansatte og arbeidstid',
     resources: [
-      { id: 'employees', label: 'Medarbeidere' },
+      { id: 'employees', label: 'Ansatte' },
       { id: 'ownProfile', label: 'Egen profil' },
       {
         id: 'hr',
-        label: 'HR',
-        hint: 'Personal, lønn, oppfølging og rekruttering. Ikke synlig for vanlige ansatte — de ser delte poster på Min side.',
+        label: 'HR — oversikt',
+        hint: 'HR-modul for leder. Vanlige ansatte ser delte poster på Min side.',
       },
+      { id: 'hrPeople', label: 'HR — personell' },
+      { id: 'hrAgreements', label: 'HR — avtaler' },
+      { id: 'hrPayroll', label: 'HR — lønn' },
+      { id: 'hrFollowup', label: 'HR — oppfølging' },
+      { id: 'hrCompliance', label: 'HR — lov & ISO' },
+      { id: 'hrRecruitment', label: 'HR — rekruttering' },
+      { id: 'absence', label: 'Fraværsoversikt' },
+      { id: 'absenceReport', label: 'Fraværsrapport' },
+      { id: 'absencePlanned', label: 'Planlagt fravær' },
+      { id: 'absenceSettings', label: 'Fraværsinnstillinger' },
+      { id: 'hours', label: 'Timeliste (egne timer)' },
+      { id: 'hoursOthers', label: 'Andres timer' },
+      { id: 'hoursReport', label: 'Timerapport' },
+      { id: 'hoursBalance', label: 'Timesaldo' },
+      { id: 'hoursApproval', label: 'Godkjenninger' },
     ],
   },
   {
-    id: 'work',
-    label: 'Arbeid',
+    id: 'customers',
+    label: 'Kunder og oppdrag',
     resources: [
       { id: 'customers', label: 'Kunder' },
-      { id: 'tenders', label: 'Anbud', hint: 'Anbudsvarsling og forespørsel.' },
-      { id: 'offers', label: 'Tilbud', hint: 'Tilbud i anbudsløpet.' },
+      { id: 'tenders', label: '1.1 Anbudsvarsling', hint: 'Anbudsvarsling.' },
+      { id: 'tenderRequest', label: '1.2 Anbudsforespørsel' },
+      { id: 'tenderReview', label: '2. Vurdering av aktuelle' },
+      { id: 'offers', label: '3. Tilbud', hint: 'Tilbud i anbudsløpet.' },
+      { id: 'tenderSettings', label: 'Anbudsinnstillinger' },
       { id: 'contracts', label: 'Kontrakt / avtale' },
-      { id: 'forms', label: 'Skjema og sjekklister' },
       { id: 'projects', label: 'Prosjekt' },
       { id: 'assignedProjects', label: 'Tildelte prosjekt' },
-      { id: 'hours', label: 'Egne timer' },
-      { id: 'hoursOthers', label: 'Andres timer' },
-      { id: 'iso', label: 'ISO' },
+      { id: 'forms', label: 'Skjema og sjekklister' },
+    ],
+  },
+  {
+    id: 'productivity',
+    label: 'Produktivitet',
+    resources: [
+      { id: 'productivity', label: 'Produktivitet' },
+    ],
+  },
+  {
+    id: 'resources',
+    label: 'Produkter og driftsressurser',
+    resources: [
+      { id: 'productSales', label: 'Produktsalg' },
+      { id: 'products', label: 'Produktkatalog' },
+      { id: 'equipment', label: 'Utstyr' },
+      { id: 'mileage', label: 'Kjørebok' },
     ],
   },
   {
     id: 'economy',
-    label: 'Økonomi',
+    label: 'Økonomi og fakturering',
     resources: [
-      { id: 'economy', label: 'Regnskap og økonomi' },
+      {
+        id: 'economy',
+        label: 'Økonomi (hele modulen)',
+        hint: 'Overordnet rettighet. Undersidene kan settes finere under.',
+      },
+      { id: 'economyOverview', label: 'Oversikt' },
+      { id: 'economyEarnings', label: 'Inntjening' },
+      { id: 'economyCustomers', label: 'Kundesummer' },
+      { id: 'economyContracts', label: 'Avtalesummer' },
+      { id: 'economyInvoices', label: 'Faktura' },
+      { id: 'economyBilling', label: 'Fakturagrunnlag' },
+      { id: 'economyExpenses', label: 'Utlegg' },
+      { id: 'economyProjectExpenses', label: 'Prosjektutlegg' },
+      { id: 'economyIndex', label: 'Indeksregulering' },
+      { id: 'economyIndices', label: 'Indekser' },
+      { id: 'economySettings', label: 'Økonomiinnstillinger' },
+    ],
+  },
+  {
+    id: 'quality',
+    label: 'Kvalitet og styringssystem',
+    resources: [
+      { id: 'iso', label: 'ISO' },
     ],
   },
   {
@@ -79,6 +139,66 @@ export const ACCESS_GROUPS = [
 
 export const ACCESS_RESOURCES = ACCESS_GROUPS.flatMap((group) => group.resources);
 export const RESOURCE_IDS = ACCESS_RESOURCES.map((row) => row.id);
+
+/** Undersider som arver fra en eldre/overordnet rettighet når egen verdi mangler i lagret policy. */
+export const RESOURCE_PARENT = {
+  accessControl: 'companyProfile',
+  hrPeople: 'hr',
+  hrAgreements: 'hr',
+  hrPayroll: 'hr',
+  hrFollowup: 'hr',
+  hrCompliance: 'hr',
+  hrRecruitment: 'hr',
+  absence: 'hours',
+  absenceReport: 'hours',
+  absencePlanned: 'hours',
+  absenceSettings: 'companyProfile',
+  hoursReport: 'hours',
+  hoursBalance: 'hours',
+  hoursApproval: 'hours',
+  productivity: 'hours',
+  productSales: 'hours',
+  products: 'economy',
+  mileage: 'economy',
+  economyOverview: 'economy',
+  economyEarnings: 'economy',
+  economyCustomers: 'economy',
+  economyContracts: 'economy',
+  economyInvoices: 'economy',
+  economyBilling: 'economy',
+  economyExpenses: 'economy',
+  economyProjectExpenses: 'hours',
+  economyIndex: 'economy',
+  economyIndices: 'economy',
+  economySettings: 'companyProfile',
+  tenderRequest: 'tenders',
+  tenderReview: 'tenders',
+  tenderSettings: 'tenders',
+};
+
+export const HR_PAGE_RESOURCES = [
+  'hr', 'hrPeople', 'hrAgreements', 'hrPayroll', 'hrFollowup', 'hrCompliance', 'hrRecruitment',
+];
+
+/**
+ * Regnskapssider som gir innsyn i økonomidata.
+ * Prosjektutlegg følger timer. Økonomiinnstillinger er egen innstillingsrettighet.
+ */
+export const ECONOMY_PAGE_RESOURCES = [
+  'economy', 'economyOverview', 'economyEarnings', 'economyCustomers', 'economyContracts',
+  'economyInvoices', 'economyBilling', 'economyExpenses',
+  'economyIndex', 'economyIndices',
+];
+
+export const COMPANY_SETTINGS_RESOURCES = [
+  'companyPublic',
+  'companyProfile',
+  'accessControl',
+  'units',
+  'absenceSettings',
+  'economySettings',
+  'tenderSettings',
+];
 
 export const ACCESS_LEVELS = [
   {
@@ -196,17 +316,85 @@ function fill(partial) {
   return { ...blankGrants(), ...partial };
 }
 
+/** Timer, fravær, produktivitet og nærliggende undersider. */
+function hoursSurface(rank) {
+  return {
+    hours: rank,
+    hoursReport: rank,
+    hoursBalance: rank,
+    hoursApproval: rank,
+    absence: rank,
+    absenceReport: rank,
+    absencePlanned: rank,
+    productivity: rank,
+    productSales: rank,
+    economyProjectExpenses: rank,
+  };
+}
+
+/** Økonomisider som tidligere lå under én economy-rettighet. */
+function economySurface(rank) {
+  return {
+    economy: rank,
+    economyOverview: rank,
+    economyEarnings: rank,
+    economyCustomers: rank,
+    economyContracts: rank,
+    economyInvoices: rank,
+    economyBilling: rank,
+    economyExpenses: rank,
+    economyIndex: rank,
+    economyIndices: rank,
+    mileage: rank,
+    products: rank,
+  };
+}
+
+/** HR-undersider følger HR-modulen. */
+function hrSurface(rank) {
+  return {
+    hr: rank,
+    hrPeople: rank,
+    hrAgreements: rank,
+    hrPayroll: rank,
+    hrFollowup: rank,
+    hrCompliance: rank,
+    hrRecruitment: rank,
+  };
+}
+
+/** Anbudssteg som tidligere lå under tenders. */
+function tenderSurface(rank) {
+  return {
+    tenders: rank,
+    tenderRequest: rank,
+    tenderReview: rank,
+    tenderSettings: rank,
+  };
+}
+
+/** Innstillinger som tidligere krevde companyProfile. */
+function settingsFromProfile(rank) {
+  return {
+    companyProfile: rank,
+    accessControl: rank,
+    absenceSettings: rank,
+    economySettings: rank,
+  };
+}
+
 const STANDARD = {
   regnskap_ekstern: fill({
     companyPublic: 'read',
     ownProfile: 'read',
-    economy: 'read',
+    ...economySurface('read'),
   }),
   innleie_ekstern: fill({
     companyPublic: 'read',
     assignedProjects: 'read',
-    hours: 'write',
     ownProfile: 'read',
+    ...hoursSurface('write'),
+    equipment: 'see',
   }),
   ansatt: fill({
     companyPublic: 'read',
@@ -216,7 +404,8 @@ const STANDARD = {
     forms: 'write',
     projects: 'read',
     assignedProjects: 'read',
-    hours: 'write',
+    ...hoursSurface('write'),
+    equipment: 'read',
     iso: 'read',
   }),
   tilbud: fill({
@@ -225,13 +414,14 @@ const STANDARD = {
     employees: 'read',
     ownProfile: 'write',
     customers: 'read',
-    tenders: 'read',
+    ...tenderSurface('read'),
     offers: 'write',
     contracts: 'read',
     forms: 'write',
     projects: 'read',
     assignedProjects: 'read',
-    hours: 'write',
+    ...hoursSurface('write'),
+    equipment: 'read',
     iso: 'read',
   }),
   ansatt_andre_avdelinger: fill({
@@ -242,46 +432,49 @@ const STANDARD = {
     forms: 'write',
     projects: 'read',
     assignedProjects: 'read',
-    hours: 'write',
+    ...hoursSurface('write'),
     hoursOthers: 'see',
+    equipment: 'read',
     iso: 'read',
   }),
   avdelingsleder: fill({
     companyPublic: 'read',
-    companyProfile: 'read',
+    ...settingsFromProfile('read'),
     units: 'write',
     employees: 'write',
     ownProfile: 'write',
-    hr: 'read',
+    ...hrSurface('read'),
     customers: 'write',
-    tenders: 'read',
+    ...tenderSurface('read'),
     offers: 'read',
     contracts: 'read',
     forms: 'write',
     projects: 'write',
     assignedProjects: 'write',
-    hours: 'write',
+    ...hoursSurface('write'),
     hoursOthers: 'write',
+    equipment: 'write',
     iso: 'write',
   }),
   leder: fill({
     companyPublic: 'read',
-    companyProfile: 'read',
+    ...settingsFromProfile('read'),
     units: 'read',
     employees: 'delete',
     ownProfile: 'write',
-    hr: 'delete',
+    ...hrSurface('delete'),
     customers: 'delete',
-    tenders: 'delete',
+    ...tenderSurface('delete'),
     offers: 'delete',
     contracts: 'delete',
     forms: 'delete',
     projects: 'delete',
     assignedProjects: 'delete',
-    hours: 'delete',
+    ...hoursSurface('delete'),
     hoursOthers: 'delete',
+    equipment: 'delete',
     iso: 'delete',
-    economy: 'delete',
+    ...economySurface('delete'),
     viewAs: 'write',
   }),
   administrator: fill(
@@ -331,6 +524,57 @@ export function allows(grants, resource, action) {
   return rankValue(grants?.[resource]) >= rankValue(need);
 }
 
+/** Direkte rettighet, ellers overordnet ressurs (for eldre policy og samlet modulrettighet). */
+export function allowsEffective(grants, resource, action) {
+  if (allows(grants, resource, action)) return true;
+  const parent = RESOURCE_PARENT[resource];
+  if (!parent || parent === resource) return false;
+  return allows(grants, parent, action);
+}
+
+export function allowsAny(grants, resources, action) {
+  return (resources || []).some((id) => allowsEffective(grants, id, action));
+}
+
+export function allowsEconomy(grants, action) {
+  return allowsAny(grants, ECONOMY_PAGE_RESOURCES, action);
+}
+
+export function allowsHr(grants, action) {
+  return allowsAny(grants, HR_PAGE_RESOURCES, action);
+}
+
+export function hrResourceForSubView(subView) {
+  const map = {
+    oversikt: 'hr',
+    personell: 'hrPeople',
+    avtaler: 'hrAgreements',
+    lonn: 'hrPayroll',
+    oppfolging: 'hrFollowup',
+    compliance: 'hrCompliance',
+    rekruttering: 'hrRecruitment',
+  };
+  return map[subView] || 'hr';
+}
+
+export function economyResourceForSubView(subView) {
+  const map = {
+    oversikt: 'economyOverview',
+    inntjening: 'economyEarnings',
+    kunder: 'economyCustomers',
+    avtaler: 'economyContracts',
+    faktura: 'economyInvoices',
+    fakturagrunnlag: 'economyBilling',
+    utlegg: 'economyExpenses',
+    indeks: 'economyIndex',
+    indekser: 'economyIndices',
+    innstillinger: 'economySettings',
+    produkter: 'products',
+    kjorebok: 'mileage',
+  };
+  return map[subView] || 'economy';
+}
+
 export function checksFromGrant(grant) {
   const value = rankValue(grant);
   return {
@@ -374,6 +618,14 @@ export function levelGrants(policy, levelId) {
   if (!saved || typeof saved !== 'object') return grants;
   for (const id of RESOURCE_IDS) {
     if (ACCESS_RANKS.includes(saved[id])) grants[id] = saved[id];
+  }
+  // Eldre lagrede nivå har ofte bare overordnet nøkkel. Fyll undersider som ikke
+  // er lagret eksplisitt, så utvidet katalog ikke mister tilpasset tilgang.
+  for (const [child, parent] of Object.entries(RESOURCE_PARENT)) {
+    if (!RESOURCE_IDS.includes(child) || !RESOURCE_IDS.includes(parent)) continue;
+    if (ACCESS_RANKS.includes(saved[child])) continue;
+    if (!ACCESS_RANKS.includes(saved[parent])) continue;
+    grants[child] = saved[parent];
   }
   return grants;
 }
@@ -645,7 +897,59 @@ const COMPANY_TAB_RESOURCE = {
   projects: 'projects',
   iso: 'iso',
   okonomi: 'economy',
-  utstyr: 'projects',
+  utstyr: 'equipment',
+};
+
+/** Meny-id → rettighetsressurs. Foreldre uten egen rad dekkes i navItemAllowed. */
+const NAV_RESOURCE = {
+  selskap: 'companyPublic',
+  underenheter: 'units',
+  selskapsinnstillinger: 'companyProfile',
+  'selskapsinnstillinger-tilgang': 'accessControl',
+  tilgang: 'accessControl',
+  ansatte: 'employees',
+  hr: 'hr',
+  'hr-oversikt': 'hr',
+  'hr-personell': 'hrPeople',
+  'hr-avtaler': 'hrAgreements',
+  'hr-lonn': 'hrPayroll',
+  'hr-oppfolging': 'hrFollowup',
+  'hr-compliance': 'hrCompliance',
+  'hr-rekruttering': 'hrRecruitment',
+  'fravaer-fravaer': 'absence',
+  'fravaer-fravaersrapport': 'absenceReport',
+  'fravaer-planlagt': 'absencePlanned',
+  'fravaer-innstillinger': 'absenceSettings',
+  'arbeid-timeliste': 'hours',
+  'arbeid-timerapport': 'hoursReport',
+  'arbeid-timesaldo': 'hoursBalance',
+  'arbeid-godkjenning': 'hoursApproval',
+  produktivitet: 'productivity',
+  kunder: 'customers',
+  'anbud-varsling': 'tenders',
+  'anbud-foresporsel': 'tenderRequest',
+  'anbud-vurdering': 'tenderReview',
+  'anbud-tilbud': 'offers',
+  'anbud-innstillinger': 'tenderSettings',
+  kontrakt: 'contracts',
+  projects: 'projects',
+  'produkt-salg': 'productSales',
+  'produkt-produkter': 'products',
+  utstyr: 'equipment',
+  kjorebok: 'mileage',
+  'okonomi-oversikt': 'economyOverview',
+  'okonomi-inntjening': 'economyEarnings',
+  'okonomi-kunder': 'economyCustomers',
+  'okonomi-avtaler': 'economyContracts',
+  'okonomi-faktura': 'economyInvoices',
+  'okonomi-fakturagrunnlag': 'economyBilling',
+  'okonomi-utlegg': 'economyExpenses',
+  'okonomi-prosjektutlegg': 'economyProjectExpenses',
+  'okonomi-indeks': 'economyIndex',
+  'okonomi-indekser': 'economyIndices',
+  'okonomi-innstillinger': 'economySettings',
+  skjema: 'forms',
+  iso: 'iso',
 };
 
 export const COMPANY_TAB_IDS = [
@@ -653,85 +957,152 @@ export const COMPANY_TAB_IDS = [
   'skjema', 'projects', 'arbeid', 'utstyr', 'iso', 'okonomi',
 ];
 
+function hoursAllowed(grants) {
+  return allowsEffective(grants, 'hours', 'see') || allowsEffective(grants, 'hoursOthers', 'see');
+}
+
+function seeResource(grants, resource) {
+  return allowsEffective(grants, resource, 'see');
+}
+
+function readResource(grants, resource) {
+  return allowsEffective(grants, resource, 'read');
+}
+
 export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
-  if (tab === 'selskap' && subView === 'underenheter') return allows(grants, 'units', 'see');
-  if (tab === 'selskap' && subView === 'tilgang') return allows(grants, 'companyProfile', 'read');
-  if (tab === 'selskap' && (
-    subView === 'innstillinger'
-    || subView === 'fravaerstyper'
-    || subView === 'kontoplan'
-    || subView === 'regnskapskontoer'
-    || subView === 'fridager'
-  )) return allows(grants, 'companyProfile', 'read');
-  if (tab === 'underenheter') return allows(grants, 'units', 'see');
+  if (tab === 'selskap' && subView === 'underenheter') return seeResource(grants, 'units');
+  if (tab === 'selskap' && subView === 'tilgang') return readResource(grants, 'accessControl');
+  if (tab === 'selskap' && subView === 'innstillinger') return readResource(grants, 'companyProfile');
+  if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager')) {
+    return readResource(grants, 'absenceSettings');
+  }
+  if (tab === 'selskap' && (subView === 'kontoplan' || subView === 'regnskapskontoer')) {
+    return readResource(grants, 'economySettings');
+  }
+  if (tab === 'underenheter') return seeResource(grants, 'units');
   if (tab === 'utstyr') {
-    return allows(grants, 'projects', 'see')
-      || allows(grants, 'assignedProjects', 'see')
+    return seeResource(grants, 'equipment')
+      || seeResource(grants, 'projects')
+      || seeResource(grants, 'assignedProjects')
       || hoursAllowed(grants);
   }
   if (tab === 'arbeid' && subView === 'fravaer-innstillinger') {
-    return allows(grants, 'companyProfile', 'read');
+    return readResource(grants, 'absenceSettings');
   }
-  if (tab === 'okonomi' && subView === 'innstillinger') {
-    return allows(grants, 'companyProfile', 'read');
+  if (tab === 'arbeid' && subView === 'produktivitet') return seeResource(grants, 'productivity');
+  if (tab === 'arbeid' && subView === 'salg') return seeResource(grants, 'productSales');
+  if (tab === 'arbeid' && subView === 'utlegg') return seeResource(grants, 'economyProjectExpenses');
+  if (tab === 'arbeid' && (subView === 'fravaer' || subView === 'fravaersrapport' || subView === 'planlagt')) {
+    const map = {
+      fravaer: 'absence',
+      fravaersrapport: 'absenceReport',
+      planlagt: 'absencePlanned',
+    };
+    return seeResource(grants, map[subView]);
   }
+  if (tab === 'arbeid' && subView === 'timeliste') return seeResource(grants, 'hours') || hoursAllowed(grants);
+  if (tab === 'arbeid' && subView === 'timerapport') return seeResource(grants, 'hoursReport');
+  if (tab === 'arbeid' && subView === 'timesaldo') return seeResource(grants, 'hoursBalance');
+  if (tab === 'arbeid' && subView === 'godkjenning') return seeResource(grants, 'hoursApproval');
   if (tab === 'arbeid') {
-    return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+    return hoursAllowed(grants)
+      || seeResource(grants, 'productivity')
+      || seeResource(grants, 'productSales')
+      || seeResource(grants, 'economyProjectExpenses')
+      || seeResource(grants, 'absence')
+      || seeResource(grants, 'absenceReport')
+      || seeResource(grants, 'absencePlanned')
+      || readResource(grants, 'absenceSettings');
+  }
+  if (tab === 'okonomi') {
+    if (subView === 'innstillinger') return readResource(grants, 'economySettings');
+    if (subView === 'kjorebok') return seeResource(grants, 'mileage');
+    if (subView === 'produkter') return seeResource(grants, 'products');
+    // Prosjektutlegg åpnes via arbeid-fanen; alene skal den ikke åpne økonomi-fanen.
+    if (subView) return seeResource(grants, economyResourceForSubView(subView));
+    return allowsEconomy(grants, 'see')
+      || seeResource(grants, 'mileage')
+      || seeResource(grants, 'products')
+      || readResource(grants, 'economySettings');
+  }
+  if (tab === 'hr') {
+    return seeResource(grants, hrResourceForSubView(subView || 'oversikt'));
   }
   if (tab === 'anbud') {
-    if (subView === 'avtale' || subView === 'avrop') return allows(grants, 'offers', 'see') || allows(grants, 'tenders', 'see') || allows(grants, 'contracts', 'see');
-    if (subView === 'tilbud' || subView === 'pipeline') return allows(grants, 'offers', 'see');
-    if (subView === 'innstillinger') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
-    if (subView === 'varsling' || subView === 'foresporsel' || subView === 'vurdering') {
-      return allows(grants, 'tenders', 'see');
+    if (subView === 'avtale' || subView === 'avrop') {
+      return seeResource(grants, 'offers') || seeResource(grants, 'tenders') || seeResource(grants, 'contracts');
     }
-    return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
+    if (subView === 'tilbud' || subView === 'pipeline') return seeResource(grants, 'offers');
+    if (subView === 'innstillinger') {
+      return seeResource(grants, 'tenderSettings') || seeResource(grants, 'offers');
+    }
+    if (subView === 'foresporsel') return seeResource(grants, 'tenderRequest');
+    if (subView === 'vurdering') return seeResource(grants, 'tenderReview');
+    if (subView === 'varsling') return seeResource(grants, 'tenders');
+    return seeResource(grants, 'tenders')
+      || seeResource(grants, 'tenderRequest')
+      || seeResource(grants, 'tenderReview')
+      || seeResource(grants, 'offers');
   }
   const resource = COMPANY_TAB_RESOURCE[tab];
   if (!resource) return true;
-  return allows(grants, resource, 'see');
-}
-
-function hoursAllowed(grants) {
-  return allows(grants, 'hours', 'see') || allows(grants, 'hoursOthers', 'see');
+  return seeResource(grants, resource);
 }
 
 function navItemAllowed(id, grants) {
-  if (id === 'tilgang' || id === 'selskapsinnstillinger' || id === 'selskapsinnstillinger-tilgang') {
-    return allows(grants, 'companyProfile', 'read');
-  }
-  if (id === 'anbud-innstillinger') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
-  if (id === 'arbeid' || String(id).startsWith('arbeid-')) return hoursAllowed(grants);
-  if (id === 'produktivitet') return hoursAllowed(grants);
-  if (id === 'fravaer-innstillinger') return allows(grants, 'companyProfile', 'read');
-  if (id === 'fravaer' || String(id).startsWith('fravaer-')) {
-    return hoursAllowed(grants) || (id === 'fravaer' && allows(grants, 'companyProfile', 'read'));
-  }
-  if (id === 'produkt-salg') return hoursAllowed(grants);
-  if (id === 'produkt-produkter') return allows(grants, 'economy', 'see');
-  if (id === 'produkt') return hoursAllowed(grants) || allows(grants, 'economy', 'see');
-  if (id === 'okonomi-prosjektutlegg') return hoursAllowed(grants);
-  if (id === 'okonomi-innstillinger') return allows(grants, 'companyProfile', 'read');
-  if (id === 'kjorebok') return allows(grants, 'economy', 'see');
-  if (id === 'okonomi') {
-    return allows(grants, 'economy', 'see') || hoursAllowed(grants) || allows(grants, 'companyProfile', 'read');
+  if (id === 'anbud-innstillinger') {
+    return seeResource(grants, 'tenderSettings') || seeResource(grants, 'offers');
   }
   if (id === 'utstyr') {
-    return allows(grants, 'projects', 'see')
-      || allows(grants, 'assignedProjects', 'see')
+    return seeResource(grants, 'equipment')
+      || seeResource(grants, 'projects')
+      || seeResource(grants, 'assignedProjects')
       || hoursAllowed(grants);
   }
-  if (id === 'underenheter') return allows(grants, 'units', 'see');
-  if (id === 'hr' || String(id).startsWith('hr-')) return allows(grants, 'hr', 'see');
-  if (id === 'anbud') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
-  if (id === 'anbud-avtale') return allows(grants, 'offers', 'see') || allows(grants, 'tenders', 'see') || allows(grants, 'contracts', 'see');
-  if (id === 'anbud-tilbud') return allows(grants, 'offers', 'see');
-  if (String(id).startsWith('anbud')) return allows(grants, 'tenders', 'see');
-  if (String(id).startsWith('okonomi')) return allows(grants, 'economy', 'see');
-  const resource = COMPANY_TAB_RESOURCE[id];
+  if (id === 'fravaer') {
+    return seeResource(grants, 'absence')
+      || seeResource(grants, 'absenceReport')
+      || seeResource(grants, 'absencePlanned')
+      || readResource(grants, 'absenceSettings');
+  }
+  if (id === 'arbeid') {
+    return seeResource(grants, 'hours')
+      || seeResource(grants, 'hoursReport')
+      || seeResource(grants, 'hoursBalance')
+      || seeResource(grants, 'hoursApproval')
+      || hoursAllowed(grants);
+  }
+  if (id === 'produkt') {
+    return seeResource(grants, 'productSales') || seeResource(grants, 'products');
+  }
+  if (id === 'anbud') {
+    return seeResource(grants, 'tenders')
+      || seeResource(grants, 'tenderRequest')
+      || seeResource(grants, 'tenderReview')
+      || seeResource(grants, 'offers')
+      || seeResource(grants, 'tenderSettings');
+  }
+  if (id === 'hr') {
+    return allowsHr(grants, 'see');
+  }
+  if (id === 'okonomi') {
+    return allowsEconomy(grants, 'see')
+      || seeResource(grants, 'mileage')
+      || seeResource(grants, 'products')
+      || seeResource(grants, 'economyProjectExpenses')
+      || readResource(grants, 'economySettings');
+  }
+  if (id === 'selskapsinnstillinger') {
+    return readResource(grants, 'companyProfile') || readResource(grants, 'accessControl');
+  }
+  const resource = NAV_RESOURCE[id] || COMPANY_TAB_RESOURCE[id];
   if (!resource) return true;
-  return allows(grants, resource, 'see');
+  if (resource === 'accessControl' || resource === 'companyProfile'
+    || resource === 'absenceSettings' || resource === 'economySettings') {
+    return readResource(grants, resource);
+  }
+  return seeResource(grants, resource);
 }
 
 function filterCompanyNavItem(item, grants) {
@@ -768,9 +1139,6 @@ export function filterCompanyNav(items, grants) {
 export function loadingGrants() {
   return { ...blankGrants(), companyPublic: 'read' };
 }
-
-/** Områdene som utgjør bedriftsinnstillinger i «Se som bruker». */
-export const COMPANY_SETTINGS_RESOURCES = ['companyPublic', 'companyProfile', 'units'];
 
 /**
  * Hvem som kan bytte bruker.
@@ -845,9 +1213,9 @@ export function viewAsLocks(preview, resource) {
  * Områder utenfor valgt omfang følger den innloggede brukeren.
  */
 export function viewAsAllows({ preview, actor, bypass = false, resource, action } = {}) {
-  if (!preview?.active) return bypass ? true : allows(actor?.grants, resource, action);
-  const actorOk = bypass ? true : allows(actor?.grants, resource, action);
+  if (!preview?.active) return bypass ? true : allowsEffective(actor?.grants, resource, action);
+  const actorOk = bypass ? true : allowsEffective(actor?.grants, resource, action);
   if (!viewAsLocks(preview, resource)) return actorOk;
   if (action === 'write' || action === 'delete') return false;
-  return actorOk && allows(preview.grants, resource, action);
+  return actorOk && allowsEffective(preview.grants, resource, action);
 }

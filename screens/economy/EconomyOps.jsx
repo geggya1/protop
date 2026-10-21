@@ -287,7 +287,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const sales = state.sales || [];
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
   const rateInfo = mileageRate(state.mileagePolicies);
-  const canEditRate = access.can('economy', 'write') || access.can('companyProfile', 'write');
+  const canEditRate = access.canAdmin('mileage') || access.canAdmin('economySettings');
 
   useEffect(() => {
     const current = (state.mileagePolicies || []).find((row) => row.id === 'company');

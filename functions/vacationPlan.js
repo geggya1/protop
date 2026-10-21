@@ -52,7 +52,7 @@ async function canManagePlan(companyId, uid) {
   const snap = await db.collection(`families/${companyId}/employees`).where('personUid', '==', uid).limit(5).get();
   const linked = snap.docs.map((item) => ({ id: item.id, ...item.data() })).find((row) => isPlanningEmployee(row));
   const grants = linked ? grantsForEmployee(data.company?.accessPolicy, linked) : null;
-  const allowed = !!(grants && (allows(grants, 'hoursOthers', 'write') || allowsHr(grants, 'write')));
+  const allowed = !!(grants && (allows(grants, 'hoursOthers', 'read') || allowsHr(grants, 'write')));
   if (!allowed) throw new HttpsError('permission-denied', 'Bare HR eller leder kan sende ferieplanen.');
   return { fam, data };
 }

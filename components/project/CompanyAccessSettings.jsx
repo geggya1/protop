@@ -38,8 +38,8 @@ import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine,
 import { showSaveToast } from '../../src/ui/saveToast';
 
 const ACCESS_LEADS = [
-  'Åtte standardnivåer ligger til grunn og kan tilpasses. Flere nivå på samme person krysses av under Personer. Rettighetene fra alle avhukede nivå gjelder. Trykk navnet for å åpne den ansatte. Tannhjulet på et nivå setter se, lese, skrive og slette for alle moduler, undersider og innstillinger i bedriftsmenyen. Høyere rettighet tar med dem under.',
-  'Se som bruker, under Visning, er standard for administrator og øverste leder. Se tester bare bedriftsinnstillinger. Lese eller høyere viser alle moduler og applikasjoner. Nivå og personavvik kan gi funksjonen til andre.',
+  'Åtte standardnivåer ligger til grunn og kan tilpasses. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Flere nivå på samme person krysses av under Personer.',
+  'Lagre som standard lagrer tilpasningen for nivået. Tilbakestill henter ProTop-standarden for nivået. Se som bruker under Visning: Lese viser bare bedriftsinnstillinger; begrenset redigering eller Admin viser alle moduler.',
 ];
 
 const ACCESS_VIEW_ONLY = 'Du kan se oppsettet. Bare administrator kan endre nivåer, hvem som hører til hvor, og personavvik.';
@@ -354,7 +354,7 @@ function StatusDrop({ dropKey, hotDrop, colors }) {
 function LevelDrawer({
   nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
   open, memberTab, settingsOpen, grants, custom, summary, dropKey, hotDrop, dragging,
-  onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onReset, onOpen,
+  onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onSaveLevel, onReset, onOpen,
 }) {
   const { active, inactive } = splitMembers(members);
   const tab = memberTab === 'inactive' ? 'inactive' : 'active';
@@ -395,13 +395,8 @@ function LevelDrawer({
         <View nativeID={`${nativeID}-settings`} style={[styles.drawerBody, { borderTopColor: colors.line }]}>
           <Text style={[styles.summary, { color: colors.ink }]}>{summary}</Text>
           <Text style={[styles.kind, { color: custom ? colors.brand : colors.muted }]}>
-            {custom ? 'Tilpasset for denne bedriften' : 'Standard'}
+            {custom ? 'Tilpasset for denne bedriften' : 'ProTop-standard'}
           </Text>
-          {canEdit && custom && onReset ? (
-            <Pressable accessibilityRole="button" onPress={onReset} style={[styles.quietBtn, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Tilbakestill nivået til standard</Text>
-            </Pressable>
-          ) : null}
           <Matrix
             grants={grants}
             colors={colors}
@@ -409,6 +404,31 @@ function LevelDrawer({
             canEdit={canEdit}
             onToggle={onToggleGrant}
           />
+          {canEdit ? (
+            <View style={styles.levelActions}>
+              {onSaveLevel ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Lagre som standard for ${title}`}
+                  onPress={onSaveLevel}
+                  style={[styles.primaryBtn, { backgroundColor: colors.brand, flex: 1 }]}
+                >
+                  <Text style={styles.primaryText}>Lagre som standard</Text>
+                </Pressable>
+              ) : null}
+              {onReset ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Tilbakestill ${title}`}
+                  disabled={!custom}
+                  onPress={onReset}
+                  style={[styles.quietBtn, { borderColor: colors.line, flex: 1, opacity: custom ? 1 : 0.45 }]}
+                >
+                  <Text style={{ color: colors.ink, textAlign: 'center' }}>Tilbakestill</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       ) : null}
       {open ? (
@@ -1003,9 +1023,22 @@ export default function CompanyAccessSettings({
                       setDirty(true);
                       setNote('');
                     }}
+                    onSaveLevel={async () => {
+                      if (!canEdit || busy) return;
+                      setError('');
+                      try {
+                        await onSavePolicy(compactPolicy(policy));
+                        setDirty(false);
+                        setNote('Lagret som standard for nivået.');
+                        showSaveToast('Lagret som standard.');
+                      } catch (err) {
+                        setError(err?.message || 'Kunne ikke lagre tilgangen.');
+                      }
+                    }}
                     onReset={() => {
                       setPolicy(resetLevel(policy, row.id));
                       setDirty(true);
+                      setNote('Tilbakestilt til ProTop-standard. Trykk Lagre som standard for å bekrefte.');
                     }}
                   />
                 );
@@ -1049,7 +1082,7 @@ export default function CompanyAccessSettings({
               onPress={savePolicy}
               style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
             >
-              <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre tilpasning av nivåer'}</Text>
+              <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre alle nivåer som standard'}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -1163,12 +1196,12 @@ const styles = StyleSheet.create({
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
-  matrix: { minWidth: 680, gap: 14, paddingBottom: 4 },
+  matrix: { minWidth: 760, gap: 14, paddingBottom: 4 },
   group: { gap: 0 },
   groupLabel: { fontSize: 12, marginBottom: 4 },
   matrixHead: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, paddingBottom: 6 },
   areaHead: { flex: 1, fontSize: 12 },
-  actionHead: { width: 72, textAlign: 'center', fontSize: 12 },
+  actionHead: { width: 96, textAlign: 'center', fontSize: 11, lineHeight: 14 },
   matrixRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, minHeight: 52 },
   areaCell: { flex: 1, paddingVertical: 8, paddingRight: 8 },
   areaLabel: { fontSize: 14 },
@@ -1176,12 +1209,13 @@ const styles = StyleSheet.create({
   overrideMark: { fontSize: 12, marginTop: 2 },
   compactRow: { borderBottomWidth: 1, paddingVertical: 10, gap: 4 },
   compactChecks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  compactCheck: { alignItems: 'center', minWidth: 64 },
-  compactAction: { fontSize: 12, marginBottom: 4 },
-  checkHit: { width: 72, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  compactCheck: { alignItems: 'center', minWidth: 88 },
+  compactAction: { fontSize: 11, marginBottom: 4, textAlign: 'center' },
+  checkHit: { width: 96, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  levelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   primaryBtn: { alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 16 },
-  primaryText: { color: '#fff' },
+  primaryText: { color: '#fff', textAlign: 'center' },
   quietBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
   person: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personName: { fontSize: 15, fontWeight: '600' },

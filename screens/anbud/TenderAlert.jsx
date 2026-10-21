@@ -789,9 +789,10 @@ export default function TenderAlert({
     </View>
   );
   function settingsGear() {
+    if (!onOpenSettings) return null;
     return (
       <TouchableOpacity
-        onPress={() => onOpenSettings?.()}
+        onPress={() => onOpenSettings()}
         accessibilityRole="button"
         accessibilityLabel="Åpne innstillinger for CPV og søk"
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

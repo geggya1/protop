@@ -51,14 +51,14 @@ async function companyContext(companyId, uid) {
 }
 
 function canWriteEmployees(ctx) {
-  return ctx.admin || !!(ctx.grants && allows(ctx.grants, 'employees', 'write'));
+  return ctx.admin || !!(ctx.grants && allows(ctx.grants, 'employees', 'read'));
 }
 
 function canLogHoursOn(ctx, employee, uid) {
   if (!employee) return false;
   if (employee.personUid === uid) return true;
   if (ctx.admin) return true;
-  return !!(ctx.grants && allows(ctx.grants, 'hoursOthers', 'write'));
+  return !!(ctx.grants && allows(ctx.grants, 'hoursOthers', 'read'));
 }
 
 export async function writeUsageEvent(database, input, { trusted = false } = {}) {

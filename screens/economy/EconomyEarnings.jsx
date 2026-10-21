@@ -25,8 +25,9 @@ export default function EconomyEarnings() {
   const { isPhone } = useLayout();
   const { familyId } = useApp();
   const access = useCompanyAccess();
-  const canSee = access.can('economyEarnings', 'see') || access.can('economy', 'see');
-  const canEdit = access.can('economyEarnings', 'write') || access.can('economy', 'write');
+  const canSee = access.canView('economyEarnings') || access.canView('economy');
+  const canEdit = access.canEdit('economyEarnings') || access.canEdit('economy');
+  const canAdmin = access.canAdmin('economyEarnings') || access.canAdmin('economy');
   const { settings, ready, update } = useEarningsSettings(canSee ? familyId : '');
   const [employees, setEmployees] = useState([]);
   const [salaries, setSalaries] = useState([]);
@@ -103,7 +104,7 @@ export default function EconomyEarnings() {
       {!ready ? <Text style={{ color: colors.muted }}>Henter satser…</Text> : null}
 
       {mode === 'variables' ? (
-        <EarningsSettings settings={settings} canEdit={canEdit} onChange={update} colors={colors} />
+        <EarningsSettings settings={settings} canEdit={canAdmin} onChange={update} colors={colors} />
       ) : null}
 
       {mode === 'person' && selected ? (

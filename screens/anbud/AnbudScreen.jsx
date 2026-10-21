@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { ANBUD_MENU, ANBUD_PROCESS_IDS, defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
 import { loadAnbudState } from '../../src/anbud/storage';
@@ -24,7 +25,7 @@ function stepLabel(item, bids, reviewCount) {
   return `${item.label}${extra}`;
 }
 
-function PhoneStepFilter({ step, bids, reviewCount, colors, onChange }) {
+function PhoneStepFilter({ step, bids, reviewCount, colors, onChange, canAdminSettings }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -55,16 +56,18 @@ function PhoneStepFilter({ step, bids, reviewCount, colors, onChange }) {
               </TouchableOpacity>
             );
           })}
-          <TouchableOpacity
-            onPress={() => { onChange('innstillinger'); setOpen(false); }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: step === 'innstillinger' }}
-            style={[styles.step, { borderColor: step === 'innstillinger' ? colors.brand : colors.line, backgroundColor: step === 'innstillinger' ? colors.brandSoft : colors.card }]}
-          >
-            <Text style={{ color: step === 'innstillinger' ? colors.brand : colors.ink, fontWeight: step === 'innstillinger' ? '600' : '400' }}>
-              Innstillinger
-            </Text>
-          </TouchableOpacity>
+          {canAdminSettings ? (
+            <TouchableOpacity
+              onPress={() => { onChange('innstillinger'); setOpen(false); }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: step === 'innstillinger' }}
+              style={[styles.step, { borderColor: step === 'innstillinger' ? colors.brand : colors.line, backgroundColor: step === 'innstillinger' ? colors.brandSoft : colors.card }]}
+            >
+              <Text style={{ color: step === 'innstillinger' ? colors.brand : colors.ink, fontWeight: step === 'innstillinger' ? '600' : '400' }}>
+                Innstillinger
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScrollSheet>
     </>
@@ -75,6 +78,8 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const colors = useColors();
   const { isPhone } = useLayout();
   const { requestShellTab, shellIntent, clearShellIntent, family } = useApp();
+  const access = useCompanyAccess();
+  const canAdminSettings = !access.active || access.canAdmin('tenderSettings');
   const [step, setStep] = useState(() => (
     subView === 'pipeline' ? 'tilbud' : defaultAnbudSubView(subView)
   ));
@@ -85,6 +90,13 @@ export default function AnbudScreen({ company, subView, members = [], units = []
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);
   const reviewCount = aktuellCount + directQueueItems({ inquiries, inbox }).length;
   const processStep = ANBUD_PROCESS_IDS.includes(step);
+
+  useEffect(() => {
+    if (step === 'innstillinger' && !canAdminSettings) {
+      setStep('varsling');
+      requestShellTab?.('anbud', 'varsling');
+    }
+  }, [step, canAdminSettings, requestShellTab]);
 
   useEffect(() => {
     if (subView === 'avtale' || subView === 'avrop') {
@@ -158,10 +170,17 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           units={units}
           onBids={setBids}
           onReviewCount={setAktuellCount}
-          onOpenSettings={() => go('innstillinger')}
+          onOpenSettings={canAdminSettings ? () => go('innstillinger') : undefined}
           onOpenReview={() => go('vurdering')}
           stepFilter={isPhone ? (
-            <PhoneStepFilter step={step} bids={bids} reviewCount={reviewCount} colors={colors} onChange={go} />
+            <PhoneStepFilter
+              step={step}
+              bids={bids}
+              reviewCount={reviewCount}
+              colors={colors}
+              onChange={go}
+              canAdminSettings={canAdminSettings}
+            />
           ) : null}
         />
       ) : null}
@@ -188,14 +207,14 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           units={units}
           companies={companies}
           onFocusHandled={() => setFocusBidId('')}
-          onOpenSettings={() => go('innstillinger')}
+          onOpenSettings={canAdminSettings ? () => go('innstillinger') : undefined}
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
           onSnapshot={(next) => setBids((next?.bids || []).filter((bid) => bidListedOnDesk(bid)))}
         />
       ) : null}
-      {step === 'innstillinger' ? (
+      {step === 'innstillinger' && canAdminSettings ? (
         <WatchSettings
           company={company}
           colors={colors}

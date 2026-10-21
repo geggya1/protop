@@ -28,7 +28,7 @@ export default function CompanyDesktopLanding({
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
   const canEdit = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'write'));
+    || (access.ready && access.canEdit('companyPublic'));
   const [live, setLive] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

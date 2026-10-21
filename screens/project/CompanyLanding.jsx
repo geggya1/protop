@@ -22,7 +22,7 @@ export default function CompanyLanding() {
   const stored = family?.company?.navn ? family.company : null;
   const owner = isSuperAdmin(family, uid);
   const canOpenSettings = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'read'));
+    || (access.ready && access.canAdmin('companyProfile'));
 
   if (!stored) {
     return (

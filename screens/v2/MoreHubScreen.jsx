@@ -57,6 +57,7 @@ import {
   buildChildDashboardApps,
   buildParentDashboardApps,
   buildShellModules,
+  companyHasRegisteredUnits,
   companyNavItems,
   drawerHasSubmenuToggle,
   drawerSubmenuOpen,
@@ -383,7 +384,10 @@ export default function MoreHubScreen({ subView, setSubView }) {
           footer={isOrganizationType(family?.type) ? (
             <View style={styles.companyBlock}>
               <Text style={styles.companyHeading}>{t('shell.company')}</Text>
-              {filterCompanyNav(companyNavItems(), companyAccess.grants).map((item) => {
+              {filterCompanyNav(
+                companyNavItems({ includeUnderenheter: companyHasRegisteredUnits(family?.company) }),
+                companyAccess.grants,
+              ).map((item) => {
                 const renderNavBranch = (row, depth = 0) => {
                   const expandable = drawerHasSubmenuToggle(row);
                   const submenuExpanded = drawerSubmenuOpen(row, null, submenuOpen, null);

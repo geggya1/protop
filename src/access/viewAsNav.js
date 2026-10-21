@@ -21,9 +21,9 @@ function flatten(items, parentId = '') {
   return rows;
 }
 
-/** Bedriftsmeny + bedriftsvalg under Konto. */
+/** Bedriftsmeny + bedriftsvalg under Konto (inkl. Underenheter for tilgangssjekk). */
 function allCompanyMenuItems() {
-  return [...companyNavItems(), ...companyAccountNavItems()];
+  return [...companyNavItems({ includeUnderenheter: true }), ...companyAccountNavItems()];
 }
 
 /** Synlige og skjulte moduler i bedriftsmenyen for et gitt rettighetssett. */

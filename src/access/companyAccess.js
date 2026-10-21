@@ -701,7 +701,6 @@ function navItemAllowed(id, grants) {
   if (id === 'tilgang' || id === 'selskapsinnstillinger' || id === 'selskapsinnstillinger-tilgang') {
     return allows(grants, 'companyProfile', 'read');
   }
-  if (id === 'selskapsinnstillinger-underenheter') return allows(grants, 'units', 'see');
   if (id === 'anbud-innstillinger') return allows(grants, 'tenders', 'see') || allows(grants, 'offers', 'see');
   if (id === 'arbeid' || String(id).startsWith('arbeid-')) return hoursAllowed(grants);
   if (id === 'produktivitet') return hoursAllowed(grants);

@@ -353,10 +353,20 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     .find((item) => item.id === 'selskapsinnstillinger');
   assert.deepEqual(
     adminSettings.children.map((child) => child.id),
-    ['selskapsinnstillinger-tilgang', 'selskapsinnstillinger-underenheter'],
+    ['selskapsinnstillinger-tilgang'],
   );
-  const andreNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger')).map((item) => item.id);
-  assert.ok(andreNav.includes('underenheter') === false);
+  const adminWithUnits = filterCompanyNav(
+    companyNavItems({ includeUnderenheter: true }),
+    standardGrants('administrator'),
+  ).map((item) => item.id);
+  assert.ok(adminWithUnits.includes('underenheter'));
+  assert.ok(adminWithUnits.indexOf('selskap') < adminWithUnits.indexOf('underenheter'));
+  assert.ok(adminWithUnits.indexOf('underenheter') < adminWithUnits.indexOf('selskapsinnstillinger'));
+  const andreNav = filterCompanyNav(
+    companyNavItems({ includeUnderenheter: true }),
+    standardGrants('ansatt_andre_avdelinger'),
+  ).map((item) => item.id);
+  assert.ok(andreNav.includes('underenheter'));
   assert.ok(andreNav.includes('projects'));
   assert.ok(andreNav.includes('arbeid'));
   assert.ok(andreNav.includes('ansatte'));

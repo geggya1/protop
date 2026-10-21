@@ -51,7 +51,7 @@ function moduleLabel(tab, subView) {
     }
     return null;
   };
-  return walk([...companyNavItems(), ...companyAccountNavItems()]) || 'denne modulen';
+  return walk([...companyNavItems({ includeUnderenheter: true }), ...companyAccountNavItems()]) || 'denne modulen';
 }
 
 function PersonButton({ person, active, colors, onPress }) {

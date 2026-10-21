@@ -8,6 +8,7 @@ import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
 import { filterCompanyNav } from '../access/companyAccess.js';
+import { normalizeSubUnits } from '../project/companyUnits.js';
 
 /**
  * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet
@@ -255,32 +256,45 @@ function fravaerNavItem() {
   };
 }
 
-export function companyNavItems() {
-  return [
+/** Synlig i bedriftsmenyen når selskapet har registrert underenheter/avdelinger. */
+export function companyHasRegisteredUnits(company) {
+  return normalizeSubUnits(company?.subUnits).length > 0;
+}
+
+/**
+ * Bedriftsmeny. Underenheter ligger på samme nivå som Selskap, men bare når
+ * det faktisk er registrert enheter på selskapsinnstillingene.
+ */
+export function companyNavItems({ includeUnderenheter = false } = {}) {
+  const items = [
     {
       id: 'selskap',
       icon: 'business',
       label: 'Selskap',
       action: { type: 'tab', tab: 'selskap' },
     },
+  ];
+  if (includeUnderenheter) {
+    items.push({
+      id: 'underenheter',
+      icon: 'git-network',
+      label: 'Underenheter',
+      action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
+    });
+  }
+  items.push(
     {
       id: 'selskapsinnstillinger',
       icon: 'settings-outline',
       label: 'Selskapsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
-      activeSubViews: ['innstillinger', 'tilgang', 'underenheter'],
+      activeSubViews: ['innstillinger', 'tilgang'],
       children: [
         {
           id: 'selskapsinnstillinger-tilgang',
           icon: 'key',
           label: 'Tilgangsstyring',
           action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
-        },
-        {
-          id: 'selskapsinnstillinger-underenheter',
-          icon: 'git-network',
-          label: 'Underenheter',
-          action: { type: 'tab', tab: 'selskap', subView: 'underenheter' },
         },
       ],
     },
@@ -349,7 +363,8 @@ export function companyNavItems() {
       children: OKONOMI_MENU.map(okonomiNavChild),
     },
     { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
-  ];
+  );
+  return items;
 }
 
 /** Bedriftsvalg som ligger under Konto (ikke i bedriftslisten). */
@@ -402,7 +417,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-org',
     label: 'Selskap og organisasjon',
     icon: 'business',
-    itemIds: ['selskap', 'selskapsinnstillinger'],
+    itemIds: ['selskap', 'underenheter', 'selskapsinnstillinger'],
   },
   {
     id: 'company-people',
@@ -540,7 +555,7 @@ function collectNavIds(item, ids) {
 
 function companyAllowIds() {
   const ids = [];
-  for (const item of companyNavItems()) collectNavIds(item, ids);
+  for (const item of companyNavItems({ includeUnderenheter: true })) collectNavIds(item, ids);
   for (const item of companyAccountNavItems()) ids.push(item.id);
   return ids;
 }
@@ -853,10 +868,11 @@ export function buildShellModules({
 
   if (onCompany) {
     const accountAt = sections.findIndex((section) => section.id === 'account');
+    const includeUnderenheter = companyHasRegisteredUnits(family?.company);
     const companySection = {
       id: 'company',
       title: t('shell.company'),
-      items: filterCompanyNav(companyNavItems(), companyGrants),
+      items: filterCompanyNav(companyNavItems({ includeUnderenheter }), companyGrants),
     };
     if (accountAt >= 0) sections.splice(accountAt, 0, companySection);
     else sections.push(companySection);

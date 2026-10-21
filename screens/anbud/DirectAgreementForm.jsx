@@ -1183,6 +1183,7 @@ export default function DirectAgreementForm({
         colors={colors}
         people={followPeople}
         ownerUid={form.ownerUid}
+        ownerName={form.ownerName}
         label="Ansvarlig for avtalen"
         placeholder="Søk blant ansatte"
         attention={!form.ownerUid}
@@ -1275,6 +1276,7 @@ export default function DirectAgreementForm({
                     colors={colors}
                     people={followPeople}
                     ownerUid={form.leaderUid}
+                    ownerName={form.leaderName}
                     label="Oppdragsleder"
                     placeholder="Søk blant ansatte"
                     suggested={!!suggested.leaderUid || !!suggested.leaderName}

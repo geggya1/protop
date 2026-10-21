@@ -669,9 +669,11 @@ export default function BidDesk({
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Kontrakter og avtaler</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>Innloggingsportal</Text>
-      </TouchableOpacity>
+      {onOpenSettings ? (
+        <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
+          <Text style={{ color: colors.brand }}>Innloggingsportal</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

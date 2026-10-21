@@ -21,7 +21,7 @@ export function canLogOwnHoursInCompany(company, employees = [], actor = {}) {
   });
   if (!employee || accountDeactivated(employee)) return false;
   const grants = grantsForEmployee(company?.company?.accessPolicy, employee);
-  return allows(grants, 'hours', 'write');
+  return allows(grants, 'hours', 'read');
 }
 
 /**

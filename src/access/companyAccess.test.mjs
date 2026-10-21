@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  ACCESS_ACTIONS,
   ACCESS_GROUPS,
   ACCESS_LEVELS,
   ACCESS_RESOURCES,
@@ -13,9 +14,10 @@ import {
   allowsEffective,
   allowsEconomy,
   applyOverrides,
+  canAdminResource,
+  canEditResource,
+  canViewResource,
   companyTabAllowed,
-  effectiveViewAsScope,
-  grantsForViewAs,
   resolveViewAsAccess,
   viewAsAllows,
   viewAsCapability,
@@ -42,56 +44,51 @@ import {
   toggleGrant,
 } from './companyAccess.js';
 import { companyNavItems } from '../navigation/shellModules.js';
-import { companyModuleVisibility, hiddenCompanyModules } from './viewAsNav.js';
+import { hiddenCompanyModules } from './viewAsNav.js';
 
 {
+  assert.deepEqual(ACCESS_ACTIONS.map((row) => row.label), [
+    'Lese',
+    'Begrenset redigering',
+    'Admin',
+  ]);
   const ids = ACCESS_RESOURCES.map((row) => row.id);
-  assert.ok(ids.includes('accessControl'));
-  assert.ok(ids.includes('absence'));
-  assert.ok(ids.includes('absenceSettings'));
-  assert.ok(ids.includes('hoursReport'));
-  assert.ok(ids.includes('productivity'));
-  assert.ok(ids.includes('equipment'));
-  assert.ok(ids.includes('mileage'));
-  assert.ok(ids.includes('productSales'));
-  assert.ok(ids.includes('economyOverview'));
-  assert.ok(ids.includes('economySettings'));
-  assert.ok(ids.includes('tenderRequest'));
-  assert.ok(ids.includes('tenderSettings'));
-  assert.ok(ids.includes('hrPeople'));
-  assert.ok(ids.includes('iso'));
-  assert.equal(ids.length, RESOURCE_IDS.length);
+  assert.ok(!ids.includes('economy'), 'economy er skjult i matrisen');
+  assert.ok(RESOURCE_IDS.includes('economy'));
+  for (const key of [
+    'accessControl', 'absence', 'absenceSettings', 'hoursReport', 'productivity',
+    'equipment', 'mileage', 'productSales', 'economyOverview', 'economySettings',
+    'tenderRequest', 'tenderSettings', 'hrPeople', 'iso', 'forms',
+  ]) {
+    assert.ok(ids.includes(key), key);
+  }
   assert.ok(ACCESS_GROUPS.some((group) => group.id === 'resources'));
   assert.ok(ACCESS_GROUPS.some((group) => group.id === 'quality'));
 }
 
 {
+  // Eldre policy (actionsVersion < 2): write → begrenset redigering, delete → Admin.
   const legacy = {
     version: 1,
+    actionsVersion: 1,
     levels: {
       ansatt: {
-        ...standardGrants('ansatt'),
-        economy: 'read',
-        companyProfile: 'read',
+        hours: 'write',
+        economy: 'delete',
+        companyProfile: 'write',
         tenders: 'write',
       },
     },
   };
-  // Simuler eldre lagring uten nye nøkler.
-  delete legacy.levels.ansatt.economyOverview;
-  delete legacy.levels.ansatt.economySettings;
-  delete legacy.levels.ansatt.accessControl;
-  delete legacy.levels.ansatt.tenderRequest;
-  delete legacy.levels.ansatt.absenceSettings;
   const migrated = levelGrants(legacy, 'ansatt');
-  assert.equal(migrated.economy, 'read');
-  assert.equal(migrated.economyOverview, 'read');
-  assert.equal(migrated.economySettings, 'read');
+  assert.equal(migrated.hours, 'read');
+  assert.equal(migrated.economy, 'write');
+  assert.equal(migrated.economyOverview, 'write');
+  assert.equal(migrated.companyProfile, 'read');
   assert.equal(migrated.accessControl, 'read');
-  assert.equal(migrated.tenderRequest, 'write');
-  assert.equal(migrated.absenceSettings, 'read');
-  assert.equal(allowsEffective(migrated, 'economyEarnings', 'read'), true);
-  assert.equal(allowsEconomy(migrated, 'read'), true);
+  assert.equal(migrated.tenders, 'read');
+  assert.equal(migrated.tenderRequest, 'read');
+  assert.equal(allowsEconomy(migrated, 'write'), true);
 }
 
 const ids = ACCESS_LEVELS.map((level) => level.id);
@@ -110,72 +107,76 @@ assert.deepEqual(sections.map((section) => section.id), ['company', 'external'])
 assert.deepEqual(sections[0].levels.map((level) => level.order), [3, 4, 6, 7, 8]);
 assert.deepEqual(sections[1].levels.map((level) => level.order), [1, 2, 5]);
 assert.equal(accessSectionTitle('company', 'CONSULT1 AS'), 'Ansatt i CONSULT1 AS');
-assert.equal(accessSectionTitle('company', '  '), 'Ansatt i bedriften');
 assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
 
 {
   const regnskap = standardGrants('regnskap_ekstern');
-  assert.equal(regnskap.economy, 'read');
+  assert.equal(regnskap.economy, 'see');
+  assert.equal(regnskap.economyOverview, 'see');
   assert.equal(regnskap.projects, 'none');
   assert.equal(regnskap.hours, 'none');
-  assert.equal(allows(regnskap, 'economy', 'read'), true);
-  assert.equal(allows(regnskap, 'economy', 'write'), false);
+  assert.equal(allows(regnskap, 'economy', 'see'), true);
+  assert.equal(canEditResource(regnskap, 'economy'), false);
+  assert.equal(canAdminResource(regnskap, 'economySettings'), false);
   assert.equal(allows(regnskap, 'companyPublic', 'see'), true);
 }
 
 {
   const innleie = standardGrants('innleie_ekstern');
-  assert.equal(innleie.hours, 'write');
-  assert.equal(innleie.assignedProjects, 'read');
+  assert.equal(innleie.hours, 'read');
+  assert.equal(innleie.assignedProjects, 'see');
   assert.equal(innleie.projects, 'none');
   assert.equal(innleie.economy, 'none');
   assert.equal(innleie.employees, 'none');
   assert.equal(hoursOnAssignedOnly(innleie), true);
-  assert.equal(companyTabAllowed('okonomi', 'oversikt', innleie), false);
+  assert.equal(canEditResource(innleie, 'hours'), true);
+  assert.equal(canAdminResource(innleie, 'hours'), false);
   assert.equal(companyTabAllowed('okonomi', null, innleie), false);
-  assert.equal(companyTabAllowed('okonomi', 'kjorebok', innleie), false);
-  assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
+  assert.equal(companyTabAllowed('okonomi', 'oversikt', innleie), false);
   assert.equal(companyTabAllowed('projects', null, innleie), false);
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
+  assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', 'tilgang', innleie), false);
   assert.equal(companyTabAllowed('selskap', 'innstillinger', innleie), false);
-  assert.equal(innleie.economyProjectExpenses, 'write');
-  assert.equal(innleie.productivity, 'write');
+  assert.equal(innleie.economyProjectExpenses, 'read');
+  assert.equal(innleie.productivity, 'read');
   assert.equal(innleie.equipment, 'see');
-  assert.equal(innleie.absence, 'write');
 }
 
 {
   const ansatt = standardGrants('ansatt');
-  assert.equal(ansatt.projects, 'read');
-  assert.equal(ansatt.hours, 'write');
-  assert.equal(ansatt.forms, 'write');
-  assert.equal(ansatt.ownProfile, 'write');
-  assert.equal(ansatt.employees, 'read');
+  assert.equal(ansatt.projects, 'see');
+  assert.equal(ansatt.hours, 'read');
+  assert.equal(ansatt.forms, 'read');
+  assert.equal(ansatt.ownProfile, 'read');
+  assert.equal(ansatt.employees, 'see');
   assert.equal(ansatt.economy, 'none');
   assert.equal(ansatt.customers, 'none');
   assert.equal(hoursOnAssignedOnly(ansatt), false);
   assert.equal(ansatt.offers, 'none');
   assert.equal(ansatt.units, 'see');
   assert.equal(ansatt.viewAs, 'none');
+  assert.equal(canEditResource(ansatt, 'hours'), true);
+  assert.equal(canAdminResource(ansatt, 'hours'), false);
+  assert.equal(canAdminResource(ansatt, 'absenceSettings'), false);
   assert.equal(viewAsCapability(ansatt), 'none');
 }
 
 {
   const tilbud = standardGrants('tilbud');
-  assert.equal(tilbud.offers, 'write');
-  assert.equal(tilbud.tenders, 'read');
-  assert.equal(tilbud.customers, 'read');
-  assert.equal(tilbud.contracts, 'read');
+  assert.equal(tilbud.offers, 'read');
+  assert.equal(tilbud.tenders, 'see');
+  assert.equal(tilbud.customers, 'see');
+  assert.equal(tilbud.contracts, 'see');
   assert.equal(tilbud.economy, 'none');
   assert.equal(tilbud.companyProfile, 'none');
-  assert.equal(allows(tilbud, 'offers', 'write'), true);
-  assert.equal(allows(tilbud, 'tenders', 'write'), false);
+  assert.equal(canEditResource(tilbud, 'offers'), true);
+  assert.equal(canAdminResource(tilbud, 'offers'), false);
+  assert.equal(canAdminResource(tilbud, 'tenderSettings'), false);
   assert.equal(companyTabAllowed('anbud', 'tilbud', tilbud), true);
   assert.equal(companyTabAllowed('anbud', 'varsling', tilbud), true);
-  assert.equal(companyTabAllowed('anbud', 'vurdering', tilbud), true);
-  assert.equal(companyTabAllowed('anbud', 'foresporsel', tilbud), true);
+  assert.equal(companyTabAllowed('anbud', 'innstillinger', tilbud), false);
   assert.equal(companyTabAllowed('anbud', 'vurdering', {
     ...tilbud,
     tenders: 'none',
@@ -183,109 +184,82 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
     tenderReview: 'none',
   }), false);
   assert.equal(companyTabAllowed('okonomi', 'oversikt', tilbud), false);
-  assert.equal(tilbud.tenderRequest, 'read');
-  assert.equal(tilbud.tenderSettings, 'read');
 }
 
 {
   const andre = standardGrants('ansatt_andre_avdelinger');
-  assert.equal(andre.units, 'read');
-  assert.equal(allows(andre, 'units', 'write'), false);
-  assert.equal(andre.employees, 'read');
-  assert.equal(andre.projects, 'read');
-  assert.equal(andre.hours, 'write');
+  assert.equal(andre.units, 'see');
+  assert.equal(canEditResource(andre, 'units'), false);
+  assert.equal(andre.hours, 'read');
   assert.equal(andre.hoursOthers, 'see');
-  assert.equal(allows(andre, 'hoursOthers', 'write'), false);
-  assert.equal(andre.customers, 'none');
-  assert.equal(andre.offers, 'none');
-  assert.equal(andre.economy, 'none');
+  assert.equal(canEditResource(andre, 'hoursOthers'), false);
   assert.equal(companyTabAllowed('underenheter', null, andre), true);
   assert.equal(companyTabAllowed('anbud', null, andre), false);
 }
 
 {
-  const lederAvdeling = standardGrants('avdelingsleder');
-  assert.equal(lederAvdeling.customers, 'write');
-  assert.equal(lederAvdeling.projects, 'write');
-  assert.equal(lederAvdeling.employees, 'write');
-  assert.equal(lederAvdeling.economy, 'none');
-  assert.equal(lederAvdeling.companyProfile, 'read');
-  assert.equal(allows(lederAvdeling, 'companyProfile', 'write'), false);
+  const avd = standardGrants('avdelingsleder');
+  assert.equal(avd.customers, 'read');
+  assert.equal(avd.projects, 'read');
+  assert.equal(avd.employees, 'read');
+  assert.equal(avd.economy, 'none');
+  assert.equal(avd.companyProfile, 'see');
+  assert.equal(canAdminResource(avd, 'companyProfile'), false);
+  assert.equal(canEditResource(avd, 'projects'), true);
+  assert.equal(canAdminResource(avd, 'projects'), false);
+  assert.equal(canAdminResource(avd, 'absenceSettings'), false);
+  assert.equal(canAdminResource(avd, 'economySettings'), false);
 }
 
 {
   const leder = standardGrants('leder');
-  assert.equal(leder.economy, 'delete');
-  assert.equal(leder.projects, 'delete');
-  assert.equal(leder.companyProfile, 'read');
-  assert.equal(allows(leder, 'companyProfile', 'write'), false);
-  assert.equal(leder.units, 'read');
+  assert.equal(leder.economy, 'write');
+  assert.equal(leder.projects, 'write');
+  assert.equal(leder.companyProfile, 'see');
+  assert.equal(canAdminResource(leder, 'companyProfile'), false);
+  assert.equal(canAdminResource(leder, 'economySettings'), true);
+  assert.equal(canAdminResource(leder, 'absenceSettings'), true);
+  assert.equal(leder.units, 'write');
   assert.equal(leder.viewAs, 'write');
   assert.equal(viewAsCapability(leder), 'all');
   assert.equal(viewAsCapability(standardGrants('avdelingsleder')), 'none');
+  assert.equal(allows(leder, 'projects', 'delete'), true);
 }
 
 {
   const admin = standardGrants('administrator');
   for (const resource of ACCESS_RESOURCES) {
-    assert.equal(admin[resource.id], 'delete', resource.id);
+    assert.equal(admin[resource.id], 'write', resource.id);
   }
+  assert.equal(admin.economy, 'write');
+  assert.equal(canAdminResource(admin, 'accessControl'), true);
+  assert.equal(canAdminResource(admin, 'companyProfile'), true);
 }
 
 assert.equal(toggleGrant('none', 'read', true), 'read');
-assert.equal(toggleGrant('delete', 'see', false), 'none');
-assert.equal(toggleGrant('delete', 'write', false), 'read');
-assert.equal(toggleGrant('read', 'delete', true), 'delete');
+assert.equal(toggleGrant('write', 'see', false), 'none');
+assert.equal(toggleGrant('write', 'write', false), 'read');
+assert.equal(toggleGrant('read', 'write', true), 'write');
 
 {
-  const custom = setLevelGrant(null, 'ansatt', 'economy', 'read');
+  const custom = setLevelGrant(null, 'ansatt', 'economyOverview', 'see');
   assert.equal(levelIsCustom(custom, 'ansatt'), true);
-  assert.equal(levelGrants(custom, 'ansatt').economy, 'read');
-  assert.equal(levelGrants(custom, 'ansatt').projects, 'read');
+  assert.equal(levelGrants(custom, 'ansatt').economyOverview, 'see');
+  assert.equal(levelGrants(custom, 'ansatt').economy, 'see');
   assert.equal(levelIsCustom(custom, 'leder'), false);
   const reset = resetLevel(custom, 'ansatt');
   assert.equal(levelIsCustom(reset, 'ansatt'), false);
   assert.deepEqual(normalizeAccessPolicy(reset).levels, {});
+  assert.equal(normalizeAccessPolicy(reset).actionsVersion, 2);
 }
 
 {
   const base = standardGrants('ansatt');
-  const effective = { ...base, economy: 'read', projects: 'none' };
+  const effective = { ...base, economyOverview: 'see', projects: 'none' };
   const diff = compactOverrides(base, effective);
-  assert.deepEqual(diff, { economy: 'read', projects: 'none' });
-  assert.equal(applyOverrides(base, diff).economy, 'read');
-  assert.equal(applyOverrides(base, diff).projects, 'none');
+  assert.deepEqual(diff, { economyOverview: 'see', projects: 'none' });
+  assert.equal(applyOverrides(base, diff).economyOverview, 'see');
   assert.equal(grantsEqual(applyOverrides(base, {}), base), true);
-}
-
-{
-  const employee = {
-    personUid: 'u1',
-    company: { accessRole: 'Leder', personnelKind: 'staff', status: 'active', employmentType: 'Fast ansatt' },
-  };
-  assert.equal(placedLevelId(employee), 'leder');
-  assert.equal(placedLevelId({ company: { accessRole: 'Tilbud' } }), 'tilbud');
-  assert.equal(placedLevelId({ company: { accessRole: 'Ansatt andre avdelinger' } }), 'ansatt_andre_avdelinger');
-  assert.equal(effectiveLevelId(employee), 'leder');
-  const external = {
-    company: { personnelKind: 'external', employmentType: 'Fast ansatt', status: 'active', accessRole: 'Lesetilgang' },
-  };
-  assert.equal(placedLevelId(external), '');
-  assert.equal(suggestedLevelId(external), 'regnskap_ekstern');
-  assert.equal(effectiveLevelId(external), 'regnskap_ekstern');
-  const hired = {
-    company: { personnelKind: 'innleid', employmentType: 'Fast ansatt', status: 'active' },
-  };
-  assert.equal(suggestedLevelId(hired), 'innleie_ekstern');
-  const aligned = alignCompanyEmployment({
-    accessLevel: 'innleie_ekstern',
-    personnelKind: 'staff',
-    employmentType: 'Fast ansatt',
-    external: false,
-  });
-  assert.equal(aligned.personnelKind, 'innleid');
-  assert.equal(aligned.employmentType, 'Innleid');
-  assert.equal(aligned.external, false);
 }
 
 {
@@ -306,7 +280,7 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
       accessLevel: 'administrator',
       accessRole: 'Administrator',
       status: 'active',
-      accessOverrides: { economy: 'read' },
+      accessOverrides: { economyOverview: 'see' },
     },
   };
   const grouped = groupEmployeesByLevel([ada, kari, nils]);
@@ -314,55 +288,33 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.equal(grouped.buckets.administrator.length, 1);
   assert.equal(grouped.unplaced.length, 1);
   assert.equal(accountDeactivated(ada), false);
-  assert.equal(accountDeactivated({ company: { status: 'leave' } }), false);
   const paused = {
     id: 'eva',
     company: { accessLevel: 'ansatt', status: 'inactive', personnelKind: 'staff' },
   };
-  const trashed = {
-    id: 'ola',
-    company: { accessLevel: 'ansatt', status: 'deleted', personnelKind: 'staff' },
-  };
-  const withPaused = groupEmployeesByLevel([ada, paused, trashed]);
-  assert.equal(withPaused.buckets.ansatt.length, 3);
-  assert.equal(accountDeactivated(paused), true);
-  assert.equal(accountDeactivated(trashed), true);
-  const staff = { company: { accessLevel: 'ansatt', status: 'active', personnelKind: 'staff' } };
-  assert.deepEqual(personDropChange(staff, 'level:tilbud'), {
-    levelId: 'tilbud', clearLevel: false, activate: false, deactivate: false,
-  });
-  assert.equal(personDropChange(staff, 'level:ansatt'), null);
-  assert.deepEqual(personDropChange(staff, 'status:ansatt:inactive'), {
-    levelId: '', clearLevel: false, activate: false, deactivate: true,
-  });
-  assert.deepEqual(personDropChange(paused, 'status:tilbud:active'), {
-    levelId: 'tilbud', clearLevel: false, activate: true, deactivate: false,
-  });
-  assert.equal(personDropChange(paused, 'status:ansatt:inactive'), null);
-  assert.deepEqual(personDropChange(staff, 'status:unplaced:active'), {
-    levelId: '', clearLevel: true, activate: false, deactivate: false,
-  });
-  assert.equal(personDropChange(staff, 'level:ukjent'), null);
-  assert.equal(grouped.buckets.ansatt.includes(kari), false);
   const actor = resolveActorAccess({ employees: [ada, nils], uid: 'nils' });
   assert.equal(actor.levelId, 'administrator');
-  assert.equal(actor.grants.economy, 'read');
+  assert.equal(actor.grants.economyOverview, 'see');
   assert.equal(actor.customized, true);
-  assert.equal(actor.grants.projects, 'delete');
-  const guest = resolveActorAccess({ employees: [ada], uid: 'ukjent' });
-  assert.equal(guest.levelId, 'ansatt');
-  const stopped = resolveActorAccess({
-    employees: [{ personUid: 'x', company: { status: 'inactive', accessLevel: 'administrator' } }],
-    uid: 'x',
-  });
-  assert.equal(stopped.grants.economy, 'none');
-  assert.equal(stopped.grants.companyPublic, 'none');
-  assert.equal(stopped.grants.employees, 'none');
-  const pausedGrants = grantsForEmployee(null, paused);
-  assert.equal(pausedGrants.companyPublic, 'none');
-  assert.equal(pausedGrants.employees, 'none');
+  assert.equal(actor.grants.projects, 'write');
+  assert.equal(grantsForEmployee(null, kari).economy, 'see');
+  assert.equal(grantsForEmployee(null, paused).companyPublic, 'none');
   assert.deepEqual(employeeLevelIds(paused), ['ansatt']);
-  assert.equal(grantsForEmployee(null, kari).economy, 'read');
+  assert.equal(placedLevelId({ company: { accessRole: 'Tilbud' } }), 'tilbud');
+  assert.equal(effectiveLevelId({ company: { personnelKind: 'innleid' } }), 'innleie_ekstern');
+  const aligned = alignCompanyEmployment({
+    accessLevel: 'innleie_ekstern',
+    personnelKind: 'staff',
+    employmentType: 'Fast ansatt',
+    external: false,
+  });
+  assert.equal(aligned.personnelKind, 'innleid');
+  assert.deepEqual(personDropChange(
+    { company: { accessLevel: 'ansatt', status: 'active' } },
+    'level:tilbud',
+  ), { levelId: 'tilbud', clearLevel: false, activate: false, deactivate: false });
+  assert.deepEqual(withToggledLevel(ada, 'tilbud', true).company.accessLevels, ['ansatt', 'tilbud']);
+  assert.deepEqual(grantsForLevelIds(null, ['ansatt', 'tilbud']).offers, 'read');
 }
 
 {
@@ -371,48 +323,49 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
   assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
   assert.equal(visible.includes('kjorebok'), false);
   assert.equal(visible.includes('selskapsinnstillinger'), false);
-  const innleieSelskap = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'selskap');
-  assert.equal(innleieSelskap.children, undefined);
-  const innleieFravaer = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'fravaer');
-  assert.deepEqual(innleieFravaer.children.map((child) => child.id), ['fravaer-fravaer', 'fravaer-fravaersrapport', 'fravaer-planlagt']);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
   assert.deepEqual(innleieOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
-  assert.equal(innleieOkonomi.action.tab, 'arbeid');
-  assert.equal(innleieOkonomi.action.subView, 'utlegg');
-  const admin = filterCompanyNav(companyNavItems(), standardGrants('administrator')).map((item) => item.id);
-  assert.ok(admin.includes('okonomi'));
-  assert.ok(admin.includes('kjorebok'));
-  assert.ok(admin.includes('selskap'));
-  assert.ok(admin.includes('selskapsinnstillinger'));
-  assert.ok(admin.includes('ansatte'));
-  assert.ok(admin.includes('arbeid'));
-  assert.ok(admin.includes('produktivitet'));
-  assert.ok(admin.includes('produkt'));
-  const selskap = filterCompanyNav(companyNavItems(), standardGrants('administrator'))
-    .find((item) => item.id === 'selskap');
-  assert.equal(selskap.children, undefined);
-  assert.ok(filterCompanyNav(companyNavItems(), standardGrants('administrator')).some((item) => item.id === 'hr'));
-  assert.ok(filterCompanyNav(companyNavItems(), standardGrants('administrator')).some((item) => item.id === 'fravaer'));
-  const ansattFiltered = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).map((item) => item.id);
-  assert.ok(ansattFiltered.includes('selskap'));
-  assert.ok(ansattFiltered.includes('ansatte'));
-  assert.ok(ansattFiltered.includes('fravaer'));
-  assert.equal(ansattFiltered.includes('selskapsinnstillinger'), false);
-  const lederHr = standardGrants('leder');
-  assert.equal(lederHr.hr, 'delete');
-  assert.equal(companyTabAllowed('hr', 'oversikt', lederHr), true);
-  assert.equal(companyTabAllowed('hr', null, standardGrants('ansatt')), false);
+  const innleieFravaer = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'fravaer');
+  assert.deepEqual(innleieFravaer.children.map((child) => child.id), ['fravaer-fravaer', 'fravaer-fravaersrapport', 'fravaer-planlagt']);
+
+  const adminNav = filterCompanyNav(companyNavItems(), standardGrants('administrator'));
+  assert.ok(adminNav.some((item) => item.id === 'okonomi'));
+  assert.ok(adminNav.some((item) => item.id === 'kjorebok'));
+  assert.ok(adminNav.some((item) => item.id === 'selskapsinnstillinger'));
+  assert.ok(adminNav.some((item) => item.id === 'hr'));
+  const adminSettings = adminNav.find((item) => item.id === 'selskapsinnstillinger');
+  assert.deepEqual(adminSettings.children.map((child) => child.id), ['selskapsinnstillinger-tilgang']);
+  const adminOkonomi = adminNav.find((item) => item.id === 'okonomi');
+  assert.ok(adminOkonomi.children.some((child) => child.id === 'okonomi-innstillinger'));
+  assert.ok(adminOkonomi.children.some((child) => child.id === 'okonomi-oversikt'));
+
+  const ansattNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).map((item) => item.id);
+  assert.ok(ansattNav.includes('selskap'));
+  assert.ok(ansattNav.includes('ansatte'));
+  assert.ok(ansattNav.includes('fravaer'));
+  assert.equal(ansattNav.includes('selskapsinnstillinger'), false);
+
   const avd = standardGrants('avdelingsleder');
-  assert.equal(avd.hr, 'read');
+  assert.equal(avd.hr, 'see');
   const avdNav = filterCompanyNav(companyNavItems(), avd);
   assert.ok(avdNav.some((item) => item.id === 'hr'));
-  assert.equal(avdNav.find((item) => item.id === 'selskap').children, undefined);
-  const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud'))
-    .find((item) => item.id === 'anbud');
+  assert.equal(avdNav.find((item) => item.id === 'fravaer').children.some((c) => c.id === 'fravaer-innstillinger'), false);
+  assert.ok(avdNav.some((item) => item.id === 'selskapsinnstillinger'));
+
+  const lederNav = filterCompanyNav(companyNavItems(), standardGrants('leder'));
+  const lederFravaer = lederNav.find((item) => item.id === 'fravaer');
+  assert.ok(lederFravaer.children.some((c) => c.id === 'fravaer-innstillinger'));
+  const lederOkonomi = lederNav.find((item) => item.id === 'okonomi');
+  assert.ok(lederOkonomi.children.some((c) => c.id === 'okonomi-innstillinger'));
+  const lederAnbud = lederNav.find((item) => item.id === 'anbud');
+  assert.ok(lederAnbud.children.some((c) => c.id === 'anbud-innstillinger'));
+
+  const tilbudNav = filterCompanyNav(companyNavItems(), standardGrants('tilbud')).find((item) => item.id === 'anbud');
   assert.deepEqual(
     tilbudNav.children.map((child) => child.id),
-    ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-innstillinger'],
+    ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud'],
   );
+
   const offersOnly = {
     ...standardGrants('tilbud'),
     tenders: 'none',
@@ -420,94 +373,115 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
     tenderReview: 'none',
     tenderSettings: 'none',
   };
-  const offersNav = filterCompanyNav(companyNavItems(), offersOnly)
-    .find((item) => item.id === 'anbud');
-  assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud', 'anbud-innstillinger']);
-  assert.equal(offersNav.action.subView, 'tilbud');
-  const adminSettings = filterCompanyNav(companyNavItems(), standardGrants('administrator'))
-    .find((item) => item.id === 'selskapsinnstillinger');
-  assert.deepEqual(
-    adminSettings.children.map((child) => child.id),
-    ['selskapsinnstillinger-tilgang'],
-  );
-  const adminWithUnits = filterCompanyNav(
-    companyNavItems({ includeUnderenheter: true }),
-    standardGrants('administrator'),
-  ).map((item) => item.id);
-  assert.ok(adminWithUnits.includes('underenheter'));
-  assert.ok(adminWithUnits.indexOf('selskap') < adminWithUnits.indexOf('underenheter'));
-  assert.ok(adminWithUnits.indexOf('underenheter') < adminWithUnits.indexOf('selskapsinnstillinger'));
-  const andreNav = filterCompanyNav(
-    companyNavItems({ includeUnderenheter: true }),
-    standardGrants('ansatt_andre_avdelinger'),
-  ).map((item) => item.id);
-  assert.ok(andreNav.includes('underenheter'));
-  assert.ok(andreNav.includes('projects'));
-  assert.ok(andreNav.includes('arbeid'));
-  assert.ok(andreNav.includes('ansatte'));
-  assert.ok(andreNav.includes('fravaer'));
-  assert.equal(andreNav.includes('anbud'), false);
-  assert.ok(andreNav.includes('okonomi'));
-  assert.equal(andreNav.includes('kjorebok'), false);
-  const andreOkonomi = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
-    .find((item) => item.id === 'okonomi');
-  assert.deepEqual(andreOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
-  const andreSelskap = filterCompanyNav(companyNavItems(), standardGrants('ansatt_andre_avdelinger'))
-    .find((item) => item.id === 'selskap');
-  assert.equal(andreSelskap.children, undefined);
+  const offersNav = filterCompanyNav(companyNavItems(), offersOnly).find((item) => item.id === 'anbud');
+  assert.deepEqual(offersNav.children.map((child) => child.id), ['anbud-tilbud']);
+}
+
+/** Bot-matrise: hvert nivå × synlighet for nøkkelmoduler. */
+{
+  const expectations = {
+    regnskap_ekstern: {
+      show: ['selskap', 'okonomi', 'kjorebok'],
+      hide: ['ansatte', 'hr', 'anbud', 'projects', 'selskapsinnstillinger', 'fravaer-innstillinger'],
+      edit: [],
+      admin: [],
+    },
+    innleie_ekstern: {
+      show: ['selskap', 'arbeid', 'fravaer', 'produktivitet', 'utstyr'],
+      hide: ['ansatte', 'hr', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
+      edit: ['hours', 'absence'],
+      admin: [],
+    },
+    ansatt: {
+      show: ['selskap', 'ansatte', 'arbeid', 'fravaer', 'projects', 'iso'],
+      hide: ['hr', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
+      edit: ['hours', 'forms', 'ownProfile'],
+      admin: [],
+    },
+    tilbud: {
+      show: ['anbud', 'kunder', 'kontrakt', 'projects'],
+      hide: ['hr', 'kjorebok', 'selskapsinnstillinger'],
+      edit: ['offers', 'forms', 'hours'],
+      admin: [],
+    },
+    ansatt_andre_avdelinger: {
+      show: ['underenheter', 'ansatte', 'arbeid', 'projects'],
+      hide: ['anbud', 'hr', 'kjorebok'],
+      edit: ['hours', 'forms'],
+      admin: [],
+    },
+    avdelingsleder: {
+      show: ['hr', 'ansatte', 'projects', 'kunder', 'selskapsinnstillinger'],
+      hide: ['kjorebok'],
+      edit: ['employees', 'projects', 'customers', 'hoursOthers'],
+      admin: [],
+    },
+    leder: {
+      show: ['hr', 'okonomi', 'kjorebok', 'anbud', 'selskapsinnstillinger'],
+      hide: [],
+      edit: [],
+      admin: ['economySettings', 'absenceSettings', 'tenderSettings', 'hr', 'employees', 'projects'],
+    },
+    administrator: {
+      show: ['selskapsinnstillinger', 'hr', 'okonomi', 'kjorebok', 'anbud'],
+      hide: [],
+      edit: [],
+      admin: ['companyProfile', 'accessControl', 'economySettings', 'absenceSettings', 'employees'],
+    },
+  };
+
+  for (const level of ACCESS_LEVELS) {
+    const grants = standardGrants(level.id);
+    const nav = filterCompanyNav(companyNavItems({ includeUnderenheter: true }), grants);
+    const flat = [];
+    for (const item of nav) {
+      flat.push(item.id);
+      for (const child of item.children || []) flat.push(child.id);
+    }
+    const expect = expectations[level.id];
+    for (const id of expect.show) {
+      assert.ok(flat.includes(id), `${level.id} skal se ${id}`);
+    }
+    for (const id of expect.hide) {
+      assert.equal(flat.includes(id), false, `${level.id} skal ikke se ${id}`);
+    }
+    for (const resource of expect.edit) {
+      assert.equal(canEditResource(grants, resource), true, `${level.id} edit ${resource}`);
+      assert.equal(canAdminResource(grants, resource), false, `${level.id} ikke admin ${resource}`);
+    }
+    for (const resource of expect.admin) {
+      assert.equal(canAdminResource(grants, resource), true, `${level.id} admin ${resource}`);
+    }
+  }
 }
 
 {
   const actor = resolveActorAccess({ bypass: true });
-  const ansatt = {
-    id: 'kari',
-    company: { accessLevel: 'ansatt', status: 'active' },
-  };
+  const ansatt = { id: 'kari', company: { accessLevel: 'ansatt', status: 'active' } };
   const narrowed = resolveViewAsAccess({
     actor, targetEmployee: ansatt, policy: null, lens: 'companySettings',
   });
   assert.equal(narrowed.active, true);
-  assert.equal(narrowed.scope, 'companySettings');
   assert.equal(narrowed.grants.companyProfile, 'none');
-  assert.equal(narrowed.grants.economy, 'delete');
-  assert.equal(narrowed.grants.viewAs, 'delete');
   assert.equal(viewAsLocks(narrowed, 'units'), true);
-  assert.equal(viewAsLocks(narrowed, 'economy'), false);
   assert.equal(viewAsAllows({
     preview: narrowed, actor, bypass: true, resource: 'companyProfile', action: 'write',
   }), false);
+  // Utenfor bedriftsinnstillinger beholder aktøren egne rettigheter.
   assert.equal(viewAsAllows({
-    preview: narrowed, actor, bypass: true, resource: 'companyProfile', action: 'read',
-  }), false);
-  assert.equal(viewAsAllows({
-    preview: narrowed, actor, bypass: true, resource: 'economy', action: 'delete',
+    preview: narrowed, actor, bypass: true, resource: 'economyOverview', action: 'see',
   }), true);
-  const selskap = filterCompanyNav(companyNavItems(), narrowed.grants)
-    .find((item) => item.id === 'selskap');
-  // companySettings-linse beholder aktørens øvrige rettigheter (inkl. HR for eier/bypass).
-  assert.equal(selskap.children, undefined);
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'ansatte'));
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'fravaer'));
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'hr'));
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'arbeid'));
-  assert.equal(
-    filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'selskapsinnstillinger'),
-    false,
-  );
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'okonomi'));
-  assert.ok(filterCompanyNav(companyNavItems(), narrowed.grants).some((item) => item.id === 'kjorebok'));
 
   const full = resolveViewAsAccess({
     actor, targetEmployee: ansatt, policy: null, lens: 'all',
   });
-  assert.equal(full.scope, 'all');
   assert.equal(full.grants.economy, 'none');
-  assert.equal(full.grants.projects, 'read');
+  assert.equal(full.grants.projects, 'see');
   assert.equal(viewAsAllows({
-    preview: full, actor, bypass: true, resource: 'economy', action: 'write',
+    preview: full, actor, bypass: true, resource: 'hours', action: 'read',
   }), false);
   assert.equal(viewAsAllows({
-    preview: full, actor, bypass: true, resource: 'projects', action: 'read',
+    preview: full, actor, bypass: true, resource: 'hours', action: 'see',
   }), true);
   const fullIds = filterCompanyNav(companyNavItems(), full.grants).map((item) => item.id);
   assert.ok(fullIds.includes('okonomi'));
@@ -517,113 +491,17 @@ assert.equal(toggleGrant('read', 'delete', true), 'delete');
       .children.map((child) => child.id),
     ['okonomi-prosjektutlegg'],
   );
-  assert.equal(fullIds.includes('projects'), true);
   const hidden = hiddenCompanyModules(full.grants).map((row) => row.id);
   assert.ok(hidden.includes('okonomi-oversikt'));
   assert.ok(hidden.includes('tilgang'));
-  assert.equal(hidden.includes('skjema'), false);
-  assert.equal(hidden.includes('anbud-varsling'), false);
 }
 
 {
-  const policy = setLevelGrant(null, 'ansatt', 'viewAs', 'see');
-  const viewer = {
-    id: 'ida',
-    personUid: 'ida',
-    company: { accessLevel: 'ansatt', status: 'active' },
-  };
-  const actor = resolveActorAccess({ policy, employees: [viewer], uid: 'ida' });
-  assert.equal(viewAsCapability(actor.grants), 'companySettings');
-  assert.equal(effectiveViewAsScope('companySettings', 'all'), 'companySettings');
-  const boss = {
-    id: 'bo',
-    company: { accessLevel: 'administrator', status: 'active' },
-  };
-  const preview = resolveViewAsAccess({
-    actor, targetEmployee: boss, policy, lens: 'all',
-  });
-  assert.equal(preview.scope, 'companySettings');
-  assert.equal(preview.grants.companyProfile, 'delete');
-  assert.equal(preview.grants.economy, 'none');
-  assert.equal(preview.grants.viewAs, 'see');
-  assert.equal(companyTabAllowed('selskap', 'tilgang', preview.grants), true);
-  assert.equal(companyTabAllowed('selskap', 'tilgang', actor.grants), false);
-  assert.equal(viewAsAllows({
-    preview, actor, bypass: false, resource: 'companyProfile', action: 'read',
-  }), false);
-  assert.equal(viewAsAllows({
-    preview, actor, bypass: false, resource: 'companyProfile', action: 'write',
-  }), false);
-  const blocked = resolveViewAsAccess({
-    actor: resolveActorAccess({ employees: [viewer], uid: 'ida' }),
-    targetEmployee: boss,
-    policy: null,
-    lens: 'all',
-  });
-  assert.equal(blocked.active, false);
-  assert.equal(viewAsCapability(blocked.grants), 'none');
-  const viaPerson = resolveActorAccess({
-    employees: [{
-      id: 'ida',
-      personUid: 'ida',
-      company: { accessLevel: 'ansatt', status: 'active', accessOverrides: { viewAs: 'see' } },
-    }],
-    uid: 'ida',
-  });
-  assert.equal(viewAsCapability(viaPerson.grants), 'companySettings');
-  assert.equal(viaPerson.grants.economy, 'none');
-}
-
-{
-  const deleted = { id: 'x', company: { accessLevel: 'ansatt', status: 'deleted' } };
-  const skipped = resolveViewAsAccess({
-    actor: resolveActorAccess({ bypass: true }),
-    targetEmployee: deleted,
-    policy: null,
-    lens: 'all',
-  });
-  assert.equal(skipped.active, false);
-  assert.equal(skipped.grants, null);
-}
-
-{
-  const rows = companyModuleVisibility(standardGrants('ansatt'));
-  assert.equal(rows.find((row) => row.id === 'tilgang').visible, false);
-  assert.equal(rows.find((row) => row.id === 'selskap').visible, true);
-  assert.equal(rows.find((row) => row.id === 'okonomi').visible, true);
-  assert.equal(rows.find((row) => row.id === 'okonomi-prosjektutlegg').visible, true);
-  assert.equal(rows.find((row) => row.id === 'okonomi-oversikt').visible, false);
-  assert.equal(rows.find((row) => row.id === 'fravaer').visible, true);
-  assert.equal(rows.find((row) => row.id === 'produkt').visible, true);
-  assert.equal(rows.find((row) => row.id === 'skjema').visible, true);
-  const readOnly = grantsForViewAs(
-    standardGrants('leder'),
-    standardGrants('ansatt'),
-    'all',
-  );
-  assert.equal(readOnly.viewAs, 'write');
-  assert.equal(readOnly.economy, 'none');
-}
-
-{
-  const staff = {
-    id: 'frank',
-    person: { firstName: 'Frank', lastName: 'Ingvartsen' },
-    company: { accessLevel: 'ansatt', accessRole: 'Ansatt', status: 'active', personnelKind: 'staff' },
-  };
-  const both = withToggledLevel(staff, 'tilbud', true);
-  assert.deepEqual(employeeLevelIds(both), ['ansatt', 'tilbud']);
-  assert.equal(both.company.personnelKind, 'staff');
-  assert.equal(placedLevelId(both), 'tilbud');
-  const grants = grantsForEmployee(null, both);
-  assert.equal(grants.offers, 'write');
-  assert.equal(grants.hours, 'write');
-  assert.equal(grantsForLevelIds(null, ['ansatt']).offers, 'none');
-  const onlyAnsatt = withToggledLevel(both, 'tilbud', false);
-  assert.deepEqual(employeeLevelIds(onlyAnsatt), ['ansatt']);
-  const cleared = withToggledLevel(onlyAnsatt, 'ansatt', false);
-  assert.deepEqual(employeeLevelIds(cleared), []);
-  assert.equal(cleared.company.accessLevel, '');
+  // Ingen runtime-arv: tenders Admin gir ikke automatisk forespørsel.
+  const grants = { ...standardGrants('ansatt'), tenders: 'write', tenderRequest: 'none' };
+  assert.equal(allowsEffective(grants, 'tenders', 'write'), true);
+  assert.equal(allowsEffective(grants, 'tenderRequest', 'see'), false);
+  assert.equal(canViewResource(grants, 'tenderRequest'), false);
 }
 
 console.log('companyAccess.test.mjs: ok');

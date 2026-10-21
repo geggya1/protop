@@ -139,7 +139,7 @@ export default function ProjectDetail({
   hoursLoading = false,
 }) {
   const access = useCompanyAccess();
-  const canSeeEarnings = access.can('economy', 'see');
+  const canSeeEarnings = access.canView('economyEarnings') || access.canView('economy');
   const tabs = useMemo(
     () => (canSeeEarnings ? TABS : TABS.filter((row) => row.id !== 'inntjening')),
     [canSeeEarnings],

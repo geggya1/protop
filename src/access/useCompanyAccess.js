@@ -26,6 +26,9 @@ const idle = {
   levelId: '',
   employee: null,
   can: () => true,
+  canView: () => true,
+  canEdit: () => true,
+  canAdmin: () => true,
   tabAllowed: () => true,
   actorTabAllowed: () => true,
   previewLocks: () => false,
@@ -54,6 +57,12 @@ function presentAccess({ bypass, ready, employees, actor, preview }) {
     customized: !!actor?.customized,
     hoursOnAssignedOnly: !!actor?.hoursOnAssignedOnly,
     can: (resource, action) => viewAsAllows({ preview, actor, bypass, resource, action }),
+    /** Lese — se innhold uten endring. */
+    canView: (resource) => viewAsAllows({ preview, actor, bypass, resource, action: 'see' }),
+    /** Begrenset redigering — opprette og redigere innhold. */
+    canEdit: (resource) => viewAsAllows({ preview, actor, bypass, resource, action: 'read' }),
+    /** Admin — innstillingsknapper og full modulstyring. */
+    canAdmin: (resource) => viewAsAllows({ preview, actor, bypass, resource, action: 'write' }),
     tabAllowed: (tab, subView) => {
       if (!previewing && bypass) return true;
       return companyTabAllowed(tab, subView, grants);
@@ -134,6 +143,9 @@ export function useCompanyAccess() {
         levelId: '',
         employee: null,
         can: () => false,
+        canView: () => false,
+        canEdit: () => false,
+        canAdmin: () => false,
         tabAllowed: (tab, subView) => companyTabAllowed(tab, subView, grants),
         actorTabAllowed: (tab, subView) => companyTabAllowed(tab, subView, grants),
         previewLocks: () => false,

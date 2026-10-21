@@ -109,10 +109,10 @@ export default function EmployeesScreen() {
   const colors = useColors();
   const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
-  const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.can('employees', 'write'));
+  const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canEdit('employees'));
   const canInvite = isAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
-    || (access.ready && access.can('accessControl', 'write'));
+    || (access.ready && access.canAdmin('accessControl'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = family?.company?.navn || family?.name || '';
   const departments = useMemo(
@@ -740,7 +740,7 @@ export default function EmployeesScreen() {
 
   function openPersonTab(tabId) {
     if (!selected) return;
-    if (tabId === 'earnings' && !access.can('economy', 'see')) return;
+    if (tabId === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return;
     if (tabId === 'home') {
       openDetail(selected);
       return;
@@ -1318,7 +1318,7 @@ export default function EmployeesScreen() {
           colors={colors}
           companyName={companyName}
           siblings={visible}
-          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => tab.id !== 'earnings' || access.can('economy', 'see'))}
+          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
           onTab={openPersonTab}
@@ -1503,12 +1503,12 @@ export default function EmployeesScreen() {
             <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
           ) : null}
 
-          {view === 'earnings' && access.can('economy', 'see') ? (
+          {view === 'earnings' && (access.canView('economyEarnings') || access.canView('economy')) ? (
             <EmployeeEarningsSheet
               companyId={familyId}
               employee={selected}
               colors={colors}
-              canEdit={access.can('economy', 'write')}
+              canEdit={access.canEdit('economyEarnings') || access.canEdit('economy')}
             />
           ) : null}
 

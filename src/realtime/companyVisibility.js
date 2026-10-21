@@ -263,7 +263,8 @@ function assertCanInvite(company, actorUid) {
     employees: company.employees,
     uid: actorUid,
   });
-  if (!allows(access.grants, 'employees', 'write')) {
+  // Begrenset redigering (read) eller Admin (write) på ansatte.
+  if (!allows(access.grants, 'employees', 'read')) {
     const err = new Error('Bare administrator kan sende invitasjonen.');
     throw err;
   }
@@ -348,7 +349,7 @@ export function publishWall(world, { companyId, authorUid, body }) {
     uid: authorUid,
     bypass: company.ownerUid === authorUid,
   });
-  if (company.ownerUid !== authorUid && !allows(access.grants, 'companyProfile', 'write')) {
+  if (company.ownerUid !== authorUid && !allows(access.grants, 'companyPublic', 'read')) {
     throw new Error('Du kan ikke publisere på veggen.');
   }
   const post = { id: world.nextId('wall'), authorUid, body, deleted: false };
@@ -461,7 +462,7 @@ export function memberView(world, companyId, uid) {
       grants,
     };
   }
-  const admin = allowsHr(grants, 'read') || company.ownerUid === uid;
+  const admin = allowsHr(grants, 'see') || company.ownerUid === uid;
   const rows = allows(grants, 'employees', 'see')
     ? filterEmployees(company.employees, { status: 'active' })
     : [];
@@ -479,7 +480,7 @@ export function memberView(world, companyId, uid) {
   });
   const self = company.employees.find((row) => row.personUid === uid);
   let hr = null;
-  if (allowsHr(grants, 'read')) hr = clone(company.hr);
+  if (allowsHr(grants, 'see')) hr = clone(company.hr);
   else if (self) hr = employeeVisibleSlice(company.hr, self.id);
   return {
     inside: true,
@@ -487,11 +488,11 @@ export function memberView(world, companyId, uid) {
     tabs: COMPANY_TAB_IDS.filter((tab) => companyTabAllowed(tab, null, grants)),
     employees,
     nationalIds: employees.map((row) => row.nationalId),
-    books: allowsEconomy(grants, 'read') ? clone(company.books) : null,
+    books: allowsEconomy(grants, 'see') ? clone(company.books) : null,
     hr,
     wall: company.wall.filter((post) => !post.deleted).map((post) => post.body),
-    canPublish: company.ownerUid === uid || allows(grants, 'companyProfile', 'write'),
-    settings: allows(grants, 'companyProfile', 'read') || allows(grants, 'accessControl', 'read') || company.ownerUid === uid,
+    canPublish: company.ownerUid === uid || allows(grants, 'companyPublic', 'read'),
+    settings: allows(grants, 'companyProfile', 'see') || allows(grants, 'accessControl', 'see') || company.ownerUid === uid,
     units: allows(grants, 'units', 'see'),
     grants,
   };

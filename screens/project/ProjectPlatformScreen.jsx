@@ -64,12 +64,12 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const access = useCompanyAccess();
   const company = family?.company?.navn ? family.company : null;
   const owner = isSuperAdmin(family, uid);
-  const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'write'));
-  const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.can('companyProfile', 'read'));
+  const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canAdmin('companyProfile'));
+  const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canView('companyProfile'));
   const canEditAccess = (owner && !access.previewLocks('accessControl'))
-    || (access.ready && access.can('accessControl', 'write'));
+    || (access.ready && access.canAdmin('accessControl'));
   const canOpenAccess = (owner && !access.previewLocks('accessControl'))
-    || (access.ready && access.can('accessControl', 'read'));
+    || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState(initialCompanyPage(startPage));
   const [busy, setBusy] = useState(false);

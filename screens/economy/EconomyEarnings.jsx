@@ -66,11 +66,12 @@ export default function EconomyEarnings({
   const { isPhone } = useLayout();
   const { familyId } = useApp();
   const access = useCompanyAccess();
-  const canEarnings = access.can('economyEarnings', 'see') || access.can('economy', 'see');
-  const canCustomers = access.can('economyCustomers', 'see') || access.can('economy', 'see');
-  const canContracts = access.can('economyContracts', 'see') || access.can('economy', 'see');
+  const canEarnings = access.canView('economyEarnings') || access.canView('economy');
+  const canCustomers = access.canView('economyCustomers') || access.canView('economy');
+  const canContracts = access.canView('economyContracts') || access.canView('economy');
   const canSee = canEarnings || canCustomers || canContracts;
-  const canEdit = access.can('economyEarnings', 'write') || access.can('economy', 'write');
+  const canEdit = access.canEdit('economyEarnings') || access.canEdit('economy');
+  const canAdmin = access.canAdmin('economyEarnings') || access.canAdmin('economy');
   const { settings, ready, update } = useEarningsSettings(canSee ? familyId : '');
   const [page, setPage] = useState(sectionFromProp(section));
   const sections = SECTIONS.filter((item) => {
@@ -299,7 +300,7 @@ export default function EconomyEarnings({
         {showPeople && mode === 'variables' ? (
           <EarningsSettings
             settings={settings}
-            canEdit={canEdit}
+            canEdit={canAdmin}
             onChange={update}
             colors={colors}
             audience={hired ? 'hired' : 'staff'}

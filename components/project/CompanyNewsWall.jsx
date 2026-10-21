@@ -97,7 +97,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
   const canPublish = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.can('companyProfile', 'write'));
+    || (access.ready && access.canEdit('companyPublic'));
   const me = (members || []).find((m) => m.uid === uid);
   const myName = me?.name || family?.company?.navn || 'Bedriften';
   const [posts, setPosts] = useState([]);

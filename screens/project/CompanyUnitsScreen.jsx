@@ -82,7 +82,7 @@ export default function CompanyUnitsScreen() {
   } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const access = useCompanyAccess();
-  const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.can('units', 'write'));
+  const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.canEdit('units'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);

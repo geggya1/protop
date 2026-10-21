@@ -25,15 +25,17 @@ for (const level of ACCESS_LEVELS) {
   assert.equal(flags.externalRules, expect.rules, `${level.id} rules`);
   const grants = standardGrants(level.id);
   if (flags.includeInCapacity) {
-    assert.equal(allows(grants, 'hours', 'write'), true, `${level.id} writes own hours`);
+    // Begrenset redigering (read) eller Admin (write) på egne timer.
+    assert.equal(allows(grants, 'hours', 'read'), true, `${level.id} edits own hours`);
   }
   if (level.id === 'regnskap_ekstern') assert.equal(allows(grants, 'economy', 'write'), false);
   if (level.id === 'administrator') {
+    assert.equal(allows(grants, 'companyProfile', 'write'), true);
     assert.equal(allows(grants, 'companyProfile', 'delete'), true);
   }
   if (level.id === 'leder') {
     assert.equal(allows(grants, 'companyProfile', 'write'), false);
-    assert.equal(allows(grants, 'economy', 'delete'), true);
+    assert.equal(allows(grants, 'economy', 'write'), true);
   }
 }
 

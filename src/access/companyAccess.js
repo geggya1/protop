@@ -11,12 +11,20 @@ export const ACCESS_RANKS = ['none', 'see', 'read', 'write', 'delete'];
 
 const RANK_VALUE = { none: 0, see: 1, read: 2, write: 3, delete: 4 };
 
+/**
+ * Tre trinn i matrisen (høyere inkluderer lavere):
+ * Lese = se/lese uten endring
+ * Begrenset redigering = opprette og redigere innhold
+ * Admin = moduladmin (innstillingsknapper og full styring)
+ * Internt finnes fortsatt «delete» som Admin+ for eldre lagring.
+ */
 export const ACCESS_ACTIONS = [
-  { id: 'see', label: 'Se' },
-  { id: 'read', label: 'Lese' },
-  { id: 'write', label: 'Skrive' },
-  { id: 'delete', label: 'Slette' },
+  { id: 'see', label: 'Lese' },
+  { id: 'read', label: 'Begrenset redigering' },
+  { id: 'write', label: 'Admin' },
 ];
+
+export const ACCESS_ACTIONS_VERSION = 2;
 
 /**
  * Rettighetskatalog som speiler bedriftsmenyen.
@@ -99,11 +107,6 @@ export const ACCESS_GROUPS = [
     id: 'economy',
     label: 'Økonomi og fakturering',
     resources: [
-      {
-        id: 'economy',
-        label: 'Økonomi (hele modulen)',
-        hint: 'Overordnet rettighet. Undersidene kan settes finere under.',
-      },
       { id: 'economyOverview', label: 'Oversikt' },
       { id: 'economyEarnings', label: 'Inntjening' },
       { id: 'economyCustomers', label: 'Kundesummer' },
@@ -131,14 +134,15 @@ export const ACCESS_GROUPS = [
       {
         id: 'viewAs',
         label: 'Se som bruker',
-        hint: 'Bytt bruker og se moduler og applikasjoner slik personen ser dem. Se: bare bedriftsinnstillinger. Lese eller høyere: alle moduler og apper.',
+        hint: 'Bytt bruker og se moduler og applikasjoner slik personen ser dem. Lese: bare bedriftsinnstillinger. Begrenset redigering eller Admin: alle moduler og apper.',
       },
     ],
   },
 ];
 
 export const ACCESS_RESOURCES = ACCESS_GROUPS.flatMap((group) => group.resources);
-export const RESOURCE_IDS = ACCESS_RESOURCES.map((row) => row.id);
+/** «economy» er skjult i matrisen, men beholdes for eldre sjekker og synk. */
+export const RESOURCE_IDS = [...ACCESS_RESOURCES.map((row) => row.id), 'economy'];
 
 /** Undersider som arver fra en eldre/overordnet rettighet når egen verdi mangler i lagret policy. */
 export const RESOURCE_PARENT = {
@@ -332,7 +336,7 @@ function hoursSurface(rank) {
   };
 }
 
-/** Økonomisider som tidligere lå under én economy-rettighet. */
+/** Økonomisider (uten innstillinger — de settes for seg). */
 function economySurface(rank) {
   return {
     economy: rank,
@@ -363,91 +367,108 @@ function hrSurface(rank) {
   };
 }
 
-/** Anbudssteg som tidligere lå under tenders. */
+/** Anbudssteg uten innstillinger. */
 function tenderSurface(rank) {
   return {
     tenders: rank,
     tenderRequest: rank,
     tenderReview: rank,
-    tenderSettings: rank,
   };
 }
 
-/** Innstillinger som tidligere krevde companyProfile. */
-function settingsFromProfile(rank) {
-  return {
-    companyProfile: rank,
-    accessControl: rank,
-    absenceSettings: rank,
-    economySettings: rank,
-  };
-}
-
+/**
+ * Standardnivå med ny semantikk:
+ * see = Lese, read = begrenset redigering, write = Admin.
+ */
 const STANDARD = {
   regnskap_ekstern: fill({
-    companyPublic: 'read',
-    ownProfile: 'read',
-    ...economySurface('read'),
+    companyPublic: 'see',
+    ownProfile: 'see',
+    ...economySurface('see'),
   }),
   innleie_ekstern: fill({
-    companyPublic: 'read',
-    assignedProjects: 'read',
-    ownProfile: 'read',
-    ...hoursSurface('write'),
+    companyPublic: 'see',
+    assignedProjects: 'see',
+    ownProfile: 'see',
+    ...hoursSurface('read'),
     equipment: 'see',
   }),
   ansatt: fill({
-    companyPublic: 'read',
+    companyPublic: 'see',
     units: 'see',
-    employees: 'read',
-    ownProfile: 'write',
-    forms: 'write',
-    projects: 'read',
-    assignedProjects: 'read',
-    ...hoursSurface('write'),
-    equipment: 'read',
-    iso: 'read',
+    employees: 'see',
+    ownProfile: 'read',
+    forms: 'read',
+    projects: 'see',
+    assignedProjects: 'see',
+    ...hoursSurface('read'),
+    equipment: 'see',
+    iso: 'see',
   }),
   tilbud: fill({
-    companyPublic: 'read',
+    companyPublic: 'see',
     units: 'see',
-    employees: 'read',
-    ownProfile: 'write',
-    customers: 'read',
-    ...tenderSurface('read'),
-    offers: 'write',
-    contracts: 'read',
-    forms: 'write',
-    projects: 'read',
-    assignedProjects: 'read',
-    ...hoursSurface('write'),
-    equipment: 'read',
-    iso: 'read',
+    employees: 'see',
+    ownProfile: 'read',
+    customers: 'see',
+    ...tenderSurface('see'),
+    offers: 'read',
+    tenderSettings: 'see',
+    contracts: 'see',
+    forms: 'read',
+    projects: 'see',
+    assignedProjects: 'see',
+    ...hoursSurface('read'),
+    equipment: 'see',
+    iso: 'see',
   }),
   ansatt_andre_avdelinger: fill({
-    companyPublic: 'read',
+    companyPublic: 'see',
+    units: 'see',
+    employees: 'see',
+    ownProfile: 'read',
+    forms: 'read',
+    projects: 'see',
+    assignedProjects: 'see',
+    ...hoursSurface('read'),
+    hoursOthers: 'see',
+    equipment: 'see',
+    iso: 'see',
+  }),
+  avdelingsleder: fill({
+    companyPublic: 'see',
+    companyProfile: 'see',
     units: 'read',
     employees: 'read',
-    ownProfile: 'write',
-    forms: 'write',
+    ownProfile: 'read',
+    ...hrSurface('see'),
+    customers: 'read',
+    ...tenderSurface('see'),
+    offers: 'see',
+    contracts: 'see',
+    forms: 'read',
     projects: 'read',
     assignedProjects: 'read',
-    ...hoursSurface('write'),
-    hoursOthers: 'see',
+    ...hoursSurface('read'),
+    hoursOthers: 'read',
     equipment: 'read',
     iso: 'read',
   }),
-  avdelingsleder: fill({
-    companyPublic: 'read',
-    ...settingsFromProfile('read'),
+  leder: fill({
+    companyPublic: 'see',
+    companyProfile: 'see',
+    accessControl: 'see',
+    absenceSettings: 'write',
+    economySettings: 'write',
+    tenderSettings: 'write',
     units: 'write',
     employees: 'write',
-    ownProfile: 'write',
-    ...hrSurface('read'),
+    ownProfile: 'read',
+    ...hrSurface('write'),
     customers: 'write',
-    ...tenderSurface('read'),
-    offers: 'read',
-    contracts: 'read',
+    ...tenderSurface('write'),
+    offers: 'write',
+    contracts: 'write',
     forms: 'write',
     projects: 'write',
     assignedProjects: 'write',
@@ -455,30 +476,11 @@ const STANDARD = {
     hoursOthers: 'write',
     equipment: 'write',
     iso: 'write',
-  }),
-  leder: fill({
-    companyPublic: 'read',
-    ...settingsFromProfile('read'),
-    units: 'read',
-    employees: 'delete',
-    ownProfile: 'write',
-    ...hrSurface('delete'),
-    customers: 'delete',
-    ...tenderSurface('delete'),
-    offers: 'delete',
-    contracts: 'delete',
-    forms: 'delete',
-    projects: 'delete',
-    assignedProjects: 'delete',
-    ...hoursSurface('delete'),
-    hoursOthers: 'delete',
-    equipment: 'delete',
-    iso: 'delete',
-    ...economySurface('delete'),
+    ...economySurface('write'),
     viewAs: 'write',
   }),
   administrator: fill(
-    Object.fromEntries(RESOURCE_IDS.map((id) => [id, 'delete'])),
+    Object.fromEntries(RESOURCE_IDS.map((id) => [id, 'write'])),
   ),
 };
 
@@ -518,30 +520,46 @@ export function rankValue(rank) {
 }
 
 export function allows(grants, resource, action) {
-  const need = action === 'see' || action === 'read' || action === 'write' || action === 'delete'
-    ? action
-    : 'see';
+  // Admin (write) dekker også sletting i modulen.
+  const need = action === 'delete'
+    ? 'write'
+    : (action === 'see' || action === 'read' || action === 'write' ? action : 'see');
   return rankValue(grants?.[resource]) >= rankValue(need);
 }
 
-/** Direkte rettighet, ellers overordnet ressurs (for eldre policy og samlet modulrettighet). */
+/**
+ * Direkte sjekk per ressurs. Ingen runtime-arv — hver undermodul styres for seg.
+ * Eldre policy migreres i levelGrants.
+ */
 export function allowsEffective(grants, resource, action) {
-  if (allows(grants, resource, action)) return true;
-  const parent = RESOURCE_PARENT[resource];
-  if (!parent || parent === resource) return false;
-  return allows(grants, parent, action);
+  return allows(grants, resource, action);
 }
 
 export function allowsAny(grants, resources, action) {
-  return (resources || []).some((id) => allowsEffective(grants, id, action));
+  return (resources || []).some((id) => allows(grants, id, action));
 }
 
 export function allowsEconomy(grants, action) {
-  return allowsAny(grants, ECONOMY_PAGE_RESOURCES, action);
+  return allowsAny(grants, ECONOMY_PAGE_RESOURCES, action) || allows(grants, 'economy', action);
 }
 
 export function allowsHr(grants, action) {
   return allowsAny(grants, HR_PAGE_RESOURCES, action);
+}
+
+/** Lese: se innhold uten endring. */
+export function canViewResource(grants, resource) {
+  return allows(grants, resource, 'see');
+}
+
+/** Begrenset redigering: opprette og redigere innhold. */
+export function canEditResource(grants, resource) {
+  return allows(grants, resource, 'read');
+}
+
+/** Admin: innstillingsknapper og full modulstyring. */
+export function canAdminResource(grants, resource) {
+  return allows(grants, resource, 'write');
 }
 
 export function hrResourceForSubView(subView) {
@@ -581,31 +599,33 @@ export function checksFromGrant(grant) {
     see: value >= 1,
     read: value >= 2,
     write: value >= 3,
-    delete: value >= 4,
   };
 }
 
 export function toggleGrant(current, action, on) {
   const checks = checksFromGrant(current);
-  if (action === 'see' || action === 'read' || action === 'write' || action === 'delete') {
+  if (action === 'see' || action === 'read' || action === 'write') {
     checks[action] = !!on;
   }
   if (on) {
-    if (action === 'delete') checks.write = checks.read = checks.see = true;
     if (action === 'write') checks.read = checks.see = true;
     if (action === 'read') checks.see = true;
   } else if (action === 'see') {
-    checks.read = checks.write = checks.delete = false;
+    checks.read = checks.write = false;
   } else if (action === 'read') {
-    checks.write = checks.delete = false;
-  } else if (action === 'write') {
-    checks.delete = false;
+    checks.write = false;
   }
-  if (checks.delete) return 'delete';
   if (checks.write) return 'write';
   if (checks.read) return 'read';
   if (checks.see) return 'see';
   return 'none';
+}
+
+/** Eldre policy: write = innholdsredigering, delete = full styring. */
+function migrateLegacyRank(rank) {
+  if (rank === 'write') return 'read';
+  if (rank === 'delete') return 'write';
+  return rank;
 }
 
 export function grantsEqual(left, right) {
@@ -615,19 +635,34 @@ export function grantsEqual(left, right) {
 export function levelGrants(policy, levelId) {
   const grants = standardGrants(levelId);
   const saved = policy?.levels?.[levelId];
-  if (!saved || typeof saved !== 'object') return grants;
-  for (const id of RESOURCE_IDS) {
-    if (ACCESS_RANKS.includes(saved[id])) grants[id] = saved[id];
+  if (!saved || typeof saved !== 'object') {
+    syncDerivedEconomy(grants);
+    return grants;
   }
-  // Eldre lagrede nivå har ofte bare overordnet nøkkel. Fyll undersider som ikke
-  // er lagret eksplisitt, så utvidet katalog ikke mister tilpasset tilgang.
+  const legacy = (policy?.actionsVersion || 1) < ACCESS_ACTIONS_VERSION;
+  for (const id of RESOURCE_IDS) {
+    if (!ACCESS_RANKS.includes(saved[id])) continue;
+    grants[id] = legacy ? migrateLegacyRank(saved[id]) : saved[id];
+  }
+  // Eldre lagrede nivå har ofte bare overordnet nøkkel. Fyll undersider én gang.
   for (const [child, parent] of Object.entries(RESOURCE_PARENT)) {
     if (!RESOURCE_IDS.includes(child) || !RESOURCE_IDS.includes(parent)) continue;
     if (ACCESS_RANKS.includes(saved[child])) continue;
     if (!ACCESS_RANKS.includes(saved[parent])) continue;
-    grants[child] = saved[parent];
+    const parentRank = legacy ? migrateLegacyRank(saved[parent]) : saved[parent];
+    grants[child] = parentRank;
   }
+  syncDerivedEconomy(grants);
   return grants;
+}
+
+function syncDerivedEconomy(grants) {
+  let max = 'none';
+  for (const id of ECONOMY_PAGE_RESOURCES) {
+    if (rankValue(grants[id]) > rankValue(max)) max = grants[id];
+  }
+  if (rankValue(grants.economy) > rankValue(max)) max = grants.economy;
+  grants.economy = max;
 }
 
 export function normalizeAccessPolicy(raw) {
@@ -637,7 +672,7 @@ export function normalizeAccessPolicy(raw) {
     const standard = standardGrants(level.id);
     if (!grantsEqual(grants, standard)) levels[level.id] = grants;
   }
-  return { version: 1, levels };
+  return { version: 1, actionsVersion: ACCESS_ACTIONS_VERSION, levels };
 }
 
 export function compactPolicy(policy) {
@@ -656,13 +691,18 @@ export function setLevelGrant(policy, levelId, resourceId, grant) {
     levels[level.id] = levelGrants(policy, level.id);
   }
   levels[levelId] = { ...levels[levelId], [resourceId]: nextRank };
-  return normalizeAccessPolicy({ version: 1, levels });
+  // Allerede migrert/ny semantikk — ikke kjør legacy-mapping på nytt.
+  return normalizeAccessPolicy({ version: 1, actionsVersion: ACCESS_ACTIONS_VERSION, levels });
 }
 
 export function resetLevel(policy, levelId) {
   const levels = { ...(policy?.levels || {}) };
   delete levels[levelId];
-  return normalizeAccessPolicy({ version: 1, levels });
+  return normalizeAccessPolicy({
+    version: 1,
+    actionsVersion: ACCESS_ACTIONS_VERSION,
+    levels,
+  });
 }
 
 export function normalizeOverrides(raw) {
@@ -763,7 +803,7 @@ export function effectiveLevelId(employee) {
 }
 
 export function hoursOnAssignedOnly(grants) {
-  return allows(grants, 'hours', 'write') && !allows(grants, 'projects', 'see');
+  return allows(grants, 'hours', 'read') && !allows(grants, 'projects', 'see');
 }
 
 export function alignCompanyEmployment(company) {
@@ -965,20 +1005,20 @@ function seeResource(grants, resource) {
   return allowsEffective(grants, resource, 'see');
 }
 
-function readResource(grants, resource) {
-  return allowsEffective(grants, resource, 'read');
+function adminResource(grants, resource) {
+  return allowsEffective(grants, resource, 'write');
 }
 
 export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
   if (tab === 'selskap' && subView === 'underenheter') return seeResource(grants, 'units');
-  if (tab === 'selskap' && subView === 'tilgang') return readResource(grants, 'accessControl');
-  if (tab === 'selskap' && subView === 'innstillinger') return readResource(grants, 'companyProfile');
+  if (tab === 'selskap' && subView === 'tilgang') return seeResource(grants, 'accessControl');
+  if (tab === 'selskap' && subView === 'innstillinger') return seeResource(grants, 'companyProfile');
   if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager')) {
-    return readResource(grants, 'absenceSettings');
+    return adminResource(grants, 'absenceSettings');
   }
   if (tab === 'selskap' && (subView === 'kontoplan' || subView === 'regnskapskontoer')) {
-    return readResource(grants, 'economySettings');
+    return adminResource(grants, 'economySettings');
   }
   if (tab === 'underenheter') return seeResource(grants, 'units');
   if (tab === 'utstyr') {
@@ -988,7 +1028,7 @@ export function companyTabAllowed(tab, subView, grants) {
       || hoursAllowed(grants);
   }
   if (tab === 'arbeid' && subView === 'fravaer-innstillinger') {
-    return readResource(grants, 'absenceSettings');
+    return adminResource(grants, 'absenceSettings');
   }
   if (tab === 'arbeid' && subView === 'produktivitet') return seeResource(grants, 'productivity');
   if (tab === 'arbeid' && subView === 'salg') return seeResource(grants, 'productSales');
@@ -1013,10 +1053,10 @@ export function companyTabAllowed(tab, subView, grants) {
       || seeResource(grants, 'absence')
       || seeResource(grants, 'absenceReport')
       || seeResource(grants, 'absencePlanned')
-      || readResource(grants, 'absenceSettings');
+      || adminResource(grants, 'absenceSettings');
   }
   if (tab === 'okonomi') {
-    if (subView === 'innstillinger') return readResource(grants, 'economySettings');
+    if (subView === 'innstillinger') return adminResource(grants, 'economySettings');
     if (subView === 'kjorebok') return seeResource(grants, 'mileage');
     if (subView === 'produkter') return seeResource(grants, 'products');
     // Prosjektutlegg åpnes via arbeid-fanen; alene skal den ikke åpne økonomi-fanen.
@@ -1024,7 +1064,7 @@ export function companyTabAllowed(tab, subView, grants) {
     return allowsEconomy(grants, 'see')
       || seeResource(grants, 'mileage')
       || seeResource(grants, 'products')
-      || readResource(grants, 'economySettings');
+      || adminResource(grants, 'economySettings');
   }
   if (tab === 'hr') {
     return seeResource(grants, hrResourceForSubView(subView || 'oversikt'));
@@ -1035,7 +1075,7 @@ export function companyTabAllowed(tab, subView, grants) {
     }
     if (subView === 'tilbud' || subView === 'pipeline') return seeResource(grants, 'offers');
     if (subView === 'innstillinger') {
-      return seeResource(grants, 'tenderSettings') || seeResource(grants, 'offers');
+      return adminResource(grants, 'tenderSettings');
     }
     if (subView === 'foresporsel') return seeResource(grants, 'tenderRequest');
     if (subView === 'vurdering') return seeResource(grants, 'tenderReview');
@@ -1051,8 +1091,13 @@ export function companyTabAllowed(tab, subView, grants) {
 }
 
 function navItemAllowed(id, grants) {
-  if (id === 'anbud-innstillinger') {
-    return seeResource(grants, 'tenderSettings') || seeResource(grants, 'offers');
+  if (id === 'anbud-innstillinger' || id === 'fravaer-innstillinger' || id === 'okonomi-innstillinger') {
+    const map = {
+      'anbud-innstillinger': 'tenderSettings',
+      'fravaer-innstillinger': 'absenceSettings',
+      'okonomi-innstillinger': 'economySettings',
+    };
+    return adminResource(grants, map[id]);
   }
   if (id === 'utstyr') {
     return seeResource(grants, 'equipment')
@@ -1064,7 +1109,7 @@ function navItemAllowed(id, grants) {
     return seeResource(grants, 'absence')
       || seeResource(grants, 'absenceReport')
       || seeResource(grants, 'absencePlanned')
-      || readResource(grants, 'absenceSettings');
+      || adminResource(grants, 'absenceSettings');
   }
   if (id === 'arbeid') {
     return seeResource(grants, 'hours')
@@ -1081,7 +1126,7 @@ function navItemAllowed(id, grants) {
       || seeResource(grants, 'tenderRequest')
       || seeResource(grants, 'tenderReview')
       || seeResource(grants, 'offers')
-      || seeResource(grants, 'tenderSettings');
+      || adminResource(grants, 'tenderSettings');
   }
   if (id === 'hr') {
     return allowsHr(grants, 'see');
@@ -1096,16 +1141,15 @@ function navItemAllowed(id, grants) {
       || seeResource(grants, 'mileage')
       || seeResource(grants, 'products')
       || seeResource(grants, 'economyProjectExpenses')
-      || readResource(grants, 'economySettings');
+      || adminResource(grants, 'economySettings');
   }
   if (id === 'selskapsinnstillinger') {
-    return readResource(grants, 'companyProfile') || readResource(grants, 'accessControl');
+    return seeResource(grants, 'companyProfile') || seeResource(grants, 'accessControl');
   }
   const resource = NAV_RESOURCE[id] || COMPANY_TAB_RESOURCE[id];
   if (!resource) return true;
-  if (resource === 'accessControl' || resource === 'companyProfile'
-    || resource === 'absenceSettings' || resource === 'economySettings') {
-    return readResource(grants, resource);
+  if (resource === 'absenceSettings' || resource === 'economySettings' || resource === 'tenderSettings') {
+    return adminResource(grants, resource);
   }
   return seeResource(grants, resource);
 }
@@ -1229,6 +1273,7 @@ export function viewAsAllows({ preview, actor, bypass = false, resource, action 
   if (!preview?.active) return bypass ? true : allowsEffective(actor?.grants, resource, action);
   const actorOk = bypass ? true : allowsEffective(actor?.grants, resource, action);
   if (!viewAsLocks(preview, resource)) return actorOk;
-  if (action === 'write' || action === 'delete') return false;
+  // Forhåndsvisning: bare Lese. Ingen begrenset redigering eller Admin.
+  if (action === 'read' || action === 'write' || action === 'delete') return false;
   return actorOk && allowsEffective(preview.grants, resource, action);
 }

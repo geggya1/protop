@@ -174,25 +174,36 @@ export async function handleInterpretIndeks(data) {
     ? interpretDocuments(documents)
     : interpretDocuments([{ id: 'dok-1', name: String(data?.fileName || 'Avtale').slice(0, 180), text: source || 'Skannet avtale' }]);
   const apiKey = getGeminiKey();
+  // Hosting-rewrite har ~60 s. Rik OCR-tekst → hopp over store sidebilder (spar 20–40 s).
+  const textReady = source.length >= 400 && pdfTextLooksReadable(source);
   const parts = [];
   if (source.length >= 20) parts.push({ text: source.slice(0, 45000) });
   else parts.push({ text: 'Les den skannede avtalen i bildene og fyll ut JSON-feltene. Ikke finn opp verdier som ikke står i dokumentet.' });
-  for (const image of images.slice(0, 6)) {
-    const raw = image?.buffer || image;
-    if (!Buffer.isBuffer(raw) || raw.length < 40) continue;
-    parts.push({
-      inline_data: {
-        mime_type: image?.mime || 'image/png',
-        data: raw.toString('base64'),
-      },
-    });
+  let usedImages = 0;
+  if (!textReady) {
+    for (const image of images.slice(0, 2)) {
+      const raw = image?.buffer || image;
+      if (!Buffer.isBuffer(raw) || raw.length < 40) continue;
+      parts.push({
+        inline_data: {
+          mime_type: image?.mime || 'image/png',
+          data: raw.toString('base64'),
+        },
+      });
+      usedImages += 1;
+    }
   }
   if (!apiKey) {
     if (!documents.length) reject('invalid-argument', 'Kunne ikke lese teksten i PDF-en. Lim inn teksten, eller prøv igjen.');
     return { ok: true, extracted: local, engine: images.length ? 'ocr' : 'lokal', documents: documents.length, text: source };
   }
   try {
-    const parsed = await callGeminiJson(apiKey, PROMPT, parts, { maxOutputTokens: 8192, perModelTimeoutMs: 45000 });
+    const parsed = await callGeminiJson(apiKey, PROMPT, parts, {
+      maxOutputTokens: 8192,
+      // Tekst-only rekker raskere; bildesti får litt mer tid men fortsatt under Hosting-taket.
+      perModelTimeoutMs: textReady ? 25000 : 35000,
+      maxModels: textReady ? 2 : 3,
+    });
     if (Array.isArray(parsed?.weights) && parsed.weights.length >= 2) {
       local.weights = parsed.weights.slice(0, 8).map((row) => ({
         indexId: String(row?.indexId || ''),
@@ -204,7 +215,7 @@ export async function handleInterpretIndeks(data) {
     return {
       ok: true,
       extracted: mergeInterpretation(local, parsed, mergedSource),
-      engine: images.length ? 'ocr+gemini' : 'gemini',
+      engine: images.length || usedImages ? 'ocr+gemini' : 'gemini',
       documents: Math.max(documents.length, 1),
       text: source,
     };

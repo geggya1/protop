@@ -132,6 +132,9 @@ function loadJsx(rel) {
         useCompanyAccess: () => ({
           ready: true,
           can: () => false,
+          canView: () => false,
+          canEdit: () => false,
+          canAdmin: () => false,
           previewLocks: () => false,
         }),
       };

@@ -82,7 +82,16 @@ function hookedRequire(orig, id) {
   if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };
   if (id.includes('ThemeContext')) return { useColors: () => colors };
   if (id.includes('src/theme')) return { useLayout: () => ({ width: 1400, isPhone: false, hasRail: false, railWidth: 0 }) };
-  if (id.includes('useCompanyAccess')) return { useCompanyAccess: () => ({ can: () => true }) };
+  if (id.includes('useCompanyAccess')) {
+    return {
+      useCompanyAccess: () => ({
+        can: () => true,
+        canView: () => true,
+        canEdit: () => true,
+        canAdmin: () => true,
+      }),
+    };
+  }
   if (id.includes('async-storage')) {
     return { default: { getItem: async () => null, setItem: async () => {} } };
   }

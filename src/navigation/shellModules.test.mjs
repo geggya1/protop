@@ -161,7 +161,7 @@ function idsIn(sections) {
   assert.ok(companyItems.findIndex((i) => i.id === 'okonomi') < companyItems.findIndex((i) => i.id === 'iso'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
+    ['Oversikt', 'Inntjening', 'Kundesummer', 'Avtalesummer', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-kunder').action.tab, 'okonomi');
@@ -660,6 +660,7 @@ function collectPresented(items, acc = []) {
       ['produkt', 'utstyr', 'kjorebok'],
       [
         'okonomi-oversikt',
+        'okonomi-inntjening',
         'okonomi-kunder',
         'okonomi-avtaler',
         'okonomi-faktura',

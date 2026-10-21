@@ -90,7 +90,8 @@ import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
-import { PERSON_FILL_VIEWS, PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
+import { EMPLOYEE_DETAIL_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
+import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -738,6 +739,7 @@ export default function EmployeesScreen() {
 
   function openPersonTab(tabId) {
     if (!selected) return;
+    if (tabId === 'earnings' && !access.can('economy', 'see')) return;
     if (tabId === 'home') {
       openDetail(selected);
       return;
@@ -1315,6 +1317,7 @@ export default function EmployeesScreen() {
           colors={colors}
           companyName={companyName}
           siblings={visible}
+          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => tab.id !== 'earnings' || access.can('economy', 'see'))}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
           onTab={openPersonTab}
@@ -1497,6 +1500,15 @@ export default function EmployeesScreen() {
 
           {view === 'files' ? (
             <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
+          ) : null}
+
+          {view === 'earnings' && access.can('economy', 'see') ? (
+            <EmployeeEarningsSheet
+              companyId={familyId}
+              employee={selected}
+              colors={colors}
+              canEdit={access.can('economy', 'write')}
+            />
           ) : null}
 
           {view === 'settings' ? (

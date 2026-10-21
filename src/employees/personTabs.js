@@ -8,6 +8,7 @@ export const EMPLOYEE_DETAIL_TABS = [
   { id: 'absence', label: 'Fraværsoversikt' },
   { id: 'saldo', label: 'Timesaldo' },
   { id: 'expenses', label: 'Prosjektutlegg' },
+  { id: 'earnings', label: 'Inntjening' },
   { id: 'settings', label: 'Innstillinger' },
   { id: 'cv', label: 'CV' },
 ];
@@ -19,7 +20,7 @@ export function employeeViewToTab(view) {
 }
 
 export const PERSON_VIEWS = new Set([
-  'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'settings', 'cv',
+  'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
 ]);
 
 /** Undersider med eget rullefelt. De fyller området under chrome. */

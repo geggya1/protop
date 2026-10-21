@@ -291,6 +291,7 @@ const COMPANY_PAGES = [
   ['arbeid', 'salg', 'arbeid-salg'],
   ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
   ['okonomi', 'oversikt', 'okonomi-oversikt'],
+  ['okonomi', 'inntjening', 'okonomi-inntjening'],
   ['okonomi', 'kunder', 'okonomi-kunder'],
   ['okonomi', 'avtaler', 'okonomi-avtaler'],
   ['okonomi', 'faktura', 'okonomi-faktura'],

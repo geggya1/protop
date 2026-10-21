@@ -39,6 +39,8 @@ import ProjectSalesTab from './ProjectSalesTab';
 import ProjectBillingTab from './ProjectBillingTab';
 import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
+import ProjectEarningsTab from './ProjectEarningsTab';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
@@ -46,6 +48,7 @@ const TABS = [
   { id: 'fakturering', label: 'Faktureringsvalg' },
   { id: 'team', label: 'Team' },
   { id: 'timerapport', label: 'Timerapport' },
+  { id: 'inntjening', label: 'Inntjening' },
   { id: 'utlegg', label: 'Prosjektutlegg' },
   { id: 'produktsalg', label: 'Produktsalg' },
   { id: 'til_fakturering', label: 'Til fakturering' },
@@ -135,7 +138,16 @@ export default function ProjectDetail({
   onOpenEconomyBilling,
   hoursLoading = false,
 }) {
+  const access = useCompanyAccess();
+  const canSeeEarnings = access.can('economy', 'see');
+  const tabs = useMemo(
+    () => (canSeeEarnings ? TABS : TABS.filter((row) => row.id !== 'inntjening')),
+    [canSeeEarnings],
+  );
   const [tab, setTab] = useState('hovedside');
+  useEffect(() => {
+    if (tab === 'inntjening' && !canSeeEarnings) setTab('hovedside');
+  }, [tab, canSeeEarnings]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityName, setActivityName] = useState('');
   const [note, setNote] = useState('');
@@ -233,7 +245,7 @@ export default function ProjectDetail({
 
       <View style={[styles.tabs, { borderBottomColor: colors.line }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsInner}>
-          {TABS.map((row) => {
+          {tabs.map((row) => {
             const on = tab === row.id;
             return (
               <TouchableOpacity
@@ -480,6 +492,18 @@ export default function ProjectDetail({
               </Text>
             ) : null}
           </View>
+        ) : null}
+
+        {tab === 'inntjening' && canSeeEarnings ? (
+          <ProjectEarningsTab
+            project={project}
+            entries={timeEntries}
+            employees={employees}
+            contracts={contracts}
+            familyId={familyId}
+            colors={colors}
+            hoursLoading={hoursLoading}
+          />
         ) : null}
       </ScrollView>
 

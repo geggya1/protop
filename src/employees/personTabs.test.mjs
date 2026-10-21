@@ -8,7 +8,7 @@ assert.equal(employeeViewToTab('cv'), 'cv');
 
 const ids = EMPLOYEE_DETAIL_TABS.map((tab) => tab.id);
 assert.deepEqual(ids, [
-  'home', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'settings', 'cv',
+  'home', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
 ]);
 
 for (const id of ids) {

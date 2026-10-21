@@ -371,6 +371,16 @@ export const COMPANY_HERO = {
       'The figures that run the company, in one place.',
     ),
   },
+  'okonomi-inntjening': {
+    ...BLUE,
+    name: 'Inntjening',
+    kicker: t('Økonomi', 'Finance'),
+    title: t('Inntjening per ansatt', 'Earnings per employee'),
+    pitch: t(
+      'Kostnad og forventet fortjeneste, med lønn fra personen og satser bedriften setter.',
+      'Cost and expected profit, with salary from the person and rates the company sets.',
+    ),
+  },
   'okonomi-kunder': {
     ...MINT,
     name: 'Kundesummer',

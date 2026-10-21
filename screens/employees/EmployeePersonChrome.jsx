@@ -30,6 +30,7 @@ export default function EmployeePersonChrome({
   onBack,
   onTab,
   onSelect,
+  tabs = EMPLOYEE_DETAIL_TABS,
   children,
 }) {
   const { isPhone } = useLayout();
@@ -117,7 +118,7 @@ export default function EmployeePersonChrome({
         contentContainerStyle={styles.tabsInner}
         nativeID="employee-detail-tabs"
       >
-        {EMPLOYEE_DETAIL_TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.id === activeTab;
           return (
             <TouchableOpacity

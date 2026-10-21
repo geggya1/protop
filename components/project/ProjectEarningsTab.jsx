@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { formatHours } from '../../src/arbeid/hours';
 import { formatMoney } from '../../src/economy/invoices';
-import { pct, projectEarnings } from '../../src/economy/earnings';
+import { pct, projectEarnings, yearCapacity } from '../../src/economy/earnings';
 import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
 import { loadHrState } from '../../src/hr/storage';
 
@@ -32,6 +32,13 @@ export default function ProjectEarningsTab({
     return () => { live = false; };
   }, [familyId]);
 
+  const yearHoursById = useMemo(() => {
+    const map = {};
+    for (const employee of employees || []) {
+      if (employee?.id) map[employee.id] = yearCapacity(employee);
+    }
+    return map;
+  }, [employees]);
   const result = useMemo(() => projectEarnings({
     project,
     entries,
@@ -39,14 +46,15 @@ export default function ProjectEarningsTab({
     salaries,
     settings,
     contracts,
-  }), [project, entries, employees, salaries, settings, contracts]);
+    yearHoursById,
+  }), [project, entries, employees, salaries, settings, contracts, yearHoursById]);
 
   return (
     <View nativeID="project-earnings" style={styles.wrap}>
       <Text style={[styles.title, { color: colors.ink }]}>Inntjening</Text>
       <Text style={{ color: colors.muted, lineHeight: 18 }}>
         Honoraret bruker timeprisen som gjelder på prosjektet den dagen timen ble ført.
-        Kostnaden er personens årskostnad fordelt etter timer mot normtimene bedriften har satt.
+        Kostnaden er personens årskostnad fordelt etter disponible timer, fratrukket ferie.
       </Text>
       {!ready || hoursLoading ? <Text style={{ color: colors.muted }}>Henter timer og satser…</Text> : null}
       {!result.rows.length && !hoursLoading ? (
@@ -64,7 +72,7 @@ export default function ProjectEarningsTab({
           </Text>
           <Text style={{ color: colors.ink }}>Honorar {money(row.revenue)}</Text>
           <Text style={{ color: colors.ink }}>
-            Kostnad {row.cost == null ? 'Sett normtimer under Økonomi → Inntjening' : money(row.cost)}
+            Kostnad {row.cost == null ? 'Ingen disponible timer for personen' : money(row.cost)}
           </Text>
           <Text style={{ color: row.profit != null && row.profit < 0 ? (colors.danger || '#b42318') : colors.ink, fontWeight: '700' }}>
             Fortjeneste {money(row.profit)}{row.margin != null ? ` · ${pct(row.margin)}` : ''}

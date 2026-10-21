@@ -375,10 +375,10 @@ export const COMPANY_HERO = {
     ...BLUE,
     name: 'Inntjening',
     kicker: t('Økonomi', 'Finance'),
-    title: t('Inntjening per ansatt', 'Earnings per employee'),
+    title: t('Inntjening', 'Earnings'),
     pitch: t(
-      'Kostnad og forventet fortjeneste, med lønn fra personen og satser bedriften setter.',
-      'Cost and expected profit, with salary from the person and rates the company sets.',
+      'Ansatte, innleide, kunder, prosjekt og avtaler. Lønn og timer kommer fra systemet.',
+      'Employees, contractors, customers, projects and agreements. Salary and hours come from the system.',
     ),
   },
   'okonomi-kunder': {

@@ -872,14 +872,16 @@ export default function TenderAlert({
               <View style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 <InfoButton title="Oppsummering">{summaryBody}</InfoButton>
               </View>
-              <TouchableOpacity
-                onPress={() => onOpenSettings?.()}
-                accessibilityRole="button"
-                accessibilityLabel="Åpne innstillinger for CPV og søk"
-                style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                <Ionicons name="settings-outline" size={16} color={colors.ink} />
-              </TouchableOpacity>
+              {onOpenSettings ? (
+                <TouchableOpacity
+                  onPress={() => onOpenSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Åpne innstillinger for CPV og søk"
+                  style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  <Ionicons name="settings-outline" size={16} color={colors.ink} />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() => refresh(stateRef.current, true)}
                 accessibilityRole="button"

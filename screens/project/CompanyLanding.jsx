@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useLayout } from '../../src/theme';
 import { useColors } from '../../src/context/ThemeContext';
@@ -46,24 +46,32 @@ export default function CompanyLanding() {
       nativeID="company-landing"
       id="company-landing"
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={[styles.body, { padding: pad, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' }]}
+      contentContainerStyle={[styles.body, { width: '100%', alignItems: 'flex-start' }]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <CompanyDesktopLanding
-        stored={stored}
-        onSettings={canOpenSettings ? () => requestShellTab?.('selskap', 'innstillinger') : null}
-        onUnits={() => requestShellTab?.('selskap', 'underenheter')}
-        onEmployees={() => requestShellTab?.('ansatte')}
-        onProjects={() => requestShellTab?.('projects')}
-      />
+      <View nativeID="company-profile-sheet" id="company-profile-sheet" style={[styles.sheet, { padding: pad }]}>
+        <CompanyDesktopLanding
+          stored={stored}
+          onSettings={canOpenSettings ? () => requestShellTab?.('selskap', 'innstillinger') : null}
+          onUnits={() => requestShellTab?.('selskap', 'underenheter')}
+          onEmployees={() => requestShellTab?.('ansatte')}
+          onProjects={() => requestShellTab?.('projects')}
+        />
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  body: { flexGrow: 1 },
+  scroll: { flex: 1, alignSelf: 'stretch', width: '100%' },
+  body: { flexGrow: 1, width: '100%', alignItems: 'flex-start' },
+  sheet: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'flex-start',
+    ...(Platform.OS === 'web' ? { marginLeft: 0, marginRight: 'auto' } : null),
+  },
   emptyBody: { flexGrow: 1, gap: 16, paddingBottom: 28 },
   emptyLead: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
   emptyBtn: {

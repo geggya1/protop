@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { anbudLocalKey, ANBUD_LOCAL_KEY, saveWhereItFits, storeAnbudPayload } from './localStore.js';
+import { anbudLocalKey, RETIRED_ANBUD_KEYS, saveWhereItFits, storeAnbudPayload } from './localStore.js';
 import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { normalizeCustomers } from './customers.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
+import { dropRetiredLocalKeys } from '../utils/retiredLocalKeys.js';
 
-const KEY = ANBUD_LOCAL_KEY;
-const CUSTOMER_KEY = 'protop.customers.v1';
+const CUSTOMER_KEY = 'protop.customers.v2';
 const REMOTE_AUTH_MS = 8000;
 const remoteTimers = new Map();
 const remotePending = new Map();
@@ -77,9 +77,10 @@ async function ensureRemoteAuth() {
 }
 
 async function readLocal(companyId) {
+  await dropRetiredLocalKeys(AsyncStorage, RETIRED_ANBUD_KEYS);
   try {
-    const scoped = await AsyncStorage.getItem(anbudLocalKey(companyId));
-    const raw = scoped || (companyId ? await AsyncStorage.getItem(KEY) : null);
+    // Bare selskapets egen kopi. Den gamle felles nøkkelen kan høre til et annet selskap.
+    const raw = await AsyncStorage.getItem(anbudLocalKey(companyId));
     if (!raw) return emptyAnbudState();
     return normalizeAnbudState(JSON.parse(raw));
   } catch {
@@ -107,6 +108,7 @@ function customerCacheKey(companyId) {
 }
 
 async function readCustomerCache(companyId) {
+  await dropRetiredLocalKeys(AsyncStorage, RETIRED_ANBUD_KEYS);
   try {
     const raw = await AsyncStorage.getItem(customerCacheKey(companyId));
     if (!raw) return [];

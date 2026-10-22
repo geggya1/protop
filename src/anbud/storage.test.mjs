@@ -54,16 +54,16 @@ const fitted = JSON.stringify(fitAnbudState(fat));
 const storage = quotaStorage({ quota: fitted.length + 1000 });
 const legacy = 'x'.repeat(fitted.length);
 const scoped = 'y'.repeat(fitted.length);
-storage.force('protop.anbud.v1', legacy);
-storage.force('protop.anbud.v1.co1', scoped);
+storage.force('protop.anbud.v2', legacy);
+storage.force('protop.anbud.v2.co1', scoped);
 
 const stored = await storeAnbudPayload(storage, 'co1', fat);
 const parsed = JSON.parse(stored);
 assert.equal(parsed.notices.find((row) => row.id === '2026-7').decision, 'aktuell');
 assert.equal(parsed.watch.companyName, 'CONSULT1 AS');
 assert.equal(stored.includes('data:application'), false);
-assert.equal(storage.map.has('protop.anbud.v1'), false);
-assert.equal(storage.map.get('protop.anbud.v1.co1'), stored);
+assert.equal(storage.map.has('protop.anbud.v2'), false);
+assert.equal(storage.map.get('protop.anbud.v2.co1'), stored);
 
 const blocked = {
   async setItem() {
@@ -77,10 +77,10 @@ await assert.rejects(() => storeAnbudPayload(blocked, 'co1', fat));
 
 const original = 'z'.repeat(80);
 const crowded = quotaStorage({ quota: 100 });
-crowded.force('protop.anbud.v1.co1', original);
-crowded.force('protop.anbud.v1', 'q'.repeat(80));
+crowded.force('protop.anbud.v2.co1', original);
+crowded.force('protop.anbud.v2', 'q'.repeat(80));
 await assert.rejects(() => storeAnbudPayload(crowded, 'co1', fat));
-assert.equal(crowded.map.get('protop.anbud.v1.co1'), original);
+assert.equal(crowded.map.get('protop.anbud.v2.co1'), original);
 
 const crowdedCustomers = Array.from({ length: 1200 }, (_, index) => ({
   id: `kunde_${index}`,
@@ -117,7 +117,7 @@ const phoneState = {
   customers: crowdedCustomers,
 };
 const phoneQuota = quotaStorage({ quota: 150_000 });
-phoneQuota.force('protop.anbud.v1.co1', 'x'.repeat(140_000));
+phoneQuota.force('protop.anbud.v2.co1', 'x'.repeat(140_000));
 const phoneStored = await storeAnbudPayload(phoneQuota, 'co1', phoneState);
 const phoneParsed = JSON.parse(phoneStored);
 assert.ok(new TextEncoder().encode(phoneStored).length <= 150_000);

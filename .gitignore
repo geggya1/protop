@@ -64,3 +64,6 @@ firebase-debug.*.log
 weekplan.zip
 _config.json
 .tmp-cv-export-test.pdf
+
+# Sikkerhetskopier fra audit-cross-company-data.mjs (selskapsdata)
+scripts/backup-cross-company-*/

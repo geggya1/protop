@@ -240,6 +240,13 @@ assert.equal(preferHovedenhetWorkspace(child, [child, parent]).id, 'parent-as');
 assert.deepEqual(workspacePickerItems([parent, child]).map((item) => item.groupId), ['parent-as']);
 assert.deepEqual(aliasFamilyIds(parent, [parent, child, sor, ost]), ['child-bedr']);
 assert.deepEqual(aliasFamilyIds(sor, [parent, child, sor, ost]), []);
+// Et eget selskap koblet under morselskapet blir ikke alias, selv med org.nr i aliaslisten.
+const parentWithSorAlias = { ...parent, company: { ...parent.company, aliasOrganisasjonsnummer: ['999000001'] } };
+assert.deepEqual(aliasFamilyIds(parentWithSorAlias, [parentWithSorAlias, sorLinked]), []);
+// En ekte underenhet med annet navn og overordnet = hovednummeret kan knyttes eksplisitt.
+const sandnesAlias = { ...parent, company: { ...parent.company, aliasOrganisasjonsnummer: ['916570783'] } };
+const sandnesUnit = { ...sandnes, company: { ...sandnes.company, overordnetEnhet: '916538804' } };
+assert.deepEqual(aliasFamilyIds(sandnesAlias, [sandnesAlias, sandnesUnit]), ['sandnes']);
 assert.deepEqual(mergeRowsById(
   [{ id: 'a', name: 'hoved' }, { id: 'b', name: 'bare hoved' }],
   [{ id: 'a', name: 'alias' }, { id: 'c', name: 'bare alias' }],

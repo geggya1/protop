@@ -477,12 +477,36 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   });
   assert.equal(full.grants.economy, 'none');
   assert.equal(full.grants.projects, 'see');
+  // «Vis som» følger valgt ansatts nivå: begrenset redigering på timer, ikke admin.
   assert.equal(viewAsAllows({
     preview: full, actor, bypass: true, resource: 'hours', action: 'read',
+  }), true);
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'hours', action: 'write',
   }), false);
   assert.equal(viewAsAllows({
     preview: full, actor, bypass: true, resource: 'hours', action: 'see',
   }), true);
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'companyProfile', action: 'write',
+  }), false);
+
+  // Valgt ansatt med Admin på selskapsinnstillinger får Admin i «Vis som».
+  const adminPolicy = { employeeGrants: {} };
+  const adminView = resolveViewAsAccess({
+    actor,
+    targetEmployee: { id: 'ola', company: { accessLevel: 'administrator', status: 'active' } },
+    policy: adminPolicy,
+    lens: 'all',
+  });
+  assert.equal(viewAsAllows({
+    preview: adminView, actor, bypass: true, resource: 'companyProfile', action: 'write',
+  }), true);
+  // Aldri mer enn innlogget bruker selv har.
+  const limitedActor = { grants: standardGrants('ansatt') };
+  assert.equal(viewAsAllows({
+    preview: adminView, actor: limitedActor, resource: 'companyProfile', action: 'write',
+  }), false);
   const fullIds = filterCompanyNav(companyNavItems(), full.grants).map((item) => item.id);
   assert.ok(fullIds.includes('okonomi'));
   assert.equal(fullIds.includes('kjorebok'), false);

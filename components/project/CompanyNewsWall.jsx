@@ -24,7 +24,6 @@ import { notifyUsers } from '../../src/utils/notifications';
 import { notifyUser } from '../../src/utils/dialog';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { canAdminResource, canEditResource } from '../../src/access/companyAccess';
 import {
   NEWS_CATEGORIES, POST_ASPECTS, categoryLabel, presentNewsPost,
 } from '../../src/project/companyPage';
@@ -98,17 +97,11 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   const { familyId, family, uid, members } = useApp();
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
-  // «Vis som» viser knappene etter den valgte ansattes rettigheter, men lagrer ingenting.
-  const previewWall = access.previewLocks('companyPublic');
-  const canPublish = previewWall
-    ? canEditResource(access.grants, 'companyPublic')
-    : (owner && !access.previewLocks('companyProfile'))
-      || (access.ready && access.canEdit('companyPublic'));
+  const canPublish = (owner && !access.previewLocks('companyProfile'))
+    || (access.ready && access.canEdit('companyPublic'));
   // Endre/slette andres innlegg krever admin; forfatteren kan alltid styre sitt eget.
-  const canModerate = previewWall
-    ? canAdminResource(access.grants, 'companyPublic')
-    : (owner && !access.previewLocks('companyProfile'))
-      || (access.ready && access.canAdmin('companyPublic'));
+  const canModerate = (owner && !access.previewLocks('companyProfile'))
+    || (access.ready && access.canAdmin('companyPublic'));
   // «Vis som» skal vise den valgte ansattes egne innlegg, ikke eierens.
   const actingUid = access.previewing ? (access.viewingAs?.personUid || null) : uid;
   const me = (members || []).find((m) => m.uid === uid);
@@ -161,20 +154,13 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
     resetComposer();
   }, [resetComposer]);
 
-  const previewBlocked = useCallback(() => {
-    if (!previewWall) return false;
-    notifyUser('Vis som', 'Dette er en forhåndsvisning. Endringer lagres ikke.');
-    return true;
-  }, [previewWall]);
-
   const openComposer = useCallback(() => {
-    if (previewBlocked()) return;
     resetComposer();
     setComposerOpen(true);
-  }, [resetComposer, previewBlocked]);
+  }, [resetComposer]);
 
   const startEdit = useCallback((post) => {
-    if (!post?.id || previewBlocked()) return;
+    if (!post?.id) return;
     const { text, links } = splitBodyAndLinks(post.body || '', post.linkUrl);
     setEditingPostId(post.id);
     setTitle(post.title || '');
@@ -183,7 +169,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
     setPendingImageUrl(post.imageUrl || post.imageUrls?.[0] || null);
     setPendingLinkUrl(post.linkUrl || links[0] || '');
     setComposerOpen(true);
-  }, [previewBlocked]);
+  }, []);
 
   const publish = useCallback(async () => {
     if (!familyId) return;
@@ -207,7 +193,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
           imageUrl,
           imageUrls: imageUrl ? [imageUrl] : [],
           linkUrl,
-          editorUid: uid,
+          editorUid: actingUid,
           isAdmin: canModerate,
         });
       } else {
@@ -244,7 +230,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
     }
   }, [
     familyId, busy, body, title, category, pendingImageUrl, pendingLinkUrl, editingPostId,
-    uid, myName, members, canModerate, resetComposer,
+    uid, actingUid, myName, members, canModerate, resetComposer,
   ]);
 
   const addWithPhoto = useCallback(async () => {
@@ -479,13 +465,10 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
                     <Ionicons name="pencil-outline" size={18} color={editingThis ? colors.brand : colors.muted} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => {
-                      if (previewBlocked()) return;
-                      softDeleteCompanyWallPost(familyId, post.id, {
-                        editorUid: uid,
-                        isAdmin: canModerate,
-                      }).catch((e) => notifyUser('Feil', e?.message || 'Klarte ikke slette.'));
-                    }}
+                    onPress={() => softDeleteCompanyWallPost(familyId, post.id, {
+                      editorUid: actingUid,
+                      isAdmin: canModerate,
+                    }).catch((e) => notifyUser('Feil', e?.message || 'Klarte ikke slette.'))}
                     hitSlop={8}
                     accessibilityLabel="Slett innlegg"
                   >

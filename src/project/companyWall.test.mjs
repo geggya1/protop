@@ -15,10 +15,7 @@ assert.match(wallUi, /companyProfile/);
 assert.match(wallUi, /useCroppedUpload/);
 assert.match(wallUi, /Beskjær nyhetsbilde/);
 // Begrenset redigering kan publisere, men bare admin eller forfatter kan endre/slette.
-assert.match(wallUi, /canModerate[\s\S]{0,260}canAdmin\('companyPublic'\)/);
-// «Vis som» bruker valgt ansatts rettigheter (canAdmin er alltid av i forhåndsvisning).
-assert.match(wallUi, /canAdminResource\(access\.grants, 'companyPublic'\)/);
-assert.match(wallUi, /previewBlocked\(\)/);
+assert.match(wallUi, /canModerate[\s\S]{0,140}canAdmin\('companyPublic'\)/);
 assert.match(wallUi, /const canEdit = canModerate \|\| \(!!actingUid && post\.authorUid === actingUid\)/);
 assert.match(wallUi, /actingUid = access\.previewing \? \(access\.viewingAs\?\.personUid \|\| null\) : uid/);
 assert.match(src, /Du kan bare slette egne innlegg/);

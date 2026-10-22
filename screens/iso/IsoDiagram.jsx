@@ -9,21 +9,24 @@ import Svg, { Defs, Marker, Path, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import {
-  EDGE_CONDITIONS, diagramBounds, edgePath, nodeRole, nodeType, snap,
+  EDGE_CONDITIONS, diagramBounds, edgePath, groupBounds, nodeRole, nodeType, snap,
 } from '../../src/iso/processes';
 
-function NodeBox({ node, diagram, selected, active, done, design, scale, onSelect, onMove, onDrop, connecting, hasError }) {
+const MARK = { added: { label: 'Ny', tone: 'success' }, changed: { label: 'Endret', tone: 'warn' } };
+
+function NodeBox({ node, diagram, selected, active, done, design, scale, onSelect, onMove, onDrop, onDragStart, connecting, hasError, mark }) {
   const colors = useColors();
   const start = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
   const cb = useRef({});
-  cb.current = { onSelect, onMove, onDrop, node, scale };
+  cb.current = { onSelect, onMove, onDrop, onDragStart, node, scale };
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) + Math.abs(g.dy) > 3,
     onPanResponderGrant: () => {
       start.current = { x: cb.current.node.x, y: cb.current.node.y };
       moved.current = false;
+      if (design) cb.current.onDragStart?.(cb.current.node.id);
     },
     onPanResponderMove: (_, g) => {
       if (!design) return;
@@ -32,16 +35,20 @@ function NodeBox({ node, diagram, selected, active, done, design, scale, onSelec
       const s = cb.current.scale || 1;
       cb.current.onMove?.(cb.current.node.id, start.current.x + g.dx / s, start.current.y + g.dy / s);
     },
-    onPanResponderRelease: () => {
+    onPanResponderRelease: (evt) => {
       if (moved.current && design) cb.current.onDrop?.(cb.current.node.id);
-      else cb.current.onSelect?.(cb.current.node.id);
+      else {
+        const ne = evt?.nativeEvent || {};
+        cb.current.onSelect?.(cb.current.node.id, { additive: !!(ne.shiftKey || ne.metaKey || ne.ctrlKey) });
+      }
     },
     onPanResponderTerminationRequest: () => false,
   }), [design]);
 
   const type = nodeType(node.type);
   const role = nodeRole(diagram, node);
-  const border = hasError ? colors.danger : (active ? colors.brand : (selected ? colors.brand : colors.line));
+  const markTone = mark ? colors[MARK[mark]?.tone] : null;
+  const border = hasError ? colors.danger : (active ? colors.brand : (selected ? colors.brand : (markTone || colors.line)));
   const bg = active ? colors.brandSoft : (done ? colors.successSoft : (node.color || colors.card));
   const isDecision = node.type === 'decision';
   const isBar = node.type === 'parallel_split' || node.type === 'parallel_join';
@@ -78,14 +85,20 @@ function NodeBox({ node, diagram, selected, active, done, design, scale, onSelec
         </View>
       ) : null}
       {done && !active ? <View style={{ position: 'absolute', top: -6, right: -6 }}><Ionicons name="checkmark-circle" size={16} color={colors.success} /></View> : null}
+      {mark ? (
+        <View style={{ position: 'absolute', top: -9, left: 8, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: markTone }}>
+          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{MARK[mark]?.label}</Text>
+        </View>
+      ) : null}
       {node.onClick?.type && node.onClick.type !== 'none' && !design ? <View style={{ position: 'absolute', bottom: 4, right: 6 }}><Ionicons name="open-outline" size={11} color={colors.brand} /></View> : null}
     </View>
   );
 }
 
 export default function IsoDiagram({
-  diagram, design = false, scale = 1, offset = { x: 0, y: 0 }, selectedId = '', selectedEdgeId = '', active = [], done = [],
-  errors = [], connectingFrom = '', onSelectNode, onSelectEdge, onMoveNode, onDropNode, onPan, onBackground, height = 520,
+  diagram, design = false, scale = 1, offset = { x: 0, y: 0 }, selectedId = '', selectedIds = [], selectedEdgeId = '', active = [], done = [],
+  errors = [], connectingFrom = '', onSelectNode, onSelectEdge, onMoveNode, onDropNode, onDragStart, onPan, onBackground, onSelectGroup,
+  height = 520, marks = null,
 }) {
   const colors = useColors();
   const b = diagramBounds(diagram);
@@ -103,6 +116,7 @@ export default function IsoDiagram({
   const errorIds = new Set(errors.map((e) => e.nodeId).filter(Boolean));
   const activeSet = new Set(active);
   const doneSet = new Set(done);
+  const selSet = new Set([selectedId, ...selectedIds].filter(Boolean));
   const W = Math.max(b.x + b.w, 1200);
   const H = Math.max(b.y + b.h, 600);
 
@@ -120,6 +134,21 @@ export default function IsoDiagram({
             <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700', padding: 6 }}>{lane.label.toUpperCase()}</Text>
           </View>
         ))}
+        {(diagram.groups || []).map((g) => {
+          const gb = groupBounds(diagram, g);
+          if (!gb) return null;
+          const on = g.nodeIds.every((id) => selSet.has(id));
+          return (
+            <View key={g.id} pointerEvents="box-none" style={{ position: 'absolute', left: gb.x, top: gb.y, width: gb.w, height: gb.h, borderWidth: 1.5, borderStyle: 'dashed', borderColor: on ? colors.brand : colors.muted, borderRadius: 14 }}>
+              <Text
+                onPress={onSelectGroup ? () => onSelectGroup(g.id) : undefined}
+                style={{ position: 'absolute', left: 10, top: 2, color: on ? colors.brand : colors.muted, fontSize: 11, fontWeight: '700' }}
+              >
+                {g.label}
+              </Text>
+            </View>
+          );
+        })}
         <Svg width={W} height={H} style={{ position: 'absolute', left: 0, top: 0 }}>
           <Defs>
             <Marker id="iso-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
@@ -152,7 +181,9 @@ export default function IsoDiagram({
             diagram={diagram}
             design={design}
             scale={scale}
-            selected={n.id === selectedId}
+            selected={selSet.has(n.id)}
+            mark={marks?.[n.id] || ''}
+            onDragStart={onDragStart}
             active={activeSet.has(n.id)}
             done={doneSet.has(n.id)}
             hasError={errorIds.has(n.id)}

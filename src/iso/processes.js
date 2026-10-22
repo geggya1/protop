@@ -150,7 +150,153 @@ export function normalizeDiagram(raw) {
     y: Number(l.y) || i * 160,
     h: Number(l.h) || 160,
   }));
-  return { nodes, edges, lanes };
+  // Grupper: navngitte rammer rundt bokser som hører sammen (flyttes og velges samlet).
+  const groups = (raw?.groups || []).filter((g) => g?.id).map((g) => ({
+    id: g.id,
+    label: text(g.label, 80) || 'Gruppe',
+    nodeIds: uniq((g.nodeIds || []).filter((id) => ids.has(id))),
+  })).filter((g) => g.nodeIds.length >= 2);
+  return { nodes, edges, lanes, groups };
+}
+
+/* ───────── Redigering av flere bokser (flervalg) ───────── */
+
+export function moveNodes(diagram, ids, dx, dy) {
+  const set = new Set(ids);
+  return { ...diagram, nodes: diagram.nodes.map((n) => (set.has(n.id) ? { ...n, x: snap(n.x + dx), y: snap(n.y + dy) } : n)) };
+}
+
+/** Juster valgte bokser: left | right | top | bottom | hcenter | vcenter. */
+export function alignNodes(diagram, ids, how) {
+  const sel = diagram.nodes.filter((n) => ids.includes(n.id));
+  if (sel.length < 2) return diagram;
+  const minX = Math.min(...sel.map((n) => n.x));
+  const maxX = Math.max(...sel.map((n) => n.x + n.w));
+  const minY = Math.min(...sel.map((n) => n.y));
+  const maxY = Math.max(...sel.map((n) => n.y + n.h));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const place = (n) => {
+    switch (how) {
+      case 'left': return { x: minX };
+      case 'right': return { x: maxX - n.w };
+      case 'top': return { y: minY };
+      case 'bottom': return { y: maxY - n.h };
+      case 'hcenter': return { x: snap(cx - n.w / 2) };
+      case 'vcenter': return { y: snap(cy - n.h / 2) };
+      default: return {};
+    }
+  };
+  return { ...diagram, nodes: diagram.nodes.map((n) => (ids.includes(n.id) ? { ...n, ...place(n) } : n)) };
+}
+
+/** Fordel valgte bokser med lik avstand horisontalt (h) eller vertikalt (v). */
+export function distributeNodes(diagram, ids, axis = 'h') {
+  const sel = diagram.nodes.filter((n) => ids.includes(n.id)).sort((a, b) => (axis === 'h' ? a.x - b.x : a.y - b.y));
+  if (sel.length < 3) return diagram;
+  const first = sel[0];
+  const last = sel[sel.length - 1];
+  const span = axis === 'h' ? (last.x - first.x) : (last.y - first.y);
+  const step = span / (sel.length - 1);
+  const pos = new Map(sel.map((n, i) => [n.id, Math.round((axis === 'h' ? first.x : first.y) + step * i)]));
+  return { ...diagram, nodes: diagram.nodes.map((n) => (pos.has(n.id) ? { ...n, [axis === 'h' ? 'x' : 'y']: pos.get(n.id) } : n)) };
+}
+
+/** Kopier valgte bokser med koblingene mellom dem. Returnerer { diagram, ids } for de nye. */
+export function duplicateNodes(diagram, ids, offset = 32) {
+  const map = new Map();
+  const copies = diagram.nodes.filter((n) => ids.includes(n.id)).map((n) => {
+    const copy = makeNode(n.type, { ...n, id: undefined, x: n.x + offset, y: n.y + offset, label: n.label });
+    map.set(n.id, copy.id);
+    return copy;
+  });
+  const edges = diagram.edges.filter((e) => map.has(e.from) && map.has(e.to)).map((e) => makeEdge(map.get(e.from), map.get(e.to), { ...e, id: undefined }));
+  return { diagram: { ...diagram, nodes: [...diagram.nodes, ...copies], edges: [...diagram.edges, ...edges] }, ids: copies.map((c) => c.id) };
+}
+
+export function removeNodes(diagram, ids) {
+  const set = new Set(ids);
+  return {
+    ...diagram,
+    nodes: diagram.nodes.filter((n) => !set.has(n.id)),
+    edges: diagram.edges.filter((e) => !set.has(e.from) && !set.has(e.to)),
+    groups: (diagram.groups || []).map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !set.has(id)) })).filter((g) => g.nodeIds.length >= 2),
+  };
+}
+
+export function groupNodes(diagram, ids, label = 'Gruppe') {
+  const valid = uniq(ids).filter((id) => diagram.nodes.some((n) => n.id === id));
+  if (valid.length < 2) return { diagram, id: '' };
+  // En boks hører til én gruppe; den tas ut av tidligere grupper.
+  const rest = (diagram.groups || []).map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !valid.includes(id)) })).filter((g) => g.nodeIds.length >= 2);
+  const group = { id: newId('g'), label: text(label, 80) || 'Gruppe', nodeIds: valid };
+  return { diagram: { ...diagram, groups: [...rest, group] }, id: group.id };
+}
+
+export function ungroup(diagram, groupId) {
+  return { ...diagram, groups: (diagram.groups || []).filter((g) => g.id !== groupId) };
+}
+
+export function groupOf(diagram, nodeId) {
+  return (diagram.groups || []).find((g) => g.nodeIds.includes(nodeId)) || null;
+}
+
+export function groupBounds(diagram, group, pad = 14) {
+  const sel = diagram.nodes.filter((n) => group.nodeIds.includes(n.id));
+  if (!sel.length) return null;
+  const x = Math.min(...sel.map((n) => n.x)) - pad;
+  const y = Math.min(...sel.map((n) => n.y)) - pad - 14;
+  return { x, y, w: Math.max(...sel.map((n) => n.x + n.w)) + pad - x, h: Math.max(...sel.map((n) => n.y + n.h)) + pad - y };
+}
+
+/* ───────── Versjonssammenligning ───────── */
+
+const NODE_FIELDS = [
+  ['label', 'tittel'], ['type', 'type'], ['roleKey', 'rolle'], ['description', 'beskrivelse'], ['dueDays', 'frist'],
+  ['formKey', 'skjema'], ['documentId', 'dokument'], ['subprocessId', 'underprosess'], ['inputs', 'input'], ['outputs', 'output'],
+];
+
+/**
+ * Forskjeller mellom to versjoner av en prosess (a = eldre, b = nyere).
+ * Flytting alene regnes ikke som endring av innhold, men telles for seg.
+ */
+export function diffDiagrams(a, b) {
+  const A = normalizeDiagram(a);
+  const B = normalizeDiagram(b);
+  const am = new Map(A.nodes.map((n) => [n.id, n]));
+  const bm = new Map(B.nodes.map((n) => [n.id, n]));
+  const added = B.nodes.filter((n) => !am.has(n.id));
+  const removed = A.nodes.filter((n) => !bm.has(n.id));
+  const changed = [];
+  const moved = [];
+  for (const n of B.nodes) {
+    const old = am.get(n.id);
+    if (!old) continue;
+    const fields = NODE_FIELDS.filter(([k]) => JSON.stringify(old[k] ?? '') !== JSON.stringify(n[k] ?? '')).map(([, label]) => label);
+    if (JSON.stringify(old.onEnter || {}) !== JSON.stringify(n.onEnter || {})) fields.push('utføringshandling');
+    if (JSON.stringify(old.onClick || {}) !== JSON.stringify(n.onClick || {})) fields.push('klikkhandling');
+    if (fields.length) changed.push({ id: n.id, label: n.label, before: old.label, fields });
+    else if (old.x !== n.x || old.y !== n.y) moved.push(n.id);
+  }
+  const ek = (e) => `${e.from}>${e.to}:${e.condition}`;
+  const ae = new Map(A.edges.map((e) => [ek(e), e]));
+  const be = new Map(B.edges.map((e) => [ek(e), e]));
+  const edgesAdded = B.edges.filter((e) => !ae.has(ek(e)));
+  const edgesRemoved = A.edges.filter((e) => !be.has(ek(e)));
+  const lanesA = A.lanes.map((l) => l.label).join('|');
+  const lanesB = B.lanes.map((l) => l.label).join('|');
+  const total = added.length + removed.length + changed.length + edgesAdded.length + edgesRemoved.length + (lanesA !== lanesB ? 1 : 0);
+  return {
+    added, removed, changed, moved, edgesAdded, edgesRemoved,
+    lanesChanged: lanesA !== lanesB,
+    marks: Object.fromEntries([...added.map((n) => [n.id, 'added']), ...changed.map((c) => [c.id, 'changed'])]),
+    total,
+    summary: total
+      ? [added.length ? `${added.length} nye` : '', removed.length ? `${removed.length} fjernet` : '', changed.length ? `${changed.length} endret` : '',
+        edgesAdded.length || edgesRemoved.length ? `${edgesAdded.length + edgesRemoved.length} koblinger endret` : '', lanesA !== lanesB ? 'baner endret' : '']
+        .filter(Boolean).join(' · ')
+      : (moved.length ? 'Bare plassering er endret' : 'Ingen forskjeller'),
+  };
 }
 
 export function diagramHash(diagram) {
@@ -706,6 +852,12 @@ export function diagramToSvg(diagram, { title = '', subtitle = '', active = [], 
   for (const lane of d.lanes) {
     parts.push(`<rect x="${b.x + 8}" y="${lane.y}" width="${b.w - 16}" height="${lane.h}" fill="#f8fafc" stroke="#e2e8f0"/>`);
     parts.push(`<text x="${b.x + 18}" y="${lane.y + 20}" font-size="12" font-weight="600" fill="#475569">${esc(lane.label)}</text>`);
+  }
+  for (const g of d.groups || []) {
+    const gb = groupBounds(d, g);
+    if (!gb) continue;
+    parts.push(`<rect x="${gb.x}" y="${gb.y}" width="${gb.w}" height="${gb.h}" rx="14" fill="none" stroke="#94a3b8" stroke-dasharray="6 4"/>`);
+    parts.push(`<text x="${gb.x + 10}" y="${gb.y + 14}" font-size="11" font-weight="600" fill="#475569">${esc(g.label)}</text>`);
   }
   const map = new Map(d.nodes.map((n) => [n.id, n]));
   for (const e of d.edges) {

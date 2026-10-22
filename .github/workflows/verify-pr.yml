@@ -50,6 +50,6 @@ jobs:
       - name: Install rules test library
         run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
       - name: Firestore rules (emulator)
-        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-reporter=spec tests/rules/"
+        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tests/rules/gh-reporter.mjs --test-reporter-destination=stdout tests/rules/firestore.rules.test.mjs"
       - name: Pure ISO + access tests
         run: node --test src/iso/*.test.mjs src/access/*.test.mjs

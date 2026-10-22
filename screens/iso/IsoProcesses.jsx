@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Text, View, useWindowDimensions } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
 import { ISO_ROLES } from '../../src/iso/catalog';
 import {
   CLICK_ACTIONS, EDGE_CONDITIONS, ENTER_ACTIONS, NODE_TYPES, PROCESS_CATEGORIES, VERSION_STATES,
-  approveAndPublish, archiveProcess, cancelInstance, completeStep, createProcess, diagramToSvg, draftVersion,
-  exportProcessJson, focusView, importProcessJson, makeEdge, makeNode, nodeRole, nodeType, normalizeDiagram,
+  alignNodes, approveAndPublish, archiveProcess, cancelInstance, completeStep, createProcess, diagramToSvg, diffDiagrams, distributeNodes,
+  draftVersion, duplicateNodes, exportProcessJson, focusView, groupNodes, groupOf, importProcessJson, makeEdge, makeNode, moveNodes, nodeRole,
+  nodeType, normalizeDiagram, removeNodes, ungroup,
   publishedVersionOf, rejectVersion, saveDraftDiagram, snap, startInstance, startNewVersion, submitForApproval,
   validateDiagram, versionOf,
 } from '../../src/iso/processes';
@@ -171,6 +172,9 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
   const draft = draftVersion(proc);
   const version = versionOf(proc, showVersion) || pub || draft;
   const diagram = normalizeDiagram(version?.diagram || { nodes: [], edges: [] });
+  const [compareWith, setCompareWith] = useState(0);
+  const base = compareWith && compareWith !== version?.version ? versionOf(proc, compareWith) : null;
+  const diff = useMemo(() => (base ? diffDiagrams(base.diagram, version?.diagram) : null), [base, version]);
   const fit = fitView(diagram, wide ? Math.min(width - 340, 1200) : width - 32, 420);
   const [view, setViewState] = useState(fit);
   useEffect(() => { setViewState(fitView(diagram, wide ? Math.min(width - 340, 1200) : width - 32, 420)); }, [showVersion]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -219,8 +223,32 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
         {(proc.versions || []).map((v) => (
           <Btn key={v.version} small label={`v${v.version} · ${VERSION_STATES[v.state]}`} kind={v.version === showVersion ? 'primary' : 'ghost'} onPress={() => setShowVersion(v.version)} />
         ))}
+        {(proc.versions || []).length > 1 ? (
+          <Btn
+            small
+            icon="git-compare-outline"
+            label={compareWith ? 'Avslutt sammenligning' : 'Sammenlign versjoner'}
+            onPress={() => setCompareWith(compareWith ? 0 : ((proc.versions || []).filter((v) => v.version !== version?.version).at(-1)?.version || 0))}
+          />
+        ) : null}
       </Row>
+      {compareWith ? (
+        <Card title={`Endringer fra v${compareWith} til v${version?.version}`} subtitle={diff?.summary}>
+          <Row>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Sammenlign med:</Text>
+            {(proc.versions || []).filter((v) => v.version !== version?.version).map((v) => (
+              <Btn key={v.version} small label={`v${v.version}`} kind={v.version === compareWith ? 'primary' : 'ghost'} onPress={() => setCompareWith(v.version)} />
+            ))}
+          </Row>
+          {diff?.added.map((n) => <ListRow key={`a${n.id}`} icon="add-circle-outline" tone="ok" title={`Ny: ${n.label}`} subtitle={nodeType(n.type).label} />)}
+          {diff?.changed.map((c) => <ListRow key={`c${c.id}`} icon="create-outline" tone="warn" title={`Endret: ${c.label}`} subtitle={`${c.fields.join(', ')}${c.before !== c.label ? ` (før: ${c.before})` : ''}`} />)}
+          {diff?.removed.map((n) => <ListRow key={`r${n.id}`} icon="remove-circle-outline" tone="danger" title={`Fjernet: ${n.label}`} subtitle={nodeType(n.type).label} />)}
+          {diff && (diff.edgesAdded.length || diff.edgesRemoved.length) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Koblinger: {diff.edgesAdded.length} nye, {diff.edgesRemoved.length} fjernet.{diff.lanesChanged ? ' Ansvarsbaner er endret.' : ''}</Text> : null}
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Nye og endrede bokser er merket i diagrammet.</Text>
+        </Card>
+      ) : null}
       <IsoDiagram
+        marks={diff?.marks || null}
         diagram={diagram}
         scale={view.scale}
         offset={view.offset}
@@ -432,6 +460,9 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
   const [sel, setSel] = useState('');
+  const [multi, setMulti] = useState([]);
+  const [multiMode, setMultiMode] = useState(false);
+  const dragRef = useRef(null);
   const [selEdge, setSelEdge] = useState('');
   const [selLane, setSelLane] = useState('');
   const [connectFrom, setConnectFrom] = useState('');
@@ -443,7 +474,10 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   const [view, setViewState] = useState(() => fitView(diagram, canvasW, 560));
   const editable = !!draft && ['utkast', 'avvist'].includes(draft.state) && caps.manage;
   const context = { forms: state.forms, documents: state.documents, processes: state.processes, selfId: proc.id };
-  const node = diagram.nodes.find((n) => n.id === sel) || null;
+  const selection = multi.length ? multi : (sel ? [sel] : []);
+  const node = selection.length === 1 ? (diagram.nodes.find((n) => n.id === selection[0]) || null) : null;
+  const selectedGroup = selection.length > 1 ? (diagram.groups || []).find((g) => g.nodeIds.length === selection.length && g.nodeIds.every((id) => selection.includes(id))) || null : null;
+  const clearSel = () => { setSel(''); setMulti([]); setSelEdge(''); setSelLane(''); };
   const edge = diagram.edges.find((e) => e.id === selEdge) || null;
   const lane = (diagram.lanes || []).find((l) => l.id === selLane) || null;
 
@@ -462,10 +496,10 @@ function ProcessDesigner({ ctx, proc, onBack }) {
     const cy = (-view.offset.y + 200) / view.scale;
     const n = makeNode(type, { x: cx - 80 + (diagram.nodes.length % 4) * 16, y: cy + (diagram.nodes.length % 4) * 16 });
     change({ ...diagram, nodes: [...diagram.nodes, n] });
-    setSel(n.id); setSelEdge(''); setSelLane('');
+    setMulti([]); setSel(n.id); setSelEdge(''); setSelLane('');
   }
 
-  function onSelectNode(id) {
+  function onSelectNode(id, opts = {}) {
     if (connectFrom && editable) {
       if (id !== connectFrom && !diagram.edges.some((e) => e.from === connectFrom && e.to === id)) {
         const fromNode = diagram.nodes.find((n) => n.id === connectFrom);
@@ -481,10 +515,99 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       setConnectFrom('');
       return;
     }
-    setSel(id); setSelEdge(''); setSelLane('');
+    setSelEdge(''); setSelLane('');
+    if (opts.additive || multiMode) {
+      const cur = selection;
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      setMulti(next.length > 1 ? next : []);
+      setSel(next.length === 1 ? next[0] : (next.length ? id : ''));
+      return;
+    }
+    // Første trykk på en boks i en gruppe velger hele gruppen; neste trykk velger boksen alene.
+    const g = groupOf(diagram, id);
+    if (g && !(multi.length && g.nodeIds.every((x) => multi.includes(x)))) {
+      setMulti(g.nodeIds); setSel(id);
+      return;
+    }
+    setMulti([]); setSel(id);
   }
 
+  function selectGroup(groupId) {
+    const g = (diagram.groups || []).find((x) => x.id === groupId);
+    if (g) { setMulti(g.nodeIds); setSel(g.nodeIds[0]); setSelEdge(''); setSelLane(''); }
+  }
+
+  function onDragStart(id) {
+    if (selection.length > 1 && selection.includes(id)) {
+      dragRef.current = { ids: selection, origin: Object.fromEntries(diagram.nodes.filter((n) => selection.includes(n.id)).map((n) => [n.id, { x: n.x, y: n.y }])) };
+    } else {
+      dragRef.current = null;
+    }
+  }
+
+  function onMoveNode(id, x, y) {
+    const drag = dragRef.current;
+    if (drag && drag.ids.includes(id)) {
+      const dx = x - drag.origin[id].x;
+      const dy = y - drag.origin[id].y;
+      setDiagram((d) => ({ ...d, nodes: d.nodes.map((n) => (drag.origin[n.id] ? { ...n, x: drag.origin[n.id].x + dx, y: drag.origin[n.id].y + dy } : n)) }));
+      return;
+    }
+    setDiagram((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) }));
+  }
+
+  function onDropNode(id) {
+    const ids = dragRef.current?.ids || [id];
+    dragRef.current = null;
+    setPast((p) => [...p.slice(-49), diagram]);
+    setDiagram((d) => ({ ...d, nodes: d.nodes.map((n) => (ids.includes(n.id) ? { ...n, x: snap(n.x), y: snap(n.y) } : n)) }));
+    setDirty(true); setCheck(null);
+  }
+
+  // Flervalg-handlinger
+  const multiAct = {
+    align: (how) => change(alignNodes(diagram, selection, how)),
+    distribute: (axis) => change(distributeNodes(diagram, selection, axis)),
+    duplicate: () => { const r = duplicateNodes(diagram, selection); change(r.diagram); setMulti(r.ids.length > 1 ? r.ids : []); setSel(r.ids[0] || ''); },
+    remove: () => { change(removeNodes(diagram, selection)); clearSel(); },
+    group: () => { const r = groupNodes(diagram, selection, 'Gruppe'); if (r.id) change(r.diagram); },
+    ungroup: (gid) => change(ungroup(diagram, gid)),
+    role: (roleKey) => change({ ...diagram, nodes: diagram.nodes.map((n) => (selection.includes(n.id) && nodeType(n.type).human ? { ...n, roleKey, roleLabel: ISO_ROLES.find((r) => r.id === roleKey)?.label || '' } : n)) }),
+    nudge: (dx, dy) => change(moveNodes(diagram, selection, dx, dy)),
+  };
+
+  const undo = () => { if (!past.length || !editable) return; setFuture((f) => [diagram, ...f]); setDiagram(past.at(-1)); setPast(past.slice(0, -1)); setDirty(true); };
+  const redo = () => { if (!future.length || !editable) return; setPast((p) => [...p, diagram]); setDiagram(future[0]); setFuture(future.slice(1)); setDirty(true); };
+
+  // Tastatursnarveier på web (ikke når man skriver i et felt).
+  const keys = useRef({});
+  keys.current = { selection, editable, multiAct, undo, redo, diagram, clearSel, connectFrom };
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onKey = (ev) => {
+      const t = ev.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const k = keys.current;
+      const mod = ev.metaKey || ev.ctrlKey;
+      if (ev.key === 'Escape') { k.clearSel(); return; }
+      if (!k.editable) return;
+      if (mod && ev.key.toLowerCase() === 'z') { ev.preventDefault(); if (ev.shiftKey) k.redo(); else k.undo(); return; }
+      if (mod && ev.key.toLowerCase() === 'y') { ev.preventDefault(); k.redo(); return; }
+      if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); setMulti(k.diagram.nodes.map((n) => n.id)); setSel(k.diagram.nodes[0]?.id || ''); return; }
+      if (!k.selection.length) return;
+      if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); k.multiAct.remove(); return; }
+      if (mod && ev.key.toLowerCase() === 'd') { ev.preventDefault(); k.multiAct.duplicate(); return; }
+      if (mod && ev.key.toLowerCase() === 'g') { ev.preventDefault(); k.multiAct.group(); return; }
+      const step = ev.shiftKey ? 64 : 16;
+      const arrows = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      if (arrows[ev.key]) { ev.preventDefault(); k.multiAct.nudge(...arrows[ev.key]); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   function removeSelected() {
+    if (selection.length > 1) { multiAct.remove(); return; }
     if (node) change({ ...diagram, nodes: diagram.nodes.filter((n) => n.id !== node.id), edges: diagram.edges.filter((e) => e.from !== node.id && e.to !== node.id) });
     else if (edge) change({ ...diagram, edges: diagram.edges.filter((e) => e.id !== edge.id) });
     else if (lane) change({ ...diagram, lanes: diagram.lanes.filter((l) => l.id !== lane.id) });
@@ -535,13 +658,48 @@ function ProcessDesigner({ ctx, proc, onBack }) {
         {NODE_TYPES.map((t) => <Btn key={t.id} small icon={t.icon} label={t.label} disabled={!editable} onPress={() => addNode(t.id)} />)}
         <Btn small icon="reorder-four-outline" label="Ansvarsbane" disabled={!editable} onPress={addLane} />
       </View>
-      <Text style={{ color: colors.muted, fontSize: 11 }}>Dra bokser for å flytte. Velg en boks, trykk «Koble fra», og trykk deretter på målboksen.</Text>
+      <Btn small icon={multiMode ? 'checkbox' : 'checkbox-outline'} label={multiMode ? 'Flervalg på' : 'Flervalg'} kind={multiMode ? 'primary' : 'ghost'} onPress={() => setMultiMode(!multiMode)} />
+      <Text style={{ color: colors.muted, fontSize: 11 }}>Dra bokser for å flytte. Velg en boks, trykk «Koble fra», og trykk deretter på målboksen. Shift/Ctrl-klikk eller «Flervalg» velger flere.{Platform.OS === 'web' ? ' Snarveier: Delete, Ctrl+Z/Y, Ctrl+D dupliser, Ctrl+G grupper, Ctrl+A alle, piltaster flytter.' : ''}</Text>
     </Card>
   );
 
   const inspector = (
-    <Card title={node ? 'Egenskaper – boks' : (edge ? 'Egenskaper – kobling' : (lane ? 'Egenskaper – bane' : 'Prosess'))} style={{ width: wide ? 340 : '100%' }}>
-      {node ? (
+    <Card title={selection.length > 1 ? `${selection.length} bokser valgt` : (node ? 'Egenskaper – boks' : (edge ? 'Egenskaper – kobling' : (lane ? 'Egenskaper – bane' : 'Prosess')))} style={{ width: wide ? 340 : '100%' }}>
+      {selection.length > 1 ? (
+        <>
+          {selectedGroup ? (
+            <Field label="Gruppenavn">
+              <TextIn value={selectedGroup.label} editable={editable} onChangeText={(x) => change({ ...diagram, groups: diagram.groups.map((g) => (g.id === selectedGroup.id ? { ...g, label: x } : g)) })} />
+            </Field>
+          ) : null}
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Juster</Text>
+          <Row gap={6}>
+            <Btn small icon="arrow-back-outline" accessibilityLabel="Juster venstre" disabled={!editable} onPress={() => multiAct.align('left')} />
+            <Btn small icon="arrow-up-outline" accessibilityLabel="Juster topp" disabled={!editable} onPress={() => multiAct.align('top')} />
+            <Btn small label="Midt ↔" disabled={!editable} onPress={() => multiAct.align('vcenter')} />
+            <Btn small label="Midt ↕" disabled={!editable} onPress={() => multiAct.align('hcenter')} />
+          </Row>
+          {selection.length > 2 ? (
+            <Row gap={6}>
+              <Btn small label="Fordel vannrett" disabled={!editable} onPress={() => multiAct.distribute('h')} />
+              <Btn small label="Fordel loddrett" disabled={!editable} onPress={() => multiAct.distribute('v')} />
+            </Row>
+          ) : null}
+          <Field label="Ansvarlig rolle for alle valgte">
+            <Choice small options={ISO_ROLES.map((r) => ({ id: r.id, label: r.label }))} value="" onChange={(x) => editable && x && multiAct.role(x)} />
+          </Field>
+          {editable ? (
+            <Row>
+              {selectedGroup
+                ? <Btn small icon="albums-outline" label="Oppløs gruppe" onPress={() => multiAct.ungroup(selectedGroup.id)} />
+                : <Btn small icon="albums-outline" label="Grupper" onPress={multiAct.group} />}
+              <Btn small icon="copy-outline" label="Dupliser" onPress={multiAct.duplicate} />
+              <Btn small kind="danger" icon="trash-outline" label="Slett" onPress={multiAct.remove} />
+            </Row>
+          ) : null}
+          <Btn small label="Fjern valg" onPress={clearSel} />
+        </>
+      ) : node ? (
         <>
           <Pill label={nodeType(node.type).label} tone="info" icon={nodeType(node.type).icon} />
           <Field label="Tittel"><TextIn value={node.label} onChangeText={(x) => patchNode(node.id, { label: x })} editable={editable} /></Field>
@@ -576,7 +734,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
           <Field label="Output"><TextIn value={node.outputs} onChangeText={(x) => patchNode(node.id, { outputs: x })} editable={editable} /></Field>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Utganger:</Text>
           {diagram.edges.filter((e) => e.from === node.id).map((e) => (
-            <ListRow key={e.id} title={`→ ${diagram.nodes.find((n) => n.id === e.to)?.label || '?'}`} subtitle={e.label || EDGE_CONDITIONS.find((c) => c.id === e.condition)?.label} onPress={() => { setSelEdge(e.id); setSel(''); }} />
+            <ListRow key={e.id} title={`→ ${diagram.nodes.find((n) => n.id === e.to)?.label || '?'}`} subtitle={e.label || EDGE_CONDITIONS.find((c) => c.id === e.condition)?.label} onPress={() => { setSelEdge(e.id); setSel(''); setMulti([]); }} />
           ))}
           {editable ? (
             <Row>
@@ -614,7 +772,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
           <Field label="Output"><TextIn value={meta.outputs} onChangeText={(x) => { setMeta({ ...meta, outputs: x }); setDirty(true); }} editable={editable} /></Field>
           <Field label="KPI"><TextIn value={meta.kpi} onChangeText={(x) => { setMeta({ ...meta, kpi: x }); setDirty(true); }} editable={editable} /></Field>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Velg en boks, kobling eller bane for å redigere den.</Text>
-          {(diagram.lanes || []).map((l) => <ListRow key={l.id} icon="reorder-four-outline" title={l.label} onPress={() => { setSelLane(l.id); setSel(''); setSelEdge(''); }} />)}
+          {(diagram.lanes || []).map((l) => <ListRow key={l.id} icon="reorder-four-outline" title={l.label} onPress={() => { setSelLane(l.id); setSel(''); setMulti([]); setSelEdge(''); }} />)}
         </>
       )}
     </Card>
@@ -628,8 +786,8 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       intro={`v${draft?.version || proc.publishedVersion} · ${draft ? VERSION_STATES[draft.state] : 'Publisert (låst)'}${dirty ? ' · ulagrede endringer' : ''}`}
       actions={(
         <>
-          <Btn icon="arrow-undo-outline" accessibilityLabel="Angre" disabled={!past.length || !editable} onPress={() => { setFuture((f) => [diagram, ...f]); setDiagram(past.at(-1)); setPast(past.slice(0, -1)); setDirty(true); }} />
-          <Btn icon="arrow-redo-outline" accessibilityLabel="Gjør om" disabled={!future.length || !editable} onPress={() => { setPast((p) => [...p, diagram]); setDiagram(future[0]); setFuture(future.slice(1)); setDirty(true); }} />
+          <Btn icon="arrow-undo-outline" accessibilityLabel="Angre" disabled={!past.length || !editable} onPress={undo} />
+          <Btn icon="arrow-redo-outline" accessibilityLabel="Gjør om" disabled={!future.length || !editable} onPress={redo} />
           <Btn icon="shield-checkmark-outline" label="Valider" onPress={() => setCheck(validateDiagram(diagram, context))} />
           {editable ? <Btn icon="save-outline" label="Lagre" disabled={!dirty} onPress={save} /> : null}
           {editable ? <Btn kind="primary" icon="send-outline" label="Send til godkjenning" onPress={submit} /> : null}
@@ -642,8 +800,8 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       {check ? (
         <Card title={check.ok ? 'Validering OK' : `Validering: ${check.errors.length} feil`}>
           {check.ok ? <Text style={{ color: colors.success }}>Flyten har start og slutt, alle bokser kan nås, beslutninger har grener, og roller og referanser er satt.</Text> : null}
-          {check.errors.map((e, i) => <ListRow key={`e${i}`} icon="alert-circle-outline" tone="danger" title={e.message} onPress={e.nodeId ? () => { setSel(e.nodeId); setSelEdge(''); } : undefined} />)}
-          {check.warnings.map((e, i) => <ListRow key={`w${i}`} icon="warning-outline" tone="warn" title={e.message} onPress={e.nodeId ? () => setSel(e.nodeId) : undefined} />)}
+          {check.errors.map((e, i) => <ListRow key={`e${i}`} icon="alert-circle-outline" tone="danger" title={e.message} onPress={e.nodeId ? () => { setMulti([]); setSel(e.nodeId); setSelEdge(''); } : undefined} />)}
+          {check.warnings.map((e, i) => <ListRow key={`w${i}`} icon="warning-outline" tone="warn" title={e.message} onPress={e.nodeId ? () => { setMulti([]); setSel(e.nodeId); } : undefined} />)}
         </Card>
       ) : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
@@ -656,15 +814,18 @@ function ProcessDesigner({ ctx, proc, onBack }) {
             scale={view.scale}
             offset={view.offset}
             selectedId={sel}
+            selectedIds={selection}
             selectedEdgeId={selEdge}
+            onSelectGroup={selectGroup}
+            onDragStart={onDragStart}
             errors={errors}
             connectingFrom={connectFrom}
             onSelectNode={onSelectNode}
-            onSelectEdge={(id) => { setSelEdge(id); setSel(''); setSelLane(''); }}
-            onMoveNode={(id, x, y) => setDiagram((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) }))}
-            onDropNode={(id) => { setPast((p) => [...p.slice(-49), diagram]); setDiagram((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === id ? { ...n, x: snap(n.x), y: snap(n.y) } : n)) })); setDirty(true); setCheck(null); }}
+            onSelectEdge={(id) => { setSelEdge(id); setSel(''); setMulti([]); setSelLane(''); }}
+            onMoveNode={onMoveNode}
+            onDropNode={onDropNode}
             onPan={(o) => setViewState({ ...view, offset: o })}
-            onBackground={() => { setSel(''); setSelEdge(''); setSelLane(''); setConnectFrom(''); }}
+            onBackground={() => { clearSel(); setConnectFrom(''); }}
             height={wide ? 620 : 420}
           />
           <Row>

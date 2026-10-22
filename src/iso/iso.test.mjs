@@ -524,3 +524,44 @@ test('skjermet sak: bevis får ingen detaljer', () => {
   assert.ok(!att.evidence[0].label.includes('Ola'));
   assert.equal(att.evidence[0].classification, 'skjermet');
 });
+
+test('prosessbygger: flervalg, justering, gruppering og versjonssammenligning (C2/C3)', async () => {
+  const P = await import('./processes.js');
+  let d = P.normalizeDiagram({ nodes: [
+    P.makeNode('start', { id: 's', x: 0, y: 0 }), P.makeNode('task', { id: 'a', x: 200, y: 40, label: 'A' }),
+    P.makeNode('task', { id: 'b', x: 400, y: 96, label: 'B' }), P.makeNode('task', { id: 'c', x: 700, y: 10, label: 'C' }), P.makeNode('end', { id: 'e', x: 900, y: 0 }),
+  ], edges: [P.makeEdge('s', 'a', { id: 'e1' }), P.makeEdge('a', 'b', { id: 'e2' }), P.makeEdge('b', 'c', { id: 'e3' }), P.makeEdge('c', 'e', { id: 'e4' })] });
+  const top = P.alignNodes(d, ['a', 'b', 'c'], 'top');
+  const minY = Math.min(...d.nodes.filter((n) => ['a', 'b', 'c'].includes(n.id)).map((n) => n.y));
+  assert.deepEqual(top.nodes.filter((n) => ['a', 'b', 'c'].includes(n.id)).map((n) => n.y), [minY, minY, minY]);
+  const dist = P.distributeNodes(d, ['a', 'b', 'c'], 'h');
+  const xs = dist.nodes.filter((n) => ['a', 'b', 'c'].includes(n.id)).map((n) => n.x);
+  assert.equal(xs[1] - xs[0], xs[2] - xs[1]);
+  const moved = P.moveNodes(d, ['a', 'b'], 32, 16);
+  assert.equal(moved.nodes.find((n) => n.id === 'a').x - d.nodes.find((n) => n.id === 'a').x, 32);
+  assert.equal(moved.nodes.find((n) => n.id === 'c').x, d.nodes.find((n) => n.id === 'c').x, 'bare valgte flyttes');
+  const dup = P.duplicateNodes(d, ['a', 'b']);
+  assert.equal(dup.ids.length, 2);
+  assert.equal(dup.diagram.edges.length, 5, 'intern kobling a→b kopieres');
+  const g = P.groupNodes(d, ['a', 'b'], 'Behandling');
+  assert.ok(g.id);
+  d = P.normalizeDiagram(g.diagram);
+  assert.equal(d.groups.length, 1, 'grupper bevares ved normalisering');
+  assert.equal(P.groupOf(d, 'b').label, 'Behandling');
+  assert.ok(P.groupBounds(d, d.groups[0]).w > 200);
+  assert.match(P.diagramToSvg(d), /Behandling/);
+  assert.equal(P.removeNodes(d, ['a']).groups.length, 0, 'gruppe med én boks forsvinner');
+  assert.equal(P.ungroup(d, d.groups[0].id).groups.length, 0);
+  // Versjonssammenligning
+  const v2 = { ...d, nodes: [...d.nodes.filter((n) => n.id !== 'c').map((n) => (n.id === 'a' ? { ...n, label: 'A2', roleKey: 'quality_manager' } : n)), P.makeNode('task', { id: 'x', label: 'Ny' })], edges: [...d.edges.filter((e) => e.id !== 'e3' && e.id !== 'e4'), P.makeEdge('b', 'x', { id: 'e5' })] };
+  const diff = P.diffDiagrams(d, v2);
+  assert.deepEqual(diff.added.map((n) => n.id), ['x']);
+  assert.deepEqual(diff.removed.map((n) => n.id), ['c']);
+  assert.deepEqual(diff.changed[0].fields, ['tittel', 'rolle']);
+  assert.equal(diff.marks.x, 'added');
+  assert.equal(diff.marks.a, 'changed');
+  assert.equal(diff.edgesAdded.length, 1);
+  assert.equal(diff.edgesRemoved.length, 2);
+  assert.match(diff.summary, /1 nye · 1 fjernet · 1 endret/);
+  assert.equal(P.diffDiagrams(d, P.moveNodes(d, ['a'], 64, 0)).summary, 'Bare plassering er endret');
+});

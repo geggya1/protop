@@ -63,4 +63,9 @@ const report = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', im
 assert.ok((report.match(/if \(readOnly\) return;/g) || []).length >= 4);
 assert.equal((report.match(/\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{importFile\}/g) || []).length, 2);
 
+// Timerapporten ruller selv når den er innebygd på ansattsiden.
+assert.match(report, /const Shell = embedded \? ScrollView : View;/);
+// Fraværsoversikten er venstrestilt.
+assert.match(absence, /frame: \{[^}]*alignSelf: 'flex-start'/);
+
 console.log('employeeReadAccess.test.mjs: ok');

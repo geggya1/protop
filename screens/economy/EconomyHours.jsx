@@ -1030,8 +1030,13 @@ export default function EconomyHours({
     );
   }
 
+  // Innebygd (ansattsiden) har verten fast høyde, så rapporten må rulle selv.
+  const Shell = embedded ? ScrollView : View;
+  const shellProps = embedded
+    ? { contentContainerStyle: styles.embeddedInner, keyboardShouldPersistTaps: 'handled' }
+    : {};
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours">
+    <Shell style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours" {...shellProps}>
       <View style={styles.desk}>
         <View style={styles.mainCol}>
           <View style={styles.toolbar}>
@@ -1092,12 +1097,13 @@ export default function EconomyHours({
       {stackRows ? filterModal : null}
       {entryModal}
       {busyOverlay}
-    </View>
+    </Shell>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  embeddedInner: { flexGrow: 1 },
   importInner: { padding: 16, paddingBottom: 48, maxWidth: 1200, width: '100%', alignSelf: 'flex-start', gap: 14 },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },

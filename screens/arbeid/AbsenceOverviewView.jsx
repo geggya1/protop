@@ -808,7 +808,8 @@ const cardShadow = Platform.select({
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: ui.page },
   pageInner: { paddingBottom: 28 },
-  frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'center' },
+  // Venstrestilt som selskapssiden og resten av appen.
+  frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'flex-start' },
   frameWide: { paddingTop: 10 },
   companyRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

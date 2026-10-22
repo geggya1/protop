@@ -49,6 +49,7 @@ function loadJsx(rel) {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id.includes('ThemeContext')) return { useColors: () => colors };
+    if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('useTimesheetWorkspace')) {
       return {

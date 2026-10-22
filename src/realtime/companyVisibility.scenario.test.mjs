@@ -309,7 +309,8 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
 
   const kariView = memberView(world, consult.id, KARI);
   assert.equal(kariView.levelId, 'innleie_ekstern');
-  assert.deepEqual(kariView.tabs, ['selskap', 'arbeid', 'utstyr']);
+  // Innleide har Tildelte prosjekt og ser Prosjekt med egne prosjekter.
+  assert.deepEqual(kariView.tabs, ['selskap', 'projects', 'arbeid', 'utstyr']);
   assert.deepEqual(kariView.employees, []);
   assert.equal(kariView.books, null);
   assert.equal(kariView.settings, false);

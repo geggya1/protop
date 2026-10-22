@@ -13,7 +13,7 @@ const tabs = fs.readFileSync(path.join(root, 'src/employees/personTabs.js'), 'ut
 
 assert.match(tabs, /PERSON_FILL_VIEWS = new Set\(\[[\s\S]*'hours'/);
 assert.match(screen, /nativeID="employee-hours-view"/);
-assert.match(screen, /<ArbeidScreen lockedEmployeeId=\{selected\.id\} embedded \/>/);
+assert.match(screen, /<ArbeidScreen\s+lockedEmployeeId=\{selected\.id\}\s+embedded\b/);
 assert.doesNotMatch(screen, /maxWidth:\s*1400/);
 assert.match(screen, /hoursHost: \{[^}]*width: '100%'[^}]*alignSelf: 'stretch'/);
 assert.match(css, /#employee-hours-view #timesheet-grid/);

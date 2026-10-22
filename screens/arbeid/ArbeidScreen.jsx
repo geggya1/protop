@@ -909,7 +909,8 @@ export default function ArbeidScreen({
     );
   }
 
-  if (!linked && !manager) {
+  // Låst til én ansatt (ansattsiden): vis den ansattes timeliste selv om leseren ikke er koblet.
+  if (!linked && !manager && !lockedId) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
         <Text style={{ color: colors.ink, fontSize: personal ? 16 : 22, fontWeight: personal ? '600' : '700' }}>

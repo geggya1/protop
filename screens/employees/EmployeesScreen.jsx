@@ -1363,14 +1363,19 @@ export default function EmployeesScreen() {
           </View>
         ) : null}
         {view === 'absence' ? (
-          <View nativeID="employee-absence-view" style={styles.absenceHost}>
+          <ScrollView
+            nativeID="employee-absence-view"
+            style={styles.absenceHost}
+            contentContainerStyle={styles.absenceInner}
+            keyboardShouldPersistTaps="handled"
+          >
             <AbsenceOverviewScreen
               lockedEmployeeId={selected.id}
               readOnly={readOnlyPerson}
               embedded
               onBack={() => openDetail(selected)}
             />
-          </View>
+          </ScrollView>
         ) : null}
         {view === 'saldo' ? (
           <View nativeID="employee-saldo-view" style={styles.personFill}>
@@ -1972,6 +1977,8 @@ const styles = StyleSheet.create({
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
+  // Fraværsoversikten fyller området under fanene og må rulle selv.
+  absenceInner: { flexGrow: 1, paddingBottom: 28 },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },

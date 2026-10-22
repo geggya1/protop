@@ -42,4 +42,9 @@ const absence = readFileSync(new URL('../../screens/arbeid/AbsenceOverviewView.j
 assert.match(absence, /onRegister=\{readOnly \? null : register\}/);
 assert.match(absence, /canEditOpening=\{!!employeeId && !readOnly\}/);
 
+// Timelisten på ansattsiden vises selv om leseren ikke er koblet til en ansatt.
+assert.match(arbeid, /if \(!linked && !manager && !lockedId\)/);
+// Fraværsoversikten på ansattsiden ruller.
+assert.match(screen, /<ScrollView\s+nativeID="employee-absence-view"/);
+
 console.log('employeeReadAccess.test.mjs: ok');

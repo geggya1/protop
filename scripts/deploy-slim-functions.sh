@@ -182,6 +182,10 @@ open_for aiIndex.js "$AI"
 queue_entry vegvesenIndex.js functions:lookupVehicleByReg,functions:lookupVehicleHttp
 open_for vegvesenIndex.js functions:lookupVehicleByReg
 
+# Speiler tilgangsmatrisen til accessAcl, som Firestore-reglene for ISO leser.
+queue_entry companyAccessIndex.js functions:syncCompanyAccess
+open_for companyAccessIndex.js functions:syncCompanyAccess
+
 MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"

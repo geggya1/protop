@@ -474,7 +474,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                 {h.note ? <Text style={{ color: colors.ink, fontSize: 12 }}>{h.note}</Text> : null}
               </View>
             ))}
-            <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id))} />
+            <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id, { restricted: !!finding.restricted }))} />
             {audit ? audit.map((e) => <Text key={e.id} style={{ color: colors.muted, fontSize: 11 }}>{String(e.at).replace('T', ' ').slice(0, 16)} · {e.action} · {e.actorName} · {e.beforeHash || '–'}→{e.afterHash}</Text>) : null}
           </Card>
         </View>

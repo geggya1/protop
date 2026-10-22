@@ -37,7 +37,7 @@ import { isoRequirementLibrary, mayBeNotApplicable } from './catalog.js';
 const ANNE = { uid: 'u1', name: 'Anne Kvalitet' };
 const PER = { uid: 'u2', name: 'Per Tiltak' };
 const BOSS = { uid: 'u3', name: 'Siri Leder' };
-const ADMIN = isoCapabilities({ bypass: true, uid: 'u3' });
+const ADMIN = isoCapabilities({ bypass: true, uid: 'u3', restricted: { uids: ['u3'] } });
 const now = new Date('2026-10-22T10:00:00Z');
 
 function state(extra = {}) {
@@ -135,8 +135,24 @@ test('tilgang: skjermet HMS-sak er usynlig for ansatt uten tilgang, også i KPI 
   assert.equal(kpis(s, staff, { now }).find((k) => k.key === 'openFindings').value, 1);
   const reporter = isoCapabilities({ grants: { iso: 'see' }, uid: BOSS.uid });
   assert.equal(canSeeFinding(reporter, hms), true, 'den som meldte saken ser den');
-  const hse = isoCapabilities({ grants: { iso: 'read' }, uid: 'u8', system: { restrictedAccess: [{ uid: 'u8', name: 'HMS' }] } });
-  assert.equal(isoCapabilities({ grants: { iso: 'read' }, uid: 'u7', system: { roleMap: { hse_manager: { uid: 'u7' } } } }).restrictedView, true, 'HMS-leder ser skjermede saker');
+  const hse = isoCapabilities({ grants: { iso: 'read' }, uid: 'u8', restricted: { uids: ['u8'] } });
+  // Ingen får særskilt tilgang automatisk: verken eier, ISO-admin eller HMS-leder (A5/C7).
+  const owner = isoCapabilities({ bypass: true, uid: 'u7' });
+  assert.equal(owner.admin, true);
+  assert.equal(owner.restrictedView, false, 'eier ser ikke skjermede saker uten tildeling');
+  assert.equal(owner.canGrantRestricted, true, 'eier kan tildele');
+  assert.equal(canSeeFinding(owner, hms), false);
+  assert.equal(isoCapabilities({ grants: { iso: 'write' }, uid: 'u6' }).restrictedView, false, 'ISO-admin ser ikke skjermede saker uten tildeling');
+  assert.equal(isoCapabilities({ grants: { iso: 'write' }, uid: 'u6', restricted: { uids: ['u6'] } }).canGrantRestricted, true);
+  assert.equal(isoCapabilities({ grants: { iso: 'read' }, uid: 'u8', restricted: { uids: ['u8'] } }).canGrantRestricted, false);
+  // Manglende tilgangsdata gir ingen tilgang (A8).
+  const none = isoCapabilities({ uid: 'u5' });
+  assert.equal(none.view, false);
+  assert.equal(none.admin, false);
+  // Serverens nivå begrenser klienten.
+  assert.equal(isoCapabilities({ grants: { iso: 'write' }, uid: 'u4', serverIso: 1 }).manage, false);
+  // Involvert via tiltak ser saken.
+  assert.equal(canSeeFinding(isoCapabilities({ grants: { iso: 'see' }, uid: 'u2' }), { ...hms, involvedUids: ['u2'] }), true);
   assert.equal(canSeeFinding(hse, hms), true);
 });
 
@@ -478,4 +494,33 @@ test('tilstand: skjermede saker lagres i egen samling og flettes', () => {
   assert.deepEqual(s.findings.map((f) => [f.id, f.restricted]), [['b', true], ['a', false]]);
   assert.equal(s.records.risiko.length, 1);
   assert.equal(s.system.standards.length, 0, 'ingen standarder eller eksempeldata før oppsett');
+});
+
+test('tilgangsspeil: samme beregning som appen, eier = admin, inaktive og ikke-medlemmer uten tilgang', async () => {
+  const { aclFor, planAclSync, aclIsFresh, isoRankFromGrant } = await import('./aclSync.js');
+  const { standardGrants } = await import('../access/companyAccess.js');
+  const family = { ownerUid: 'own', members: ['own', 'adm', 'emp', 'gone'], company: { accessPolicy: {} } };
+  const employees = [
+    { id: 'e1', personUid: 'adm', company: { accessLevel: 'administrator', status: 'active' } },
+    { id: 'e2', personUid: 'emp', company: { accessLevel: 'ansatt', status: 'active' } },
+    { id: 'e3', personUid: 'gone', company: { accessLevel: 'administrator', status: 'inactive' } },
+  ];
+  assert.equal(aclFor({ family, employees, uid: 'own', now }).iso, 3);
+  assert.equal(aclFor({ family, employees, uid: 'adm', now }).iso, isoRankFromGrant(standardGrants('administrator').iso));
+  assert.equal(aclFor({ family, employees, uid: 'gone', now }).iso, 0, 'inaktiv ansatt mister tilgang');
+  const plan = planAclSync({ family, employees, existingUids: ['own', 'old'], now });
+  assert.deepEqual(plan.remove, ['old'], 'tidligere medlem fjernes');
+  assert.equal(plan.write.length, 4);
+  const acl = plan.write[0];
+  assert.equal(aclIsFresh(acl, now), true);
+  assert.equal(aclIsFresh(acl, new Date(now.getTime() + 13 * 3600 * 1000)), false, 'utløper');
+  assert.equal(aclIsFresh(null, now), false);
+});
+
+test('skjermet sak: bevis får ingen detaljer', () => {
+  const s = state();
+  const att = attachEvidence(s, { type: 'finding', objectId: 'f1', objectRevision: 3, label: 'HMS-1 Ola kuttet seg', restricted: true }, ['ISO45001:10.2'], { actor: BOSS, now });
+  assert.equal(att.ok, true);
+  assert.ok(!att.evidence[0].label.includes('Ola'));
+  assert.equal(att.evidence[0].classification, 'skjermet');
 });

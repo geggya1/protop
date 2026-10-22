@@ -6,9 +6,9 @@
  *   iso: Begrenset redig.  → behandle saker, registre, utkast til prosesser/dokumenter
  *   iso: Admin             → godkjenne/publisere, lukke saker, innstillinger
  *
- * Skjermede HMS-/personsaker styres i ISO-innstillingene (ikke i den felles tilgangsmatrisen):
- * personene på listen «Tilgang til skjermede saker», HMS-leder og systemansvarlig.
- * Objektbasert: den som meldte en skjermet sak, og den som er tildelt den, ser saken.
+ * Skjermede HMS-/personsaker: bare personer som er uttrykkelig ført opp på listen
+ * «Tilgang til skjermede saker». Objektbasert: den som meldte en skjermet sak, og den
+ * som er tildelt den eller eier et tiltak, ser saken. Alt håndheves også i Firestore-reglene.
  */
 import { text } from './core.js';
 
@@ -18,30 +18,39 @@ function rank(grants, resource) {
   return RANK[grants?.[resource]] || 0;
 }
 
-/** Hvem har særskilt tilgang til skjermede saker (fra ISO-innstillingene). */
-export function restrictedUids(system) {
+/**
+ * Hvem har særskilt tilgang til skjermede saker: bare personer som er uttrykkelig ført
+ * opp i ISO-innstillingene (families/{id}/isoRestricted/main). Ingen får det automatisk
+ * fordi de er eier, administrator, HMS-leder eller systemansvarlig.
+ */
+export function restrictedUids(grants) {
   const out = new Set();
-  for (const p of system?.restrictedAccess || []) if (p?.uid) out.add(String(p.uid));
-  for (const key of ['hse_manager', 'system_owner']) {
-    const uid = system?.roleMap?.[key]?.uid;
-    if (uid) out.add(String(uid));
-  }
+  for (const uid of grants?.uids || []) if (uid) out.add(String(uid));
+  for (const p of grants?.people || []) if (p?.uid) out.add(String(p.uid));
   return out;
 }
 
-export function isoCapabilities({ grants = null, bypass = false, uid = '', system = null } = {}) {
-  const full = !!bypass || !grants;
-  const iso = full ? 3 : rank(grants, 'iso');
-  const named = !!uid && restrictedUids(system).has(String(uid));
-  const restricted = full ? 3 : (named ? Math.max(2, iso) : 0);
+/**
+ * Rettigheter i ISO. Mangler tilgangsdata, gis ingen tilgang (fail-closed).
+ * bypass = selskapets eier (som i resten av ProTop). serverIso = nivået Firestore-reglene
+ * faktisk håndhever (accessAcl); er det lavere, brukes det så knapper ikke lover mer enn serveren tillater.
+ */
+export function isoCapabilities({ grants = null, bypass = false, uid = '', restricted = null, serverIso = null } = {}) {
+  let iso = bypass ? 3 : (grants ? rank(grants, 'iso') : 0);
+  if (iso > 3) iso = 3;
+  if (serverIso != null && Number.isFinite(Number(serverIso))) iso = Math.min(iso, Number(serverIso));
+  const listed = !!uid && restrictedUids(restricted).has(String(uid));
   return {
     uid: text(uid, 128),
     view: iso >= 1,
     report: iso >= 1,
     manage: iso >= 2,
     admin: iso >= 3,
-    restrictedView: restricted >= 1,
-    restrictedManage: restricted >= 2,
+    owner: !!bypass,
+    restrictedListed: listed,
+    restrictedView: listed && iso >= 1,
+    restrictedManage: listed && iso >= 2,
+    canGrantRestricted: !!bypass || (listed && iso >= 3),
   };
 }
 
@@ -54,6 +63,7 @@ export function canSeeFinding(caps, finding) {
   if (!uid) return false;
   return finding.reportedByUid === uid
     || finding.assigneeUid === uid
+    || (finding.involvedUids || []).includes(uid)
     || (finding.actions || []).some((a) => a.ownerUid === uid);
 }
 
@@ -86,4 +96,36 @@ export function redactFinding(caps, finding) {
     personalDetails: '',
     injuryDetails: '',
   };
+}
+
+/** Minste ISO-nivå hver rolle trenger for å gjøre jobben (1 lese, 2 begrenset redigering, 3 admin). */
+export const ROLE_MIN_ISO = {
+  system_owner: 3, quality_manager: 3, top_management: 3, hse_manager: 2, process_owner: 2,
+  project_manager: 2, manager: 2, internal_auditor: 2, safety_rep: 1,
+};
+
+const RANK_LABEL = ['Ingen', 'Lese', 'Begrenset redigering', 'Admin'];
+
+/**
+ * Oppstartskontroll av roller: har personene som har fått en ISO-rolle, nivået rollen krever
+ * i tilgangsmatrisen? Gir aldri tilgang selv – viser bare hva som mangler. Særskilt tilgang til
+ * skjermede saker følger ikke av noen rolle.
+ */
+export function roleAccessCheck(roleMap, rankFor) {
+  const rows = [];
+  for (const [role, need] of Object.entries(ROLE_MIN_ISO)) {
+    const person = roleMap?.[role];
+    if (!person?.name) continue;
+    const has = person.uid ? Number(rankFor(person.uid)) || 0 : null;
+    rows.push({
+      role,
+      person,
+      need,
+      has,
+      needLabel: RANK_LABEL[need],
+      hasLabel: has == null ? 'Ikke koblet til bruker' : RANK_LABEL[has],
+      ok: has != null && has >= need,
+    });
+  }
+  return rows;
 }

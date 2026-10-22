@@ -40,6 +40,7 @@ export const DEPLOY_ENTRIES = [
   'aiIndex.js',
   'vegvesenIndex.js',
   'membershipIndex.js',
+  'companyAccessIndex.js',
   'authIndex.js',
   'hospitalityIndex.js',
   'stravaIndex.js',

@@ -8,11 +8,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { addDays, todayKey } from '../../src/iso/core';
 import { emptyIsoState, replaceIn } from '../../src/iso/state';
 import {
-  appendAudit, completeIsoTask, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
+  appendAudit, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
 } from '../../src/iso/storage';
 
-export function useIsoStore({ companyId, caps, actor, bypass = false }) {
-  const [state, setState] = useState(() => peekIsoState(companyId) || emptyIsoState());
+/** Oppgaver fra skjermede saker får ingen detaljer i Oppgaver (som alle i selskapet kan se). */
+function safeEffects(effects, entity) {
+  if (!entity?.restricted) return effects;
+  return (effects || []).map((e) => (e.type === 'createTask' || e.type === 'requestApproval' || e.type === 'notify'
+    ? { ...e, title: `Skjermet sak ${entity.number || ''}: åpne ISO → Avvik`.replace('  ', ' '), description: 'Detaljer vises bare i ISO for dem som har tilgang til saken.' }
+    : e));
+}
+
+export function useIsoStore({ companyId, actor, family = null, employees = null, ready = true }) {
+  const [state, setState] = useState(() => peekIsoState(companyId, actor?.uid) || emptyIsoState());
+  const [serverIso, setServerIso] = useState(null);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -30,14 +39,18 @@ export function useIsoStore({ companyId, caps, actor, bypass = false }) {
       setLoading(false);
       return;
     }
+    if (!ready) return;
     setLoading(true);
-    const res = await loadIsoState(companyId, { uid: actor?.uid, restrictedView: !!caps?.restrictedView, bypass });
+    // Tilgangsmatrisen speiles til serveren før lesing; reglene leser den.
+    const mirror = await ensureAccessMirror(companyId, actor?.uid, { family, employees });
+    setServerIso(mirror.fresh ? mirror.iso : 0);
+    const res = await loadIsoState(companyId, { uid: actor?.uid });
     setState(res.state);
     setSource(res.source);
     setLoadError(res.error || '');
     setLoading(false);
     refreshTasks();
-  }, [companyId, actor?.uid, caps?.restrictedView, bypass, refreshTasks]);
+  }, [companyId, actor?.uid, ready, refreshTasks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -79,8 +92,9 @@ export function useIsoStore({ companyId, caps, actor, bypass = false }) {
     setState(next);
     try {
       await saveEntity(companyId, kind, entity, { previous });
-      await appendAudit(companyId, result.events || []);
-      await runEffects([...(effects || []), ...(result.effects || [])]);
+      const restricted = kind === 'findings' && (!!entity?.restricted || !!previous?.restricted);
+      await appendAudit(companyId, result.events || [], { restricted });
+      await runEffects(safeEffects([...(effects || []), ...(result.effects || [])], kind === 'findings' ? entity : null));
       return result;
     } catch (err) {
       stateRef.current = before;
@@ -113,7 +127,7 @@ export function useIsoStore({ companyId, caps, actor, bypass = false }) {
   }, [companyId]);
 
   return {
-    state, setState, loading, source, loadError, reload, commit, commitLists, runEffects, tasks, refreshTasks,
+    state, setState, loading, source, loadError, reload, commit, commitLists, runEffects, tasks, refreshTasks, serverIso,
     current: () => stateRef.current,
   };
 }

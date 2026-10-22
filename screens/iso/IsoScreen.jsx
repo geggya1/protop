@@ -9,6 +9,7 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { isSuperAdmin } from '../../src/utils/groups';
 import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
@@ -63,11 +64,18 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     uid: uid || '',
     name: String(activeProfile?.name || activeProfile?.displayName || '').trim() || 'Bruker',
   }), [uid, activeProfile?.name, activeProfile?.displayName]);
-  const bypass = !access.active || (access.bypass && !access.previewing);
-  const baseCaps = useMemo(() => isoCapabilities({ grants: access.active ? access.grants : null, bypass, uid }), [access.active, access.grants, bypass, uid]);
-  const store = useIsoStore({ companyId: familyId, caps: baseCaps, actor, bypass });
-  // Skjermet tilgang avhenger av ISO-innstillingene (rollene og listen der).
-  const caps = useMemo(() => isoCapabilities({ grants: access.active ? access.grants : null, bypass, uid, system: store.state.system }), [access.active, access.grants, bypass, uid, store.state.system]);
+  // Eier = full ISO-tilgang (som i resten av ProTop). Ellers tilgangsmatrisen; mangler den, ingen tilgang.
+  const owner = isSuperAdmin(family, uid);
+  const bypass = owner && !access.previewing;
+  const store = useIsoStore({ companyId: familyId, actor, family, employees: access.employees, ready: !!access.ready || owner });
+  // Skjermet tilgang: bare personer på listen i ISO-innstillingene. Serverens nivå begrenser klienten.
+  const caps = useMemo(() => isoCapabilities({
+    grants: access.active && access.ready ? access.grants : null,
+    bypass,
+    uid,
+    restricted: store.state.restrictedGrants,
+    serverIso: store.serverIso,
+  }), [access.active, access.ready, access.grants, bypass, uid, store.state.restrictedGrants, store.serverIso]);
   const canSeeHr = bypass || (typeof access.canView === 'function' && access.canView('hrCompliance'));
   const sources = useIsoSources({ familyId, family, canManage: caps.manage, canSeeHr });
 
@@ -118,6 +126,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     go,
     params,
     companyId: familyId,
+    family,
+    accessEmployees: access.employees || [],
     requestTab: requestShellTab,
     prefill: params?.prefill || null,
   };
@@ -129,8 +139,19 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   let body;
   if (!familyId) {
     body = <Empty icon="business-outline" title="Velg en bedrift" text="ISO / K-HMS hører til en bedrift. Bytt til bedriftsprofilen." />;
+  } else if (store.loading && store.serverIso == null) {
+    body = <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colors.brand} /><Text style={{ color: colors.muted, marginTop: 8 }}>Kontrollerer tilgang …</Text></View>;
   } else if (!caps.view) {
-    body = <Empty icon="lock-closed-outline" title="Ingen tilgang" text="Du har ikke tilgang til ISO / K-HMS. Be en administrator om tilgang under Tilgang." />;
+    body = (
+      <Empty
+        icon="lock-closed-outline"
+        title="Ingen tilgang"
+        text={store.serverIso === 0 && access.grants?.iso && access.grants.iso !== 'none'
+          ? 'Tilgangen din er ikke bekreftet av serveren ennå. Prøv igjen om litt, eller be eieren av selskapet åpne ISO.'
+          : 'Du har ikke tilgang til ISO / K-HMS. Be en administrator om tilgang under Tilgang.'}
+        action={<Btn icon="refresh" label="Prøv igjen" onPress={store.reload} />}
+      />
+    );
   } else if (isSettings && !caps.admin) {
     body = <Empty icon="lock-closed-outline" title="Bare for administrator" text="Innstillingene for ledelsessystemet kan bare endres av administrator i ISO." />;
   } else if (store.loading && !store.state.system.setupAt) {

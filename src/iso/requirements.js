@@ -77,6 +77,8 @@ export function attachEvidence(state, input, requirementIds, { actor, now = new 
   const ids = uniq(requirementIds);
   if (!ids.length) return fail('Velg minst ett krav.');
   const revision = text(input?.objectRevision ?? '', 40);
+  // Skjermede saker: beviset er synlig for alle med lesetilgang, så det får ingen detaljer.
+  const label = input?.restricted ? 'Skjermet sak (detaljer bare for særskilt autoriserte)' : text(input?.label, 300);
   const evidence = [...(state?.evidence || [])];
   let row = evidence.find((e) => e.type === type && e.objectId === objectId && String(e.objectRevision || '') === revision);
   const events = [];
@@ -86,12 +88,12 @@ export function attachEvidence(state, input, requirementIds, { actor, now = new 
       type,
       objectId,
       objectRevision: revision,
-      label: text(input.label, 300),
+      label,
       classification: input?.restricted ? 'skjermet' : 'intern',
       validTo: isoDate(input.validTo),
       createdAt: nowIso(now),
       createdBy: text(actor?.name, 160),
-      hash: checksum({ type, objectId, revision, label: text(input.label, 300) }),
+      hash: checksum({ type, objectId, revision, label }),
     };
     evidence.push(row);
     events.push(auditEvent({ entityType: 'evidence', entityId: row.id, action: 'iso.evidence.created', actor, after: row, now }));

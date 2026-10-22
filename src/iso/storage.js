@@ -6,6 +6,9 @@
  *   families/{companyId}/isoFindingsRestricted/{id} skjermede HMS-/personsaker
  *   families/{companyId}/isoProcesses/{id} …       én dokumentsamling per entitetstype
  *   families/{companyId}/isoAudit/{eventId}        revisjonsspor (bare nye hendelser skrives)
+ *   families/{companyId}/isoAuditRestricted/{id}   revisjonsspor for skjermede saker
+ *   families/{companyId}/isoRestricted/main        hvem som har særskilt tilgang til skjermede saker
+ *   families/{companyId}/accessAcl/{uid}           tilgangsmatrisen speilet for Firestore-reglene
  *   families/{companyId}/parentTodos/{key}         oppgaver i ProTop (deterministisk id → ingen duplikater)
  *
  * Hver lagring er en transaksjon med revisjonskontroll: er posten endret av en annen
@@ -14,12 +17,13 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/firestoreAccess.js';
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
 import { restrictedUids } from './access.js';
+import { aclIsFresh, isCompanyOwner, planAclSync } from './aclSync.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -71,16 +75,25 @@ async function readOwnRestricted(companyId, uid) {
   const ref = col(companyId, COLLECTIONS.restrictedFindings);
   const [a, b] = await Promise.all([
     getDocs(query(ref, where('reportedByUid', '==', uid))),
-    getDocs(query(ref, where('assigneeUid', '==', uid))),
+    getDocs(query(ref, where('involvedUids', 'array-contains', uid))),
   ]);
   const map = new Map();
   for (const d of [...a.docs, ...b.docs]) map.set(d.id, { ...d.data(), id: d.id });
   return [...map.values()];
 }
 
-async function readCache(companyId) {
+/** Lokal kopi er per bruker og selskap, så en annen innlogging på samme enhet ikke ser den. */
+function cacheKey(companyId, uid) {
+  return `${CACHE_KEY}.${cid(companyId)}.${String(uid || 'anon').slice(0, 128)}`;
+}
+
+function memoryKey(companyId, uid) {
+  return `${cid(companyId)}:${String(uid || '')}`;
+}
+
+async function readCache(companyId, uid) {
   try {
-    const raw = await AsyncStorage.getItem(`${CACHE_KEY}.${cid(companyId)}`);
+    const raw = await AsyncStorage.getItem(cacheKey(companyId, uid));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -88,52 +101,129 @@ async function readCache(companyId) {
 }
 
 /** Lokal cache inneholder aldri skjermede saker. */
-async function writeCache(companyId, parts) {
+async function writeCache(companyId, uid, parts) {
   try {
-    const { restrictedFindings, ...open } = parts;
-    await AsyncStorage.setItem(`${CACHE_KEY}.${cid(companyId)}`, JSON.stringify(open));
+    const { restrictedFindings, restrictedGrants, ...open } = parts;
+    await AsyncStorage.setItem(cacheKey(companyId, uid), JSON.stringify(open));
   } catch {
     /* full lagring er ikke kritisk */
   }
 }
 
-export function peekIsoState(companyId) {
-  return MEMORY.get(cid(companyId)) || null;
+export function peekIsoState(companyId, uid = '') {
+  return MEMORY.get(memoryKey(companyId, uid)) || null;
 }
 
 /**
  * Leser hele ISO-tilstanden for selskapet.
  * Returnerer { state, source: 'remote' | 'cache' | 'empty', error? }.
  */
-export async function loadIsoState(companyId, { uid = '', restrictedView = false, bypass = false } = {}) {
+/** Hvem som har særskilt tilgang til skjermede saker. Null hvis brukeren ikke får lese listen. */
+export async function loadRestrictedGrants(companyId) {
+  try {
+    const snap = await getDoc(doc(db, 'families', cid(companyId), 'isoRestricted', 'main'));
+    if (!snap.exists()) return { uids: [], people: [], readable: true };
+    const data = snap.data() || {};
+    return { uids: Array.isArray(data.uids) ? data.uids : [], people: Array.isArray(data.people) ? data.people : [], readable: true, rev: Number(data.rev) || 0 };
+  } catch {
+    return { uids: [], people: [], readable: false };
+  }
+}
+
+/** Lagre listen over særskilt tilgang. Reglene tillater bare eier eller en på listen med ISO-admin. */
+export async function saveRestrictedGrants(companyId, people, { actor } = {}) {
+  const clean = (people || []).filter((p) => p?.uid).map((p) => ({ uid: String(p.uid), name: String(p.name || '').slice(0, 160) }));
+  const ref = doc(db, 'families', cid(companyId), 'isoRestricted', 'main');
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const rev = snap.exists() ? Number(snap.data()?.rev) || 0 : 0;
+    tx.set(ref, {
+      uids: clean.map((p) => p.uid),
+      people: clean,
+      rev: rev + 1,
+      updatedAt: new Date().toISOString(),
+      updatedBy: String(actor?.name || '').slice(0, 160),
+      updatedByUid: String(actor?.uid || '').slice(0, 128),
+    });
+  });
+  return clean;
+}
+
+/**
+ * Sørger for at tilgangsmatrisen er speilet til serveren (accessAcl) før ISO leses.
+ * 1) Gyldig dokument finnes → ferdig.  2) Cloud Function syncCompanyAccess.
+ * 3) Eieren kan beregne og skrive selv (samme kode). Ellers ingen tilgang (fail-closed).
+ * Returnerer { iso, fresh, via }.
+ */
+export async function ensureAccessMirror(companyId, uid, { family = null, employees = null, force = false } = {}) {
+  const id = cid(companyId);
+  if (!id || !uid) return { iso: 0, fresh: false, via: 'none' };
+  const ref = doc(db, 'families', id, 'accessAcl', String(uid));
+  if (!force) {
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists() && aclIsFresh(snap.data())) return { iso: Number(snap.data()?.iso) || 0, fresh: true, via: 'cache' };
+    } catch { /* prøv å synke */ }
+  }
+  try {
+    const [{ httpsCallable }, { functions }] = await Promise.all([import('firebase/functions'), import('../../firebase.js')]);
+    const call = httpsCallable(functions, 'syncCompanyAccess', { timeout: 20000 });
+    const res = await call({ companyId: id });
+    if (res?.data?.ok) return { iso: Number(res.data.iso) || 0, fresh: true, via: 'function' };
+  } catch { /* faller tilbake under */ }
+  if (family && employees && isCompanyOwner(family, uid)) {
+    try {
+      const existing = await getDocs(collection(db, 'families', id, 'accessAcl'));
+      const plan = planAclSync({ family, employees, existingUids: existing.docs.map((d) => d.id) });
+      const ops = [
+        ...plan.write.map((row) => (b) => b.set(doc(db, 'families', id, 'accessAcl', row.uid), { ...row, source: 'owner' })),
+        ...plan.remove.map((u) => (b) => b.delete(doc(db, 'families', id, 'accessAcl', u))),
+      ];
+      for (let i = 0; i < ops.length; i += 400) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + 400).forEach((op) => op(batch));
+        await batch.commit();
+      }
+      return { iso: 3, fresh: true, via: 'owner' };
+    } catch { /* ingen tilgang */ }
+  }
+  return { iso: 0, fresh: false, via: 'none' };
+}
+
+/**
+ * Leser hele ISO-tilstanden for selskapet.
+ * Returnerer { state, source: 'remote' | 'cache' | 'empty', error? }.
+ */
+export async function loadIsoState(companyId, { uid = '' } = {}) {
   const id = cid(companyId);
   if (!id) return { state: emptyIsoState(), source: 'empty' };
   const authed = await ensureAuth();
   if (!authed) {
-    const cached = await readCache(id);
+    const cached = await readCache(id, uid);
     return cached
       ? { state: stateFromCollections(cached), source: 'cache', error: 'Ikke innlogget mot skyen. Viser lokal kopi.' }
       : { state: emptyIsoState(), source: 'empty', error: 'Ikke innlogget mot skyen.' };
   }
   try {
     const names = Object.entries(COLLECTIONS).filter(([key]) => key !== 'restrictedFindings');
-    const [systemSnap, ...lists] = await Promise.all([
+    const [systemSnap, grants, ...lists] = await Promise.all([
       getDoc(doc(db, 'families', id, 'isoSystem', 'main')),
+      loadRestrictedGrants(id),
       ...names.map(([, name]) => readAll(id, name)),
     ]);
-    const parts = { system: systemSnap.exists() ? systemSnap.data() : null };
+    const parts = { system: systemSnap.exists() ? systemSnap.data() : null, restrictedGrants: grants };
     names.forEach(([key], i) => { parts[key] = lists[i]; });
-    // Særskilt tilgang avgjøres av ISO-innstillingene (lest over), ikke av den felles tilgangsmatrisen.
-    const named = !!uid && restrictedUids(parts.system).has(String(uid));
-    parts.restrictedFindings = (restrictedView || bypass || named)
+    // Særskilt tilgang: bare personer som står uttrykkelig på listen (håndheves også i reglene).
+    const listed = !!uid && restrictedUids(grants).has(String(uid));
+    parts.restrictedFindings = listed
       ? await readAll(id, COLLECTIONS.restrictedFindings)
-      : await readOwnRestricted(id, uid);
+      : await readOwnRestricted(id, uid).catch(() => []);
     const state = stateFromCollections(parts);
-    MEMORY.set(id, state);
-    await writeCache(id, parts);
+    MEMORY.set(memoryKey(id, uid), state);
+    await writeCache(id, uid, parts);
     return { state, source: 'remote' };
   } catch (err) {
-    const cached = await readCache(id);
+    const cached = await readCache(id, uid);
     const message = isFirestorePermissionError(err) ? 'Mangler tilgang til ISO-data i skyen.' : 'Kunne ikke hente ISO-data.';
     return cached
       ? { state: stateFromCollections(cached), source: 'cache', error: `${message} Viser lokal kopi.` }
@@ -159,7 +249,22 @@ export async function saveEntity(companyId, kind, entity, { previous = null } = 
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
   const name = kind === 'system' ? 'isoSystem' : collectionFor(kind, entity);
   const ref = doc(db, 'families', id, name, kind === 'system' ? 'main' : entity.id);
-  const data = plain({ ...entity, savedAt: new Date().toISOString() });
+  const data = plain({ ...(kind === 'findings' ? withInvolved(entity) : entity), savedAt: new Date().toISOString() });
+  const moving = kind === 'findings' && previous && !!previous.restricted !== !!entity.restricted;
+  if (moving) {
+    // Flytting mellom åpen og skjermet samling skjer i én transaksjon: ny kopi skrives og
+    // den gamle slettes samtidig, ellers ingenting. Ingen gammel åpen kopi kan bli liggende.
+    const old = doc(db, 'families', id, collectionFor('findings', previous), entity.id);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(old);
+      if (snap.exists() && (Number(snap.data()?.rev) || 0) !== (Number(previous.rev) || 0)) {
+        throw new ConflictError('Posten er endret av en annen bruker. Last inn på nytt og prøv igjen.');
+      }
+      tx.set(ref, data);
+      tx.delete(old);
+    });
+    return data;
+  }
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (snap.exists()) {
@@ -173,11 +278,6 @@ export async function saveEntity(companyId, kind, entity, { previous = null } = 
     }
     tx.set(ref, data);
   });
-  // Flytting mellom åpen og skjermet samling
-  if (kind === 'findings' && previous && !!previous.restricted !== !!entity.restricted) {
-    const old = doc(db, 'families', id, collectionFor('findings', previous), entity.id);
-    try { await deleteDoc(old); } catch { /* kan mangle tilgang; ny kopi er lagret */ }
-  }
   return data;
 }
 
@@ -197,24 +297,30 @@ export async function saveMany(companyId, rows) {
   }
 }
 
-/** Revisjonsspor: bare nye dokumenter, med hendelsens egen id. */
-export async function appendAudit(companyId, events) {
+/** Hvem som er involvert i en sak (melder, ansvarlig, tiltakseiere) – brukes av reglene. */
+export function withInvolved(finding) {
+  const set = new Set([finding?.reportedByUid, finding?.assigneeUid, ...((finding?.actions || []).map((a) => a?.ownerUid))].filter(Boolean).map(String));
+  return { ...finding, involvedUids: [...set] };
+}
+
+/** Revisjonsspor: bare nye dokumenter, med hendelsens egen id. Skjermede saker i egen samling. */
+export async function appendAudit(companyId, events, { restricted = false } = {}) {
   const id = cid(companyId);
   if (!id || !events?.length) return;
   try {
     const batch = writeBatch(db);
-    for (const ev of events) batch.set(doc(db, 'families', id, 'isoAudit', ev.id), plain(ev));
+    for (const ev of events) batch.set(doc(db, 'families', id, restricted ? 'isoAuditRestricted' : 'isoAudit', ev.id), plain(ev));
     await batch.commit();
   } catch {
     /* sporet ligger også i objektets historikk */
   }
 }
 
-export async function loadAuditFor(companyId, entityId) {
+export async function loadAuditFor(companyId, entityId, { restricted = false } = {}) {
   const id = cid(companyId);
   if (!id || !entityId) return [];
   try {
-    const snap = await getDocs(query(col(id, 'isoAudit'), where('entityId', '==', entityId)));
+    const snap = await getDocs(query(col(id, restricted ? 'isoAuditRestricted' : 'isoAudit'), where('entityId', '==', entityId)));
     return snap.docs.map((d) => d.data()).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   } catch {
     return [];
@@ -308,4 +414,14 @@ export async function completeIsoTask(companyId, key) {
 
 export function clearIsoMemory() {
   MEMORY.clear();
+}
+
+/** Fjerner lokale kopier for alle brukere på enheten (utlogging / brukerbytte). */
+export async function clearIsoCache() {
+  MEMORY.clear();
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter((k) => k.startsWith(CACHE_KEY));
+    if (mine.length) await AsyncStorage.multiRemove(mine);
+  } catch { /* ignorer */ }
 }

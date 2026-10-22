@@ -5,6 +5,9 @@ import { auditEvent, bump, nowIso, prettyDate } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS } from '../../src/iso/catalog';
 import { markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
 import { setupDefaultsFromCompany } from '../../src/iso/integrations';
+import { roleAccessCheck, restrictedUids } from '../../src/iso/access';
+import { aclFor } from '../../src/iso/aclSync';
+import { saveRestrictedGrants } from '../../src/iso/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
 import {
   Banner, Btn, Card, Check, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
@@ -66,7 +69,14 @@ export default function IsoSettings({ ctx }) {
 
   const set = (k) => (x) => setV((cur) => ({ ...cur, [k]: x }));
   const scopeChanged = !first && (v.scopeText !== sys.scopeText || v.units !== sys.units || v.locations !== sys.locations || v.activities !== sys.activities || (v.standards || []).join() !== (sys.standards || []).join());
-  const restricted = v.restrictedAccess || [];
+  const rankFor = useMemo(() => {
+    const cache = new Map();
+    return (u) => {
+      if (!cache.has(u)) cache.set(u, aclFor({ family: ctx.family, employees: ctx.accessEmployees, uid: u }).iso);
+      return cache.get(u);
+    };
+  }, [ctx.family, ctx.accessEmployees]);
+  const roleCheck = useMemo(() => roleAccessCheck(v.roleMap, rankFor), [v.roleMap, rankFor]);
 
   async function save() {
     setErr(''); setMsg(''); setLog([]);
@@ -145,12 +155,21 @@ export default function IsoSettings({ ctx }) {
         </View>
       </Card>
 
-      <Card title="Tilgang til skjermede HMS-saker" subtitle="Personskader og saker med person-/helseopplysninger. HMS-leder og systemansvarlig har alltid tilgang. Den som meldte eller er tildelt en sak, ser den alltid.">
-        {restricted.map((p) => (
-          <ListRow key={p.uid || p.name} icon="lock-closed-outline" title={p.name} right={<Btn small kind="danger" label="Fjern" onPress={() => set('restrictedAccess')(restricted.filter((x) => x !== p))} />} />
+      <Card title="Roller og tilgang" subtitle="Rollene gir ikke tilgang av seg selv. Her ser du om personene har nivået rollen trenger i tilgangsmatrisen.">
+        {!roleCheck.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Velg personer til rollene over.</Text> : null}
+        {roleCheck.map((r) => (
+          <ListRow
+            key={r.role}
+            icon={r.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+            tone={r.ok ? 'ok' : 'warn'}
+            title={`${r.person.label || r.role}: ${r.person.name}`}
+            subtitle={r.ok ? `Har ${r.hasLabel}` : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}`}
+          />
         ))}
-        <PersonPick people={people.filter((p) => !restricted.some((x) => x.uid === p.uid && x.name === p.name))} value="" placeholder="Gi en person tilgang" onChange={(p) => p.name && set('restrictedAccess')([...restricted, { name: p.name, uid: p.uid }])} />
+        {roleCheck.some((r) => !r.ok) && requestTab ? <Btn small icon="key-outline" label="Gi tilgang i tilgangsstyring" onPress={() => requestTab('selskap', 'tilgang')} /> : null}
       </Card>
+
+      <RestrictedAccessCard ctx={ctx} />
 
       <Card title="Risikometode" subtitle={`${v.riskMethod?.name || DEFAULT_RISK_METHOD.name} · versjon ${v.riskMethod?.version || '1.0'}. Endring gir ny metodeversjon; eldre vurderinger beholder sin.`}>
         <Row>
@@ -185,5 +204,61 @@ export default function IsoSettings({ ctx }) {
         {first ? <Pill label="Ingen eksempeldata legges inn" tone="info" /> : null}
       </Row>
     </Page>
+  );
+}
+
+/**
+ * Særskilt tilgang til skjermede HMS- og personsaker. Lagres for seg (isoRestricted/main) og
+ * håndheves i Firestore-reglene. Ingen får den automatisk – heller ikke eier eller ISO-admin.
+ * Bare eier, eller en som selv står på listen og er ISO-admin, kan endre listen.
+ */
+function RestrictedAccessCard({ ctx }) {
+  const colors = useColors();
+  const { state, caps, people, store, actor, companyId } = ctx;
+  const grants = state.restrictedGrants || { people: [], uids: [] };
+  const [list, setList] = useState(grants.people || []);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { setList(grants.people || []); }, [grants.rev, (grants.people || []).length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dirty = JSON.stringify((list || []).map((p) => p.uid)) !== JSON.stringify((grants.people || []).map((p) => p.uid));
+  const mine = restrictedUids(grants).has(actor.uid);
+
+  async function save() {
+    setBusy(true); setErr('');
+    try {
+      await saveRestrictedGrants(companyId, list, { actor });
+      await store.reload();
+    } catch {
+      setErr('Kunne ikke lagre. Bare eieren, eller en som står på listen og er ISO-admin, kan endre den.');
+    }
+    setBusy(false);
+  }
+
+  if (!grants.readable && !caps.canGrantRestricted) {
+    return (
+      <Card title="Tilgang til skjermede HMS-saker">
+        <Text style={{ color: colors.muted, fontSize: 13 }}>Listen styres av eieren av selskapet. Du har ikke særskilt tilgang.</Text>
+      </Card>
+    );
+  }
+  return (
+    <Card
+      title="Tilgang til skjermede HMS-saker"
+      subtitle="Personskader og saker med person- eller helseopplysninger. Bare personene her ser alle skjermede saker. Den som meldte, er tildelt eller eier et tiltak, ser sin egen sak. Ingen får tilgang automatisk."
+      right={mine ? <Pill label="Du har tilgang" icon="lock-open-outline" tone="info" /> : null}
+    >
+      {!(list || []).length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen har særskilt tilgang ennå.</Text> : null}
+      {(list || []).map((p) => (
+        <ListRow key={p.uid} icon="lock-closed-outline" title={p.name} right={caps.canGrantRestricted ? <Btn small kind="danger" label="Fjern" onPress={() => setList(list.filter((x) => x.uid !== p.uid))} /> : null} />
+      ))}
+      {caps.canGrantRestricted ? (
+        <>
+          <PersonPick people={people.filter((p) => p.uid && !(list || []).some((x) => x.uid === p.uid))} value="" placeholder="Gi en person særskilt tilgang" onChange={(p) => p.uid && setList([...(list || []), { name: p.name, uid: p.uid }])} />
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Bare ansatte med innlogging kan få tilgang. Endringen logges.</Text>
+          {dirty ? <Btn kind="primary" icon="save-outline" label="Lagre tilgangslisten" busy={busy} onPress={save} /> : null}
+        </>
+      ) : null}
+      {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
+    </Card>
   );
 }

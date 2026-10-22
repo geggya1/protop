@@ -54,6 +54,7 @@ export function emptyIsoState() {
     evidence: [],
     evidenceLinks: [],
     records: Object.fromEntries(Object.keys(REGISTERS).map((k) => [k, []])),
+    restrictedGrants: { uids: [], people: [], readable: false },
   };
 }
 
@@ -79,6 +80,7 @@ export function isSetUp(state) {
 export function stateFromCollections(parts) {
   const state = emptyIsoState();
   state.system = normalizeSystem(parts.system);
+  state.restrictedGrants = parts.restrictedGrants || { uids: [], people: [], readable: false };
   for (const key of ['processes', 'instances', 'documents', 'forms', 'submissions', 'requirements', 'assessments', 'evidence', 'evidenceLinks']) {
     state[key] = Array.isArray(parts[key]) ? parts[key].filter((r) => r?.id) : [];
   }

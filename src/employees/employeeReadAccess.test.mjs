@@ -9,11 +9,10 @@ assert.match(screen, /const limitedPerson = !!selected && !isAdmin && selected\.
 // Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
 assert.match(screen, /READER_PERSON_VIEWS = new Set\(\['detail'\]\)/);
 assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'report', 'absence'\]\)/);
-assert.match(screen, /<EconomyHours [^>]*readOnly=\{readOnlyPerson\} \/>/);
+assert.match(screen, /<ArbeidScreen\s+lockedEmployeeId=\{selected\.id\}\s+embedded\s+readOnly=\{readOnlyPerson\}/);
 assert.match(screen, /employeesAdmin = [\s\S]{0,120}canAdmin\('employees'\)/);
 assert.match(screen, /allowedTabViews\(selected, tab\.id\)\.length > 0/);
 assert.match(screen, /nativeID="employee-sub-tabs"/);
-assert.match(screen, /<ArbeidScreen lockedEmployeeId=\{selected\.id\} embedded readOnly=\{readOnlyPerson\} \/>/);
 assert.match(screen, /readOnly=\{readOnlyPerson\}/);
 assert.match(screen, /canDelete=\{employeesAdmin\}/);
 assert.match(screen, /const canInvite = employeesAdmin/);
@@ -56,8 +55,6 @@ assert.match(detail, /gaps && !limited && showAdminCards/);
 assert.match(detail, /limited \|\| !showAdminCards \? null/);
 
 // Tannhjul og «Skriv ut utvalg» på timelisten skjules i skrivebeskyttet modus.
-assert.match(arbeid, /\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{\(\) => setReportMenuOpen\(true\)\}/);
-assert.match(arbeid, /\{isPhone \|\| readOnly \? null : \(/);
 
 const report = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
 assert.ok((report.match(/if \(readOnly\) return;/g) || []).length >= 4);
@@ -67,5 +64,34 @@ assert.equal((report.match(/\{readOnly \? null : \(\s*<TouchableOpacity\s+onPres
 assert.match(report, /const Shell = embedded \? ScrollView : View;/);
 // Fraværsoversikten er venstrestilt.
 assert.match(absence, /frame: \{[^}]*alignSelf: 'flex-start'/);
+
+// Egen profil følger «Egen profil» (ownProfile).
+assert.match(screen, /SELF_EDITOR_VIEWS = new Set\(\['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv'\]\)/);
+assert.match(screen, /access\.canEdit\('ownProfile'\) \? 'editor' : 'reader'/);
+assert.match(screen, /fullPersonAccess = employeesAdmin \|\| \(selfSelected && ownLevel === 'admin'\)/);
+assert.match(screen, /hideReportTools=\{!fullPersonAccess\}/);
+assert.match(screen, /memberProjectsOnly=\{!fullPersonAccess\}/);
+assert.match(screen, /hideBillable=\{!fullPersonAccess\} embedded readOnly=\{!fullPersonAccess\}/);
+assert.match(screen, /<TimesaldoScreen [^>]*readOnly=\{!fullPersonAccess\}/);
+assert.match(screen, /<ProjectExpensesScreen [^>]*canImport=\{fullPersonAccess\}/);
+assert.match(screen, /canEdit=\{fullPersonAccess \|\| selfEditor\}\s*canDelete=\{fullPersonAccess\}/);
+assert.match(screen, /canEdit=\{isAdmin \|\| \(detailEmployee\.personUid === uid && ownLevel !== 'reader'\)\}/);
+
+// Timelisten: «Skriv ut utvalg» ligger under tannhjulet, som kan skjules.
+assert.match(arbeid, /\{readOnly \|\| hideReportTools \? null : \(/);
+assert.match(arbeid, /includeJoinable: !memberProjectsOnly/);
+const gearPanel = arbeid.slice(arbeid.indexOf('nativeID="arbeid-report-panel"'));
+assert.match(gearPanel.slice(0, 2500), /nativeID="timesheet-print"/);
+assert.equal((arbeid.match(/nativeID="timesheet-print"/g) || []).length, 1);
+
+const saldo = readFileSync(new URL('../../screens/arbeid/TimesaldoScreen.jsx', import.meta.url), 'utf8');
+assert.match(saldo, /\{readOnly \? \(\s*<Text/);
+
+const expensesUi = readFileSync(new URL('../../screens/economy/ProjectExpensesScreen.jsx', import.meta.url), 'utf8');
+assert.match(expensesUi, /\{canImport \? \(/);
+assert.match(expensesUi, /sideFilters \? <View style=\{styles\.side\}>\{filterPanel\}<\/View> : null/);
+
+const companyAbsence = readFileSync(new URL('../../screens/arbeid/CompanyAbsenceDesktop.jsx', import.meta.url), 'utf8');
+assert.match(companyAbsence, /\{canChooseEmployee \? \(\s*<View style=\{styles\.kpis\}>/);
 
 console.log('employeeReadAccess.test.mjs: ok');

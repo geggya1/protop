@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
 import { loadAnbudState } from '../../src/anbud/storage';
@@ -63,8 +64,11 @@ function Choice({ label, on, onPress, colors }) {
   );
 }
 
-export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false } = {}) {
+export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false, canImport = true } = {}) {
   const colors = useColors();
+  const { width } = useLayout();
+  // Brede skjermer: filter og sortering i høyre marg, som på Timer.
+  const sideFilters = width >= 1100;
   const hostedHero = useModuleHeroHosted();
   const workspace = useTimesheetWorkspace({ lockedEmployeeId });
   const [customers, setCustomers] = useState([]);
@@ -135,6 +139,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
   );
 
   async function importFile() {
+    if (!canImport) return;
     setError('');
     const file = await pickDocument({ accept: EXPENSE_IMPORT_ACCEPT });
     if (!file) return;
@@ -248,8 +253,84 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
     ['status', 'Status'],
   ];
 
+  const filterPanel = (
+    <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-filters">
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Søk i beskrivelse, kunde, prosjekt…"
+        placeholderTextColor={colors.placeholder || colors.muted}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      />
+      <Text style={[styles.label, { color: colors.muted }]}>Periode</Text>
+      <View style={styles.rowWrap}>
+        {EXPENSE_PERIODS.map((item) => (
+          <Choice key={item.id} label={item.label} on={period === item.id} onPress={() => setPeriod(item.id)} colors={colors} />
+        ))}
+      </View>
+      {period === 'custom' ? (
+        <View style={styles.rowWrap}>
+          <TextInput
+            value={fromDate}
+            onChangeText={setFromDate}
+            onBlur={() => setFromDate((value) => parseDate(value) || value)}
+            placeholder="Fra dato"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
+          />
+          <TextInput
+            value={toDate}
+            onChangeText={setToDate}
+            onBlur={() => setToDate((value) => parseDate(value) || value)}
+            placeholder="Til dato"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
+          />
+        </View>
+      ) : null}
+      <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
+      <View style={styles.rowWrap}>
+        {EXPENSE_SORT_OPTIONS.map((item) => (
+          <Choice key={item.id} label={item.label} on={sort === item.id} onPress={() => setSort(item.id)} colors={colors} />
+        ))}
+      </View>
+      <Text style={[styles.label, { color: colors.muted }]}>Status</Text>
+      <View style={styles.rowWrap}>
+        <Choice label="Alle" on={!status} onPress={() => setStatus('')} colors={colors} />
+        {EXPENSE_STATUSES.map((item) => (
+          <Choice key={item.id} label={item.label} on={status === item.id} onPress={() => setStatus(item.id)} colors={colors} />
+        ))}
+      </View>
+      {workspace.lockedId ? null : (
+        <TextInput
+          value={employeeQuery}
+          onChangeText={setEmployeeQuery}
+          placeholder="Filtrer medarbeider"
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+        />
+      )}
+      <TextInput
+        value={customerQuery}
+        onChangeText={setCustomerQuery}
+        placeholder="Filtrer kunde"
+        placeholderTextColor={colors.muted}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      />
+      <TextInput
+        value={projectQuery}
+        onChangeText={setProjectQuery}
+        placeholder="Filtrer prosjekt"
+        placeholderTextColor={colors.muted}
+        style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      />
+    </View>
+  );
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="prosjektutlegg">
+      <View style={sideFilters ? styles.desk : styles.stack}>
+      <View style={sideFilters ? styles.mainCol : styles.stack}>
       {hostedHero || embedded ? null : (
         <>
           <Text style={[styles.crumb, { color: colors.muted }]}>Økonomi / Prosjektutlegg</Text>
@@ -258,9 +339,12 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
         </>
       )}
       <View style={styles.toolbar}>
+        {sideFilters ? null : (
         <TouchableOpacity onPress={() => setFiltersOpen((open) => !open)} accessibilityRole="button" style={[styles.choice, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>{filtersOpen ? 'Skjul filter' : 'Filter og sortering'}</Text>
         </TouchableOpacity>
+        )}
+        {canImport ? (
         <TouchableOpacity
           onPress={importFile}
           disabled={busy}
@@ -271,6 +355,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>{busy ? 'Leser…' : 'Importer fra fil'}</Text>
         </TouchableOpacity>
+        ) : null}
       </View>
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.muted }}>{note}</Text>}
@@ -278,79 +363,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
         {remoteReady ? `${visible.length} av ${allRows.length} utlegg` : 'Laster utlegg…'}
       </Text>
 
-      {filtersOpen ? (
-        <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-filters">
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Søk i beskrivelse, kunde, prosjekt…"
-            placeholderTextColor={colors.placeholder || colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <Text style={[styles.label, { color: colors.muted }]}>Periode</Text>
-          <View style={styles.rowWrap}>
-            {EXPENSE_PERIODS.map((item) => (
-              <Choice key={item.id} label={item.label} on={period === item.id} onPress={() => setPeriod(item.id)} colors={colors} />
-            ))}
-          </View>
-          {period === 'custom' ? (
-            <View style={styles.rowWrap}>
-              <TextInput
-                value={fromDate}
-                onChangeText={setFromDate}
-                onBlur={() => setFromDate((value) => parseDate(value) || value)}
-                placeholder="Fra dato"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-              />
-              <TextInput
-                value={toDate}
-                onChangeText={setToDate}
-                onBlur={() => setToDate((value) => parseDate(value) || value)}
-                placeholder="Til dato"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-              />
-            </View>
-          ) : null}
-          <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
-          <View style={styles.rowWrap}>
-            {EXPENSE_SORT_OPTIONS.map((item) => (
-              <Choice key={item.id} label={item.label} on={sort === item.id} onPress={() => setSort(item.id)} colors={colors} />
-            ))}
-          </View>
-          <Text style={[styles.label, { color: colors.muted }]}>Status</Text>
-          <View style={styles.rowWrap}>
-            <Choice label="Alle" on={!status} onPress={() => setStatus('')} colors={colors} />
-            {EXPENSE_STATUSES.map((item) => (
-              <Choice key={item.id} label={item.label} on={status === item.id} onPress={() => setStatus(item.id)} colors={colors} />
-            ))}
-          </View>
-          {workspace.lockedId ? null : (
-            <TextInput
-              value={employeeQuery}
-              onChangeText={setEmployeeQuery}
-              placeholder="Filtrer medarbeider"
-              placeholderTextColor={colors.muted}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-            />
-          )}
-          <TextInput
-            value={customerQuery}
-            onChangeText={setCustomerQuery}
-            placeholder="Filtrer kunde"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <TextInput
-            value={projectQuery}
-            onChangeText={setProjectQuery}
-            placeholder="Filtrer prosjekt"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-          />
-        </View>
-      ) : null}
+      {!sideFilters && filtersOpen ? filterPanel : null}
 
       <ScrollView horizontal>
         <View style={{ minWidth: 980 }}>
@@ -386,12 +399,19 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false 
           <Text style={{ color: colors.brand, fontWeight: '600' }}>Vis flere ({pageSize} av {visible.length})</Text>
         </TouchableOpacity>
       ) : null}
+      </View>
+      {sideFilters ? <View style={styles.side}>{filterPanel}</View> : null}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 10, paddingBottom: 48 },
+  stack: { gap: 10 },
+  desk: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, width: '100%' },
+  mainCol: { flex: 1, minWidth: 0, gap: 10 },
+  side: { width: 300, flexShrink: 0 },
   crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },

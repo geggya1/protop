@@ -368,12 +368,14 @@ export function CompanyAbsenceDesktop({
             </View>
           </View>
 
+          {canChooseEmployee ? (
           <View style={styles.kpis}>
             <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" pending={peopleLoading} pendingId="fravaer-loading-kpi-ansatte" onPress={() => openSource('headcount')} />
             <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} pending={boardPending} pendingId="fravaer-loading-kpi-ferie" onPress={() => openSource('away-ferie')} />
             <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} pending={boardPending} pendingId="fravaer-loading-kpi-syk" onPress={() => openSource('away-sykdom')} />
             <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} pending={boardPending} pendingId="fravaer-loading-kpi-annet" onPress={() => openSource('away-annet')} />
           </View>
+          ) : null}
 
           {view === 'diagram' ? (
             <>

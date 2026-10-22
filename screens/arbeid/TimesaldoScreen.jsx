@@ -35,7 +35,9 @@ function todayKey() {
   return toDateKey(new Date());
 }
 
-export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '', embedded = false } = {}) {
+export default function TimesaldoScreen({
+  lockedEmployeeId = '', companyId = '', embedded = false, readOnly = false,
+} = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { family, isAdmin } = useApp();
@@ -251,6 +253,9 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
                 <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'opening' ? '' : formatHours(row.payrollIncl)}</Text>
                 <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'opening' ? '' : formatHours(row.payrollExcl)}</Text>
                 <Text style={[styles.cell, { color: colors.ink }]}>{row.kind === 'opening' ? '' : formatHours(row.flex, { signed: true })}</Text>
+                {readOnly ? (
+                  <Text style={[styles.cell, { color: colors.ink }]}>{formatHours(row.adjustment || 0)}</Text>
+                ) : (
                 <TouchableOpacity
                   onPress={() => { setEdit(row); setDraft(formatHours(row.adjustment || 0)); }}
                   style={styles.cell}
@@ -261,6 +266,7 @@ export default function TimesaldoScreen({ lockedEmployeeId = '', companyId = '',
                   <Text style={{ color: colors.ink }}>{formatHours(row.adjustment || 0)}</Text>
                   <Ionicons name="pencil" size={12} color={colors.brand} />
                 </TouchableOpacity>
+                )}
                 <Text style={[styles.cell, { color: colors.ink, fontWeight: '700' }]}>{formatHours(row.saldo)}</Text>
               </View>
             ))}

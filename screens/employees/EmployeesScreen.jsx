@@ -87,6 +87,7 @@ import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
+import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
@@ -110,6 +111,8 @@ async function bytesFromFile(file) {
 // Views (ikke faner) andre ansatte kan se per nivå. Admin og personen selv ser alt.
 const READER_PERSON_VIEWS = new Set(['detail']);
 const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'absence']);
+// Egen profil med begrenset redigering: holde egen profil oppdatert. Inntjening og Innstillinger krever Admin.
+const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv']);
 
 export default function EmployeesScreen() {
   const colors = useColors();
@@ -254,8 +257,21 @@ export default function EmployeesScreen() {
   // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
   const limitedPerson = !!selected && !isAdmin && selected.personUid !== uid;
   const readOnlyPerson = !!selected && !employeesAdmin && selected.personUid !== uid;
+  // Egen profil følger «Egen profil» i tilgangsstyringen: Lese, begrenset redigering eller Admin.
+  const ownLevel = employeesAdmin || (groupAdmin && !access.previewLocks('ownProfile'))
+    || (access.ready && access.canAdmin('ownProfile'))
+    ? 'admin'
+    : (access.ready && access.canEdit('ownProfile') ? 'editor' : 'reader');
+  const selfSelected = !!selected?.personUid && selected.personUid === uid;
+  // Full tilgang til personens sider: Admin på ansatte, eller Admin på egen profil.
+  const fullPersonAccess = employeesAdmin || (selfSelected && ownLevel === 'admin');
+  const selfEditor = selfSelected && ownLevel === 'editor';
   function personTabsAllowed(row) {
-    if (employeesAdmin || (!!row?.personUid && row.personUid === uid)) return null;
+    if (employeesAdmin) return null;
+    if (!!row?.personUid && row.personUid === uid) {
+      if (ownLevel === 'admin') return null;
+      return ownLevel === 'editor' ? SELF_EDITOR_VIEWS : READER_PERSON_VIEWS;
+    }
     return isAdmin ? EDITOR_PERSON_VIEWS : READER_PERSON_VIEWS;
   }
   function personViewAllowed(row, nextView) {
@@ -269,7 +285,7 @@ export default function EmployeesScreen() {
   }
   useEffect(() => {
     if (selected && PERSON_VIEWS.has(view) && !personViewAllowed(selected, view)) setView('detail');
-  }, [selected, view, isAdmin, employeesAdmin, uid]);
+  }, [selected, view, isAdmin, employeesAdmin, ownLevel, uid]);
   const mine = useMemo(() => ownEmployee(rows, {
     uid,
     emails: [
@@ -1391,12 +1407,18 @@ export default function EmployeesScreen() {
       <View style={styles.personFill}>
         {view === 'hours' ? (
           <View style={styles.hoursHost} nativeID="employee-hours-view">
-            <ArbeidScreen lockedEmployeeId={selected.id} embedded readOnly={readOnlyPerson} />
+            <ArbeidScreen
+              lockedEmployeeId={selected.id}
+              embedded
+              readOnly={readOnlyPerson}
+              hideReportTools={!fullPersonAccess}
+              memberProjectsOnly={!fullPersonAccess}
+            />
           </View>
         ) : null}
         {view === 'report' ? (
           <View style={styles.hoursHost} nativeID="employee-report-view">
-            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded readOnly={readOnlyPerson} />
+            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!fullPersonAccess} embedded readOnly={!fullPersonAccess} />
           </View>
         ) : null}
         {view === 'absence' ? (
@@ -1416,12 +1438,12 @@ export default function EmployeesScreen() {
         ) : null}
         {view === 'saldo' ? (
           <View nativeID="employee-saldo-view" style={styles.personFill}>
-            <TimesaldoScreen lockedEmployeeId={selected.id} embedded />
+            <TimesaldoScreen lockedEmployeeId={selected.id} embedded readOnly={!fullPersonAccess} />
           </View>
         ) : null}
         {view === 'expenses' ? (
           <View nativeID="employee-expenses-view" style={styles.personFill}>
-            <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded />
+            <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded canImport={fullPersonAccess} />
           </View>
         ) : null}
       </View>
@@ -1567,7 +1589,15 @@ export default function EmployeesScreen() {
           ) : null}
 
           {view === 'files' ? (
-            <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
+            <EmployeeFilesView
+              companyId={familyId}
+              employee={selected}
+              colors={colors}
+              uid={uid}
+              canEdit={fullPersonAccess || selfEditor}
+              canDelete={fullPersonAccess}
+              expenses={projectState.expenses || []}
+            />
           ) : null}
 
           {view === 'earnings' && (access.canView('economyEarnings') || access.canView('economy')) ? (
@@ -1622,7 +1652,7 @@ export default function EmployeesScreen() {
               addressHits={addressHits}
               reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
               gaps={gaps}
-              canEdit={isAdmin || detailEmployee.personUid === uid}
+              canEdit={isAdmin || (detailEmployee.personUid === uid && ownLevel !== 'reader')}
               canEditAccess={canEditAccess}
               isAdmin={isAdmin}
               isSelf={detailEmployee.personUid === uid}

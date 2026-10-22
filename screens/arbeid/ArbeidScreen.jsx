@@ -123,6 +123,10 @@ export default function ArbeidScreen({
   embedded = false,
   // Bare visning (begrenset redigering på ansattsiden): ingen føring, flytting eller låsing.
   readOnly = false,
+  // Skjul tannhjulet (rapport, eksport og utskrift).
+  hideReportTools = false,
+  // «Legg til prosjekt» viser bare prosjekter personen er registrert i.
+  memberProjectsOnly = false,
 } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
@@ -371,13 +375,13 @@ export default function ArbeidScreen({
     if (!employeeId || assignedOnly) return [];
     const mine = new Set(myProjects.map((row) => row.project.id));
     return projectsForEmployee(state, employeeId, {
-      includeJoinable: true,
+      includeJoinable: !memberProjectsOnly,
       fromDate: monthFromDate,
       toDate: monthToDate,
       includeHourProjects: true,
     })
       .filter((project) => !mine.has(project.id));
-  }, [state, employeeId, myProjects, assignedOnly, monthFromDate, monthToDate]);
+  }, [state, employeeId, myProjects, assignedOnly, memberProjectsOnly, monthFromDate, monthToDate]);
 
   const entriesForCell = useMemo(() => {
     const map = new Map();
@@ -1089,7 +1093,7 @@ export default function ArbeidScreen({
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
-          {readOnly ? null : (
+          {readOnly || hideReportTools ? null : (
           <TouchableOpacity
             onPress={() => setReportMenuOpen(true)}
             accessibilityRole="button"
@@ -1100,18 +1104,6 @@ export default function ArbeidScreen({
           >
             <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
           </TouchableOpacity>
-          )}
-          {isPhone || readOnly ? null : (
-            <TouchableOpacity
-              onPress={printSelection}
-              accessibilityRole="button"
-              accessibilityLabel="Skriv ut utvalg"
-              nativeID="timesheet-print"
-              style={[styles.ctaGhost, { borderColor: colors.line, marginLeft: 4, flexDirection: 'row', gap: 6 }]}
-            >
-              <Ionicons name="print-outline" size={16} color={colors.ink} />
-              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
-            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -1152,6 +1144,21 @@ export default function ArbeidScreen({
             <Ionicons name="download-outline" size={16} color={colors.ink} />
             <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eksporter CSV</Text>
           </TouchableOpacity>
+          {isPhone ? null : (
+            <TouchableOpacity
+              onPress={() => {
+                setReportMenuOpen(false);
+                printSelection();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Skriv ut utvalg"
+              nativeID="timesheet-print"
+              style={[styles.ctaGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6, alignSelf: 'flex-start' }]}
+            >
+              <Ionicons name="print-outline" size={16} color={colors.ink} />
+              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollSheet>
 

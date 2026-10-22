@@ -148,7 +148,12 @@ export function aliasFamilyIds(canonical, families = []) {
       if (!group?.id || group.id === canonical.id || ids.includes(group.id)) return;
       const org = companyOrgnr(group);
       if (!extra.has(org)) return;
-      if (companyNameKey(group) !== companyNameKey(canonical) && !isUnderenhetWorkspace(group)) return;
+      // Annet navn er bare alias når Brreg sier at det er en underenhet av hovednummeret.
+      // Et eget selskap koblet under (parentCompanyId) skal aldri få dataene slått sammen.
+      if (companyNameKey(group) !== companyNameKey(canonical)) {
+        const over = digits(group?.company?.overordnetEnhet || group?.overordnetEnhet);
+        if (!over || over !== companyOrgnr(canonical)) return;
+      }
       ids.push(group.id);
     });
   }

@@ -84,7 +84,7 @@ export default function EconomyBilling() {
       loadProjectExpenses(familyId).catch(() => []),
       loadProductSales(familyId).catch(() => []),
       loadAnbudState(familyId).catch(() => null),
-      loadCases().catch(() => []),
+      loadCases(familyId).catch(() => []),
       loadIndexCache().catch(() => null),
       loadRemoteIndexSnapshot().catch(() => null),
     ]).then(([projects, inv, remoteExpenses, remoteSales, anbud, cases, cache, remote]) => {

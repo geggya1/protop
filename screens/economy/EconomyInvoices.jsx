@@ -591,7 +591,7 @@ export default function EconomyInvoices({
     Promise.all([
       loadAnbudState(familyId).catch(() => null),
       loadProjectState(familyId).catch(() => null),
-      loadCases().catch(() => []),
+      loadCases(familyId).catch(() => []),
       loadIndexCache().catch(() => null),
       loadRemoteIndexSnapshot().catch(() => null),
     ]).then(([anbud, projectState, cases, cache, remote]) => {

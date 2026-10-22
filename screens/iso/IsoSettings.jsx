@@ -146,7 +146,7 @@ export default function IsoSettings({ ctx }) {
       <Card title="Roller" subtitle="Foreslått ut fra stillingstittel i ansattregisteret. Prosesstrinn og nye saker tildeles personen med rollen.">
         <View style={{ flexDirection: wide ? 'row' : 'column', flexWrap: 'wrap', gap: 12 }}>
           {ISO_ROLES.filter((r) => !['employee', 'system_owner'].includes(r.id)).map((r) => (
-            <View key={r.id} style={{ flexBasis: wide ? '48%' : '100%', flexGrow: 1 }}>
+            <View key={r.id} style={wide ? { flexBasis: '48%', flexGrow: 1 } : { width: '100%' }}>
               <Field label={r.label}>
                 <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => setV((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, label: r.label } : null } }))} />
               </Field>
@@ -162,7 +162,7 @@ export default function IsoSettings({ ctx }) {
             key={r.role}
             icon={r.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
             tone={r.ok ? 'ok' : 'warn'}
-            title={`${r.person.label || r.role}: ${r.person.name}`}
+            title={`${ISO_ROLES.find((x) => x.id === r.role)?.label || r.role}: ${r.person.name}`}
             subtitle={r.ok ? `Har ${r.hasLabel}` : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}`}
           />
         ))}

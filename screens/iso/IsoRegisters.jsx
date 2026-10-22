@@ -248,9 +248,9 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
 function Stat({ label, value, hint, tone }) {
   const colors = useColors();
   return (
-    <View style={{ flexGrow: 1, flexBasis: 140, gap: 2, padding: 12, borderRadius: 12, backgroundColor: colors.sunken }}>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: tone === 'warn' ? colors.warn : colors.ink, fontSize: 20, fontWeight: '700' }}>{value}</Text>
+    <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: tone === 'warn' ? colors.warn : colors.ink, fontSize: 24, fontWeight: '700' }}>{value}</Text>
       {hint ? <Text style={{ color: colors.muted, fontSize: 11 }}>{hint}</Text> : null}
     </View>
   );
@@ -787,7 +787,7 @@ export function ProjectQualityPage({ ctx }) {
               right={caps.manage ? (
                 <Row gap={6} wrap={false}>
                   {!r.plan ? <Btn small icon="sparkles-outline" label="Lag plan" onPress={() => setPlan(qualityPlanDraft(r.project, { contracts: sources?.contracts, roleMap: state.system.roleMap }))} /> : null}
-                  {controlForm ? <Btn small label="Kontroll" onPress={() => setFill({ control: controlForm, subjectRef: { projectId: r.project.id } })} /> : null}
+                  {controlForm && (wide || r.plan) ? <Btn small label="Kontroll" onPress={() => setFill({ control: controlForm, subjectRef: { projectId: r.project.id } })} /> : null}
                 </Row>
               ) : null}
               onPress={r.open ? () => go('avvik', { ids: findings.filter((f) => f.projectId === r.project.id).map((f) => f.id), label: name }) : undefined}

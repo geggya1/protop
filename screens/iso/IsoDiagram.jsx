@@ -38,7 +38,7 @@ function NodeBox({ node, diagram, selected, active, done, design, scale, onSelec
     onPanResponderRelease: (evt) => {
       if (moved.current && design) cb.current.onDrop?.(cb.current.node.id);
       else {
-        const ne = evt?.nativeEvent || {};
+        const ne = evt?.nativeEvent || evt || {};
         cb.current.onSelect?.(cb.current.node.id, { additive: !!(ne.shiftKey || ne.metaKey || ne.ctrlKey) });
       }
     },

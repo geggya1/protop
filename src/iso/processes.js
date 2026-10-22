@@ -285,15 +285,18 @@ export function diffDiagrams(a, b) {
   const edgesRemoved = A.edges.filter((e) => !be.has(ek(e)));
   const lanesA = A.lanes.map((l) => l.label).join('|');
   const lanesB = B.lanes.map((l) => l.label).join('|');
-  const total = added.length + removed.length + changed.length + edgesAdded.length + edgesRemoved.length + (lanesA !== lanesB ? 1 : 0);
+  const groupsA = JSON.stringify((A.groups || []).map((g) => [g.label, [...g.nodeIds].sort()]));
+  const groupsB = JSON.stringify((B.groups || []).map((g) => [g.label, [...g.nodeIds].sort()]));
+  const total = added.length + removed.length + changed.length + edgesAdded.length + edgesRemoved.length + (lanesA !== lanesB ? 1 : 0) + (groupsA !== groupsB ? 1 : 0);
   return {
     added, removed, changed, moved, edgesAdded, edgesRemoved,
     lanesChanged: lanesA !== lanesB,
+    groupsChanged: groupsA !== groupsB,
     marks: Object.fromEntries([...added.map((n) => [n.id, 'added']), ...changed.map((c) => [c.id, 'changed'])]),
     total,
     summary: total
       ? [added.length ? `${added.length} nye` : '', removed.length ? `${removed.length} fjernet` : '', changed.length ? `${changed.length} endret` : '',
-        edgesAdded.length || edgesRemoved.length ? `${edgesAdded.length + edgesRemoved.length} koblinger endret` : '', lanesA !== lanesB ? 'baner endret' : '']
+        edgesAdded.length || edgesRemoved.length ? `${edgesAdded.length + edgesRemoved.length} koblinger endret` : '', lanesA !== lanesB ? 'baner endret' : '', groupsA !== groupsB ? 'grupper endret' : '']
         .filter(Boolean).join(' · ')
       : (moved.length ? 'Bare plassering er endret' : 'Ingen forskjeller'),
   };

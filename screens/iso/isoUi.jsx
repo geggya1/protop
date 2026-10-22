@@ -101,7 +101,7 @@ export function Btn({ label, icon, onPress, kind = 'ghost', disabled, small, bus
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={fg} /> : (icon ? <Ionicons name={icon} size={small ? 14 : 16} color={fg} /> : null)}
-      {label ? <Text style={{ color: fg, fontWeight: '600', fontSize: small ? 12 : 14 }} numberOfLines={1}>{label}</Text> : null}
+      {label ? <Text style={{ color: fg, fontWeight: '600', fontSize: small ? 12 : 14, flexShrink: 1 }} numberOfLines={1}>{label}</Text> : null}
     </TouchableOpacity>
   );
 }
@@ -331,7 +331,7 @@ export const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '600', letterSpacing: -0.3 },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10, ...(Platform.OS === 'web' ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' } : {}) },
   cardTitle: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
-  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: 40, alignSelf: 'flex-start' },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: 40, alignSelf: 'flex-start', maxWidth: '100%' },
   btnSmall: { paddingHorizontal: 10, paddingVertical: 6, minHeight: 32, borderRadius: 10 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderWidth: 1, borderRadius: 12, padding: 12 },

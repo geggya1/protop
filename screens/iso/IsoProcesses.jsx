@@ -228,7 +228,14 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
             small
             icon="git-compare-outline"
             label={compareWith ? 'Avslutt sammenligning' : 'Sammenlign versjoner'}
-            onPress={() => setCompareWith(compareWith ? 0 : ((proc.versions || []).filter((v) => v.version !== version?.version).at(-1)?.version || 0))}
+            onPress={() => {
+              if (compareWith) { setCompareWith(0); return; }
+              const list = proc.versions || [];
+              const latest = list.at(-1)?.version;
+              // Vanligst: nyeste utkast mot gjeldende versjon.
+              if (latest && latest !== version?.version) { setCompareWith(version?.version); setShowVersion(latest); return; }
+              setCompareWith(list.filter((v) => v.version < (version?.version || 0)).at(-1)?.version || 0);
+            }}
           />
         ) : null}
       </Row>
@@ -463,6 +470,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   const [multi, setMulti] = useState([]);
   const [multiMode, setMultiMode] = useState(false);
   const dragRef = useRef(null);
+  const modRef = useRef(false);
   const [selEdge, setSelEdge] = useState('');
   const [selLane, setSelLane] = useState('');
   const [connectFrom, setConnectFrom] = useState('');
@@ -516,7 +524,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       return;
     }
     setSelEdge(''); setSelLane('');
-    if (opts.additive || multiMode) {
+    if (opts.additive || modRef.current || multiMode) {
       const cur = selection;
       const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
       setMulti(next.length > 1 ? next : []);
@@ -584,7 +592,9 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   keys.current = { selection, editable, multiAct, undo, redo, diagram, clearSel, connectFrom };
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onMod = (ev) => { modRef.current = !!(ev.shiftKey || ev.metaKey || ev.ctrlKey); };
     const onKey = (ev) => {
+      onMod(ev);
       const t = ev.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const k = keys.current;
@@ -603,7 +613,13 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       if (arrows[ev.key]) { ev.preventDefault(); k.multiAct.nudge(...arrows[ev.key]); }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('keyup', onMod);
+    window.addEventListener('blur', onMod);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keyup', onMod);
+      window.removeEventListener('blur', onMod);
+    };
   }, []);
 
   function removeSelected() {

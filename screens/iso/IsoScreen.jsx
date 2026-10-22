@@ -115,7 +115,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
         });
         if (saved.ok) plans += 1;
       }
-      if (plans) notes.push(`${plans} nye prosjekter har fått kvalitetsplan automatisk`);
+      if (plans) notes.push(plans === 1 ? 'Ett nytt prosjekt har fått kvalitetsplan automatisk' : `${plans} nye prosjekter har fått kvalitetsplan automatisk`);
       const effects = autoTaskEffects(store.current(), { people: sources.people });
       const n = effects.length ? await store.runEffects(effects) : 0;
       if (n) notes.push(`${n} påminnelser og eskaleringer ligger som oppgaver i Oppgaver`);

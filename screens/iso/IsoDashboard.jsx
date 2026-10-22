@@ -69,23 +69,6 @@ export default function IsoDashboard({ ctx }) {
     >
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
 
-      {caps.manage && ready.done < ready.total ? (
-        <Card title={`Neste steg · ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.sunken }}>
-            <View style={{ width: `${Math.round((ready.done / ready.total) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: colors.brand }} />
-          </View>
-          {ready.items.filter((i) => !i.done).slice(0, 4).map((i) => (
-            <ListRow key={i.key} icon="ellipse-outline" title={i.label} onPress={() => go(i.page)} right={<Ionicons name="chevron-forward" size={16} color={colors.muted} />} />
-          ))}
-        </Card>
-      ) : null}
-
-      {insights.length ? (
-        <Card title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
-          {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => go(x.page, x.params || {})} />)}
-        </Card>
-      ) : null}
-
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {cards.map((k) => (
           <TouchableOpacity
@@ -106,6 +89,27 @@ export default function IsoDashboard({ ctx }) {
           </TouchableOpacity>
         ))}
       </View>
+
+      {(caps.manage && ready.done < ready.total) || insights.length ? (
+        <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
+      {caps.manage && ready.done < ready.total ? (
+            <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title={`Neste steg · ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.sunken }}>
+                <View style={{ width: `${Math.round((ready.done / ready.total) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: colors.brand }} />
+              </View>
+              {ready.items.filter((i) => !i.done).slice(0, 4).map((i) => (
+                <ListRow key={i.key} icon="ellipse-outline" title={i.label} onPress={() => go(i.page)} />
+              ))}
+            </Card>
+          ) : null}
+
+          {insights.length ? (
+            <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
+              {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => go(x.page, x.params || {})} />)}
+            </Card>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
         <Card style={{ flex: 3 }} title="Nye og lukkede avvik" right={<Choice small options={[{ id: '6', label: '6 mnd' }, { id: '12', label: '12 mnd' }]} value={months} onChange={(v) => setMonths(v || '6')} />}>
